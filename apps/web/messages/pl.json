@@ -1459,6 +1459,8 @@
           "needs": "Potrzeby",
           "wants": "Zachcianki",
           "includeRunningMonth": "Wlicz bieżący miesiąc (w trakcie)",
+          "runningMonthCounted": "Bieżący miesiąc wliczony",
+          "runningMonthSkipped": "Bieżący miesiąc pominięty",
           "fromPlan": "Wydane z planu",
           "fromReserve": "Użyte rezerwy",
           "overspent": "Przekroczenie",

@@ -1459,6 +1459,8 @@
           "needs": "Потреби",
           "wants": "Бажання",
           "includeRunningMonth": "Враховувати поточний місяць (ще триває)",
+          "runningMonthCounted": "Поточний місяць враховано",
+          "runningMonthSkipped": "Поточний місяць пропущено",
           "fromPlan": "Витрачено з плану",
           "fromReserve": "Використано резерви",
           "overspent": "Перевитрата",

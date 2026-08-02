@@ -26,8 +26,10 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  ReferenceLine,
+  usePlotArea,
+  useXAxisScale,
   ReferenceArea,
+  Customized,
   LabelList,
   Tooltip,
 } from "recharts";
@@ -178,6 +180,25 @@ function VarianceLabel(props: {
   );
 }
 
+/** The centre line, as a plain child so its paint order is ours to choose. */
+function ZeroLine() {
+  const xScale = useXAxisScale();
+  const plot = usePlotArea();
+  if (!xScale || !plot) return null;
+  const x = xScale(0) as number;
+  if (!Number.isFinite(x)) return null;
+  return (
+    <line
+      x1={x}
+      x2={x}
+      y1={plot.y}
+      y2={plot.y + plot.height}
+      stroke={CHART_THEME.axis}
+      strokeOpacity={0.6}
+    />
+  );
+}
+
 export function OverviewDivergingBarChart({
   data,
   categoryKey,
@@ -286,8 +307,10 @@ export function OverviewDivergingBarChart({
             tick={<CategoryTick width={72} />}
             interval={0}
           />
-          {/* Zero line last among the references so it reads on top of the band. */}
-          <ReferenceLine x={0} stroke={CHART_THEME.axis} strokeOpacity={0.6} />
+          {/* Drawn here, BEFORE the bars, so an on-plan category's mark reads on
+              top of the line rather than under it. recharts 3 always paints a
+              <ReferenceLine> after the bars, whatever the child order. */}
+          <Customized component={<ZeroLine />} />
           <Tooltip
             active={activeIndex !== null}
             wrapperStyle={{ pointerEvents: "none" }}

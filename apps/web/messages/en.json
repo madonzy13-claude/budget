@@ -1436,6 +1436,8 @@
           "needs": "Needs",
           "wants": "Wants",
           "includeRunningMonth": "Count this month (still running)",
+          "runningMonthCounted": "This month counted",
+          "runningMonthSkipped": "This month left out",
           "fromPlan": "Planned spent",
           "fromReserve": "Used reserves",
           "overspent": "Overspent",

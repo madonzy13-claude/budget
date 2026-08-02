@@ -61,8 +61,9 @@ export function RangeSelector({
         title={label}
         data-testid={direction < 0 ? "range-step-back" : "range-step-forward"}
         className={cn(
-          "shrink-0 rounded-full p-1.5 transition-colors min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0",
-          "flex items-center justify-center",
+          // Narrow but full-height: the pills need the width on a phone, the
+          // finger needs the height.
+          "flex w-8 shrink-0 items-center justify-center rounded-full transition-colors min-h-[44px] sm:min-h-0",
           disabled
             ? "cursor-not-allowed text-[var(--muted-foreground)] opacity-35"
             : "text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]",
@@ -79,7 +80,9 @@ export function RangeSelector({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "shrink-0 border-b-2 px-3 py-1.5 text-num-sm transition-colors min-h-[44px] sm:min-h-0",
+        // Tighter on a phone so the whole row — arrows included — fits without
+        // scrolling; roomier once there is space for it.
+        "shrink-0 border-b-2 px-2 py-1.5 text-num-sm transition-colors min-h-[44px] sm:min-h-0 sm:px-3",
         active
           ? "border-[var(--primary)] text-[var(--body-on-dark)]"
           : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]",
@@ -91,28 +94,34 @@ export function RangeSelector({
 
   return (
     <div className="flex flex-col gap-2">
-      <div
-        role="group"
-        aria-label={t("month")}
-        // touch-pan-x + overscroll-x-contain: a horizontal swipe on this scroller
-        // stays horizontal and never chains to the page. Without it, iOS Safari
-        // read a swipe's vertical drift as a page pan → the bar collapsed / the
-        // page rubber-banded, flashing the black canvas at the bottom of the
-        // screen when "passing" the range strip (user report, browser tab).
-        className="flex touch-pan-x items-center justify-center gap-1 overflow-x-auto overscroll-x-contain"
-        data-testid="overview-range-selector"
-      >
+      {/* The arrows sit OUTSIDE the scroller: inside it they scrolled off the
+          edge of a phone and the user never saw them (260802 report). */}
+      <div className="flex items-center gap-1">
         {step(-1)}
-        {PRESETS.map((p) =>
-          pill(
-            p.label ?? t(p.i18nKey as string),
-            value.preset === p.preset && !isCustom,
-            () => onChange(makeRange(p.preset, tz)),
-          ),
-        )}
-        {pill(t("custom"), isCustom, () =>
-          onChange(makeRange("custom", tz, { from: value.from, to: value.to })),
-        )}
+        <div
+          role="group"
+          aria-label={t("month")}
+          // touch-pan-x + overscroll-x-contain: a horizontal swipe on this scroller
+          // stays horizontal and never chains to the page. Without it, iOS Safari
+          // read a swipe's vertical drift as a page pan → the bar collapsed / the
+          // page rubber-banded, flashing the black canvas at the bottom of the
+          // screen when "passing" the range strip (user report, browser tab).
+          className="flex flex-1 touch-pan-x items-center justify-center gap-1 overflow-x-auto overscroll-x-contain"
+          data-testid="overview-range-selector"
+        >
+          {PRESETS.map((p) =>
+            pill(
+              p.label ?? t(p.i18nKey as string),
+              value.preset === p.preset && !isCustom,
+              () => onChange(makeRange(p.preset, tz)),
+            ),
+          )}
+          {pill(t("custom"), isCustom, () =>
+            onChange(
+              makeRange("custom", tz, { from: value.from, to: value.to }),
+            ),
+          )}
+        </div>
         {step(1)}
       </div>
 

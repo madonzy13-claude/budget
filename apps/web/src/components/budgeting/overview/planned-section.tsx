@@ -10,6 +10,8 @@
  * only; string cents → Number here (recharts needs Numbers).
  */
 import { useMemo, useState } from "react";
+import { CalendarOff, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useTranslations, useLocale } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import {
@@ -25,7 +27,6 @@ import {
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { CATEGORY_COLORS, hexForColorKey } from "@/lib/category-colors";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -468,14 +469,26 @@ export function PlannedSection({
                   that ran their full course, so it is left out by default — and
                   only offered when the range has other months to average. */}
               {canDropRunningMonth && (
-                <label className="flex items-center justify-center gap-2 text-caption text-[var(--muted-foreground)]">
-                  <Switch
-                    checked={includeRunningMonth}
-                    onCheckedChange={setIncludeRunningMonth}
-                    aria-label={t("planned.includeRunningMonth")}
-                  />
-                  {t("planned.includeRunningMonth")}
-                </label>
+                <button
+                  type="button"
+                  onClick={() => setIncludeRunningMonth(!includeRunningMonth)}
+                  aria-pressed={includeRunningMonth}
+                  className={cn(
+                    "mx-auto flex items-center gap-1.5 rounded-full border px-3 py-1 text-caption transition-colors",
+                    includeRunningMonth
+                      ? "border-[var(--primary)] bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] text-[var(--primary)]"
+                      : "border-[var(--hairline-dark)] text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]",
+                  )}
+                >
+                  {includeRunningMonth ? (
+                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                  ) : (
+                    <CalendarOff className="h-3.5 w-3.5" aria-hidden="true" />
+                  )}
+                  {includeRunningMonth
+                    ? t("planned.runningMonthCounted")
+                    : t("planned.runningMonthSkipped")}
+                </button>
               )}
               <OverviewDivergingBarChart
                 data={data.plannedAvgVsReal

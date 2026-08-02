@@ -59,6 +59,18 @@ describe("Range selector arrows", () => {
     expect(screen.getByTestId("range-step-forward")).not.toBeDisabled();
   });
 
+  it("keeps the arrows OUT of the scrolling pill row", () => {
+    // Inside it they scrolled off the edge of a phone and were never seen.
+    render(<RangeSelector value={august} onChange={vi.fn()} />);
+    const scroller = screen.getByTestId("overview-range-selector");
+    expect(scroller).not.toContainElement(
+      screen.getByTestId("range-step-back"),
+    );
+    expect(scroller).not.toContainElement(
+      screen.getByTestId("range-step-forward"),
+    );
+  });
+
   it("has nothing to step for the all-time range", () => {
     render(
       <RangeSelector
