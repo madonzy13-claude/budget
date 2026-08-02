@@ -123,6 +123,12 @@ export interface GetOverviewPlannedInput {
   from: string; // YYYY-MM-DD
   to: string; // YYYY-MM-DD
   categoryId?: string;
+  /**
+   * Leave the RUNNING month out of the per-category averages (260802 user
+   * request): a month still in progress drags an average down against months
+   * that ran their full course. Ignored when it is the only month in range.
+   */
+  excludeCurrentMonth?: boolean;
   now?: () => Date;
 }
 
@@ -449,7 +455,16 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
       }
 
       // ---- planned-avg vs real-avg over active months only (D-13/D-06) ----
-      const rangeMonths = monthsInRange(input.from, input.to);
+      const allRangeMonths = monthsInRange(input.from, input.to);
+      const runningMonth = `${asOf.getUTCFullYear()}-${String(
+        asOf.getUTCMonth() + 1,
+      ).padStart(2, "0")}`;
+      // …minus the month still in progress, when asked and when there is
+      // anything left to average.
+      const rangeMonths =
+        input.excludeCurrentMonth && allRangeMonths.length > 1
+          ? allRangeMonths.filter((m) => m !== runningMonth)
+          : allRangeMonths;
       const plannedKey = new Map<string, bigint>();
       const spendKey = new Map<string, bigint>();
       for (const p of planned)

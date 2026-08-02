@@ -44,9 +44,16 @@ export interface OverviewPlannedDTO {
 
 export function useOverviewPlanned(
   budgetId: string,
-  opts: { from: string; to: string; categoryId?: string; enabled: boolean },
+  opts: {
+    from: string;
+    to: string;
+    categoryId?: string;
+    /** Leave the running month out of the per-category averages (260802). */
+    excludeCurrentMonth?: boolean;
+    enabled: boolean;
+  },
 ) {
-  const { from, to, categoryId, enabled } = opts;
+  const { from, to, categoryId, excludeCurrentMonth, enabled } = opts;
   return useQuery({
     queryKey: [
       "budget",
@@ -56,6 +63,7 @@ export function useOverviewPlanned(
       from,
       to,
       categoryId ?? null,
+      excludeCurrentMonth ?? false,
     ],
     enabled,
     refetchOnMount: "always",
@@ -64,6 +72,7 @@ export function useOverviewPlanned(
     queryFn: async () => {
       const qs = new URLSearchParams({ from, to });
       if (categoryId) qs.set("categoryId", categoryId);
+      if (excludeCurrentMonth) qs.set("excludeCurrentMonth", "true");
       const res = await clientApiFetch(
         `/budgets/${budgetId}/overview/planned?${qs.toString()}`,
         { headers: { "X-Budget-ID": budgetId } },

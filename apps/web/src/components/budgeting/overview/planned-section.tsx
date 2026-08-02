@@ -25,6 +25,7 @@ import {
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { CATEGORY_COLORS, hexForColorKey } from "@/lib/category-colors";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -79,7 +80,9 @@ function formatTs(ts: number, locale: string): string {
 
 function ChartLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-caption text-[var(--muted-foreground)]">{children}</p>
+    <p className="text-caption text-center text-[var(--muted-foreground)]">
+      {children}
+    </p>
   );
 }
 
@@ -166,20 +169,35 @@ export function PlannedSection({
     setCategoryIdState(v);
   };
 
+  // Counting the month still in progress is opt-IN: half a month of spend drags
+  // an average down against months that ran their full course (260802 request).
+  // Only offered when the range holds the running month AND something else.
+  const userTz = useUserTimezone();
+  const todayIso = todayInTz(userTz).toString();
+  const canDropRunningMonth =
+    range.from <= todayIso &&
+    todayIso <= range.to &&
+    range.from.slice(0, 7) !== range.to.slice(0, 7);
+  const [includeRunningMonth, setIncludeRunningMonthState] = useState<boolean>(
+    () => store?.overview.plannedIncludeRunningMonth ?? false,
+  );
+  const setIncludeRunningMonth = (v: boolean) => {
+    if (store) store.overview.plannedIncludeRunningMonth = v;
+    setIncludeRunningMonthState(v);
+  };
+
   const categories = useCategories(budgetId).data ?? [];
   const { data, isPending, isError } = useOverviewPlanned(budgetId, {
     from: range.from,
     to: range.to,
     categoryId,
+    excludeCurrentMonth: canDropRunningMonth && !includeRunningMonth,
     enabled: open,
   });
 
   // 260731: no needs/wants split → both series carry the same figure, and the
   // pink WANTS band would just double the green one (see lib/wants-split).
   const wantsSplitExists = hasWantsSplit(data?.timeline ?? []);
-  // Today in the USER's zone — a monthly point clamps to it for the running month.
-  const userTz = useUserTimezone();
-  const todayIso = todayInTz(userTz).toString();
 
   // Timeline rows for the chart + the crossing gradient that colours the actual
   // line (grey inside the plan, red past it — cut at the exact crossing).
@@ -446,6 +464,19 @@ export function PlannedSection({
           {data.plannedAvgVsReal.length > 0 && (
             <div className="flex flex-col gap-2">
               <ChartLabel>{t("planned.avgByCategory")}</ChartLabel>
+              {/* A month still in progress drags the average down against months
+                  that ran their full course, so it is left out by default — and
+                  only offered when the range has other months to average. */}
+              {canDropRunningMonth && (
+                <label className="flex items-center justify-center gap-2 text-caption text-[var(--muted-foreground)]">
+                  <Switch
+                    checked={includeRunningMonth}
+                    onCheckedChange={setIncludeRunningMonth}
+                    aria-label={t("planned.includeRunningMonth")}
+                  />
+                  {t("planned.includeRunningMonth")}
+                </label>
+              )}
               <OverviewDivergingBarChart
                 data={data.plannedAvgVsReal
                   .map((c) => {

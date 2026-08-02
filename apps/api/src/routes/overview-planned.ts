@@ -25,6 +25,8 @@ export function registerOverviewPlannedRoutes(r: Hono, deps: BootedDeps) {
       from: z.string().regex(DATE_RE),
       to: z.string().regex(DATE_RE),
       categoryId: z.string().uuid().optional(),
+      // The averages chart can leave the month still in progress out (260802).
+      excludeCurrentMonth: z.enum(["true", "false"]).optional(),
     })
     .refine((q) => q.from <= q.to, { message: "from_after_to" })
     .refine(
@@ -56,6 +58,7 @@ export function registerOverviewPlannedRoutes(r: Hono, deps: BootedDeps) {
       from: parsed.data.from,
       to: parsed.data.to,
       categoryId: parsed.data.categoryId,
+      excludeCurrentMonth: parsed.data.excludeCurrentMonth === "true",
     });
     if (result.isErr())
       return serverError(c, "overview_planned_failed", result.error);

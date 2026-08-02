@@ -21,6 +21,7 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  Rectangle,
   Cell,
   XAxis,
   YAxis,
@@ -312,6 +313,22 @@ export function OverviewDivergingBarChart({
             // otherwise — an empty row reads as missing data. 2px keeps a thin
             // mark on the centre line (its "0%" label sits beside it).
             minPointSize={2}
+            // …and that mark STRADDLES the line rather than starting at it: a
+            // bar growing right said "over" for a month that landed on plan.
+            shape={(props: {
+              x?: number;
+              width?: number;
+              payload?: { __pct?: number };
+            }) => {
+              const onPlan = Number(props.payload?.__pct ?? 0) === 0;
+              return (
+                <Rectangle
+                  {...props}
+                  x={onPlan ? (props.x ?? 0) - (props.width ?? 0) / 2 : props.x}
+                  radius={onPlan ? 1 : 4}
+                />
+              );
+            }}
             // Rounded on the growing end only — the bars start at the centre line.
             radius={4}
           >

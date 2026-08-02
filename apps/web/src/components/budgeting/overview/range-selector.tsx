@@ -8,14 +8,16 @@
  * Emits a resolved {preset, from, to} so callers key their RQ fetch off it.
  */
 import { useTranslations } from "next-intl";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DateInput } from "@/components/budgeting/fields/date-input";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import {
   type OverviewRange,
   type RangePreset,
+  canShiftRange,
   makeRange,
+  shiftRange,
 } from "@/lib/overview-range";
 
 // 1M/3M/6M are literal everywhere; 1Y ("1R"/"1Р"), All and Custom are translated
@@ -42,6 +44,34 @@ export function RangeSelector({
   const t = useTranslations("bdp.tab.overview.range");
   const tz = useUserTimezone();
   const isCustom = value.preset === "custom";
+
+  // Step the SAME window back and forward (260802 request). "All" already
+  // reaches as far as the data goes, and forward stops at today — shown as a
+  // disabled arrow rather than one that quietly does nothing.
+  const step = (direction: -1 | 1) => {
+    const label = direction < 0 ? t("previous") : t("next");
+    const disabled = !canShiftRange(value, direction, tz);
+    const Icon = direction < 0 ? ChevronLeft : ChevronRight;
+    return (
+      <button
+        type="button"
+        onClick={() => onChange(shiftRange(value, direction, tz))}
+        disabled={disabled}
+        aria-label={label}
+        title={label}
+        data-testid={direction < 0 ? "range-step-back" : "range-step-forward"}
+        className={cn(
+          "shrink-0 rounded-full p-1.5 transition-colors min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0",
+          "flex items-center justify-center",
+          disabled
+            ? "cursor-not-allowed text-[var(--muted-foreground)] opacity-35"
+            : "text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]",
+        )}
+      >
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      </button>
+    );
+  };
 
   const pill = (label: string, active: boolean, onClick: () => void) => (
     <button
@@ -72,6 +102,7 @@ export function RangeSelector({
         className="flex touch-pan-x items-center justify-center gap-1 overflow-x-auto overscroll-x-contain"
         data-testid="overview-range-selector"
       >
+        {step(-1)}
         {PRESETS.map((p) =>
           pill(
             p.label ?? t(p.i18nKey as string),
@@ -82,6 +113,7 @@ export function RangeSelector({
         {pill(t("custom"), isCustom, () =>
           onChange(makeRange("custom", tz, { from: value.from, to: value.to })),
         )}
+        {step(1)}
       </div>
 
       {isCustom && (

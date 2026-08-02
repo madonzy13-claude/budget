@@ -36,6 +36,9 @@ export interface BdpUiStore {
     /** Planned section's category selector — persists across pill navigation so
      *  a chosen category isn't reset to "All categories" on return. */
     plannedCategoryId?: string;
+    /** Whether the averages chart counts the month still in progress (260802) —
+     *  off by default, and persisted across pill navigation like the selector. */
+    plannedIncludeRunningMonth?: boolean;
   };
   spendings: { scrollTop?: number; scrollLeft?: number };
   /** Investment rows tapped open (mobile P/L expand), keyed by holding id. */

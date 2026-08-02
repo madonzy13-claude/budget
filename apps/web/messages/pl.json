@@ -1428,6 +1428,8 @@
           "realMonths": "realne miesiące"
         },
         "range": {
+          "previous": "Poprzedni okres",
+          "next": "Następny okres",
           "month": "Miesiąc",
           "1m": "1M",
           "3m": "3M",
@@ -1456,6 +1458,7 @@
           "planned": "Zaplanowane",
           "needs": "Potrzeby",
           "wants": "Zachcianki",
+          "includeRunningMonth": "Wlicz bieżący miesiąc (w trakcie)",
           "fromPlan": "Wydane z planu",
           "fromReserve": "Użyte rezerwy",
           "overspent": "Przekroczenie",

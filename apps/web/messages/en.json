@@ -1405,6 +1405,8 @@
           "realMonths": "real months"
         },
         "range": {
+          "previous": "Previous period",
+          "next": "Next period",
           "month": "Month",
           "1m": "1M",
           "3m": "3M",
@@ -1433,6 +1435,7 @@
           "planned": "Planned",
           "needs": "Needs",
           "wants": "Wants",
+          "includeRunningMonth": "Count this month (still running)",
           "fromPlan": "Planned spent",
           "fromReserve": "Used reserves",
           "overspent": "Overspent",

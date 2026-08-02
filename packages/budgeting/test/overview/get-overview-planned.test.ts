@@ -1120,4 +1120,116 @@ describe("getOverviewPlanned", () => {
       "25000",
     );
   });
+
+  test("can leave the RUNNING month out of the per-category averages", async () => {
+    // A month still in progress drags an average down against months that ran
+    // their full course, so the chart offers to leave it out (user request).
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [
+          { category_id: "A", month: "2026-06", planned_cents: 10000n },
+          { category_id: "A", month: "2026-07", planned_cents: 10000n },
+          { category_id: "A", month: "2026-08", planned_cents: 10000n },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [
+          { category_id: "A", month: "2026-06", spent_cents: 12000n },
+          { category_id: "A", month: "2026-07", spent_cents: 12000n },
+          { category_id: "A", month: "2026-08", spent_cents: 600n },
+        ];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "A",
+            name: "Food",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const svc = getOverviewPlanned({
+      repo,
+      metaReader: {
+        async getBudgetMeta() {
+          return { default_currency: "USD" };
+        },
+      },
+      fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+    });
+    const range = {
+      tenantId: "b1",
+      budgetId: "b1",
+      from: "2026-06-01",
+      to: "2026-08-02",
+      now: () => new Date("2026-08-02T00:00:00Z"),
+    };
+
+    const withAugust = (await svc(range))._unsafeUnwrap().plannedAvgVsReal[0]!;
+    // (12000 + 12000 + 600) / 3
+    expect(withAugust.real_avg_cents).toBe("8200");
+
+    const withoutAugust = (
+      await svc({ ...range, excludeCurrentMonth: true })
+    )._unsafeUnwrap().plannedAvgVsReal[0]!;
+    // (12000 + 12000) / 2 — the two months that actually ran their course.
+    expect(withoutAugust.real_avg_cents).toBe("12000");
+    expect(withoutAugust.planned_avg_cents).toBe("10000");
+  });
+
+  test("keeps the running month when it is all the range has", async () => {
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [{ category_id: "A", month: "2026-08", planned_cents: 10000n }];
+      },
+      async monthlySpendByCategory() {
+        return [{ category_id: "A", month: "2026-08", spent_cents: 600n }];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "A",
+            name: "Food",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const dto = (
+      await getOverviewPlanned({
+        repo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      })({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-08-01",
+        to: "2026-08-02",
+        excludeCurrentMonth: true,
+        now: () => new Date("2026-08-02T00:00:00Z"),
+      })
+    )._unsafeUnwrap();
+    expect(dto.plannedAvgVsReal[0]!.real_avg_cents).toBe("600");
+  });
 });
