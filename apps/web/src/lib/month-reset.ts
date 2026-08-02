@@ -62,6 +62,20 @@ export function insertMonthResets<T extends ResettableRow>(
       // month end rather than two identical ones, and the hover dot lands on the
       // line instead of back where the reading was logged.
       if (prev) out[out.length - 1] = { ...prev, ts: ts - 1 };
+      // The daily series already opens each month with its own `YYYY-MM-01 = 0`.
+      // Inserting another put THREE points on the boundary, two at the identical
+      // instant, so the pointer stepped twice within one pixel and the middle
+      // step — being geometry — answered nothing (user report, 260802: "two
+      // steps, one with tooltip and one is without"). Flag that row as the
+      // fall's foot instead of twinning it.
+      if (r.label === label && Number(r.real) === 0) {
+        out.push({ ...r, drop: !!prev });
+        continue;
+      }
+      // No such row in the series (a monthly bucket opening the range): make one.
+      // `reset` keeps it off the axis — it is not a day the data has — but it
+      // still answers the pointer, because a step that answers nothing reads as
+      // a broken chart (user report, 260802).
       out.push({ ...r, label, ts, real: 0, reset: true, drop: !!prev });
     }
     out.push(r);

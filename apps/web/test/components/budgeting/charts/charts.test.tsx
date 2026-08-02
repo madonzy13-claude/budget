@@ -169,12 +169,33 @@ describe("Overview charts", () => {
       expect(renderTip({}).textContent).not.toBe("");
     });
 
-    it("stays silent on the point a month OPENS with", () => {
-      // It is always zero — nothing spent yet — so there is nothing to read and
-      // no reason for the pointer to stop there (user request, 260802).
-      expect(renderTip({ reset: true, drop: true, real: 0 }).textContent).toBe(
-        "",
+    it("answers on the point a month OPENS with", () => {
+      // Zero spent so far is still a reading. Silencing it left a step the
+      // pointer lands on with nothing behind it (user report, 260802: "two
+      // steps, one with tooltip and one is without").
+      expect(
+        renderTip({ reset: true, drop: true, real: 0 }).textContent,
+      ).not.toBe("");
+    });
+
+    it("stays silent only where every series is null", () => {
+      // The plan tail past the last reading: nothing to say at all.
+      const { container } = render(
+        <ChartTooltipContent
+          active
+          payload={[
+            {
+              dataKey: "real",
+              value: null,
+              name: "Spent",
+              payload: { label: "2026-08-10", real: null },
+            },
+          ]}
+          label="2026-08-10"
+          series={[{ key: "real", label: "Spent" }]}
+        />,
       );
+      expect(container.textContent).toBe("");
     });
   });
 

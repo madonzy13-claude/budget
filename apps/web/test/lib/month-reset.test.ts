@@ -48,6 +48,30 @@ describe("insertMonthResets", () => {
     expect([out[2]!.reset, out[2]!.drop]).toEqual([true, true]);
   });
 
+  it("does not twin a month's opening zero the series already carries", () => {
+    // The daily series opens each month with its own `YYYY-MM-01 = 0`. Inserting
+    // another one put THREE points on the boundary, two at the identical instant
+    // — so the pointer stepped twice in the same pixel and the middle step, being
+    // geometry, answered nothing (user report, 260802: "two steps, one with
+    // tooltip and one is without").
+    const out = insertMonthResets([
+      row("2026-06-20", 500),
+      row("2026-07-01", 0),
+      row("2026-07-05", 200),
+    ]);
+    expect(out.map((r) => r.label)).toEqual([
+      "2026-06-20",
+      "2026-07-01",
+      "2026-07-05",
+    ]);
+    // The series' own opening zero IS the fall's foot — flagged, not duplicated.
+    expect(out[1]!.drop).toBe(true);
+    expect(out[1]!.real).toBe(0);
+    expect(out[1]!.ts).toBe(Date.parse("2026-07-01T00:00:00Z"));
+    // And it is a reading of that day, so the pointer gets an answer there.
+    expect(out[1]!.reset).toBeFalsy();
+  });
+
   it("holds the plan bands and steps them square at the boundary", () => {
     const out = insertMonthResets([
       row("2026-06-20", 500, 100, 50),

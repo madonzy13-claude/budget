@@ -82,13 +82,14 @@ export function ChartTooltipContent({
   omitKeys?: string[];
 }) {
   if (!active || !payload || payload.length === 0) return null;
-  // Geometry answers nothing. These points exist to shape the line, not to be
-  // read: the tail that carries a plan past the last reading, and the point a
-  // month OPENS with, which is always zero because nothing has been spent yet
-  // (260802 user request). A month's CLOSING total is a real reading — it is the
-  // last day's, moved onto the boundary — so it answers like any other day.
-  const geometry = payload[0]?.payload as { reset?: boolean } | undefined;
-  if (geometry?.reset) return null;
+  // Silence is decided by CONTENT, not by a flag: a point stays quiet only when
+  // there is genuinely nothing to read (every series null there — the tail that
+  // carries a plan past the last reading). Keying it off the geometry flags left
+  // steps the pointer could land on that answered nothing, which reads as a
+  // broken chart (user reports, 260801 and 260802).
+  if (payload.every((p) => p.value === null || p.value === undefined)) {
+    return null;
+  }
   // Tapped-to-dismiss: hide this tooltip while the same point stays active.
   if (
     suppressedLabel != null &&

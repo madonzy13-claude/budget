@@ -254,9 +254,11 @@ export function OverviewAreaChart({
                       cy?: number;
                       fill?: string;
                       stroke?: string;
-                      payload?: { reset?: boolean };
+                      payload?: Record<string, unknown>;
                     }) =>
-                      props.payload?.reset ? (
+                      // Matches the tooltip: a dot only where there is something
+                      // to read. A dot with no tooltip behind it is a dead target.
+                      props.payload?.[s.key] == null ? (
                         <g />
                       ) : (
                         <DefaultActiveDot {...props} />
