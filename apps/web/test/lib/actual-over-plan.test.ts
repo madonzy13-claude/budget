@@ -199,4 +199,21 @@ describe("zoneSegments", () => {
       { x: 2, v: 30 },
     ]);
   });
+
+  it("stops at the last real day — a HOLD adds no stub of line", () => {
+    // The hold carries the month's last reading to the boundary so the bands
+    // stay square, but drawing the spend line into it left a short horizontal
+    // stub past the last day of every month (user report, 260802).
+    const segs = zoneSegments([
+      row(120),
+      row(120, { hold: true }),
+      row(0, { drop: true }),
+      row(30),
+    ]);
+    expect(segs).toHaveLength(1);
+    expect(segs[0]!.points).toEqual([
+      { x: 2, v: 0 },
+      { x: 3, v: 30 },
+    ]);
+  });
 });

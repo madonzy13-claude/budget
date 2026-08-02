@@ -18,8 +18,12 @@ describe("vertical line weights", () => {
     expect(chartTooltip.cursor.stroke).toBe(CHART_THEME.axis);
   });
 
-  it("leaves the month reset on the quiet hairline", () => {
-    expect(RESET_STROKE).toBe(CHART_THEME.grid);
+  it("draws the month reset in a held-back version of that same grey", () => {
+    // Not the hairline: it is near-white under the LIGHT theme, where the reset
+    // read as a white gap, and too faint to follow on dark (user report).
+    expect(RESET_STROKE).not.toBe(CHART_THEME.grid);
+    expect(RESET_STROKE).toContain(CHART_THEME.axis);
+    expect(RESET_STROKE).toMatch(/color-mix/);
   });
 
   it("keeps the two apart — the reset must not read as a cursor", () => {

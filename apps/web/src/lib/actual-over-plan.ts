@@ -103,13 +103,16 @@ export interface ZoneSegment {
  * the polyline instead gives every piece exactly one colour.
  *
  * Segments leading into a `drop` row are the month reset, drawn separately in grey.
+ * A `hold` row only repeats the month's last reading so the plan bands stay square
+ * across the boundary; running the spend line into it drew a short horizontal stub
+ * past the last day of every month (user report, 260802).
  */
 export function zoneSegments(rows: ActualRow[]): ZoneSegment[] {
   const out: ZoneSegment[] = [];
   for (let i = 0; i < rows.length - 1; i++) {
     const a = rows[i]!;
     const b = rows[i + 1]!;
-    if (b.drop) continue;
+    if (b.drop || b.hold) continue;
     // Both ends of a segment sit in the same month, so either row's thresholds
     // describe it; the opening row of a month carries that month's.
     const t = zoneThresholds(b);

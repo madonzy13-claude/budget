@@ -23,11 +23,13 @@ import { polylinePath, type Pt } from "@/lib/plan-zone-paths";
 import { CHART_THEME } from "@/components/budgeting/charts/chart-theme";
 
 /**
- * The month reset is STRUCTURE, not a reading: it sits on the quiet hairline so
- * the hover cursor — the line the user actually asked for — reads louder. The
- * two were the wrong way round (user report, 260802).
+ * The month reset is STRUCTURE, not a reading, so it stays quieter than the hover
+ * cursor — the line the user actually asked for. A washed-out grey rather than the
+ * hairline: the hairline is near-white under the LIGHT theme, where the reset read
+ * as a white gap, and it was too faint to follow on dark (user report, 260802).
+ * Same grey as the cursor, held back to just over half strength.
  */
-export const RESET_STROKE = CHART_THEME.grid;
+export const RESET_STROKE = `color-mix(in srgb, ${CHART_THEME.axis} 55%, transparent)`;
 
 export interface PlanZoneRow {
   label: string;
@@ -80,11 +82,26 @@ export function PlanZoneLine({
 
   // The month reset: the vertical fall back to zero, drawn thin and in grey
   // UNDER the line, since it is the reset and not spending.
-  const drops = rows.slice(1).map((r) => !!r.drop);
-  const dropPts = rows.map((r, i) => ({
-    x: pointXs[i]!,
-    y: yScale(r.real) as number,
-  }));
+  //
+  // It falls at the month's LAST READING, not at the boundary a `hold` sits on:
+  // the hold merely repeats that reading so the plan bands stay square, and
+  // starting the fall there left a short horizontal stub of line past the last
+  // day of every month (user report, 260802). Dropping at the reading and then
+  // running along the baseline to the boundary keeps the fall at 90° with no
+  // gap between it and the line it leaves.
+  const zeroY = yScale(0) as number;
+  const resets: Pt[][] = [];
+  for (let i = 1; i < rows.length; i++) {
+    if (!rows[i]!.drop) continue;
+    // Step back over the hold to the last point that is an actual reading.
+    let from = i - 1;
+    while (from > 0 && rows[from]!.hold) from--;
+    resets.push([
+      { x: pointXs[from]!, y: yScale(rows[from]!.real) as number },
+      { x: pointXs[from]!, y: zeroY },
+      { x: pointXs[i]!, y: zeroY },
+    ]);
+  }
 
   const segments = zoneSegments(rows)
     .map((seg) => ({ zone: seg.zone, pts: toPx(seg.points) }))
@@ -94,17 +111,15 @@ export function PlanZoneLine({
 
   return (
     <g data-testid="plan-zone-line" data-mode="zones" pointerEvents="none">
-      {drops.map((isDrop, i) =>
-        isDrop ? (
-          <path
-            key={`reset-${i}`}
-            d={polylinePath([dropPts[i]!, dropPts[i + 1]!])}
-            fill="none"
-            stroke={resetColor}
-            strokeWidth={Math.max(1, strokeWidth - 1)}
-          />
-        ) : null,
-      )}
+      {resets.map((pts, i) => (
+        <path
+          key={`reset-${i}`}
+          d={polylinePath(pts)}
+          fill="none"
+          stroke={resetColor}
+          strokeWidth={Math.max(1, strokeWidth - 1)}
+        />
+      ))}
       {segments.map((seg, i) => (
         <path
           key={i}
