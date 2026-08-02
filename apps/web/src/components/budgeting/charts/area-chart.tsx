@@ -254,9 +254,14 @@ export function OverviewAreaChart({
                       cy?: number;
                       fill?: string;
                       stroke?: string;
-                      payload?: { reset?: boolean; real?: number | null };
+                      payload?: {
+                        reset?: boolean;
+                        hold?: boolean;
+                        real?: number | null;
+                      };
                     }) =>
-                      props.payload?.reset && props.payload.real == null ? (
+                      props.payload?.reset &&
+                      (props.payload.hold || props.payload.real == null) ? (
                         <g />
                       ) : (
                         <DefaultActiveDot {...props} />

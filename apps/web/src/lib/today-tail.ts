@@ -22,5 +22,7 @@ export function appendTodayTail<T extends ResettableRow>(
   // Daily points land ON today; a monthly point for the running month is clamped
   // to it. Anything earlier is a finished range and needs no tail.
   if (last.ts !== today) return rows;
-  return [...rows, { ...last, ts: today + DAY_MS, reset: true }];
+  // A HOLD: it repeats today's reading rather than adding one, so it answers no
+  // pointer — otherwise the run of days ended on a second, identical tick.
+  return [...rows, { ...last, ts: today + DAY_MS, reset: true, hold: true }];
 }

@@ -6,16 +6,15 @@
  * everything, or nothing, both mean "no filter" — closing an empty picker shows
  * the whole chart rather than an empty one.
  *
- * The choice is remembered per BUDGET in localStorage, which keeps it to the
- * member who made it: it never rides the budget record, so one member narrowing
- * their own chart cannot change what the others see.
+ * The choice is remembered on the MEMBER's own row for that budget (see
+ * use-member-ui-prefs), so it follows the person from phone to desktop and never
+ * changes what the other members see. It lived in localStorage first, which is a
+ * device rather than a person: the same user on a second machine was back to
+ * "All categories" (user report, 260802).
  */
-/** Each chart remembers its own choice; the timeline keeps the original key. */
-export type CategoryFilterScope = "timeline" | "pie";
-const key = (budgetId: string, scope: CategoryFilterScope) =>
-  scope === "timeline"
-    ? `budget:${budgetId}:planned-categories`
-    : `budget:${budgetId}:planned-${scope}-categories`;
+/** Each chart remembers its own choice under its own preference key. */
+export const PLANNED_TIMELINE_PREF = "planned-categories";
+export const PLANNED_PIE_PREF = "planned-pie-categories";
 
 /** What to ask the API for — `undefined` means "everything, as before". */
 export function effectiveCategoryIds(
@@ -34,36 +33,6 @@ export function prunePlannedCategories(
 ): string[] {
   const picked = new Set(selected);
   return allIds.filter((id) => picked.has(id));
-}
-
-export function loadPlannedCategories(
-  budgetId: string,
-  scope: CategoryFilterScope = "timeline",
-): string[] {
-  if (typeof localStorage === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(key(budgetId, scope));
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed)
-      ? parsed.filter((v): v is string => typeof v === "string")
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-export function savePlannedCategories(
-  budgetId: string,
-  ids: string[],
-  scope: CategoryFilterScope = "timeline",
-): void {
-  if (typeof localStorage === "undefined") return;
-  try {
-    localStorage.setItem(key(budgetId, scope), JSON.stringify(ids));
-  } catch {
-    // A full or blocked store costs the memory of the choice, nothing more.
-  }
 }
 
 /**

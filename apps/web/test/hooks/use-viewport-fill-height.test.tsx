@@ -12,31 +12,44 @@ import { renderHook } from "@testing-library/react";
 import { useRef } from "react";
 import { useViewportFillHeight } from "@/hooks/use-viewport-fill-height";
 
-/** An element whose rect is `zoom`× its own layout box, as a zoomed page has. */
+/**
+ * An element whose rect is `zoom`× its own layout box, as a zoomed page has.
+ * `scrolledBy` moves it UP the viewport the way a scrolled page does: the rect
+ * reports less `top`, while the scroller carries the offset.
+ */
 function zoomedEl(opts: {
   zoom: number;
   localTop: number;
   localWidth: number;
+  scrolledBy?: number;
 }) {
   const el = document.createElement("div");
   const { zoom, localTop, localWidth } = opts;
+  const scrolledBy = opts.scrolledBy ?? 0;
   Object.defineProperty(el, "offsetWidth", {
     configurable: true,
     value: localWidth,
   });
+  const viewportTop = (localTop - scrolledBy) * zoom;
   el.getBoundingClientRect = () =>
     ({
-      top: localTop * zoom,
+      top: viewportTop,
       width: localWidth * zoom,
       height: 0,
       left: 0,
       right: localWidth * zoom,
-      bottom: localTop * zoom,
+      bottom: viewportTop,
       x: 0,
-      y: localTop * zoom,
+      y: viewportTop,
       toJSON: () => {},
     }) as DOMRect;
-  document.body.appendChild(el);
+  const scroller = document.createElement("div");
+  scroller.appendChild(el);
+  document.body.appendChild(scroller);
+  Object.defineProperty(scroller, "scrollTop", {
+    configurable: true,
+    value: scrolledBy * zoom,
+  });
   return el;
 }
 
@@ -103,6 +116,29 @@ describe("useViewportFillHeight (fitVisible)", () => {
     // 900/1.5 − 114 = 486 local px → 729 on screen; 171 + 729 = 900, exactly
     // the viewport, with nothing left over to scroll.
     expect(sizeOf(el)).toBe("max(160px, 486px)");
+    pointer();
+    restore();
+  });
+
+  it("keeps its size when the page under it is scrolled", () => {
+    // A rect's `top` is viewport-relative: scroll the page and it shrinks, so a
+    // box sized "viewport minus my top" GREW, which made the document taller,
+    // which allowed more scroll — a runaway that left a black band of bare
+    // document under the shell, worse the further you zoomed (user report,
+    // 260802). The box has to size off its UNSCROLLED position.
+    const el = zoomedEl({
+      zoom: 1,
+      localTop: 114,
+      localWidth: 1280,
+      scrolledBy: 114,
+    });
+    const restore = withViewport(900);
+    const pointer = withPointer(false);
+    renderHook(() => {
+      const ref = useRef(el);
+      useViewportFillHeight(ref, { fitVisible: true });
+    });
+    expect(sizeOf(el)).toBe("max(160px, 786px)");
     pointer();
     restore();
   });

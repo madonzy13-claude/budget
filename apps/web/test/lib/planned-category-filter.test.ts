@@ -2,16 +2,16 @@
  * planned-category-filter.test.ts — the timeline's category multi-select (260802).
  *
  * Picking every category — or none at all — is the same as not filtering, so the
- * chart asks for everything. The choice is remembered per budget on the device,
- * and never carries an id the budget no longer has.
+ * chart asks for everything. The choice is remembered per budget on the MEMBER's
+ * own row, and never carries an id the budget no longer has.
  */
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   effectiveCategoryIds,
   pickableCategories,
-  loadPlannedCategories,
+  PLANNED_PIE_PREF,
+  PLANNED_TIMELINE_PREF,
   prunePlannedCategories,
-  savePlannedCategories,
 } from "../../src/lib/planned-category-filter";
 
 const ALL = ["a", "b", "c"];
@@ -47,29 +47,16 @@ describe("prunePlannedCategories", () => {
 });
 
 describe("remembering the choice", () => {
-  beforeEach(() => localStorage.clear());
-
-  it("survives a round trip, per budget", () => {
-    savePlannedCategories("b1", ["a", "c"]);
-    savePlannedCategories("b2", ["b"]);
-    expect(loadPlannedCategories("b1")).toEqual(["a", "c"]);
-    expect(loadPlannedCategories("b2")).toEqual(["b"]);
+  // The choice itself now lives on the MEMBER's row for the budget (see
+  // use-member-ui-prefs) rather than in localStorage, which is a device and not
+  // a person: the same user on a second machine was back to "All categories"
+  // (user report, 260802). All that is left here is the key each chart claims.
+  it("gives each chart its own key, so one pick never clears the other", () => {
+    expect(PLANNED_TIMELINE_PREF).not.toBe(PLANNED_PIE_PREF);
   });
 
-  it("keeps each chart's choice apart", () => {
-    savePlannedCategories("b1", ["a"], "timeline");
-    savePlannedCategories("b1", ["c"], "pie");
-    expect(loadPlannedCategories("b1", "timeline")).toEqual(["a"]);
-    expect(loadPlannedCategories("b1", "pie")).toEqual(["c"]);
-  });
-
-  it("reads an untouched budget as 'everything'", () => {
-    expect(loadPlannedCategories("b3")).toEqual([]);
-  });
-
-  it("shrugs off a corrupted entry instead of taking the chart down", () => {
-    localStorage.setItem("budget:b4:planned-categories", "{not json");
-    expect(loadPlannedCategories("b4")).toEqual([]);
+  it("keeps the timeline on the key its stored picks were already written under", () => {
+    expect(PLANNED_TIMELINE_PREF).toBe("planned-categories");
   });
 });
 

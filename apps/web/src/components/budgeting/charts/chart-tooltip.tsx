@@ -82,13 +82,16 @@ export function ChartTooltipContent({
   omitKeys?: string[];
 }) {
   if (!active || !payload || payload.length === 0) return null;
-  // Only geometry with NOTHING to read stays silent — the tail that carries a
-  // plan past the last reading. Everything else answers, including the points a
-  // month opens and closes with: somewhere the pointer can land and get nothing
-  // back reads as a broken chart (260801 user report).
+  // Geometry stays silent when it has NOTHING NEW to say: the tail that carries
+  // a plan past the last reading (nothing at all), and a `hold` — the point that
+  // repeats the previous reading so the line stays flat to a boundary, which
+  // otherwise put a second identical tick at every month end (260802 user
+  // report). The point a month OPENS with is a reading of its own and answers:
+  // somewhere the pointer lands and gets nothing back reads as a broken chart
+  // (260801 user report).
   const geometry = payload[0]?.payload as
-    { reset?: boolean; real?: number | null } | undefined;
-  if (geometry?.reset && geometry.real == null) return null;
+    { reset?: boolean; hold?: boolean; real?: number | null } | undefined;
+  if (geometry?.reset && (geometry.hold || geometry.real == null)) return null;
   // Tapped-to-dismiss: hide this tooltip while the same point stays active.
   if (
     suppressedLabel != null &&

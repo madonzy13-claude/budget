@@ -23,6 +23,20 @@ const aggregationSchema = z.object({
   share_pct: z.number().min(0).max(100).optional(),
 });
 
+/**
+ * Per-member UI preferences: a small bag of "which categories this member picked
+ * for chart X". Every value is a list of ids, so the shape stays checkable and
+ * the column can never grow into a dumping ground — a new picker just claims a
+ * new key. Keys and lists are bounded so a client cannot grow the row without
+ * limit.
+ */
+const uiPrefsSchema = z.object({
+  prefs: z.record(
+    z.string().min(1).max(64),
+    z.array(z.string().uuid()).max(200),
+  ),
+});
+
 export function budgetMembersRoutesFactory(deps: MembersDeps) {
   const r = new Hono();
 
@@ -217,6 +231,46 @@ export function budgetMembersRoutesFactory(deps: MembersDeps) {
       return c.json({ ok: true }, 200);
     },
   );
+
+  // GET /:id/ui-prefs — the CALLER's own chart preferences for this budget.
+  // Not owner-gated and not readable across members: the repo binds the session
+  // user as both actor and target row, so a member only ever sees their own.
+  r.get("/:id/ui-prefs", async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+
+    const budgetId = c.req.param("id");
+    const tenantIds = c.get("tenantIds") as string[] | undefined;
+    if (!tenantIds || !tenantIds.includes(budgetId)) {
+      return c.json({ error: "not_found" }, 404);
+    }
+
+    const prefs = await deps.tenancy.workspaceRepo.getMemberUiPrefs(
+      budgetId,
+      session.user.id,
+    );
+    return c.json({ prefs: prefs ?? {} }, 200);
+  });
+
+  // PUT /:id/ui-prefs — MERGE a patch into the caller's own preferences, so two
+  // charts (the timeline and the pie) never overwrite each other's choice.
+  r.put("/:id/ui-prefs", zValidator("json", uiPrefsSchema), async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+
+    const budgetId = c.req.param("id");
+    const tenantIds = c.get("tenantIds") as string[] | undefined;
+    if (!tenantIds || !tenantIds.includes(budgetId)) {
+      return c.json({ error: "not_found" }, 404);
+    }
+
+    const prefs = await deps.tenancy.workspaceRepo.mergeMemberUiPrefs(
+      budgetId,
+      session.user.id,
+      c.req.valid("json").prefs,
+    );
+    return c.json({ prefs: prefs ?? {} }, 200);
+  });
 
   return r;
 }

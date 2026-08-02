@@ -142,6 +142,42 @@ describe("Overview charts", () => {
     ).toBeTruthy();
   });
 
+  describe("ChartTooltipContent geometry rows", () => {
+    const rowFor = (geometry: Record<string, unknown>) => [
+      {
+        dataKey: "real",
+        value: 500,
+        name: "Spent",
+        color: "var(--chart-bar-1)",
+        payload: { label: "2026-07-31", real: 500, ...geometry },
+      },
+    ];
+    const renderTip = (geometry: Record<string, unknown>) =>
+      render(
+        <ChartTooltipContent
+          active
+          payload={rowFor(geometry)}
+          label="2026-07-31"
+          series={[{ key: "real", label: "Spent" }]}
+        />,
+      ).container;
+
+    it("stays silent on a hold — it only repeats the reading before it", () => {
+      // The month's closing point and today's tail carry the previous reading
+      // forward so the line holds flat; answering the pointer there stopped it
+      // twice on the same date with the same numbers (user report, 260802).
+      expect(renderTip({ reset: true, hold: true }).textContent).toBe("");
+    });
+
+    it("still answers on the point a month OPENS with", () => {
+      // A month's first point is a reading of its own (zero spent so far) —
+      // silence there reads as a broken chart (260801 user report).
+      expect(
+        renderTip({ reset: true, drop: true, real: 0 }).textContent,
+      ).not.toBe("");
+    });
+  });
+
   describe("ChartTooltipContent marker color (r25 item 3)", () => {
     const payload = [
       {

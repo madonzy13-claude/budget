@@ -26,6 +26,9 @@ export interface ResettableRow {
   wants: number;
   /** Geometry, not a reading: no axis tick, no tooltip. */
   reset?: boolean;
+  /** Merely REPEATS the reading before it, to hold the line flat. It answers no
+   *  pointer: stopping on it put a second identical tick at every month end. */
+  hold?: boolean;
   /** The vertical fall back to zero — the reset line itself. */
   drop?: boolean;
   /** Rows ride straight into recharts, which takes arbitrary keys. */
@@ -36,8 +39,9 @@ const monthOf = (label: string) => label.slice(0, 7);
 
 export function insertMonthResets<T extends ResettableRow>(
   rows: T[],
-): Array<T & { reset?: boolean; drop?: boolean }> {
-  const out: Array<T & { reset?: boolean; drop?: boolean }> = [];
+): Array<T & { reset?: boolean; hold?: boolean; drop?: boolean }> {
+  const out: Array<T & { reset?: boolean; hold?: boolean; drop?: boolean }> =
+    [];
   for (const [i, r] of rows.entries()) {
     const prev = rows[i - 1];
     // A MONTHLY point carries its month-END value, so the very first month needs
@@ -50,11 +54,15 @@ export function insertMonthResets<T extends ResettableRow>(
       // Close the previous month at ITS limits AND its running total, then open
       // the new one at its own limits and zero — a millisecond apart, so the
       // bands step vertically and the spend falls straight down while the
-      // closing point keeps the date and numbers of the month it ENDS. Hovering
-      // the end of a month has to read that month (user report).
+      // closing point keeps the date and numbers of the month it ENDS.
+      // It is a HOLD, not a reading: it repeats the last day of the month, so
+      // answering the pointer there gave every month end a second, identical
+      // tick (user report, 260802). The month's OPENING point below is its own
+      // reading (nothing spent yet) and still answers.
       if (prev)
-        out.push({ ...prev, ts: ts - 1, reset: true } as T & {
+        out.push({ ...prev, ts: ts - 1, reset: true, hold: true } as T & {
           reset?: boolean;
+          hold?: boolean;
           drop?: boolean;
         });
       out.push({ ...r, label, ts, real: 0, reset: true, drop: !!prev });

@@ -33,6 +33,11 @@ vi.mock("@/hooks/use-overview-wealth", () => ({
 vi.mock("@/hooks/use-budget-data", () => ({
   useCategories: () => ({ data: [{ id: "c1", name: "Food", colorKey: null }] }),
 }));
+// The category pickers read the member's stored picks from the server (260802);
+// here nobody has picked anything, so both charts show everything.
+vi.mock("@/hooks/use-member-ui-prefs", () => ({
+  useMemberUiPrefs: () => ({ prefs: {}, isLoaded: true, save: async () => {} }),
+}));
 // WealthSection reads the (prefetched) overview cards for its capitalization pie.
 vi.mock("@/hooks/use-overview-cards", () => ({
   useOverviewCards: () => ({

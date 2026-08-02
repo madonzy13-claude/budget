@@ -65,7 +65,11 @@ export const chartTooltip = {
   },
   labelStyle: { color: CHART_THEME.axis },
   itemStyle: { color: CHART_THEME.text },
-  cursor: { stroke: CHART_THEME.grid, strokeWidth: 1 },
+  // The hover cursor is the READING the user asked for, so it out-reads the
+  // structure behind it — the month-reset vertical on the planned timeline, which
+  // sits on the quiet hairline. These two were the wrong way round: the reset
+  // shouted and the cursor barely showed (user report, 260802).
+  cursor: { stroke: CHART_THEME.axis, strokeWidth: 1 },
 } as const;
 
 export interface ChartSeries {

@@ -683,6 +683,47 @@ export class DrizzleBudgetRepo implements BudgetRepo {
    * across a budget's members (each member picks their own share of THIS
    * budget's wealth that counts toward THEIR all-budgets total).
    */
+  async getMemberUiPrefs(
+    budgetId: string,
+    userId: string,
+  ): Promise<Record<string, string[]>> {
+    const r = await withTenantTx(
+      TenantId(budgetId),
+      UserId(userId),
+      async (tx) =>
+        tx.execute<{ ui_prefs: Record<string, string[]> | null }>(sql`
+          SELECT ui_prefs
+            FROM tenancy.budget_members
+           WHERE budget_id = ${budgetId}::uuid AND user_id = ${userId}::uuid
+           LIMIT 1
+        `),
+    );
+    if (r.isErr()) throw r.error;
+    return r.value.rows[0]?.ui_prefs ?? {};
+  }
+
+  async mergeMemberUiPrefs(
+    budgetId: string,
+    userId: string,
+    patch: Record<string, string[]>,
+  ): Promise<Record<string, string[]>> {
+    const r = await withTenantTx(
+      TenantId(budgetId),
+      UserId(userId),
+      async (tx) =>
+        // `||` is jsonb's shallow merge: the patched keys win, every other
+        // chart's stored pick is left exactly as it was.
+        tx.execute<{ ui_prefs: Record<string, string[]> | null }>(sql`
+          UPDATE tenancy.budget_members
+             SET ui_prefs = COALESCE(ui_prefs, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb
+           WHERE budget_id = ${budgetId}::uuid AND user_id = ${userId}::uuid
+       RETURNING ui_prefs
+        `),
+    );
+    if (r.isErr()) throw r.error;
+    return r.value.rows[0]?.ui_prefs ?? {};
+  }
+
   async setMemberAggregationSettings(
     budgetId: string,
     userId: string,

@@ -45,6 +45,12 @@ describe("insertMonthResets", () => {
     expect(out[2]!.ts).toBe(Date.parse("2026-07-01T00:00:00Z") - 1);
     expect(out[3]!.drop).toBe(true);
     expect([out[2]!.reset, out[3]!.reset]).toEqual([true, true]);
+    // The hold REPEATS the reading before it, so it must not answer the pointer
+    // as well: hovering the end of a month stopped twice on the same date with
+    // the same numbers — one tick too many (user report, 260802). The month's
+    // OPENING point is a reading of its own and still answers.
+    expect(out[2]!.hold).toBe(true);
+    expect(out[3]!.hold).toBeFalsy();
   });
 
   it("holds the plan bands and steps them square at the boundary", () => {

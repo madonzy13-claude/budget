@@ -68,13 +68,27 @@ export function useViewportFillHeight(
       return w > 0 && local > 0 ? w / local : 1;
     }
 
+    /**
+     * The element's top with every scroller between it and the viewport wound
+     * back to zero. A rect's `top` is viewport-RELATIVE, so once the page under
+     * the box scrolls it reads smaller — and a box sized "viewport minus my top"
+     * GREW, which made the document taller, which allowed more scroll: a runaway
+     * that left a black band of bare document below the shell, worse the further
+     * you zoomed (user report, 260802). Summing the ancestors' scrollTop undoes
+     * exactly that, and leaves an unscrolled page reading the same as before.
+     */
+    function unscrolledTop(node: HTMLElement): number {
+      let top = node.getBoundingClientRect().top;
+      for (let n = node.parentElement; n; n = n.parentElement) {
+        top += n.scrollTop;
+      }
+      return top;
+    }
+
     function update() {
       if (!el || isKeyboardEditing()) return;
       const zoom = zoomFactor(el);
-      const top = Math.max(
-        0,
-        Math.round(el.getBoundingClientRect().top / zoom),
-      );
+      const top = Math.max(0, Math.round(unscrolledTop(el) / zoom));
       if (fitVisible) {
         // Track the CURRENTLY-VISIBLE viewport so the box always fills exactly from
         // its top to the visible bottom — no under-bar spill (would give the

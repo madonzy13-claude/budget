@@ -25,8 +25,11 @@ describe("appendTodayTail", () => {
     const tail = out[1]!;
     expect(tail.ts).toBe(Date.parse("2026-08-02T00:00:00Z"));
     expect([tail.real, tail.needs, tail.wants]).toEqual([1200, 400, 100]);
-    // Geometry only: no tick of its own, no tooltip.
+    // Geometry only: no tick of its own, no tooltip. `hold` says it merely
+    // REPEATS the reading before it, so the pointer must not stop on it twice
+    // with the same date and numbers (user report, 260802).
     expect(tail.reset).toBe(true);
+    expect(tail.hold).toBe(true);
   });
 
   it("carries a monthly point too — it is clamped to today", () => {

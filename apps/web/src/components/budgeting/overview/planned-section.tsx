@@ -9,7 +9,7 @@
  * (default = All categories) re-scopes the timeline. Charts via the 11-02 wrappers
  * only; string cents → Number here (recharts needs Numbers).
  */
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import {
   CategoryMultiSelect,
@@ -17,11 +17,12 @@ import {
 } from "./category-multi-select";
 import {
   effectiveCategoryIds,
-  loadPlannedCategories,
   pickableCategories,
+  PLANNED_PIE_PREF,
+  PLANNED_TIMELINE_PREF,
   prunePlannedCategories,
-  savePlannedCategories,
 } from "@/lib/planned-category-filter";
+import { useMemberUiPrefs } from "@/hooks/use-member-ui-prefs";
 import { useTranslations, useLocale } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import {
@@ -178,26 +179,21 @@ export function PlannedSection({
   // Persist the selected category across pill navigation (the carousel unmounts
   // this pane, so a plain useState would reset to "All categories" on return).
   const store = useBdpUiStore();
-  // The picked categories are remembered per budget on this device, so they are
-  // this member's own view — the chart reopens the way they left it (260802).
-  const [categoryIds, setCategoryIdsState] = useState<string[]>([]);
-  useEffect(() => {
-    setCategoryIdsState(loadPlannedCategories(budgetId));
-  }, [budgetId]);
-  const setCategoryIds = (ids: string[]) => {
-    savePlannedCategories(budgetId, ids);
-    setCategoryIdsState(ids);
-  };
-  // …and the pie remembers its own, so dropping a slice there leaves the
-  // timeline alone (260802 request).
-  const [pieCategoryIds, setPieCategoryIdsState] = useState<string[]>([]);
-  useEffect(() => {
-    setPieCategoryIdsState(loadPlannedCategories(budgetId, "pie"));
-  }, [budgetId]);
-  const setPieCategoryIds = (ids: string[]) => {
-    savePlannedCategories(budgetId, ids, "pie");
-    setPieCategoryIdsState(ids);
-  };
+  // The picked categories are this MEMBER's own view of the budget, kept on
+  // their member row rather than in one browser: opening the same budget on a
+  // desktop used to show "All categories" again (user report, 260802). The pie
+  // remembers its own set, so dropping a slice there leaves the timeline alone.
+  const {
+    prefs,
+    isLoaded: prefsLoaded,
+    save: savePrefs,
+  } = useMemberUiPrefs(budgetId);
+  const categoryIds = prefs[PLANNED_TIMELINE_PREF] ?? [];
+  const pieCategoryIds = prefs[PLANNED_PIE_PREF] ?? [];
+  const setCategoryIds = (ids: string[]) =>
+    void savePrefs(PLANNED_TIMELINE_PREF, ids);
+  const setPieCategoryIds = (ids: string[]) =>
+    void savePrefs(PLANNED_PIE_PREF, ids);
 
   // Counting the month still in progress is opt-IN: half a month of spend drags
   // an average down against months that ran their full course (260802 request).
@@ -228,7 +224,9 @@ export function PlannedSection({
       categories.map((c) => c.id as string),
     ),
     excludeCurrentMonth: canDropRunningMonth && !includeRunningMonth,
-    enabled: open,
+    // Wait for the member's stored pick: firing before it lands fetches the
+    // unfiltered chart and then throws it away a moment later.
+    enabled: open && prefsLoaded,
   });
 
   // 260731: no needs/wants split → both series carry the same figure, and the

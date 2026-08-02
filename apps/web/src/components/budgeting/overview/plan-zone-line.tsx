@@ -20,6 +20,14 @@
 import { usePlotArea, useXAxisScale, useYAxisScale } from "recharts";
 import { zoneSegments } from "@/lib/actual-over-plan";
 import { polylinePath, type Pt } from "@/lib/plan-zone-paths";
+import { CHART_THEME } from "@/components/budgeting/charts/chart-theme";
+
+/**
+ * The month reset is STRUCTURE, not a reading: it sits on the quiet hairline so
+ * the hover cursor — the line the user actually asked for — reads louder. The
+ * two were the wrong way round (user report, 260802).
+ */
+export const RESET_STROKE = CHART_THEME.grid;
 
 export interface PlanZoneRow {
   label: string;
@@ -40,7 +48,7 @@ export interface PlanZoneLineProps {
   colors: { under: string; between: string; over: string };
   /**
    * The month-boundary DROP carries no verdict — it is the reset itself, so it
-   * is drawn in this neutral grey rather than the month's colour (260801).
+   * is drawn in this neutral hairline rather than the month's colour (260801).
    */
   resetColor?: string;
   strokeWidth?: number;
@@ -49,7 +57,7 @@ export interface PlanZoneLineProps {
 export function PlanZoneLine({
   rows,
   colors,
-  resetColor = "var(--muted-foreground)",
+  resetColor = RESET_STROKE,
   strokeWidth = 2,
 }: PlanZoneLineProps) {
   const xScale = useXAxisScale();
