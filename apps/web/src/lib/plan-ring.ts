@@ -23,6 +23,7 @@ export interface PlanRingArc {
 
 export interface PlanRingRow {
   category_id: string;
+  name?: string;
   planned_avg_cents: string;
   /** Absent on a payload cached before the field existed → read as all wants. */
   needs_avg_cents?: string;
@@ -57,4 +58,21 @@ export function planRing(
       { key: "investments", value: investments },
     ] as PlanRingArc[]
   ).filter((a) => a.value > 0);
+}
+
+/**
+ * The pie's own slices: every category with something planned, biggest first —
+ * WITHOUT the investment one. Its plan is already an arc on the ring, and a
+ * slice as well drew the same money twice (user, 260803).
+ */
+export function planSlices<T extends PlanRingRow>(
+  rows: readonly T[],
+  isInvestment: (categoryId: string) => boolean,
+): T[] {
+  return rows
+    .filter(
+      (r) =>
+        !isInvestment(r.category_id) && (Number(r.planned_avg_cents) || 0) > 0,
+    )
+    .sort((a, b) => Number(b.planned_avg_cents) - Number(a.planned_avg_cents));
 }

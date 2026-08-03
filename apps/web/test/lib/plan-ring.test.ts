@@ -7,7 +7,7 @@
  * budget-wide totals and does NOT line up with the slices beneath it.
  */
 import { describe, it, expect } from "vitest";
-import { planRing } from "../../src/lib/plan-ring";
+import { planRing, planSlices } from "../../src/lib/plan-ring";
 
 const rows = [
   // 300 planned, 250 of it needs → 50 wants
@@ -70,5 +70,26 @@ describe("planRing", () => {
 
   it("is empty when nothing is planned", () => {
     expect(planRing([], isInvestment)).toEqual([]);
+  });
+});
+
+describe("planSlices", () => {
+  // The investment plan already has its own arc on the ring; drawing it as a
+  // category slice too showed the same money twice (user, 260803).
+  it("leaves the investment category out of the slices", () => {
+    const slices = planSlices(rows, isInvestment);
+    expect(slices.map((s) => s.category_id)).not.toContain("inv");
+  });
+
+  it("keeps every other category, biggest first, dropping empty plans", () => {
+    const slices = planSlices(
+      [
+        { category_id: "a", planned_avg_cents: "100", needs_avg_cents: "0" },
+        { category_id: "b", planned_avg_cents: "0", needs_avg_cents: "0" },
+        { category_id: "c", planned_avg_cents: "900", needs_avg_cents: "0" },
+      ],
+      isInvestment,
+    );
+    expect(slices.map((s) => s.category_id)).toEqual(["c", "a"]);
   });
 });

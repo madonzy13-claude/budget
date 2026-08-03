@@ -126,11 +126,20 @@ export function createOverviewRepo(): OverviewPlannedRepo {
                  cm.month AS month,
                  (CASE WHEN ma.mode = 'CUSHION' THEN cl.cushion_amount
                        ELSE cl.normal_amount END)::text AS planned_cents,
-                 -- needs = the essential portion; wants = planned − needs. For a
-                 -- cushioned category that's the cushion (capped at planned). For a
-                 -- NON-cushioned category (mode 'none') the cushion is 0 but the
-                 -- planned is still its needs budget (not "wants") → needs = planned.
-                 (CASE WHEN cm.cushion_mode = 'none'
+                 -- needs = the essential portion; wants = planned − needs.
+                 -- The slider writes the split the user typed onto the limit row
+                 -- (needs_amount), so PREFER it — inferring needs from the cushion
+                 -- ignored the edit entirely and the charts kept the old split
+                 -- (user report, 260803). Capped at planned, because a cushion
+                 -- month can be smaller than the normal-month needs figure.
+                 -- Rows written before the split columns existed have NULL there:
+                 -- fall back to the cushion, except for a NON-cushioned category
+                 -- (mode 'none') whose whole plan is needs, not wants.
+                 (CASE WHEN cl.needs_amount IS NOT NULL
+                       THEN LEAST(cl.needs_amount,
+                                  CASE WHEN ma.mode = 'CUSHION' THEN cl.cushion_amount
+                                       ELSE cl.normal_amount END)
+                       WHEN cm.cushion_mode = 'none'
                        THEN CASE WHEN ma.mode = 'CUSHION' THEN cl.cushion_amount
                                  ELSE cl.normal_amount END
                        ELSE LEAST(cl.cushion_amount,
@@ -140,7 +149,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
             FROM cat_month cm
             JOIN mode_at ma ON ma.month_start = cm.month_start
             JOIN LATERAL (
-              SELECT cl.normal_amount, cl.cushion_amount
+              SELECT cl.normal_amount, cl.cushion_amount, cl.needs_amount
                 FROM budgeting.category_limits cl
                WHERE cl.tenant_id = ${budgetId}::uuid
                  AND cl.category_id = cm.category_id

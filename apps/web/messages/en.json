@@ -1462,7 +1462,7 @@
           "ring": {
             "needs": "Needs",
             "wants": "Wants",
-            "investments": "Investing"
+            "investments": "Investments"
           }
         },
         "wealth": {

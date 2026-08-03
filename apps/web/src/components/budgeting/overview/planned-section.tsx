@@ -39,7 +39,7 @@ import {
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { hexForColorKey } from "@/lib/category-colors";
 import { assignSliceColors } from "@/lib/slice-colors";
-import { planRing, type PlanRingKey } from "@/lib/plan-ring";
+import { planRing, planSlices, type PlanRingKey } from "@/lib/plan-ring";
 import { Customized } from "recharts";
 import { PlanZoneLine } from "./plan-zone-line";
 import { hasWantsSplit } from "@/lib/wants-split";
@@ -134,10 +134,12 @@ function PlannedByCategoryPie({
     wants: "var(--chart-plan-wants)",
     investments: "var(--chart-plan-invest)",
   };
-  const data = inView
-    .map((c) => ({ name: c.name, planned: Number(c.planned_avg_cents) }))
-    .filter((r) => r.planned > 0)
-    .sort((a, b) => b.planned - a.planned);
+  // The investment category rides the RING, not the slices — drawing it in both
+  // showed the same money twice (user, 260803).
+  const data = planSlices(inView, isInvestment).map((c) => ({
+    name: c.name,
+    planned: Number(c.planned_avg_cents),
+  }));
   if (data.length === 0) return null;
 
   // One colour per slice. Cycling the eight brand colours by index wrapped on a
@@ -183,11 +185,9 @@ function PlannedByCategoryPie({
 export function PlannedSection({
   budgetId,
   range,
-  amountPrivacyEnabled = true,
 }: {
   budgetId: string;
   range: OverviewRange;
-  amountPrivacyEnabled?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
   const locale = useLocale();
@@ -357,7 +357,9 @@ export function PlannedSection({
               overspentCents={data.rangeTotals?.overspent_cents ?? "0"}
               rangeWithinRunningMonth={rangeWithinRunningMonth}
               format={(cents) => centsToRounded(cents, ccy, "en", true)}
-              maskValue={amountPrivacyEnabled}
+              // Deliberately NOT masked (user, 260803): these are the plan and
+              // what it cost, not a balance — the figures the member reads while
+              // the rest of the page stays redacted.
             />
             {data.timeline.length === 0 ? (
               <p className="text-num-sm text-[var(--muted-foreground)]">
@@ -612,6 +614,9 @@ export function PlannedSection({
                       value: `${pctSign}${Math.abs(
                         Math.round(Number(row.pct)),
                       )}% · ${sign}${fmtTooltip(Math.abs(diff))}`,
+                      // A conclusion, not another figure in the list — it opens
+                      // its own section under a rule (260803).
+                      section: true,
                       color: varianceColorForRange(Number(row.pct), {
                         runningMonthOnly: rangeWithinRunningMonth,
                       }),
@@ -652,7 +657,7 @@ export function PlannedSection({
             title={t("planned.avgPie")}
             allLabel={t("planned.allCategories")}
             formatValue={fmtTooltip}
-            maskValue={amountPrivacyEnabled}
+            // Same call as the metrics above: planned spend stays readable.
           />
         </>
       )}

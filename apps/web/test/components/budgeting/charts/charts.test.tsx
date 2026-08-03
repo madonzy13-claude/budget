@@ -357,13 +357,48 @@ describe("Overview charts", () => {
       expect(c.textContent).toContain("200 zl");
     });
 
-    it("renders a header row that names the two columns", () => {
+    // 260803: the column names used to occupy a whole row of their own; they
+    // belong to the title line, beside the category name.
+    it("puts the column names on the title line, not a row of their own", () => {
       const c = renderExtra(() => [
         { label: "", value: "avg", value2: "total", head: true },
         { label: "Planned", value: "50 zl", value2: "200 zl" },
       ]);
-      expect(c.textContent).toContain("avg");
-      expect(c.textContent).toContain("total");
+      const title = c.querySelector('[data-testid="tooltip-title"]')!;
+      expect(title.textContent).toContain("Food");
+      expect(title.textContent).toContain("avg");
+      expect(title.textContent).toContain("total");
+      // and no separate head row survives below it
+      expect(
+        c.querySelectorAll('[data-testid="tooltip-extra-row"]').length,
+      ).toBe(1);
+    });
+
+    // The totals are context for the averages the bar is drawn from — they read
+    // quieter so the eye lands on the avg column first (user, 260803).
+    it("renders the total column quieter than the average", () => {
+      const c = renderExtra(() => [
+        { label: "Planned", value: "50 zl", value2: "200 zl" },
+      ]);
+      const cells = [...c.querySelectorAll("span")].filter((n) =>
+        ["50 zl", "200 zl"].includes(n.textContent ?? ""),
+      );
+      const avg = cells.find((n) => n.textContent === "50 zl")!;
+      const total = cells.find((n) => n.textContent === "200 zl")!;
+      expect(total.style.color).not.toBe("");
+      expect(total.style.color).not.toBe(avg.style.color);
+    });
+
+    // A section of its own: the difference is a conclusion, not another figure
+    // in the same list (user, 260803).
+    it("separates a section row with its own rule", () => {
+      const c = renderExtra(() => [
+        { label: "Planned", value: "50 zl", value2: "200 zl" },
+        { label: "Difference", value: "+12%", section: true },
+      ]);
+      const rows = [...c.querySelectorAll('[data-testid="tooltip-extra-row"]')];
+      const diff = rows.find((r) => r.textContent?.includes("Difference"))!;
+      expect((diff as HTMLElement).style.borderTop).not.toBe("");
     });
 
     it("leaves a one-value row exactly as it was", () => {

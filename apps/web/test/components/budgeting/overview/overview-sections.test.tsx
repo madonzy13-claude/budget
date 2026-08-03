@@ -61,13 +61,15 @@ vi.mock("@/components/budgeting/charts/area-chart", () => ({
   OverviewAreaChart: () => <div data-testid="area-chart" />,
 }));
 vi.mock("@/components/budgeting/charts/pie-chart", () => ({
-  OverviewPieChart: () => <div data-testid="pie-chart" />,
+  OverviewPieChart: ({ maskValue }: { maskValue?: boolean }) => (
+    <div data-testid="pie-chart" data-mask={String(!!maskValue)} />
+  ),
 }));
 
 import { OverviewSections } from "@/components/budgeting/overview/overview-sections";
 
-function renderSections() {
-  return render(<OverviewSections budgetId="b1" />);
+function renderSections(props: { amountPrivacyEnabled?: boolean } = {}) {
+  return render(<OverviewSections budgetId="b1" {...props} />);
 }
 
 const PLANNED = {
@@ -245,5 +247,25 @@ describe("OverviewSections", () => {
     );
     expect(lastOpts(wealthMock).view).toBe("investments");
     expect(screen.getByTestId("pie-chart")).toBeTruthy();
+  });
+});
+
+// The planned figures are a plan, not a balance: the member asked for them to
+// stay readable while the rest of the page is redacted (260803).
+describe("Planned — privacy", () => {
+  it("shows the metric figures even with amount privacy on", async () => {
+    const user = userEvent.setup();
+    renderSections({ amountPrivacyEnabled: true });
+    await user.click(screen.getByText("sections.planned"));
+    const spent = await screen.findByTestId("planned-total-spent");
+    expect(spent.textContent).toMatch(/\d/);
+  });
+
+  it("leaves the planned pie unmasked", async () => {
+    const user = userEvent.setup();
+    renderSections({ amountPrivacyEnabled: true });
+    await user.click(screen.getByText("sections.planned"));
+    const pies = await screen.findAllByTestId("pie-chart");
+    expect(pies.map((p) => p.getAttribute("data-mask"))).not.toContain("true");
   });
 });

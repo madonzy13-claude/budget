@@ -60,11 +60,9 @@ export function OverviewSections({
       >
         <RangeSelector value={range} onChange={applyRange} />
       </StickOnScroll>
-      <PlannedSection
-        budgetId={budgetId}
-        range={range}
-        amountPrivacyEnabled={amountPrivacyEnabled}
-      />
+      {/* No amountPrivacyEnabled: the planned figures stay readable while the
+          rest of the page is redacted (user, 260803). */}
+      <PlannedSection budgetId={budgetId} range={range} />
       <RecurringSection budgetId={budgetId} range={range} />
       <OverspentReservesSection
         budgetId={budgetId}
