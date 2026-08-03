@@ -24,9 +24,12 @@ export interface OverviewPlannedDTO {
     reserve_used_cents: string;
     overspent_cents: string;
   }[];
-  /** Σ over the selected range: what was spent, and how it was paid for. The
-   *  Planned section opens on these (260803). Parts sum to spent. */
-  rangeTotals: {
+  /** Σ over the selected range, narrowed by the timeline's picker: what was
+   *  planned, what was spent, and how that spend was paid for. Parts sum to
+   *  spent (260803). */
+  /** Optional: a cached payload from before this field existed will not have it. */
+  rangeTotals?: {
+    planned_cents: string;
     spent_cents: string;
     within_limit_cents: string;
     reserve_used_cents: string;

@@ -426,9 +426,32 @@ describe("getOverviewPlanned", () => {
         to: "2026-03-31",
       })
     )._unsafeUnwrap();
+    // The plan side of the comparison, filtered the same way the spend is —
+    // both sit under the timeline's category picker (260803 user request).
+    expect(dto.rangeTotals.planned_cents).toBe("60000"); // 30000 x 2 months
     expect(dto.rangeTotals.spent_cents).toBe("70000");
     expect(dto.rangeTotals.reserve_used_cents).toBe("0");
     expect(dto.rangeTotals.overspent_cents).toBe("20000");
+    // Narrow to nothing and both sides go with it.
+    const none = (
+      await getOverviewPlanned({
+        repo: totRepo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      })({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-01-01",
+        to: "2026-03-31",
+        categoryIds: ["OTHER"],
+      })
+    )._unsafeUnwrap();
+    expect(none.rangeTotals.planned_cents).toBe("0");
+    expect(none.rangeTotals.spent_cents).toBe("0");
     // The parts always account for every cent spent.
     expect(
       BigInt(dto.rangeTotals.within_limit_cents) +

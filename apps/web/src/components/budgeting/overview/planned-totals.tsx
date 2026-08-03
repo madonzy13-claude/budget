@@ -1,79 +1,146 @@
 "use client";
 /**
- * planned-totals.tsx — the three figures the Planned section opens on (260803).
+ * planned-totals.tsx — the figures under the timeline's picker (260803).
  *
- * Replaces the "Amount over budget, by category" bar: a per-category breakdown of
- * the overspend answered a question the charts below already answer, while the
- * plain question — what did the range cost, how much of it came out of the
- * reserve, how much was over — had no home.
+ * Two tiers, because they answer two questions.
  *
- * Laid out across, in the same caption-over-figure shape as the Overview's hero
- * cards. Reserve and overspend are PARTS of what was spent, so they only colour
- * when there is something to colour.
+ *   Planned spent · Used reserves · Overspent   — the BREAKDOWN of what was
+ *     spent, in the same green / yellow / red the line below is drawn in, so
+ *     the row reads as that chart's key. The three sum to Total spent.
+ *
+ *   Total spent · Total planned · Difference     — the COMPARISON, which is a
+ *     different question and gets its own line, under a hairline.
+ *
+ * A 3-column grid rather than a wrapping flex row: six figures that wrap
+ * raggedly stop looking like a table of numbers and start looking like a mess.
+ * Two tidy rows of three hold on a phone and stay aligned down the columns.
+ *
+ * They sit under the category picker on purpose — both sides are filtered by
+ * it, so the thing that narrows them is directly above.
  */
 import { useTranslations } from "next-intl";
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
+import { varianceColor } from "@/components/budgeting/charts/diverging-bar-chart";
+
+/** Matches the plan-zone line: limit-covered green, reserve yellow, over red. */
+const ZONE = {
+  within: "var(--trading-up)",
+  reserve: "var(--primary)",
+  over: "var(--trading-down)",
+} as const;
+
+interface Cell {
+  key: string;
+  label: string;
+  value: string;
+  tone?: string;
+}
+
+function Figure({ cell, mask }: { cell: Cell; mask: boolean }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <p className="text-caption truncate text-[var(--muted-foreground)]">
+        {cell.label}
+      </p>
+      <span
+        className="num text-num-sm"
+        style={cell.tone ? { color: cell.tone } : undefined}
+        data-testid={`planned-total-${cell.key}`}
+      >
+        {mask ? <SlotAmount value={cell.value} /> : cell.value}
+      </span>
+    </div>
+  );
+}
 
 export function PlannedTotals({
+  plannedCents,
   spentCents,
+  withinLimitCents,
   reserveUsedCents,
   overspentCents,
   format,
   maskValue = false,
   reservesEnabled = true,
 }: {
+  plannedCents: string;
   spentCents: string;
+  withinLimitCents: string;
   reserveUsedCents: string;
   overspentCents: string;
   format: (cents: bigint) => string;
   maskValue?: boolean;
-  /** Reserves off → the reserve figure would always read zero, so it is dropped. */
+  /** Reserves off → that figure is always zero, so it is dropped. */
   reservesEnabled?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
-  const metrics = [
-    { key: "spent", label: t("planned.spent"), cents: spentCents, tone: "" },
+  const n = (v: string) => BigInt(v || "0");
+
+  const planned = n(plannedCents);
+  const spent = n(spentCents);
+  const diff = spent - planned;
+  // Under plan reads negative and green, over reads positive and red — the same
+  // sign and colour the "How far off plan" bars use.
+  const pct = planned > 0n ? (Number(diff) / Number(planned)) * 100 : null;
+  const sign = diff > 0n ? "+" : diff < 0n ? "−" : "";
+  const absDiff = diff < 0n ? -diff : diff;
+  const difference =
+    pct === null
+      ? `${sign}${format(absDiff)}`
+      : `${sign}${format(absDiff)} · ${sign}${Math.abs(Math.round(pct))}%`;
+
+  const breakdown: Cell[] = [
+    {
+      key: "within",
+      label: t("planned.fromPlan"),
+      value: format(n(withinLimitCents)),
+      tone: ZONE.within,
+    },
     ...(reservesEnabled
       ? [
           {
             key: "reserve",
             label: t("planned.fromReserve"),
-            cents: reserveUsedCents,
-            tone: BigInt(reserveUsedCents || "0") > 0n ? "var(--primary)" : "",
+            value: format(n(reserveUsedCents)),
+            tone: n(reserveUsedCents) > 0n ? ZONE.reserve : undefined,
           },
         ]
       : []),
     {
       key: "overspent",
       label: t("planned.overspent"),
-      cents: overspentCents,
-      tone: BigInt(overspentCents || "0") > 0n ? "var(--trading-down)" : "",
+      value: format(n(overspentCents)),
+      tone: n(overspentCents) > 0n ? ZONE.over : undefined,
+    },
+  ];
+
+  const comparison: Cell[] = [
+    { key: "spent", label: t("planned.totalSpent"), value: format(spent) },
+    {
+      key: "planned",
+      label: t("planned.totalPlanned"),
+      value: format(planned),
+    },
+    {
+      key: "difference",
+      label: t("planned.difference"),
+      value: difference,
+      tone: pct === null ? undefined : varianceColor(pct),
     },
   ];
 
   return (
-    <div
-      data-testid="planned-totals"
-      className="flex flex-wrap items-start justify-center gap-6"
-    >
-      {metrics.map((m) => (
-        <div key={m.key} className="flex flex-col gap-0.5 text-center">
-          <p className="text-caption text-[var(--muted-foreground)]">
-            {m.label}
-          </p>
-          <span
-            className="num text-num-md"
-            style={m.tone ? { color: m.tone } : undefined}
-            data-testid={`planned-total-${m.key}`}
-          >
-            {maskValue ? (
-              <SlotAmount value={format(BigInt(m.cents || "0"))} />
-            ) : (
-              format(BigInt(m.cents || "0"))
-            )}
-          </span>
-        </div>
-      ))}
+    <div data-testid="planned-totals" className="flex flex-col gap-2">
+      <div className="grid grid-cols-3 gap-x-3 gap-y-1">
+        {breakdown.map((c) => (
+          <Figure key={c.key} cell={c} mask={maskValue} />
+        ))}
+      </div>
+      <div className="grid grid-cols-3 gap-x-3 gap-y-1 border-t border-[var(--hairline-dark)] pt-2">
+        {comparison.map((c) => (
+          <Figure key={c.key} cell={c} mask={maskValue} />
+        ))}
+      </div>
     </div>
   );
 }

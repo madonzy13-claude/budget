@@ -169,12 +169,14 @@ export interface OverviewPlannedDTO {
     overspent_cents: string;
   }[];
   /**
-   * Σ over the selected range, across the categories in view: what was spent,
-   * how much of it the limit covered, how much the reserve covered, and what
-   * was left over. The Planned section opens on these three figures (260803
-   * user request). within + reserve_used + overspent === spent.
+   * Σ over the selected range, across the categories in view: what was planned,
+   * what was spent, and how that spend was paid for — what the limit covered,
+   * what the reserve covered, and what was left over. The timeline's picker
+   * narrows both sides alike. within + reserve_used + overspent === spent.
    */
   rangeTotals: {
+    /** Σ of the limits in view over the range — the plan side of the comparison. */
+    planned_cents: string;
     spent_cents: string;
     within_limit_cents: string;
     reserve_used_cents: string;
@@ -403,7 +405,11 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         for (const v of m.values()) total += v;
         return total;
       };
+      let plannedInRange = 0n;
+      for (const p of plannedRows)
+        if (inCat(p.category_id)) plannedInRange += p.planned_cents;
       const rangeTotals = {
+        planned_cents: plannedInRange.toString(),
         within_limit_cents: sumOf(withinByMonth).toString(),
         reserve_used_cents: sumOf(reserveUsedByMonth).toString(),
         overspent_cents: sumOf(overspentByMonth).toString(),

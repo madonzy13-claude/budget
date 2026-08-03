@@ -4,8 +4,9 @@
  *
  * Collapsible; lazy-fetches /overview/planned only when open. Renders the
  * Planned-vs-Real timeline (line: real solid yellow, planned dashed neutral), the
- * planned-avg-vs-real bar (Y=category) and the planned-share pie, opening on the
- * range's three plain figures — spent, reserve drawn, overspent (260803). The
+ * planned-avg-vs-real bar (Y=category) and the planned-share pie. Under the
+ * timeline's picker sit the range's figures — the spend broken into limit /
+ * reserve / overspend, and spent against planned (260803). The
  * recurring charts moved out to their own section. A category selector
  * (default = All categories) re-scopes the timeline. Charts via the 11-02 wrappers
  * only; string cents → Number here (recharts needs Numbers).
@@ -286,16 +287,6 @@ export function PlannedSection({
         </p>
       ) : (
         <>
-          {/* What the range cost, and how it was paid for (260803 user request):
-              the plain figures the charts below break down. */}
-          <PlannedTotals
-            spentCents={data.rangeTotals.spent_cents}
-            reserveUsedCents={data.rangeTotals.reserve_used_cents}
-            overspentCents={data.rangeTotals.overspent_cents}
-            format={(cents) => centsToRounded(cents, ccy, "en", true)}
-            maskValue={amountPrivacyEnabled}
-          />
-
           {/* Planned-vs-Real timeline. `wantsSplitExists` decides whether the
               WANTS band is drawn at all — see the series list below. */}
           <div className="flex flex-col gap-2">
@@ -316,6 +307,22 @@ export function PlannedSection({
                 categories.map((c) => c.id),
               )}
               onCommit={setCategoryIds}
+            />
+            {/* Directly under the picker, because the picker narrows THESE too
+                (260803 user request): the breakdown reads as the line's key,
+                the comparison as how the range went against plan. */}
+            {/* Optional-chained on purpose: the persisted query cache replays
+                the PREVIOUS deploy's DTO shape, so a newly added field arrives
+                undefined on the first paint. Reading it blind took the whole tab
+                down with "Something went wrong" (260803). */}
+            <PlannedTotals
+              plannedCents={data.rangeTotals?.planned_cents ?? "0"}
+              spentCents={data.rangeTotals?.spent_cents ?? "0"}
+              withinLimitCents={data.rangeTotals?.within_limit_cents ?? "0"}
+              reserveUsedCents={data.rangeTotals?.reserve_used_cents ?? "0"}
+              overspentCents={data.rangeTotals?.overspent_cents ?? "0"}
+              format={(cents) => centsToRounded(cents, ccy, "en", true)}
+              maskValue={amountPrivacyEnabled}
             />
             {data.timeline.length === 0 ? (
               <p className="text-num-sm text-[var(--muted-foreground)]">

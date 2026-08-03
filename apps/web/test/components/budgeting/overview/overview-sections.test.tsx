@@ -83,6 +83,7 @@ const PLANNED = {
     },
   ],
   rangeTotals: {
+    planned_cents: "60000",
     spent_cents: "70000",
     within_limit_cents: "50000",
     reserve_used_cents: "0",
@@ -187,6 +188,27 @@ describe("OverviewSections", () => {
     // renders with its own label; Wealth stays collapsed so this is the only pie.
     expect(screen.getByText("planned.avgPie")).toBeTruthy();
     expect(screen.getByTestId("pie-chart")).toBeTruthy();
+  });
+
+  it("survives a CACHED payload from before rangeTotals existed", async () => {
+    // The persisted query cache replays the previous deploy's DTO shape, so a
+    // newly added field arrives undefined on the first paint. Reading it blind
+    // took the whole tab down with "Something went wrong" (found in live
+    // verification, 260803) — every returning user would meet that on any deploy
+    // that adds a field.
+    const { rangeTotals: _dropped, ...old } = PLANNED as Record<
+      string,
+      unknown
+    >;
+    plannedMock.mockReturnValue({
+      data: old,
+      isPending: false,
+      isError: false,
+    });
+    const user = userEvent.setup();
+    renderSections();
+    await user.click(screen.getByRole("button", { name: "sections.planned" }));
+    expect(screen.getByTestId("planned-totals")).toBeTruthy();
   });
 
   it("opens Planned on the range's three figures, not a by-category bar", () => {
