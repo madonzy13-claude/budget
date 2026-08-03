@@ -31,12 +31,24 @@ vi.mock("@/hooks/use-overview-wealth", () => ({
   useOverviewWealth: wealthMock,
 }));
 vi.mock("@/hooks/use-budget-data", () => ({
-  useCategories: () => ({ data: [{ id: "c1", name: "Food", colorKey: null }] }),
+  useCategories: () => ({
+    data: [
+      { id: "c1", name: "Food", colorKey: null },
+      { id: "c2", name: "Investments", colorKey: null, isInvestment: true },
+    ],
+  }),
 }));
 // The category pickers read the member's stored picks from the server (260802);
 // here nobody has picked anything, so both charts show everything.
+const { prefsMock } = vi.hoisted(() => ({
+  prefsMock: { value: {} as Record<string, string[]> },
+}));
 vi.mock("@/hooks/use-member-ui-prefs", () => ({
-  useMemberUiPrefs: () => ({ prefs: {}, isLoaded: true, save: async () => {} }),
+  useMemberUiPrefs: () => ({
+    prefs: prefsMock.value,
+    isLoaded: true,
+    save: async () => {},
+  }),
 }));
 // WealthSection reads the (prefetched) overview cards for its capitalization pie.
 vi.mock("@/hooks/use-overview-cards", () => ({
@@ -61,8 +73,27 @@ vi.mock("@/components/budgeting/charts/area-chart", () => ({
   OverviewAreaChart: () => <div data-testid="area-chart" />,
 }));
 vi.mock("@/components/budgeting/charts/pie-chart", () => ({
-  OverviewPieChart: ({ maskValue }: { maskValue?: boolean }) => (
-    <div data-testid="pie-chart" data-mask={String(!!maskValue)} />
+  OverviewPieChart: ({
+    maskValue,
+    data,
+    outerRing,
+    nameKey,
+  }: {
+    maskValue?: boolean;
+    data?: Record<string, unknown>[];
+    nameKey?: string;
+    outerRing?: { data: Record<string, unknown>[]; nameKey?: string };
+  }) => (
+    <div
+      data-testid="pie-chart"
+      data-mask={String(!!maskValue)}
+      data-slices={(data ?? [])
+        .map((d) => String(d[nameKey ?? "name"]))
+        .join(",")}
+      data-ring={(outerRing?.data ?? [])
+        .map((d) => String(d[outerRing?.nameKey ?? "name"]))
+        .join(",")}
+    />
   ),
 }));
 
@@ -82,6 +113,14 @@ const PLANNED = {
       name: "Food",
       planned_avg_cents: "20000",
       real_avg_cents: "18000",
+      needs_avg_cents: "20000",
+    },
+    {
+      category_id: "c2",
+      name: "Investments",
+      planned_avg_cents: "50000",
+      real_avg_cents: "50000",
+      needs_avg_cents: "0",
     },
   ],
   rangeTotals: {
@@ -109,6 +148,7 @@ const WEALTH = {
 };
 
 beforeEach(() => {
+  prefsMock.value = {};
   plannedMock.mockReset();
   overspentMock.mockReset();
   wealthMock.mockReset();
@@ -267,5 +307,32 @@ describe("Planned — privacy", () => {
     await user.click(screen.getByText("sections.planned"));
     const pies = await screen.findAllByTestId("pie-chart");
     expect(pies.map((p) => p.getAttribute("data-mask"))).not.toContain("true");
+  });
+});
+
+// The picker narrows the SLICES only. The investing arc is budget-wide: hiding
+// the category must not erase the plan's investing share (user, 260803).
+describe("Planned pie — investments on both rings", () => {
+  const pie = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByText("sections.planned"));
+    const pies = await screen.findAllByTestId("pie-chart");
+    return pies[pies.length - 1]!;
+  };
+
+  it("draws investments as a slice AND as an arc", async () => {
+    const user = userEvent.setup();
+    renderSections();
+    const p = await pie(user);
+    expect(p.getAttribute("data-slices")).toContain("Investments");
+    expect(p.getAttribute("data-ring")).toContain("planned.ring.investments");
+  });
+
+  it("keeps the arc when the picker drops the investment category", async () => {
+    prefsMock.value = { "planned-pie-categories": ["c1"] };
+    const user = userEvent.setup();
+    renderSections();
+    const p = await pie(user);
+    expect(p.getAttribute("data-slices")).not.toContain("Investments");
+    expect(p.getAttribute("data-ring")).toContain("planned.ring.investments");
   });
 });

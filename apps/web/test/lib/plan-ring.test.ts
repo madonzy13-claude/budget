@@ -74,22 +74,48 @@ describe("planRing", () => {
 });
 
 describe("planSlices", () => {
-  // The investment plan already has its own arc on the ring; drawing it as a
-  // category slice too showed the same money twice (user, 260803).
-  it("leaves the investment category out of the slices", () => {
-    const slices = planSlices(rows, isInvestment);
-    expect(slices.map((s) => s.category_id)).not.toContain("inv");
+  // 260803 (second pass): the member wants investments on BOTH pies — a slice
+  // inside AND its arc outside — so the slices carry it like any category.
+  it("keeps the investment category as a slice", () => {
+    expect(planSlices(rows).map((s) => s.category_id)).toContain("inv");
   });
 
-  it("keeps every other category, biggest first, dropping empty plans", () => {
-    const slices = planSlices(
-      [
-        { category_id: "a", planned_avg_cents: "100", needs_avg_cents: "0" },
-        { category_id: "b", planned_avg_cents: "0", needs_avg_cents: "0" },
-        { category_id: "c", planned_avg_cents: "900", needs_avg_cents: "0" },
-      ],
-      isInvestment,
-    );
+  it("keeps every category, biggest first, dropping empty plans", () => {
+    const slices = planSlices([
+      { category_id: "a", planned_avg_cents: "100", needs_avg_cents: "0" },
+      { category_id: "b", planned_avg_cents: "0", needs_avg_cents: "0" },
+      { category_id: "c", planned_avg_cents: "900", needs_avg_cents: "0" },
+    ]);
     expect(slices.map((s) => s.category_id)).toEqual(["c", "a"]);
+  });
+});
+
+describe("planRing — investments ignore the picker", () => {
+  // The picker narrows the SLICES. The investing arc is budget-wide: filtering
+  // the category out of the pie must not erase the plan's investing share
+  // (user, 260803).
+  const onlyFood = [rows[0]!];
+
+  it("keeps the investments arc when the picker excludes that category", () => {
+    const ring = planRing(onlyFood, isInvestment, rows);
+    expect(ring.find((a) => a.key === "investments")?.value).toBe(50000);
+    // needs/wants still follow what the member picked
+    expect(ring.find((a) => a.key === "needs")?.value).toBe(25000);
+    expect(ring.find((a) => a.key === "wants")?.value).toBe(5000);
+  });
+
+  it("never double-counts investments already inside the picked rows", () => {
+    const ring = planRing(rows, isInvestment, rows);
+    expect(ring.find((a) => a.key === "investments")?.value).toBe(50000);
+  });
+
+  it("defaults the investing source to the rows in view", () => {
+    const ring = planRing(rows, isInvestment);
+    expect(ring.find((a) => a.key === "investments")?.value).toBe(50000);
+  });
+
+  it("drops the arc when the range has no investment plan at all", () => {
+    const ring = planRing(onlyFood, isInvestment, onlyFood);
+    expect(ring.find((a) => a.key === "investments")).toBeUndefined();
   });
 });

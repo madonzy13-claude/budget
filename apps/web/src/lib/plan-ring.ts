@@ -29,9 +29,18 @@ export interface PlanRingRow {
   needs_avg_cents?: string;
 }
 
+/**
+ * @param rows            the categories in view — they set needs and wants.
+ * @param isInvestment    which category id is the investment one.
+ * @param investmentRows  where the investing arc is summed from. The picker
+ *   narrows the SLICES; the arc is budget-wide, so filtering investments out of
+ *   the pie must not erase the plan's investing share (user, 260803). Defaults
+ *   to `rows`, which is the same thing when nothing is filtered.
+ */
 export function planRing(
   rows: readonly PlanRingRow[],
   isInvestment: (categoryId: string) => boolean,
+  investmentRows: readonly PlanRingRow[] = rows,
 ): PlanRingArc[] {
   let needs = 0;
   let wants = 0;
@@ -40,15 +49,19 @@ export function planRing(
   for (const r of rows) {
     const planned = Number(r.planned_avg_cents) || 0;
     if (planned <= 0) continue;
-    if (isInvestment(r.category_id)) {
-      investments += planned;
-      continue;
-    }
+    // Counted from investmentRows below — skip here or a picked investment
+    // category would land in the arc twice.
+    if (isInvestment(r.category_id)) continue;
     // Clamped: a stale limit reporting needs above its plan would otherwise
     // drive wants negative and open a reversed arc.
     const n = Math.min(Number(r.needs_avg_cents) || 0, planned);
     needs += n;
     wants += planned - n;
+  }
+
+  for (const r of investmentRows) {
+    if (!isInvestment(r.category_id)) continue;
+    investments += Math.max(0, Number(r.planned_avg_cents) || 0);
   }
 
   return (
@@ -61,18 +74,12 @@ export function planRing(
 }
 
 /**
- * The pie's own slices: every category with something planned, biggest first —
- * WITHOUT the investment one. Its plan is already an arc on the ring, and a
- * slice as well drew the same money twice (user, 260803).
+ * The pie's own slices: every category with something planned, biggest first.
+ * The investment category is one of them AND has its own arc outside — the
+ * member reads the two together (user, 260803).
  */
-export function planSlices<T extends PlanRingRow>(
-  rows: readonly T[],
-  isInvestment: (categoryId: string) => boolean,
-): T[] {
+export function planSlices<T extends PlanRingRow>(rows: readonly T[]): T[] {
   return rows
-    .filter(
-      (r) =>
-        !isInvestment(r.category_id) && (Number(r.planned_avg_cents) || 0) > 0,
-    )
+    .filter((r) => (Number(r.planned_avg_cents) || 0) > 0)
     .sort((a, b) => Number(b.planned_avg_cents) - Number(a.planned_avg_cents));
 }

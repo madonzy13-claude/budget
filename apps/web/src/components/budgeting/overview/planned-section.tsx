@@ -122,9 +122,12 @@ function PlannedByCategoryPie({
   // stays on the timeline, and the other way round.
   const shown = picked.length ? new Set(picked) : null;
   const inView = rows.filter((c) => !shown || shown.has(c.category_id));
-  // The outer ring: needs / wants / investing summed across the SAME categories
-  // the slices show, so narrowing the picker narrows both (260803 request).
-  const ring = planRing(inView, isInvestment).map((a) => ({
+  // The outer ring: needs / wants summed across the SAME categories the slices
+  // show, so narrowing the picker narrows them. The INVESTING arc is different —
+  // it comes from every row in range, so dropping the investment category from
+  // the picker hides its slice without erasing the plan's investing share
+  // (user, 260803).
+  const ring = planRing(inView, isInvestment, rows).map((a) => ({
     name: ringLabel(a.key),
     value: a.value,
     key: a.key,
@@ -134,9 +137,8 @@ function PlannedByCategoryPie({
     wants: "var(--chart-plan-wants)",
     investments: "var(--chart-plan-invest)",
   };
-  // The investment category rides the RING, not the slices — drawing it in both
-  // showed the same money twice (user, 260803).
-  const data = planSlices(inView, isInvestment).map((c) => ({
+  // Investments is a slice like any other category — and an arc outside.
+  const data = planSlices(inView).map((c) => ({
     name: c.name,
     planned: Number(c.planned_avg_cents),
   }));
