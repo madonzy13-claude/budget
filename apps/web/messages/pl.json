@@ -1138,7 +1138,8 @@
           "11": "Listopad",
           "12": "Grudzień"
         },
-        "saveButton": "Zapisz dochód"
+        "saveButton": "Zapisz dochód",
+        "errorAmount": "Podaj kwotę, np. 73,80"
       },
       "list": {
         "empty": "Brak dochodów.",
@@ -1213,6 +1214,7 @@
         "lastDueLabel": "Data końcowa (opcjonalnie)",
         "lastDuePlaceholder": "Bez daty końcowej",
         "errorLastBeforeFirst": "Data końcowa nie może być wcześniejsza niż pierwsza data",
+        "errorAmount": "Podaj kwotę, np. 73,80",
         "noteLabel": "Notatka (opcjonalnie)",
         "applyToFutureLabel": "Zastosuj również do przyszłych wystąpień",
         "applyToFutureHelp": "Edytuje nadchodzące oczekujące szkice, aby odzwierciedlały nową kwotę/kategorię. Potwierdzone w przeszłości transakcje nigdy nie są zmieniane.",

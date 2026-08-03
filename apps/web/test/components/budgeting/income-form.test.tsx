@@ -11,7 +11,8 @@ vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
   useLocale: () => "en",
 }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: toastError } }));
 vi.mock("@/hooks/use-offline-write-toast", () => ({
   useOfflineWriteToast: () => () => {},
 }));
@@ -26,7 +27,10 @@ function wrap(ui: React.ReactNode) {
 
 const fetchMock = vi.fn(async () => ({ ok: true }) as Response);
 
-beforeEach(() => fetchMock.mockClear());
+beforeEach(() => {
+  fetchMock.mockClear();
+  toastError.mockClear();
+});
 
 function bodyOf(call: number) {
   const [, init] = fetchMock.mock.calls[call] as [string, { body: string }];
@@ -96,6 +100,53 @@ describe("IncomeForm", () => {
     expect(body.cadence).toBe("WEEKLY");
     expect(body).toHaveProperty("weekly_dow");
     expect(body).not.toHaveProperty("cadence_anchor");
+  });
+
+  it("sends a COMMA amount as the dot decimal the API accepts", async () => {
+    // /incomes validates `^\d+(\.\d{1,4})?$`, so a comma keyboard ("73,8" —
+    // the Polish layout's decimal key) was rejected and the save failed. Same
+    // bug the user hit on the recurring-rule form (260803).
+    wrap(
+      <IncomeForm
+        open
+        onOpenChange={() => {}}
+        mode="create"
+        budgetId="b1"
+        defaultCurrency="PLN"
+        fetchImpl={fetchMock as unknown as typeof fetch}
+      />,
+    );
+    fireEvent.change(document.getElementById("income-name") as HTMLElement, {
+      target: { value: "Salary" },
+    });
+    fireEvent.change(document.getElementById("income-amount") as HTMLElement, {
+      target: { value: "73,8" },
+    });
+    fireEvent.click(screen.getByTestId("income-save"));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(bodyOf(0).amount).toBe("73.8");
+  });
+
+  it("says so on a nonsense amount instead of a doomed round trip", async () => {
+    wrap(
+      <IncomeForm
+        open
+        onOpenChange={() => {}}
+        mode="create"
+        budgetId="b1"
+        defaultCurrency="PLN"
+        fetchImpl={fetchMock as unknown as typeof fetch}
+      />,
+    );
+    fireEvent.change(document.getElementById("income-name") as HTMLElement, {
+      target: { value: "Salary" },
+    });
+    fireEvent.change(document.getElementById("income-amount") as HTMLElement, {
+      target: { value: "abc" },
+    });
+    fireEvent.click(screen.getByTestId("income-save"));
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("edit: PATCHes the full record to /:id", async () => {

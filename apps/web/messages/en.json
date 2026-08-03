@@ -1115,7 +1115,8 @@
           "11": "November",
           "12": "December"
         },
-        "saveButton": "Save income"
+        "saveButton": "Save income",
+        "errorAmount": "Enter an amount like 73.80"
       },
       "list": {
         "empty": "No incomes yet.",
@@ -1190,6 +1191,7 @@
         "lastDueLabel": "Last date (optional)",
         "lastDuePlaceholder": "No end date",
         "errorLastBeforeFirst": "Last date can't be before the first due date",
+        "errorAmount": "Enter an amount like 73.80",
         "noteLabel": "Note (optional)",
         "applyToFutureLabel": "Also apply to future occurrences",
         "applyToFutureHelp": "Edits the upcoming pending drafts so they reflect the new amount/category. Past confirmed transactions are never changed.",

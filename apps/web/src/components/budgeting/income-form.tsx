@@ -36,6 +36,7 @@ import {
 } from "@/components/budgeting/income-list";
 import { WEEKDAY_ORDER } from "@/components/budgeting/recurring-rule-form";
 import { uuidv4 } from "@/lib/uuid";
+import { toDecimalString } from "@/lib/decimal";
 import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
 import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 
@@ -111,6 +112,14 @@ export function IncomeForm({
     if (saving) return;
     setSaving(true);
     try {
+      // The API takes a decimal STRING and accepts a dot only, so a comma
+      // keyboard ("73,8" — the Polish layout's decimal key) was rejected and the
+      // save failed. Same bug as the recurring-rule form (260803 user report).
+      const amountValue = toDecimalString(amount);
+      if (amountValue === null) {
+        toast.error(t("form.errorAmount"));
+        return;
+      }
       const parsedAnchor = parseInt(cadenceAnchorRaw, 10);
       const anchor = Number.isFinite(parsedAnchor)
         ? Math.max(1, Math.min(31, parsedAnchor))
@@ -127,7 +136,7 @@ export function IncomeForm({
               };
       const payload = JSON.stringify({
         name,
-        amount,
+        amount: amountValue,
         currency,
         ...cadencePart,
       });
