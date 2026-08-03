@@ -24,6 +24,14 @@ export interface OverviewPlannedDTO {
     reserve_used_cents: string;
     overspent_cents: string;
   }[];
+  /** Σ over the selected range: what was spent, and how it was paid for. The
+   *  Planned section opens on these (260803). Parts sum to spent. */
+  rangeTotals: {
+    spent_cents: string;
+    within_limit_cents: string;
+    reserve_used_cents: string;
+    overspent_cents: string;
+  };
   plannedAvgVsReal: {
     category_id: string;
     name: string;

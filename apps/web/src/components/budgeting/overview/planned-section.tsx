@@ -4,8 +4,9 @@
  *
  * Collapsible; lazy-fetches /overview/planned only when open. Renders the
  * Planned-vs-Real timeline (line: real solid yellow, planned dashed neutral), the
- * planned-avg-vs-real bar (Y=category), and the two recurring bars (per-month +
- * per-category, "current config" — NOT range-scoped, D-14). A category selector
+ * planned-avg-vs-real bar (Y=category) and the planned-share pie, opening on the
+ * range's three plain figures — spent, reserve drawn, overspent (260803). The
+ * recurring charts moved out to their own section. A category selector
  * (default = All categories) re-scopes the timeline. Charts via the 11-02 wrappers
  * only; string cents → Number here (recharts needs Numbers).
  */
@@ -30,7 +31,6 @@ import {
 } from "@/components/budgeting/bdp-ui-state";
 import { CHART_THEME } from "@/components/budgeting/charts/chart-theme";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
-import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import {
   OverviewDivergingBarChart,
   varianceColor,
@@ -51,6 +51,8 @@ import { insertMonthResets } from "@/lib/month-reset";
 import { appendTodayTail } from "@/lib/today-tail";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { todayInTz, type OverviewRange } from "@/lib/overview-range";
+import { trimLeadingEmpty } from "@/lib/trim-leading-empty";
+import { PlannedTotals } from "./planned-totals";
 
 const NEUTRAL = "var(--muted-foreground)";
 
@@ -61,16 +63,6 @@ const ZONE_COLOR = {
   between: "var(--primary)",
   over: "var(--trading-down)",
 } as const;
-
-/** Drop leading points where every value key is 0 — so the "All" range starts at
- * the first recorded data, not the far-back range start (UAT round 15 item 1). */
-function trimLeadingEmpty<T extends Record<string, unknown>>(
-  rows: T[],
-  keys: string[],
-): T[] {
-  const first = rows.findIndex((r) => keys.some((k) => Number(r[k]) !== 0));
-  return first > 0 ? rows.slice(first) : rows;
-}
 
 /** Epoch ms → the same "13 Feb 2026" the rest of the charts use. */
 function formatTs(ts: number, locale: string): string {
@@ -168,17 +160,6 @@ export function PlannedSection({
 }) {
   const t = useTranslations("bdp.tab.overview");
   const locale = useLocale();
-  // Full localized month name for the recurring tooltip (item 2): 8 → "August" /
-  // "Серпень" / "sierpień".
-  const monthName = (m: string | number) =>
-    new Intl.DateTimeFormat(locale, { month: "long" }).format(
-      new Date(2000, Number(m) - 1, 1),
-    );
-  // Short month name for the recurring-by-month X-axis (item 4): 8 → "Aug".
-  const shortMonthName = (m: string | number) =>
-    new Intl.DateTimeFormat(locale, { month: "short" }).format(
-      new Date(2000, Number(m) - 1, 1),
-    );
   const [open, toggleOpen] = usePersistedSectionOpen("planned");
   // Persist the selected category across pill navigation (the carousel unmounts
   // this pane, so a plain useState would reset to "All categories" on return).
@@ -305,6 +286,16 @@ export function PlannedSection({
         </p>
       ) : (
         <>
+          {/* What the range cost, and how it was paid for (260803 user request):
+              the plain figures the charts below break down. */}
+          <PlannedTotals
+            spentCents={data.rangeTotals.spent_cents}
+            reserveUsedCents={data.rangeTotals.reserve_used_cents}
+            overspentCents={data.rangeTotals.overspent_cents}
+            format={(cents) => centsToRounded(cents, ccy, "en", true)}
+            maskValue={amountPrivacyEnabled}
+          />
+
           {/* Planned-vs-Real timeline. `wantsSplitExists` decides whether the
               WANTS band is drawn at all — see the series list below. */}
           <div className="flex flex-col gap-2">
@@ -607,72 +598,6 @@ export function PlannedSection({
             formatValue={fmtTooltip}
             maskValue={amountPrivacyEnabled}
           />
-
-          {/* Recurring per month — current config (NOT range-scoped, D-14).
-              Simple area chart (single series). */}
-          <div className="flex flex-col gap-2">
-            <ChartLabel>{t("planned.recurringPerMonth")}</ChartLabel>
-            <OverviewAreaChart
-              data={data.recurringPerMonth.map((m) => ({
-                month: String(m.month),
-                planned: Number(m.planned_cents),
-                items: m.items,
-              }))}
-              xKey="month"
-              // The tooltip repeats the series name under the month it already
-              // names, so it drops the ", by month" the chart title needs.
-              series={[{ key: "planned", label: t("planned.recurringSeries") }]}
-              formatY={fmtY}
-              formatTooltip={fmtTooltip}
-              xTickFormat={shortMonthName}
-              labelFormat={monthName}
-              // 260731 (user decision): the CHARTS always show real numbers — masking
-              // them made the shapes unreadable. The privacy blur stays on the hero
-              // cards + totals, which is where a shoulder-surfer actually reads a figure.
-              maskAmounts={false}
-              // Tooltip lists each planned payment for the month (the series row
-              // already shows the total).
-              tooltipExtra={(row) => {
-                const items =
-                  (row.items as { name: string; amount_cents: string }[]) ?? [];
-                return items.map((it) => ({
-                  label: it.name || "—",
-                  value: fmtTooltip(Number(it.amount_cents)),
-                }));
-              }}
-            />
-          </div>
-
-          {/* Recurring per category — current config. Grey bars, sorted
-              highest→lowest (recharts vertical renders first row at the top). */}
-          {data.recurringPerCategory.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <ChartLabel>{t("planned.recurringPerCategory")}</ChartLabel>
-              <OverviewBarChart
-                layout="vertical"
-                data={data.recurringPerCategory
-                  .map((c) => ({
-                    name: c.name,
-                    planned: Number(c.planned_cents),
-                  }))
-                  .sort((a, b) => b.planned - a.planned)}
-                xKey="name"
-                series={[
-                  {
-                    key: "planned",
-                    label: t("planned.recurringPerCategory"),
-                    color: NEUTRAL, // grey
-                  },
-                ]}
-                formatValue={fmtY}
-                formatTooltip={fmtTooltip}
-                // 260731 (user decision): the CHARTS always show real numbers — masking
-                // them made the shapes unreadable. The privacy blur stays on the hero
-                // cards + totals, which is where a shoulder-surfer actually reads a figure.
-                maskAmounts={false}
-              />
-            </div>
-          )}
         </>
       )}
     </OverviewSection>

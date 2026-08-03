@@ -168,6 +168,18 @@ export interface OverviewPlannedDTO {
     reserve_used_cents: string;
     overspent_cents: string;
   }[];
+  /**
+   * Σ over the selected range, across the categories in view: what was spent,
+   * how much of it the limit covered, how much the reserve covered, and what
+   * was left over. The Planned section opens on these three figures (260803
+   * user request). within + reserve_used + overspent === spent.
+   */
+  rangeTotals: {
+    spent_cents: string;
+    within_limit_cents: string;
+    reserve_used_cents: string;
+    overspent_cents: string;
+  };
   plannedAvgVsReal: {
     category_id: string;
     name: string;
@@ -267,6 +279,25 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         reservePositions = posResult.value.positions;
       }
 
+      // When a category STARTED, for averaging and for the plan band. Its record
+      // can be younger than its data — an imported history is written against a
+      // category created today — and gating on created_at alone averaged three
+      // years of spend over a single month (user report, 260803). Whichever came
+      // first, the record or the activity, is the start.
+      const firstSeen = new Map<string, string>();
+      const noteMonth = (categoryId: string, month: string) => {
+        const at = firstSeen.get(categoryId);
+        if (at === undefined || month < at) firstSeen.set(categoryId, month);
+      };
+      for (const p of planned) noteMonth(p.category_id, p.month);
+      for (const s of spend) noteMonth(s.category_id, s.month);
+      const startOf = (w: CategoryWindow): string => {
+        const seen = firstSeen.get(w.category_id);
+        return seen !== undefined && seen < w.created_month
+          ? seen
+          : w.created_month;
+      };
+
       // Every category counts by default, investments included (260803 user
       // request) — the picker is what narrows the view, exactly as it does for
       // any other category.
@@ -308,18 +339,24 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
             (otherPlannedByMonth.get(p.month) ?? 0n) + p.planned_cents,
           );
         }
+        // Its plan is income minus everything else planned, which in a month
+        // with no other limits is the WHOLE income — so applied to months before
+        // the category existed it drew a full-height band across empty history.
+        const from = startOf(investWindow);
         plannedRows = [
           ...planned.filter((p) => p.category_id !== investWindow.category_id),
-          ...monthsInRange(input.from, input.to).map((month) => ({
-            category_id: investWindow.category_id,
-            month,
-            planned_cents: computeInvestmentSmartLimit({
-              monthlyIncomeCents: monthlyIncome,
-              otherPlannedCents: otherPlannedByMonth.get(month) ?? 0n,
-            }),
-            // No needs/wants split — the Investments category carries no cushion.
-            needs_cents: 0n,
-          })),
+          ...monthsInRange(input.from, input.to)
+            .filter((month) => month >= from)
+            .map((month) => ({
+              category_id: investWindow.category_id,
+              month,
+              planned_cents: computeInvestmentSmartLimit({
+                monthlyIncomeCents: monthlyIncome,
+                otherPlannedCents: otherPlannedByMonth.get(month) ?? 0n,
+              }),
+              // No needs/wants split — Investments carries no cushion.
+              needs_cents: 0n,
+            })),
         ];
       }
 
@@ -361,6 +398,21 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           (overspentByMonth.get(s.month) ?? 0n) + (overage - drawn2),
         );
       }
+      const sumOf = (m: Map<string, bigint>) => {
+        let total = 0n;
+        for (const v of m.values()) total += v;
+        return total;
+      };
+      const rangeTotals = {
+        within_limit_cents: sumOf(withinByMonth).toString(),
+        reserve_used_cents: sumOf(reserveUsedByMonth).toString(),
+        overspent_cents: sumOf(overspentByMonth).toString(),
+        spent_cents: (
+          sumOf(withinByMonth) +
+          sumOf(reserveUsedByMonth) +
+          sumOf(overspentByMonth)
+        ).toString(),
+      };
       const splitOf = (month: string) => ({
         within_limit_cents: (withinByMonth.get(month) ?? 0n).toString(),
         reserve_used_cents: (reserveUsedByMonth.get(month) ?? 0n).toString(),
@@ -538,10 +590,10 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
 
       const plannedAvgVsReal = windows
         .map((w) => {
+          const from = startOf(w);
           const active = rangeMonths.filter(
             (m) =>
-              m >= w.created_month &&
-              (w.archived_month === null || m <= w.archived_month),
+              m >= from && (w.archived_month === null || m <= w.archived_month),
           );
           if (active.length === 0) return null;
           let ps = 0n;
@@ -621,6 +673,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
       return ok({
         currency: ccy,
         bucket,
+        rangeTotals,
         timeline,
         plannedAvgVsReal,
         recurringPerMonth: perMonth.map((cents, i) => ({

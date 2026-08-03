@@ -1,7 +1,10 @@
 "use client";
 /**
  * overview-sections.tsx — owns the shared Overview range + the four collapsible
- * sections (Planned · Overspent · Reserves · Financial Wealth).
+ * sections (Planned · Recurring payments · Reserves · Financial Wealth).
+ *
+ * 260803: Overspent lost its own collapsible and reads inside Planned, and the
+ * two recurring charts left Planned for a section of their own.
  *
  * The range sits IN-FLOW between the cash-flow projection and the Planned section
  * and pins to the top via StickOnScroll (fixed-when-scrolled-past, drops back to
@@ -14,6 +17,7 @@ import { useState } from "react";
 import { RangeSelector } from "./range-selector";
 import { PlannedSection } from "./planned-section";
 import { OverspentReservesSection } from "./overspent-reserves-section";
+import { RecurringSection } from "./recurring-section";
 import { WealthSection } from "./wealth-section";
 import { StickOnScroll } from "@/components/common/stick-on-scroll";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
@@ -61,11 +65,11 @@ export function OverviewSections({
         range={range}
         amountPrivacyEnabled={amountPrivacyEnabled}
       />
+      <RecurringSection budgetId={budgetId} range={range} />
       <OverspentReservesSection
         budgetId={budgetId}
         range={range}
         reservesEnabled={reservesEnabled}
-        amountPrivacyEnabled={amountPrivacyEnabled}
       />
       <WealthSection
         budgetId={budgetId}

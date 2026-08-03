@@ -1447,6 +1447,7 @@
         "reservesByCategory": "Saldo rezerw wg kategorii",
         "sections": {
           "planned": "Zaplanowane",
+          "recurring": "Płatności cykliczne",
           "overspent": "Przekroczenia",
           "reserves": "Rezerwy",
           "wealth": "Majątek finansowy"
@@ -1458,6 +1459,7 @@
           "clearAll": "Wyczyść",
           "categoriesPicked": "{count} kategorii",
           "real": "Rzeczywiste",
+          "spent": "Wydane",
           "avgColumn": "śr.",
           "totalColumn": "razem",
           "planned": "Zaplanowane",

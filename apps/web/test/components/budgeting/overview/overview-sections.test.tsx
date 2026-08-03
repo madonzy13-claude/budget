@@ -82,6 +82,12 @@ const PLANNED = {
       real_avg_cents: "18000",
     },
   ],
+  rangeTotals: {
+    spent_cents: "70000",
+    within_limit_cents: "50000",
+    reserve_used_cents: "0",
+    overspent_cents: "20000",
+  },
   recurringPerMonth: [{ month: 1, planned_cents: "10000" }],
   recurringPerCategory: [
     { category_id: "c1", name: "Food", planned_cents: "10000" },
@@ -137,18 +143,18 @@ function lastOpts(mock: ReturnType<typeof vi.fn>) {
 describe("OverviewSections", () => {
   it("renders four sections collapsed by default (no chart mounted)", () => {
     renderSections();
+    // 260803: Overspent lost its own collapsible and reads inside Planned; the
+    // recurring charts gained one of their own.
+    for (const name of [
+      "sections.planned",
+      "sections.recurring",
+      "sections.reserves",
+      "sections.wealth",
+    ])
+      expect(screen.getByRole("button", { name })).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "sections.planned" }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "sections.overspent" }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "sections.reserves" }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "sections.wealth" }),
-    ).toBeTruthy();
+      screen.queryByRole("button", { name: "sections.overspent" }),
+    ).toBeNull();
     // collapsed → no chart bodies, and the section hooks are disabled
     expect(screen.queryByTestId("line-chart")).toBeNull();
     expect(lastOpts(plannedMock).enabled).toBe(false);
@@ -181,6 +187,33 @@ describe("OverviewSections", () => {
     // renders with its own label; Wealth stays collapsed so this is the only pie.
     expect(screen.getByText("planned.avgPie")).toBeTruthy();
     expect(screen.getByTestId("pie-chart")).toBeTruthy();
+  });
+
+  it("opens Planned on the range's three figures, not a by-category bar", () => {
+    // 260803 user request: the "Amount over budget, by category" bar is gone;
+    // what the range cost, what came out of the reserve and what went over is
+    // the first thing the section says.
+    renderSections();
+    expect(screen.queryByTestId("planned-totals")).toBeNull();
+    return userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "sections.planned" }))
+      .then(() => {
+        expect(screen.getByTestId("planned-totals")).toBeTruthy();
+        expect(screen.queryByText("overspentByCategory")).toBeNull();
+      });
+  });
+
+  it("keeps the recurring charts out of Planned, in their own section", async () => {
+    const user = userEvent.setup();
+    renderSections();
+    await user.click(screen.getByRole("button", { name: "sections.planned" }));
+    expect(screen.queryByText("planned.recurringPerMonth")).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "sections.recurring" }),
+    );
+    expect(screen.getByText("planned.recurringPerMonth")).toBeTruthy();
+    expect(screen.getByText("planned.recurringPerCategory")).toBeTruthy();
   });
 
   it("toggling Wealth to investments switches the view and shows the pie", async () => {

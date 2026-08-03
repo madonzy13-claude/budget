@@ -1447,6 +1447,7 @@
         "reservesByCategory": "Залишок резервів за категоріями",
         "sections": {
           "planned": "Заплановано",
+          "recurring": "Регулярні платежі",
           "overspent": "Перевитрати",
           "reserves": "Резерви",
           "wealth": "Фінансовий капітал"
@@ -1458,6 +1459,7 @@
           "clearAll": "Очистити",
           "categoriesPicked": "{count} категорій",
           "real": "Фактичні",
+          "spent": "Витрачено",
           "avgColumn": "сер.",
           "totalColumn": "разом",
           "planned": "Заплановані",
