@@ -175,8 +175,12 @@ export interface OverviewPlannedDTO {
    * narrows both sides alike. within + reserve_used + overspent === spent.
    */
   rangeTotals: {
-    /** Σ of the limits in view over the range — the plan side of the comparison. */
+    /** Σ of the limits in view over the range — the plan side of the comparison.
+     *  A month the range only partly covers contributes that share of itself. */
     planned_cents: string;
+    /** True when any month was scaled — the plan is a forecast to the range's
+     *  last day, not a full-month budget, so the comparison is not a verdict. */
+    planned_is_partial: boolean;
     spent_cents: string;
     within_limit_cents: string;
     reserve_used_cents: string;
@@ -231,6 +235,37 @@ function monthsInRange(from: string, to: string): string[] {
     }
   }
   return months;
+}
+
+/** Days in a 'YYYY-MM'. */
+function daysInMonth(month: string): number {
+  const [y, m] = month.split("-").map(Number) as [number, number];
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+
+/**
+ * How much of `month` the range [from, to] covers, as days / days-in-month.
+ *
+ * A range rarely lands on month boundaries: "last 3 months" on the 5th of August
+ * holds 27 days of May and 5 of August. Counting either month's plan in FULL put
+ * a whole month's budget against the few days of spend that could happen in it,
+ * which is what made the averages read wrong (user report, 260803).
+ */
+export function monthCoverage(
+  month: string,
+  from: string,
+  to: string,
+): { days: number; of: number } {
+  const dim = daysInMonth(month);
+  const first = `${month}-01`;
+  const last = `${month}-${String(dim).padStart(2, "0")}`;
+  const start = from > first ? from : first;
+  const end = to < last ? to : last;
+  if (start > end) return { days: 0, of: dim };
+  return {
+    days: Number(end.slice(8, 10)) - Number(start.slice(8, 10)) + 1,
+    of: dim,
+  };
 }
 
 /** Round-half-up integer division of bigint cents. */
@@ -405,11 +440,25 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         for (const v of m.values()) total += v;
         return total;
       };
+      // Each month contributes the share of itself the range actually covers, so
+      // a part-month at either end is a forecast to that day rather than a whole
+      // month's budget standing against a few days of spend (260803).
       let plannedInRange = 0n;
-      for (const p of plannedRows)
-        if (inCat(p.category_id)) plannedInRange += p.planned_cents;
+      let plannedIsPartial = false;
+      for (const p of plannedRows) {
+        if (!inCat(p.category_id)) continue;
+        const { days, of } = monthCoverage(p.month, input.from, input.to);
+        if (days === 0) continue;
+        if (days < of && p.planned_cents > 0n) plannedIsPartial = true;
+        plannedInRange +=
+          days === of
+            ? p.planned_cents
+            : (p.planned_cents * BigInt(days) * 2n + BigInt(of)) /
+              (BigInt(of) * 2n);
+      }
       const rangeTotals = {
         planned_cents: plannedInRange.toString(),
+        planned_is_partial: plannedIsPartial,
         within_limit_cents: sumOf(withinByMonth).toString(),
         reserve_used_cents: sumOf(reserveUsedByMonth).toString(),
         overspent_cents: sumOf(overspentByMonth).toString(),

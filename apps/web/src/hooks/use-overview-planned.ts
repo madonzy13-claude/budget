@@ -30,6 +30,9 @@ export interface OverviewPlannedDTO {
   /** Optional: a cached payload from before this field existed will not have it. */
   rangeTotals?: {
     planned_cents: string;
+    /** A month the range only partly covers contributed that share of itself —
+     *  the plan is a forecast to the range's last day, not a full-month budget. */
+    planned_is_partial: boolean;
     spent_cents: string;
     within_limit_cents: string;
     reserve_used_cents: string;

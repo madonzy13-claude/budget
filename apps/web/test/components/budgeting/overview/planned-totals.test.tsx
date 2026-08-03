@@ -61,20 +61,14 @@ describe("PlannedTotals", () => {
     );
   });
 
-  it("reads the difference as amount AND percent, under plan", () => {
+  it("reads the difference as the P/L stat does — percent big, amount under", () => {
+    // Same shape as the Investments P/L metric (user screenshot, 260803): the
+    // percent leads with its arrow, the money sits beneath it, quieter.
     renderTotals();
-    // 25,302 spent against 29,000 planned → 3,698 under, 12.75% → 13%.
-    expect(cell("difference").textContent).toContain("3698 zl");
-    expect(cell("difference").textContent).toContain("13%");
-    expect(cell("difference").textContent).toContain("−");
-  });
-
-  it("keeps the percent on the amount's line", () => {
-    // At 390px the cell is ~111px and the joined string wanted ~112px, so the
-    // percent dropped to a second line (user screenshot, 260803). It is held on
-    // one line and set smaller, so it reads as the qualifier it is.
-    renderTotals();
-    expect(cell("difference").className).toContain("whitespace-nowrap");
+    const stat = screen.getByTestId("planned-total-difference");
+    expect(stat.textContent).toContain("12.8%");
+    expect(stat.textContent).toContain("3698 zl");
+    expect(stat.textContent).toContain("−");
   });
 
   it("centres every figure over its label", () => {
@@ -83,15 +77,40 @@ describe("PlannedTotals", () => {
       expect(cell(k).parentElement!.className).toContain("text-center");
   });
 
+  it("leaves Planned spent white when nothing was spent inside the plan", () => {
+    // Green says "this went well"; zero has nothing to say (260803 request).
+    renderTotals({ withinLimitCents: "0" });
+    expect(cell("within").getAttribute("style")).toBeFalsy();
+  });
+
+  it("drops the colour when the plan is a PART-month forecast", () => {
+    // Mid-month the plan is a forecast to today, so the gap is not a verdict —
+    // it reads plain rather than green or red (260803 request).
+    renderTotals({ plannedIsPartial: true });
+    const pct = screen.getByTestId("planned-total-difference-pct");
+    expect(pct.className).toContain("--body-on-dark");
+    expect(pct.className).not.toContain("trading-");
+  });
+
+  it("still colours the gap over a whole range", () => {
+    renderTotals();
+    expect(
+      screen.getByTestId("planned-total-difference-pct").className,
+    ).toContain("trading-");
+  });
+
   it("reads an OVERspend as a positive difference", () => {
     renderTotals({ plannedCents: "100000", spentCents: "150000" });
-    expect(cell("difference").textContent).toContain("+");
-    expect(cell("difference").textContent).toContain("50%");
+    const stat = screen.getByTestId("planned-total-difference");
+    expect(stat.textContent).toContain("+");
+    expect(stat.textContent).toContain("50.0%");
   });
 
   it("says nothing about percent when there was no plan to compare to", () => {
     renderTotals({ plannedCents: "0", spentCents: "150000" });
-    expect(cell("difference").textContent).not.toContain("%");
+    expect(
+      screen.getByTestId("planned-total-difference").textContent,
+    ).toContain("—");
   });
 
   it("colours the reserve and overspend only once there is something to colour", () => {

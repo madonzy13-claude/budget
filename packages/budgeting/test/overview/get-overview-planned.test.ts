@@ -460,6 +460,69 @@ describe("getOverviewPlanned", () => {
     ).toBe(BigInt(dto.rangeTotals.spent_cents));
   });
 
+  test("pro-rates a PART month's plan to the days the range covers", async () => {
+    // On the 5th of August a 3M range holds 27 days of May and 5 of August, but
+    // counted the plan for both in FULL — so the plan towered over a spend that
+    // had only those days to happen in, and every average read wrong (user
+    // report, 260803). Each month contributes the share of itself the range
+    // actually covers.
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [
+          { category_id: "N", month: "2026-06", planned_cents: 30000n },
+          { category_id: "N", month: "2026-07", planned_cents: 30000n },
+          { category_id: "N", month: "2026-08", planned_cents: 31000n },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "N",
+            name: "Groceries",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const run = (from: string, to: string) =>
+      getOverviewPlanned({
+        repo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      })({ tenantId: "b1", budgetId: "b1", from, to });
+
+    // Whole months only — nothing is scaled.
+    const whole = (await run("2026-06-01", "2026-07-31"))._unsafeUnwrap();
+    expect(whole.rangeTotals.planned_cents).toBe("60000");
+    expect(whole.rangeTotals.planned_is_partial).toBe(false);
+
+    // 5 Aug: August contributes 5/31 of its 31000 = 5000. June and July whole.
+    const partial = (await run("2026-06-01", "2026-08-05"))._unsafeUnwrap();
+    expect(partial.rangeTotals.planned_cents).toBe("65000");
+    expect(partial.rangeTotals.planned_is_partial).toBe(true);
+
+    // …and a range that STARTS mid-month is scaled the same way: June from the
+    // 16th is 15/30 of 30000 = 15000, plus July whole.
+    const bothEnds = (await run("2026-06-16", "2026-07-31"))._unsafeUnwrap();
+    expect(bothEnds.rangeTotals.planned_cents).toBe("45000");
+    expect(bothEnds.rangeTotals.planned_is_partial).toBe(true);
+  });
+
   test("a category BACKDATED past its creation is averaged over its data, not its record", async () => {
     // The Investments row was created in 2026-07 but carries imported spend from
     // 2023 (CSV import). Gating the active window on created_at averaged it over

@@ -20,7 +20,7 @@
  */
 import { useTranslations } from "next-intl";
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
-import { varianceColor } from "@/components/budgeting/charts/diverging-bar-chart";
+import { CombinedStat } from "@/components/budgeting/overview/combined-stat";
 
 /** Matches the plan-zone line: limit-covered green, reserve yellow, over red. */
 const ZONE = {
@@ -70,6 +70,7 @@ export function PlannedTotals({
   format,
   maskValue = false,
   reservesEnabled = true,
+  plannedIsPartial = false,
 }: {
   plannedCents: string;
   spentCents: string;
@@ -80,6 +81,8 @@ export function PlannedTotals({
   maskValue?: boolean;
   /** Reserves off → that figure is always zero, so it is dropped. */
   reservesEnabled?: boolean;
+  /** The plan covers only part of a month at one end — a forecast, not a budget. */
+  plannedIsPartial?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
   const n = (v: string) => BigInt(v || "0");
@@ -92,17 +95,14 @@ export function PlannedTotals({
   const pct = planned > 0n ? (Number(diff) / Number(planned)) * 100 : null;
   const sign = diff > 0n ? "+" : diff < 0n ? "−" : "";
   const absDiff = diff < 0n ? -diff : diff;
-  // The sign rides the amount and the colour repeats it, so the percent needs
-  // neither — which is also what buys the room to keep them on one line.
-  const differencePct =
-    pct === null ? undefined : `${Math.abs(Math.round(pct))}%`;
 
   const breakdown: Cell[] = [
     {
       key: "within",
       label: t("planned.fromPlan"),
       value: format(n(withinLimitCents)),
-      tone: ZONE.within,
+      // Green says "this went well"; zero has nothing to say (260803 request).
+      tone: n(withinLimitCents) > 0n ? ZONE.within : undefined,
     },
     ...(reservesEnabled
       ? [
@@ -129,13 +129,6 @@ export function PlannedTotals({
       label: t("planned.totalPlanned"),
       value: format(planned),
     },
-    {
-      key: "difference",
-      label: t("planned.difference"),
-      value: `${sign}${format(absDiff)}`,
-      suffix: differencePct,
-      tone: pct === null ? undefined : varianceColor(pct),
-    },
   ];
 
   return (
@@ -145,10 +138,22 @@ export function PlannedTotals({
           <Figure key={c.key} cell={c} mask={maskValue} />
         ))}
       </div>
-      <div className="grid grid-cols-3 gap-x-3 gap-y-1 border-t border-[var(--hairline-dark)] pt-2">
+      {/* The two totals sit level with the difference's own label, so the three
+          read across as one line of figures. */}
+      <div className="grid grid-cols-3 items-start gap-x-3 gap-y-1 border-t border-[var(--hairline-dark)] pt-2">
         {comparison.map((c) => (
           <Figure key={c.key} cell={c} mask={maskValue} />
         ))}
+        <CombinedStat
+          testId="planned-total-difference"
+          label={t("planned.difference")}
+          pct={pct}
+          amount={`${sign}${format(absDiff)}`}
+          mask={maskValue}
+          // A part-month plan is a forecast to today, so being under it is not
+          // yet a verdict — it reads plain rather than green or red (260803).
+          tone={plannedIsPartial ? "plain" : "auto"}
+        />
       </div>
     </div>
   );

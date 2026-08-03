@@ -321,6 +321,7 @@ export function PlannedSection({
               withinLimitCents={data.rangeTotals?.within_limit_cents ?? "0"}
               reserveUsedCents={data.rangeTotals?.reserve_used_cents ?? "0"}
               overspentCents={data.rangeTotals?.overspent_cents ?? "0"}
+              plannedIsPartial={data.rangeTotals?.planned_is_partial ?? false}
               format={(cents) => centsToRounded(cents, ccy, "en", true)}
               maskValue={amountPrivacyEnabled}
             />
