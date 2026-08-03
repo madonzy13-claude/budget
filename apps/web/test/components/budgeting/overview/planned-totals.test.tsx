@@ -83,17 +83,19 @@ describe("PlannedTotals", () => {
     expect(cell("within").getAttribute("style")).toBeFalsy();
   });
 
-  it("drops the colour when the plan is a PART-month forecast", () => {
-    // Mid-month the plan is a forecast to today, so the gap is not a verdict —
-    // it reads plain rather than green or red (260803 request).
-    renderTotals({ plannedIsPartial: true });
+  it("drops the colour while the range is the running month alone", () => {
+    // Five days into August, being under the plan says nothing yet — it reads
+    // plain rather than green or red (260803 request).
+    renderTotals({ rangeWithinRunningMonth: true });
     const pct = screen.getByTestId("planned-total-difference-pct");
     expect(pct.className).toContain("--body-on-dark");
     expect(pct.className).not.toContain("trading-");
   });
 
-  it("still colours the gap over a whole range", () => {
-    renderTotals();
+  it("keeps the colour once the range reaches past the running month", () => {
+    // A 3-month range is mostly finished history, so the gap IS a verdict even
+    // though its end months are pro-rated.
+    renderTotals({ rangeWithinRunningMonth: false });
     expect(
       screen.getByTestId("planned-total-difference-pct").className,
     ).toContain("trading-");

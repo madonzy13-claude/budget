@@ -523,6 +523,72 @@ describe("getOverviewPlanned", () => {
     expect(bothEnds.rangeTotals.planned_is_partial).toBe(true);
   });
 
+  test("the gap is a verdict unless the whole range sits in the running month", async () => {
+    // Pro-rating still applies to any part month, but the COLOUR is a different
+    // question: five days into August the gap says nothing, while a 3-month
+    // range is mostly finished history and does have a verdict in it (user
+    // decision, 260803).
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [
+          { category_id: "N", month: "2026-06", planned_cents: 30000n },
+          { category_id: "N", month: "2026-07", planned_cents: 30000n },
+          { category_id: "N", month: "2026-08", planned_cents: 31000n },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "N",
+            name: "Groceries",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const run = (from: string, to: string) =>
+      getOverviewPlanned({
+        repo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      })({
+        tenantId: "b1",
+        budgetId: "b1",
+        from,
+        to,
+        now: () => new Date("2026-08-05T12:00:00Z"),
+      });
+
+    // Only August, and August is running → no verdict.
+    const thisMonth = (await run("2026-08-01", "2026-08-05"))._unsafeUnwrap();
+    expect(thisMonth.rangeTotals.range_within_running_month).toBe(true);
+
+    // Reaches back past it — mostly finished history, so it IS a verdict…
+    const threeMonths = (await run("2026-05-05", "2026-08-05"))._unsafeUnwrap();
+    expect(threeMonths.rangeTotals.range_within_running_month).toBe(false);
+    // …while the plan is still pro-rated for the part months at both ends.
+    expect(threeMonths.rangeTotals.planned_is_partial).toBe(true);
+
+    // A finished month, even a partial slice of one, has a verdict too.
+    const pastSlice = (await run("2026-06-10", "2026-06-20"))._unsafeUnwrap();
+    expect(pastSlice.rangeTotals.range_within_running_month).toBe(false);
+  });
+
   test("a category BACKDATED past its creation is averaged over its data, not its record", async () => {
     // The Investments row was created in 2026-07 but carries imported spend from
     // 2023 (CSV import). Gating the active window on created_at averaged it over

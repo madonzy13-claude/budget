@@ -179,8 +179,12 @@ export interface OverviewPlannedDTO {
      *  A month the range only partly covers contributes that share of itself. */
     planned_cents: string;
     /** True when any month was scaled — the plan is a forecast to the range's
-     *  last day, not a full-month budget, so the comparison is not a verdict. */
+     *  last day rather than a full-month budget. */
     planned_is_partial: boolean;
+    /** The whole range sits inside the month still running, so the gap is not a
+     *  verdict yet — anything reaching further back is mostly finished history
+     *  and is (260803 user decision). */
+    range_within_running_month: boolean;
     spent_cents: string;
     within_limit_cents: string;
     reserve_used_cents: string;
@@ -456,9 +460,20 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
             : (p.planned_cents * BigInt(days) * 2n + BigInt(of)) /
               (BigInt(of) * 2n);
       }
+      // The gap is only a NON-verdict while the whole range sits inside the
+      // month still running: five days in, being under says nothing. A range
+      // that reaches back past it is mostly finished history and does carry a
+      // verdict, even though its end months are still pro-rated (260803).
+      const asOfMonth = `${asOf.getUTCFullYear()}-${String(
+        asOf.getUTCMonth() + 1,
+      ).padStart(2, "0")}`;
+      const rangeWithinRunningMonth =
+        input.from.slice(0, 7) === asOfMonth &&
+        input.to.slice(0, 7) === asOfMonth;
       const rangeTotals = {
         planned_cents: plannedInRange.toString(),
         planned_is_partial: plannedIsPartial,
+        range_within_running_month: rangeWithinRunningMonth,
         within_limit_cents: sumOf(withinByMonth).toString(),
         reserve_used_cents: sumOf(reserveUsedByMonth).toString(),
         overspent_cents: sumOf(overspentByMonth).toString(),

@@ -70,7 +70,7 @@ export function PlannedTotals({
   format,
   maskValue = false,
   reservesEnabled = true,
-  plannedIsPartial = false,
+  rangeWithinRunningMonth = false,
 }: {
   plannedCents: string;
   spentCents: string;
@@ -81,8 +81,10 @@ export function PlannedTotals({
   maskValue?: boolean;
   /** Reserves off → that figure is always zero, so it is dropped. */
   reservesEnabled?: boolean;
-  /** The plan covers only part of a month at one end — a forecast, not a budget. */
-  plannedIsPartial?: boolean;
+  /** The whole range sits inside the month still running — the gap is not a
+   *  verdict yet, so it reads plain. A range reaching further back is mostly
+   *  finished history and keeps its colour (260803 user decision). */
+  rangeWithinRunningMonth?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
   const n = (v: string) => BigInt(v || "0");
@@ -150,9 +152,9 @@ export function PlannedTotals({
           pct={pct}
           amount={`${sign}${format(absDiff)}`}
           mask={maskValue}
-          // A part-month plan is a forecast to today, so being under it is not
-          // yet a verdict — it reads plain rather than green or red (260803).
-          tone={plannedIsPartial ? "plain" : "auto"}
+          // Only while the range is this month alone: five days in, being under
+          // says nothing. Reach back further and the colour returns (260803).
+          tone={rangeWithinRunningMonth ? "plain" : "auto"}
         />
       </div>
     </div>

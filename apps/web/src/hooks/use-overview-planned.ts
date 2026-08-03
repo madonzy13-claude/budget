@@ -33,6 +33,8 @@ export interface OverviewPlannedDTO {
     /** A month the range only partly covers contributed that share of itself —
      *  the plan is a forecast to the range's last day, not a full-month budget. */
     planned_is_partial: boolean;
+    /** The whole range sits inside the month still running — the gap reads plain. */
+    range_within_running_month: boolean;
     spent_cents: string;
     within_limit_cents: string;
     reserve_used_cents: string;
