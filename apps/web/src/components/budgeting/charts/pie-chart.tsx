@@ -58,8 +58,11 @@ export function OverviewPieChart({
 }) {
   // hover = transient (desktop); tapped = persistent (mobile). Active is either —
   // so a mobile mouseleave-after-touch can't clear a tapped selection.
-  const [hover, setHover] = useState<number | undefined>(undefined);
-  const [tapped, setTapped] = useState<number | undefined>(undefined);
+  // A selection names its ring as well as its index: both pies put
+  // `.recharts-sector` in the DOM, so an index alone is ambiguous (260803).
+  type Sel = { ring: boolean; index: number };
+  const [hover, setHover] = useState<Sel | undefined>(undefined);
+  const [tapped, setTapped] = useState<Sel | undefined>(undefined);
   // Touch devices synthesize a `mouseenter` AFTER the tap (so `hover` re-populates
   // right after pointer-up clears it) and never a real hover — so on touch the
   // selection is `tapped` ALONE; letting `hover` win made a deselected slice keep
@@ -73,6 +76,9 @@ export function OverviewPieChart({
     );
   }, []);
   const active = isTouch ? tapped : (hover ?? tapped);
+  /** The active index within one ring, or undefined when the other ring owns it. */
+  const activeIn = (ring: boolean) =>
+    active && active.ring === ring ? active.index : undefined;
   const wrapperRef = useRef<HTMLDivElement>(null);
   // Dedupe a double pointer-up from ONE tap (some engines emit both a touch- and a
   // mouse-derived pointerup a few ms apart; without this a re-tap toggles off then
@@ -85,15 +91,35 @@ export function OverviewPieChart({
     data.reduce((sum, d) => sum + (Number(d[valueKey]) || 0), 0) || 1;
 
   const rawTotal = data.reduce((sum, d) => sum + (Number(d[valueKey]) || 0), 0);
-  const activeRow = active !== undefined ? data[active] : undefined;
+  const hasRing = Boolean(outerRing && outerRing.data.length > 0);
+  const ringData = outerRing?.data ?? [];
+  const ringNameKey = outerRing?.nameKey ?? "name";
+  const ringValueKey = outerRing?.valueKey ?? "value";
+  const ringTotal =
+    ringData.reduce((sum, d) => sum + (Number(d[ringValueKey]) || 0), 0) || 1;
+  const onRing = active?.ring === true;
+  const activeRow = active
+    ? onRing
+      ? ringData[active.index]
+      : data[active.index]
+    : undefined;
   // Nothing selected → the centre shows the WHOLE pie (All · total · 100%).
+  const activeKey = onRing ? ringNameKey : nameKey;
   const centreName = activeRow
-    ? formatName
-      ? formatName(String(activeRow[nameKey]))
-      : String(activeRow[nameKey])
+    ? onRing
+      ? String(activeRow[activeKey])
+      : formatName
+        ? formatName(String(activeRow[activeKey]))
+        : String(activeRow[activeKey])
     : allLabel;
-  const centreVal = activeRow ? Number(activeRow[valueKey]) || 0 : rawTotal;
-  const centrePct = activeRow ? ((centreVal / total) * 100).toFixed(0) : "100";
+  const centreVal = activeRow
+    ? Number(activeRow[onRing ? ringValueKey : valueKey]) || 0
+    : rawTotal;
+  // A ring arc's share is of the RING, not of the slices — the two happen to sum
+  // alike, but the arc's own denominator is the honest one.
+  const centrePct = activeRow
+    ? ((centreVal / (onRing ? ringTotal : total)) * 100).toFixed(0)
+    : "100";
 
   return (
     // relative → the centre read-out overlays the hole. Suppress the browser focus
@@ -134,11 +160,29 @@ export function OverviewPieChart({
         // which is data order). A tap on any other slice therefore always switches.
         const sector = hit?.closest?.(".recharts-sector");
         if (sector) {
+          // Within its OWN pie: indexing across every sector on the chart
+          // offset each category by the ring's size, so the first slice read
+          // out the third (260803).
+          // The ring is rendered FIRST, so it is pie 0 whenever there is one.
+          // An unknown prop like data-testid cannot mark the group — recharts
+          // forwards it onto every Sector instead.
+          const pie = sector.closest(".recharts-pie");
+          const pies = Array.from(
+            wrapperRef.current?.querySelectorAll(".recharts-pie") ?? [],
+          );
+          const ring = hasRing && pie !== null && pies.indexOf(pie) === 0;
           const sectors = Array.from(
-            wrapperRef.current?.querySelectorAll(".recharts-sector") ?? [],
+            pie?.querySelectorAll(".recharts-sector") ?? [],
           );
           const idx = sectors.indexOf(sector);
-          if (idx >= 0) setTapped(idx);
+          if (idx >= 0) {
+            // Re-tapping the same arc clears it, as the slices already do.
+            setTapped((prev) =>
+              prev && prev.ring === ring && prev.index === idx
+                ? undefined
+                : { ring, index: idx },
+            );
+          }
           setHover(undefined);
           return;
         }
@@ -173,16 +217,32 @@ export function OverviewPieChart({
               stroke="none"
               isAnimationActive={false}
               rootTabIndex={-1}
-              // Background: the category slices inside own every tap.
-              pointerEvents="none"
-              data-testid="pie-outer-ring"
+              // recharts forwards this onto each Sector, so it names the arcs,
+              // not the group — the group is identified by render order below.
+              data-testid="pie-ring-sector"
+              // Same enlarge-on-select the slices use, tracking OUR selection.
+              shape={(props, index) => (
+                <Sector
+                  {...props}
+                  outerRadius={
+                    (Number(props.outerRadius) || 0) +
+                    (Number(index) === activeIn(true) ? 5 : 0)
+                  }
+                />
+              )}
+              onMouseEnter={(_, index) => setHover({ ring: true, index })}
+              onMouseLeave={() => setHover(undefined)}
             >
               {outerRing.data.map((d, i) => (
                 <Cell
                   key={`ring-${i}`}
-                  fill={outerRing.colorFor(
-                    String(d[outerRing.nameKey ?? "name"]),
-                  )}
+                  fill={outerRing.colorFor(String(d[ringNameKey]))}
+                  fillOpacity={
+                    active === undefined || (active.ring && active.index === i)
+                      ? 1
+                      : 0.4
+                  }
+                  tabIndex={-1}
                 />
               ))}
             </Pie>
@@ -208,14 +268,14 @@ export function OverviewPieChart({
                 {...props}
                 outerRadius={
                   (Number(props.outerRadius) || 0) +
-                  (Number(index) === active ? 6 : 0)
+                  (Number(index) === activeIn(false) ? 6 : 0)
                 }
               />
             )}
             // Desktop hover-preview + dim only (the tap SELECTION is resolved from
             // the release point in onPointerUp). On touch `active` ignores `hover`.
             onMouseEnter={(_, index) => {
-              setHover(index);
+              setHover({ ring: false, index });
             }}
             onMouseLeave={() => setHover(undefined)}
           >
@@ -223,7 +283,11 @@ export function OverviewPieChart({
               <Cell
                 key={i}
                 fill={colorFor(String(d[nameKey]))}
-                fillOpacity={active === undefined || i === active ? 1 : 0.4}
+                fillOpacity={
+                  active === undefined || (!active.ring && active.index === i)
+                    ? 1
+                    : 0.4
+                }
                 tabIndex={-1}
               />
             ))}

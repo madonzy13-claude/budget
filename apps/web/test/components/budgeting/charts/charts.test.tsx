@@ -176,7 +176,26 @@ describe("Overview charts", () => {
       expect(container.querySelectorAll(".recharts-pie").length).toBe(2);
     });
 
-    it("keeps the ring out of the pointer's way", () => {
+    /** Tap a specific sector by pointing elementFromPoint at it. */
+    const tapSector = (container: HTMLElement, sector: Element) => {
+      const spy = vi
+        .spyOn(document, "elementFromPoint")
+        .mockReturnValue(sector as Element);
+      const wrap = container.querySelector(".relative") as HTMLElement;
+      act(() => fireEvent.pointerUp(wrap, { clientX: 1, clientY: 1 }));
+      spy.mockRestore();
+    };
+
+    const centreText = (container: HTMLElement) =>
+      (container.querySelector(".relative")?.textContent ?? "").replace(
+        /\s+/g,
+        " ",
+      );
+
+    it("selects the CATEGORY tapped, counting sectors within its own pie", () => {
+      // Both pies put `.recharts-sector` in the DOM, and the ring renders first
+      // — indexing across all of them offset every category by the ring's size,
+      // so tapping the first slice read out the third.
       const { container } = box(
         <OverviewPieChart
           data={byCategory}
@@ -186,9 +205,58 @@ describe("Overview charts", () => {
           outerRing={{ data: RING, colorFor: () => "#6b7280" }}
         />,
       );
-      const ring = container.querySelector('[data-testid="pie-outer-ring"]');
-      expect(ring).toBeTruthy();
-      expect(ring!.getAttribute("pointer-events")).toBe("none");
+      const pies = container.querySelectorAll(".recharts-pie");
+      const main = pies[pies.length - 1]!;
+      const first = main.querySelectorAll(".recharts-sector")[0]!;
+      tapSector(container, first);
+      expect(centreText(container)).toContain("Groceries");
+    });
+
+    it("selects a RING arc and reads out its name, amount and share", () => {
+      const { container } = box(
+        <OverviewPieChart
+          data={byCategory}
+          nameKey="name"
+          valueKey="value"
+          colorFor={() => "#4ea1ff"}
+          formatValue={(n) => `${n} zl`}
+          outerRing={{ data: RING, colorFor: () => "#6b7280" }}
+        />,
+      );
+      // The ring renders first, so it is pie 0; its arcs also carry the sector
+      // testid recharts forwards onto them.
+      const ring = container.querySelectorAll(".recharts-pie")[0]!;
+      const needs = ring.querySelectorAll(".recharts-sector")[0]!;
+      tapSector(container, needs);
+      const text = centreText(container);
+      expect(text).toContain("Needs");
+      expect(text).toContain("60 zl");
+      expect(text).toContain("67%"); // 60 of the ring's 90
+    });
+
+    it("marks the ring so its sectors can be told from the pie's", () => {
+      const { container } = box(
+        <OverviewPieChart
+          data={byCategory}
+          nameKey="name"
+          valueKey="value"
+          colorFor={() => "#4ea1ff"}
+          outerRing={{ data: RING, colorFor: () => "#6b7280" }}
+        />,
+      );
+      // The ring is pie 0 and holds exactly its own arcs; the categories are
+      // pie 1. Indexing across BOTH is what offset every slice (260803).
+      const pies = container.querySelectorAll(".recharts-pie");
+      expect(pies[0]!.querySelectorAll(".recharts-sector").length).toBe(
+        RING.length,
+      );
+      expect(pies[1]!.querySelectorAll(".recharts-sector").length).toBe(
+        byCategory.length,
+      );
+      // Each arc is individually addressable for the tap handler.
+      expect(
+        container.querySelectorAll('[data-testid="pie-ring-sector"]').length,
+      ).toBe(RING.length);
     });
   });
 
