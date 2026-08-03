@@ -450,22 +450,6 @@ export async function boot(): Promise<BootedDeps> {
         .filter((h) => !isPossession(h))
         .reduce((sum, h) => sum + BigInt(h.costInBudgetCents), 0n);
     },
-    possessionsValueCents: async (input: {
-      tenantId: string;
-      budgetId: string;
-      defaultCurrency: string;
-    }): Promise<bigint> => {
-      const r = await investments.listHoldings({
-        tenantId: input.tenantId,
-        budgetId: input.budgetId,
-        actorUserId: SYSTEM_USER_UUID,
-        budgetCurrency: input.defaultCurrency,
-      });
-      if (r.isErr()) throw r.error;
-      return r.value.holdings
-        .filter((h) => isPossession(h))
-        .reduce((sum, h) => sum + BigInt(h.valueInBudgetCents), 0n);
-    },
   };
   const budgetingFinal = Object.assign(budgeting, {
     getOverviewCards: getOverviewCards({

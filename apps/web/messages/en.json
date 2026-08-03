@@ -1569,7 +1569,9 @@
         "section": {
           "spendings": "Spendings wallets",
           "cushion": "Cushion wallets",
-          "reserve": "Reserve wallets"
+          "reserve": "Reserve wallets",
+          "possession": "Possessions",
+          "other": "Other assets"
         },
         "sectionLabel": {
           "spendings": "Spendings",
@@ -1579,7 +1581,9 @@
         "add": {
           "spendings": "Add spendings wallet",
           "cushion": "Add cushion wallet",
-          "reserve": "Add reserve wallet"
+          "reserve": "Add reserve wallet",
+          "possession": "Add possession",
+          "other": "Add other asset"
         },
         "row": {
           "namePlaceholder": "Wallet name",

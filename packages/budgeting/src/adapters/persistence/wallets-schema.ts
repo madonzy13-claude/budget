@@ -21,7 +21,8 @@ export const wallets = budgeting.table(
     id: uuid("id").primaryKey().defaultRandom(),
     tenantId: uuid("tenant_id").notNull(),
     name: text("name").notNull(),
-    // wallet_type replaces the old kind + scope columns. Values: SPENDINGS | CUSHION | RESERVE
+    // wallet_type replaces the old kind + scope columns. Values:
+    // SPENDINGS | CUSHION | RESERVE | POSSESSION | OTHER (the last two, 260803).
     walletType: text("wallet_type").notNull(), // CHECK constraint enforced below
     currency: char("currency", { length: 3 }).notNull(),
     currentBalance: numeric("current_balance", {
@@ -39,7 +40,7 @@ export const wallets = budgeting.table(
   (t) => [
     check(
       "wallets_wallet_type_chk",
-      sql`${t.walletType} IN ('SPENDINGS','CUSHION','RESERVE')`,
+      sql`${t.walletType} IN ('SPENDINGS','CUSHION','RESERVE','POSSESSION','OTHER')`,
     ),
     pgPolicy("wallets_tenant_isolation", {
       as: "permissive",

@@ -443,11 +443,8 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           (overspentByMonth.get(s.month) ?? 0n) + (overage - drawn2),
         );
       }
-      const sumOf = (m: Map<string, bigint>) => {
-        let total = 0n;
-        for (const v of m.values()) total += v;
-        return total;
-      };
+      const sumOf = (m: Map<string, bigint>) =>
+        [...m.values()].reduce((a, b) => a + b, 0n);
       // Each month contributes the share of itself the range actually covers, so
       // a part-month at either end is a forecast to that day rather than a whole
       // month's budget standing against a few days of spend (260803).

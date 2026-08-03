@@ -491,6 +491,20 @@
       "when": 1782732000000,
       "tag": "0070_member_ui_prefs",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1782735600000,
+      "tag": "0071_wallet_type_possession_other",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1782739200000,
+      "tag": "0072_possessions_to_wallets",
+      "breakpoints": true
     }
   ]
 }

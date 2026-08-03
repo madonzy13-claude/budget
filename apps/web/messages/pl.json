@@ -1592,7 +1592,9 @@
         "section": {
           "spendings": "Portfele wydatków",
           "cushion": "Portfele poduszki",
-          "reserve": "Portfele rezerw"
+          "reserve": "Portfele rezerw",
+          "possession": "Posiadane rzeczy",
+          "other": "Inne aktywa"
         },
         "sectionLabel": {
           "spendings": "Wydatki",
@@ -1602,7 +1604,9 @@
         "add": {
           "spendings": "Dodaj portfel wydatków",
           "cushion": "Dodaj portfel poduszki",
-          "reserve": "Dodaj portfel rezerwy"
+          "reserve": "Dodaj portfel rezerwy",
+          "possession": "Dodaj rzecz",
+          "other": "Dodaj inne aktywo"
         },
         "row": {
           "namePlaceholder": "Nazwa portfela",

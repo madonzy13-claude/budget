@@ -9,7 +9,14 @@
 import { ok, err, type Result } from "@budget/shared-kernel";
 import type { Money } from "@budget/shared-kernel";
 
-export type WalletType = "SPENDINGS" | "CUSHION" | "RESERVE";
+export type WalletType =
+  | "SPENDINGS"
+  | "CUSHION"
+  | "RESERVE"
+  /** A house, a car — net worth, but not drawdown income (260803). */
+  | "POSSESSION"
+  /** An asset that belongs to nothing in particular (260803). */
+  | "OTHER";
 
 export class Wallet {
   // UAT-PH5-T3-1x: presentation-only customization (color + icon) and
@@ -60,7 +67,8 @@ export class Wallet {
   }
 
   /**
-   * changeType — change wallet classification (SPENDINGS / CUSHION / RESERVE).
+   * changeType — change wallet classification (SPENDINGS / CUSHION / RESERVE /
+   * POSSESSION / OTHER).
    * Reserve-currency invariant enforced in use case (needs budgetCurrencyOf lookup)
    * — domain stays decoupled from tenancy lookups.
    */

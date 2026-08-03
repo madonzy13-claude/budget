@@ -43,7 +43,6 @@ import { useArchiveWallet } from "@/hooks/use-archive-wallet";
 import { useReorderWallets } from "@/hooks/use-reorder-wallets";
 import { WalletSection, type DraftState } from "./wallet-section";
 import { InvestmentsSection } from "./investments-section";
-import { PossessionsSection } from "./possessions-section";
 // UAT-PH5-T3-28: import the ghost preview's helpers statically. Inline
 // `require()` worked on dev but blew up on iOS Safari with a
 // client-side exception when the row's DragOverlay first rendered.
@@ -125,14 +124,15 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   // raw enum "CUSHION".
   const tSection = useTranslations("bdp.tab.wallets.section");
   const tUnavailable = useTranslations("offline.unavailable");
+  const SECTION_KEY: Record<WalletDto["walletType"], string> = {
+    SPENDINGS: "spendings",
+    CUSHION: "cushion",
+    RESERVE: "reserve",
+    POSSESSION: "possession",
+    OTHER: "other",
+  };
   const sectionLabelFor = (kind: WalletDto["walletType"]) =>
-    tSection(
-      kind === "SPENDINGS"
-        ? "spendings"
-        : kind === "CUSHION"
-          ? "cushion"
-          : "reserve",
-    );
+    tSection(SECTION_KEY[kind]);
   // Client-data (260615-e8s round 8): the page no longer bakes the wallet list
   // into its HTML. useWallets fetches it client-side (online → API + cache to
   // IDB; offline → IDB), so the document stays light and the data is cached as
@@ -306,6 +306,12 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
     SPENDINGS: wallets.filter((w) => w.walletType === "SPENDINGS").sort(bySort),
     CUSHION: wallets.filter((w) => w.walletType === "CUSHION").sort(bySort),
     RESERVE: wallets.filter((w) => w.walletType === "RESERVE").sort(bySort),
+    // 260803: possessions used to be holdings; they are wallets now, so they
+    // sort and drag with the rest. OTHER is for assets that belong to nothing.
+    POSSESSION: wallets
+      .filter((w) => w.walletType === "POSSESSION")
+      .sort(bySort),
+    OTHER: wallets.filter((w) => w.walletType === "OTHER").sort(bySort),
   };
 
   // ── W-4 staged-add handlers ───────────────────────────────────────────────
@@ -488,6 +494,10 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
             "SPENDINGS",
             ...(cushionEnabled ? (["CUSHION"] as const) : []),
             ...(reservesEnabled ? (["RESERVE"] as const) : []),
+            // Always on, like Spendings: a possession or a stray asset does not
+            // hang off a feature flag (260803).
+            "POSSESSION",
+            "OTHER",
           ] as const
         ).map((type) => (
           <WalletSection
@@ -522,12 +532,6 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
             budgetCurrency={budgetCurrency}
           />
         )}
-        {/* Possessions (house/car/…): always on, renders after investments. Part
-            of capitalization but excluded from the retirement runway. */}
-        <PossessionsSection
-          budgetId={budgetId}
-          budgetCurrency={budgetCurrency}
-        />
       </div>
       {/* UAT-PH5-T3-18: pointer-pinned preview so a cross-section drag never
           loses the dragged row visually as the pointer crosses a context

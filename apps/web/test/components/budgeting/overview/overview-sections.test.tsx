@@ -196,10 +196,8 @@ describe("OverviewSections", () => {
     // took the whole tab down with "Something went wrong" (found in live
     // verification, 260803) — every returning user would meet that on any deploy
     // that adds a field.
-    const { rangeTotals: _dropped, ...old } = PLANNED as Record<
-      string,
-      unknown
-    >;
+    const old = { ...(PLANNED as Record<string, unknown>) };
+    delete old.rangeTotals;
     plannedMock.mockReturnValue({
       data: old,
       isPending: false,

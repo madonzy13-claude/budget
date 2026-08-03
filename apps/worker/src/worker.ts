@@ -458,23 +458,6 @@ async function main() {
           .filter((h) => h.holdingType !== "possession")
           .reduce((s, h) => s + BigInt(h.costInBudgetCents), 0n);
       },
-      // Possessions: in capitalization (net worth) but out of investment value.
-      possessionsValueCents: async (input: {
-        tenantId: string;
-        budgetId: string;
-        defaultCurrency: string;
-      }): Promise<bigint> => {
-        const r = await investments.listHoldings({
-          tenantId: input.tenantId,
-          budgetId: input.budgetId,
-          actorUserId: WEALTH_SYSTEM_USER,
-          budgetCurrency: input.defaultCurrency,
-        });
-        if (r.isErr()) throw r.error;
-        return r.value.holdings
-          .filter((h) => h.holdingType === "possession")
-          .reduce((s, h) => s + BigInt(h.valueInBudgetCents), 0n);
-      },
     },
     fxProvider,
   };

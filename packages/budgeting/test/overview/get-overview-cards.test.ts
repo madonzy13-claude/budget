@@ -310,25 +310,52 @@ describe("Overview cards", () => {
   });
 
   test("possessions are in capitalization but EXCLUDED from the retirement pot", async () => {
+    // Possessions are POSSESSION wallets since 260803 — no holdings port.
     const d = deps();
-    d.holdingsValuation = {
-      async investmentValueCents() {
-        return 10000n;
-      },
-      async investmentCostBasisCents() {
-        return 0n;
-      },
-      async possessionsValueCents() {
-        return 40000n; // a house/car etc.
+    const base = d.walletRepo.listWalletsWithType;
+    d.walletRepo = {
+      async listWalletsWithType(budgetId: string) {
+        return [
+          ...(await base.call(d.walletRepo, budgetId)),
+          {
+            amount_cents: 40000n,
+            currency: "PLN",
+            wallet_type: "POSSESSION" as const,
+          },
+        ];
       },
     };
     const dto = (await getOverviewCards(d)(input))._unsafeUnwrap();
-    // capitalization includes possessions: 18000 wallets + 10000 inv + 40000 poss.
+    // capitalization includes possessions: 18000 wallets + 40000 poss + 10000 inv.
     expect(dto.capitalization_cents).toBe(68000n);
     expect(dto.possessions_value_cents).toBe(40000n);
     // but the retirement pot excludes them: W = 68000 − 40000 = 28000.
     const r = Math.pow(1.045, 1 / 12) - 1;
     const expected = Math.log(1 + (28000 * r) / 18000) / Math.log(1 + r);
+    expect(dto.retirement_months).toBeCloseTo(expected, 4);
+  });
+
+  test("OTHER wallets count toward BOTH capitalization and the retirement pot", async () => {
+    // A stray asset is spendable wealth, unlike a house — user decision 260803.
+    const d = deps();
+    const base = d.walletRepo.listWalletsWithType;
+    d.walletRepo = {
+      async listWalletsWithType(budgetId: string) {
+        return [
+          ...(await base.call(d.walletRepo, budgetId)),
+          {
+            amount_cents: 40000n,
+            currency: "PLN",
+            wallet_type: "OTHER" as const,
+          },
+        ];
+      },
+    };
+    const dto = (await getOverviewCards(d)(input))._unsafeUnwrap();
+    expect(dto.capitalization_cents).toBe(68000n);
+    expect(dto.possessions_value_cents).toBe(0n);
+    const r = Math.pow(1.045, 1 / 12) - 1;
+    const expected = Math.log(1 + (68000 * r) / 18000) / Math.log(1 + r);
     expect(dto.retirement_months).toBeCloseTo(expected, 4);
   });
 
