@@ -18,6 +18,7 @@ import {
   symlog,
   symexp,
   ON_PLAN_BAND_PCT,
+  varianceColorForRange,
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { SlotRevealProvider } from "@/components/budgeting/overview/slot-amount";
 
@@ -206,5 +207,100 @@ describe("OverviewDivergingBarChart", () => {
     );
     expect(queryByText("Over plan")).toBeNull();
     expect(queryByText("On plan (±10%)")).toBeNull();
+  });
+});
+
+describe("varianceColorForRange", () => {
+  // Under plan halfway through the month is just "not spent yet", not an
+  // achievement — while the range is the running month alone those bars go grey
+  // rather than claiming success (260803 user request). Over plan still counts:
+  // spending past the budget this early is real.
+  it("greys an UNDER-plan category while the range is this month alone", () => {
+    expect(varianceColorForRange(-40, { runningMonthOnly: true })).toBe(
+      "var(--muted-foreground)",
+    );
+    expect(varianceColorForRange(-5, { runningMonthOnly: true })).toBe(
+      "var(--muted-foreground)",
+    );
+  });
+
+  it("still bands an OVER-plan category in the running month", () => {
+    expect(varianceColorForRange(40, { runningMonthOnly: true })).toBe(
+      varianceColor(40),
+    );
+    expect(varianceColorForRange(5, { runningMonthOnly: true })).toBe(
+      varianceColor(5),
+    );
+  });
+
+  it("bands everything once the range reaches past the running month", () => {
+    for (const pct of [-40, -5, 0, 5, 40])
+      expect(varianceColorForRange(pct, { runningMonthOnly: false })).toBe(
+        varianceColor(pct),
+      );
+  });
+});
+
+describe("OverviewDivergingBarChart colouring", () => {
+  beforeAll(() => {
+    // recharts needs a measurable box in happy-dom (same shim as charts.test).
+    for (const [prop, value] of [
+      ["offsetWidth", 400],
+      ["offsetHeight", 240],
+    ] as const)
+      Object.defineProperty(HTMLElement.prototype, prop, {
+        configurable: true,
+        value,
+      });
+    if (!("ResizeObserver" in globalThis))
+      // @ts-expect-error minimal shim
+      globalThis.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      };
+  });
+
+  const ROWS = [
+    { name: "Food", pct: -40 },
+    { name: "Rent", pct: 40 },
+  ];
+
+  const fills = (node: HTMLElement) =>
+    [...node.querySelectorAll(".recharts-bar-rectangle path")].map((p) =>
+      p.getAttribute("fill"),
+    );
+
+  it("bands each bar by default", () => {
+    const { container } = render(
+      <div style={{ width: 400, height: 240 }}>
+        <OverviewDivergingBarChart
+          data={ROWS}
+          categoryKey="name"
+          valueKey="pct"
+        />
+      </div>,
+    );
+    expect(fills(container)).toEqual([varianceColor(-40), varianceColor(40)]);
+  });
+
+  it("hands the colour decision to colorForPct when given one", () => {
+    // This is the wire the running-month grey rule rides on (260803).
+    const { container } = render(
+      <div style={{ width: 400, height: 240 }}>
+        <OverviewDivergingBarChart
+          data={ROWS}
+          categoryKey="name"
+          valueKey="pct"
+          colorForPct={(pct) =>
+            varianceColorForRange(pct, { runningMonthOnly: true })
+          }
+        />
+      </div>,
+    );
+    expect(fills(container)).toEqual([
+      "var(--muted-foreground)", // under plan → grey
+      varianceColor(40), // over plan → still banded
+    ]);
   });
 });

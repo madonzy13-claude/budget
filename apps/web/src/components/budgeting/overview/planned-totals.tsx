@@ -21,6 +21,7 @@
 import { useTranslations } from "next-intl";
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 import { CombinedStat } from "@/components/budgeting/overview/combined-stat";
+import { varianceColor } from "@/components/budgeting/charts/diverging-bar-chart";
 
 /** Matches the plan-zone line: limit-covered green, reserve yellow, over red. */
 const ZONE = {
@@ -155,6 +156,10 @@ export function PlannedTotals({
           // Only while the range is this month alone: five days in, being under
           // says nothing. Reach back further and the colour returns (260803).
           tone={rangeWithinRunningMonth ? "plain" : "auto"}
+          // Banded by DISTANCE from plan, the same green/yellow/red the
+          // by-category bars use — 5% under is not a triumph, and 50% under is
+          // as much a planning miss as 50% over.
+          color={pct === null ? undefined : varianceColor(pct)}
         />
       </div>
     </div>

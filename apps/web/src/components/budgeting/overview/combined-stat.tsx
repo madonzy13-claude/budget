@@ -21,6 +21,7 @@ export function CombinedStat({
   amount,
   mask = false,
   tone = "auto",
+  color,
   testId,
 }: {
   label: string;
@@ -29,11 +30,15 @@ export function CombinedStat({
   mask?: boolean;
   /** "auto" colours by direction; "plain" stays neutral. */
   tone?: "auto" | "plain";
+  /** An explicit colour, for callers that band by DISTANCE rather than
+   *  direction — "how far off plan" is green either side of it. Ignored when
+   *  `tone` is "plain". */
+  color?: string;
   testId?: string;
 }) {
   const up = pct !== null && pct >= 0;
   const down = pct !== null && pct < 0;
-  const color =
+  const colorClass =
     tone === "plain"
       ? "text-[var(--body-on-dark)]"
       : up
@@ -41,6 +46,7 @@ export function CombinedStat({
         : down
           ? "text-[var(--trading-down)]"
           : "text-[var(--muted-foreground)]";
+  const explicit = tone !== "plain" && color !== undefined;
   const Arrow = up ? ArrowUp : ArrowDown;
   const pctStr =
     pct === null ? "—" : `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`;
@@ -53,8 +59,9 @@ export function CombinedStat({
       <span
         className={cn(
           "num inline-flex items-center gap-1 whitespace-nowrap text-num-md",
-          color,
+          !explicit && colorClass,
         )}
+        style={explicit ? { color } : undefined}
         data-testid={testId ? `${testId}-pct` : undefined}
       >
         {pct !== null && <Arrow className="size-3.5" aria-hidden="true" />}

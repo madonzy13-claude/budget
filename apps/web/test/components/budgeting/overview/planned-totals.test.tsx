@@ -92,13 +92,42 @@ describe("PlannedTotals", () => {
     expect(pct.className).not.toContain("trading-");
   });
 
+  it("colours the gap by DISTANCE from plan, not by direction", () => {
+    // Within 10% is on plan and green either way; to 30% yellow; beyond red
+    // (260803 user decision). Being 5% under is not a triumph, and 50% under is
+    // as much a planning miss as 50% over.
+    const style = (spent: string) => {
+      const c = render(
+        <PlannedTotals
+          plannedCents="100000"
+          spentCents={spent}
+          withinLimitCents={spent}
+          reserveUsedCents="0"
+          overspentCents="0"
+          format={fmt}
+        />,
+      ).container;
+      return (
+        c
+          .querySelector('[data-testid="planned-total-difference-pct"]')
+          ?.getAttribute("style") ?? ""
+      );
+    };
+    expect(style("95000")).toContain("--trading-up"); // -5%  green
+    expect(style("108000")).toContain("--trading-up"); // +8%  green
+    expect(style("80000")).toContain("--primary"); // -20% yellow
+    expect(style("125000")).toContain("--primary"); // +25% yellow
+    expect(style("50000")).toContain("--trading-down"); // -50% red
+    expect(style("200000")).toContain("--trading-down"); // +100% red
+  });
+
   it("keeps the colour once the range reaches past the running month", () => {
     // A 3-month range is mostly finished history, so the gap IS a verdict even
     // though its end months are pro-rated.
     renderTotals({ rangeWithinRunningMonth: false });
     expect(
-      screen.getByTestId("planned-total-difference-pct").className,
-    ).toContain("trading-");
+      screen.getByTestId("planned-total-difference-pct").getAttribute("style"),
+    ).toBeTruthy();
   });
 
   it("reads an OVERspend as a positive difference", () => {

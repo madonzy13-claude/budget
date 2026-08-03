@@ -34,7 +34,7 @@ import { CHART_THEME } from "@/components/budgeting/charts/chart-theme";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import {
   OverviewDivergingBarChart,
-  varianceColor,
+  varianceColorForRange,
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { hexForColorKey } from "@/lib/category-colors";
@@ -217,6 +217,10 @@ export function PlannedSection({
   // 260731: no needs/wants split → both series carry the same figure, and the
   // pink WANTS band would just double the green one (see lib/wants-split).
   const wantsSplitExists = hasWantsSplit(data?.timeline ?? []);
+  // The whole range inside the month still running: the gap is not a verdict yet
+  // (260803), which the totals strip and the by-category bars both key off.
+  const rangeWithinRunningMonth =
+    data?.rangeTotals?.range_within_running_month ?? false;
 
   // Timeline rows for the chart + the crossing gradient that colours the actual
   // line (grey inside the plan, red past it — cut at the exact crossing).
@@ -321,9 +325,7 @@ export function PlannedSection({
               withinLimitCents={data.rangeTotals?.within_limit_cents ?? "0"}
               reserveUsedCents={data.rangeTotals?.reserve_used_cents ?? "0"}
               overspentCents={data.rangeTotals?.overspent_cents ?? "0"}
-              rangeWithinRunningMonth={
-                data.rangeTotals?.range_within_running_month ?? false
-              }
+              rangeWithinRunningMonth={rangeWithinRunningMonth}
               format={(cents) => centsToRounded(cents, ccy, "en", true)}
               maskValue={amountPrivacyEnabled}
             />
@@ -538,6 +540,14 @@ export function PlannedSection({
                   .sort((a, b) => b.pct - a.pct)}
                 categoryKey="name"
                 valueKey="pct"
+                // Under plan while the range is the month still running is just
+                // "not spent yet" — those bars read grey rather than claiming
+                // success (260803 user request). Over plan still bands.
+                colorForPct={(pct) =>
+                  varianceColorForRange(pct, {
+                    runningMonthOnly: rangeWithinRunningMonth,
+                  })
+                }
                 tooltipExtra={(row) => {
                   const diff = Number(row.real) - Number(row.planned);
                   const pct = Number(row.pct);
@@ -572,7 +582,9 @@ export function PlannedSection({
                       value: `${pctSign}${Math.abs(
                         Math.round(Number(row.pct)),
                       )}% · ${sign}${fmtTooltip(Math.abs(diff))}`,
-                      color: varianceColor(Number(row.pct)),
+                      color: varianceColorForRange(Number(row.pct), {
+                        runningMonthOnly: rangeWithinRunningMonth,
+                      }),
                     },
                   ];
                 }}

@@ -73,6 +73,20 @@ export function varianceColor(pct: number): string {
 }
 
 /**
+ * The band, unless the range is the month still running and the category is
+ * UNDER plan — that is just "not spent yet", not an achievement, so it reads
+ * grey rather than claiming success (260803 user request). Being OVER this
+ * early is real, and keeps its band.
+ */
+export function varianceColorForRange(
+  pct: number,
+  opts: { runningMonthOnly: boolean },
+): string {
+  if (opts.runningMonthOnly && pct < 0) return "var(--muted-foreground)";
+  return varianceColor(pct);
+}
+
+/**
  * SYMMETRIC LOG (260731 user decision): a +408% category next to a −8% one left a
  * huge empty gap on a linear axis. symlog keeps zero meaningful and negatives
  * intact — it is near-linear inside the on-plan band (so ±5% vs ±10% stays
@@ -208,6 +222,7 @@ export function OverviewDivergingBarChart({
   formatTooltip,
   labelFormat,
   maskAmounts = false,
+  colorForPct = varianceColor,
 }: {
   data: Array<Record<string, unknown>>;
   /** Category name key — the Y axis. */
@@ -223,6 +238,8 @@ export function OverviewDivergingBarChart({
   labelFormat?: (label: string | number) => string;
   /** Privacy: money inside the tooltip hides until the shared reveal. */
   maskAmounts?: boolean;
+  /** Per-bar colour from its percent. Defaults to the plain band. */
+  colorForPct?: (pct: number) => string;
 }) {
   const { revealed } = useSlotReveal();
   const hideAmt = maskAmounts && !revealed;
@@ -358,7 +375,7 @@ export function OverviewDivergingBarChart({
             {rows.map((row, ri) => (
               <Cell
                 key={ri}
-                fill={BAND_COLOR[varianceBand(row.__raw)]}
+                fill={colorForPct(row.__raw)}
                 fillOpacity={dim(ri)}
               />
             ))}
