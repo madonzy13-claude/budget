@@ -135,7 +135,15 @@ export function PlannedTotals({
   ];
 
   return (
-    <div data-testid="planned-totals" className="flex flex-col gap-2">
+    <div
+      data-testid="planned-totals"
+      // The section stacks its children 8px apart, which wedged these figures
+      // against the picker above and the chart below — a solid pill on one side
+      // and open chart on the other read as unequal even though both gaps
+      // measured 8px (user report, 260803). Their own margin sets them apart as
+      // a group, equally on both sides.
+      className="my-2 flex flex-col gap-2"
+    >
       <div className="grid grid-cols-3 gap-x-3 gap-y-1">
         {breakdown.map((c) => (
           <Figure key={c.key} cell={c} mask={maskValue} />

@@ -71,6 +71,14 @@ describe("PlannedTotals", () => {
     expect(stat.textContent).toContain("−");
   });
 
+  it("sets itself apart from the picker and the chart, equally", () => {
+    // 8px from a solid pill above and an open chart below read as unequal
+    // (user report, 260803) — the figures carry their own margin on both sides.
+    const c = renderTotals();
+    const strip = c.querySelector('[data-testid="planned-totals"]')!;
+    expect(strip.className).toContain("my-2");
+  });
+
   it("centres every figure over its label", () => {
     renderTotals();
     for (const k of ["within", "reserve", "overspent", "spent", "planned"])
