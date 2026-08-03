@@ -1458,7 +1458,12 @@
           "timelineTitle": "How each month tracked against plan",
           "avgByCategory": "How far off plan, by category",
           "avgPie": "Planned spendings, by category",
-          "difference": "Difference"
+          "difference": "Difference",
+          "ring": {
+            "needs": "Needs",
+            "wants": "Wants",
+            "investments": "Investing"
+          }
         },
         "wealth": {
           "capitalization": "Capitalization",

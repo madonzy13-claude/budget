@@ -142,6 +142,56 @@ describe("Overview charts", () => {
     ).toBeTruthy();
   });
 
+  describe("Pie outer ring", () => {
+    // The planned-spend pie grows a second ring outside it — needs / wants /
+    // investing, summed across categories (260803 request). It is background:
+    // it must not take the taps the category slices inside it rely on.
+    const RING = [
+      { name: "Needs", value: 60 },
+      { name: "Wants", value: 30 },
+    ];
+
+    it("renders nothing extra when no ring is given", () => {
+      const { container } = box(
+        <OverviewPieChart
+          data={byCategory}
+          nameKey="name"
+          valueKey="value"
+          colorFor={() => "#4ea1ff"}
+        />,
+      );
+      expect(container.querySelectorAll(".recharts-pie").length).toBe(1);
+    });
+
+    it("renders the ring as a second pie outside the first", () => {
+      const { container } = box(
+        <OverviewPieChart
+          data={byCategory}
+          nameKey="name"
+          valueKey="value"
+          colorFor={() => "#4ea1ff"}
+          outerRing={{ data: RING, colorFor: () => "#6b7280" }}
+        />,
+      );
+      expect(container.querySelectorAll(".recharts-pie").length).toBe(2);
+    });
+
+    it("keeps the ring out of the pointer's way", () => {
+      const { container } = box(
+        <OverviewPieChart
+          data={byCategory}
+          nameKey="name"
+          valueKey="value"
+          colorFor={() => "#4ea1ff"}
+          outerRing={{ data: RING, colorFor: () => "#6b7280" }}
+        />,
+      );
+      const ring = container.querySelector('[data-testid="pie-outer-ring"]');
+      expect(ring).toBeTruthy();
+      expect(ring!.getAttribute("pointer-events")).toBe("none");
+    });
+  });
+
   describe("ChartTooltipContent geometry rows", () => {
     const rowFor = (geometry: Record<string, unknown>) => [
       {

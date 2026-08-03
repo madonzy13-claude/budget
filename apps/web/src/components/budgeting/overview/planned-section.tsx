@@ -39,6 +39,7 @@ import {
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { hexForColorKey } from "@/lib/category-colors";
 import { assignSliceColors } from "@/lib/slice-colors";
+import { planRing, type PlanRingKey } from "@/lib/plan-ring";
 import { Customized } from "recharts";
 import { PlanZoneLine } from "./plan-zone-line";
 import { hasWantsSplit } from "@/lib/wants-split";
@@ -95,9 +96,19 @@ function PlannedByCategoryPie({
   picked,
   onPick,
   pickable,
+  isInvestment,
+  ringLabel,
 }: {
-  rows: { category_id: string; name: string; planned_avg_cents: string }[];
+  rows: {
+    category_id: string;
+    name: string;
+    planned_avg_cents: string;
+    needs_avg_cents?: string;
+  }[];
   categories: { name: string; colorKey?: unknown }[];
+  /** Which category is THE investment one — it is neither a need nor a want. */
+  isInvestment: (categoryId: string) => boolean;
+  ringLabel: (key: PlanRingKey) => string;
   title: string;
   allLabel: string;
   formatValue: (n: number) => string;
@@ -110,8 +121,20 @@ function PlannedByCategoryPie({
   // The pie has its own picker (260802 request): a slice the member drops here
   // stays on the timeline, and the other way round.
   const shown = picked.length ? new Set(picked) : null;
-  const data = rows
-    .filter((c) => !shown || shown.has(c.category_id))
+  const inView = rows.filter((c) => !shown || shown.has(c.category_id));
+  // The outer ring: needs / wants / investing summed across the SAME categories
+  // the slices show, so narrowing the picker narrows both (260803 request).
+  const ring = planRing(inView, isInvestment).map((a) => ({
+    name: ringLabel(a.key),
+    value: a.value,
+    key: a.key,
+  }));
+  const RING_COLOR: Record<PlanRingKey, string> = {
+    needs: "var(--chart-plan-needs)",
+    wants: "var(--chart-plan-wants)",
+    investments: "var(--chart-plan-invest)",
+  };
+  const data = inView
     .map((c) => ({ name: c.name, planned: Number(c.planned_avg_cents) }))
     .filter((r) => r.planned > 0)
     .sort((a, b) => b.planned - a.planned);
@@ -145,6 +168,13 @@ function PlannedByCategoryPie({
         formatValue={formatValue}
         allLabel={allLabel}
         maskValue={maskValue}
+        outerRing={{
+          data: ring,
+          colorFor: (name) =>
+            RING_COLOR[
+              (ring.find((a) => a.name === name)?.key ?? "wants") as PlanRingKey
+            ],
+        }}
       />
     </div>
   );
@@ -608,6 +638,10 @@ export function PlannedSection({
               categories.map((c) => c.id as string),
             )}
             onPick={setPieCategoryIds}
+            isInvestment={(id) =>
+              Boolean(categories.find((c) => c.id === id)?.isInvestment)
+            }
+            ringLabel={(key) => t(`planned.ring.${key}`)}
             pickable={categories.map((c) => ({
               id: c.id,
               name: c.name,

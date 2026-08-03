@@ -1481,7 +1481,12 @@
           "timelineTitle": "Jak każdy miesiąc wypadł względem planu",
           "avgByCategory": "Odchylenie od planu, wg kategorii",
           "avgPie": "Planowane wydatki wg kategorii",
-          "difference": "Różnica"
+          "difference": "Różnica",
+          "ring": {
+            "needs": "Potrzeby",
+            "wants": "Zachcianki",
+            "investments": "Inwestycje"
+          }
         },
         "wealth": {
           "capitalization": "Kapitalizacja",

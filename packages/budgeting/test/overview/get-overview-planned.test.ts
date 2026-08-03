@@ -374,6 +374,73 @@ describe("getOverviewPlanned", () => {
     expect(dto.plannedAvgVsReal.some((c) => c.category_id === "V")).toBe(true);
   });
 
+  test("carries each category's NEEDS share of its plan", async () => {
+    // The planned-spend pie grows an outer ring of needs / wants / investments
+    // (260803 request), which needs the split per category — the pie is drawn
+    // from these averages, so the split has to arrive with them.
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [
+          {
+            category_id: "N",
+            month: "2026-01",
+            planned_cents: 30000n,
+            needs_cents: 20000n,
+          },
+          {
+            category_id: "N",
+            month: "2026-02",
+            planned_cents: 30000n,
+            needs_cents: 20000n,
+          },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "N",
+            name: "Groceries",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    };
+    const dto = (
+      await getOverviewPlanned({
+        repo,
+        metaReader: {
+          async getBudgetMeta() {
+            return { default_currency: "USD" };
+          },
+        },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+      })({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-01-01",
+        to: "2026-02-28",
+      })
+    )._unsafeUnwrap();
+    const n = dto.plannedAvgVsReal.find((c) => c.category_id === "N")!;
+    expect(n.planned_avg_cents).toBe("30000");
+    expect(n.needs_avg_cents).toBe("20000");
+    // wants is the remainder the caller derives — never stored twice.
+    expect(
+      BigInt(n.planned_avg_cents) - BigInt(n.needs_avg_cents),
+    ).toBe(10000n);
+  });
+
   test("range totals: spent, the reserve it drew, and the overspend", async () => {
     // The Planned section opens on three figures for the selected range
     // (260803 user request), replacing the by-category overspend bar. Limit

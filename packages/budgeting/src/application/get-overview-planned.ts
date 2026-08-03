@@ -195,6 +195,10 @@ export interface OverviewPlannedDTO {
     name: string;
     planned_avg_cents: string;
     real_avg_cents: string;
+    /** The cushion ("needs") share of that plan; wants is the remainder, which
+     *  the caller derives rather than storing the same number twice. Feeds the
+     *  planned-spend pie's outer needs / wants / investments ring (260803). */
+    needs_avg_cents: string;
     /** Σ over the months the category was active in range — the tooltip shows
      *  the average and the total side by side (260803 user request). */
     planned_total_cents: string;
@@ -652,9 +656,12 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           ? allRangeMonths.filter((m) => m !== runningMonth)
           : allRangeMonths;
       const plannedKey = new Map<string, bigint>();
+      const needsKey = new Map<string, bigint>();
       const spendKey = new Map<string, bigint>();
-      for (const p of plannedRows)
+      for (const p of plannedRows) {
         plannedKey.set(`${p.category_id}|${p.month}`, p.planned_cents);
+        needsKey.set(`${p.category_id}|${p.month}`, p.needs_cents ?? 0n);
+      }
       for (const s of spend)
         spendKey.set(`${s.category_id}|${s.month}`, s.spent_cents);
 
@@ -668,15 +675,18 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           if (active.length === 0) return null;
           let ps = 0n;
           let rs = 0n;
+          let ns = 0n;
           for (const m of active) {
             ps += plannedKey.get(`${w.category_id}|${m}`) ?? 0n;
             rs += spendKey.get(`${w.category_id}|${m}`) ?? 0n;
+            ns += needsKey.get(`${w.category_id}|${m}`) ?? 0n;
           }
           return {
             category_id: w.category_id,
             name: w.name,
             planned_avg_cents: avgCents(ps, active.length).toString(),
             real_avg_cents: avgCents(rs, active.length).toString(),
+            needs_avg_cents: avgCents(ns, active.length).toString(),
             planned_total_cents: ps.toString(),
             real_total_cents: rs.toString(),
           };

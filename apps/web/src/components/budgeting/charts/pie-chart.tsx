@@ -28,6 +28,7 @@ export function OverviewPieChart({
   formatName,
   allLabel = "All",
   maskValue = false,
+  outerRing,
 }: {
   data: Array<Record<string, unknown>>;
   nameKey: string;
@@ -41,6 +42,16 @@ export function OverviewPieChart({
   formatName?: (name: string) => string;
   /** Centre label shown when NO slice is selected — the whole pie (total · 100%). */
   allLabel?: string;
+  /** A second ring OUTSIDE the pie — budget-wide totals that do not line up with
+   *  the slices beneath them (the planned-spend pie's needs / wants / investing,
+   *  260803). Background only: it never takes a pointer, so the tap-to-select on
+   *  the slices inside is untouched. */
+  outerRing?: {
+    data: Array<Record<string, unknown>>;
+    colorFor: (name: string) => string;
+    nameKey?: string;
+    valueKey?: string;
+  };
   /** Privacy: render the centre VALUE as a tap-to-reveal SlotAmount (the % stays
    *  visible). Reveal is shared via SlotRevealProvider. */
   maskValue?: boolean;
@@ -150,6 +161,32 @@ export function OverviewPieChart({
     >
       <ResponsiveContainer width="100%" height={height}>
         <PieChart>
+          {outerRing && outerRing.data.length > 0 && (
+            <Pie
+              data={outerRing.data}
+              dataKey={outerRing.valueKey ?? "value"}
+              nameKey={outerRing.nameKey ?? "name"}
+              innerRadius="88%"
+              outerRadius="100%"
+              paddingAngle={3}
+              cornerRadius={4}
+              stroke="none"
+              isAnimationActive={false}
+              rootTabIndex={-1}
+              // Background: the category slices inside own every tap.
+              pointerEvents="none"
+              data-testid="pie-outer-ring"
+            >
+              {outerRing.data.map((d, i) => (
+                <Cell
+                  key={`ring-${i}`}
+                  fill={outerRing.colorFor(
+                    String(d[outerRing.nameKey ?? "name"]),
+                  )}
+                />
+              ))}
+            </Pie>
+          )}
           <Pie
             data={data}
             dataKey={valueKey}

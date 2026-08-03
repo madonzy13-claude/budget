@@ -154,6 +154,10 @@
        on top of them. */
     --chart-plan-needs: #6b7280;
     --chart-plan-wants: #7c6f64;
+    /* 260803: the planned-spend pie's outer ring adds a third — investing, which
+       is neither a need nor a want. A muted teal, same weight as the other two so
+       the ring stays background to the category slices inside it. */
+    --chart-plan-invest: #5f8a86;
 
     /* Canvas + surface */
     --canvas-dark: #0b0e11;
