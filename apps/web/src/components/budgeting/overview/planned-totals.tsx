@@ -34,20 +34,28 @@ interface Cell {
   label: string;
   value: string;
   tone?: string;
+  /** Trails the figure, one size down — the percent beside the amount. */
+  suffix?: string;
 }
 
 function Figure({ cell, mask }: { cell: Cell; mask: boolean }) {
   return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      <p className="text-caption truncate text-[var(--muted-foreground)]">
+    <div className="flex min-w-0 flex-col items-center gap-0.5 text-center">
+      <p className="text-caption text-[var(--muted-foreground)]">
         {cell.label}
       </p>
+      {/* nowrap: at 390px the cell is ~111px and "−3,698 zł · −13%" wanted ~112,
+          so the percent dropped to a second line (user screenshot). Set one size
+          down it fits, and reads as the qualifier it is. */}
       <span
-        className="num text-num-sm"
+        className="num text-num-sm whitespace-nowrap"
         style={cell.tone ? { color: cell.tone } : undefined}
         data-testid={`planned-total-${cell.key}`}
       >
         {mask ? <SlotAmount value={cell.value} /> : cell.value}
+        {cell.suffix && (
+          <span className="text-caption ml-1">{cell.suffix}</span>
+        )}
       </span>
     </div>
   );
@@ -84,10 +92,10 @@ export function PlannedTotals({
   const pct = planned > 0n ? (Number(diff) / Number(planned)) * 100 : null;
   const sign = diff > 0n ? "+" : diff < 0n ? "−" : "";
   const absDiff = diff < 0n ? -diff : diff;
-  const difference =
-    pct === null
-      ? `${sign}${format(absDiff)}`
-      : `${sign}${format(absDiff)} · ${sign}${Math.abs(Math.round(pct))}%`;
+  // The sign rides the amount and the colour repeats it, so the percent needs
+  // neither — which is also what buys the room to keep them on one line.
+  const differencePct =
+    pct === null ? undefined : `${Math.abs(Math.round(pct))}%`;
 
   const breakdown: Cell[] = [
     {
@@ -124,7 +132,8 @@ export function PlannedTotals({
     {
       key: "difference",
       label: t("planned.difference"),
-      value: difference,
+      value: `${sign}${format(absDiff)}`,
+      suffix: differencePct,
       tone: pct === null ? undefined : varianceColor(pct),
     },
   ];

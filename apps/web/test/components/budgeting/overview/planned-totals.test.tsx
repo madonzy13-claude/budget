@@ -69,6 +69,20 @@ describe("PlannedTotals", () => {
     expect(cell("difference").textContent).toContain("−");
   });
 
+  it("keeps the percent on the amount's line", () => {
+    // At 390px the cell is ~111px and the joined string wanted ~112px, so the
+    // percent dropped to a second line (user screenshot, 260803). It is held on
+    // one line and set smaller, so it reads as the qualifier it is.
+    renderTotals();
+    expect(cell("difference").className).toContain("whitespace-nowrap");
+  });
+
+  it("centres every figure over its label", () => {
+    renderTotals();
+    for (const k of ["within", "reserve", "overspent", "spent", "planned"])
+      expect(cell(k).parentElement!.className).toContain("text-center");
+  });
+
   it("reads an OVERspend as a positive difference", () => {
     renderTotals({ plannedCents: "100000", spentCents: "150000" });
     expect(cell("difference").textContent).toContain("+");
