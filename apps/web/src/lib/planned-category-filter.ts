@@ -6,6 +6,9 @@
  * everything, or nothing, both mean "no filter" — closing an empty picker shows
  * the whole chart rather than an empty one.
  *
+ * Every category is offered and shown by default, investments included (260803
+ * user request) — the picker is what narrows the view.
+ *
  * The choice is remembered on the MEMBER's own row for that budget (see
  * use-member-ui-prefs), so it follows the person from phone to desktop and never
  * changes what the other members see. It lived in localStorage first, which is a
@@ -33,16 +36,4 @@ export function prunePlannedCategories(
 ): string[] {
   const picked = new Set(selected);
   return allIds.filter((id) => picked.has(id));
-}
-
-/**
- * The categories this chart can show. Investing is not spending — the timeline
- * leaves investment categories out of its default view, so the picker must not
- * offer them: ticking one turned "everything except House" into a chart where a
- * month's investing counted as overspend (user report, 260802).
- */
-export function pickableCategories<
-  T extends { id: string; isInvestment?: unknown },
->(categories: T[]): T[] {
-  return categories.filter((c) => !c.isInvestment);
 }

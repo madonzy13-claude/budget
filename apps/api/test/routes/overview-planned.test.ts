@@ -124,10 +124,9 @@ async function createFixture(): Promise<Fixture> {
        VALUES ($1, $2, $3, $4, 'USD', 5000, 5000, 1, '2026-02-15'::date, '2026-02-15'::date, 'SPENDING', NULL, now(), now())`,
       [crypto.randomUUID(), budgetId, budgetId, categoryId],
     );
-    // An INVESTMENT category with spend in the same days. Investing is not
-    // spending: it is excluded from the timeline, so neither the monthly nor
-    // the DAILY line may carry it (260801 user report — the daily line did, and
-    // the excess coloured the line red on months that never overspent).
+    // An INVESTMENT category with spend in the same days. It counts like any
+    // other category now (260803 user request): both the monthly and the daily
+    // line carry it, and it appears in the by-category chart.
     const investId = crypto.randomUUID();
     await c.query(
       `INSERT INTO budgeting.categories (id, tenant_id, name, is_investment, created_at, actor_user_id)
@@ -259,9 +258,11 @@ describe("GET /budgets/:id/overview/planned", () => {
           BigInt(p.overspent_cents),
       ).toBe(BigInt(p.real_cents));
     }
-    // real: confirmed only — the Feb pending 5000 is excluded
+    // real: confirmed only — the Feb pending 5000 is excluded. January also
+    // carries the 990.00 invested on the 12th: investing counts like any other
+    // outgoing now (260803 user request).
     expect(body.timeline.map((p) => p.real_cents)).toEqual([
-      "18000",
+      "117000",
       "21000",
       "14000",
     ]);
@@ -294,8 +295,8 @@ describe("GET /budgets/:id/overview/planned", () => {
       timeline: { label: string; real_cents: string }[];
     };
     expect(body.bucket).toBe("daily");
-    // one confirmed tx on 2026-01-10 → cumulative 18000
-    expect(body.timeline.at(-1)!.real_cents).toBe("18000");
+    // Food's 180.00 on the 10th plus the 990.00 invested on the 12th.
+    expect(body.timeline.at(-1)!.real_cents).toBe("117000");
   });
 
   it("a mid-month limit change shows the LATEST limit for that month", async () => {
@@ -387,7 +388,7 @@ describe("GET /budgets/:id/overview/planned", () => {
     expect(res.status).toBe(404);
   });
 
-  it("keeps investment spend out of the DAILY line, like the monthly one", async () => {
+  it("counts investment spend in the DAILY line, like any other category", async () => {
     const app = await buildApp({
       userId: fix.userId,
       allowedTenantIds: [fix.budgetId],
@@ -408,13 +409,34 @@ describe("GET /budgets/:id/overview/planned", () => {
     };
     expect(body.bucket).toBe("daily");
     const last = body.timeline[body.timeline.length - 1]!;
-    // Food's 180.00 only — the 990.00 investment must not appear.
-    expect(last.real_cents).toBe("18000");
+    // Food's 180.00 PLUS the 990.00 invested — the household's whole outgoing.
+    expect(last.real_cents).toBe("117000");
     // …so the split still accounts for every cent the line draws.
     expect(
       BigInt(last.within_limit_cents) +
         BigInt(last.reserve_used_cents) +
         BigInt(last.overspent_cents),
     ).toBe(BigInt(last.real_cents));
+  });
+
+  it("lists the Investments category in the by-category chart", async () => {
+    // It used to be dropped from plannedAvgVsReal, which feeds BOTH "How far off
+    // plan, by category" and the "Planned spendings, by category" pie (260803
+    // user request).
+    const app = await buildApp({
+      userId: fix.userId,
+      allowedTenantIds: [fix.budgetId],
+    });
+    const res = await app.request(
+      `/budgets/${fix.budgetId}/overview/planned?from=2026-01-01&to=2026-03-31`,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      plannedAvgVsReal: { name: string; real_avg_cents: string }[];
+    };
+    const row = body.plannedAvgVsReal.find((r) => r.name === "Investing");
+    expect(row).toBeTruthy();
+    // 990.00 invested once over the three months it was active.
+    expect(BigInt(row!.real_avg_cents)).toBeGreaterThan(0n);
   });
 });

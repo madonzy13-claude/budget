@@ -222,7 +222,7 @@ describe("getOverviewPlanned", () => {
     expect(perCat.get("B")).toBe("10000"); // 120000/12
   });
 
-  test("the Investments category is EXCLUDED from plannedAvgVsReal (over/under chart)", async () => {
+  test("the Investments category is IN plannedAvgVsReal, at its SMART limit", async () => {
     // Minimal repo: one normal category N (planned 30000) + a smart investment
     // category I (no planned/spend). Income 100000/mo → I planned = 100000−30000.
     const smartRepo: GetOverviewPlannedDeps["repo"] = {
@@ -247,6 +247,7 @@ describe("getOverviewPlanned", () => {
             created_month: "2026-01",
             archived_month: null,
             is_investment: true,
+            investment_limit_mode: "smart",
           },
         ];
       },
@@ -281,16 +282,20 @@ describe("getOverviewPlanned", () => {
     )._unsafeUnwrap();
     const n = dto.plannedAvgVsReal.find((c) => c.category_id === "N")!;
     expect(n.planned_avg_cents).toBe("30000");
-    // Investing isn't spending → the Investments category is excluded from the
-    // over/under-budget-by-category chart entirely (its smart limit dwarfs every
-    // real category and isn't a budget-vs-actual comparison).
-    expect(dto.plannedAvgVsReal.some((c) => c.category_id === "I")).toBe(false);
+    // It belongs to both by-category charts now (260803 user request), and on
+    // SMART it carries no stored limit — its plan is income minus everything
+    // else planned, the same figure the Spendings grid shows. Without resolving
+    // it the category would arrive with a plan of ZERO and read as pure
+    // overspend.
+    const i = dto.plannedAvgVsReal.find((c) => c.category_id === "I")!;
+    expect(i).toBeTruthy();
+    expect(i.planned_avg_cents).toBe("70000"); // 100000 income − 30000 planned
   });
 
-  test("timeline EXCLUDES the investment category's planned + spend (item 1)", async () => {
-    // Normal N (planned 30000, spend 20000) + investment V (planned 50000, spend
-    // 40000), Jan. A 3-month range → monthly timeline. The Jan bar must reflect N
-    // ONLY — investing isn't spending, so V never inflates the spend/plan lines.
+  test("timeline COUNTS the investment category's planned + spend", async () => {
+    // Normal N (planned 30000, spend 20000) + investment V on MANUAL (planned
+    // 50000, spend 40000), Jan. A 3-month range → monthly timeline. Both count:
+    // the line is the household's whole outgoing (260803 user request).
     const tlRepo: GetOverviewPlannedDeps["repo"] = {
       async monthlyPlannedByCategory() {
         return [
@@ -353,10 +358,10 @@ describe("getOverviewPlanned", () => {
     )._unsafeUnwrap();
     expect(dto.bucket).toBe("monthly");
     const jan = dto.timeline.find((t) => t.label === "2026-01")!;
-    expect(jan.planned_cents).toBe("30000"); // V's 50000 excluded
-    expect(jan.real_cents).toBe("20000"); // V's 40000 excluded
-    // …and the avg-by-category chart also excludes V (investing isn't spending).
-    expect(dto.plannedAvgVsReal.some((c) => c.category_id === "V")).toBe(false);
+    expect(jan.planned_cents).toBe("80000"); // 30000 + V's 50000
+    expect(jan.real_cents).toBe("60000"); // 20000 + V's 40000
+    // …and the avg-by-category chart lists it too.
+    expect(dto.plannedAvgVsReal.some((c) => c.category_id === "V")).toBe(true);
   });
 
   test("daily bucket, NO spend but a planned limit → planned-only line (real=0), not empty", async () => {

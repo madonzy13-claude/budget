@@ -174,7 +174,8 @@ export function createOverviewRepo(): OverviewPlannedRepo {
                  to_char(created_at, 'YYYY-MM') AS created_month,
                  CASE WHEN archived_from IS NOT NULL
                       THEN to_char(archived_from, 'YYYY-MM') ELSE NULL END AS archived_month,
-                 COALESCE(is_investment, false) AS is_investment
+                 COALESCE(is_investment, false) AS is_investment,
+                 investment_limit_mode
             FROM budgeting.categories
            WHERE tenant_id = ${budgetId}::uuid
         `);
@@ -184,6 +185,8 @@ export function createOverviewRepo(): OverviewPlannedRepo {
           created_month: r.created_month as string,
           archived_month: (r.archived_month as string | null) ?? null,
           is_investment: (r.is_investment as boolean | null) ?? false,
+          investment_limit_mode:
+            (r.investment_limit_mode as string | null) ?? null,
         }));
       });
     },
@@ -195,11 +198,10 @@ export function createOverviewRepo(): OverviewPlannedRepo {
       categoryIds,
     ): Promise<DailySpendRow[]> {
       return read(budgetId, async (tx) => {
-        // 260801: investing is not spending, so the All-categories line drops
-        // investment categories — the MONTHLY branch already did (inCat), the
-        // daily one did not, and the extra money coloured the line red on months
-        // that never overspent (user report). Picking one explicitly still shows
-        // it. Uncategorised rows always count.
+        // Every category counts, investments included (260803 user request):
+        // the line is the household's whole outgoing, and the Investments plan
+        // is resolved alongside it so the two stay comparable. Narrow it only
+        // when the picker names categories.
         // sql`= ANY(${array})` sends the ids as separate parameters and Postgres
         // sees a malformed array literal — build the IN list explicitly.
         const catFilter = categoryIds?.length
@@ -207,12 +209,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
               categoryIds.map((id) => sql`${id}::uuid`),
               sql`, `,
             )})`
-          : sql`AND (category_id IS NULL OR NOT EXISTS (
-                  SELECT 1 FROM budgeting.categories c
-                   WHERE c.id = budgeting.expense_ledger.category_id
-                     AND c.tenant_id = budgeting.expense_ledger.tenant_id
-                     AND c.is_investment
-                ))`;
+          : sql``;
         const res = await tx.execute(sql`
           SELECT to_char(transaction_date, 'YYYY-MM-DD') AS day,
                  COALESCE(SUM(amount_converted_cents), 0)::text AS spent_cents

@@ -17,7 +17,6 @@ import {
 } from "./category-multi-select";
 import {
   effectiveCategoryIds,
-  pickableCategories,
   PLANNED_PIE_PREF,
   PLANNED_TIMELINE_PREF,
   prunePlannedCategories,
@@ -212,10 +211,9 @@ export function PlannedSection({
     setIncludeRunningMonthState(v);
   };
 
-  // Investing is not spending: the timeline leaves investment categories out,
-  // so the picker offers exactly what the chart can show (260802 user report —
-  // unticking one category silently ticked Investments IN).
-  const categories = pickableCategories(useCategories(budgetId).data ?? []);
+  // Every category the budget has, investments included (260803 user request):
+  // the picker offers exactly what the charts count, and both start ticked.
+  const categories = useCategories(budgetId).data ?? [];
   const { data, isPending, isError } = useOverviewPlanned(budgetId, {
     from: range.from,
     to: range.to,
