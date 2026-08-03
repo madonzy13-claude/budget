@@ -199,6 +199,50 @@ describe("Overview charts", () => {
     });
   });
 
+  describe("ChartTooltipContent extra columns", () => {
+    // "How far off plan, by category" shows the range AVERAGE and the range
+    // TOTAL side by side (260803 user request), so an extra row carries a second
+    // value and the list can open with a header naming the two columns.
+    const renderExtra = (
+      rows: Parameters<typeof ChartTooltipContent>[0]["extra"],
+    ) =>
+      render(
+        <ChartTooltipContent
+          active
+          payload={[
+            { dataKey: "pct", value: 10, name: "Change", payload: { pct: 10 } },
+          ]}
+          label="Food"
+          series={[{ key: "pct", label: "Change" }]}
+          hideSeriesRows
+          extra={rows}
+        />,
+      ).container;
+
+    it("renders a row's second value alongside the first", () => {
+      const c = renderExtra(() => [
+        { label: "Planned", value: "50 zl", value2: "200 zl" },
+      ]);
+      expect(c.textContent).toContain("50 zl");
+      expect(c.textContent).toContain("200 zl");
+    });
+
+    it("renders a header row that names the two columns", () => {
+      const c = renderExtra(() => [
+        { label: "", value: "avg", value2: "total", head: true },
+        { label: "Planned", value: "50 zl", value2: "200 zl" },
+      ]);
+      expect(c.textContent).toContain("avg");
+      expect(c.textContent).toContain("total");
+    });
+
+    it("leaves a one-value row exactly as it was", () => {
+      const c = renderExtra(() => [{ label: "Difference", value: "+12%" }]);
+      expect(c.textContent).toContain("Difference");
+      expect(c.textContent).toContain("+12%");
+    });
+  });
+
   describe("ChartTooltipContent marker color (r25 item 3)", () => {
     const payload = [
       {

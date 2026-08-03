@@ -1435,6 +1435,8 @@
           "clearAll": "Clear",
           "categoriesPicked": "{count} categories",
           "real": "Actual",
+          "avgColumn": "avg",
+          "totalColumn": "total",
           "planned": "Planned",
           "needs": "Needs",
           "wants": "Wants",

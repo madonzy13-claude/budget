@@ -49,9 +49,16 @@ export function ChartTooltipContent({
   ) => string | undefined;
   /** Extra summary rows (flex, below a hairline) — for callers not using the grid
    *  `summary` below. */
-  extra?: (
-    row: Record<string, unknown>,
-  ) => Array<{ label: string; value: string; color?: string }>;
+  extra?: (row: Record<string, unknown>) => Array<{
+    label: string;
+    value: string;
+    color?: string;
+    /** A SECOND right-aligned column — "How far off plan, by category" shows the
+     *  range average and the range total side by side (260803 user request). */
+    value2?: string;
+    /** Render quietly, as the heading that names those two columns. */
+    head?: boolean;
+  }>;
   /** Per-series-row SUFFIX cell(s) after the value (e.g. a % change, or a
    *  [%, amount] pair). Return a string for ONE extra column, or an array for
    *  several — each element is its own right-aligned, column-aligned cell. */
@@ -318,9 +325,32 @@ export function ChartTooltipContent({
                   />
                 )}
                 <span style={{ color: CHART_THEME.axis }}>{row.label}</span>
-                <span style={{ marginLeft: "auto", fontWeight: 600 }}>
+                {/* One column stays flush right, as it always was. Two columns
+                    line up in fixed widths so avg and total read down the
+                    tooltip (260803). A `head` row names them, quietly. */}
+                <span
+                  style={{
+                    marginLeft: "auto",
+                    fontWeight: row.head ? 400 : 600,
+                    color: row.head ? CHART_THEME.axis : undefined,
+                    minWidth: row.value2 != null ? 62 : undefined,
+                    textAlign: "right",
+                  }}
+                >
                   {row.value}
                 </span>
+                {row.value2 != null && (
+                  <span
+                    style={{
+                      fontWeight: row.head ? 400 : 600,
+                      color: row.head ? CHART_THEME.axis : undefined,
+                      minWidth: 62,
+                      textAlign: "right",
+                    }}
+                  >
+                    {row.value2}
+                  </span>
+                )}
               </div>
             )))(extra(payload[0].payload))
         : null}

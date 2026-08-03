@@ -1458,6 +1458,8 @@
           "clearAll": "Очистити",
           "categoriesPicked": "{count} категорій",
           "real": "Фактичні",
+          "avgColumn": "сер.",
+          "totalColumn": "разом",
           "planned": "Заплановані",
           "needs": "Потреби",
           "wants": "Бажання",

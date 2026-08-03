@@ -1458,6 +1458,8 @@
           "clearAll": "Wyczyść",
           "categoriesPicked": "{count} kategorii",
           "real": "Rzeczywiste",
+          "avgColumn": "śr.",
+          "totalColumn": "razem",
           "planned": "Zaplanowane",
           "needs": "Potrzeby",
           "wants": "Zachcianki",

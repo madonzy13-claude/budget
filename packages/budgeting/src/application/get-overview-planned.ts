@@ -173,6 +173,10 @@ export interface OverviewPlannedDTO {
     name: string;
     planned_avg_cents: string;
     real_avg_cents: string;
+    /** Σ over the months the category was active in range — the tooltip shows
+     *  the average and the total side by side (260803 user request). */
+    planned_total_cents: string;
+    real_total_cents: string;
   }[];
   recurringPerMonth: {
     month: number;
@@ -551,6 +555,8 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
             name: w.name,
             planned_avg_cents: avgCents(ps, active.length).toString(),
             real_avg_cents: avgCents(rs, active.length).toString(),
+            planned_total_cents: ps.toString(),
+            real_total_cents: rs.toString(),
           };
         })
         .filter((x): x is NonNullable<typeof x> => x !== null);

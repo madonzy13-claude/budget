@@ -36,7 +36,8 @@ import {
   varianceColor,
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
-import { CATEGORY_COLORS, hexForColorKey } from "@/lib/category-colors";
+import { hexForColorKey } from "@/lib/category-colors";
+import { assignSliceColors } from "@/lib/slice-colors";
 import { Customized } from "recharts";
 import { PlanZoneLine } from "./plan-zone-line";
 import { hasWantsSplit } from "@/lib/wants-split";
@@ -89,8 +90,8 @@ function ChartLabel({ children }: { children: React.ReactNode }) {
 
 /** Planned-spend donut: each category's average planned amount over the selected
  * range (the same planned_avg_cents the over/under bar uses as its reference).
- * Colors follow the category's persisted colorKey; colorless categories cycle
- * the shared palette so adjacent slices stay distinct. */
+ * Colors follow the category's persisted colorKey where it is still free; the
+ * rest take the next unused colour, so no two slices are ever the same. */
 function PlannedByCategoryPie({
   rows,
   categories,
@@ -123,12 +124,16 @@ function PlannedByCategoryPie({
     .sort((a, b) => b.planned - a.planned);
   if (data.length === 0) return null;
 
-  const colorByName = new Map<string, string>(
-    data.map((r, i) => {
-      const cat = categories.find((c) => c.name === r.name);
-      const hex = hexForColorKey((cat?.colorKey as string | null) ?? null);
-      return [r.name, hex ?? CATEGORY_COLORS[i % CATEGORY_COLORS.length].hex];
-    }),
+  // One colour per slice. Cycling the eight brand colours by index wrapped on a
+  // budget with more than eight categories, and two slices came out identical
+  // (user screenshot: Investments took Kids' green).
+  const colorByName = assignSliceColors(
+    data.map((r) => r.name),
+    (name) =>
+      hexForColorKey(
+        (categories.find((c) => c.name === name)?.colorKey as string | null) ??
+          null,
+      ),
   );
 
   return (
@@ -143,7 +148,7 @@ function PlannedByCategoryPie({
         data={data}
         nameKey="name"
         valueKey="planned"
-        colorFor={(name) => colorByName.get(name) ?? CATEGORY_COLORS[7].hex}
+        colorFor={(name) => colorByName.get(name) ?? NEUTRAL}
         formatValue={formatValue}
         allLabel={allLabel}
         maskValue={maskValue}
@@ -520,7 +525,14 @@ export function PlannedSection({
                         : real > 0
                           ? 100
                           : 0;
-                    return { name: c.name, real, planned, pct };
+                    return {
+                      name: c.name,
+                      real,
+                      planned,
+                      pct,
+                      realTotal: Number(c.real_total_cents),
+                      plannedTotal: Number(c.planned_total_cents),
+                    };
                   })
                   .sort((a, b) => b.pct - a.pct)}
                 categoryKey="name"
@@ -531,13 +543,24 @@ export function PlannedSection({
                   const sign = diff > 0 ? "+" : diff < 0 ? "−" : "";
                   const pctSign = pct > 0 ? "+" : pct < 0 ? "−" : "";
                   return [
+                    // Per-month average AND the range total, side by side: the
+                    // bar reads as a rate, the total says what it actually cost
+                    // over the window (260803 user request).
+                    {
+                      label: "",
+                      value: t("planned.avgColumn"),
+                      value2: t("planned.totalColumn"),
+                      head: true,
+                    },
                     {
                       label: t("planned.planned"),
                       value: fmtTooltip(Number(row.planned)),
+                      value2: fmtTooltip(Number(row.plannedTotal)),
                     },
                     {
                       label: t("planned.real"),
                       value: fmtTooltip(Number(row.real)),
+                      value2: fmtTooltip(Number(row.realTotal)),
                     },
                     {
                       label: t("planned.difference"),

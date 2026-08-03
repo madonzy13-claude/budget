@@ -282,6 +282,10 @@ describe("getOverviewPlanned", () => {
     )._unsafeUnwrap();
     const n = dto.plannedAvgVsReal.find((c) => c.category_id === "N")!;
     expect(n.planned_avg_cents).toBe("30000");
+    // The tooltip shows the average AND the range TOTAL side by side (260803
+    // user request) — one month in range here, so the two agree.
+    expect(n.planned_total_cents).toBe("30000");
+    expect(n.real_total_cents).toBe("0");
     // It belongs to both by-category charts now (260803 user request), and on
     // SMART it carries no stored limit — its plan is income minus everything
     // else planned, the same figure the Spendings grid shows. Without resolving
@@ -357,6 +361,12 @@ describe("getOverviewPlanned", () => {
       })
     )._unsafeUnwrap();
     expect(dto.bucket).toBe("monthly");
+    // Totals run over every month the category was active, not just the one it
+    // has figures in: N is planned 30000 in Jan only, across a 3-month range.
+    const nAvg = dto.plannedAvgVsReal.find((c) => c.category_id === "N")!;
+    expect(nAvg.planned_total_cents).toBe("30000"); // Σ over the range
+    expect(nAvg.planned_avg_cents).toBe("10000"); // …/3 active months
+    expect(nAvg.real_total_cents).toBe("20000");
     const jan = dto.timeline.find((t) => t.label === "2026-01")!;
     expect(jan.planned_cents).toBe("80000"); // 30000 + V's 50000
     expect(jan.real_cents).toBe("60000"); // 20000 + V's 40000
