@@ -98,6 +98,15 @@ vi.mock("@dnd-kit/core", () => ({
   ),
 }));
 
+// The investments section drags in its own data hooks; a stub is enough to
+// assert where the possession/other sections sit relative to it.
+vi.mock(
+  "../../src/components/budgeting/wallets-tab/investments-section",
+  () => ({
+    InvestmentsSection: () => <div data-testid="investments-section" />,
+  }),
+);
+
 // Mock clientApiFetch (not called on initial render)
 vi.mock("../../src/lib/budget-fetch", () => ({
   clientApiFetch: vi.fn(),
@@ -169,7 +178,7 @@ const INITIAL_WALLETS: WalletDto[] = [
 
 function renderWithQuery(
   initial: WalletDto[] = INITIAL_WALLETS,
-  opts: { reservesEnabled?: boolean } = {},
+  opts: { reservesEnabled?: boolean; investmentsEnabled?: boolean } = {},
 ) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -186,6 +195,7 @@ function renderWithQuery(
     defaultCurrency: "EUR",
     reservesEnabled: opts.reservesEnabled ?? true,
     cushionEnabled: true,
+    investmentsEnabled: opts.investmentsEnabled ?? true,
   });
   return render(
     <QueryClientProvider client={qc}>
@@ -269,6 +279,34 @@ describe("WalletsSectionedList", () => {
   // 260803: possessions stopped being holdings and OTHER arrived. Both are
   // ordinary wallet sections — always on, no feature flag.
   describe("possession + other sections", () => {
+    it("puts them AFTER investments — they are assets, not spending pools", () => {
+      renderWithQuery();
+      const order = [
+        ...document.querySelectorAll(
+          '[data-testid^="wallet-section-"], [data-testid="investments-section"]',
+        ),
+      ].map((n) => n.getAttribute("data-testid"));
+      expect(order).toEqual([
+        "wallet-section-SPENDINGS",
+        "wallet-section-CUSHION",
+        "wallet-section-RESERVE",
+        "investments-section",
+        "wallet-section-POSSESSION",
+        "wallet-section-OTHER",
+      ]);
+    });
+
+    it("still renders when investments are off", () => {
+      renderWithQuery(INITIAL_WALLETS, { investmentsEnabled: false });
+      expect(
+        screen.queryByTestId("investments-section"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByTestId("wallet-section-POSSESSION"),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("wallet-section-OTHER")).toBeInTheDocument();
+    });
+
     it("renders both sections with their add buttons", () => {
       renderWithQuery();
       expect(

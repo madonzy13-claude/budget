@@ -139,6 +139,13 @@ describe("possessions are wallets now (260803)", () => {
     expect(pot).toBe(175000n);
   });
 
+  // The "where your money is" pie slices capitalization by wallet kind, so an
+  // OTHER wallet needs its own subtotal or its money vanishes from the chart.
+  test("reports the OTHER wallets as their own figure", async () => {
+    const out = await computeBudgetWealthNow(deps(wallets, 0n))(input);
+    expect(out.other_value_cents).toBe(25000n);
+  });
+
   test("reads zero possessions when the budget has none", async () => {
     const out = await computeBudgetWealthNow(
       deps(
@@ -147,5 +154,6 @@ describe("possessions are wallets now (260803)", () => {
       ),
     )(input);
     expect(out.possessions_value_cents).toBe(0n);
+    expect(out.other_value_cents).toBe(0n);
   });
 });

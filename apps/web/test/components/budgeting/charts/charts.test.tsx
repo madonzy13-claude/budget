@@ -11,6 +11,10 @@ import { render, fireEvent, act } from "@testing-library/react";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewLineChart } from "@/components/budgeting/charts/line-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
+import {
+  PIE_RING_INNER_PCT,
+  PIE_SLICE_OUTER_PCT,
+} from "../../../../src/components/budgeting/charts/pie-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { OverviewOverlapBarChart } from "@/components/budgeting/charts/overlap-bar-chart";
 import { ChartTooltipContent } from "@/components/budgeting/charts/chart-tooltip";
@@ -150,6 +154,14 @@ describe("Overview charts", () => {
       { name: "Needs", value: 60 },
       { name: "Wants", value: 30 },
     ];
+
+    // The ring sat 6 points off the slices, so a selected slice (which grows)
+    // touched it — user, 260803: "add a bit more space between inner and outer".
+    it("leaves a visible gap between the slices and the ring", () => {
+      expect(PIE_RING_INNER_PCT - PIE_SLICE_OUTER_PCT).toBeGreaterThanOrEqual(
+        10,
+      );
+    });
 
     it("renders nothing extra when no ring is given", () => {
       const { container } = box(

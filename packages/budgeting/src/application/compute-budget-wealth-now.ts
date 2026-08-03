@@ -69,8 +69,10 @@ export interface BudgetWealthNow {
   investment_value_cents: bigint;
   /** Σ holdings cost basis (buy_price × qty, FX→default_ccy) — for P/L over time. */
   investment_cost_basis_cents: bigint;
-  /** Σ possession holdings value — in capitalization, out of the retirement pot. */
+  /** Σ POSSESSION wallets — in capitalization, out of the retirement pot. */
   possessions_value_cents: bigint;
+  /** Σ OTHER wallets — its own slice of the capitalization pie. */
+  other_value_cents: bigint;
   currency: string;
 }
 
@@ -161,18 +163,27 @@ export function computeBudgetWealthNow(deps: ComputeBudgetWealthNowDeps) {
     // Possessions are WALLETS now (260803), so they are already inside
     // walletsCents — adding them again would double every house and car. The
     // subtotal exists only so the retirement pot can take them back out.
-    const possessionsValueCents = await sumWalletsToCurrency(
-      wallets.filter((w) => w.wallet_type === "POSSESSION"),
-      input.defaultCurrency,
-      deps.fxProvider,
-      input.now,
-    );
+    const [possessionsValueCents, otherValueCents] = await Promise.all([
+      sumWalletsToCurrency(
+        wallets.filter((w) => w.wallet_type === "POSSESSION"),
+        input.defaultCurrency,
+        deps.fxProvider,
+        input.now,
+      ),
+      sumWalletsToCurrency(
+        wallets.filter((w) => w.wallet_type === "OTHER"),
+        input.defaultCurrency,
+        deps.fxProvider,
+        input.now,
+      ),
+    ]);
 
     return {
       capitalization_cents: walletsCents + investmentValueCents,
       investment_value_cents: investmentValueCents,
       investment_cost_basis_cents: investmentCostBasisCents,
       possessions_value_cents: possessionsValueCents,
+      other_value_cents: otherValueCents,
       currency: input.defaultCurrency,
     };
   };

@@ -18,6 +18,12 @@ import {
   useSlotReveal,
 } from "@/components/budgeting/overview/slot-amount";
 
+/** Pie geometry, in % of the chart radius. The ring must clear the slices by
+ *  enough that a SELECTED slice — which grows — still does not touch it
+ *  (260803: at 82/88 the two ran together on selection). */
+export const PIE_SLICE_OUTER_PCT = 78;
+export const PIE_RING_INNER_PCT = 88;
+
 export function OverviewPieChart({
   data,
   nameKey,
@@ -210,7 +216,7 @@ export function OverviewPieChart({
               data={outerRing.data}
               dataKey={outerRing.valueKey ?? "value"}
               nameKey={outerRing.nameKey ?? "name"}
-              innerRadius="88%"
+              innerRadius={`${PIE_RING_INNER_PCT}%`}
               outerRadius="100%"
               paddingAngle={3}
               cornerRadius={4}
@@ -252,7 +258,7 @@ export function OverviewPieChart({
             dataKey={valueKey}
             nameKey={nameKey}
             innerRadius="55%"
-            outerRadius="82%"
+            outerRadius={`${PIE_SLICE_OUTER_PCT}%`}
             paddingAngle={4}
             cornerRadius={6}
             stroke="none"

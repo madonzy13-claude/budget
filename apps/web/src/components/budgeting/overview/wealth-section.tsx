@@ -14,6 +14,7 @@ import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { capitalizationBuckets } from "@/lib/cap-buckets";
 import { OverviewSection } from "./overview-section";
 import { CombinedStat } from "./combined-stat";
 import {
@@ -43,13 +44,6 @@ import type { OverviewRange } from "@/lib/overview-range";
 const UP = "var(--trading-up)";
 const DOWN = "var(--trading-down)";
 const NEUTRAL = "var(--muted-foreground)";
-
-// Capitalization pie slice colors — 4 distinct pools of money.
-const BUCKET_INVEST = "var(--chart-bar-1)"; // blue
-const BUCKET_SPEND = "var(--primary)"; // yellow
-const BUCKET_RESERVE = "var(--chart-bar-2)"; // teal
-const BUCKET_CUSHION = "var(--chart-bar-3)"; // purple (distinct from teal)
-const BUCKET_POSSESS = "var(--chart-bar-4)"; // possessions (distinct 5th pool)
 
 function PctStat({
   label,
@@ -183,35 +177,7 @@ export function WealthSection({
   // reserves-wallets / cushion. Sourced from the (already-prefetched) overview
   // cards; zero pools are dropped so the pie only shows what's actually held.
   const cards = useOverviewCards(budgetId).data;
-  const capBuckets = cards
-    ? [
-        {
-          name: t("wealth.capInvestments"),
-          value: Number(cards.investment_value_cents),
-          color: BUCKET_INVEST,
-        },
-        {
-          name: t("wealth.capSpendings"),
-          value: Number(cards.spendings.wallet_cents),
-          color: BUCKET_SPEND,
-        },
-        {
-          name: t("wealth.capReserves"),
-          value: Number(cards.reserves.wallet_cents),
-          color: BUCKET_RESERVE,
-        },
-        {
-          name: t("wealth.capCushion"),
-          value: Number(cards.cushion.total_cents),
-          color: BUCKET_CUSHION,
-        },
-        {
-          name: t("wealth.capPossessions"),
-          value: Number(cards.possessions_value_cents),
-          color: BUCKET_POSSESS,
-        },
-      ].filter((b) => b.value > 0)
-    : [];
+  const capBuckets = cards ? capitalizationBuckets(cards, t) : [];
   const capColorMap: Record<string, string> = Object.fromEntries(
     capBuckets.map((b) => [b.name, b.color]),
   );

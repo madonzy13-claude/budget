@@ -125,6 +125,8 @@ export interface OverviewCards {
   /** Σ possession holdings — in capitalization (net worth) but excluded from the
    * retirement pot (house/car aren't liquid drawdown income). */
   possessions_value_cents: bigint;
+  /** Σ OTHER wallets — a slice of the capitalization pie of its own. */
+  other_value_cents: bigint;
   /** How many months the capitalization lasts at the normal monthly planned spend
    * — "how long could I survive if I retire now" (item 5). null = no planned spend
    * (would last forever). */
@@ -369,6 +371,7 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
         capitalization_cents: wealth.capitalization_cents,
         investment_value_cents: wealth.investment_value_cents,
         possessions_value_cents: wealth.possessions_value_cents,
+        other_value_cents: wealth.other_value_cents,
         retirement_months: retirementMonths,
         retirement_inflation_pct: RETIREMENT_INFLATION_PCT,
         available_reserves_cents: availableReserves,

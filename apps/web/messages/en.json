@@ -1490,7 +1490,8 @@
           "contributions": "Contributions",
           "profit": "Profit",
           "total": "Total",
-          "pl": "P/L"
+          "pl": "P/L",
+          "capOther": "Other"
         },
         "empty": {
           "overspent": "No overspending in this range.",
@@ -1571,7 +1572,7 @@
           "cushion": "Cushion wallets",
           "reserve": "Reserve wallets",
           "possession": "Possessions",
-          "other": "Other assets"
+          "other": "Other"
         },
         "sectionLabel": {
           "spendings": "Spendings",
@@ -1583,7 +1584,7 @@
           "cushion": "Add cushion wallet",
           "reserve": "Add reserve wallet",
           "possession": "Add possession",
-          "other": "Add other asset"
+          "other": "Add asset"
         },
         "row": {
           "namePlaceholder": "Wallet name",

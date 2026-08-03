@@ -436,6 +436,34 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   // First paint with no cached data and the fetch in flight → skeleton (mirrors
   // loading.tsx geometry). Offline with no cache → the query errors → show an
   // in-content "not available offline" note (keeps header + pills mounted).
+  // One section renderer, two lists: the spending pools above investments
+  // and the asset sections below it (260803).
+  const renderSection = (type: WalletType) => (
+    <WalletSection
+      key={type}
+      type={type}
+      budgetCurrency={budgetCurrency}
+      wallets={grouped[type]}
+      draft={drafts[type] ?? null}
+      // UAT-PH5-T3-22 / T3-23: highlight only on cross-section drags.
+      // Within the same section reordering is shown by neighbour rows
+      // sliding aside — the blue ring would be visual noise.
+      isDropEligible={
+        overSection === type &&
+        activeDragId !== null &&
+        activeDragged != null &&
+        activeDragged.walletType !== type
+      }
+      onUpdate={async (id, patch) => {
+        await updateMut.mutateAsync({ walletId: id, ...patch });
+      }}
+      onArchive={handleArchive}
+      onAdd={handleAdd(type)}
+      onCommitDraft={handleCommitDraft(type)}
+      onDiscardDraft={handleDiscardDraft(type)}
+    />
+  );
+
   if (walletsQuery.isPending) {
     // delayed only while the one-shot IDB restore is still bridging; once it's
     // done, a pending query = network wait (>200ms), so render immediately
@@ -494,36 +522,8 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
             "SPENDINGS",
             ...(cushionEnabled ? (["CUSHION"] as const) : []),
             ...(reservesEnabled ? (["RESERVE"] as const) : []),
-            // Always on, like Spendings: a possession or a stray asset does not
-            // hang off a feature flag (260803).
-            "POSSESSION",
-            "OTHER",
           ] as const
-        ).map((type) => (
-          <WalletSection
-            key={type}
-            type={type}
-            budgetCurrency={budgetCurrency}
-            wallets={grouped[type]}
-            draft={drafts[type] ?? null}
-            // UAT-PH5-T3-22 / T3-23: highlight only on cross-section drags.
-            // Within the same section reordering is shown by neighbour rows
-            // sliding aside — the blue ring would be visual noise.
-            isDropEligible={
-              overSection === type &&
-              activeDragId !== null &&
-              activeDragged != null &&
-              activeDragged.walletType !== type
-            }
-            onUpdate={async (id, patch) => {
-              await updateMut.mutateAsync({ walletId: id, ...patch });
-            }}
-            onArchive={handleArchive}
-            onAdd={handleAdd(type)}
-            onCommitDraft={handleCommitDraft(type)}
-            onDiscardDraft={handleDiscardDraft(type)}
-          />
-        ))}
+        ).map(renderSection)}
         {/* Phase 9 (INV-01/02): Investments renders LAST when its flag is on —
             mirrors the reservesEnabled/cushionEnabled section gates above. */}
         {investmentsEnabled && (
@@ -532,6 +532,10 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
             budgetCurrency={budgetCurrency}
           />
         )}
+        {/* Possessions and Other sit BELOW investments (user, 260803): they are
+            assets you own, not pools you spend from. Always on — neither hangs
+            off a feature flag. */}
+        {(["POSSESSION", "OTHER"] as const).map(renderSection)}
       </div>
       {/* UAT-PH5-T3-18: pointer-pinned preview so a cross-section drag never
           loses the dragged row visually as the pointer crosses a context

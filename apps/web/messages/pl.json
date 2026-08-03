@@ -1513,7 +1513,8 @@
           "contributions": "Wpłaty",
           "profit": "Zysk",
           "total": "Razem",
-          "pl": "Zysk/strata"
+          "pl": "Zysk/strata",
+          "capOther": "Inne"
         },
         "empty": {
           "overspent": "Brak przekroczeń w tym zakresie.",
@@ -1594,7 +1595,7 @@
           "cushion": "Portfele poduszki",
           "reserve": "Portfele rezerw",
           "possession": "Posiadane rzeczy",
-          "other": "Inne aktywa"
+          "other": "Inne"
         },
         "sectionLabel": {
           "spendings": "Wydatki",
@@ -1606,7 +1607,7 @@
           "cushion": "Dodaj portfel poduszki",
           "reserve": "Dodaj portfel rezerwy",
           "possession": "Dodaj rzecz",
-          "other": "Dodaj inne aktywo"
+          "other": "Dodaj aktywo"
         },
         "row": {
           "namePlaceholder": "Nazwa portfela",

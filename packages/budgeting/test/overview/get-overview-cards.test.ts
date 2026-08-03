@@ -354,6 +354,8 @@ describe("Overview cards", () => {
     const dto = (await getOverviewCards(d)(input))._unsafeUnwrap();
     expect(dto.capitalization_cents).toBe(68000n);
     expect(dto.possessions_value_cents).toBe(0n);
+    // Its own figure so the capitalization pie can slice it (260803).
+    expect(dto.other_value_cents).toBe(40000n);
     const r = Math.pow(1.045, 1 / 12) - 1;
     const expected = Math.log(1 + (68000 * r) / 18000) / Math.log(1 + r);
     expect(dto.retirement_months).toBeCloseTo(expected, 4);
