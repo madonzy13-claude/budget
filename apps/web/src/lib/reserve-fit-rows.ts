@@ -58,12 +58,20 @@ function toSized(r: ReserveFitRow): SizedReserveRow {
 
 export function reserveFitRows(
   rows: readonly ReserveFitRow[],
+  /** Order the bars the way the chart is being READ (260804): percent when the
+   *  axis is percent, money when it is money — otherwise the top bar is not the
+   *  longest one. */
+  scale: "pct" | "amount" = "pct",
 ): ReserveFitRowsResult {
   const sized = rows.map(toSized);
-  // By PERCENT, not by amount (user, 260804): the bar IS a percentage, so a big
-  // reserve that is 20% fat must not outrank a small one holding four times what
-  // it needs. Ties — every "needs nothing" row is +100% — fall back to the money
-  // at stake, which is what makes one of them worth acting on first.
-  sized.sort((a, b) => b.pct - a.pct || b.gapCents - a.gapCents);
+  // In percent: a big reserve that is 20% fat must not outrank a small one
+  // holding four times what it needs. Ties — every "needs nothing" row is
+  // +100% — fall back to the money at stake, which is what makes one of them
+  // worth acting on first.
+  sized.sort((a, b) =>
+    scale === "amount"
+      ? b.gapCents - a.gapCents
+      : b.pct - a.pct || b.gapCents - a.gapCents,
+  );
   return { sized };
 }

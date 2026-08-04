@@ -98,6 +98,40 @@ describe("reserveFitRows", () => {
     expect(sized.map((r) => r.name)).toEqual(["C", "A", "B"]);
   });
 
+  // 260804: reading the chart in zł must order it in zł too — otherwise the top
+  // bar is not the longest one.
+  it("orders by money when the chart is read in money", () => {
+    const { sized } = reserveFitRows(
+      [
+        // +300% but only 3,000 at stake
+        row({
+          category_id: "c",
+          name: "C",
+          held_cents: "4000",
+          needed_cents: "1000",
+          gap_cents: "3000",
+        }),
+        // +25% and 100,000 at stake
+        row({
+          category_id: "a",
+          name: "A",
+          held_cents: "500000",
+          needed_cents: "400000",
+          gap_cents: "100000",
+        }),
+        row({
+          category_id: "b",
+          name: "B",
+          held_cents: "5000",
+          needed_cents: "10000",
+          gap_cents: "-5000",
+        }),
+      ],
+      "amount",
+    );
+    expect(sized.map((r) => r.name)).toEqual(["A", "C", "B"]);
+  });
+
   it("breaks a percent tie on the money at stake", () => {
     const { sized } = reserveFitRows([
       row({

@@ -8,7 +8,7 @@
  * carrying the category it belongs to.
  */
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("next-intl", () => ({
@@ -34,6 +34,11 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
       data-rows={data.map((d) => String(d[categoryKey])).join(",")}
       data-value-key={valueKey}
       data-money={String(typeof formatValue === "function")}
+      data-samples={JSON.stringify({
+        positive: formatValue?.(4600),
+        negative: formatValue?.(-4600),
+        zero: formatValue?.(0),
+      })}
     />
   ),
   varianceColorForRange: () => "#fff",
@@ -199,6 +204,77 @@ describe("ReserveFitView", () => {
     const chart = screen.getByTestId("fit-chart");
     expect(chart.getAttribute("data-value-key")).toBe("gapCents");
     expect(chart.getAttribute("data-money")).toBe("true");
+  });
+
+  // 260804: the bar is a signed gap, so money must carry its sign the way the
+  // percent labels always have — "+4,600" reads as slack, "4,600" reads as a
+  // balance.
+  it("signs the money labels", () => {
+    render(
+      <ReserveFitView
+        data={DTO}
+        onSave={vi.fn()}
+        format={(c: number) => `${c} zl`}
+        scale="amount"
+      />,
+    );
+    const fmt = JSON.parse(
+      screen.getByTestId("fit-chart").getAttribute("data-samples")!,
+    );
+    expect(fmt.positive).toBe("+4600 zl");
+    expect(fmt.negative).toBe("−4600 zl");
+    expect(fmt.zero).toBe("0 zl");
+  });
+
+  it("keeps the one-offs button out of the switch's row", () => {
+    render(
+      <ReserveFitView
+        data={DTO}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+        scaleSwitch={<span data-testid="the-switch" />}
+      />,
+    );
+    const corner = screen.getByTestId("reserve-fit-corner");
+    expect(within(corner).getByTestId("one-offs")).toBeTruthy();
+    expect(within(corner).queryByTestId("the-switch")).toBeNull();
+  });
+
+  it("orders the bars by money when the chart is read in money", () => {
+    const tiny = {
+      ...DTO.rows[0]!,
+      category_id: "tiny",
+      name: "Tiny",
+      held_cents: "4000",
+      needed_cents: "1000",
+      gap_cents: "3000",
+      large_transactions: [],
+    };
+    const data = { ...DTO, rows: [...DTO.rows, tiny] };
+    const { unmount } = render(
+      <ReserveFitView
+        data={data}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    // percent: Tiny (+300%) leads
+    expect(screen.getByTestId("fit-chart").getAttribute("data-rows")).toBe(
+      "Tiny,Sport,Newborn,Car",
+    );
+    unmount();
+    render(
+      <ReserveFitView
+        data={data}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+        scale="amount"
+      />,
+    );
+    // money: Sport's 4,600 dwarfs Tiny's 30
+    expect(screen.getByTestId("fit-chart").getAttribute("data-rows")).toBe(
+      "Sport,Tiny,Newborn,Car",
+    );
   });
 
   it("says the running month is left out, and hosts the section's switch", () => {

@@ -52,6 +52,7 @@ import {
   ReserveFitOneOffs,
   type OneOffCandidate,
 } from "./reserve-fit-one-offs";
+import { signedMoney } from "./reserve-fit-view";
 import { useCategories } from "@/hooks/use-budget-data";
 import { centsToRounded } from "@/lib/cents-format";
 import { chartCompactCents, withDayStartBaseline } from "@/lib/chart-format";
@@ -565,7 +566,9 @@ export function PlannedSection({
               <ChartLabel>{t("planned.avgByCategory")}</ChartLabel>
               {/* Percent or money — the same pill track the running-month
                   toggle used to own (260804 request). */}
-              <div className="flex items-center justify-center gap-2">
+              {/* The switch stays centred; the one-offs button floats in the
+                  chart's corner so it never shoves it off-centre (260804). */}
+              <div className="relative flex items-center justify-center">
                 <SegmentedToggle
                   className="text-caption"
                   testId="overview-planned-scale"
@@ -577,11 +580,16 @@ export function PlannedSection({
                     { value: "amount", label: t("planned.scaleAmount") },
                   ]}
                 />
-                <ReserveFitOneOffs
-                  candidates={oneOffCandidates}
-                  onSave={(delta) => saveExclusions.mutate(delta)}
-                  format={fmtTooltip}
-                />
+                <div
+                  data-testid="overview-planned-corner"
+                  className="absolute right-0 top-0"
+                >
+                  <ReserveFitOneOffs
+                    candidates={oneOffCandidates}
+                    onSave={(delta) => saveExclusions.mutate(delta)}
+                    format={fmtTooltip}
+                  />
+                </div>
               </div>
               <OverviewDivergingBarChart
                 data={data.plannedAvgVsReal
@@ -604,13 +612,19 @@ export function PlannedSection({
                       plannedTotal: Number(c.planned_total_cents),
                     };
                   })
-                  .sort((a, b) => b.pct - a.pct)}
+                  // Ordered the way the chart is being READ (260804).
+                  .sort((a, b) =>
+                    scale === "amount" ? b.gap - a.gap : b.pct - a.pct,
+                  )}
                 categoryKey="name"
                 valueKey={scale === "amount" ? "gap" : "pct"}
                 formatValue={
                   scale === "amount"
-                    ? (n) =>
-                        centsToRounded(BigInt(Math.round(n)), ccy, "en", true)
+                    ? // Signed, like the percent labels: the bar is a GAP, so
+                      // "+1,900" reads as overspend and "−320" as room left.
+                      signedMoney((n) =>
+                        centsToRounded(BigInt(Math.round(n)), ccy, "en", true),
+                      )
                     : undefined
                 }
                 // Under plan while the range is the month still running is just

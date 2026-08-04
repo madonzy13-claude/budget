@@ -27,6 +27,13 @@ import {
   type OneOffCandidate,
 } from "./reserve-fit-one-offs";
 
+/** Wraps a money formatter so a signed gap reads as one. Uses the same U+2212
+ *  minus the percent labels use. */
+export function signedMoney(format: (cents: number) => string) {
+  return (n: number) =>
+    `${n > 0 ? "+" : n < 0 ? "−" : ""}${format(Math.abs(n))}`;
+}
+
 export function ReserveFitView({
   data,
   onSave,
@@ -44,7 +51,7 @@ export function ReserveFitView({
   scaleSwitch?: React.ReactNode;
 }) {
   const t = useTranslations("bdp.tab.overview");
-  const { sized } = reserveFitRows(data.rows ?? []);
+  const { sized } = reserveFitRows(data.rows ?? [], scale);
 
   if (sized.length === 0) {
     return (
@@ -69,13 +76,21 @@ export function ReserveFitView({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-center gap-2">
+      {/* The switch stays centred on its own line; the one-offs button floats in
+          the chart's top-right corner so appearing or disappearing never shoves
+          the switch off-centre (user, 260804). */}
+      <div className="relative flex items-center justify-center">
         {scaleSwitch}
-        <ReserveFitOneOffs
-          candidates={candidates}
-          onSave={onSave}
-          format={format}
-        />
+        <div
+          data-testid="reserve-fit-corner"
+          className="absolute right-0 top-0"
+        >
+          <ReserveFitOneOffs
+            candidates={candidates}
+            onSave={onSave}
+            format={format}
+          />
+        </div>
       </div>
       {sized.length > 0 && (
         <OverviewDivergingBarChart
@@ -88,7 +103,9 @@ export function ReserveFitView({
           }))}
           categoryKey="name"
           valueKey={scale === "amount" ? "gapCents" : "pct"}
-          formatValue={scale === "amount" ? format : undefined}
+          // Signed, like the percent labels: the bar is a GAP, so "+4,600" reads
+          // as slack and "−320" as a shortfall (user, 260804).
+          formatValue={scale === "amount" ? signedMoney(format) : undefined}
           formatTooltip={format}
           // Sign flip on purpose: on THIS chart "under" is the dangerous side
           // (the buffer ran out), while over-holding is only wasteful — so the
