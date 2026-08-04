@@ -175,6 +175,18 @@ export function ReserveFitView({
         />
       )}
 
+      {(data.unassigned_recurring ?? []).length > 0 && (
+        <p
+          data-testid="reserve-fit-unassigned"
+          className="text-caption text-center text-[var(--muted-foreground)]"
+        >
+          {t("reserveFit.unassigned", {
+            list: (data.unassigned_recurring ?? [])
+              .map((r) => `${r.name} ${format(Number(r.amount_cents))}`)
+              .join(", "),
+          })}
+        </p>
+      )}
       <p
         data-testid="reserve-fit-ongoing-note"
         className="-mt-1 text-center text-[10px] leading-tight text-[var(--muted-foreground)]/70"

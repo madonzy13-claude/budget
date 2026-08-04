@@ -321,6 +321,31 @@ describe("ReserveFitView", () => {
     );
   });
 
+  // 260804: a recurring rule with no category cannot size any buffer, and the
+  // member would never know why its charge went uncounted.
+  it("names the commitments that belong to no category", () => {
+    render(
+      <ReserveFitView
+        data={{
+          ...DTO,
+          unassigned_recurring: [
+            { name: "Car Insurance", amount_cents: "250000" },
+          ],
+        }}
+        onSave={vi.fn()}
+        format={(c: number) => `${Math.round(c / 100)} zl`}
+      />,
+    );
+    const note = screen.getByTestId("reserve-fit-unassigned");
+    expect(note.textContent).toContain("Car Insurance");
+    expect(note.textContent).toContain("2500 zl");
+  });
+
+  it("stays quiet when every rule has a category", () => {
+    view();
+    expect(screen.queryByTestId("reserve-fit-unassigned")).toBeNull();
+  });
+
   it("says so when there is nothing to size at all", () => {
     render(
       <ReserveFitView

@@ -47,6 +47,10 @@ export interface ReserveFitRow {
 export interface ReserveFitDTO {
   currency: string;
   rows: ReserveFitRow[];
+  /** Active recurring rules with no category — real commitments that belong to
+   *  no buffer, so they size nothing. Optional: a payload cached before the
+   *  field existed replays without it. */
+  unassigned_recurring?: { name: string; amount_cents: string }[];
 }
 
 export function reserveFitQueryKey(budgetId: string, from: string, to: string) {

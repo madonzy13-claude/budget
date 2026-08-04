@@ -1556,7 +1556,8 @@
           "countedAria": "Licz {amount} do rezerw",
           "heldTotal": "Trzymane",
           "neededTotal": "Potrzebne",
-          "slackTotal": "Zapas"
+          "slackTotal": "Zapas",
+          "unassigned": "Nie liczone — brak kategorii: {list}. Przypisz ją w Ustawienia → Cykliczne, a wpłyną na rezerwę."
         },
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",

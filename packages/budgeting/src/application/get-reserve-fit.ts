@@ -111,6 +111,11 @@ export interface ReserveFitRowDTO {
 export interface ReserveFitDTO {
   currency: string;
   rows: ReserveFitRowDTO[];
+  /** Active recurring rules with NO category. They are real commitments but
+   *  belong to no buffer, so they can size nothing — the chart names them so the
+   *  member can assign one rather than wonder why a charge is uncounted
+   *  (user report, 260804: a 2,500 September car insurance sat uncategorised). */
+  unassigned_recurring: { name: string; amount_cents: string }[];
 }
 
 /** 'YYYY-MM' + n months. */
@@ -217,24 +222,44 @@ export function getReserveFit(deps: GetReserveFitDeps) {
 
         // Forward months assume the PLAN IS MET — spend equals the limit, so a
         // quiet future neither drains nor refills the buffer — plus whatever a
-        // commitment asks for beyond what the plan can absorb. That is what makes
-        // a September insurance renewal visible in April (user, 260804): a
-        // monthly phone bill fits inside its limit and changes nothing, a yearly
-        // charge does not and opens the trough it will actually open.
+        // commitment asks for beyond what the plan can absorb. A monthly phone
+        // bill fits inside its limit and changes nothing; a September insurance
+        // renewal does not, and opens the trough it will really open.
         const latestLimit = months.length
           ? (months.reduce((a, b) => (a.month > b.month ? a : b)).limitCents ??
             0n)
           : 0n;
-        for (const [month, cents] of committed.get(w.category_id) ?? []) {
+        const future: ReserveFitMonth[] = [
+          ...(committed.get(w.category_id) ?? []),
+        ].map(([month, cents]) => {
           const overage = cents > latestLimit ? cents - latestLimit : 0n;
-          months.push({
+          return {
             month,
             limitCents: latestLimit,
             spentCents: latestLimit + overage,
-          });
-        }
+          };
+        });
 
-        const fit = reserveFit(months);
+        // Two walks, not one. Running them as a single line let months of past
+        // underspend pay for a charge that has not happened yet — but that
+        // surplus IS the reserve already held, which is the other side of this
+        // comparison, so counting it here answered "you need nothing" to a
+        // category with a 2,500 renewal coming (user report, 260804). The buffer
+        // has to survive the worst past run AND the coming year's known lumps,
+        // so the harder of the two is what must be held.
+        const past = reserveFit(months);
+        const ahead = reserveFit(future);
+        const fit = {
+          ...(past.neededCents >= ahead.neededCents ? past : ahead),
+          neededCents:
+            past.neededCents >= ahead.neededCents
+              ? past.neededCents
+              : ahead.neededCents,
+          // The audit trail stays on the months that actually happened when
+          // history is the binding constraint, and moves to the charge ahead
+          // when that is.
+          monthsCounted: past.monthsCounted,
+        };
         // Nothing spent, nothing planned, nothing committed and nothing held:
         // an archived test category ("ымо", "імперія") that would otherwise sit
         // at 0% saying nothing (user, 260804). A dead category that still HOLDS
@@ -289,6 +314,12 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       return ok({
         currency: meta?.default_currency ?? "EUR",
         rows,
+        unassigned_recurring: rules
+          .filter((r) => !r.category_id && r.amount_cents > 0n)
+          .map((r) => ({
+            name: r.rule_name ?? r.name ?? "",
+            amount_cents: r.amount_cents.toString(),
+          })),
       });
     } catch (e) {
       return err(e as Error);

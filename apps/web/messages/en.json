@@ -1533,7 +1533,8 @@
           "countedAria": "Count {amount} toward reserves",
           "heldTotal": "Held",
           "neededTotal": "Needed",
-          "slackTotal": "Slack"
+          "slackTotal": "Slack",
+          "unassigned": "Not counted — no category: {list}. Give them one in Settings → Recurring and they will size their reserve."
         },
         "needsCompletedMonth": {
           "title": "Nothing to judge yet",

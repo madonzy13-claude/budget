@@ -460,6 +460,91 @@ describe("getReserveFit", () => {
     ).toBe(1);
   });
 
+  // 260804, user report: Car reads "needs nothing" although a 2,500 insurance
+  // renewal lands every September. The walk ran history and future as ONE line,
+  // so months of past underspend paid for a charge that has not happened yet —
+  // but that surplus is the reserve you ALREADY hold, which is the other side
+  // of the comparison. The future has to stand on its own.
+  test("a known charge still needs covering, however good the past was", async () => {
+    const d = deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return windows;
+        },
+        async monthlyPlannedByCategory() {
+          return planned;
+        },
+        async monthlySpendByCategory() {
+          // Food underspends by 3,000 a month — 6,000 banked over the range.
+          return [
+            { category_id: CAT_FOOD, month: "2026-01", spent_cents: 17000n },
+            { category_id: CAT_FOOD, month: "2026-02", spent_cents: 17000n },
+            { category_id: CAT_SPORT, month: "2026-01", spent_cents: 18000n },
+            { category_id: CAT_SPORT, month: "2026-02", spent_cents: 18000n },
+          ];
+        },
+      },
+      activeRecurringRules: async () => [
+        {
+          category_id: CAT_FOOD,
+          name: "Food",
+          amount_cents: 50000n,
+          currency: "PLN",
+          cadence: "YEARLY",
+          yearly_month: 9,
+        },
+      ],
+    } as never);
+    const food = await rowFor(CAT_FOOD, d);
+    // September asks 50,000 against a 20,000 limit → 30,000 must be there.
+    expect(food?.needed_cents).toBe("30000");
+  });
+
+  test("the harder of past and future is what has to be held", async () => {
+    const d = deps({
+      // History alone demands 12,000 (Feb's overage after January's surplus);
+      // the future asks for only 5,000 − 20,000 < 0, i.e. nothing.
+      activeRecurringRules: async () => [
+        {
+          category_id: CAT_FOOD,
+          name: "Food",
+          amount_cents: 5000n,
+          currency: "PLN",
+          cadence: "YEARLY",
+          yearly_month: 9,
+        },
+      ],
+    } as never);
+    expect((await rowFor(CAT_FOOD, d))?.needed_cents).toBe("12000");
+  });
+
+  test("names the commitments it cannot attribute to any category", async () => {
+    const d = deps({
+      activeRecurringRules: async () => [
+        {
+          category_id: null,
+          name: null,
+          rule_name: "Car Insurance",
+          amount_cents: 250000n,
+          currency: "PLN",
+          cadence: "YEARLY",
+          yearly_month: 9,
+        },
+      ],
+    } as never);
+    const dto = (await getReserveFit(d)(input))._unsafeUnwrap();
+    // It cannot size any category's buffer, but the member needs to know it is
+    // uncounted — one click in Settings fixes it.
+    expect(dto.unassigned_recurring).toEqual([
+      { name: "Car Insurance", amount_cents: "250000" },
+    ]);
+  });
+
+  test("has nothing to warn about when every rule has a category", async () => {
+    const dto = (await getReserveFit(deps())(input))._unsafeUnwrap();
+    expect(dto.unassigned_recurring).toEqual([]);
+  });
+
   test("leaves reserve-excluded categories out entirely", async () => {
     const d = deps({
       reservePositions: async () =>
