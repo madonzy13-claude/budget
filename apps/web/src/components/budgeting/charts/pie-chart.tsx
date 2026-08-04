@@ -21,6 +21,14 @@ import {
 /** Pie geometry, in % of the chart radius. The ring must clear the slices by
  *  enough that a SELECTED slice — which grows — still does not touch it
  *  (260803: at 82/88 the two ran together on selection). */
+/** Smallest arc any slice may occupy, in degrees. A 0.2% pool came out a couple
+ *  of pixels wide and could not be tapped (user screenshot, 260804); recharts
+ *  borrows the difference from the big slices. 6° is ~11px of arc on a phone —
+ *  measured at 27×8px of hit area — while costing a 6-slice pie 36° of its 360,
+ *  which is the most distortion worth paying for a target you can hit. The centre read-out still quotes
+ *  the TRUE share, so the number never follows the fudge. */
+export const MIN_SLICE_ANGLE_DEG = 6;
+
 export const PIE_SLICE_OUTER_PCT = 78;
 export const PIE_RING_INNER_PCT = 88;
 
@@ -219,6 +227,7 @@ export function OverviewPieChart({
               innerRadius={`${PIE_RING_INNER_PCT}%`}
               outerRadius="100%"
               paddingAngle={3}
+              minAngle={MIN_SLICE_ANGLE_DEG}
               cornerRadius={4}
               stroke="none"
               isAnimationActive={false}
@@ -260,6 +269,7 @@ export function OverviewPieChart({
             innerRadius="55%"
             outerRadius={`${PIE_SLICE_OUTER_PCT}%`}
             paddingAngle={4}
+            minAngle={MIN_SLICE_ANGLE_DEG}
             cornerRadius={6}
             stroke="none"
             isAnimationActive={false}
