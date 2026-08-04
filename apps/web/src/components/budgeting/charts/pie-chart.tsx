@@ -17,6 +17,7 @@ import {
   SlotAmount,
   useSlotReveal,
 } from "@/components/budgeting/overview/slot-amount";
+import { sectorCornerRadius, type SectorGeometry } from "@/lib/sector-corner";
 
 /** Pie geometry, in % of the chart radius. The ring must clear the slices by
  *  enough that a SELECTED slice — which grows — still does not touch it
@@ -28,6 +29,10 @@ import {
  *  which is the most distortion worth paying for a target you can hit. The centre read-out still quotes
  *  the TRUE share, so the number never follows the fudge. */
 export const MIN_SLICE_ANGLE_DEG = 6;
+
+/** Rounded ends, as far as each sector can carry them (see lib/sector-corner). */
+const SLICE_CORNER_PX = 6;
+const RING_CORNER_PX = 4;
 
 export const PIE_SLICE_OUTER_PCT = 78;
 export const PIE_RING_INNER_PCT = 88;
@@ -243,6 +248,10 @@ export function OverviewPieChart({
                     (Number(props.outerRadius) || 0) +
                     (Number(index) === activeIn(true) ? 5 : 0)
                   }
+                  cornerRadius={sectorCornerRadius(
+                    props as unknown as SectorGeometry,
+                    RING_CORNER_PX,
+                  )}
                 />
               )}
               onMouseEnter={(_, index) => setHover({ ring: true, index })}
@@ -286,6 +295,13 @@ export function OverviewPieChart({
                   (Number(props.outerRadius) || 0) +
                   (Number(index) === activeIn(false) ? 6 : 0)
                 }
+                // recharts drops rounding entirely on a sector too small for the
+                // full radius, so a thin slice came out square beside rounded
+                // neighbours (user, 260804). Give it what it can carry.
+                cornerRadius={sectorCornerRadius(
+                  props as unknown as SectorGeometry,
+                  SLICE_CORNER_PX,
+                )}
               />
             )}
             // Desktop hover-preview + dim only (the tap SELECTION is resolved from
