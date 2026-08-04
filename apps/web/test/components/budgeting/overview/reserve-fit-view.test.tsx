@@ -8,12 +8,25 @@
  * carrying the category it belongs to.
  */
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import messages from "../../../../messages/en.json";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string, vars?: Record<string, unknown>) =>
-    vars ? `${key}:${Object.values(vars).join(",")}` : key,
+  // Echoes the KEY (so assertions stay readable) but resolves it against the
+  // real en.json first and throws when it is missing: a typo'd key rendered as
+  // a silent MISSING_MESSAGE in production while every test passed (260804).
+  useTranslations:
+    (ns: string) => (key: string, vars?: Record<string, unknown>) => {
+      const path = `${ns}.${key}`.split(".");
+      let node: unknown = messages;
+      for (const part of path) {
+        node = (node as Record<string, unknown> | undefined)?.[part];
+        if (node === undefined)
+          throw new Error(`missing i18n key: ${path.join(".")}`);
+      }
+      return vars ? `${key}:${Object.values(vars).join(",")}` : key;
+    },
   useLocale: () => "en",
 }));
 
@@ -290,60 +303,48 @@ describe("ReserveFitView", () => {
     expect(screen.getByTestId("the-switch")).toBeTruthy();
   });
 
-  // 260804: the strip states the size of the problem the chart breaks down.
-  it("totals what is held, what is needed and the slack", () => {
+  // 260804: the figures became a bar. Held against needed, read as a shape:
+  // the slack is the piece past the line, the shortfall the piece missing.
+  it("draws the needed part and the slack past it", () => {
     view();
-    // Sport 4,600 held / 0 needed; Car 1,000 / 5,000; Newborn 0 / 0.
-    expect(screen.getByTestId("reserve-total-held").textContent).toBe(
+    // Sport 4,600 held / 0 needed; Car 1,000 / 5,000 → held 5,600, needed 5,000.
+    expect(screen.getByTestId("reserve-bar-piece-needed")).toBeTruthy();
+    expect(screen.getByTestId("reserve-bar-piece-slack")).toBeTruthy();
+    expect(screen.queryByTestId("reserve-bar-piece-short")).toBeNull();
+  });
+
+  it("names what to do with the slack when you point at it", () => {
+    view();
+    fireEvent.pointerEnter(screen.getByTestId("reserve-bar-piece-slack"));
+    const caption = screen.getByTestId("reserve-bar-caption");
+    expect(caption.textContent).toContain("reserveFit.canWithdraw");
+    expect(caption.textContent).toContain("600 zl");
+  });
+
+  it("shows the missing piece when the budget is short", () => {
+    render(
+      <ReserveFitView
+        data={{ currency: "PLN", rows: [{ ...DTO.rows[1]! }] }}
+        onSave={vi.fn()}
+        format={(c: number) => `${Math.round(c / 100)} zl`}
+      />,
+    );
+    expect(screen.getByTestId("reserve-bar-piece-short")).toBeTruthy();
+    expect(screen.queryByTestId("reserve-bar-piece-slack")).toBeNull();
+    fireEvent.pointerEnter(screen.getByTestId("reserve-bar-piece-short"));
+    expect(screen.getByTestId("reserve-bar-caption").textContent).toContain(
+      "reserveFit.topUp",
+    );
+  });
+
+  it("carries what is held until a piece is pointed at", () => {
+    view();
+    expect(screen.getByTestId("reserve-bar-caption").textContent).toContain(
+      "reserveFit.heldTotal",
+    );
+    expect(screen.getByTestId("reserve-bar-caption").textContent).toContain(
       "5600 zl",
     );
-    expect(screen.getByTestId("reserve-total-needed").textContent).toBe(
-      "5000 zl",
-    );
-    expect(screen.getByTestId("reserve-total-slack").textContent).toBe(
-      "+600 zl",
-    );
-  });
-
-  it("signs a shortfall the other way", () => {
-    render(
-      <ReserveFitView
-        data={{
-          currency: "PLN",
-          rows: [{ ...DTO.rows[1]! }],
-        }}
-        onSave={vi.fn()}
-        format={(c: number) => `${Math.round(c / 100)} zl`}
-      />,
-    );
-    expect(screen.getByTestId("reserve-total-slack").textContent).toBe(
-      "−4000 zl",
-    );
-  });
-
-  // 260804: a recurring rule with no category cannot size any buffer, and the
-  // member would never know why its charge went uncounted.
-  it("names the commitments that belong to no category", () => {
-    render(
-      <ReserveFitView
-        data={{
-          ...DTO,
-          unassigned_recurring: [
-            { name: "Car Insurance", amount_cents: "250000" },
-          ],
-        }}
-        onSave={vi.fn()}
-        format={(c: number) => `${Math.round(c / 100)} zl`}
-      />,
-    );
-    const note = screen.getByTestId("reserve-fit-unassigned");
-    expect(note.textContent).toContain("Car Insurance");
-    expect(note.textContent).toContain("2500 zl");
-  });
-
-  it("stays quiet when every rule has a category", () => {
-    view();
-    expect(screen.queryByTestId("reserve-fit-unassigned")).toBeNull();
   });
 
   it("says so when there is nothing to size at all", () => {

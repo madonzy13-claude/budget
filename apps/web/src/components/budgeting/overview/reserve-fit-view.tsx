@@ -22,6 +22,7 @@ import {
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { reserveFitRows } from "@/lib/reserve-fit-rows";
 import { reserveTotals } from "@/lib/reserve-totals";
+import { ShareBar } from "./share-bar";
 import type { ReserveFitDTO } from "@/hooks/use-reserve-fit";
 import {
   ReserveFitOneOffs,
@@ -79,43 +80,39 @@ export function ReserveFitView({
   return (
     <div className="flex flex-col gap-3">
       {/* How big the problem is, before the chart says which categories carry
-          it: what is held, what the history asked for, and the slack between
-          them (user, 260804). */}
-      <div
-        data-testid="reserve-totals"
-        className="grid grid-cols-3 gap-2 text-center"
-      >
-        {(
-          [
-            ["held", totals.heldCents, undefined],
-            ["needed", totals.neededCents, undefined],
-            [
-              "slack",
-              totals.slackCents,
-              totals.slackCents < 0
-                ? "var(--trading-down)"
-                : totals.slackCents > 0
-                  ? "var(--muted-foreground)"
-                  : undefined,
-            ],
-          ] as const
-        ).map(([key, value, tone]) => (
-          <div key={key} className="flex min-w-0 flex-col items-center gap-0.5">
-            <p className="text-caption text-[var(--muted-foreground)]">
-              {t(`reserveFit.${key}Total`)}
-            </p>
-            <span
-              data-testid={`reserve-total-${key}`}
-              className="num text-num-sm whitespace-nowrap"
-              style={tone ? { color: tone } : undefined}
-            >
-              {key === "slack" && value !== 0
-                ? `${value > 0 ? "+" : "−"}${format(Math.abs(value))}`
-                : format(value)}
-            </span>
-          </div>
-        ))}
-      </div>
+          it — as a shape rather than three figures (user, 260804). Held against
+          needed: the piece past the line is what can come out, the missing piece
+          is what has to go in. The caption names whichever you point at. */}
+      <ShareBar
+        testId="reserve-bar"
+        segments={[
+          {
+            key: "needed",
+            label: t("reserveFit.neededTotal"),
+            // What the history asked for, capped at what is actually there —
+            // the rest of it shows as the "short" piece.
+            value: Math.min(totals.heldCents, totals.neededCents),
+            color: "var(--chart-bar-1)",
+          },
+          {
+            key: "slack",
+            label: t("reserveFit.canWithdraw"),
+            value: Math.max(0, totals.slackCents),
+            color: "var(--muted-foreground)",
+          },
+          {
+            key: "short",
+            label: t("reserveFit.topUp"),
+            value: Math.max(0, -totals.slackCents),
+            color: "var(--trading-down)",
+          },
+        ]}
+        total={{
+          label: t("reserveFit.heldTotal"),
+          value: totals.heldCents,
+        }}
+        format={format}
+      />
 
       {/* The switch stays centred on its own line; the one-offs button floats in
           the chart's top-right corner so appearing or disappearing never shoves

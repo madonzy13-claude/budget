@@ -58,8 +58,10 @@ export function OverspentReservesSection({
     enabled: reservesOpen,
   });
   const saveExclusions = useSaveReserveFitExclusions(budgetId);
-  // Percent of what the history asked for, or the money itself (260804).
-  const [fitScale, setFitScale] = useState<"pct" | "amount">("pct");
+  // Money by default (user, 260804): the action here is "move 2,900 zł", and a
+  // percentage of a buffer is a step away from that. The percent view stays one
+  // tap away for comparing categories of different sizes.
+  const [fitScale, setFitScale] = useState<"pct" | "amount">("amount");
   const hasCompletedMonth = rangeHasCompletedMonth(
     range.from,
     range.to,

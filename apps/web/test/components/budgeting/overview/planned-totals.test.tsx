@@ -9,10 +9,25 @@
  * The three parts sum to total spent; that is the invariant tying the tiers.
  */
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import messages from "../../../../messages/en.json";
+import { render, screen, fireEvent } from "@testing-library/react";
 
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
+  // Echoes the KEY (so assertions stay readable) but resolves it against the
+  // real en.json first and throws when it is missing: a typo'd key rendered as
+  // a silent MISSING_MESSAGE in production while every test passed (260804).
+  useTranslations:
+    (ns: string) => (key: string, vars?: Record<string, unknown>) => {
+      const path = `${ns}.${key}`.split(".");
+      let node: unknown = messages;
+      for (const part of path) {
+        node = (node as Record<string, unknown> | undefined)?.[part];
+        if (node === undefined)
+          throw new Error(`missing i18n key: ${path.join(".")}`);
+      }
+      return vars ? `${key}:${Object.values(vars).join(",")}` : key;
+    },
+  useLocale: () => "en",
 }));
 
 const { PlannedTotals } =
@@ -38,11 +53,29 @@ const renderTotals = (
 const cell = (k: string) => screen.getByTestId(`planned-total-${k}`);
 
 describe("PlannedTotals", () => {
+  // 260804: the three figures became one bar — the shape shows a sliver of red
+  // without anyone reading a number, and hovering a piece names its amount.
   it("breaks the spend into limit, reserve and overspend", () => {
     renderTotals();
-    expect(cell("within").textContent).toBe("23629 zl");
-    expect(cell("reserve").textContent).toBe("870 zl");
-    expect(cell("overspent").textContent).toBe("803 zl");
+    for (const k of ["within", "reserve", "overspent"])
+      expect(screen.getByTestId(`planned-breakdown-piece-${k}`)).toBeTruthy();
+  });
+
+  it("names a piece and its amount on hover", () => {
+    renderTotals();
+    fireEvent.pointerEnter(
+      screen.getByTestId("planned-breakdown-piece-reserve"),
+    );
+    const caption = screen.getByTestId("planned-breakdown-caption");
+    expect(caption.textContent).toContain("planned.fromReserve");
+    expect(caption.textContent).toContain("870 zl");
+  });
+
+  it("carries the whole spend until a piece is pointed at", () => {
+    renderTotals();
+    expect(
+      screen.getByTestId("planned-breakdown-caption").textContent,
+    ).toContain("25302 zl");
   });
 
   it("shows what was spent against what was planned", () => {
@@ -51,14 +84,15 @@ describe("PlannedTotals", () => {
     expect(cell("planned").textContent).toBe("29000 zl");
   });
 
-  it("names the limit-covered part 'Planned spent', in the line's green", () => {
+  it("draws the limit-covered part in the line's green", () => {
     // It is the money the plan actually paid for — the green stretch of the
     // line — NOT the whole outgoing (260803 user request).
     renderTotals();
-    expect(screen.getByText("planned.fromPlan")).toBeTruthy();
-    expect(cell("within").getAttribute("style") ?? "").toContain(
-      "--trading-up",
-    );
+    expect(
+      screen
+        .getByTestId("planned-breakdown-piece-within")
+        .getAttribute("style"),
+    ).toContain("--trading-up");
   });
 
   it("reads the difference as the P/L stat does — percent big, amount under", () => {
@@ -81,14 +115,14 @@ describe("PlannedTotals", () => {
 
   it("centres every figure over its label", () => {
     renderTotals();
-    for (const k of ["within", "reserve", "overspent", "spent", "planned"])
+    for (const k of ["spent", "planned"])
       expect(cell(k).parentElement!.className).toContain("text-center");
   });
 
-  it("leaves Planned spent white when nothing was spent inside the plan", () => {
-    // Green says "this went well"; zero has nothing to say (260803 request).
+  it("draws no piece for a part with nothing in it", () => {
+    // Zero has nothing to say, and a zero-width sliver is worse than absent.
     renderTotals({ withinLimitCents: "0" });
-    expect(cell("within").getAttribute("style")).toBeFalsy();
+    expect(screen.queryByTestId("planned-breakdown-piece-within")).toBeNull();
   });
 
   it("drops the colour while the range is the running month alone", () => {
@@ -152,16 +186,19 @@ describe("PlannedTotals", () => {
     ).toContain("—");
   });
 
-  it("colours the reserve and overspend only once there is something to colour", () => {
+  it("draws only the pieces that carry money", () => {
     renderTotals({ reserveUsedCents: "0", overspentCents: "0" });
-    for (const k of ["reserve", "overspent"])
-      expect(cell(k).getAttribute("style")).toBeFalsy();
+    expect(screen.queryByTestId("planned-breakdown-piece-reserve")).toBeNull();
+    expect(
+      screen.queryByTestId("planned-breakdown-piece-overspent"),
+    ).toBeNull();
+    expect(screen.getByTestId("planned-breakdown-piece-within")).toBeTruthy();
   });
 
-  it("drops the reserve figure when the feature is off", () => {
+  it("drops the reserve piece when the feature is off", () => {
     renderTotals({ reservesEnabled: false });
-    expect(screen.queryByTestId("planned-total-reserve")).toBeNull();
-    expect(cell("within")).toBeTruthy();
+    expect(screen.queryByTestId("planned-breakdown-piece-reserve")).toBeNull();
+    expect(screen.getByTestId("planned-breakdown-piece-within")).toBeTruthy();
   });
 
   it("reads a missing figure as zero rather than throwing", () => {

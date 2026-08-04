@@ -22,6 +22,7 @@ import { useTranslations } from "next-intl";
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 import { CombinedStat } from "@/components/budgeting/overview/combined-stat";
 import { varianceColor } from "@/components/budgeting/charts/diverging-bar-chart";
+import { ShareBar } from "@/components/budgeting/overview/share-bar";
 
 /** Matches the plan-zone line: limit-covered green, reserve yellow, over red. */
 const ZONE = {
@@ -99,32 +100,6 @@ export function PlannedTotals({
   const sign = diff > 0n ? "+" : diff < 0n ? "−" : "";
   const absDiff = diff < 0n ? -diff : diff;
 
-  const breakdown: Cell[] = [
-    {
-      key: "within",
-      label: t("planned.fromPlan"),
-      value: format(n(withinLimitCents)),
-      // Green says "this went well"; zero has nothing to say (260803 request).
-      tone: n(withinLimitCents) > 0n ? ZONE.within : undefined,
-    },
-    ...(reservesEnabled
-      ? [
-          {
-            key: "reserve",
-            label: t("planned.fromReserve"),
-            value: format(n(reserveUsedCents)),
-            tone: n(reserveUsedCents) > 0n ? ZONE.reserve : undefined,
-          },
-        ]
-      : []),
-    {
-      key: "overspent",
-      label: t("planned.overspent"),
-      value: format(n(overspentCents)),
-      tone: n(overspentCents) > 0n ? ZONE.over : undefined,
-    },
-  ];
-
   const comparison: Cell[] = [
     { key: "spent", label: t("planned.totalSpent"), value: format(spent) },
     {
@@ -144,11 +119,36 @@ export function PlannedTotals({
       // a group, equally on both sides.
       className="my-2 flex flex-col gap-2"
     >
-      <div className="grid grid-cols-3 gap-x-3 gap-y-1">
-        {breakdown.map((c) => (
-          <Figure key={c.key} cell={c} mask={maskValue} />
-        ))}
-      </div>
+      {/* The breakdown is a BAR now (user, 260804): three figures in a row said
+          the same thing, but the shape shows a sliver of red without anyone
+          reading a number. The caption carries the amount on hover or tap. */}
+      <ShareBar
+        testId="planned-breakdown"
+        segments={[
+          {
+            key: "within",
+            label: t("planned.fromPlan"),
+            value: Number(withinLimitCents),
+            color: ZONE.within,
+          },
+          {
+            key: "reserve",
+            label: t("planned.fromReserve"),
+            // A budget with reserves switched off has no such piece, whatever
+            // the payload says (the flag hid the old figure the same way).
+            value: reservesEnabled ? Number(reserveUsedCents) : 0,
+            color: ZONE.reserve,
+          },
+          {
+            key: "overspent",
+            label: t("planned.overspent"),
+            value: Number(overspentCents),
+            color: ZONE.over,
+          },
+        ]}
+        total={{ label: t("planned.totalSpent"), value: Number(spentCents) }}
+        format={(v: number) => format(BigInt(Math.round(v)))}
+      />
       {/* The two totals sit level with the difference's own label, so the three
           read across as one line of figures. */}
       <div className="grid grid-cols-3 items-start gap-x-3 gap-y-1 border-t border-[var(--hairline-dark)] pt-2">

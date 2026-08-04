@@ -1556,8 +1556,10 @@
           "countedAria": "Licz {amount} do rezerw",
           "heldTotal": "Trzymane",
           "neededTotal": "Potrzebne",
-          "slackTotal": "Zapas",
-          "unassigned": "Nie liczone — brak kategorii: {list}. Przypisz ją w Ustawienia → Cykliczne, a wpłyną na rezerwę."
+          "unassigned": "Nie liczone — brak kategorii: {list}. Przypisz ją w Ustawienia → Cykliczne, a wpłyną na rezerwę.",
+          "canWithdraw": "Można wypłacić",
+          "topUp": "Dopłać",
+          "inBalance": "W sam raz"
         },
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",
