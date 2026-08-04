@@ -120,6 +120,7 @@ export function RecurringSection({
                   .map((c) => ({
                     name: c.name,
                     planned: Number(c.planned_cents),
+                    items: c.items,
                   }))
                   .sort((a, b) => b.planned - a.planned)}
                 xKey="name"
@@ -133,6 +134,19 @@ export function RecurringSection({
                 formatValue={fmtY}
                 formatTooltip={fmtTooltip}
                 maskAmounts={false}
+                // The payments behind the bar, as the by-month tooltip lists
+                // them: "Housing 1,200" alone left you guessing which rules
+                // made it up (user, 260804).
+                tooltipExtra={(row) => {
+                  const items =
+                    (row.items as
+                      { name: string; amount_cents: string }[] | undefined) ??
+                    [];
+                  return items.map((it) => ({
+                    label: it.name || "—",
+                    value: fmtTooltip(Number(it.amount_cents)),
+                  }));
+                }}
               />
             </div>
           )}

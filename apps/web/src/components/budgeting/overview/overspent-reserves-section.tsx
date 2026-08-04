@@ -95,7 +95,7 @@ export function OverspentReservesSection({
           onToggle={toggleReserves}
         >
           {fit.data && (
-            <div className="mt-4 flex flex-col gap-2">
+            <div className="flex flex-col gap-2">
               <p className="text-center text-caption text-[var(--muted-foreground)]">
                 {t("reserveFit.title")}
               </p>

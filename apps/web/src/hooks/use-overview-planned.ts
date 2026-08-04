@@ -59,6 +59,9 @@ export interface OverviewPlannedDTO {
     category_id: string;
     name: string;
     planned_cents: string;
+    /** The payments behind the bar (260804). Optional: a payload cached before
+     *  the field existed replays without it. */
+    items?: { name: string; amount_cents: string }[];
   }[];
 }
 

@@ -1938,3 +1938,91 @@ describe("a category whose only month is the one still running", () => {
     expect(row?.planned_avg_cents).toBe("100000");
   });
 });
+
+// 260804: the by-MONTH bar lists the payments behind it; the by-CATEGORY bar
+// showed only a total, so "Housing 1,200" left you guessing which rules made it.
+describe("recurring payments per category — the list behind the bar", () => {
+  const deps = {
+    repo: {
+      async monthlyPlannedByCategory() {
+        return [];
+      },
+      async monthlySpendByCategory() {
+        return [];
+      },
+      async categoryWindows() {
+        return [];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [
+          {
+            category_id: "housing",
+            name: "Housing",
+            rule_name: "Rent",
+            amount_cents: 200000n,
+            currency: "PLN",
+            cadence: "MONTHLY" as const,
+            yearly_month: null,
+          },
+          {
+            category_id: "housing",
+            name: "Housing",
+            rule_name: "Building insurance",
+            amount_cents: 120000n,
+            currency: "PLN",
+            cadence: "YEARLY" as const,
+            yearly_month: 9,
+          },
+          {
+            category_id: "phone",
+            name: "Phone",
+            rule_name: null,
+            amount_cents: 5000n,
+            currency: "PLN",
+            cadence: "MONTHLY" as const,
+            yearly_month: null,
+          },
+        ];
+      },
+    },
+    metaReader: {
+      async getBudgetMeta() {
+        return { default_currency: "PLN" };
+      },
+    },
+    fxProvider: { rateAsOf: async () => ({ rate: "1" }) },
+  };
+
+  const rows = async () =>
+    (
+      await getOverviewPlanned(deps as never)({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-01-01",
+        to: "2026-12-31",
+      })
+    )._unsafeUnwrap().recurringPerCategory;
+
+  test("names every payment behind a category, biggest first", async () => {
+    const housing = (await rows()).find((r) => r.category_id === "housing");
+    expect(housing?.items).toEqual([
+      { name: "Rent", amount_cents: "200000" },
+      // yearly ÷ 12, the same comparable monthly figure the bar is built from
+      { name: "Building insurance", amount_cents: "10000" },
+    ]);
+  });
+
+  test("the items add up to the bar", async () => {
+    const housing = (await rows()).find((r) => r.category_id === "housing");
+    const sum = housing!.items.reduce((a, i) => a + BigInt(i.amount_cents), 0n);
+    expect(sum.toString()).toBe(housing!.planned_cents);
+  });
+
+  test("falls back to the category name when a rule has no note", async () => {
+    const phone = (await rows()).find((r) => r.category_id === "phone");
+    expect(phone?.items).toEqual([{ name: "Phone", amount_cents: "5000" }]);
+  });
+});

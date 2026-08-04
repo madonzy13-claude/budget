@@ -224,6 +224,9 @@ export interface OverviewPlannedDTO {
     category_id: string;
     name: string;
     planned_cents: string;
+    /** The individual payments behind this bar, biggest first — the same list
+     *  the per-month tooltip shows, so "Housing 1,200" names its parts (260804). */
+    items: { name: string; amount_cents: string }[];
   }[];
 }
 
@@ -751,7 +754,14 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
       // this-month amount) — the "Recurring bills, by month" tooltip lists them.
       const perMonthItems: Array<{ name: string; amount_cents: string }[]> =
         Array.from({ length: 12 }, () => []);
-      const perCategory = new Map<string, { name: string; cents: bigint }>();
+      const perCategory = new Map<
+        string,
+        {
+          name: string;
+          cents: bigint;
+          items: { name: string; amount_cents: string }[];
+        }
+      >();
       rules.forEach((rule, i) => {
         const amt = ruleAmounts[i]!;
         // per-MONTH list uses the rule's own name (note); per-category keeps the
@@ -786,6 +796,12 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           perCategory.set(rule.category_id, {
             name: rule.name ?? cur?.name ?? "",
             cents: (cur?.cents ?? 0n) + monthly,
+            // Same comparable monthly figure the bar is built from, so the list
+            // adds up to the bar rather than to the rules' raw amounts.
+            items: [
+              ...(cur?.items ?? []),
+              { name: itemName, amount_cents: monthly.toString() },
+            ],
           });
         }
       });
@@ -806,6 +822,9 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
             category_id,
             name: v.name,
             planned_cents: v.cents.toString(),
+            items: [...v.items].sort((a, b) =>
+              BigInt(a.amount_cents) < BigInt(b.amount_cents) ? 1 : -1,
+            ),
           }),
         ),
       });
