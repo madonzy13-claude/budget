@@ -2,8 +2,9 @@
  * share-bar.test.tsx — the stacked bar that replaced two figure strips.
  *
  * It must read at a glance and give up its numbers on hover (or tap, which is
- * the same event here): the caption under the bar names the segment you are on,
- * and falls back to the whole when you are on none.
+ * the same event here) — as a floating tooltip like the money forecast's, not a
+ * caption parked underneath (user, 260804). Nothing is pointed at, nothing is
+ * said.
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -26,20 +27,14 @@ const setup = () =>
     <ShareBar
       testId="spend-bar"
       segments={SEGMENTS}
-      total={{ label: "Total spent", value: 64599 }}
       format={(n: number) => `${n} zl`}
     />,
   );
 
 describe("ShareBar", () => {
-  it("shows the whole until a segment is pointed at", () => {
+  it("says nothing until a piece is pointed at", () => {
     setup();
-    expect(screen.getByTestId("spend-bar-caption").textContent).toContain(
-      "Total spent",
-    );
-    expect(screen.getByTestId("spend-bar-caption").textContent).toContain(
-      "64599 zl",
-    );
+    expect(screen.queryByTestId("spend-bar-tooltip")).toBeNull();
   });
 
   it("draws a piece per segment that has money in it", () => {
@@ -50,22 +45,35 @@ describe("ShareBar", () => {
     expect(screen.queryByTestId("spend-bar-piece-over")).toBeNull();
   });
 
-  it("names the segment under the pointer", () => {
+  it("floats the type and amount over the piece under the pointer", () => {
     setup();
     fireEvent.pointerEnter(screen.getByTestId("spend-bar-piece-reserve"));
-    const caption = screen.getByTestId("spend-bar-caption");
-    expect(caption.textContent).toContain("Used reserves");
-    expect(caption.textContent).toContain("16116 zl");
+    const tip = screen.getByTestId("spend-bar-tooltip");
+    expect(tip.textContent).toContain("Used reserves");
+    expect(tip.textContent).toContain("16116 zl");
   });
 
-  it("goes back to the whole when the pointer leaves", () => {
+  it("takes the tooltip away when the pointer leaves", () => {
     setup();
     const piece = screen.getByTestId("spend-bar-piece-reserve");
     fireEvent.pointerEnter(piece);
     fireEvent.pointerLeave(piece);
-    expect(screen.getByTestId("spend-bar-caption").textContent).toContain(
-      "Total spent",
+    expect(screen.queryByTestId("spend-bar-tooltip")).toBeNull();
+  });
+
+  it("sits exactly as wide as the chart it belongs to", () => {
+    render(
+      <ShareBar
+        testId="inset-bar"
+        segments={SEGMENTS}
+        format={(n: number) => `${n}`}
+        insetLeft={48}
+        insetRight={8}
+      />,
     );
+    const bar = screen.getByTestId("inset-bar");
+    expect(bar.style.marginLeft).toBe("48px");
+    expect(bar.style.marginRight).toBe("8px");
   });
 
   it("says nothing at all when there is nothing to show", () => {
@@ -73,7 +81,6 @@ describe("ShareBar", () => {
       <ShareBar
         testId="spend-bar"
         segments={[{ key: "a", label: "A", value: 0, color: "#0f0" }]}
-        total={{ label: "Total", value: 0 }}
         format={(n: number) => `${n}`}
       />,
     );
@@ -85,7 +92,7 @@ describe("ShareBar", () => {
     const piece = screen.getByTestId("spend-bar-piece-within");
     expect(piece.getAttribute("tabindex")).toBe("0");
     fireEvent.focus(piece);
-    expect(screen.getByTestId("spend-bar-caption").textContent).toContain(
+    expect(screen.getByTestId("spend-bar-tooltip").textContent).toContain(
       "Planned spent",
     );
   });

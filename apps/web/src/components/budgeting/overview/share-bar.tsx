@@ -2,11 +2,11 @@
 /**
  * share-bar.tsx — a stacked bar that gives up its numbers on hover (260804).
  *
- * Replaced two rows of figures on the Overview. A row said "Planned spent
- * 48,483 · Used reserves 16,116 · Overspent 0"; the bar says the same in one
- * shape you read without counting, and the caption underneath carries the
- * number for whichever piece you are pointing at — the whole when you point at
- * none.
+ * Replaced a row of figures on the Overview. "Planned spent 48,483 · Used
+ * reserves 16,116 · Overspent 0" is a shape you read without counting, and
+ * pointing at a piece floats its type and amount over it — the same tooltip the
+ * money forecast uses, without the scrubber line. Nothing pointed at, nothing
+ * said: a caption parked underneath was noise the rest of the time.
  *
  * Pointer events, not mouse: the same handler serves a tap, and focus does the
  * job for a keyboard.
@@ -24,20 +24,31 @@ export interface ShareBarSegment {
 
 export function ShareBar({
   segments,
-  total,
   format,
   testId,
+  insetLeft = 0,
+  insetRight = 0,
 }: {
   segments: ShareBarSegment[];
-  /** Shown when nothing is pointed at. */
-  total: { label: string; value: number };
   format: (n: number) => string;
   testId: string;
+  /** Match the chart below: its axis width and right margin, in px. The bar ran
+   *  the full width of the section and read as wider than the chart it belongs
+   *  to (user, 260804). */
+  insetLeft?: number;
+  insetRight?: number;
 }) {
   const [active, setActive] = React.useState<string | null>(null);
   const widths = shareBarWidths(segments.map((s) => s.value));
+  // Each piece's midpoint along the bar — where its tooltip is anchored.
+  let running = 0;
   const drawn = segments
-    .map((s, i) => ({ ...s, width: widths[i] ?? 0 }))
+    .map((s, i) => {
+      const width = widths[i] ?? 0;
+      const centre = running + width / 2;
+      running += width;
+      return { ...s, width, centre };
+    })
     .filter((s) => s.width > 0);
 
   // Nothing spent, nothing held — a bar of nothing says less than no bar.
@@ -46,7 +57,11 @@ export function ShareBar({
   const shown = drawn.find((s) => s.key === active);
 
   return (
-    <div className="flex flex-col gap-1.5" data-testid={testId}>
+    <div
+      className="relative"
+      data-testid={testId}
+      style={{ marginLeft: insetLeft, marginRight: insetRight }}
+    >
       <div className="flex h-3 w-full overflow-hidden rounded-full">
         {drawn.map((s) => (
           <div
@@ -68,26 +83,33 @@ export function ShareBar({
           />
         ))}
       </div>
-      <p
-        data-testid={`${testId}-caption`}
-        className="text-caption text-center text-[var(--muted-foreground)]"
-      >
-        {shown ? (
-          <>
-            <span style={{ color: shown.color }}>●</span> {shown.label}{" "}
-            <span className="num text-[var(--body-on-dark)]">
+
+      {shown && (
+        <div
+          data-testid={`${testId}-tooltip`}
+          // Above the bar so a finger never covers it, edge-anchored so it never
+          // clips out of the card — the forecast tooltip's rules.
+          style={{
+            left: `${shown.centre}%`,
+            transform: `translateX(${shown.centre < 22 ? 0 : shown.centre > 78 ? -100 : -50}%)`,
+          }}
+          className="pointer-events-none absolute bottom-full z-10 mb-2 w-max rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] px-3 py-2 text-xs shadow-lg"
+        >
+          <span className="flex items-center gap-2">
+            <span
+              aria-hidden
+              className="size-2 shrink-0 rounded-full"
+              style={{ background: shown.color }}
+            />
+            <span className="text-[var(--muted-foreground)]">
+              {shown.label}
+            </span>
+            <span className="num font-semibold text-[var(--body-on-dark)]">
               {format(shown.value)}
             </span>
-          </>
-        ) : (
-          <>
-            {total.label}{" "}
-            <span className="num text-[var(--body-on-dark)]">
-              {format(total.value)}
-            </span>
-          </>
-        )}
-      </p>
+          </span>
+        </div>
+      )}
     </div>
   );
 }

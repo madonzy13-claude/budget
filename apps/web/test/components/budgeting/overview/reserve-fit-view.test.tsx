@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import messages from "../../../../messages/en.json";
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("next-intl", () => ({
@@ -303,48 +303,28 @@ describe("ReserveFitView", () => {
     expect(screen.getByTestId("the-switch")).toBeTruthy();
   });
 
-  // 260804: the figures became a bar. Held against needed, read as a shape:
-  // the slack is the piece past the line, the shortfall the piece missing.
-  it("draws the needed part and the slack past it", () => {
+  // 260804: held against needed reads as a pipe — outline = what the history
+  // asked for, fill = what is actually there (reserve-level-bar.test.tsx covers
+  // the layers themselves; this pins the wiring).
+  it("draws the pipe with what is held inside it", () => {
     view();
-    // Sport 4,600 held / 0 needed; Car 1,000 / 5,000 → held 5,600, needed 5,000.
-    expect(screen.getByTestId("reserve-bar-piece-needed")).toBeTruthy();
-    expect(screen.getByTestId("reserve-bar-piece-slack")).toBeTruthy();
-    expect(screen.queryByTestId("reserve-bar-piece-short")).toBeNull();
+    expect(screen.getByTestId("reserve-bar-pipe")).toBeTruthy();
+    expect(screen.getByTestId("reserve-bar-fill")).toBeTruthy();
   });
 
-  it("names what to do with the slack when you point at it", () => {
+  it("hands it the section's totals", () => {
     view();
-    fireEvent.pointerEnter(screen.getByTestId("reserve-bar-piece-slack"));
-    const caption = screen.getByTestId("reserve-bar-caption");
-    expect(caption.textContent).toContain("reserveFit.canWithdraw");
-    expect(caption.textContent).toContain("600 zl");
+    // Sport 4,600 held / 0 needed; Car 1,000 / 5,000 → 5,600 held, 5,000 needed:
+    // over-filled, so the overflow shows and no gap does.
+    expect(screen.getByTestId("reserve-bar-overflow")).toBeTruthy();
+    expect(screen.queryByTestId("reserve-bar-gap")).toBeNull();
   });
 
-  it("shows the missing piece when the budget is short", () => {
-    render(
-      <ReserveFitView
-        data={{ currency: "PLN", rows: [{ ...DTO.rows[1]! }] }}
-        onSave={vi.fn()}
-        format={(c: number) => `${Math.round(c / 100)} zl`}
-      />,
-    );
-    expect(screen.getByTestId("reserve-bar-piece-short")).toBeTruthy();
-    expect(screen.queryByTestId("reserve-bar-piece-slack")).toBeNull();
-    fireEvent.pointerEnter(screen.getByTestId("reserve-bar-piece-short"));
-    expect(screen.getByTestId("reserve-bar-caption").textContent).toContain(
-      "reserveFit.topUp",
-    );
-  });
-
-  it("carries what is held until a piece is pointed at", () => {
+  it("spans the chart's plotted width", () => {
     view();
-    expect(screen.getByTestId("reserve-bar-caption").textContent).toContain(
-      "reserveFit.heldTotal",
-    );
-    expect(screen.getByTestId("reserve-bar-caption").textContent).toContain(
-      "5600 zl",
-    );
+    const bar = screen.getByTestId("reserve-bar");
+    expect(bar.style.marginLeft).toBe("80px");
+    expect(bar.style.marginRight).toBe("14px");
   });
 
   it("says so when there is nothing to size at all", () => {

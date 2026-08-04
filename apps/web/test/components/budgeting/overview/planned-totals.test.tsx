@@ -61,21 +61,26 @@ describe("PlannedTotals", () => {
       expect(screen.getByTestId(`planned-breakdown-piece-${k}`)).toBeTruthy();
   });
 
-  it("names a piece and its amount on hover", () => {
+  it("floats the type and amount over the piece on hover", () => {
     renderTotals();
     fireEvent.pointerEnter(
       screen.getByTestId("planned-breakdown-piece-reserve"),
     );
-    const caption = screen.getByTestId("planned-breakdown-caption");
-    expect(caption.textContent).toContain("planned.fromReserve");
-    expect(caption.textContent).toContain("870 zl");
+    const tip = screen.getByTestId("planned-breakdown-tooltip");
+    expect(tip.textContent).toContain("planned.fromReserve");
+    expect(tip.textContent).toContain("870 zl");
   });
 
-  it("carries the whole spend until a piece is pointed at", () => {
+  it("says nothing while nothing is pointed at", () => {
     renderTotals();
-    expect(
-      screen.getByTestId("planned-breakdown-caption").textContent,
-    ).toContain("25302 zl");
+    expect(screen.queryByTestId("planned-breakdown-tooltip")).toBeNull();
+  });
+
+  it("spans the chart's plotted width, not the whole section", () => {
+    renderTotals();
+    const bar = screen.getByTestId("planned-breakdown");
+    expect(bar.style.marginLeft).toBe("48px");
+    expect(bar.style.marginRight).toBe("8px");
   });
 
   it("shows what was spent against what was planned", () => {

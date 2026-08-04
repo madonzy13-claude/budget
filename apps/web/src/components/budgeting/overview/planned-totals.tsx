@@ -146,8 +146,11 @@ export function PlannedTotals({
             color: ZONE.over,
           },
         ]}
-        total={{ label: t("planned.totalSpent"), value: Number(spentCents) }}
         format={(v: number) => format(BigInt(Math.round(v)))}
+        // Line up with the timeline below: its Y axis is 48px and its right
+        // margin 8px, so the bar spans exactly the plotted area (user, 260804).
+        insetLeft={48}
+        insetRight={8}
       />
       {/* The two totals sit level with the difference's own label, so the three
           read across as one line of figures. */}
