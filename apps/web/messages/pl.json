@@ -1466,9 +1466,6 @@
           "planned": "Zaplanowane",
           "needs": "Potrzeby",
           "wants": "Zachcianki",
-          "avgScope": "Uśredniane miesiące",
-          "avgScopeCompleted": "Bez trwającego miesiąca",
-          "avgScopeAll": "Z trwającym miesiącem",
           "fromPlan": "Wydane z planu",
           "fromReserve": "Użyte rezerwy",
           "overspent": "Przekroczenie",
@@ -1486,7 +1483,11 @@
             "needs": "Potrzeby",
             "wants": "Zachcianki",
             "investments": "Inwestycje"
-          }
+          },
+          "scale": "Skala",
+          "scalePct": "%",
+          "scaleAmount": "zł",
+          "ongoingExcluded": "Trwający miesiąc nie wchodzi do średnich."
         },
         "wealth": {
           "capitalization": "Kapitalizacja",

@@ -81,12 +81,35 @@ const openDialog = async (user: ReturnType<typeof userEvent.setup>) => {
 };
 
 describe("ReserveFitOneOffs", () => {
-  it("summarises how many spends are set aside, without opening anything", () => {
+  // 260804: the trigger sits in the chart's corner, so it is an icon with a
+  // count badge rather than a sentence.
+  it("shows the number set aside on a badge, opening nothing", () => {
+    setup();
+    expect(screen.getByTestId("reserve-fit-one-offs-badge").textContent).toBe(
+      "1",
+    );
+    expect(screen.queryByTestId("reserve-fit-one-offs-dialog")).toBeNull();
+  });
+
+  it("drops the badge when nothing is set aside", () => {
+    render(
+      <ReserveFitOneOffs
+        candidates={CANDIDATES.map((c) => ({ ...c, excluded: false }))}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    expect(screen.queryByTestId("reserve-fit-one-offs-badge")).toBeNull();
+    expect(screen.getByTestId("reserve-fit-open-one-offs")).toBeTruthy();
+  });
+
+  it("names itself for anyone who cannot see the icon", () => {
     setup();
     expect(
-      screen.getByTestId("reserve-fit-open-one-offs").textContent,
-    ).toContain("1");
-    expect(screen.queryByTestId("reserve-fit-one-offs-dialog")).toBeNull();
+      screen
+        .getByTestId("reserve-fit-open-one-offs")
+        .getAttribute("aria-label"),
+    ).toBeTruthy();
   });
 
   it("lists the counted spend biggest first, with category and date", async () => {

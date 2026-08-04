@@ -88,6 +88,16 @@ export interface OverviewPlannedRepo {
 
 export interface GetOverviewPlannedDeps {
   repo: OverviewPlannedRepo;
+  /** 260804: monthly sums of the spend this budget has marked as one-offs (the
+   *  reserve chart's list — one decision, used in both places). Subtracted from
+   *  each category's AVERAGE only: a parachute jump should not argue for a
+   *  permanent limit rise, but the totals are a record of real money and stay
+   *  exactly as spent. Absent = nothing set aside. */
+  excludedSpend?: (input: {
+    budgetId: string;
+    from: string;
+    to: string;
+  }) => Promise<{ category_id: string; month: string; cents: bigint }[]>;
   metaReader: {
     getBudgetMeta(
       budgetId: string,
@@ -294,20 +304,30 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
       const ccy = meta.default_currency;
       const bucket = chooseBucket(input.from, input.to);
 
-      const [planned, spend, windows, rules, posResult] = await Promise.all([
-        deps.repo.monthlyPlannedByCategory(
-          input.budgetId,
-          input.from,
-          input.to,
-        ),
-        deps.repo.monthlySpendByCategory(input.budgetId, input.from, input.to),
-        deps.repo.categoryWindows(input.budgetId),
-        deps.repo.activeRecurringRules(input.budgetId),
-        deps.reservePositions?.({
-          tenantId: input.tenantId,
-          budgetId: input.budgetId,
-        }),
-      ]);
+      const [planned, spend, windows, rules, excluded, posResult] =
+        await Promise.all([
+          deps.repo.monthlyPlannedByCategory(
+            input.budgetId,
+            input.from,
+            input.to,
+          ),
+          deps.repo.monthlySpendByCategory(
+            input.budgetId,
+            input.from,
+            input.to,
+          ),
+          deps.repo.categoryWindows(input.budgetId),
+          deps.repo.activeRecurringRules(input.budgetId),
+          deps.excludedSpend?.({
+            budgetId: input.budgetId,
+            from: input.from,
+            to: input.to,
+          }) ?? Promise.resolve([]),
+          deps.reservePositions?.({
+            tenantId: input.tenantId,
+            budgetId: input.budgetId,
+          }),
+        ]);
       let reservePositions:
         | Map<
             string,
@@ -661,29 +681,52 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
       }
       for (const s of spend)
         spendKey.set(`${s.category_id}|${s.month}`, s.spent_cents);
+      // What the budget has called a one-off. It comes off the AVERAGE below and
+      // nowhere else — the totals, the timeline, the range totals and every
+      // overspent figure stay exactly as the money was spent (260804).
+      const excludedKey = new Map<string, bigint>();
+      for (const e of excluded)
+        excludedKey.set(
+          `${e.category_id}|${e.month}`,
+          (excludedKey.get(`${e.category_id}|${e.month}`) ?? 0n) + e.cents,
+        );
 
       const plannedAvgVsReal = windows
         .map((w) => {
           const from = startOf(w);
-          const active = rangeMonths.filter(
-            (m) =>
-              m >= from && (w.archived_month === null || m <= w.archived_month),
-          );
-          if (active.length === 0) return null;
+          const within = (months: string[]) =>
+            months.filter(
+              (m) =>
+                m >= from &&
+                (w.archived_month === null || m <= w.archived_month),
+            );
+          // Dropping the running month must not drop the CATEGORY: one whose
+          // only month is the one still running (a category — or a budget —
+          // started this month) would otherwise vanish from the chart entirely
+          // (found live, 260804). A weak signal beats no bar at all.
+          const active = within(rangeMonths);
+          const months = active.length > 0 ? active : within(allRangeMonths);
+          if (months.length === 0) return null;
           let ps = 0n;
           let rs = 0n;
+          let rsTyp = 0n; // the same spend with the one-offs taken out
           let ns = 0n;
-          for (const m of active) {
-            ps += plannedKey.get(`${w.category_id}|${m}`) ?? 0n;
-            rs += spendKey.get(`${w.category_id}|${m}`) ?? 0n;
-            ns += needsKey.get(`${w.category_id}|${m}`) ?? 0n;
+          for (const m of months) {
+            const key = `${w.category_id}|${m}`;
+            const spent = spendKey.get(key) ?? 0n;
+            const dropped = excludedKey.get(key) ?? 0n;
+            ps += plannedKey.get(key) ?? 0n;
+            rs += spent;
+            // Floored: a refund could make the set-aside sum exceed the month.
+            rsTyp += spent > dropped ? spent - dropped : 0n;
+            ns += needsKey.get(key) ?? 0n;
           }
           return {
             category_id: w.category_id,
             name: w.name,
-            planned_avg_cents: avgCents(ps, active.length).toString(),
-            real_avg_cents: avgCents(rs, active.length).toString(),
-            needs_avg_cents: avgCents(ns, active.length).toString(),
+            planned_avg_cents: avgCents(ps, months.length).toString(),
+            real_avg_cents: avgCents(rsTyp, months.length).toString(),
+            needs_avg_cents: avgCents(ns, months.length).toString(),
             planned_total_cents: ps.toString(),
             real_total_cents: rs.toString(),
           };

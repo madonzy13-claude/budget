@@ -436,9 +436,9 @@ describe("getOverviewPlanned", () => {
     expect(n.planned_avg_cents).toBe("30000");
     expect(n.needs_avg_cents).toBe("20000");
     // wants is the remainder the caller derives — never stored twice.
-    expect(
-      BigInt(n.planned_avg_cents) - BigInt(n.needs_avg_cents),
-    ).toBe(10000n);
+    expect(BigInt(n.planned_avg_cents) - BigInt(n.needs_avg_cents)).toBe(
+      10000n,
+    );
   });
 
   test("range totals: spent, the reserve it drew, and the overspend", async () => {
@@ -1767,5 +1767,174 @@ describe("getOverviewPlanned", () => {
       categoryIds: ["A", "B"],
     });
     expect(asked).toEqual(["A", "B"]);
+  });
+});
+
+// 260804: the same "that was a one-off" decisions the reserve chart uses also
+// distort THIS chart — a single parachute jump makes a category look chronically
+// over plan and invites a permanent limit rise. They come off the AVERAGE only;
+// the totals are a record of what was really spent and must not move.
+describe("one-off spend and the per-category averages", () => {
+  const CAT = "cat-sport";
+  const base = () => ({
+    repo: {
+      async monthlyPlannedByCategory() {
+        return [
+          {
+            category_id: CAT,
+            month: "2026-01",
+            planned_cents: 20000n,
+            needs_cents: 20000n,
+          },
+          {
+            category_id: CAT,
+            month: "2026-02",
+            planned_cents: 20000n,
+            needs_cents: 20000n,
+          },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [
+          { category_id: CAT, month: "2026-01", spent_cents: 18000n },
+          { category_id: CAT, month: "2026-02", spent_cents: 518000n },
+        ];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: CAT,
+            name: "Sport",
+            created_month: "2026-01",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    },
+    metaReader: {
+      async getBudgetMeta() {
+        return { default_currency: "PLN" };
+      },
+    },
+    fxProvider: { rateAsOf: async () => ({ rate: "1" }) },
+  });
+
+  const rowFor = async (deps: unknown) => {
+    const dto = (
+      await getOverviewPlanned(deps as never)({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-01-01",
+        to: "2026-02-28",
+      })
+    )._unsafeUnwrap();
+    return dto.plannedAvgVsReal.find((r) => r.category_id === CAT);
+  };
+
+  test("counts every zloty when nothing has been set aside", async () => {
+    const row = await rowFor(base());
+    expect(row?.real_avg_cents).toBe("268000"); // (18000 + 518000) / 2
+    expect(row?.real_total_cents).toBe("536000");
+  });
+
+  test("takes the set-aside spend off the average", async () => {
+    const row = await rowFor({
+      ...base(),
+      excludedSpend: async () => [
+        { category_id: CAT, month: "2026-02", cents: 500000n },
+      ],
+    });
+    // (18000 + 18000) / 2 — the jump no longer drags the typical month up.
+    expect(row?.real_avg_cents).toBe("18000");
+  });
+
+  test("leaves the totals exactly as they were spent", async () => {
+    const row = await rowFor({
+      ...base(),
+      excludedSpend: async () => [
+        { category_id: CAT, month: "2026-02", cents: 500000n },
+      ],
+    });
+    expect(row?.real_total_cents).toBe("536000");
+  });
+
+  test("never drives a month's average below zero", async () => {
+    const row = await rowFor({
+      ...base(),
+      excludedSpend: async () => [
+        { category_id: CAT, month: "2026-01", cents: 999999n },
+      ],
+    });
+    expect(row?.real_avg_cents).toBe("259000"); // (0 + 518000) / 2
+  });
+});
+
+// 260804: the running month is dropped from the averages for everyone, so a
+// category whose ONLY month is the running one used to vanish from the chart
+// entirely — a brand-new budget saw an empty "How far off plan" (found live).
+describe("a category whose only month is the one still running", () => {
+  const CAT = "cat-new";
+  const deps = {
+    repo: {
+      async monthlyPlannedByCategory() {
+        return [
+          {
+            category_id: CAT,
+            month: "2026-08",
+            planned_cents: 100000n,
+            needs_cents: 100000n,
+          },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [{ category_id: CAT, month: "2026-08", spent_cents: 40000n }];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: CAT,
+            name: "Groceries",
+            created_month: "2026-08",
+            archived_month: null,
+            is_investment: false,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    },
+    metaReader: {
+      async getBudgetMeta() {
+        return { default_currency: "PLN" };
+      },
+    },
+    fxProvider: { rateAsOf: async () => ({ rate: "1" }) },
+  };
+
+  test("still gets a bar, averaged over the month it has", async () => {
+    const dto = (
+      await getOverviewPlanned(deps as never)({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-06-01",
+        to: "2026-08-31",
+        excludeCurrentMonth: true,
+        now: () => new Date("2026-08-04T12:00:00Z"),
+      })
+    )._unsafeUnwrap();
+    const row = dto.plannedAvgVsReal.find((r) => r.category_id === CAT);
+    expect(row?.real_avg_cents).toBe("40000");
+    expect(row?.planned_avg_cents).toBe("100000");
   });
 });

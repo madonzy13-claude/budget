@@ -15,6 +15,10 @@ import {
   PIE_RING_INNER_PCT,
   PIE_SLICE_OUTER_PCT,
 } from "../../../../src/components/budgeting/charts/pie-chart";
+import {
+  amountTicks,
+  OverviewDivergingBarChart,
+} from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { OverviewOverlapBarChart } from "@/components/budgeting/charts/overlap-bar-chart";
 import { ChartTooltipContent } from "@/components/budgeting/charts/chart-tooltip";
@@ -708,5 +712,87 @@ describe("Overview charts", () => {
       expect(getByText("Needs")).toBeTruthy();
       expect(getByText("Wants")).toBeTruthy();
     });
+  });
+});
+
+// 260804: both diverging charts can be read in money instead of percent — a
+// member sizing a reserve wants to know it is 1,900 zł fat, not 240% fat. The
+// ticks then have to come from the data's own magnitude rather than the percent
+// ladder, and still include zero, which the whole chart is built around.
+describe("amountTicks", () => {
+  it("always includes the zero line", () => {
+    expect(amountTicks(-500, 900)).toContain(0);
+  });
+
+  it("uses round steps that cover both ends", () => {
+    const ticks = amountTicks(-40000, 90000);
+    expect(ticks[0]).toBeLessThanOrEqual(-40000);
+    expect(ticks[ticks.length - 1]!).toBeGreaterThanOrEqual(90000);
+    // Evenly spaced on a round step (25k → 25k, 50k, 75k), never 3,700-shaped.
+    const step = Math.min(...ticks.filter((t) => t > 0));
+    const mantissa = step / 10 ** Math.floor(Math.log10(step));
+    expect([1, 2, 2.5, 5]).toContain(Number(mantissa.toFixed(1)));
+    for (const t of ticks) expect(Math.abs(t) % step).toBe(0);
+  });
+
+  it("stays sane when everything is on one side of zero", () => {
+    const ticks = amountTicks(0, 250);
+    expect(ticks).toContain(0);
+    expect(ticks[ticks.length - 1]!).toBeGreaterThanOrEqual(250);
+  });
+
+  it("survives a flat chart where every value is zero", () => {
+    expect(amountTicks(0, 0)).toEqual([0]);
+  });
+
+  it("does not run away on a huge spread", () => {
+    expect(amountTicks(-1, 5_000_000).length).toBeLessThanOrEqual(12);
+  });
+});
+
+describe("Diverging chart — money reading", () => {
+  const ROWS = [
+    { name: "Car", pct: 240, gap: 190000 },
+    { name: "Food", pct: -50, gap: -32000 },
+  ];
+
+  const renderChart = (extra: Record<string, unknown> = {}) =>
+    render(
+      <div style={{ width: 600, height: 400 }}>
+        <OverviewDivergingBarChart
+          data={ROWS}
+          categoryKey="name"
+          valueKey="pct"
+          {...extra}
+        />
+      </div>,
+    ).container;
+
+  it("labels the bars in percent by default", () => {
+    const c = renderChart();
+    expect(c.textContent).toContain("+240%");
+    expect(c.textContent).toContain("−50%");
+  });
+
+  it("labels them with the caller's formatter when reading money", () => {
+    const c = renderChart({
+      valueKey: "gap",
+      formatValue: (n: number) => `${Math.round(n / 100)} zl`,
+    });
+    expect(c.textContent).toContain("1900 zl");
+    expect(c.textContent).toContain("-320 zl");
+    expect(c.textContent).not.toContain("%");
+  });
+
+  it("drops the on-plan band in money, where ±10% means nothing", () => {
+    const pct = renderChart();
+    const money = renderChart({
+      valueKey: "gap",
+      formatValue: (n: number) => String(n),
+    });
+    const bands = (el: HTMLElement) =>
+      el.querySelectorAll(".recharts-reference-area").length;
+    expect(bands(pct)).toBeGreaterThan(0);
+    expect(bands(money)).toBe(0);
   });
 });

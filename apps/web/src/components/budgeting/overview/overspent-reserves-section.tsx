@@ -8,6 +8,7 @@
  * as the other half of "how did the plan go" — and shares this same payload.
  * By-category bars use each category's colorKey.
  */
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
@@ -18,6 +19,7 @@ import {
   useSaveReserveFitExclusions,
 } from "@/hooks/use-reserve-fit";
 import { ReserveFitView } from "./reserve-fit-view";
+import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { useCategories } from "@/hooks/use-budget-data";
 import { centsToRounded } from "@/lib/cents-format";
 import { chartCompactCents } from "@/lib/chart-format";
@@ -51,6 +53,8 @@ export function OverspentReservesSection({
     enabled: reservesOpen,
   });
   const saveExclusions = useSaveReserveFitExclusions(budgetId);
+  // Percent of what the history asked for, or the money itself (260804).
+  const [fitScale, setFitScale] = useState<"pct" | "amount">("pct");
 
   const ccy = data?.currency ?? "USD";
   // Chart AXIS: bare + compact, no currency (r24 5/7). TOOLTIP: full $ (r25 #2).
@@ -126,6 +130,20 @@ export function OverspentReservesSection({
                 data={fit.data}
                 format={fmtTooltip}
                 onSave={(delta) => saveExclusions.mutate(delta)}
+                scale={fitScale}
+                scaleSwitch={
+                  <SegmentedToggle
+                    className="text-caption"
+                    testId="reserve-fit-scale"
+                    label={t("planned.scale")}
+                    value={fitScale}
+                    onChange={(v) => setFitScale(v as "pct" | "amount")}
+                    options={[
+                      { value: "pct", label: t("planned.scalePct") },
+                      { value: "amount", label: t("planned.scaleAmount") },
+                    ]}
+                  />
+                }
               />
             </div>
           )}

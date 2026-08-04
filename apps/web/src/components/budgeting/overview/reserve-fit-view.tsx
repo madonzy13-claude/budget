@@ -14,6 +14,7 @@
  *     came from a recurring rule carries its cadence, because rare-and-certain
  *     (September insurance) is exactly what must NOT be unticked.
  */
+import type * as React from "react";
 import { useTranslations } from "next-intl";
 import {
   OverviewDivergingBarChart,
@@ -30,11 +31,17 @@ export function ReserveFitView({
   data,
   onSave,
   format,
+  scale = "pct",
+  scaleSwitch,
 }: {
   data: ReserveFitDTO;
   /** One save of the one-off dialog: what to set aside, what to count again. */
   onSave: (delta: { add: string[]; remove: string[] }) => void;
   format: (cents: number) => string;
+  /** Percent of what the history asked for, or the money itself (260804). */
+  scale?: "pct" | "amount";
+  /** The switch, rendered by the section so it sits in the chart's own header. */
+  scaleSwitch?: React.ReactNode;
 }) {
   const t = useTranslations("bdp.tab.overview");
   const { sized } = reserveFitRows(data.rows ?? []);
@@ -62,6 +69,14 @@ export function ReserveFitView({
 
   return (
     <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-center gap-2">
+        {scaleSwitch}
+        <ReserveFitOneOffs
+          candidates={candidates}
+          onSave={onSave}
+          format={format}
+        />
+      </div>
       {sized.length > 0 && (
         <OverviewDivergingBarChart
           data={sized.map((r) => ({
@@ -72,7 +87,8 @@ export function ReserveFitView({
             gapCents: r.gapCents,
           }))}
           categoryKey="name"
-          valueKey="pct"
+          valueKey={scale === "amount" ? "gapCents" : "pct"}
+          formatValue={scale === "amount" ? format : undefined}
           formatTooltip={format}
           // Sign flip on purpose: on THIS chart "under" is the dangerous side
           // (the buffer ran out), while over-holding is only wasteful — so the
@@ -101,11 +117,12 @@ export function ReserveFitView({
         />
       )}
 
-      <ReserveFitOneOffs
-        candidates={candidates}
-        onSave={onSave}
-        format={format}
-      />
+      <p
+        data-testid="reserve-fit-ongoing-note"
+        className="text-caption text-center text-[var(--muted-foreground)]"
+      >
+        {t("planned.ongoingExcluded")}
+      </p>
     </div>
   );
 }

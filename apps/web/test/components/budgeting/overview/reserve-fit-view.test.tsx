@@ -21,13 +21,19 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
   OverviewDivergingBarChart: ({
     data,
     categoryKey,
+    valueKey,
+    formatValue,
   }: {
     data: Record<string, unknown>[];
     categoryKey: string;
+    valueKey: string;
+    formatValue?: (n: number) => string;
   }) => (
     <div
       data-testid="fit-chart"
       data-rows={data.map((d) => String(d[categoryKey])).join(",")}
+      data-value-key={valueKey}
+      data-money={String(typeof formatValue === "function")}
     />
   ),
   varianceColorForRange: () => "#fff",
@@ -170,6 +176,42 @@ describe("ReserveFitView", () => {
     const onSave = view();
     await user.click(screen.getByTestId("one-offs-save"));
     expect(onSave).toHaveBeenCalledWith({ add: ["tx-jump"], remove: [] });
+  });
+
+  // 260804: the same chart reads in zł when the member asks — "1,900 too much"
+  // is what you act on; "240% too much" is only how far off it is.
+  it("plots percent by default", () => {
+    view();
+    const chart = screen.getByTestId("fit-chart");
+    expect(chart.getAttribute("data-value-key")).toBe("pct");
+    expect(chart.getAttribute("data-money")).toBe("false");
+  });
+
+  it("plots the money gap when the scale says so", () => {
+    render(
+      <ReserveFitView
+        data={DTO}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+        scale="amount"
+      />,
+    );
+    const chart = screen.getByTestId("fit-chart");
+    expect(chart.getAttribute("data-value-key")).toBe("gapCents");
+    expect(chart.getAttribute("data-money")).toBe("true");
+  });
+
+  it("says the running month is left out, and hosts the section's switch", () => {
+    render(
+      <ReserveFitView
+        data={DTO}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+        scaleSwitch={<span data-testid="the-switch" />}
+      />,
+    );
+    expect(screen.getByTestId("reserve-fit-ongoing-note")).toBeTruthy();
+    expect(screen.getByTestId("the-switch")).toBeTruthy();
   });
 
   it("says so when there is nothing to size at all", () => {

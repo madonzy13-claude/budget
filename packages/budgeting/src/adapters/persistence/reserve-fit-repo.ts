@@ -48,7 +48,20 @@ async function tx<T>(
 /** How many candidates per category the member is offered. */
 const SHORTLIST_PER_CATEGORY = 5;
 
+/** Monthly sum of what a budget has set aside — what the planned chart subtracts
+ *  from each category's average (its totals stay honest). */
+export interface ExcludedSpendRow {
+  category_id: string;
+  month: string; // YYYY-MM
+  cents: bigint;
+}
+
 export interface ReserveFitRepo extends ReserveFitExclusionsRepo {
+  excludedSpendByCategory(input: {
+    budgetId: string;
+    from: string;
+    to: string;
+  }): Promise<ExcludedSpendRow[]>;
   /** One save of the dialog: what to start ignoring, what to count again. */
   setExclusions(input: {
     budgetId: string;
@@ -107,6 +120,33 @@ export function createReserveFitRepo(): ReserveFitRepo {
           amount_cents: BigInt(r.amount_cents as string),
           recurring_cadence: (r.recurring_cadence as string | null) ?? null,
           excluded: Boolean(r.excluded),
+        }));
+      });
+    },
+
+    async excludedSpendByCategory({ budgetId, from, to }) {
+      return tx(budgetId, SYSTEM_USER_ID, async (t) => {
+        const res = await t.execute(sql`
+          SELECT l.category_id::text AS category_id,
+                 to_char(l.transaction_date, 'YYYY-MM') AS month,
+                 COALESCE(SUM(l.amount_converted_cents), 0)::text AS cents
+            FROM budgeting.reserve_fit_exclusions x
+            JOIN budgeting.expense_ledger l ON l.id = x.ledger_id
+           WHERE x.tenant_id = ${budgetId}::uuid
+             AND l.tenant_id = ${budgetId}::uuid
+             AND l.kind = 'SPENDING'
+             AND l.category_id IS NOT NULL
+             AND l.confirmed_at IS NOT NULL
+             AND l.deleted_at IS NULL
+             AND l.transaction_date >= ${from}::date
+             AND l.transaction_date <= ${to}::date
+           GROUP BY l.category_id, to_char(l.transaction_date, 'YYYY-MM')
+           ORDER BY 1, 2
+        `);
+        return res.rows.map((r) => ({
+          category_id: r.category_id as string,
+          month: r.month as string,
+          cents: BigInt(r.cents as string),
         }));
       });
     },

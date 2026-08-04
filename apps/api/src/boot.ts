@@ -477,6 +477,9 @@ export async function boot(): Promise<BootedDeps> {
     // Phase 11 (11-04): Planned section. Multi-month aggregation repo + the same
     // meta reader + fxProvider (recurring amounts only).
     getOverviewPlanned: getOverviewPlanned({
+      // One list of one-offs, two charts (260804): it comes off the per-category
+      // AVERAGES here, exactly as it comes off the reserve walk.
+      excludedSpend: reserveFitRepo.excludedSpendByCategory,
       repo: createOverviewRepo(),
       metaReader: summaryRepo,
       fxProvider: baseBudgeting.fxProvider,

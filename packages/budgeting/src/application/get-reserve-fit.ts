@@ -170,8 +170,9 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         monthsByCat.set(catId, set);
       }
 
-      // The forward leg starts after BOTH the range and today: a member reading
-      // an old range still gets the real future, not a replayed one.
+      // Used twice: the month still running is dropped from the walk, and the
+      // forward leg starts after BOTH the range and today, so a member reading an
+      // old range still gets the real future rather than a replayed one.
       const nowMonth = (deps.now?.() ?? new Date()).toISOString().slice(0, 7);
       const lastMonth = to.slice(0, 7) > nowMonth ? to.slice(0, 7) : nowMonth;
       const committed = projectRecurring(
@@ -187,9 +188,15 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // range, or reserves disabled); excluded = the member opted it out.
         if (!position || position.reserveExcluded) continue;
 
-        const months: ReserveFitMonth[] = [
-          ...(monthsByCat.get(w.category_id) ?? []),
-        ].map((month) => {
+        const all = [...(monthsByCat.get(w.category_id) ?? [])];
+        // Half a month of spend against a whole month of limit fakes a surplus
+        // that refills the walk, so the month still running is left out — unless
+        // it is the only month there is, when a weak signal beats none at all
+        // (user, 260804; the same rule the planned averages follow).
+        const closed = all.filter((m) => m !== nowMonth);
+        const months: ReserveFitMonth[] = (
+          closed.length > 0 ? closed : all
+        ).map((month) => {
           const key = `${w.category_id}|${month}`;
           const spent =
             (spendByCell.get(key) ?? 0n) - (excludedByCell.get(key) ?? 0n);

@@ -212,6 +212,42 @@ describe("reserve-fit exclusions repo", () => {
     expect((await list()).every((r) => !r.excluded)).toBe(true);
   });
 
+  // "How far off plan" needs the same decisions, but only as monthly sums: it
+  // subtracts them from each category's AVERAGE while its totals stay honest.
+  test("sums the set-aside spend per category and month", async () => {
+    await repo.setExclusions({
+      budgetId: TENANT,
+      add: [TX_JUMP, TX_INSURANCE],
+      remove: [],
+      actorUserId: USER,
+    });
+    const rows = await repo.excludedSpendByCategory({
+      budgetId: TENANT,
+      from: "2026-01-01",
+      to: "2026-03-31",
+    });
+    expect(rows).toEqual([
+      { category_id: CAT, month: "2026-02", cents: 500000n },
+      { category_id: CAT, month: "2026-03", cents: 480000n },
+    ]);
+  });
+
+  test("counts nothing once the decisions are taken back", async () => {
+    await repo.setExclusions({
+      budgetId: TENANT,
+      add: [],
+      remove: [TX_JUMP, TX_INSURANCE],
+      actorUserId: USER,
+    });
+    expect(
+      await repo.excludedSpendByCategory({
+        budgetId: TENANT,
+        from: "2026-01-01",
+        to: "2026-03-31",
+      }),
+    ).toEqual([]);
+  });
+
   test("a range that misses the spend lists nothing", async () => {
     const rows = await repo.largeTransactions({
       budgetId: TENANT,

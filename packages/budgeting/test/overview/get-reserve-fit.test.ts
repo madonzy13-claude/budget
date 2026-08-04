@@ -120,7 +120,9 @@ function deps(over: Partial<Parameters<typeof getReserveFit>[0]> = {}) {
       },
     },
     activeRecurringRules: async () => [],
-    now: () => new Date("2026-02-20T12:00:00Z"),
+    // After the range: both months are closed, so the walk counts both. Tests
+    // that care about the running month set their own `now`.
+    now: () => new Date("2026-03-05T12:00:00Z"),
     reservePositions: async () =>
       ok({
         positions: new Map([
@@ -374,6 +376,35 @@ describe("getReserveFit", () => {
     const ghost = await rowFor(GHOST, d);
     expect(ghost?.needed_cents).toBe("0");
     expect(ghost?.gap_cents).toBe("33000");
+  });
+
+  // The month still running is half a month of spend against a whole month of
+  // limit, so it fakes a surplus that refills the walk. Both Overview charts now
+  // leave it out and say so underneath (user, 260804).
+  test("leaves the month still running out of the walk", async () => {
+    const d = deps({
+      // now sits INSIDE the range's last month
+      now: () => new Date("2026-02-10T12:00:00Z"),
+    } as never);
+    const food = await rowFor(CAT_FOOD, d);
+    // Only January counts: 20000 planned against 17000 spent → never short.
+    expect(food?.needed_cents).toBe("0");
+    expect(food?.months_counted).toBe(1);
+  });
+
+  test("keeps the running month when it is all the history there is", async () => {
+    const d = deps({ now: () => new Date("2026-01-20T12:00:00Z") } as never);
+    const dto = (
+      await getReserveFit(d)({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-01-01",
+        to: "2026-01-31",
+      })
+    )._unsafeUnwrap();
+    expect(
+      dto.rows.find((r) => r.category_id === CAT_FOOD)?.months_counted,
+    ).toBe(1);
   });
 
   test("leaves reserve-excluded categories out entirely", async () => {

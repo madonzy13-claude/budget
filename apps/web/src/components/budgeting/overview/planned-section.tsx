@@ -44,6 +44,14 @@ import { Customized } from "recharts";
 import { PlanZoneLine } from "./plan-zone-line";
 import { hasWantsSplit } from "@/lib/wants-split";
 import { useOverviewPlanned } from "@/hooks/use-overview-planned";
+import {
+  useReserveFit,
+  useSaveReserveFitExclusions,
+} from "@/hooks/use-reserve-fit";
+import {
+  ReserveFitOneOffs,
+  type OneOffCandidate,
+} from "./reserve-fit-one-offs";
 import { useCategories } from "@/hooks/use-budget-data";
 import { centsToRounded } from "@/lib/cents-format";
 import { chartCompactCents, withDayStartBaseline } from "@/lib/chart-format";
@@ -222,13 +230,35 @@ export function PlannedSection({
     range.from <= todayIso &&
     todayIso <= range.to &&
     range.from.slice(0, 7) !== range.to.slice(0, 7);
-  const [includeRunningMonth, setIncludeRunningMonthState] = useState<boolean>(
-    () => store?.overview.plannedIncludeRunningMonth ?? false,
+  // 260804: the running month is ALWAYS out of the averages now — a note under
+  // the chart says so — and the pill track it used to own switches the chart
+  // between percent and money instead. Reading "1,900 zł too much" is what you
+  // act on; "240% too much" is only how far off it is.
+  const [scale, setScaleState] = useState<"pct" | "amount">(
+    () => store?.overview.plannedScale ?? "pct",
   );
-  const setIncludeRunningMonth = (v: boolean) => {
-    if (store) store.overview.plannedIncludeRunningMonth = v;
-    setIncludeRunningMonthState(v);
+  const setScale = (v: "pct" | "amount") => {
+    if (store) store.overview.plannedScale = v;
+    setScaleState(v);
   };
+
+  // The same one-off decisions the reserve chart uses — they come off THESE
+  // averages too (260804). Same query key as the reserves section, so opening
+  // both sections costs one request.
+  const fit = useReserveFit(budgetId, {
+    from: range.from,
+    to: range.to,
+    enabled: open,
+  });
+  const saveExclusions = useSaveReserveFitExclusions(budgetId);
+  const oneOffCandidates: OneOffCandidate[] = (fit.data?.rows ?? []).flatMap(
+    (r) =>
+      (r.large_transactions ?? []).map((c) => ({
+        ...c,
+        category_id: r.category_id,
+        category_name: r.name,
+      })),
+  );
 
   // Every category the budget has, investments included (260803 user request):
   // the picker offers exactly what the charts count, and both start ticked.
@@ -240,7 +270,7 @@ export function PlannedSection({
       categoryIds,
       categories.map((c) => c.id as string),
     ),
-    excludeCurrentMonth: canDropRunningMonth && !includeRunningMonth,
+    excludeCurrentMonth: canDropRunningMonth,
     // Wait for the member's stored pick: firing before it lands fetches the
     // unfiltered chart and then throws it away a moment later.
     enabled: open && prefsLoaded,
@@ -533,24 +563,26 @@ export function PlannedSection({
           {data.plannedAvgVsReal.length > 0 && (
             <div className="flex flex-col gap-2">
               <ChartLabel>{t("planned.avgByCategory")}</ChartLabel>
-              {/* A month still in progress drags the average down against months
-                  that ran their full course, so it is left out by default — and
-                  only offered when the range has other months to average. */}
-              {/* Which months feed the averages — the same pill track the app
-                  switches "Incl./Excl. contributions" with (260802 request). */}
-              {canDropRunningMonth && (
+              {/* Percent or money — the same pill track the running-month
+                  toggle used to own (260804 request). */}
+              <div className="flex items-center justify-center gap-2">
                 <SegmentedToggle
-                  className="mx-auto text-caption"
-                  testId="overview-planned-avg-scope"
-                  label={t("planned.avgScope")}
-                  value={includeRunningMonth ? "incl" : "excl"}
-                  onChange={(v) => setIncludeRunningMonth(v === "incl")}
+                  className="text-caption"
+                  testId="overview-planned-scale"
+                  label={t("planned.scale")}
+                  value={scale}
+                  onChange={(v) => setScale(v as "pct" | "amount")}
                   options={[
-                    { value: "excl", label: t("planned.avgScopeCompleted") },
-                    { value: "incl", label: t("planned.avgScopeAll") },
+                    { value: "pct", label: t("planned.scalePct") },
+                    { value: "amount", label: t("planned.scaleAmount") },
                   ]}
                 />
-              )}
+                <ReserveFitOneOffs
+                  candidates={oneOffCandidates}
+                  onSave={(delta) => saveExclusions.mutate(delta)}
+                  format={fmtTooltip}
+                />
+              </div>
               <OverviewDivergingBarChart
                 data={data.plannedAvgVsReal
                   .map((c) => {
@@ -567,13 +599,20 @@ export function PlannedSection({
                       real,
                       planned,
                       pct,
+                      gap: real - planned,
                       realTotal: Number(c.real_total_cents),
                       plannedTotal: Number(c.planned_total_cents),
                     };
                   })
                   .sort((a, b) => b.pct - a.pct)}
                 categoryKey="name"
-                valueKey="pct"
+                valueKey={scale === "amount" ? "gap" : "pct"}
+                formatValue={
+                  scale === "amount"
+                    ? (n) =>
+                        centsToRounded(BigInt(Math.round(n)), ccy, "en", true)
+                    : undefined
+                }
                 // Under plan while the range is the month still running is just
                 // "not spent yet" — those bars read grey rather than claiming
                 // success (260803 user request). Over plan still bands.
@@ -631,6 +670,14 @@ export function PlannedSection({
                 // cards + totals, which is where a shoulder-surfer actually reads a figure.
                 maskAmounts={false}
               />
+              {canDropRunningMonth && (
+                <p
+                  data-testid="overview-planned-ongoing-note"
+                  className="text-caption text-center text-[var(--muted-foreground)]"
+                >
+                  {t("planned.ongoingExcluded")}
+                </p>
+              )}
             </div>
           )}
 

@@ -8,7 +8,9 @@
  * this is where they say so.
  *
  * Shape, after two passes with the user:
- *   - ONE button under the chart, not an accordion per category.
+ *   - ONE icon button in the chart's own corner, carrying a badge with how many
+ *     spends are currently set aside. Both diverging charts show it, because
+ *     both are distorted by the same one-offs.
  *   - Every large spend in one dialog, biggest first, grouped set-aside/counted.
  *   - Each row is a SWITCH that saves on flip. No Save/Cancel: a decision this
  *     small should not need committing, and a Save button is a thing to forget.
@@ -159,19 +161,29 @@ export function ReserveFitOneOffs({
     <>
       <Button
         type="button"
-        variant="outline"
-        size="sm"
+        variant="ghost"
+        size="icon"
         data-testid="reserve-fit-open-one-offs"
+        aria-label={
+          excludedCount > 0
+            ? t("reserveFit.excludedCount", { count: excludedCount })
+            : t("reserveFit.reviewOneOffs")
+        }
         onClick={() => {
           setCategory("all");
           setOpen(true);
         }}
-        className="self-start"
+        className="relative"
       >
         <SlidersHorizontal aria-hidden className="size-4" />
-        {excludedCount > 0
-          ? t("reserveFit.excludedCount", { count: excludedCount })
-          : t("reserveFit.reviewOneOffs")}
+        {excludedCount > 0 && (
+          <span
+            data-testid="reserve-fit-one-offs-badge"
+            className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-[var(--primary)] px-1 text-center text-[10px] font-semibold leading-4 text-[var(--on-primary)]"
+          >
+            {excludedCount}
+          </span>
+        )}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>

@@ -38,7 +38,7 @@ export interface BdpUiStore {
     plannedCategoryId?: string;
     /** Whether the averages chart counts the month still in progress (260802) —
      *  off by default, and persisted across pill navigation like the selector. */
-    plannedIncludeRunningMonth?: boolean;
+    plannedScale?: "pct" | "amount";
   };
   spendings: { scrollTop?: number; scrollLeft?: number };
   /** Investment rows tapped open (mobile P/L expand), keyed by holding id. */

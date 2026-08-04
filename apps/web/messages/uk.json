@@ -1466,9 +1466,6 @@
           "planned": "Заплановані",
           "needs": "Потреби",
           "wants": "Бажання",
-          "avgScope": "Місяці для середнього",
-          "avgScopeCompleted": "Без поточного місяця",
-          "avgScopeAll": "З поточним місяцем",
           "fromPlan": "Витрачено з плану",
           "fromReserve": "Використано резерви",
           "overspent": "Перевитрата",
@@ -1486,7 +1483,11 @@
             "needs": "Потреби",
             "wants": "Бажання",
             "investments": "Інвестиції"
-          }
+          },
+          "scale": "Шкала",
+          "scalePct": "%",
+          "scaleAmount": "zł",
+          "ongoingExcluded": "Поточний місяць не входить у середні."
         },
         "wealth": {
           "capitalization": "Капіталізація",

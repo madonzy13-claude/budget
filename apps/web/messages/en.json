@@ -1443,9 +1443,6 @@
           "planned": "Planned",
           "needs": "Needs",
           "wants": "Wants",
-          "avgScope": "Months averaged",
-          "avgScopeCompleted": "Excl. ongoing month",
-          "avgScopeAll": "Incl. ongoing month",
           "fromPlan": "Planned spent",
           "fromReserve": "Used reserves",
           "overspent": "Overspent",
@@ -1463,7 +1460,11 @@
             "needs": "Needs",
             "wants": "Wants",
             "investments": "Investments"
-          }
+          },
+          "scale": "Scale",
+          "scalePct": "%",
+          "scaleAmount": "zł",
+          "ongoingExcluded": "The month still running is left out of the averages."
         },
         "wealth": {
           "capitalization": "Capitalization",

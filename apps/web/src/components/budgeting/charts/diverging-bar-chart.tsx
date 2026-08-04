@@ -146,6 +146,33 @@ export function divergingTicks(min: number, max: number): number[] {
   return [...ticks].sort((a, b) => a - b);
 }
 
+/**
+ * Ticks for the MONEY reading of the same chart (260804). The percent ladder is
+ * unit-specific, so money gets its own: 1/2.5/5 × 10^k steps sized to the data,
+ * always through zero (the reference the whole chart is built around).
+ */
+export function amountTicks(min: number, max: number): number[] {
+  const reach = Math.max(Math.abs(min), Math.abs(max));
+  if (!Number.isFinite(reach) || reach === 0) return [0];
+  const magnitude = 10 ** Math.floor(Math.log10(reach));
+  // ~4 steps to the far end, snapped to a round mantissa.
+  const raw = reach / 4;
+  const mantissa = raw / 10 ** Math.floor(Math.log10(raw));
+  const snapped =
+    mantissa <= 1 ? 1 : mantissa <= 2 ? 2 : mantissa <= 2.5 ? 2.5 : 5;
+  const step = snapped * 10 ** Math.floor(Math.log10(raw));
+  const ticks = new Set<number>([0]);
+  for (let t = step; t <= reach + step; t += step) {
+    if (t <= max + step) ticks.add(t);
+    if (-t >= min - step) ticks.add(-t);
+    if (ticks.size > 24) break;
+  }
+  void magnitude;
+  return [...ticks]
+    .filter((t) => t >= min - step && t <= max + step)
+    .sort((a, b) => a - b);
+}
+
 const fmtPct = (n: number) => {
   const rounded = Math.round(n);
   const sign = rounded > 0 ? "+" : rounded < 0 ? "−" : "";
@@ -223,6 +250,7 @@ export function OverviewDivergingBarChart({
   labelFormat,
   maskAmounts = false,
   colorForPct = varianceColor,
+  formatValue,
 }: {
   data: Array<Record<string, unknown>>;
   /** Category name key — the Y axis. */
@@ -238,6 +266,11 @@ export function OverviewDivergingBarChart({
   labelFormat?: (label: string | number) => string;
   /** Privacy: money inside the tooltip hides until the shared reveal. */
   maskAmounts?: boolean;
+  /** Reads the axis and the bar labels in the caller's own unit — money instead
+   *  of percent (260804). Given one, the ±10% "on plan" band is dropped too:
+   *  a corridor measured in percent means nothing on a money axis, and its ticks
+   *  come from the data's own magnitude. */
+  formatValue?: (n: number) => string;
   /** Per-bar colour from its percent. Defaults to the plain band. */
   colorForPct?: (pct: number) => string;
 }) {
@@ -260,14 +293,24 @@ export function OverviewDivergingBarChart({
   };
 
   const values = data.map((r) => Number(r[valueKey]));
-  const [min, max] = divergingDomain(values);
+  const money = typeof formatValue === "function";
+  const fmtValue = formatValue ?? fmtPct;
+  const [min, max] = money
+    ? (() => {
+        const finite = values.filter((v) => Number.isFinite(v));
+        const lo = Math.min(0, ...finite);
+        const hi = Math.max(0, ...finite);
+        const pad = Math.max(1, (hi - lo) * AXIS_PAD);
+        return [lo - pad, hi + pad] as [number, number];
+      })()
+    : divergingDomain(values);
   // The axis is drawn in SYMLOG space (see symlog above): bars, domain and ticks
   // are all transformed, and every user-facing number is inverted back with
   // symexp — so labels and the tooltip always speak real percent.
   const rows = data.map((r) => {
     const pct = Number(r[valueKey]);
     const safe = Number.isFinite(pct) ? pct : 0;
-    return { ...r, __pct: symlog(safe), __raw: safe, __label: fmtPct(safe) };
+    return { ...r, __pct: symlog(safe), __raw: safe, __label: fmtValue(safe) };
   });
 
   const chartHeight = Math.max(height, rows.length * ROW_PX + 32);
@@ -302,18 +345,23 @@ export function OverviewDivergingBarChart({
           />
           {/* The "close enough" corridor — read the centre as a target zone, not a
               hairline. Drawn before the bars so it sits underneath. */}
-          <ReferenceArea
-            x1={symlog(-ON_PLAN_BAND_PCT)}
-            x2={symlog(ON_PLAN_BAND_PCT)}
-            fill="var(--trading-up)"
-            fillOpacity={0.08}
-            strokeOpacity={0}
-          />
+          {!money && (
+            <ReferenceArea
+              x1={symlog(-ON_PLAN_BAND_PCT)}
+              x2={symlog(ON_PLAN_BAND_PCT)}
+              fill="var(--trading-up)"
+              fillOpacity={0.08}
+              strokeOpacity={0}
+            />
+          )}
           <XAxis
             type="number"
             domain={[symlog(min), symlog(max)]}
-            ticks={divergingTicks(min, max).map(symlog)}
-            tickFormatter={(t: number) => fmtPct(symexp(t))}
+            ticks={(money
+              ? amountTicks(min, max)
+              : divergingTicks(min, max)
+            ).map(symlog)}
+            tickFormatter={(t: number) => fmtValue(symexp(t))}
             {...chartAxis}
           />
           <YAxis
