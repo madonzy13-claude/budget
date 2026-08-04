@@ -1386,7 +1386,7 @@
           "reservesOk": "Reserves match the required amount",
           "reservesShort": "Reserves below the required amount",
           "reservesSurplus": "More reserves than needed",
-          "reservesOkNote": "Needed <amt>{amount}</amt>",
+          "reservesOkNote": "All reserves are in place",
           "reservesShortNote": "Not enough. <amt>{amount}</amt> is missing",
           "reservesSurplusNote": "Too much. <amt>{amount}</amt> extra",
           "capitalization": "Capitalization",

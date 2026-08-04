@@ -1409,7 +1409,7 @@
           "reservesOk": "Резерви відповідають потрібній сумі",
           "reservesShort": "Резерви менші за потрібну суму",
           "reservesSurplus": "Більше резервів, ніж потрібно",
-          "reservesOkNote": "Потрібно <amt>{amount}</amt>",
+          "reservesOkNote": "Усі резерви на місці",
           "reservesShortNote": "Недостатньо. Бракує <amt>{amount}</amt>",
           "reservesSurplusNote": "Забагато. Надлишок <amt>{amount}</amt>",
           "capitalization": "Капіталізація",

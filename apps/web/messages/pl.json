@@ -1409,7 +1409,7 @@
           "reservesOk": "Rezerwy zgodne z wymaganą kwotą",
           "reservesShort": "Rezerwy poniżej wymaganej kwoty",
           "reservesSurplus": "Więcej rezerw niż potrzeba",
-          "reservesOkNote": "Potrzeba <amt>{amount}</amt>",
+          "reservesOkNote": "Wszystkie rezerwy są na miejscu",
           "reservesShortNote": "Za mało. Brakuje <amt>{amount}</amt>",
           "reservesSurplusNote": "Za dużo. Nadwyżka <amt>{amount}</amt>",
           "capitalization": "Kapitalizacja",
