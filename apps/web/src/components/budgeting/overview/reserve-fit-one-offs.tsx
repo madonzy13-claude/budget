@@ -12,9 +12,11 @@
  *   - Every large spend in one dialog, biggest first, grouped set-aside/counted.
  *   - Each row is a SWITCH that saves on flip. No Save/Cancel: a decision this
  *     small should not need committing, and a Save button is a thing to forget.
- *   - The row leads with what you judge it by — amount, category, date. The note
- *     ("CSVIMPORT" on every imported row) is secondary and only when it adds
- *     something.
+ *   - The row leads with the AMOUNT — that is what you judge it by — and carries
+ *     note · category · date underneath. The note names WHICH spend it was, so
+ *     three rows of the same category and size stay distinguishable; it just
+ *     does not get to be the headline the way it was when every imported row
+ *     shouted "CSVIMPORT".
  *   - The dialog must NOT autofocus the filter: on iOS that threw the wheel
  *     picker up the instant it opened.
  */
@@ -103,6 +105,7 @@ export function ReserveFitOneOffs({
             {format(Number(c.amount_cents))}
           </span>
           <span className="truncate text-caption text-[var(--muted-foreground)]">
+            {c.note ? `${c.note} · ` : ""}
             {c.category_name} · {formatShortDate(c.transaction_date, locale)}
             {c.recurring_cadence && (
               <>

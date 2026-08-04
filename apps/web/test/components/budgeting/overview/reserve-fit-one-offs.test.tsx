@@ -23,6 +23,16 @@ const { ReserveFitOneOffs } =
 
 const CANDIDATES = [
   {
+    ledger_id: "tx-blank",
+    category_id: "sport",
+    category_name: "Sport",
+    transaction_date: "2026-01-05",
+    note: null,
+    amount_cents: "70000",
+    recurring_cadence: null,
+    excluded: false,
+  },
+  {
     ledger_id: "tx-jump",
     category_id: "sport",
     category_name: "Sport",
@@ -87,10 +97,22 @@ describe("ReserveFitOneOffs", () => {
     expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual([
       "reserve-fit-row-tx-ins",
       "reserve-fit-row-tx-jump",
+      "reserve-fit-row-tx-blank",
     ]);
     expect(rows[0]?.textContent).toContain("Car");
     // Localised, not the raw ISO the API sends.
     expect(rows[0]?.textContent).toContain("1 Sep 2025");
+    // The note names WHICH spend it was — without it, three rows of the same
+    // category and amount are indistinguishable (user, 260804).
+    expect(rows[0]?.textContent).toContain("Insurance");
+  });
+
+  it("says nothing where a transaction has no note", async () => {
+    const { user } = setup();
+    const dialog = await openDialog(user);
+    const row = within(dialog).getByTestId("reserve-fit-row-tx-blank");
+    expect(row.textContent).toContain("Sport");
+    expect(row.textContent).not.toContain("·  ·");
   });
 
   it("keeps what is already set aside in its own section on top", async () => {
