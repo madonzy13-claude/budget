@@ -1,11 +1,12 @@
 /**
  * reserve-fit-one-offs.test.tsx — the one-off dialog (260804 redesign).
  *
- * The per-row accordions were noise. One link under the chart opens a dialog
- * listing every large spend, biggest first, with its category and date; the ones
- * already set aside sit in their own section at the top. Decisions are STAGED —
- * nothing is written until Save — so the member can look at the whole picture
- * before committing, and Cancel really does nothing.
+ * One button under the chart opens a dialog listing every large spend, biggest
+ * first, with its category and date; the ones already set aside sit in their own
+ * section at the top. Each row is a switch and SAVES ON FLIP — no Save/Cancel to
+ * forget (user, 260804). The category filter is a real Select, and the dialog
+ * must not grab focus into it on open, which on iOS threw the wheel picker up
+ * the moment the dialog appeared.
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
@@ -88,7 +89,8 @@ describe("ReserveFitOneOffs", () => {
       "reserve-fit-row-tx-jump",
     ]);
     expect(rows[0]?.textContent).toContain("Car");
-    expect(rows[0]?.textContent).toContain("2025-09-01");
+    // Localised, not the raw ISO the API sends.
+    expect(rows[0]?.textContent).toContain("1 Sep 2025");
   });
 
   it("keeps what is already set aside in its own section on top", async () => {
@@ -114,47 +116,52 @@ describe("ReserveFitOneOffs", () => {
   it("filters the list down to one category", async () => {
     const { user } = setup();
     const dialog = await openDialog(user);
-    await user.selectOptions(
-      within(dialog).getByTestId("reserve-fit-category-filter"),
-      "sport",
-    );
+    await user.click(within(dialog).getByTestId("reserve-fit-category-filter"));
+    await user.click(await screen.findByTestId("reserve-fit-filter-sport"));
     expect(within(dialog).queryByTestId("reserve-fit-row-tx-ins")).toBeNull();
     expect(within(dialog).getByTestId("reserve-fit-row-tx-jump")).toBeTruthy();
   });
 
-  it("moves a staged spend into the excluded section without saving", async () => {
+  // No Save button to forget: flipping the switch IS the decision (user, 260804).
+  it("saves the moment a spend is set aside", async () => {
     const { user, onSave } = setup();
+    const dialog = await openDialog(user);
+    await user.click(within(dialog).getByTestId("reserve-fit-toggle-tx-jump"));
+    expect(onSave).toHaveBeenCalledWith({ add: ["tx-jump"], remove: [] });
+  });
+
+  it("saves the moment one is counted again", async () => {
+    const { user, onSave } = setup();
+    const dialog = await openDialog(user);
+    await user.click(within(dialog).getByTestId("reserve-fit-toggle-tx-tyres"));
+    expect(onSave).toHaveBeenCalledWith({ add: [], remove: ["tx-tyres"] });
+  });
+
+  it("moves the row into the other section as soon as it flips", async () => {
+    const { user } = setup();
     const dialog = await openDialog(user);
     await user.click(within(dialog).getByTestId("reserve-fit-toggle-tx-jump"));
     const excluded = within(dialog).getByTestId("reserve-fit-excluded");
     expect(
       within(excluded).getByTestId("reserve-fit-row-tx-jump"),
     ).toBeTruthy();
-    expect(onSave).not.toHaveBeenCalled();
   });
 
-  it("saves only what actually changed", async () => {
-    const { user, onSave } = setup();
+  it("has no Save or Cancel to press", async () => {
+    const { user } = setup();
     const dialog = await openDialog(user);
-    await user.click(within(dialog).getByTestId("reserve-fit-toggle-tx-jump"));
-    await user.click(within(dialog).getByTestId("reserve-fit-toggle-tx-tyres"));
-    await user.click(within(dialog).getByTestId("reserve-fit-save"));
-    expect(onSave).toHaveBeenCalledWith({
-      add: ["tx-jump"],
-      remove: ["tx-tyres"],
-    });
+    expect(within(dialog).queryByTestId("reserve-fit-save")).toBeNull();
+    expect(within(dialog).queryByTestId("reserve-fit-cancel")).toBeNull();
   });
 
-  it("throws staged decisions away on cancel", async () => {
-    const { user, onSave } = setup();
+  it("does not open the category picker by itself", async () => {
+    const { user } = setup();
     const dialog = await openDialog(user);
-    await user.click(within(dialog).getByTestId("reserve-fit-toggle-tx-jump"));
-    await user.click(within(dialog).getByTestId("reserve-fit-cancel"));
-    expect(onSave).not.toHaveBeenCalled();
-    // Re-opening shows the server's answer again, not the abandoned staging.
-    const reopened = await openDialog(user);
-    const counted = within(reopened).getByTestId("reserve-fit-counted");
-    expect(within(counted).getByTestId("reserve-fit-row-tx-jump")).toBeTruthy();
+    // The filter must not be focused on open — on iOS that threw up the wheel.
+    expect(document.activeElement).not.toBe(
+      within(dialog).getByTestId("reserve-fit-category-filter"),
+    );
+    expect(screen.queryByTestId("reserve-fit-filter-sport")).toBeNull();
   });
 
   it("says nothing at all when there is no large spend to judge", () => {

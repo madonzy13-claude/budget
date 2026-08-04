@@ -3,21 +3,16 @@
  *
  * The bar is a signed percent of what the history asked for, so it reads like
  * "How far off plan": left of the line means the buffer is short, right means
- * money is sitting idle. Two cases a percent cannot express on its own:
+ * money is sitting idle. One case a percent cannot express on its own:
  *
  *   needed 0, held > 0 → nothing to divide by, and every zloty is trimmable: +100
- *   thin history       → set aside entirely. Three months of a category is not
- *                        evidence about its worst month, and a confident zero
- *                        would invite someone to empty a reserve they need.
- *                        Measured against the RANGE, though: on a 1M range every
- *                        row has one month, and that weak signal is exactly what
- *                        the member asked to see — setting them all aside would
- *                        leave an empty chart on every short range (260804).
+ *
+ * There is deliberately NO "too little history" bucket. A category with two
+ * months of history is judged on those two months — the member asked for the
+ * number the data supports, not a row explaining what is missing (260804). The
+ * server already drops categories with nothing at all to size.
  */
 import type { ReserveFitRow } from "@/hooks/use-reserve-fit";
-
-/** Below this many months in range, a category is listed, not sized. */
-export const MIN_MONTHS = 3;
 
 export interface SizedReserveRow {
   categoryId: string;
@@ -37,8 +32,6 @@ export interface SizedReserveRow {
 
 export interface ReserveFitRowsResult {
   sized: SizedReserveRow[];
-  /** Too little history to judge — shown as a note, never as a bar. */
-  thin: SizedReserveRow[];
 }
 
 function toSized(r: ReserveFitRow): SizedReserveRow {
@@ -66,24 +59,11 @@ function toSized(r: ReserveFitRow): SizedReserveRow {
 export function reserveFitRows(
   rows: readonly ReserveFitRow[],
 ): ReserveFitRowsResult {
-  // The longest history any category has is how much range there was to have.
-  // A row with less than that (and less than MIN_MONTHS) is a NEW category, not
-  // a short range.
-  const rangeMonths = rows.reduce(
-    (max, r) => Math.max(max, r.months_counted),
-    0,
-  );
-  const floor = Math.min(MIN_MONTHS, rangeMonths);
-
-  const sized: SizedReserveRow[] = [];
-  const thin: SizedReserveRow[] = [];
-  for (const r of rows) {
-    const s = toSized(r);
-    (s.monthsCounted >= floor ? sized : thin).push(s);
-  }
-  // Fattest reserve at the top, emptiest at the bottom (user, 260804): the bars
-  // then form one continuous slope from "free this money" down to "this needs
-  // money", instead of the two ends meeting in the middle.
-  sized.sort((a, b) => b.gapCents - a.gapCents);
-  return { sized, thin };
+  const sized = rows.map(toSized);
+  // By PERCENT, not by amount (user, 260804): the bar IS a percentage, so a big
+  // reserve that is 20% fat must not outrank a small one holding four times what
+  // it needs. Ties — every "needs nothing" row is +100% — fall back to the money
+  // at stake, which is what makes one of them worth acting on first.
+  sized.sort((a, b) => b.pct - a.pct || b.gapCents - a.gapCents);
+  return { sized };
 }

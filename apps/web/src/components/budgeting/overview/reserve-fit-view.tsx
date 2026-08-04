@@ -37,9 +37,9 @@ export function ReserveFitView({
   format: (cents: number) => string;
 }) {
   const t = useTranslations("bdp.tab.overview");
-  const { sized, thin } = reserveFitRows(data.rows ?? []);
+  const { sized } = reserveFitRows(data.rows ?? []);
 
-  if (sized.length === 0 && thin.length === 0) {
+  if (sized.length === 0) {
     return (
       <p
         data-testid="reserve-fit-empty"
@@ -52,7 +52,7 @@ export function ReserveFitView({
 
   // The dialog reads across every category at once, so the per-row candidates
   // are flattened and carry their category with them.
-  const candidates: OneOffCandidate[] = [...sized, ...thin].flatMap((r) =>
+  const candidates: OneOffCandidate[] = sized.flatMap((r) =>
     r.candidates.map((c) => ({
       ...c,
       category_id: r.categoryId,
@@ -106,17 +106,6 @@ export function ReserveFitView({
         onSave={onSave}
         format={format}
       />
-
-      {thin.length > 0 && (
-        <p
-          data-testid="reserve-fit-thin"
-          className="text-caption text-[var(--muted-foreground)]"
-        >
-          {t("reserveFit.thinHistory", {
-            names: thin.map((r) => r.name).join(", "),
-          })}
-        </p>
-      )}
     </div>
   );
 }

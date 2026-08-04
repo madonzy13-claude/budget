@@ -1523,8 +1523,6 @@
           "trim": "Trimmable",
           "oneOffsFor": "Large spend in {name}",
           "recurs": "repeats {cadence}",
-          "untitled": "Untitled",
-          "thinHistory": "Too little history to judge yet: {names}",
           "reviewOneOffs": "Review large spend",
           "excludedCount": "{count} set aside as one-offs",
           "oneOffsTitle": "Which spend won't happen again?",
@@ -1533,10 +1531,7 @@
           "allCategories": "All categories",
           "excludedSection": "Set aside",
           "countedSection": "Counted",
-          "setAside": "Set aside",
-          "count": "Count",
-          "save": "Save",
-          "cancel": "Cancel"
+          "countedAria": "Count {amount} toward reserves"
         }
       },
       "spendings": {

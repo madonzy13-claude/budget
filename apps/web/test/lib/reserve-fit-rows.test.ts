@@ -7,7 +7,7 @@
  * judge at all.
  */
 import { describe, it, expect } from "vitest";
-import { reserveFitRows, MIN_MONTHS } from "../../src/lib/reserve-fit-rows";
+import { reserveFitRows } from "../../src/lib/reserve-fit-rows";
 import type { ReserveFitRow } from "../../src/hooks/use-reserve-fit";
 
 const row = (over: Partial<ReserveFitRow> = {}): ReserveFitRow => ({
@@ -54,36 +54,68 @@ describe("reserveFitRows", () => {
     expect(r?.pct).toBe(0);
   });
 
-  it("sets a barely-used category aside when its siblings have real history", () => {
-    const { sized, thin } = reserveFitRows([
-      row({ months_counted: MIN_MONTHS - 1 }),
-      row({ category_id: "c2", name: "Car" }),
-    ]);
-    expect(sized.map((r) => r.name)).toEqual(["Car"]);
-    expect(thin.map((r) => r.name)).toEqual(["Food"]);
-  });
-
-  // 260804: the chart is offered on a 1M range too. One month is a weak signal,
-  // but it IS the signal the member asked to see — setting every row aside as
-  // "not enough history" would leave an empty chart on every short range.
-  it("sizes everything when the range itself is short", () => {
-    const { sized, thin } = reserveFitRows([
+  // 260804 (user): no "too little history to judge" bucket. A category with two
+  // months of history is judged on those two months — the member wants the
+  // number the data supports, not a row explaining that it is missing.
+  it("sizes every category, however little history it has", () => {
+    const { sized } = reserveFitRows([
       row({ months_counted: 1 }),
-      row({ category_id: "c2", name: "Car", months_counted: 1 }),
+      row({ category_id: "c2", name: "Car", months_counted: 12 }),
     ]);
     expect(sized.map((r) => r.name)).toEqual(["Food", "Car"]);
-    expect(thin).toEqual([]);
   });
 
-  // 260804 (user): read top-down from the fattest reserve to the emptiest, so
-  // the bars form one continuous slope instead of meeting in the middle.
-  it("runs from most over-held at the top to most short at the bottom", () => {
+  // 260804 (user): order by PERCENT, not by amount — the bar is a percentage,
+  // so a big category holding 20% too much must not outrank a small one holding
+  // four times what it needs.
+  it("runs from most over-held to most short, by percent", () => {
     const { sized } = reserveFitRows([
-      row({ category_id: "a", name: "A", gap_cents: "5000" }),
-      row({ category_id: "b", name: "B", gap_cents: "-9000" }),
-      row({ category_id: "c", name: "C", gap_cents: "20000" }),
+      // +25%: a large reserve, only slightly fat
+      row({
+        category_id: "a",
+        name: "A",
+        held_cents: "500000",
+        needed_cents: "400000",
+        gap_cents: "100000",
+      }),
+      // −50%
+      row({
+        category_id: "b",
+        name: "B",
+        held_cents: "5000",
+        needed_cents: "10000",
+        gap_cents: "-5000",
+      }),
+      // +300%: a small reserve, wildly fat
+      row({
+        category_id: "c",
+        name: "C",
+        held_cents: "4000",
+        needed_cents: "1000",
+        gap_cents: "3000",
+      }),
     ]);
     expect(sized.map((r) => r.name)).toEqual(["C", "A", "B"]);
+  });
+
+  it("breaks a percent tie on the money at stake", () => {
+    const { sized } = reserveFitRows([
+      row({
+        category_id: "a",
+        name: "Small",
+        held_cents: "1000",
+        needed_cents: "0",
+        gap_cents: "1000",
+      }),
+      row({
+        category_id: "b",
+        name: "Big",
+        held_cents: "90000",
+        needed_cents: "0",
+        gap_cents: "90000",
+      }),
+    ]);
+    expect(sized.map((r) => r.name)).toEqual(["Big", "Small"]);
   });
 
   it("survives a cached row from before the one-off list existed", () => {

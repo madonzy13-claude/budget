@@ -137,15 +137,19 @@ const view = (onSave = vi.fn()) => {
 describe("ReserveFitView", () => {
   it("draws a bar per category, fattest reserve first", () => {
     view();
-    // Sport holds 4,600 over; Car is 4,000 short — over-held at the top (260804).
+    // Sport is +100% (holds 4,600, needs nothing), Newborn 0%, Car −80%:
+    // most over-held at the top, by percent (260804).
     expect(screen.getByTestId("fit-chart").getAttribute("data-rows")).toBe(
-      "Sport,Car",
+      "Sport,Newborn,Car",
     );
   });
 
-  it("sets a barely-used category aside instead of sizing it", () => {
+  // 260804: no "too little history" row — a one-month category is judged on
+  // its one month, like every other.
+  it("draws even a barely-used category", () => {
     view();
-    expect(screen.getByTestId("reserve-fit-thin").textContent).toContain(
+    expect(screen.queryByTestId("reserve-fit-thin")).toBeNull();
+    expect(screen.getByTestId("fit-chart").getAttribute("data-rows")).toContain(
       "Newborn",
     );
   });

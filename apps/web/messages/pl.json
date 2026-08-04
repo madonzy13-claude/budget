@@ -1546,8 +1546,6 @@
           "trim": "Do uwolnienia",
           "oneOffsFor": "Duże wydatki w {name}",
           "recurs": "powtarza się {cadence}",
-          "untitled": "Bez nazwy",
-          "thinHistory": "Za mało historii, by ocenić: {names}",
           "reviewOneOffs": "Przejrzyj duże wydatki",
           "excludedCount": "Pominięto {count} jako jednorazowe",
           "oneOffsTitle": "Które wydatki się nie powtórzą?",
@@ -1556,10 +1554,7 @@
           "allCategories": "Wszystkie kategorie",
           "excludedSection": "Pominięte",
           "countedSection": "Liczone",
-          "setAside": "Pomiń",
-          "count": "Licz",
-          "save": "Zapisz",
-          "cancel": "Anuluj"
+          "countedAria": "Licz {amount} do rezerw"
         }
       },
       "spendings": {

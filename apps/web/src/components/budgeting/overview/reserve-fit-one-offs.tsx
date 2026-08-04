@@ -7,27 +7,37 @@
  * parachute jump is rare and not. Only the household knows which is which, so
  * this is where they say so.
  *
- * The first attempt hung an accordion off every chart row, which buried the one
- * decision that mattered under a dozen that did not. Instead: ONE line under the
- * chart, and a dialog with every large spend in one place — biggest first, with
- * its category and date, the ones already set aside in their own section on top,
- * and a category filter for a budget with many.
- *
- * Decisions are STAGED and written only on Save, so the member can see the whole
- * picture before committing and Cancel genuinely does nothing.
+ * Shape, after two passes with the user:
+ *   - ONE button under the chart, not an accordion per category.
+ *   - Every large spend in one dialog, biggest first, grouped set-aside/counted.
+ *   - Each row is a SWITCH that saves on flip. No Save/Cancel: a decision this
+ *     small should not need committing, and a Save button is a thing to forget.
+ *   - The row leads with what you judge it by — amount, category, date. The note
+ *     ("CSVIMPORT" on every imported row) is secondary and only when it adds
+ *     something.
+ *   - The dialog must NOT autofocus the filter: on iOS that threw the wheel
+ *     picker up the instant it opened.
  */
 import * as React from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import { SlidersHorizontal } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { formatShortDate } from "@/lib/format-date";
 
 export interface OneOffCandidate {
   ledger_id: string;
@@ -50,33 +60,26 @@ export function ReserveFitOneOffs({
   format: (cents: number) => string;
 }) {
   const t = useTranslations("bdp.tab.overview");
+  const locale = useLocale();
   const [open, setOpen] = React.useState(false);
-  const [staged, setStaged] = React.useState<Record<string, boolean>>({});
   const [category, setCategory] = React.useState("all");
+  // Flips are written immediately; this only keeps the row in place until the
+  // refetched payload catches up, so it never flickers back under the finger.
+  const [pending, setPending] = React.useState<Record<string, boolean>>({});
 
-  // Nothing large enough to judge — then there is nothing to offer.
   if (candidates.length === 0) return null;
 
-  const isExcluded = (c: OneOffCandidate) => staged[c.ledger_id] ?? c.excluded;
-  const savedExcludedCount = candidates.filter((c) => c.excluded).length;
+  const isExcluded = (c: OneOffCandidate) => pending[c.ledger_id] ?? c.excluded;
+  const excludedCount = candidates.filter(isExcluded).length;
 
-  const start = () => {
-    // Always open on the server's answer: an abandoned staging must not linger.
-    setStaged({});
-    setCategory("all");
-    setOpen(true);
-  };
-
-  const save = () => {
-    const add: string[] = [];
-    const remove: string[] = [];
-    for (const c of candidates) {
-      const next = isExcluded(c);
-      if (next === c.excluded) continue;
-      (next ? add : remove).push(c.ledger_id);
-    }
-    onSave({ add, remove });
-    setOpen(false);
+  const flip = (c: OneOffCandidate) => {
+    const next = !isExcluded(c);
+    setPending((p) => ({ ...p, [c.ledger_id]: next }));
+    onSave(
+      next
+        ? { add: [c.ledger_id], remove: [] }
+        : { add: [], remove: [c.ledger_id] },
+    );
   };
 
   const categories = [
@@ -85,69 +88,96 @@ export function ReserveFitOneOffs({
   const shown = candidates
     .filter((c) => category === "all" || c.category_id === category)
     .sort((a, b) => Number(b.amount_cents) - Number(a.amount_cents));
-  const excluded = shown.filter(isExcluded);
+  const setAside = shown.filter(isExcluded);
   const counted = shown.filter((c) => !isExcluded(c));
 
-  const Row = ({ c }: { c: OneOffCandidate }) => (
-    <li
-      data-testid={`reserve-fit-row-${c.ledger_id}`}
-      className="flex min-h-[44px] items-center gap-3 border-b border-[var(--hairline-dark)] py-2 last:border-b-0"
-    >
-      <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-num-sm">
-          {c.note ?? t("reserveFit.untitled")}
-        </span>
-        <span className="text-caption text-[var(--muted-foreground)]">
-          {c.category_name} · {c.transaction_date}
-          {c.recurring_cadence && (
-            <>
-              {" · "}
-              <span data-testid={`reserve-fit-recurs-${c.ledger_id}`}>
-                {t("reserveFit.recurs", { cadence: c.recurring_cadence })}
-              </span>
-            </>
-          )}
-        </span>
-      </div>
-      <span className="shrink-0 text-num-sm">
-        {format(Number(c.amount_cents))}
-      </span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        data-testid={`reserve-fit-toggle-${c.ledger_id}`}
-        onClick={() =>
-          setStaged((s) => ({ ...s, [c.ledger_id]: !isExcluded(c) }))
-        }
+  const Row = ({ c }: { c: OneOffCandidate }) => {
+    const off = isExcluded(c);
+    return (
+      <li
+        data-testid={`reserve-fit-row-${c.ledger_id}`}
+        className="flex items-center gap-3 border-b border-[var(--hairline-dark)] py-2.5 last:border-b-0"
       >
-        {isExcluded(c) ? t("reserveFit.count") : t("reserveFit.setAside")}
-      </Button>
-    </li>
-  );
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className={off ? "text-num-sm opacity-50" : "text-num-sm"}>
+            {format(Number(c.amount_cents))}
+          </span>
+          <span className="truncate text-caption text-[var(--muted-foreground)]">
+            {c.category_name} · {formatShortDate(c.transaction_date, locale)}
+            {c.recurring_cadence && (
+              <>
+                {" · "}
+                <span
+                  data-testid={`reserve-fit-recurs-${c.ledger_id}`}
+                  className="text-[var(--primary)]"
+                >
+                  {t("reserveFit.recurs", { cadence: c.recurring_cadence })}
+                </span>
+              </>
+            )}
+          </span>
+        </div>
+        <Switch
+          data-testid={`reserve-fit-toggle-${c.ledger_id}`}
+          // ON = counted. Flipping it off is the member saying "one-off".
+          checked={!off}
+          onCheckedChange={() => flip(c)}
+          aria-label={t("reserveFit.countedAria", {
+            amount: format(Number(c.amount_cents)),
+          })}
+        />
+      </li>
+    );
+  };
+
+  const Section = ({
+    testId,
+    title,
+    rows,
+  }: {
+    testId: string;
+    title: string;
+    rows: OneOffCandidate[];
+  }) =>
+    rows.length === 0 ? null : (
+      <section data-testid={testId} className="flex flex-col gap-1">
+        <h4 className="text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
+          {title}
+        </h4>
+        <ul className="flex flex-col rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3">
+          {rows.map((c) => (
+            <Row key={c.ledger_id} c={c} />
+          ))}
+        </ul>
+      </section>
+    );
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="sm"
         data-testid="reserve-fit-open-one-offs"
-        onClick={start}
-        className={cn(
-          "self-start text-caption underline decoration-dotted underline-offset-4",
-          savedExcludedCount > 0
-            ? "text-[var(--body-on-dark)]"
-            : "text-[var(--muted-foreground)]",
-        )}
+        onClick={() => {
+          setCategory("all");
+          setOpen(true);
+        }}
+        className="self-start"
       >
-        {savedExcludedCount > 0
-          ? t("reserveFit.excludedCount", { count: savedExcludedCount })
+        <SlidersHorizontal aria-hidden className="size-4" />
+        {excludedCount > 0
+          ? t("reserveFit.excludedCount", { count: excludedCount })
           : t("reserveFit.reviewOneOffs")}
-      </button>
+      </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
           data-testid="reserve-fit-one-offs-dialog"
-          className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
+          // Radix focuses the first control otherwise, which IS the filter —
+          // and a focused select opens the wheel picker on iOS (260804).
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto sm:max-w-lg"
         >
           <DialogHeader>
             <DialogTitle>{t("reserveFit.oneOffsTitle")}</DialogTitle>
@@ -156,64 +186,41 @@ export function ReserveFitOneOffs({
             </DialogDescription>
           </DialogHeader>
 
-          <select
-            data-testid="reserve-fit-category-filter"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            aria-label={t("reserveFit.filterByCategory")}
-            className="min-h-[44px] rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] px-3 text-num-sm"
-          >
-            <option value="all">{t("reserveFit.allCategories")}</option>
-            {categories.map(([id, name]) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
-          </select>
-
-          {excluded.length > 0 && (
-            <section
-              data-testid="reserve-fit-excluded"
-              className="flex flex-col gap-1"
-            >
-              <h4 className="text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
-                {t("reserveFit.excludedSection")}
-              </h4>
-              <ul className="flex flex-col">
-                {excluded.map((c) => (
-                  <Row key={c.ledger_id} c={c} />
+          {categories.length > 1 && (
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger
+                data-testid="reserve-fit-category-filter"
+                aria-label={t("reserveFit.filterByCategory")}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" data-testid="reserve-fit-filter-all">
+                  {t("reserveFit.allCategories")}
+                </SelectItem>
+                {categories.map(([id, name]) => (
+                  <SelectItem
+                    key={id}
+                    value={id}
+                    data-testid={`reserve-fit-filter-${id}`}
+                  >
+                    {name}
+                  </SelectItem>
                 ))}
-              </ul>
-            </section>
+              </SelectContent>
+            </Select>
           )}
 
-          <section
-            data-testid="reserve-fit-counted"
-            className="flex flex-col gap-1"
-          >
-            <h4 className="text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
-              {t("reserveFit.countedSection")}
-            </h4>
-            <ul className="flex flex-col">
-              {counted.map((c) => (
-                <Row key={c.ledger_id} c={c} />
-              ))}
-            </ul>
-          </section>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              data-testid="reserve-fit-cancel"
-              onClick={() => setOpen(false)}
-            >
-              {t("reserveFit.cancel")}
-            </Button>
-            <Button type="button" data-testid="reserve-fit-save" onClick={save}>
-              {t("reserveFit.save")}
-            </Button>
-          </DialogFooter>
+          <Section
+            testId="reserve-fit-excluded"
+            title={t("reserveFit.excludedSection")}
+            rows={setAside}
+          />
+          <Section
+            testId="reserve-fit-counted"
+            title={t("reserveFit.countedSection")}
+            rows={counted}
+          />
         </DialogContent>
       </Dialog>
     </>
