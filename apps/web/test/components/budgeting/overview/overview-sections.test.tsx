@@ -342,3 +342,25 @@ describe("Planned pie — investments on both rings", () => {
     expect(p.getAttribute("data-ring")).toContain("planned.ring.investments");
   });
 });
+
+// 260804: both "How far off plan, by category" and "Is each reserve the right
+// size?" judge whole months against their budget and leave the running month
+// out. On a range holding nothing else there is nothing to judge, so they say
+// so rather than draw a bar from half a month.
+describe("charts that need a finished month", () => {
+  it("stands the planned chart down on the running month alone", async () => {
+    const user = userEvent.setup();
+    renderSections();
+    await user.click(screen.getByText("sections.planned"));
+    // Default range is the running month.
+    expect(screen.getByTestId("overview-planned-needs-month")).toBeTruthy();
+  });
+
+  it("brings it back as soon as the range reaches further", async () => {
+    const user = userEvent.setup();
+    renderSections();
+    await user.click(screen.getByText("sections.planned"));
+    await user.click(screen.getByRole("button", { name: "3M" }));
+    expect(screen.queryByTestId("overview-planned-needs-month")).toBeNull();
+  });
+});

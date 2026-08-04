@@ -1533,6 +1533,10 @@
           "excludedSection": "Set aside",
           "countedSection": "Counted",
           "countedAria": "Count {amount} toward reserves"
+        },
+        "needsCompletedMonth": {
+          "title": "Nothing to judge yet",
+          "body": "This chart compares whole months against their budget, and the month still running is not one yet. Pick a range that includes a finished month."
         }
       },
       "spendings": {

@@ -14,6 +14,10 @@ import { OverviewSection } from "./overview-section";
 import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { reserveBalanceSlices } from "@/lib/reserve-balance-slices";
+import { ChartNeedsCompletedMonth } from "./chart-needs-completed-month";
+import { rangeHasCompletedMonth } from "@/lib/range-completed-month";
+import { todayInTz } from "@/lib/overview-range";
+import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { assignSliceColors } from "@/lib/slice-colors";
 import { useOverviewOverspent } from "@/hooks/use-overview-overspent";
 import {
@@ -56,6 +60,11 @@ export function OverspentReservesSection({
   const saveExclusions = useSaveReserveFitExclusions(budgetId);
   // Percent of what the history asked for, or the money itself (260804).
   const [fitScale, setFitScale] = useState<"pct" | "amount">("pct");
+  const hasCompletedMonth = rangeHasCompletedMonth(
+    range.from,
+    range.to,
+    todayInTz(useUserTimezone()).toString(),
+  );
 
   const ccy = data?.currency ?? "USD";
   const fmtTooltip = (n: number) =>
@@ -94,31 +103,41 @@ export function OverspentReservesSection({
           open={reservesOpen}
           onToggle={toggleReserves}
         >
-          {fit.data && (
-            <div className="flex flex-col gap-2">
-              <p className="text-center text-caption text-[var(--muted-foreground)]">
-                {t("reserveFit.title")}
-              </p>
-              <ReserveFitView
-                data={fit.data}
-                format={fmtTooltip}
-                onSave={(delta) => saveExclusions.mutate(delta)}
-                scale={fitScale}
-                scaleSwitch={
-                  <SegmentedToggle
-                    className="text-caption"
-                    testId="reserve-fit-scale"
-                    label={t("planned.scale")}
-                    value={fitScale}
-                    onChange={(v) => setFitScale(v as "pct" | "amount")}
-                    options={[
-                      { value: "pct", label: t("planned.scalePct") },
-                      { value: "amount", label: t("planned.scaleAmount") },
-                    ]}
-                  />
-                }
-              />
-            </div>
+          {!hasCompletedMonth ? (
+            /* Same rule as the planned chart: the walk leaves the month still
+               running out, so a range holding nothing else has no history to
+               size a buffer from (user, 260804). */
+            <ChartNeedsCompletedMonth
+              title={t("reserveFit.title")}
+              testId="reserve-fit-needs-month"
+            />
+          ) : (
+            fit.data && (
+              <div className="flex flex-col gap-2">
+                <p className="text-center text-caption text-[var(--muted-foreground)]">
+                  {t("reserveFit.title")}
+                </p>
+                <ReserveFitView
+                  data={fit.data}
+                  format={fmtTooltip}
+                  onSave={(delta) => saveExclusions.mutate(delta)}
+                  scale={fitScale}
+                  scaleSwitch={
+                    <SegmentedToggle
+                      className="text-caption"
+                      testId="reserve-fit-scale"
+                      label={t("planned.scale")}
+                      value={fitScale}
+                      onChange={(v) => setFitScale(v as "pct" | "amount")}
+                      options={[
+                        { value: "pct", label: t("planned.scalePct") },
+                        { value: "amount", label: t("planned.scaleAmount") },
+                      ]}
+                    />
+                  }
+                />
+              </div>
+            )
           )}
           {loading ? (
             <div className="h-60 animate-pulse rounded-[var(--radius-xl)] bg-[var(--surface-elevated-dark)]" />

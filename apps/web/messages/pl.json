@@ -1556,6 +1556,10 @@
           "excludedSection": "Pominięte",
           "countedSection": "Liczone",
           "countedAria": "Licz {amount} do rezerw"
+        },
+        "needsCompletedMonth": {
+          "title": "Nie ma jeszcze czego oceniać",
+          "body": "Ten wykres porównuje pełne miesiące z ich budżetem, a trwający miesiąc jeszcze nim nie jest. Wybierz zakres obejmujący zakończony miesiąc."
         }
       },
       "spendings": {

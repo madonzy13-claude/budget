@@ -53,6 +53,8 @@ import {
   type OneOffCandidate,
 } from "./reserve-fit-one-offs";
 import { signedMoney } from "./reserve-fit-view";
+import { ChartNeedsCompletedMonth } from "./chart-needs-completed-month";
+import { rangeHasCompletedMonth } from "@/lib/range-completed-month";
 import { useCategories } from "@/hooks/use-budget-data";
 import { centsToRounded } from "@/lib/cents-format";
 import { chartCompactCents, withDayStartBaseline } from "@/lib/chart-format";
@@ -227,6 +229,11 @@ export function PlannedSection({
   // Only offered when the range holds the running month AND something else.
   const userTz = useUserTimezone();
   const todayIso = todayInTz(userTz).toString();
+  const hasCompletedMonth = rangeHasCompletedMonth(
+    range.from,
+    range.to,
+    todayIso,
+  );
   const canDropRunningMonth =
     range.from <= todayIso &&
     todayIso <= range.to &&
@@ -561,138 +568,153 @@ export function PlannedSection({
               small-but-3x-over coffee line; variance puts every category on one
               scale. Right = spent more than planned, left = less, ±10% = on plan
               (shaded band). Sorted most-over first so the problems sit at the top. */}
-          {data.plannedAvgVsReal.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <ChartLabel>{t("planned.avgByCategory")}</ChartLabel>
-              {/* Percent or money — the same pill track the running-month
+          {/* A range holding nothing but the month still running has no finished
+              month to judge, and this chart judges whole months — so it says so
+              instead of drawing a bar from half a month (user, 260804). */}
+          {!hasCompletedMonth ? (
+            <ChartNeedsCompletedMonth
+              title={t("planned.avgByCategory")}
+              testId="overview-planned-needs-month"
+            />
+          ) : (
+            data.plannedAvgVsReal.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <ChartLabel>{t("planned.avgByCategory")}</ChartLabel>
+                {/* Percent or money — the same pill track the running-month
                   toggle used to own (260804 request). */}
-              {/* The switch stays centred; the one-offs button floats in the
+                {/* The switch stays centred; the one-offs button floats in the
                   chart's corner so it never shoves it off-centre (260804). */}
-              <div className="relative flex items-center justify-center">
-                <SegmentedToggle
-                  className="text-caption"
-                  testId="overview-planned-scale"
-                  label={t("planned.scale")}
-                  value={scale}
-                  onChange={(v) => setScale(v as "pct" | "amount")}
-                  options={[
-                    { value: "pct", label: t("planned.scalePct") },
-                    { value: "amount", label: t("planned.scaleAmount") },
-                  ]}
-                />
-                <div
-                  data-testid="overview-planned-corner"
-                  className="absolute right-0 top-0"
-                >
-                  <ReserveFitOneOffs
-                    candidates={oneOffCandidates}
-                    onSave={(delta) => saveExclusions.mutate(delta)}
-                    format={fmtTooltip}
+                <div className="relative flex items-center justify-center">
+                  <SegmentedToggle
+                    className="text-caption"
+                    testId="overview-planned-scale"
+                    label={t("planned.scale")}
+                    value={scale}
+                    onChange={(v) => setScale(v as "pct" | "amount")}
+                    options={[
+                      { value: "pct", label: t("planned.scalePct") },
+                      { value: "amount", label: t("planned.scaleAmount") },
+                    ]}
                   />
+                  <div
+                    data-testid="overview-planned-corner"
+                    className="absolute right-0 top-0"
+                  >
+                    <ReserveFitOneOffs
+                      candidates={oneOffCandidates}
+                      onSave={(delta) => saveExclusions.mutate(delta)}
+                      format={fmtTooltip}
+                    />
+                  </div>
                 </div>
+                <OverviewDivergingBarChart
+                  data={data.plannedAvgVsReal
+                    .map((c) => {
+                      const real = Number(c.real_avg_cents);
+                      const planned = Number(c.planned_avg_cents);
+                      const pct =
+                        planned > 0
+                          ? ((real - planned) / planned) * 100
+                          : real > 0
+                            ? 100
+                            : 0;
+                      return {
+                        name: c.name,
+                        real,
+                        planned,
+                        pct,
+                        gap: real - planned,
+                        realTotal: Number(c.real_total_cents),
+                        plannedTotal: Number(c.planned_total_cents),
+                      };
+                    })
+                    // Ordered the way the chart is being READ (260804).
+                    .sort((a, b) =>
+                      scale === "amount" ? b.gap - a.gap : b.pct - a.pct,
+                    )}
+                  categoryKey="name"
+                  valueKey={scale === "amount" ? "gap" : "pct"}
+                  formatValue={
+                    scale === "amount"
+                      ? // Signed, like the percent labels: the bar is a GAP, so
+                        // "+1,900" reads as overspend and "−320" as room left.
+                        signedMoney((n) =>
+                          centsToRounded(
+                            BigInt(Math.round(n)),
+                            ccy,
+                            "en",
+                            true,
+                          ),
+                        )
+                      : undefined
+                  }
+                  // Under plan while the range is the month still running is just
+                  // "not spent yet" — those bars read grey rather than claiming
+                  // success (260803 user request). Over plan still bands.
+                  colorForPct={(pct) =>
+                    varianceColorForRange(pct, {
+                      runningMonthOnly: rangeWithinRunningMonth,
+                    })
+                  }
+                  tooltipExtra={(row) => {
+                    const diff = Number(row.real) - Number(row.planned);
+                    const pct = Number(row.pct);
+                    const sign = diff > 0 ? "+" : diff < 0 ? "−" : "";
+                    const pctSign = pct > 0 ? "+" : pct < 0 ? "−" : "";
+                    return [
+                      // Per-month average AND the range total, side by side: the
+                      // bar reads as a rate, the total says what it actually cost
+                      // over the window (260803 user request).
+                      {
+                        label: "",
+                        value: t("planned.avgColumn"),
+                        value2: t("planned.totalColumn"),
+                        head: true,
+                      },
+                      {
+                        label: t("planned.planned"),
+                        value: fmtTooltip(Number(row.planned)),
+                        value2: fmtTooltip(Number(row.plannedTotal)),
+                      },
+                      {
+                        label: t("planned.real"),
+                        value: fmtTooltip(Number(row.real)),
+                        value2: fmtTooltip(Number(row.realTotal)),
+                      },
+                      {
+                        label: t("planned.difference"),
+                        // Amount AND percent on one line — the bar shows the
+                        // percent, the tooltip should tie it back to real money.
+                        // Percent first — it is what the bar length encodes; the
+                        // money is the supporting detail (260801).
+                        value: `${pctSign}${Math.abs(
+                          Math.round(Number(row.pct)),
+                        )}% · ${sign}${fmtTooltip(Math.abs(diff))}`,
+                        // A conclusion, not another figure in the list — it opens
+                        // its own section under a rule (260803).
+                        section: true,
+                        color: varianceColorForRange(Number(row.pct), {
+                          runningMonthOnly: rangeWithinRunningMonth,
+                        }),
+                      },
+                    ];
+                  }}
+                  formatTooltip={fmtTooltip}
+                  // 260731 (user decision): the CHARTS always show real numbers — masking
+                  // them made the shapes unreadable. The privacy blur stays on the hero
+                  // cards + totals, which is where a shoulder-surfer actually reads a figure.
+                  maskAmounts={false}
+                />
+                {canDropRunningMonth && (
+                  <p
+                    data-testid="overview-planned-ongoing-note"
+                    className="-mt-1 text-center text-[10px] leading-tight text-[var(--muted-foreground)]/70"
+                  >
+                    {t("planned.ongoingExcluded")}
+                  </p>
+                )}
               </div>
-              <OverviewDivergingBarChart
-                data={data.plannedAvgVsReal
-                  .map((c) => {
-                    const real = Number(c.real_avg_cents);
-                    const planned = Number(c.planned_avg_cents);
-                    const pct =
-                      planned > 0
-                        ? ((real - planned) / planned) * 100
-                        : real > 0
-                          ? 100
-                          : 0;
-                    return {
-                      name: c.name,
-                      real,
-                      planned,
-                      pct,
-                      gap: real - planned,
-                      realTotal: Number(c.real_total_cents),
-                      plannedTotal: Number(c.planned_total_cents),
-                    };
-                  })
-                  // Ordered the way the chart is being READ (260804).
-                  .sort((a, b) =>
-                    scale === "amount" ? b.gap - a.gap : b.pct - a.pct,
-                  )}
-                categoryKey="name"
-                valueKey={scale === "amount" ? "gap" : "pct"}
-                formatValue={
-                  scale === "amount"
-                    ? // Signed, like the percent labels: the bar is a GAP, so
-                      // "+1,900" reads as overspend and "−320" as room left.
-                      signedMoney((n) =>
-                        centsToRounded(BigInt(Math.round(n)), ccy, "en", true),
-                      )
-                    : undefined
-                }
-                // Under plan while the range is the month still running is just
-                // "not spent yet" — those bars read grey rather than claiming
-                // success (260803 user request). Over plan still bands.
-                colorForPct={(pct) =>
-                  varianceColorForRange(pct, {
-                    runningMonthOnly: rangeWithinRunningMonth,
-                  })
-                }
-                tooltipExtra={(row) => {
-                  const diff = Number(row.real) - Number(row.planned);
-                  const pct = Number(row.pct);
-                  const sign = diff > 0 ? "+" : diff < 0 ? "−" : "";
-                  const pctSign = pct > 0 ? "+" : pct < 0 ? "−" : "";
-                  return [
-                    // Per-month average AND the range total, side by side: the
-                    // bar reads as a rate, the total says what it actually cost
-                    // over the window (260803 user request).
-                    {
-                      label: "",
-                      value: t("planned.avgColumn"),
-                      value2: t("planned.totalColumn"),
-                      head: true,
-                    },
-                    {
-                      label: t("planned.planned"),
-                      value: fmtTooltip(Number(row.planned)),
-                      value2: fmtTooltip(Number(row.plannedTotal)),
-                    },
-                    {
-                      label: t("planned.real"),
-                      value: fmtTooltip(Number(row.real)),
-                      value2: fmtTooltip(Number(row.realTotal)),
-                    },
-                    {
-                      label: t("planned.difference"),
-                      // Amount AND percent on one line — the bar shows the
-                      // percent, the tooltip should tie it back to real money.
-                      // Percent first — it is what the bar length encodes; the
-                      // money is the supporting detail (260801).
-                      value: `${pctSign}${Math.abs(
-                        Math.round(Number(row.pct)),
-                      )}% · ${sign}${fmtTooltip(Math.abs(diff))}`,
-                      // A conclusion, not another figure in the list — it opens
-                      // its own section under a rule (260803).
-                      section: true,
-                      color: varianceColorForRange(Number(row.pct), {
-                        runningMonthOnly: rangeWithinRunningMonth,
-                      }),
-                    },
-                  ];
-                }}
-                formatTooltip={fmtTooltip}
-                // 260731 (user decision): the CHARTS always show real numbers — masking
-                // them made the shapes unreadable. The privacy blur stays on the hero
-                // cards + totals, which is where a shoulder-surfer actually reads a figure.
-                maskAmounts={false}
-              />
-              {canDropRunningMonth && (
-                <p
-                  data-testid="overview-planned-ongoing-note"
-                  className="-mt-1 text-center text-[10px] leading-tight text-[var(--muted-foreground)]/70"
-                >
-                  {t("planned.ongoingExcluded")}
-                </p>
-              )}
-            </div>
+            )
           )}
 
           {/* Planned-spend share pie — how the range-averaged planned budget
