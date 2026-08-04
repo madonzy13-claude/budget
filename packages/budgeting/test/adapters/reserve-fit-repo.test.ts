@@ -140,40 +140,71 @@ describe("reserve-fit exclusions repo", () => {
     ).toBeNull();
   });
 
-  test("un-ticking round-trips, and is idempotent", async () => {
-    await repo.setExclusion({
+  // The dialog stages every tick and saves once, so the write is a batch: what
+  // to start ignoring and what to count again, in one transaction (260804).
+  test("saves a batch of decisions at once, and is idempotent", async () => {
+    await repo.setExclusions({
       budgetId: TENANT,
-      ledgerId: TX_JUMP,
-      excluded: true,
+      add: [TX_JUMP, TX_SMALL],
+      remove: [],
       actorUserId: USER,
     });
-    await repo.setExclusion({
+    await repo.setExclusions({
       budgetId: TENANT,
-      ledgerId: TX_JUMP,
-      excluded: true,
+      add: [TX_JUMP],
+      remove: [],
       actorUserId: USER,
     });
     const rows = await list();
-    expect(rows.filter((r) => r.excluded).map((r) => r.ledger_id)).toEqual([
-      TX_JUMP,
-    ]);
+    expect(
+      rows
+        .filter((r) => r.excluded)
+        .map((r) => r.ledger_id)
+        .sort(),
+    ).toEqual([TX_JUMP, TX_SMALL].sort());
   });
 
-  test("re-ticking removes the annotation again", async () => {
-    await repo.setExclusion({
+  test("the same save can exclude one and restore another", async () => {
+    await repo.setExclusions({
       budgetId: TENANT,
-      ledgerId: TX_JUMP,
-      excluded: false,
+      add: [TX_INSURANCE],
+      remove: [TX_SMALL],
+      actorUserId: USER,
+    });
+    const rows = await list();
+    expect(
+      rows
+        .filter((r) => r.excluded)
+        .map((r) => r.ledger_id)
+        .sort(),
+    ).toEqual([TX_INSURANCE, TX_JUMP].sort());
+  });
+
+  test("an empty batch changes nothing", async () => {
+    await repo.setExclusions({
+      budgetId: TENANT,
+      add: [],
+      remove: [],
+      actorUserId: USER,
+    });
+    expect((await list()).filter((r) => r.excluded).length).toBe(2);
+  });
+
+  test("restoring everything clears the annotations", async () => {
+    await repo.setExclusions({
+      budgetId: TENANT,
+      add: [],
+      remove: [TX_JUMP, TX_INSURANCE],
       actorUserId: USER,
     });
     expect((await list()).every((r) => !r.excluded)).toBe(true);
   });
 
   test("another budget cannot annotate this budget's transaction", async () => {
-    await repo.setExclusion({
+    await repo.setExclusions({
       budgetId: OTHER_TENANT,
-      ledgerId: TX_JUMP,
-      excluded: true,
+      add: [TX_JUMP],
+      remove: [],
       actorUserId: USER,
     });
     // The INSERT selects the ledger row within the OTHER tenant, which cannot

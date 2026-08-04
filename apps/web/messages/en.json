@@ -1524,7 +1524,19 @@
           "oneOffsFor": "Large spend in {name}",
           "recurs": "repeats {cadence}",
           "untitled": "Untitled",
-          "thinHistory": "Too little history to judge yet: {names}"
+          "thinHistory": "Too little history to judge yet: {names}",
+          "reviewOneOffs": "Review large spend",
+          "excludedCount": "{count} set aside as one-offs",
+          "oneOffsTitle": "Which spend won't happen again?",
+          "oneOffsExplainer": "Counted spend sizes the reserves. Set aside anything that was a one-off — a yearly charge should stay counted.",
+          "filterByCategory": "Filter by category",
+          "allCategories": "All categories",
+          "excludedSection": "Set aside",
+          "countedSection": "Counted",
+          "setAside": "Set aside",
+          "count": "Count",
+          "save": "Save",
+          "cancel": "Cancel"
         }
       },
       "spendings": {

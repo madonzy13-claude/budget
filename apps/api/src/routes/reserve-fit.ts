@@ -35,9 +35,11 @@ export function registerReserveFitRoutes(r: Hono, deps: BootedDeps) {
       { message: "range_too_wide" },
     );
 
+  // One save of the dialog, not one tick: the member stages several decisions
+  // and commits them together (260804).
   const bodySchema = z.object({
-    ledgerId: z.string().uuid(),
-    excluded: z.boolean(),
+    add: z.array(z.string().uuid()),
+    remove: z.array(z.string().uuid()),
   });
 
   r.get("/:id/overview/reserve-fit", async (c) => {
@@ -79,10 +81,10 @@ export function registerReserveFitRoutes(r: Hono, deps: BootedDeps) {
     if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
 
     try {
-      await deps.budgeting.setReserveFitExclusion({
+      await deps.budgeting.setReserveFitExclusions({
         budgetId,
-        ledgerId: parsed.data.ledgerId,
-        excluded: parsed.data.excluded,
+        add: parsed.data.add,
+        remove: parsed.data.remove,
         actorUserId: session.user.id,
       });
     } catch (e) {

@@ -6,9 +6,9 @@
  * asked for. Lazy like its Overview siblings: only fetches while its section is
  * open, and the range is part of the key.
  *
- * The mutation records "this spend was a one-off" for the WHOLE budget, so it
- * invalidates the chart rather than patching one row: another category can hold
- * the same transaction's month, and the walk is cheap to recompute.
+ * The mutation saves a whole dialog's worth of "these were one-offs" for the
+ * WHOLE budget, so it invalidates the chart rather than patching rows: several
+ * categories can move at once, and the walk is cheap to recompute.
  */
 import {
   useQuery,
@@ -74,10 +74,10 @@ export function useReserveFit(
   });
 }
 
-export function useSetReserveFitExclusion(budgetId: string) {
+export function useSaveReserveFitExclusions(budgetId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { ledgerId: string; excluded: boolean }) => {
+    mutationFn: async (input: { add: string[]; remove: string[] }) => {
       const res = await clientApiWrite(
         `/budgets/${budgetId}/reserve-fit/exclusions`,
         {

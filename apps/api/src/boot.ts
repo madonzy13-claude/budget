@@ -126,10 +126,10 @@ export interface BootedDeps {
     getOverviewOverspent: ReturnType<typeof getOverviewOverspent>;
     /** 260804: reserve sizing — held vs what the history asked for, per category. */
     getReserveFit: ReturnType<typeof getReserveFit>;
-    /** 260804: tick a spend off as a one-off for the reserve-fit chart (per budget). */
-    setReserveFitExclusion: ReturnType<
+    /** 260804: save the one-off decisions for the reserve-fit chart (per budget). */
+    setReserveFitExclusions: ReturnType<
       typeof createReserveFitRepo
-    >["setExclusion"];
+    >["setExclusions"];
     /** Phase 11 (11-06): Financial-Wealth section (snapshot series + live point + pie). */
     getOverviewWealth: ReturnType<typeof getOverviewWealth>;
     /** Overview projection timeline (today → end of next month). */
@@ -509,7 +509,7 @@ export async function boot(): Promise<BootedDeps> {
       reservePositions: baseBudgeting.reservePositions,
       metaReader: summaryRepo,
     }),
-    setReserveFitExclusion: reserveFitRepo.setExclusion,
+    setReserveFitExclusions: reserveFitRepo.setExclusions,
     // Phase 11 (11-06): Financial-Wealth section. 3h snapshot series + a live
     // current point from computeBudgetWealthNow (same numbers as the cards/cron);
     // investments-view pie groups investments.listHoldings by holding_type.

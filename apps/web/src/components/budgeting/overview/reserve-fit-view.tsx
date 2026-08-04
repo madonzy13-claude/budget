@@ -14,29 +14,29 @@
  *     came from a recurring rule carries its cadence, because rare-and-certain
  *     (September insurance) is exactly what must NOT be unticked.
  */
-import * as React from "react";
 import { useTranslations } from "next-intl";
-import { ChevronDown } from "lucide-react";
 import {
   OverviewDivergingBarChart,
   varianceColorForRange,
 } from "@/components/budgeting/charts/diverging-bar-chart";
-import { reserveFitRows, type SizedReserveRow } from "@/lib/reserve-fit-rows";
+import { reserveFitRows } from "@/lib/reserve-fit-rows";
 import type { ReserveFitDTO } from "@/hooks/use-reserve-fit";
-import { cn } from "@/lib/utils";
+import {
+  ReserveFitOneOffs,
+  type OneOffCandidate,
+} from "./reserve-fit-one-offs";
 
 export function ReserveFitView({
   data,
-  onToggle,
+  onSave,
   format,
 }: {
   data: ReserveFitDTO;
-  /** (ledgerId, excluded) — excluded=true means "this was a one-off". */
-  onToggle: (ledgerId: string, excluded: boolean) => void;
+  /** One save of the one-off dialog: what to set aside, what to count again. */
+  onSave: (delta: { add: string[]; remove: string[] }) => void;
   format: (cents: number) => string;
 }) {
   const t = useTranslations("bdp.tab.overview");
-  const [open, setOpen] = React.useState<string | null>(null);
   const { sized, thin } = reserveFitRows(data.rows ?? []);
 
   if (sized.length === 0 && thin.length === 0) {
@@ -50,7 +50,15 @@ export function ReserveFitView({
     );
   }
 
-  const withCandidates = sized.filter((r) => r.candidates.length > 0);
+  // The dialog reads across every category at once, so the per-row candidates
+  // are flattened and carry their category with them.
+  const candidates: OneOffCandidate[] = [...sized, ...thin].flatMap((r) =>
+    r.candidates.map((c) => ({
+      ...c,
+      category_id: r.categoryId,
+      category_name: r.name,
+    })),
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -93,16 +101,11 @@ export function ReserveFitView({
         />
       )}
 
-      {withCandidates.map((r) => (
-        <OneOffList
-          key={r.categoryId}
-          row={r}
-          open={open === r.categoryId}
-          onOpen={() => setOpen(open === r.categoryId ? null : r.categoryId)}
-          onToggle={onToggle}
-          format={format}
-        />
-      ))}
+      <ReserveFitOneOffs
+        candidates={candidates}
+        onSave={onSave}
+        format={format}
+      />
 
       {thin.length > 0 && (
         <p
@@ -113,75 +116,6 @@ export function ReserveFitView({
             names: thin.map((r) => r.name).join(", "),
           })}
         </p>
-      )}
-    </div>
-  );
-}
-
-function OneOffList({
-  row,
-  open,
-  onOpen,
-  onToggle,
-  format,
-}: {
-  row: SizedReserveRow;
-  open: boolean;
-  onOpen: () => void;
-  onToggle: (ledgerId: string, excluded: boolean) => void;
-  format: (cents: number) => string;
-}) {
-  const t = useTranslations("bdp.tab.overview");
-  return (
-    <div className="rounded-[var(--radius-md)] bg-[var(--surface-card-dark)]">
-      <button
-        type="button"
-        data-testid={`reserve-fit-oneoffs-${row.categoryId}`}
-        onClick={onOpen}
-        aria-expanded={open}
-        className="flex min-h-[44px] w-full items-center justify-between gap-2 px-3 text-left"
-      >
-        <span className="text-num-sm">
-          {t("reserveFit.oneOffsFor", { name: row.name })}
-        </span>
-        <ChevronDown
-          aria-hidden
-          className={cn("size-4 transition-transform", open && "rotate-180")}
-        />
-      </button>
-      {open && (
-        <ul className="flex flex-col gap-1 px-3 pb-3">
-          {row.candidates.map((tx) => (
-            <li key={tx.ledger_id} className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id={`fit-${tx.ledger_id}`}
-                data-testid={`reserve-fit-tx-${tx.ledger_id}`}
-                // Checked = counted. Unticking is the member saying "one-off".
-                checked={!tx.excluded}
-                onChange={(e) => onToggle(tx.ledger_id, !e.target.checked)}
-                className="size-4 shrink-0 accent-[var(--primary)]"
-              />
-              <label
-                htmlFor={`fit-${tx.ledger_id}`}
-                className="flex min-w-0 flex-1 items-center gap-2 text-num-sm"
-              >
-                <span className="truncate">
-                  {tx.note ?? t("reserveFit.untitled")} ·{" "}
-                  {format(Number(tx.amount_cents))}
-                </span>
-                {tx.recurring_cadence && (
-                  <span
-                    data-testid={`reserve-fit-recurs-${tx.ledger_id}`}
-                    className="text-caption shrink-0 text-[var(--muted-foreground)]"
-                  >
-                    {t("reserveFit.recurs", { cadence: tx.recurring_cadence })}
-                  </span>
-                )}
-              </label>
-            </li>
-          ))}
-        </ul>
       )}
     </div>
   );

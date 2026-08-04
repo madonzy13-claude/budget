@@ -15,7 +15,7 @@ import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { useOverviewOverspent } from "@/hooks/use-overview-overspent";
 import {
   useReserveFit,
-  useSetReserveFitExclusion,
+  useSaveReserveFitExclusions,
 } from "@/hooks/use-reserve-fit";
 import { ReserveFitView } from "./reserve-fit-view";
 import { useCategories } from "@/hooks/use-budget-data";
@@ -50,7 +50,7 @@ export function OverspentReservesSection({
     to: range.to,
     enabled: reservesOpen,
   });
-  const setExclusion = useSetReserveFitExclusion(budgetId);
+  const saveExclusions = useSaveReserveFitExclusions(budgetId);
 
   const ccy = data?.currency ?? "USD";
   // Chart AXIS: bare + compact, no currency (r24 5/7). TOOLTIP: full $ (r25 #2).
@@ -125,9 +125,7 @@ export function OverspentReservesSection({
               <ReserveFitView
                 data={fit.data}
                 format={fmtTooltip}
-                onToggle={(ledgerId, excluded) =>
-                  setExclusion.mutate({ ledgerId, excluded })
-                }
+                onSave={(delta) => saveExclusions.mutate(delta)}
               />
             </div>
           )}

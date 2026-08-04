@@ -1547,7 +1547,19 @@
           "oneOffsFor": "Duże wydatki w {name}",
           "recurs": "powtarza się {cadence}",
           "untitled": "Bez nazwy",
-          "thinHistory": "Za mało historii, by ocenić: {names}"
+          "thinHistory": "Za mało historii, by ocenić: {names}",
+          "reviewOneOffs": "Przejrzyj duże wydatki",
+          "excludedCount": "Pominięto {count} jako jednorazowe",
+          "oneOffsTitle": "Które wydatki się nie powtórzą?",
+          "oneOffsExplainer": "Liczone wydatki wyznaczają wielkość rezerw. Pomiń to, co było jednorazowe — coroczna opłata powinna zostać liczona.",
+          "filterByCategory": "Filtruj po kategorii",
+          "allCategories": "Wszystkie kategorie",
+          "excludedSection": "Pominięte",
+          "countedSection": "Liczone",
+          "setAside": "Pomiń",
+          "count": "Licz",
+          "save": "Zapisz",
+          "cancel": "Anuluj"
         }
       },
       "spendings": {

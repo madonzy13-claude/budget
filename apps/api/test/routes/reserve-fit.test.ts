@@ -51,7 +51,7 @@ function buildApp(
           calls.push({ get: input });
           return ok(DTO);
         }),
-      setReserveFitExclusion:
+      setReserveFitExclusions:
         over.setExclusion ??
         (async (input: Record<string, unknown>) => {
           calls.push({ put: input });
@@ -120,52 +120,57 @@ describe("PUT /budgets/:id/reserve-fit/exclusions", () => {
       body: JSON.stringify(body),
     });
 
-  it("records the un-tick against the budget and the caller → 200", async () => {
+  const LEDGER_2 = "44444444-4444-4444-8444-444444444444";
+
+  // One save of the dialog: several decisions in a single request (260804).
+  it("records the whole batch against the budget and the caller → 200", async () => {
     const { app, calls } = buildApp(SESSION);
-    const res = await put(app, { ledgerId: LEDGER, excluded: true });
+    const res = await put(app, { add: [LEDGER, LEDGER_2], remove: [] });
     expect(res.status).toBe(200);
     expect(calls[0]).toEqual({
       put: {
         budgetId: BUDGET,
-        ledgerId: LEDGER,
-        excluded: true,
+        add: [LEDGER, LEDGER_2],
+        remove: [],
         actorUserId: "user-1",
       },
     });
   });
 
-  it("takes the tick back", async () => {
+  it("carries restorations in the same save", async () => {
     const { app, calls } = buildApp(SESSION);
-    await put(app, { ledgerId: LEDGER, excluded: false });
-    expect((calls[0] as { put: { excluded: boolean } }).put.excluded).toBe(
-      false,
-    );
+    await put(app, { add: [], remove: [LEDGER] });
+    expect((calls[0] as { put: { remove: string[] } }).put.remove).toEqual([
+      LEDGER,
+    ]);
+  });
+
+  it("accepts a save with nothing in it", async () => {
+    const { app } = buildApp(SESSION);
+    expect((await put(app, { add: [], remove: [] })).status).toBe(200);
   });
 
   it("rejects an anonymous caller → 401", async () => {
     const { app } = buildApp(null);
-    expect((await put(app, { ledgerId: LEDGER, excluded: true })).status).toBe(
-      401,
-    );
+    expect((await put(app, { add: [LEDGER], remove: [] })).status).toBe(401);
   });
 
   it("hides someone else's budget behind a 404, writing nothing", async () => {
     const { app, calls } = buildApp(SESSION);
     const res = await put(
       app,
-      { ledgerId: LEDGER, excluded: true },
+      { add: [LEDGER], remove: [] },
       "33333333-3333-4333-8333-333333333333",
     );
     expect(res.status).toBe(404);
     expect(calls).toEqual([]);
   });
 
-  it("rejects a body that is not a ledger id → 400", async () => {
+  it("rejects a body that is not a list of ledger ids → 400", async () => {
     const { app, calls } = buildApp(SESSION);
-    expect((await put(app, { ledgerId: "nope", excluded: true })).status).toBe(
-      400,
-    );
-    expect((await put(app, { ledgerId: LEDGER })).status).toBe(400);
+    expect((await put(app, { add: ["nope"], remove: [] })).status).toBe(400);
+    expect((await put(app, { add: LEDGER, remove: [] })).status).toBe(400);
+    expect((await put(app, {})).status).toBe(400);
     expect(calls).toEqual([]);
   });
 });

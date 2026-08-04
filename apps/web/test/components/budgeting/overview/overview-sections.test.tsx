@@ -34,7 +34,7 @@ vi.mock("@/hooks/use-overview-wealth", () => ({
 // composition, not that block's own data.
 vi.mock("@/hooks/use-reserve-fit", () => ({
   useReserveFit: () => ({ data: undefined, isPending: false, isError: false }),
-  useSetReserveFitExclusion: () => ({ mutate: () => {} }),
+  useSaveReserveFitExclusions: () => ({ mutate: () => {} }),
 }));
 vi.mock("@/hooks/use-budget-data", () => ({
   useCategories: () => ({

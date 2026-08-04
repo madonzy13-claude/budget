@@ -75,13 +75,15 @@ describe("reserveFitRows", () => {
     expect(thin).toEqual([]);
   });
 
-  it("puts the categories that need money first, then the fattest reserves", () => {
+  // 260804 (user): read top-down from the fattest reserve to the emptiest, so
+  // the bars form one continuous slope instead of meeting in the middle.
+  it("runs from most over-held at the top to most short at the bottom", () => {
     const { sized } = reserveFitRows([
       row({ category_id: "a", name: "A", gap_cents: "5000" }),
       row({ category_id: "b", name: "B", gap_cents: "-9000" }),
       row({ category_id: "c", name: "C", gap_cents: "20000" }),
     ]);
-    expect(sized.map((r) => r.name)).toEqual(["B", "C", "A"]);
+    expect(sized.map((r) => r.name)).toEqual(["C", "A", "B"]);
   });
 
   it("survives a cached row from before the one-off list existed", () => {

@@ -1547,7 +1547,19 @@
           "oneOffsFor": "Великі витрати в «{name}»",
           "recurs": "повторюється {cadence}",
           "untitled": "Без назви",
-          "thinHistory": "Замало історії, щоб оцінити: {names}"
+          "thinHistory": "Замало історії, щоб оцінити: {names}",
+          "reviewOneOffs": "Переглянути великі витрати",
+          "excludedCount": "Вилучено {count} як одноразові",
+          "oneOffsTitle": "Які витрати більше не повторяться?",
+          "oneOffsExplainer": "Враховані витрати визначають розмір резервів. Вилучіть те, що було одноразовим — щорічний платіж має лишитися врахованим.",
+          "filterByCategory": "Фільтр за категорією",
+          "allCategories": "Усі категорії",
+          "excludedSection": "Вилучені",
+          "countedSection": "Враховані",
+          "setAside": "Вилучити",
+          "count": "Врахувати",
+          "save": "Зберегти",
+          "cancel": "Скасувати"
         }
       },
       "spendings": {

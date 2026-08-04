@@ -222,6 +222,17 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         }
 
         const fit = reserveFit(months);
+        // Nothing spent, nothing planned, nothing committed and nothing held:
+        // an archived test category ("ымо", "імперія") that would otherwise sit
+        // at 0% saying nothing (user, 260804). A dead category that still HOLDS
+        // money stays — that money can be freed.
+        if (
+          months.length === 0 &&
+          !committed.has(w.category_id) &&
+          position.reserveCents === 0n
+        ) {
+          continue;
+        }
         // Only spend big enough to be WHY a buffer exists is worth a decision.
         // Half a typical month's limit: below that, un-ticking it cannot move
         // the number, and a list full of coffees hides the one that matters.

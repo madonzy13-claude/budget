@@ -1,10 +1,11 @@
 /**
  * reserve-fit-view.test.tsx — the reserve-sizing block (260804).
  *
- * The bar answers "how far off is this buffer"; the list under it is where the
- * member overrules the history — every large spend counted by default, unticking
- * one says "that won't happen again". A recurring charge shows its cadence,
- * because rare-and-certain (September insurance) must NOT be unticked.
+ * The bar answers "how far off is this buffer". Overruling the history moved
+ * into one dialog (reserve-fit-one-offs.tsx, tested there); this file covers
+ * what the block itself decides: which rows get a bar, which are set aside as
+ * too new to judge, and that every category's large spend reaches the dialog
+ * carrying the category it belongs to.
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -30,6 +31,33 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
     />
   ),
   varianceColorForRange: () => "#fff",
+}));
+
+vi.mock("@/components/budgeting/overview/reserve-fit-one-offs", () => ({
+  ReserveFitOneOffs: ({
+    candidates,
+    onSave,
+  }: {
+    candidates: { ledger_id: string; category_name: string }[];
+    onSave: (d: { add: string[]; remove: string[] }) => void;
+  }) => (
+    <div>
+      <span
+        data-testid="one-offs"
+        data-candidates={JSON.stringify(
+          candidates.map((c) => ({
+            ledger_id: c.ledger_id,
+            category_name: c.category_name,
+          })),
+        )}
+      />
+      <button
+        type="button"
+        data-testid="one-offs-save"
+        onClick={() => onSave({ add: ["tx-jump"], remove: [] })}
+      />
+    </div>
+  ),
 }));
 
 const { ReserveFitView } =
@@ -95,22 +123,23 @@ const DTO = {
   ],
 };
 
-const view = (onToggle = vi.fn()) => {
+const view = (onSave = vi.fn()) => {
   render(
     <ReserveFitView
       data={DTO}
-      onToggle={onToggle}
+      onSave={onSave}
       format={(c: number) => `${Math.round(c / 100)} zl`}
     />,
   );
-  return onToggle;
+  return onSave;
 };
 
 describe("ReserveFitView", () => {
-  it("draws a bar for every category with enough history", () => {
+  it("draws a bar per category, fattest reserve first", () => {
     view();
+    // Sport holds 4,600 over; Car is 4,000 short — over-held at the top (260804).
     expect(screen.getByTestId("fit-chart").getAttribute("data-rows")).toBe(
-      "Car,Sport",
+      "Sport,Car",
     );
   });
 
@@ -121,65 +150,29 @@ describe("ReserveFitView", () => {
     );
   });
 
-  it("lists each category's large spend, counted by default", async () => {
-    const user = userEvent.setup();
+  it("hands the dialog every category's large spend, tagged with its category", () => {
     view();
-    await user.click(screen.getByTestId("reserve-fit-oneoffs-sport"));
-    const box = screen.getByTestId(
-      "reserve-fit-tx-tx-jump",
-    ) as HTMLInputElement;
-    expect(box.checked).toBe(true);
-    expect(screen.getByText(/Parachute jump/)).toBeTruthy();
-  });
-
-  it("shows the cadence of a spend that will come round again", async () => {
-    const user = userEvent.setup();
-    view();
-    await user.click(screen.getByTestId("reserve-fit-oneoffs-car"));
-    expect(
-      screen.getByTestId("reserve-fit-recurs-tx-ins").textContent,
-    ).toContain("YEARLY");
-    expect(screen.queryByTestId("reserve-fit-recurs-tx-jump")).toBeNull();
-  });
-
-  it("unticking a spend reports it as excluded", async () => {
-    const user = userEvent.setup();
-    const onToggle = view();
-    await user.click(screen.getByTestId("reserve-fit-oneoffs-sport"));
-    await user.click(screen.getByTestId("reserve-fit-tx-tx-jump"));
-    expect(onToggle).toHaveBeenCalledWith("tx-jump", true);
-  });
-
-  it("re-ticking one reports it counted again", async () => {
-    const user = userEvent.setup();
-    const onToggle = vi.fn();
-    render(
-      <ReserveFitView
-        data={{
-          ...DTO,
-          rows: [
-            {
-              ...DTO.rows[0]!,
-              large_transactions: [
-                { ...DTO.rows[0]!.large_transactions[0]!, excluded: true },
-              ],
-            },
-          ],
-        }}
-        onToggle={onToggle}
-        format={(c: number) => `${c}`}
-      />,
+    const dialogProps = JSON.parse(
+      screen.getByTestId("one-offs").getAttribute("data-candidates")!,
     );
-    await user.click(screen.getByTestId("reserve-fit-oneoffs-sport"));
-    await user.click(screen.getByTestId("reserve-fit-tx-tx-jump"));
-    expect(onToggle).toHaveBeenCalledWith("tx-jump", false);
+    expect(dialogProps).toEqual([
+      { ledger_id: "tx-jump", category_name: "Sport" },
+      { ledger_id: "tx-ins", category_name: "Car" },
+    ]);
+  });
+
+  it("passes a save straight through", async () => {
+    const user = userEvent.setup();
+    const onSave = view();
+    await user.click(screen.getByTestId("one-offs-save"));
+    expect(onSave).toHaveBeenCalledWith({ add: ["tx-jump"], remove: [] });
   });
 
   it("says so when there is nothing to size at all", () => {
     render(
       <ReserveFitView
         data={{ currency: "PLN", rows: [] }}
-        onToggle={vi.fn()}
+        onSave={vi.fn()}
         format={(c: number) => `${c}`}
       />,
     );

@@ -10,6 +10,21 @@ import { describe, test, expect } from "bun:test";
 import { ok, type Result } from "@budget/shared-kernel";
 import { getReserveFit } from "../../src/application/get-reserve-fit";
 
+const position = (id: string, reserveCents: bigint) =>
+  [
+    [
+      id,
+      {
+        categoryId: id,
+        reserveCents,
+        usedCents: 0n,
+        overspentCents: 0n,
+        reserveExcluded: false,
+        byMonth: new Map(),
+      },
+    ],
+  ] as const;
+
 const CAT_FOOD = "cat-food";
 const CAT_SPORT = "cat-sport";
 
@@ -274,6 +289,91 @@ describe("getReserveFit", () => {
     // 5000 a month against a 20000 limit leaves the buffer refilling, so the
     // deepest point is still February's.
     expect(food?.needed_cents).toBe("12000");
+  });
+
+  // "ымо", "імперія" — archived test categories with no spend, no limit and no
+  // reserve, listed at 0% and meaning nothing (user, 260804).
+  test("drops a category with no history, no commitment and no reserve", async () => {
+    const GHOST = "cat-ghost";
+    const d = deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return [
+            ...windows,
+            {
+              category_id: GHOST,
+              name: "ымо",
+              created_month: "2026-07",
+              archived_month: "2026-07",
+              is_investment: false,
+            },
+          ];
+        },
+        async monthlyPlannedByCategory() {
+          return planned;
+        },
+        async monthlySpendByCategory() {
+          return spend;
+        },
+      },
+      reservePositions: async () =>
+        ok({
+          positions: new Map([
+            ...position(CAT_FOOD, 5000n),
+            ...position(CAT_SPORT, 460000n),
+            ...position(GHOST, 0n),
+          ]),
+          openMonth: "2026-03",
+          internalCents: 0n,
+          userDefinedCents: 0n,
+          surplusCents: 0n,
+          direction: "NONE" as const,
+        }),
+    } as never);
+    expect(await rowFor(GHOST, d)).toBeUndefined();
+    expect(await rowFor(CAT_FOOD, d)).toBeDefined();
+  });
+
+  test("keeps a dead category that still holds money — it can be freed", async () => {
+    const GHOST = "cat-ghost";
+    const d = deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return [
+            ...windows,
+            {
+              category_id: GHOST,
+              name: "Old hobby",
+              created_month: "2025-01",
+              archived_month: "2025-12",
+              is_investment: false,
+            },
+          ];
+        },
+        async monthlyPlannedByCategory() {
+          return planned;
+        },
+        async monthlySpendByCategory() {
+          return spend;
+        },
+      },
+      reservePositions: async () =>
+        ok({
+          positions: new Map([
+            ...position(CAT_FOOD, 5000n),
+            ...position(CAT_SPORT, 460000n),
+            ...position(GHOST, 33000n),
+          ]),
+          openMonth: "2026-03",
+          internalCents: 0n,
+          userDefinedCents: 0n,
+          surplusCents: 0n,
+          direction: "NONE" as const,
+        }),
+    } as never);
+    const ghost = await rowFor(GHOST, d);
+    expect(ghost?.needed_cents).toBe("0");
+    expect(ghost?.gap_cents).toBe("33000");
   });
 
   test("leaves reserve-excluded categories out entirely", async () => {

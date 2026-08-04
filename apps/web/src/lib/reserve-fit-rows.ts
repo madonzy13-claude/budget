@@ -81,12 +81,9 @@ export function reserveFitRows(
     const s = toSized(r);
     (s.monthsCounted >= floor ? sized : thin).push(s);
   }
-  // What needs money first (most short), then the fattest idle reserves — the
-  // two ends of the bar are the two things worth doing something about.
-  sized.sort((a, b) => a.gapCents - b.gapCents);
-  const short = sized.filter((r) => r.short);
-  const over = sized
-    .filter((r) => !r.short)
-    .sort((a, b) => b.gapCents - a.gapCents);
-  return { sized: [...short, ...over], thin };
+  // Fattest reserve at the top, emptiest at the bottom (user, 260804): the bars
+  // then form one continuous slope from "free this money" down to "this needs
+  // money", instead of the two ends meeting in the middle.
+  sized.sort((a, b) => b.gapCents - a.gapCents);
+  return { sized, thin };
 }

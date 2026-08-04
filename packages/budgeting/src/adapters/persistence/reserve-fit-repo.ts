@@ -49,10 +49,11 @@ async function tx<T>(
 const SHORTLIST_PER_CATEGORY = 5;
 
 export interface ReserveFitRepo extends ReserveFitExclusionsRepo {
-  setExclusion(input: {
+  /** One save of the dialog: what to start ignoring, what to count again. */
+  setExclusions(input: {
     budgetId: string;
-    ledgerId: string;
-    excluded: boolean;
+    add: readonly string[];
+    remove: readonly string[];
     actorUserId: string;
   }): Promise<void>;
 }
@@ -110,27 +111,36 @@ export function createReserveFitRepo(): ReserveFitRepo {
       });
     },
 
-    async setExclusion({ budgetId, ledgerId, excluded, actorUserId }) {
+    async setExclusions({ budgetId, add, remove, actorUserId }) {
+      if (add.length === 0 && remove.length === 0) return;
       return tx(budgetId, actorUserId, async (t) => {
-        if (excluded) {
-          // Idempotent: ticking the same row twice is not an error, and the
-          // unique (tenant_id, ledger_id) keeps one row per transaction.
+        if (add.length > 0) {
+          // The SELECT is the tenant check: a ledger row this budget cannot see
+          // produces no row to insert, so one budget can never annotate
+          // another's spend. ON CONFLICT keeps a re-save idempotent.
           await t.execute(sql`
             INSERT INTO budgeting.reserve_fit_exclusions
               (tenant_id, ledger_id, actor_user_id)
             SELECT ${budgetId}::uuid, l.id, ${actorUserId}::uuid
               FROM budgeting.expense_ledger l
-             WHERE l.id = ${ledgerId}::uuid
-               AND l.tenant_id = ${budgetId}::uuid
+             WHERE l.tenant_id = ${budgetId}::uuid
+               AND l.id IN (${sql.join(
+                 add.map((id) => sql`${id}::uuid`),
+                 sql`, `,
+               )})
             ON CONFLICT (tenant_id, ledger_id) DO NOTHING
           `);
-          return;
         }
-        await t.execute(sql`
-          DELETE FROM budgeting.reserve_fit_exclusions
-           WHERE tenant_id = ${budgetId}::uuid
-             AND ledger_id = ${ledgerId}::uuid
-        `);
+        if (remove.length > 0) {
+          await t.execute(sql`
+            DELETE FROM budgeting.reserve_fit_exclusions
+             WHERE tenant_id = ${budgetId}::uuid
+               AND ledger_id IN (${sql.join(
+                 remove.map((id) => sql`${id}::uuid`),
+                 sql`, `,
+               )})
+          `);
+        }
       });
     },
   };
