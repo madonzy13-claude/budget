@@ -85,7 +85,7 @@ function formatTs(ts: number, locale: string): string {
 
 function ChartLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="-mt-1 text-center text-[10px] leading-tight text-[var(--muted-foreground)]/70">
+    <p className="text-caption text-center text-[var(--muted-foreground)]">
       {children}
     </p>
   );

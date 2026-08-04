@@ -14,6 +14,7 @@ import { OverviewSection } from "./overview-section";
 import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { reserveBalanceSlices } from "@/lib/reserve-balance-slices";
+import { assignSliceColors } from "@/lib/slice-colors";
 import { useOverviewOverspent } from "@/hooks/use-overview-overspent";
 import {
   useReserveFit,
@@ -59,15 +60,22 @@ export function OverspentReservesSection({
   const ccy = data?.currency ?? "USD";
   const fmtTooltip = (n: number) =>
     centsToRounded(BigInt(Math.round(n)), ccy, "en", true);
-  // Per-category bars use each category's colorKey; the FALLBACK (no colorKey)
-  // is blue — never the yellow accent (r25 item 2).
-  const colorOf = (id: string, fallback: string): string =>
-    hexForColorKey(
-      categories.find((c) => c.id === id)?.colorKey as string | undefined,
-    ) ?? fallback;
   const BAR_BLUE = "var(--chart-bar-1)";
 
   const balanceSlices = reserveBalanceSlices(data?.reserves_by_category ?? []);
+  // One colour per slice, exactly as the planned-spend pie does it: a category
+  // with a colorKey keeps it, the rest take distinct palette colours instead of
+  // every slice landing on the same blue (user, 260804).
+  const balanceColorByName = assignSliceColors(
+    balanceSlices.map((r) => r.name),
+    (name) =>
+      hexForColorKey(
+        (categories.find(
+          (c) =>
+            c.id === balanceSlices.find((s) => s.name === name)?.category_id,
+        )?.colorKey as string | null) ?? null,
+      ),
+  );
 
   const loading = isPending && reservesOpen;
   const failed = isError || !data;
@@ -130,13 +138,7 @@ export function OverspentReservesSection({
                 data={balanceSlices}
                 nameKey="name"
                 valueKey="reserve"
-                colorFor={(name) =>
-                  colorOf(
-                    balanceSlices.find((s) => s.name === name)?.category_id ??
-                      "",
-                    BAR_BLUE,
-                  )
-                }
+                colorFor={(name) => balanceColorByName.get(name) ?? BAR_BLUE}
                 formatValue={fmtTooltip}
                 allLabel={t("range.all")}
               />

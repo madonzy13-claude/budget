@@ -22,6 +22,7 @@ import {
   useBdpUiStore,
 } from "@/components/budgeting/bdp-ui-state";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
+import { seriesGrowth } from "@/lib/series-growth";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import {
@@ -424,6 +425,23 @@ export function WealthSection({
                     formatTooltip={fmtTooltip}
                     xTickFormat={(v) => formatChartDate(v, locale)}
                     maskAmounts={amountPrivacyEnabled}
+                    // Same three columns the investments view has always had:
+                    // the value, then how far it has moved since the range
+                    // started — in percent and in money (user, 260804).
+                    rowSuffix={(row) => {
+                      const g = seriesGrowth(
+                        Number(seriesPoints[0]?.value_cents ?? 0),
+                        Number(row.value),
+                      );
+                      if (!g) return undefined;
+                      const hidden = amountPrivacyEnabled && !revealed;
+                      return [
+                        hidden ? "•••" : fmtSignedPct(g.pct),
+                        hidden
+                          ? "•••"
+                          : fmtSigned(String(Math.round(g.deltaCents))),
+                      ];
+                    }}
                   />
                 )}
               </div>

@@ -19,6 +19,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAggregateWealth } from "@/hooks/use-budgets-aggregate";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
+import { seriesGrowth } from "@/lib/series-growth";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import {
@@ -227,8 +228,7 @@ export function AggregateTrend({
 
   // Change-chart bucket by the range SPAN (BDP parity): day ≤1mo, month ≤1y, YEAR
   // beyond. INTRA-period: each bar = the period's own first→last value.
-  const spanDays =
-    (Date.parse(range.to) - Date.parse(range.from)) / 86_400_000;
+  const spanDays = (Date.parse(range.to) - Date.parse(range.from)) / 86_400_000;
   const dynBucketLen = spanDays <= 31 ? 10 : spanDays <= 366 ? 7 : 4;
   const intraDynamics = (
     series: { label: string; value_cents: string }[] | undefined,
@@ -420,6 +420,21 @@ export function AggregateTrend({
                 formatTooltip={(n) => fmt(String(Math.round(n)))}
                 xTickFormat={(v) => formatChartDate(String(v), locale)}
                 maskAmounts
+                // Same three columns the investments view has: the value, then
+                // how far it has moved since the range started (user, 260804).
+                rowSuffix={(row) => {
+                  const g = seriesGrowth(
+                    Number(data.series[0]?.value_cents ?? 0),
+                    Number(row.value),
+                  );
+                  if (!g) return undefined;
+                  return [
+                    revealed ? fmtSignedPct(g.pct) : "•••",
+                    revealed
+                      ? fmtSigned(String(Math.round(g.deltaCents)))
+                      : "•••",
+                  ];
+                }}
               />
             )}
           </div>
@@ -427,163 +442,167 @@ export function AggregateTrend({
           {/* Average change — Contributions · P/L · Total (investments) or a single
               metric (capitalization); grouped bars grey/yellow/green. */}
           {dynamics.length > 0 &&
-            (isInvest
-              ? (() => {
-                  const plByLabel = new Map<
-                    string,
-                    { pct: number | null; delta: number }
-                  >();
-                  for (const d of dynamicsPL)
-                    plByLabel.set(d.label, { pct: d.pct, delta: d.delta_cents });
-                  const contribPctList: (number | null)[] = [];
-                  const combined = dynamics.map((d) => {
-                    const pl = plByLabel.get(d.label);
-                    const totalDelta = d.delta_cents;
-                    const plDelta = pl?.delta ?? 0;
-                    const contribDelta = totalDelta - plDelta;
-                    const totalBase =
-                      d.pct != null && d.pct !== 0
-                        ? (totalDelta * 100) / d.pct
-                        : null;
-                    const plBase =
-                      pl?.pct != null && pl.pct !== 0
-                        ? (plDelta * 100) / pl.pct
-                        : null;
-                    const contribBase =
-                      totalBase != null && plBase != null
-                        ? totalBase - plBase
-                        : null;
-                    const contribPct =
-                      contribBase != null && contribBase !== 0
-                        ? (contribDelta * 100) / contribBase
-                        : null;
-                    contribPctList.push(contribPct);
-                    return {
-                      label: d.label,
-                      total: d.pct ?? 0,
-                      totalDelta,
-                      pl: pl?.pct ?? 0,
-                      plDelta,
-                      contrib: contribPct ?? 0,
-                      contribDelta,
-                    };
-                  });
-                  const avgContribPct = geoMean(contribPctList);
-                  const meanAmt = (
-                    key: "totalDelta" | "plDelta" | "contribDelta",
-                  ) =>
-                    combined.length === 0
-                      ? 0
-                      : Math.round(
-                          combined.reduce((s, c) => s + Number(c[key] || 0), 0) /
-                            combined.length,
-                        );
-                  return (
-                    <div
-                      className="mt-3 flex flex-col gap-2"
-                      data-testid="aggregate-dynamics"
-                    >
-                      <p className="text-center text-caption text-[var(--muted-foreground)]">
-                        {t("avg_change")}
-                      </p>
-                      <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-2">
-                        <CombinedStat
-                          label={t("contributions")}
-                          pct={avgContribPct}
-                          amount={fmtSigned(String(meanAmt("contribDelta")))}
-                        />
-                        <CombinedStat
-                          label={t("pl")}
-                          pct={avgPlPct}
-                          amount={fmtSigned(String(meanAmt("plDelta")))}
-                        />
-                        <CombinedStat
-                          label={t("total")}
-                          pct={avgTotalPct}
-                          amount={fmtSigned(String(meanAmt("totalDelta")))}
-                        />
-                      </div>
-                      <OverviewBarChart
-                        data={combined}
-                        xKey="label"
-                        // Contributions (grey) → P/L (yellow) → Total (green).
-                        series={[
-                          {
-                            key: "contrib",
-                            label: t("contributions"),
-                            color: "var(--muted-foreground)",
-                          },
-                          {
-                            key: "pl",
-                            label: t("pl"),
-                            color: "var(--primary)",
-                          },
-                          {
-                            key: "total",
-                            label: t("total"),
-                            color: "var(--trading-up)",
-                          },
-                        ]}
-                        formatValue={pctAxisTick}
-                        formatTooltip={fmtSignedPct}
-                        maskAmounts
-                        rowSuffix={(row, key) =>
-                          revealed
-                            ? fmtSigned(
-                                String(
-                                  Math.round(
-                                    Number(
-                                      (key === "total"
-                                        ? row.totalDelta
-                                        : key === "pl"
-                                          ? row.plDelta
-                                          : row.contribDelta) ?? 0,
-                                    ),
-                                  ),
-                                ),
-                              )
-                            : "•••"
-                        }
-                        xTickFormat={(v) => formatChartDate(String(v), locale)}
-                        labelFormat={(v) => formatChartDate(String(v), locale)}
+            (isInvest ? (
+              (() => {
+                const plByLabel = new Map<
+                  string,
+                  { pct: number | null; delta: number }
+                >();
+                for (const d of dynamicsPL)
+                  plByLabel.set(d.label, { pct: d.pct, delta: d.delta_cents });
+                const contribPctList: (number | null)[] = [];
+                const combined = dynamics.map((d) => {
+                  const pl = plByLabel.get(d.label);
+                  const totalDelta = d.delta_cents;
+                  const plDelta = pl?.delta ?? 0;
+                  const contribDelta = totalDelta - plDelta;
+                  const totalBase =
+                    d.pct != null && d.pct !== 0
+                      ? (totalDelta * 100) / d.pct
+                      : null;
+                  const plBase =
+                    pl?.pct != null && pl.pct !== 0
+                      ? (plDelta * 100) / pl.pct
+                      : null;
+                  const contribBase =
+                    totalBase != null && plBase != null
+                      ? totalBase - plBase
+                      : null;
+                  const contribPct =
+                    contribBase != null && contribBase !== 0
+                      ? (contribDelta * 100) / contribBase
+                      : null;
+                  contribPctList.push(contribPct);
+                  return {
+                    label: d.label,
+                    total: d.pct ?? 0,
+                    totalDelta,
+                    pl: pl?.pct ?? 0,
+                    plDelta,
+                    contrib: contribPct ?? 0,
+                    contribDelta,
+                  };
+                });
+                const avgContribPct = geoMean(contribPctList);
+                const meanAmt = (
+                  key: "totalDelta" | "plDelta" | "contribDelta",
+                ) =>
+                  combined.length === 0
+                    ? 0
+                    : Math.round(
+                        combined.reduce((s, c) => s + Number(c[key] || 0), 0) /
+                          combined.length,
+                      );
+                return (
+                  <div
+                    className="mt-3 flex flex-col gap-2"
+                    data-testid="aggregate-dynamics"
+                  >
+                    <p className="text-center text-caption text-[var(--muted-foreground)]">
+                      {t("avg_change")}
+                    </p>
+                    <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-2">
+                      <CombinedStat
+                        label={t("contributions")}
+                        pct={avgContribPct}
+                        amount={fmtSigned(String(meanAmt("contribDelta")))}
+                      />
+                      <CombinedStat
+                        label={t("pl")}
+                        pct={avgPlPct}
+                        amount={fmtSigned(String(meanAmt("plDelta")))}
+                      />
+                      <CombinedStat
+                        label={t("total")}
+                        pct={avgTotalPct}
+                        amount={fmtSigned(String(meanAmt("totalDelta")))}
                       />
                     </div>
-                  );
-                })()
-              : (
-            <div
-              className="mt-3 flex flex-col gap-2"
-              data-testid="aggregate-dynamics"
-            >
-              <div className="flex flex-wrap items-start justify-center gap-6">
-                <PctStat label={t("avg_change")} pct={avgTotalPct} />
+                    <OverviewBarChart
+                      data={combined}
+                      xKey="label"
+                      // Contributions (grey) → P/L (yellow) → Total (green).
+                      series={[
+                        {
+                          key: "contrib",
+                          label: t("contributions"),
+                          color: "var(--muted-foreground)",
+                        },
+                        {
+                          key: "pl",
+                          label: t("pl"),
+                          color: "var(--primary)",
+                        },
+                        {
+                          key: "total",
+                          label: t("total"),
+                          color: "var(--trading-up)",
+                        },
+                      ]}
+                      formatValue={pctAxisTick}
+                      formatTooltip={fmtSignedPct}
+                      maskAmounts
+                      rowSuffix={(row, key) =>
+                        revealed
+                          ? fmtSigned(
+                              String(
+                                Math.round(
+                                  Number(
+                                    (key === "total"
+                                      ? row.totalDelta
+                                      : key === "pl"
+                                        ? row.plDelta
+                                        : row.contribDelta) ?? 0,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : "•••"
+                      }
+                      xTickFormat={(v) => formatChartDate(String(v), locale)}
+                      labelFormat={(v) => formatChartDate(String(v), locale)}
+                    />
+                  </div>
+                );
+              })()
+            ) : (
+              <div
+                className="mt-3 flex flex-col gap-2"
+                data-testid="aggregate-dynamics"
+              >
+                <div className="flex flex-wrap items-start justify-center gap-6">
+                  <PctStat label={t("avg_change")} pct={avgTotalPct} />
+                </div>
+                <OverviewBarChart
+                  data={dynamics.map((d) => ({
+                    label: d.label,
+                    pct: d.pct ?? 0,
+                    raw: d.pct,
+                    delta_cents: d.delta_cents,
+                  }))}
+                  xKey="label"
+                  series={[{ key: "pct", label: "" }]}
+                  colorByPoint={(row) =>
+                    row.raw === null
+                      ? NEUTRAL
+                      : Number(row.pct) >= 0
+                        ? UP
+                        : DOWN
+                  }
+                  formatValue={pctAxisTick}
+                  formatTooltip={fmtSignedPct}
+                  maskAmounts
+                  tooltipExtra={(row) => {
+                    const amt = fmtSigned(
+                      String(Math.round(Number(row.delta_cents ?? 0))),
+                    );
+                    return [{ label: "", value: revealed ? amt : "•••" }];
+                  }}
+                  xTickFormat={(v) => formatChartDate(String(v), locale)}
+                  labelFormat={(v) => formatChartDate(String(v), locale)}
+                />
               </div>
-              <OverviewBarChart
-                data={dynamics.map((d) => ({
-                  label: d.label,
-                  pct: d.pct ?? 0,
-                  raw: d.pct,
-                  delta_cents: d.delta_cents,
-                }))}
-                xKey="label"
-                series={[{ key: "pct", label: "" }]}
-                colorByPoint={(row) =>
-                  row.raw === null ? NEUTRAL : Number(row.pct) >= 0 ? UP : DOWN
-                }
-                formatValue={pctAxisTick}
-                formatTooltip={fmtSignedPct}
-                maskAmounts
-                tooltipExtra={(row) => {
-                  const amt = fmtSigned(
-                    String(Math.round(Number(row.delta_cents ?? 0))),
-                  );
-                  return [{ label: "", value: revealed ? amt : "•••" }];
-                }}
-                xTickFormat={(v) => formatChartDate(String(v), locale)}
-                labelFormat={(v) => formatChartDate(String(v), locale)}
-              />
-            </div>
-              ))}
+            ))}
 
           {/* View-driven pie: capitalization pools vs per-holding-type. */}
           {view === "capitalization" && capBuckets.length > 0 && (
