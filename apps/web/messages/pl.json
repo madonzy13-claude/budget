@@ -1521,7 +1521,8 @@
           "reserves": "Brak rezerw.",
           "wealth": "Historia majątku zaczyna się gromadzić — wróć wkrótce.",
           "pie": "Brak inwestycji.",
-          "planned": "Brak aktywności w tym zakresie."
+          "planned": "Brak aktywności w tym zakresie.",
+          "reserveFit": "Brak rezerw do oceny."
         },
         "projection": {
           "title": "Prognoza pieniędzy do końca przyszłego miesiąca",
@@ -1536,6 +1537,17 @@
           "cantCover": "Nie starcza na",
           "income": "Dochód",
           "bill": "Płatności cykliczne"
+        },
+        "reserveFit": {
+          "title": "Czy każda rezerwa ma właściwą wielkość?",
+          "held": "Trzymane",
+          "needed": "Potrzebne",
+          "short": "Brakuje",
+          "trim": "Do uwolnienia",
+          "oneOffsFor": "Duże wydatki w {name}",
+          "recurs": "powtarza się {cadence}",
+          "untitled": "Bez nazwy",
+          "thinHistory": "Za mało historii, by ocenić: {names}"
         }
       },
       "spendings": {

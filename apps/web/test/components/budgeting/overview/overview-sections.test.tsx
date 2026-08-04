@@ -30,6 +30,12 @@ vi.mock("@/hooks/use-overview-overspent", () => ({
 vi.mock("@/hooks/use-overview-wealth", () => ({
   useOverviewWealth: wealthMock,
 }));
+// The reserves section grew a reserve-fit block (260804); this suite exercises
+// composition, not that block's own data.
+vi.mock("@/hooks/use-reserve-fit", () => ({
+  useReserveFit: () => ({ data: undefined, isPending: false, isError: false }),
+  useSetReserveFitExclusion: () => ({ mutate: () => {} }),
+}));
 vi.mock("@/hooks/use-budget-data", () => ({
   useCategories: () => ({
     data: [

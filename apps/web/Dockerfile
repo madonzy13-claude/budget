@@ -9,7 +9,7 @@ FROM oven/bun:1.3.12-slim AS installer
 WORKDIR /app
 
 # Copy workspace manifests first (cache layer)
-COPY package.json ./
+COPY package.json bun.lock ./
 COPY tsconfig.base.json ./
 COPY apps/web/package.json ./apps/web/
 COPY packages/ ./packages/
@@ -19,7 +19,11 @@ COPY apps/worker/package.json ./apps/worker/
 COPY apps/migrator/package.json ./apps/migrator/
 
 # Install all dependencies
-RUN bun install --no-save
+# --frozen-lockfile, NOT --no-save: without the lockfile every build
+# re-resolves ^ranges, so a dependency published this morning ships in an
+# image built from unchanged source. next@16.3.0 landed exactly that way
+# and broke page-data collection under Bun (260804).
+RUN bun install --frozen-lockfile
 
 # Stage 2: Build
 FROM installer AS builder

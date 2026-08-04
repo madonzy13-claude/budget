@@ -13,6 +13,11 @@ import { OverviewSection } from "./overview-section";
 import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import { useOverviewOverspent } from "@/hooks/use-overview-overspent";
+import {
+  useReserveFit,
+  useSetReserveFitExclusion,
+} from "@/hooks/use-reserve-fit";
+import { ReserveFitView } from "./reserve-fit-view";
 import { useCategories } from "@/hooks/use-budget-data";
 import { centsToRounded } from "@/lib/cents-format";
 import { chartCompactCents } from "@/lib/chart-format";
@@ -37,6 +42,15 @@ export function OverspentReservesSection({
     to: range.to,
     enabled: reservesOpen,
   });
+
+  // 260804: "is each reserve the right size?" — held against the deepest dip the
+  // category's own history ever ran, with the member's one-off calls applied.
+  const fit = useReserveFit(budgetId, {
+    from: range.from,
+    to: range.to,
+    enabled: reservesOpen,
+  });
+  const setExclusion = useSetReserveFitExclusion(budgetId);
 
   const ccy = data?.currency ?? "USD";
   // Chart AXIS: bare + compact, no currency (r24 5/7). TOOLTIP: full $ (r25 #2).
@@ -100,6 +114,20 @@ export function OverspentReservesSection({
                 // them made the shapes unreadable. The privacy blur stays on the hero
                 // cards + totals, which is where a shoulder-surfer actually reads a figure.
                 maskAmounts={false}
+              />
+            </div>
+          )}
+          {fit.data && (
+            <div className="mt-4 flex flex-col gap-2">
+              <p className="text-caption text-[var(--muted-foreground)]">
+                {t("reserveFit.title")}
+              </p>
+              <ReserveFitView
+                data={fit.data}
+                format={fmtTooltip}
+                onToggle={(ledgerId, excluded) =>
+                  setExclusion.mutate({ ledgerId, excluded })
+                }
               />
             </div>
           )}

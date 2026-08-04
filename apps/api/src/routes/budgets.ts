@@ -19,6 +19,7 @@ import { budgetIdentityRoutesFactory } from "./budget-identity";
 import { registerOverviewCardsRoutes } from "./overview-cards";
 import { registerOverviewPlannedRoutes } from "./overview-planned";
 import { registerOverviewOverspentRoutes } from "./overview-overspent";
+import { registerReserveFitRoutes } from "./reserve-fit";
 import { registerOverviewWealthRoutes } from "./overview-wealth";
 import { registerOverviewProjectionRoutes } from "./overview-projection";
 
@@ -31,6 +32,7 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
   registerOverviewPlannedRoutes(r, deps);
   // Phase 11 (11-05): GET /budgets/:id/overview/overspent-reserves.
   registerOverviewOverspentRoutes(r, deps);
+  registerReserveFitRoutes(r, deps);
   // Phase 11 (11-06): GET /budgets/:id/overview/wealth.
   registerOverviewWealthRoutes(r, deps);
   // Overview cash-flow projection timeline: GET /budgets/:id/overview/projection.

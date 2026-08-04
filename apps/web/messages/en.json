@@ -1498,7 +1498,8 @@
           "reserves": "No reserves yet.",
           "wealth": "Wealth history starts collecting now — check back soon.",
           "pie": "No investments yet.",
-          "planned": "No activity in this range."
+          "planned": "No activity in this range.",
+          "reserveFit": "No reserves to size yet."
         },
         "projection": {
           "title": "Money forecast to the end of next month",
@@ -1513,6 +1514,17 @@
           "cantCover": "Can't cover",
           "income": "Income",
           "bill": "Recurring payments"
+        },
+        "reserveFit": {
+          "title": "Is each reserve the right size?",
+          "held": "Held",
+          "needed": "Needed",
+          "short": "Short by",
+          "trim": "Trimmable",
+          "oneOffsFor": "Large spend in {name}",
+          "recurs": "repeats {cadence}",
+          "untitled": "Untitled",
+          "thinHistory": "Too little history to judge yet: {names}"
         }
       },
       "spendings": {

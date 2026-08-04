@@ -1,7 +1,7 @@
 # Stage 1: install workspace dependencies
 FROM oven/bun:1.3.12-slim AS deps
 WORKDIR /app
-COPY package.json ./
+COPY package.json bun.lock ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY apps/worker/package.json apps/worker/
@@ -14,7 +14,11 @@ COPY packages/shared-kernel/package.json packages/shared-kernel/
 COPY packages/tenancy/package.json packages/tenancy/
 COPY packages/budgeting/package.json packages/budgeting/
 COPY packages/investments/package.json packages/investments/
-RUN bun install --no-save --production
+# --frozen-lockfile, NOT --no-save: without the lockfile every build
+# re-resolves ^ranges, so a dependency published this morning ships in an
+# image built from unchanged source. next@16.3.0 landed exactly that way
+# and broke page-data collection under Bun (260804).
+RUN bun install --frozen-lockfile --production
 # Strip dev-only transitive deps that ship Go binaries (esbuild / vite /
 # vitest / playwright) — bun --production keeps them in workspace mode.
 # drizzle-kit is only used at design time; at runtime we call drizzle-orm's

@@ -63,6 +63,8 @@ import { computeUpcomingByCategory } from "@budget/budgeting/src/application/com
 import { computeCashflowProjection } from "@budget/budgeting/src/application/compute-cashflow-projection";
 import { createOverviewCardsRepo } from "@budget/budgeting/src/adapters/persistence/overview-cards-repo";
 import { getOverviewPlanned } from "@budget/budgeting/src/application/get-overview-planned";
+import { getReserveFit } from "@budget/budgeting/src/application/get-reserve-fit";
+import { createReserveFitRepo } from "@budget/budgeting/src/adapters/persistence/reserve-fit-repo";
 import { getOverviewOverspent } from "@budget/budgeting/src/application/get-overview-overspent";
 import { getOverviewWealth } from "@budget/budgeting/src/application/get-overview-wealth";
 import { computeBudgetWealthNow } from "@budget/budgeting/src/application/compute-budget-wealth-now";
@@ -122,6 +124,12 @@ export interface BootedDeps {
     getOverviewPlanned: ReturnType<typeof getOverviewPlanned>;
     /** Phase 11 (11-05): Overspent + Reserves section (after-reserves, default_ccy). */
     getOverviewOverspent: ReturnType<typeof getOverviewOverspent>;
+    /** 260804: reserve sizing — held vs what the history asked for, per category. */
+    getReserveFit: ReturnType<typeof getReserveFit>;
+    /** 260804: tick a spend off as a one-off for the reserve-fit chart (per budget). */
+    setReserveFitExclusion: ReturnType<
+      typeof createReserveFitRepo
+    >["setExclusion"];
     /** Phase 11 (11-06): Financial-Wealth section (snapshot series + live point + pie). */
     getOverviewWealth: ReturnType<typeof getOverviewWealth>;
     /** Overview projection timeline (today → end of next month). */
@@ -411,6 +419,8 @@ export async function boot(): Promise<BootedDeps> {
   // currency via valueInBudgetCents). metaReader + cushion + spendings are reused
   // verbatim (no new cushion/overspent math — D-08/D-10).
   const overviewCardsRepo = createOverviewCardsRepo();
+  // 260804: the reserve-fit chart's one-off list + its per-budget un-ticks.
+  const reserveFitRepo = createReserveFitRepo();
   // Possessions (house/car/…) are holdings too, but they are NOT liquid
   // investments: excluded from investment value / cost basis / the pie, and summed
   // separately so capitalization includes them while the retirement pot excludes
@@ -486,6 +496,20 @@ export async function boot(): Promise<BootedDeps> {
       reservesSummary: baseBudgeting.getReservesSummary,
       metaReader: summaryRepo,
     }),
+    // 260804: reserve sizing. Reuses the same monthly aggregation as the planned
+    // section for limits + spend, the reserve engine seam for what is HELD, and
+    // its own repo for the one-off list the member ticks.
+    getReserveFit: getReserveFit({
+      overviewRepo: createOverviewRepo(),
+      exclusionsRepo: reserveFitRepo,
+      // Known commitments carry the walk forward: an annual renewal has to be
+      // reserved for before it lands, not after (260804).
+      activeRecurringRules: (budgetId) =>
+        createOverviewRepo().activeRecurringRules(budgetId),
+      reservePositions: baseBudgeting.reservePositions,
+      metaReader: summaryRepo,
+    }),
+    setReserveFitExclusion: reserveFitRepo.setExclusion,
     // Phase 11 (11-06): Financial-Wealth section. 3h snapshot series + a live
     // current point from computeBudgetWealthNow (same numbers as the cards/cron);
     // investments-view pie groups investments.listHoldings by holding_type.

@@ -1,0 +1,273 @@
+/**
+ * get-reserve-fit.ts — "is each category's reserve the right size?" (260804).
+ *
+ * The sibling of get-overview-planned: that one tells the member whether a LIMIT
+ * is right, this one assumes the limit is right and asks whether the BUFFER
+ * around it is. Both risks are real — a reserve too small means overspend, a
+ * reserve too large is money the engine will never hand back on its own (accrual
+ * is uncapped: `R += left` every closed month, forever).
+ *
+ * needed = deepest cumulative trough of `left − overage` (see domain/reserve-fit.ts)
+ * held   = the category's R right now, from the reserve engine
+ * gap    = held − needed   → negative: short. positive: trimmable.
+ *
+ * One-off spend is the member's call, not a statistic's: an insurance charge is
+ * rare and certain, a parachute jump is rare and not. So the large transactions
+ * in range ride along with each row, ticked ON by default (counted), and the
+ * budget's un-ticks are subtracted from spend before the walk. Default-counted
+ * means an untouched chart can only ever ask you to hold too MUCH, never too
+ * little (user decision, 260804).
+ *
+ * Analysis only: nothing here changes real reserve balances, used, or overspent.
+ */
+import { ok, err, type Result } from "@budget/shared-kernel";
+import { reserveFit, type ReserveFitMonth } from "../domain/reserve-fit";
+import { projectRecurring } from "../domain/recurring-projection";
+import type { ReservePositionsResult } from "./get-reserve-positions";
+import type { OverviewPlannedRepo } from "./get-overview-planned";
+
+/** A transaction big enough to be worth a member's judgement. */
+export interface LargeTransactionRow {
+  ledger_id: string;
+  category_id: string;
+  transaction_date: string; // YYYY-MM-DD
+  note: string | null;
+  amount_cents: bigint;
+  /** The rule's cadence when this spend came from a recurring rule — evidence
+   *  that it WILL come round again (yearly insurance), so the member does not
+   *  have to remember. null = one-off as far as the app knows. */
+  recurring_cadence: string | null;
+  /** Already un-ticked for this budget. */
+  excluded: boolean;
+}
+
+export interface ReserveFitExclusionsRepo {
+  largeTransactions(input: {
+    budgetId: string;
+    from: string;
+    to: string;
+  }): Promise<LargeTransactionRow[]>;
+}
+
+/** How far ahead the walk carries known commitments. A year catches every
+ *  annual renewal exactly once — the charge a backwards-only chart is blind to. */
+export const FORWARD_MONTHS = 12;
+
+export interface GetReserveFitDeps {
+  overviewRepo: Pick<
+    OverviewPlannedRepo,
+    "categoryWindows" | "monthlyPlannedByCategory" | "monthlySpendByCategory"
+  >;
+  /** Active recurring rules — the spend each category is already committed to. */
+  activeRecurringRules: (budgetId: string) => Promise<
+    {
+      category_id: string | null;
+      amount_cents: bigint;
+      cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+      yearly_month: number | null;
+    }[]
+  >;
+  now?: () => Date;
+  exclusionsRepo: ReserveFitExclusionsRepo;
+  reservePositions: (input: {
+    tenantId: string;
+    budgetId: string;
+  }) => Promise<Result<ReservePositionsResult, Error>>;
+  metaReader: {
+    getBudgetMeta(
+      budgetId: string,
+    ): Promise<{ default_currency: string } | null>;
+  };
+}
+
+export interface GetReserveFitInput {
+  tenantId: string;
+  budgetId: string;
+  from: string; // YYYY-MM-DD
+  to: string; // YYYY-MM-DD
+}
+
+export interface ReserveFitRowDTO {
+  category_id: string;
+  name: string;
+  held_cents: string;
+  needed_cents: string;
+  /** held − needed. Negative = short, positive = trimmable. */
+  gap_cents: string;
+  worst_month: string | null;
+  worst_overage_cents: string;
+  overage_months: number;
+  months_counted: number;
+  large_transactions: {
+    ledger_id: string;
+    transaction_date: string;
+    note: string | null;
+    amount_cents: string;
+    recurring_cadence: string | null;
+    excluded: boolean;
+  }[];
+}
+
+export interface ReserveFitDTO {
+  currency: string;
+  rows: ReserveFitRowDTO[];
+}
+
+/** 'YYYY-MM' + n months. */
+function addMonths(month: string, n: number): string {
+  const [y, m] = month.split("-").map(Number) as [number, number];
+  const zero = y * 12 + (m - 1) + n;
+  return `${Math.floor(zero / 12)}-${String((zero % 12) + 1).padStart(2, "0")}`;
+}
+
+export function getReserveFit(deps: GetReserveFitDeps) {
+  return async (
+    input: GetReserveFitInput,
+  ): Promise<Result<ReserveFitDTO, Error>> => {
+    try {
+      const { budgetId, from, to } = input;
+      const [meta, windows, planned, spend, large, rules, positionsResult] =
+        await Promise.all([
+          deps.metaReader.getBudgetMeta(budgetId),
+          deps.overviewRepo.categoryWindows(budgetId),
+          deps.overviewRepo.monthlyPlannedByCategory(budgetId, from, to),
+          deps.overviewRepo.monthlySpendByCategory(budgetId, from, to),
+          deps.exclusionsRepo.largeTransactions({ budgetId, from, to }),
+          deps.activeRecurringRules(budgetId),
+          deps.reservePositions({
+            tenantId: input.tenantId,
+            budgetId,
+          }),
+        ]);
+      if (positionsResult.isErr()) return err(positionsResult.error);
+      const positions = positionsResult.value.positions;
+
+      // Spend to subtract, per (category, month) — only what the budget un-ticked.
+      const excludedByCell = new Map<string, bigint>();
+      for (const t of large) {
+        if (!t.excluded) continue;
+        const key = `${t.category_id}|${t.transaction_date.slice(0, 7)}`;
+        excludedByCell.set(
+          key,
+          (excludedByCell.get(key) ?? 0n) + t.amount_cents,
+        );
+      }
+
+      const limitByCell = new Map<string, bigint>();
+      for (const p of planned)
+        limitByCell.set(`${p.category_id}|${p.month}`, p.planned_cents);
+      const spendByCell = new Map<string, bigint>();
+      for (const s of spend)
+        spendByCell.set(`${s.category_id}|${s.month}`, s.spent_cents);
+
+      // Every month a category has either a limit or spend in — a month with
+      // neither says nothing about the buffer.
+      const monthsByCat = new Map<string, Set<string>>();
+      for (const key of [...limitByCell.keys(), ...spendByCell.keys()]) {
+        const [catId, month] = key.split("|") as [string, string];
+        const set = monthsByCat.get(catId) ?? new Set<string>();
+        set.add(month);
+        monthsByCat.set(catId, set);
+      }
+
+      // The forward leg starts after BOTH the range and today: a member reading
+      // an old range still gets the real future, not a replayed one.
+      const nowMonth = (deps.now?.() ?? new Date()).toISOString().slice(0, 7);
+      const lastMonth = to.slice(0, 7) > nowMonth ? to.slice(0, 7) : nowMonth;
+      const committed = projectRecurring(
+        rules,
+        addMonths(lastMonth, 1),
+        FORWARD_MONTHS,
+      );
+
+      const rows: ReserveFitRowDTO[] = [];
+      for (const w of windows) {
+        const position = positions.get(w.category_id);
+        // No position at all = the engine does not track it (archived before the
+        // range, or reserves disabled); excluded = the member opted it out.
+        if (!position || position.reserveExcluded) continue;
+
+        const months: ReserveFitMonth[] = [
+          ...(monthsByCat.get(w.category_id) ?? []),
+        ].map((month) => {
+          const key = `${w.category_id}|${month}`;
+          const spent =
+            (spendByCell.get(key) ?? 0n) - (excludedByCell.get(key) ?? 0n);
+          return {
+            month,
+            limitCents: limitByCell.get(key) ?? 0n,
+            // An excluded transaction can outrun the month's other spend only if
+            // something was refunded; floor it rather than credit the walk.
+            spentCents: spent > 0n ? spent : 0n,
+          };
+        });
+
+        // Forward months assume the PLAN IS MET — spend equals the limit, so a
+        // quiet future neither drains nor refills the buffer — plus whatever a
+        // commitment asks for beyond what the plan can absorb. That is what makes
+        // a September insurance renewal visible in April (user, 260804): a
+        // monthly phone bill fits inside its limit and changes nothing, a yearly
+        // charge does not and opens the trough it will actually open.
+        const latestLimit = months.length
+          ? (months.reduce((a, b) => (a.month > b.month ? a : b)).limitCents ??
+            0n)
+          : 0n;
+        for (const [month, cents] of committed.get(w.category_id) ?? []) {
+          const overage = cents > latestLimit ? cents - latestLimit : 0n;
+          months.push({
+            month,
+            limitCents: latestLimit,
+            spentCents: latestLimit + overage,
+          });
+        }
+
+        const fit = reserveFit(months);
+        // Only spend big enough to be WHY a buffer exists is worth a decision.
+        // Half a typical month's limit: below that, un-ticking it cannot move
+        // the number, and a list full of coffees hides the one that matters.
+        const avgLimit =
+          months.length > 0
+            ? months.reduce((acc, mo) => acc + mo.limitCents, 0n) /
+              BigInt(months.length)
+            : 0n;
+        const worthDeciding = (amount: bigint) => amount * 2n >= avgLimit;
+        rows.push({
+          category_id: w.category_id,
+          name: w.name,
+          held_cents: position.reserveCents.toString(),
+          needed_cents: fit.neededCents.toString(),
+          gap_cents: (position.reserveCents - fit.neededCents).toString(),
+          worst_month: fit.worstMonth,
+          worst_overage_cents: fit.worstOverageCents.toString(),
+          overage_months: fit.overageMonths,
+          months_counted: fit.monthsCounted,
+          large_transactions: large
+            .filter(
+              (t) =>
+                t.category_id === w.category_id &&
+                worthDeciding(t.amount_cents),
+            )
+            .sort((a, b) => (a.amount_cents < b.amount_cents ? 1 : -1))
+            .map((t) => ({
+              ledger_id: t.ledger_id,
+              transaction_date: t.transaction_date,
+              note: t.note,
+              amount_cents: t.amount_cents.toString(),
+              recurring_cadence: t.recurring_cadence,
+              excluded: t.excluded,
+            })),
+        });
+      }
+
+      // Worst fit first: the rows that need money, then the ones holding it idle.
+      rows.sort((a, b) => Number(BigInt(a.gap_cents) - BigInt(b.gap_cents)));
+
+      return ok({
+        currency: meta?.default_currency ?? "EUR",
+        rows,
+      });
+    } catch (e) {
+      return err(e as Error);
+    }
+  };
+}
