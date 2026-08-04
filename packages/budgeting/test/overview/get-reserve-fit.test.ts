@@ -545,6 +545,58 @@ describe("getReserveFit", () => {
     expect(dto.unassigned_recurring).toEqual([]);
   });
 
+  // The same rule appears twice over a long window: the charge it already made
+  // sits in the range's spend, and its NEXT occurrence sits in the forward year.
+  // Those are two separate events a year apart, and the buffer only ever has to
+  // cover one of them — so the two walks are compared, never added.
+  test("counts a yearly charge once, not once per walk", async () => {
+    const CAT = CAT_FOOD;
+    const d = deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return windows;
+        },
+        async monthlyPlannedByCategory() {
+          return [
+            {
+              category_id: CAT,
+              month: "2026-01",
+              planned_cents: 20000n,
+              needs_cents: 20000n,
+            },
+            {
+              category_id: CAT,
+              month: "2026-02",
+              planned_cents: 20000n,
+              needs_cents: 20000n,
+            },
+          ];
+        },
+        async monthlySpendByCategory() {
+          // February already carried the 50,000 charge: 30,000 over its limit.
+          return [
+            { category_id: CAT, month: "2026-01", spent_cents: 20000n },
+            { category_id: CAT, month: "2026-02", spent_cents: 50000n },
+          ];
+        },
+      },
+      // …and the same rule fires again next February.
+      activeRecurringRules: async () => [
+        {
+          category_id: CAT,
+          name: "Food",
+          amount_cents: 50000n,
+          currency: "PLN",
+          cadence: "YEARLY",
+          yearly_month: 2,
+        },
+      ],
+    } as never);
+    const row = await rowFor(CAT, d);
+    // 30,000 either way — NOT 60,000.
+    expect(row?.needed_cents).toBe("30000");
+  });
+
   test("leaves reserve-excluded categories out entirely", async () => {
     const d = deps({
       reservePositions: async () =>

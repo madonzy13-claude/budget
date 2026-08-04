@@ -15,10 +15,10 @@
  *     grid (Test 6 / Test 7 UAT feedback).
  *
  * The form owns its own `<Sheet>` — callers just pass `open` +
- * `onOpenChange`. This keeps the api identical to before so the two
- * existing call sites (settings/recurring-section.tsx,
- * recurring/recurring-page-client.tsx) don't need to wrap the form
- * in an outer Sheet themselves.
+ * `onOpenChange`, so the call site (settings/recurring-section.tsx) does not
+ * wrap it in an outer Sheet. The second call site, the legacy /recurring page,
+ * was deleted on 260804: it mounted this form with NO budget context, which
+ * disables the "category required" guard below.
  *
  * Modes:
  *   - create → POST /recurring-rules
