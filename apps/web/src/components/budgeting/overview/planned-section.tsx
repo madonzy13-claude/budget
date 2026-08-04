@@ -85,7 +85,7 @@ function formatTs(ts: number, locale: string): string {
 
 function ChartLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-caption text-center text-[var(--muted-foreground)]">
+    <p className="-mt-1 text-center text-[10px] leading-tight text-[var(--muted-foreground)]/70">
       {children}
     </p>
   );
@@ -687,7 +687,7 @@ export function PlannedSection({
               {canDropRunningMonth && (
                 <p
                   data-testid="overview-planned-ongoing-note"
-                  className="text-caption text-center text-[var(--muted-foreground)]"
+                  className="-mt-1 text-center text-[10px] leading-tight text-[var(--muted-foreground)]/70"
                 >
                   {t("planned.ongoingExcluded")}
                 </p>

@@ -634,7 +634,7 @@ export function WealthSection({
                   data-testid="overview-capitalization-pie"
                   className="flex flex-col gap-2"
                 >
-                  <p className="text-caption text-[var(--muted-foreground)]">
+                  <p className="text-center text-caption text-[var(--muted-foreground)]">
                     {t("wealth.byBucket")}
                   </p>
                   <OverviewPieChart
@@ -655,7 +655,7 @@ export function WealthSection({
                   data-testid="overview-wealth-pie"
                   className="flex flex-col gap-2"
                 >
-                  <p className="text-caption text-[var(--muted-foreground)]">
+                  <p className="text-center text-caption text-[var(--muted-foreground)]">
                     {t("wealth.byType")}
                   </p>
                   {data.pie && data.pie.length > 0 ? (

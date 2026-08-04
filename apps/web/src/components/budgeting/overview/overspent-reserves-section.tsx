@@ -12,7 +12,8 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
-import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
+import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
+import { reserveBalanceSlices } from "@/lib/reserve-balance-slices";
 import { useOverviewOverspent } from "@/hooks/use-overview-overspent";
 import {
   useReserveFit,
@@ -22,7 +23,6 @@ import { ReserveFitView } from "./reserve-fit-view";
 import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { useCategories } from "@/hooks/use-budget-data";
 import { centsToRounded } from "@/lib/cents-format";
-import { chartCompactCents } from "@/lib/chart-format";
 import { hexForColorKey } from "@/lib/category-colors";
 import type { OverviewRange } from "@/lib/overview-range";
 
@@ -57,8 +57,6 @@ export function OverspentReservesSection({
   const [fitScale, setFitScale] = useState<"pct" | "amount">("pct");
 
   const ccy = data?.currency ?? "USD";
-  // Chart AXIS: bare + compact, no currency (r24 5/7). TOOLTIP: full $ (r25 #2).
-  const fmtY = chartCompactCents;
   const fmtTooltip = (n: number) =>
     centsToRounded(BigInt(Math.round(n)), ccy, "en", true);
   // Per-category bars use each category's colorKey; the FALLBACK (no colorKey)
@@ -68,6 +66,8 @@ export function OverspentReservesSection({
       categories.find((c) => c.id === id)?.colorKey as string | undefined,
     ) ?? fallback;
   const BAR_BLUE = "var(--chart-bar-1)";
+
+  const balanceSlices = reserveBalanceSlices(data?.reserves_by_category ?? []);
 
   const loading = isPending && reservesOpen;
   const failed = isError || !data;
@@ -86,44 +86,9 @@ export function OverspentReservesSection({
           open={reservesOpen}
           onToggle={toggleReserves}
         >
-          {loading ? (
-            <div className="h-60 animate-pulse rounded-[var(--radius-xl)] bg-[var(--surface-elevated-dark)]" />
-          ) : failed || data.reserves_by_category.length === 0 ? (
-            <p className="text-num-sm text-[var(--muted-foreground)]">
-              {t("empty.reserves")}
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <p className="text-caption text-[var(--muted-foreground)]">
-                {t("reservesByCategory")}
-              </p>
-              <OverviewBarChart
-                layout="vertical"
-                data={data.reserves_by_category
-                  .map((r) => ({
-                    name: r.name,
-                    category_id: r.category_id,
-                    reserve: Number(r.reserve_cents),
-                  }))
-                  // Highest reserve first (recharts vertical renders it at the top).
-                  .sort((a, b) => b.reserve - a.reserve)}
-                xKey="name"
-                series={[{ key: "reserve", label: t("sections.reserves") }]}
-                colorByPoint={(row) =>
-                  colorOf(String(row.category_id), BAR_BLUE)
-                }
-                formatValue={fmtY}
-                formatTooltip={fmtTooltip}
-                // 260731 (user decision): the CHARTS always show real numbers — masking
-                // them made the shapes unreadable. The privacy blur stays on the hero
-                // cards + totals, which is where a shoulder-surfer actually reads a figure.
-                maskAmounts={false}
-              />
-            </div>
-          )}
           {fit.data && (
             <div className="mt-4 flex flex-col gap-2">
-              <p className="text-caption text-[var(--muted-foreground)]">
+              <p className="text-center text-caption text-[var(--muted-foreground)]">
                 {t("reserveFit.title")}
               </p>
               <ReserveFitView
@@ -144,6 +109,36 @@ export function OverspentReservesSection({
                     ]}
                   />
                 }
+              />
+            </div>
+          )}
+          {loading ? (
+            <div className="h-60 animate-pulse rounded-[var(--radius-xl)] bg-[var(--surface-elevated-dark)]" />
+          ) : failed || balanceSlices.length === 0 ? (
+            <p className="text-num-sm text-[var(--muted-foreground)]">
+              {t("empty.reserves")}
+            </p>
+          ) : (
+            <div className="mt-4 flex flex-col gap-2">
+              <p className="text-center text-caption text-[var(--muted-foreground)]">
+                {t("reservesByCategory")}
+              </p>
+              {/* A pie, not bars (user, 260804): the question here is how the
+                  reserve is SPLIT, and a category holding nothing has no share
+                  to show — those are dropped rather than drawn as a zero. */}
+              <OverviewPieChart
+                data={balanceSlices}
+                nameKey="name"
+                valueKey="reserve"
+                colorFor={(name) =>
+                  colorOf(
+                    balanceSlices.find((s) => s.name === name)?.category_id ??
+                      "",
+                    BAR_BLUE,
+                  )
+                }
+                formatValue={fmtTooltip}
+                allLabel={t("range.all")}
               />
             </div>
           )}

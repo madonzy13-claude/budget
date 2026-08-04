@@ -336,6 +336,58 @@ describe("getReserveFit", () => {
     expect(await rowFor(CAT_FOOD, d)).toBeDefined();
   });
 
+  // "імперія": archived long before the range, no transactions ever, but the
+  // engine still carries a reserve balance for it from an old limit. A category
+  // that died before the window has nothing to size, and its phantom balance is
+  // a Reserves-tab matter, not a sizing one (user, 260804).
+  test("drops a category archived before the range, balance or not", async () => {
+    const DEAD = "cat-dead";
+    const d = deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return [
+            ...windows,
+            {
+              category_id: DEAD,
+              name: "імперія",
+              created_month: "2025-01",
+              archived_month: "2025-06",
+              is_investment: false,
+            },
+          ];
+        },
+        async monthlyPlannedByCategory() {
+          return [
+            ...planned,
+            {
+              category_id: DEAD,
+              month: "2026-01",
+              planned_cents: 5000n,
+              needs_cents: 5000n,
+            },
+          ];
+        },
+        async monthlySpendByCategory() {
+          return spend;
+        },
+      },
+      reservePositions: async () =>
+        ok({
+          positions: new Map([
+            ...position(CAT_FOOD, 5000n),
+            ...position(CAT_SPORT, 460000n),
+            ...position(DEAD, 12000n),
+          ]),
+          openMonth: "2026-03",
+          internalCents: 0n,
+          userDefinedCents: 0n,
+          surplusCents: 0n,
+          direction: "NONE" as const,
+        }),
+    } as never);
+    expect(await rowFor(DEAD, d)).toBeUndefined();
+  });
+
   test("keeps a dead category that still holds money — it can be freed", async () => {
     const GHOST = "cat-ghost";
     const d = deps({
@@ -347,7 +399,8 @@ describe("getReserveFit", () => {
               category_id: GHOST,
               name: "Old hobby",
               created_month: "2025-01",
-              archived_month: "2025-12",
+              // Archived INSIDE the range: its months still count.
+              archived_month: "2026-02",
               is_investment: false,
             },
           ];

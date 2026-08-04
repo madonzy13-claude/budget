@@ -187,6 +187,12 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // No position at all = the engine does not track it (archived before the
         // range, or reserves disabled); excluded = the member opted it out.
         if (!position || position.reserveExcluded) continue;
+        // Archived before the window even opened: nothing here to size, and the
+        // reserve the engine still carries for it is a Reserves-tab matter
+        // ("імперія", user 260804). A category archived DURING the range keeps
+        // its bar — those months are real history.
+        if (w.archived_month !== null && w.archived_month < from.slice(0, 7))
+          continue;
 
         const all = [...(monthsByCat.get(w.category_id) ?? [])];
         // Half a month of spend against a whole month of limit fakes a surplus

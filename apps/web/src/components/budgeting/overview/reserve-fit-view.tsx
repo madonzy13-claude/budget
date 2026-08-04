@@ -136,7 +136,7 @@ export function ReserveFitView({
 
       <p
         data-testid="reserve-fit-ongoing-note"
-        className="text-caption text-center text-[var(--muted-foreground)]"
+        className="-mt-1 text-center text-[10px] leading-tight text-[var(--muted-foreground)]/70"
       >
         {t("planned.ongoingExcluded")}
       </p>
