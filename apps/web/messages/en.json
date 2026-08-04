@@ -1425,7 +1425,7 @@
         "overspentByCategory": "Amount over budget, by category",
         "reservesByCategory": "Reserve balance, by category",
         "sections": {
-          "planned": "Planned",
+          "planned": "Spendings plan",
           "overspent": "Overspent",
           "reserves": "Reserves",
           "wealth": "Financial Wealth"
@@ -1530,7 +1530,10 @@
           "allCategories": "All categories",
           "excludedSection": "Set aside",
           "countedSection": "Counted",
-          "countedAria": "Count {amount} toward reserves"
+          "countedAria": "Count {amount} toward reserves",
+          "heldTotal": "Held",
+          "neededTotal": "Needed",
+          "slackTotal": "Slack"
         },
         "needsCompletedMonth": {
           "title": "Nothing to judge yet",

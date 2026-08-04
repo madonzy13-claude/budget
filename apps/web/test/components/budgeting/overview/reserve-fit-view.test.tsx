@@ -290,6 +290,37 @@ describe("ReserveFitView", () => {
     expect(screen.getByTestId("the-switch")).toBeTruthy();
   });
 
+  // 260804: the strip states the size of the problem the chart breaks down.
+  it("totals what is held, what is needed and the slack", () => {
+    view();
+    // Sport 4,600 held / 0 needed; Car 1,000 / 5,000; Newborn 0 / 0.
+    expect(screen.getByTestId("reserve-total-held").textContent).toBe(
+      "5600 zl",
+    );
+    expect(screen.getByTestId("reserve-total-needed").textContent).toBe(
+      "5000 zl",
+    );
+    expect(screen.getByTestId("reserve-total-slack").textContent).toBe(
+      "+600 zl",
+    );
+  });
+
+  it("signs a shortfall the other way", () => {
+    render(
+      <ReserveFitView
+        data={{
+          currency: "PLN",
+          rows: [{ ...DTO.rows[1]! }],
+        }}
+        onSave={vi.fn()}
+        format={(c: number) => `${Math.round(c / 100)} zl`}
+      />,
+    );
+    expect(screen.getByTestId("reserve-total-slack").textContent).toBe(
+      "−4000 zl",
+    );
+  });
+
   it("says so when there is nothing to size at all", () => {
     render(
       <ReserveFitView

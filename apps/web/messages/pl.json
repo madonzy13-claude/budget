@@ -1448,7 +1448,7 @@
         "overspentByCategory": "Kwota przekroczenia wg kategorii",
         "reservesByCategory": "Saldo rezerw wg kategorii",
         "sections": {
-          "planned": "Zaplanowane",
+          "planned": "Plan wydatków",
           "overspent": "Przekroczenia",
           "reserves": "Rezerwy",
           "wealth": "Majątek finansowy"
@@ -1553,7 +1553,10 @@
           "allCategories": "Wszystkie kategorie",
           "excludedSection": "Pominięte",
           "countedSection": "Liczone",
-          "countedAria": "Licz {amount} do rezerw"
+          "countedAria": "Licz {amount} do rezerw",
+          "heldTotal": "Trzymane",
+          "neededTotal": "Potrzebne",
+          "slackTotal": "Zapas"
         },
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",
