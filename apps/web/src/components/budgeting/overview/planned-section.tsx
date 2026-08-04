@@ -229,6 +229,15 @@ export function PlannedSection({
   // Only offered when the range holds the running month AND something else.
   const userTz = useUserTimezone();
   const todayIso = todayInTz(userTz).toString();
+  // Month numbers → names for the recurring chart, in the member's locale.
+  const monthName = (m: string | number) =>
+    new Intl.DateTimeFormat(locale, { month: "long" }).format(
+      new Date(2000, Number(m) - 1, 1),
+    );
+  const shortMonthName = (m: string | number) =>
+    new Intl.DateTimeFormat(locale, { month: "short" }).format(
+      new Date(2000, Number(m) - 1, 1),
+    );
   const hasCompletedMonth = rangeHasCompletedMonth(
     range.from,
     range.to,
@@ -744,6 +753,38 @@ export function PlannedSection({
             formatValue={fmtTooltip}
             // Same call as the metrics above: planned spend stays readable.
           />
+
+          {/* Recurring payments, by month — current config, NOT range-scoped
+              (D-14). It lived in a section of its own until 260804; one chart
+              did not earn a collapsible, and it reads as part of the plan. */}
+          <div className="flex flex-col gap-2">
+            <ChartLabel>{t("planned.recurringPerMonth")}</ChartLabel>
+            <OverviewAreaChart
+              data={data.recurringPerMonth.map((m) => ({
+                month: String(m.month),
+                planned: Number(m.planned_cents),
+                items: m.items,
+              }))}
+              xKey="month"
+              // The tooltip repeats the series name under the month it already
+              // names, so it drops the ", by month" the chart title needs.
+              series={[{ key: "planned", label: t("planned.recurringSeries") }]}
+              formatY={fmtY}
+              formatTooltip={fmtTooltip}
+              xTickFormat={shortMonthName}
+              labelFormat={monthName}
+              maskAmounts={false}
+              // Each payment behind the month (the series row carries the total).
+              tooltipExtra={(row) => {
+                const items =
+                  (row.items as { name: string; amount_cents: string }[]) ?? [];
+                return items.map((it) => ({
+                  label: it.name || "—",
+                  value: fmtTooltip(Number(it.amount_cents)),
+                }));
+              }}
+            />
+          </div>
         </>
       )}
     </OverviewSection>

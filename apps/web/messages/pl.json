@@ -1449,7 +1449,6 @@
         "reservesByCategory": "Saldo rezerw wg kategorii",
         "sections": {
           "planned": "Zaplanowane",
-          "recurring": "Płatności cykliczne",
           "overspent": "Przekroczenia",
           "reserves": "Rezerwy",
           "wealth": "Majątek finansowy"
@@ -1474,7 +1473,6 @@
           "total": "Razem",
           "recurringPerMonth": "Płatności cykliczne, wg miesiąca",
           "recurringSeries": "Płatności cykliczne",
-          "recurringPerCategory": "Płatności cykliczne, wg kategorii",
           "timelineTitle": "Jak każdy miesiąc wypadł względem planu",
           "avgByCategory": "Odchylenie od planu, wg kategorii",
           "avgPie": "Planowane wydatki wg kategorii",

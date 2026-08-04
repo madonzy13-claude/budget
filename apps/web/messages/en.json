@@ -1426,7 +1426,6 @@
         "reservesByCategory": "Reserve balance, by category",
         "sections": {
           "planned": "Planned",
-          "recurring": "Recurring payments",
           "overspent": "Overspent",
           "reserves": "Reserves",
           "wealth": "Financial Wealth"
@@ -1451,7 +1450,6 @@
           "total": "Total",
           "recurringPerMonth": "Recurring payments, by month",
           "recurringSeries": "Recurring payments",
-          "recurringPerCategory": "Recurring payments, by category",
           "timelineTitle": "How each month tracked against plan",
           "avgByCategory": "How far off plan, by category",
           "avgPie": "Planned spendings, by category",

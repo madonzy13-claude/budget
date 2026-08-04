@@ -220,14 +220,6 @@ export interface OverviewPlannedDTO {
     /** the individual payments that make up this month's bar (tooltip list). */
     items: { name: string; amount_cents: string }[];
   }[];
-  recurringPerCategory: {
-    category_id: string;
-    name: string;
-    planned_cents: string;
-    /** The individual payments behind this bar, biggest first — the same list
-     *  the per-month tooltip shows, so "Housing 1,200" names its parts (260804). */
-    items: { name: string; amount_cents: string }[];
-  }[];
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -750,22 +742,13 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
       );
 
       const perMonth = new Array<bigint>(12).fill(0n);
-      // Per-month list of the individual payments that make up each bar (name +
-      // this-month amount) — the "Recurring bills, by month" tooltip lists them.
+      // Per-month list of the individual payments behind each point — the
+      // "Recurring payments, by month" tooltip names them.
       const perMonthItems: Array<{ name: string; amount_cents: string }[]> =
         Array.from({ length: 12 }, () => []);
-      const perCategory = new Map<
-        string,
-        {
-          name: string;
-          cents: bigint;
-          items: { name: string; amount_cents: string }[];
-        }
-      >();
       rules.forEach((rule, i) => {
         const amt = ruleAmounts[i]!;
-        // per-MONTH list uses the rule's own name (note); per-category keeps the
-        // category name. Fall back to the category name when a rule has no note.
+        // The rule's own name (its note), falling back to the category name.
         const itemName = rule.rule_name || rule.name || "";
         const addItem = (m: number, cents: bigint) =>
           perMonthItems[m]!.push({
@@ -789,21 +772,6 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
             addItem(m, monthly);
           }
         }
-        // per-category: a comparable monthly figure (YEARLY ÷ 12).
-        if (rule.category_id) {
-          const monthly = recurringMonthlyNormalize(amt, rule.cadence);
-          const cur = perCategory.get(rule.category_id);
-          perCategory.set(rule.category_id, {
-            name: rule.name ?? cur?.name ?? "",
-            cents: (cur?.cents ?? 0n) + monthly,
-            // Same comparable monthly figure the bar is built from, so the list
-            // adds up to the bar rather than to the rules' raw amounts.
-            items: [
-              ...(cur?.items ?? []),
-              { name: itemName, amount_cents: monthly.toString() },
-            ],
-          });
-        }
       });
 
       return ok({
@@ -817,16 +785,6 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           planned_cents: cents.toString(),
           items: perMonthItems[i]!,
         })),
-        recurringPerCategory: Array.from(perCategory.entries()).map(
-          ([category_id, v]) => ({
-            category_id,
-            name: v.name,
-            planned_cents: v.cents.toString(),
-            items: [...v.items].sort((a, b) =>
-              BigInt(a.amount_cents) < BigInt(b.amount_cents) ? 1 : -1,
-            ),
-          }),
-        ),
       });
     } catch (e) {
       return err(e as Error);

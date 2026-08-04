@@ -17,7 +17,6 @@ import { useState } from "react";
 import { RangeSelector } from "./range-selector";
 import { PlannedSection } from "./planned-section";
 import { OverspentReservesSection } from "./overspent-reserves-section";
-import { RecurringSection } from "./recurring-section";
 import { WealthSection } from "./wealth-section";
 import { StickOnScroll } from "@/components/common/stick-on-scroll";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
@@ -63,7 +62,6 @@ export function OverviewSections({
       {/* No amountPrivacyEnabled: the planned figures stay readable while the
           rest of the page is redacted (user, 260803). */}
       <PlannedSection budgetId={budgetId} range={range} />
-      <RecurringSection budgetId={budgetId} range={range} />
       <OverspentReservesSection
         budgetId={budgetId}
         range={range}

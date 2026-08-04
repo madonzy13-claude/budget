@@ -190,13 +190,12 @@ function lastOpts(mock: ReturnType<typeof vi.fn>) {
 }
 
 describe("OverviewSections", () => {
-  it("renders four sections collapsed by default (no chart mounted)", () => {
+  it("renders three sections collapsed by default (no chart mounted)", () => {
     renderSections();
-    // 260803: Overspent lost its own collapsible and reads inside Planned; the
-    // recurring charts gained one of their own.
+    // 260803: Overspent lost its own collapsible and reads inside Planned.
+    // 260804: so did the recurring chart — one chart did not earn a section.
     for (const name of [
       "sections.planned",
-      "sections.recurring",
       "sections.reserves",
       "sections.wealth",
     ])
@@ -204,9 +203,22 @@ describe("OverviewSections", () => {
     expect(
       screen.queryByRole("button", { name: "sections.overspent" }),
     ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "sections.recurring" }),
+    ).toBeNull();
     // collapsed → no chart bodies, and the section hooks are disabled
     expect(screen.queryByTestId("line-chart")).toBeNull();
     expect(lastOpts(plannedMock).enabled).toBe(false);
+  });
+
+  // 260804: the recurring-by-month chart moved in under the planned pie, and
+  // the by-category one is gone — the section it lived in went with it.
+  it("mounts the recurring-by-month chart inside Planned", async () => {
+    const user = userEvent.setup();
+    renderSections();
+    await user.click(screen.getByText("sections.planned"));
+    expect(screen.getByText("planned.recurringPerMonth")).toBeTruthy();
+    expect(screen.queryByText("planned.recurringPerCategory")).toBeNull();
   });
 
   it("expanding Planned enables its fetch and mounts the timeline chart", async () => {
@@ -270,18 +282,6 @@ describe("OverviewSections", () => {
         expect(screen.getByTestId("planned-totals")).toBeTruthy();
         expect(screen.queryByText("overspentByCategory")).toBeNull();
       });
-  });
-
-  it("keeps the recurring charts out of Planned, in their own section", async () => {
-    const user = userEvent.setup();
-    renderSections();
-    await user.click(screen.getByRole("button", { name: "sections.planned" }));
-    expect(screen.queryByText("planned.recurringPerMonth")).toBeNull();
-    await user.click(
-      screen.getByRole("button", { name: "sections.recurring" }),
-    );
-    expect(screen.getByText("planned.recurringPerMonth")).toBeTruthy();
-    expect(screen.getByText("planned.recurringPerCategory")).toBeTruthy();
   });
 
   it("toggling Wealth to investments switches the view and shows the pie", async () => {
