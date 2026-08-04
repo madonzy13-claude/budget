@@ -221,22 +221,26 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         });
 
         // Forward months assume the PLAN IS MET — spend equals the limit, so a
-        // quiet future neither drains nor refills the buffer — plus whatever a
-        // commitment asks for beyond what the plan can absorb. A monthly phone
-        // bill fits inside its limit and changes nothing; a September insurance
-        // renewal does not, and opens the trough it will really open.
+        // quiet future neither drains nor refills the buffer. On top of that:
+        //   ROUTINE commitments (monthly and oftener) are what the limit was set
+        //   for, so only their EXCESS over it counts;
+        //   RARE ones (yearly) land on top of an ordinary month — September
+        //   still has its fuel and parking, so the whole charge counts.
+        // Sizing at "charge − limit" left exactly the charge covered and the
+        // rest of that month uncovered (user, 260804).
         const latestLimit = months.length
           ? (months.reduce((a, b) => (a.month > b.month ? a : b)).limitCents ??
             0n)
           : 0n;
         const future: ReserveFitMonth[] = [
           ...(committed.get(w.category_id) ?? []),
-        ].map(([month, cents]) => {
-          const overage = cents > latestLimit ? cents - latestLimit : 0n;
+        ].map(([month, c]) => {
+          const routineExcess =
+            c.routine > latestLimit ? c.routine - latestLimit : 0n;
           return {
             month,
             limitCents: latestLimit,
-            spentCents: latestLimit + overage,
+            spentCents: latestLimit + c.onTop + routineExcess,
           };
         });
 

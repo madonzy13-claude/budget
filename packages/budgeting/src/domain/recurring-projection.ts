@@ -12,6 +12,13 @@
  *
  * Weekly and daily rules use average-month constants: their per-month total is
  * what matters, and which day they land on is noise against a monthly walk.
+ *
+ * Each month comes back split two ways (260804). A rule that fires EVERY month
+ * (or oftener) is ROUTINE — the limit was set knowing about it, so it lives
+ * inside the plan. A rule that fires once a year is ON TOP: September still has
+ * its ordinary fuel and parking, so a 2,500 insurance renewal is 2,500 MORE
+ * than that month's budget, not 2,500 of it. Sizing a buffer at "charge minus
+ * limit" left the charge covered and the ordinary month uncovered.
  */
 import {
   DAYS_PER_MONTH,
@@ -35,28 +42,42 @@ function addMonths(month: string, n: number): string {
   return `${Math.floor(zero / 12)}-${String((zero % 12) + 1).padStart(2, "0")}`;
 }
 
+/** What a month is committed to, split by whether the plan already covers it. */
+export interface MonthCommitment {
+  /** Fires every month or oftener — inside the limit. */
+  routine: bigint;
+  /** Fires rarely — on top of the limit. */
+  onTop: bigint;
+}
+
 /**
  * @param rules      active recurring rules (any cadence).
  * @param fromMonth  first projected month, 'YYYY-MM'.
  * @param months     how many months forward to project.
- * @returns categoryId → month → committed cents. Categories with nothing
- *          committed are absent rather than present-and-zero.
+ * @returns categoryId → month → commitment. Categories with nothing committed
+ *          are absent rather than present-and-zero.
  */
 export function projectRecurring(
   rules: readonly ProjectableRule[],
   fromMonth: string,
   months: number,
-): Map<string, Map<string, bigint>> {
-  const out = new Map<string, Map<string, bigint>>();
+): Map<string, Map<string, MonthCommitment>> {
+  const out = new Map<string, Map<string, MonthCommitment>>();
   if (months <= 0) return out;
 
   const window = Array.from({ length: months }, (_, i) =>
     addMonths(fromMonth, i),
   );
 
-  const add = (categoryId: string, month: string, cents: bigint) => {
-    const byMonth = out.get(categoryId) ?? new Map<string, bigint>();
-    byMonth.set(month, (byMonth.get(month) ?? 0n) + cents);
+  const add = (
+    categoryId: string,
+    month: string,
+    cents: bigint,
+    kind: keyof MonthCommitment,
+  ) => {
+    const byMonth = out.get(categoryId) ?? new Map<string, MonthCommitment>();
+    const cur = byMonth.get(month) ?? { routine: 0n, onTop: 0n };
+    byMonth.set(month, { ...cur, [kind]: cur[kind] + cents });
     out.set(categoryId, byMonth);
   };
 
@@ -73,7 +94,8 @@ export function projectRecurring(
         continue;
       const mm = String(rule.yearly_month).padStart(2, "0");
       for (const month of window) {
-        if (month.endsWith(`-${mm}`)) add(rule.category_id, month, amount);
+        if (month.endsWith(`-${mm}`))
+          add(rule.category_id, month, amount, "onTop");
       }
       continue;
     }
@@ -84,7 +106,8 @@ export function projectRecurring(
         : rule.cadence === "WEEKLY"
           ? (amount * BigInt(Math.round(WEEKS_PER_MONTH * 1000)) + 500n) / 1000n
           : (amount * BigInt(Math.round(DAYS_PER_MONTH * 100)) + 50n) / 100n;
-    for (const month of window) add(rule.category_id, month, perMonth);
+    for (const month of window)
+      add(rule.category_id, month, perMonth, "routine");
   }
 
   return out;

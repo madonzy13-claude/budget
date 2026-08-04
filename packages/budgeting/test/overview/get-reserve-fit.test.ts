@@ -496,8 +496,9 @@ describe("getReserveFit", () => {
       ],
     } as never);
     const food = await rowFor(CAT_FOOD, d);
-    // September asks 50,000 against a 20,000 limit → 30,000 must be there.
-    expect(food?.needed_cents).toBe("30000");
+    // September asks 50,000 ON TOP of an ordinary month, so all of it must be
+    // there — the 20,000 limit is already spoken for by that month's own spend.
+    expect(food?.needed_cents).toBe("50000");
   });
 
   test("the harder of past and future is what has to be held", async () => {
@@ -593,8 +594,72 @@ describe("getReserveFit", () => {
       ],
     } as never);
     const row = await rowFor(CAT, d);
-    // 30,000 either way — NOT 60,000.
-    expect(row?.needed_cents).toBe("30000");
+    // History asked 30,000 (the charge less the limit it consumed); next
+    // February asks 50,000 on top of an ordinary month. The harder of the two
+    // stands — NOT the 80,000 the two would make if they were added.
+    expect(row?.needed_cents).toBe("50000");
+  });
+
+  // A yearly charge lands ON TOP of the month's plan, not inside it: the limit
+  // is what the category spends in an ordinary month, and September still has
+  // its ordinary fuel and parking. Sizing the buffer at "charge − limit" left
+  // exactly the charge covered and everything else that month uncovered — which
+  // is the thing the member said they would be caught by (user, 260804).
+  test("a yearly charge sits on top of the month's plan", async () => {
+    const d = deps({
+      activeRecurringRules: async () => [
+        {
+          category_id: CAT_FOOD,
+          name: "Food",
+          amount_cents: 50000n,
+          currency: "PLN",
+          cadence: "YEARLY",
+          yearly_month: 9,
+        },
+      ],
+    } as never);
+    // The whole 50,000, not 50,000 − the 20,000 limit.
+    expect((await rowFor(CAT_FOOD, d))?.needed_cents).toBe("50000");
+  });
+
+  // A monthly rule is what the limit was set for. Treating it as extra would
+  // grow the "needed" figure every month, forever.
+  test("a monthly rule stays inside the plan it was budgeted in", async () => {
+    const d = deps({
+      activeRecurringRules: async () => [
+        {
+          category_id: CAT_FOOD,
+          name: "Food",
+          amount_cents: 5000n,
+          currency: "PLN",
+          cadence: "MONTHLY",
+          yearly_month: null,
+        },
+      ],
+    } as never);
+    // History alone still decides: February's 15,000 overage less January's
+    // 3,000 surplus.
+    expect((await rowFor(CAT_FOOD, d))?.needed_cents).toBe("12000");
+  });
+
+  test("a monthly rule bigger than the whole limit still counts its excess", async () => {
+    const d = deps({
+      activeRecurringRules: async () => [
+        {
+          category_id: CAT_FOOD,
+          name: "Food",
+          amount_cents: 26000n,
+          currency: "PLN",
+          cadence: "MONTHLY",
+          yearly_month: null,
+        },
+      ],
+    } as never);
+    // 26,000 committed every month against a 20,000 limit: 6,000 a month of
+    // hole, and the walk deepens with each one.
+    expect(Number((await rowFor(CAT_FOOD, d))?.needed_cents)).toBeGreaterThan(
+      12000,
+    );
   });
 
   test("leaves reserve-excluded categories out entirely", async () => {
