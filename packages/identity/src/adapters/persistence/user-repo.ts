@@ -1,6 +1,6 @@
 // This file MUST NOT be imported directly by domain/application/ports layers.
 // Domain/application code accesses this only through the UserRepo port interface.
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { appPool, withUserContext } from "@budget/platform";
 import type { UserId } from "@budget/shared-kernel";
@@ -122,6 +122,48 @@ export class DrizzleUserRepo implements UserRepo {
       return rows[0]?.activeWorkspaceIds ?? [];
     });
     if (r.isErr()) return [];
+    return r.value;
+  }
+
+  /**
+   * UI picks that belong to the PERSON but to no single budget — the
+   * all-budgets range selector (0074). Budget-scoped picks live on the member
+   * row (0070) instead.
+   */
+  async getUserUiPrefs(id: UserId): Promise<Record<string, string[]>> {
+    const r = await withUserContext(id, async (tx) => {
+      const rows = await tx
+        .select({ uiPrefs: userPreferences.uiPrefs })
+        .from(userPreferences)
+        .where(eq(userPreferences.userId, id as string));
+      return rows[0]?.uiPrefs ?? {};
+    });
+    // A preference is not worth a 500: an unreadable one just means the caller
+    // falls back to its default.
+    if (r.isErr()) return {};
+    return r.value;
+  }
+
+  /** MERGE, so two surfaces never clear each other's stored pick. */
+  async mergeUserUiPrefs(
+    id: UserId,
+    patch: Record<string, string[]>,
+  ): Promise<Record<string, string[]>> {
+    const r = await withUserContext(id, async (tx) => {
+      // The row may not exist yet — someone who has never touched the workspace
+      // filter has no preferences row at all.
+      const rows = await tx.execute<{ ui_prefs: Record<string, string[]> }>(sql`
+        INSERT INTO identity.user_preferences (user_id, ui_prefs)
+        VALUES (${id as string}::uuid, ${JSON.stringify(patch)}::jsonb)
+        ON CONFLICT (user_id) DO UPDATE
+           SET ui_prefs = COALESCE(identity.user_preferences.ui_prefs, '{}'::jsonb)
+                          || ${JSON.stringify(patch)}::jsonb,
+               updated_at = now()
+        RETURNING ui_prefs
+      `);
+      return rows.rows[0]?.ui_prefs ?? {};
+    });
+    if (r.isErr()) throw r.error;
     return r.value;
   }
 

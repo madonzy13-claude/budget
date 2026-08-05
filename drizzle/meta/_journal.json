@@ -512,6 +512,13 @@
       "when": 1782739201000,
       "tag": "0073_reserve_fit_exclusions",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1782739201001,
+      "tag": "0074_user_ui_prefs",
+      "breakpoints": true
     }
   ]
 }

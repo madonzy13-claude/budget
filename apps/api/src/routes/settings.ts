@@ -38,6 +38,36 @@ export function settingsRoutesFactory(deps: BootedDeps) {
     theme: z.enum(["dark", "light"]),
   });
 
+  // 0074: UI picks that follow the PERSON but belong to no single budget — the
+  // all-budgets range selector, so far. Anything scoped to ONE budget belongs on
+  // the member row instead (/budgets/:id/ui-prefs).
+  const uiPrefsSchema = z.object({
+    prefs: z.record(z.string(), z.array(z.string())),
+  });
+
+  // GET /settings/ui-prefs — the CALLER's own picks. Never anyone else's: the
+  // repo binds the session user as the row it reads.
+  r.get("/ui-prefs", async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+    const prefs = await deps.identity.userRepo.getUserUiPrefs(
+      UserId(session.user.id),
+    );
+    return c.json({ prefs: prefs ?? {} }, 200);
+  });
+
+  // PUT /settings/ui-prefs — MERGE a patch, so two surfaces never clear each
+  // other's stored pick.
+  r.put("/ui-prefs", zValidator("json", uiPrefsSchema), async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+    const prefs = await deps.identity.userRepo.mergeUserUiPrefs(
+      UserId(session.user.id),
+      c.req.valid("json").prefs,
+    );
+    return c.json({ prefs: prefs ?? {} }, 200);
+  });
+
   // PUT /settings/locale — update user locale
   r.put("/locale", zValidator("json", localeSchema), async (c) => {
     const session = c.get("session");

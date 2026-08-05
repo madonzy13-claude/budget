@@ -13,8 +13,14 @@
  * Safari paint its floating bottom bar solid black; `fixed` doesn't. See
  * stick-on-scroll.tsx.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RangeSelector } from "./range-selector";
+import { useMemberUiPrefs } from "@/hooks/use-member-ui-prefs";
+import {
+  decodeRangePref,
+  encodeRangePref,
+  RANGE_PREF_KEY,
+} from "@/lib/range-pref";
 import { PlannedSection } from "./planned-section";
 import { OverspentReservesSection } from "./overspent-reserves-section";
 import { WealthSection } from "./wealth-section";
@@ -43,13 +49,33 @@ export function OverviewSections({
   const store = useBdpUiStore();
   // Current-month default rolls over in the user's timezone, not UTC (r31 item 1).
   const tz = useUserTimezone();
-  const [range, setRange] = useState<OverviewRange>(
-    () => store?.overview.range ?? makeRange(DEFAULT_RANGE_PRESET, tz),
+  // …and across DEVICES, per member (260805 request): the pick rides the member
+  // row, so the phone and the desktop agree while another member of the same
+  // budget still opens on their own. The BDP store still wins within a visit —
+  // it holds the range you were just looking at, including one you arrived at
+  // by stepping a period back.
+  const { prefs, isLoaded, save } = useMemberUiPrefs(budgetId);
+  const [range, setRange] = useState<OverviewRange | null>(
+    () => store?.overview.range ?? null,
   );
+  useEffect(() => {
+    if (range !== null || !isLoaded) return;
+    setRange(
+      decodeRangePref(prefs[RANGE_PREF_KEY], tz) ??
+        makeRange(DEFAULT_RANGE_PRESET, tz),
+    );
+  }, [range, isLoaded, prefs, tz]);
+
   const applyRange = (r: OverviewRange) => {
     if (store) store.overview.range = r;
     setRange(r);
+    void save(RANGE_PREF_KEY, encodeRangePref(r));
   };
+
+  // Nothing is drawn until the stored pick lands: seeding early would show the
+  // default range, fetch a month of data for it, and then swap — a visible
+  // flash and a wasted request (mirrors the category pickers' own wait).
+  if (range === null) return null;
 
   return (
     <div className="flex flex-col gap-3" data-testid="overview-sections">

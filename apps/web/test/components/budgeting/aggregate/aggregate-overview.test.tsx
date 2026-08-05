@@ -73,6 +73,20 @@ vi.mock("next-intl", () => ({
     v?.pct ? `your ${v.pct}%` : k,
   useLocale: () => "en",
 }));
+// 260805: the range now comes from the user's stored picks, so the page waits
+// for them before it draws anything.
+const userPrefs: { current: Record<string, string[]>; loaded: boolean } = {
+  current: {},
+  loaded: true,
+};
+const savePref = vi.fn();
+vi.mock("@/hooks/use-user-ui-prefs", () => ({
+  useUserUiPrefs: () => ({
+    prefs: userPrefs.current,
+    isLoaded: userPrefs.loaded,
+    save: savePref,
+  }),
+}));
 vi.mock("@/components/common/user-timezone-provider", () => ({
   useUserTimezone: () => "UTC",
 }));
@@ -91,7 +105,11 @@ vi.mock("@/components/budgeting/charts/area-chart", () => ({
   OverviewAreaChart: () => <div data-testid="area-chart" />,
 }));
 vi.mock("@/components/budgeting/overview/range-selector", () => ({
-  RangeSelector: () => <div data-testid="range-selector" />,
+  RangeSelector: ({ value }: { value: { preset: string } }) => (
+    <div data-testid="range-selector">
+      <span data-testid="aggregate-range-value">{value.preset}</span>
+    </div>
+  ),
 }));
 vi.mock("@/components/budgeting/aggregate/aggregate-budgets-tasks", () => ({
   AggregateBudgetsTasks: () => <div data-testid="budgets-tasks" />,
@@ -218,5 +236,38 @@ describe("AggregateOverview", () => {
     const hero = screen.getByTestId("aggregate-hero");
     reveal(hero);
     await waitFor(() => expect(hero.textContent).toMatch(/6,?600/));
+  });
+});
+
+// 260805: the range belongs to the PERSON, not the device — this page is scoped
+// to no single budget, so it stores on the user row rather than a member row.
+describe("AggregateOverview — remembered range", () => {
+  beforeEach(() => {
+    userPrefs.current = {};
+    userPrefs.loaded = true;
+    savePref.mockClear();
+  });
+
+  it("opens on the stored range", () => {
+    userPrefs.current = { overviewRange: ["last12Months"] };
+    render(<AggregateOverview />);
+    expect(
+      screen.getByTestId("aggregate-range-value").textContent,
+    ).toBe("last12Months");
+  });
+
+  it("opens on six months when nothing is stored", () => {
+    render(<AggregateOverview />);
+    expect(
+      screen.getByTestId("aggregate-range-value").textContent,
+    ).toBe("last6Months");
+  });
+
+  // Drawing before the stored pick lands would fetch a trend for the default
+  // range and then throw it away.
+  it("draws nothing until the stored pick has landed", () => {
+    userPrefs.loaded = false;
+    render(<AggregateOverview />);
+    expect(screen.getByTestId("aggregate-loading")).toBeTruthy();
   });
 });

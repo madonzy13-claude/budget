@@ -13,7 +13,7 @@
  * the Budgets & tasks banner lists ALL of the user's budgets. Every figure is
  * STRING cents already FX-converted into `display_currency` by the API.
  */
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   CircleAlert,
@@ -39,6 +39,15 @@ import { AggregateBudgetsTasks } from "@/components/budgeting/aggregate/aggregat
 import { RangeSelector } from "@/components/budgeting/overview/range-selector";
 import { StickOnScroll } from "@/components/common/stick-on-scroll";
 import { makeRange, todayInTz, type OverviewRange } from "@/lib/overview-range";
+import { useUserUiPrefs } from "@/hooks/use-user-ui-prefs";
+import {
+  decodeRangePref,
+  encodeRangePref,
+  RANGE_PREF_KEY,
+} from "@/lib/range-pref";
+
+/** Six months: this page is a trend view, and a single month says little. */
+const AGGREGATE_DEFAULT_PRESET = "last6Months" as const;
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 
 const CARD =
@@ -123,9 +132,23 @@ export function AggregateOverview() {
   // Hooks run unconditionally (before early returns). Range for the chart lives
   // here (a SEPARATE selector, like the BDP band) so it isn't merged into the
   // chart card. The day P/L reuses the wealth trend over a today-only window.
-  const [range, setRange] = useState<OverviewRange>(() =>
-    makeRange("last6Months", tz),
-  );
+  // The pick follows the PERSON, not the device (260805): this page is scoped to
+  // no single budget — it is this member's own view across all of them — so it
+  // stores on the user row rather than a member row. Null until the stored pick
+  // lands, so the selector never flashes its default over it.
+  const userPrefs = useUserUiPrefs();
+  const [range, setRange] = useState<OverviewRange | null>(null);
+  useEffect(() => {
+    if (range !== null || !userPrefs.isLoaded) return;
+    setRange(
+      decodeRangePref(userPrefs.prefs[RANGE_PREF_KEY], tz) ??
+        makeRange(AGGREGATE_DEFAULT_PRESET, tz),
+    );
+  }, [range, userPrefs.isLoaded, userPrefs.prefs, tz]);
+  const applyRange = (r: OverviewRange) => {
+    setRange(r);
+    void userPrefs.save(RANGE_PREF_KEY, encodeRangePref(r));
+  };
   // Net-worth hero flips (like the BDP capitalization card) to show how long the
   // money lasts at current spending.
   const [flipped, setFlipped] = useState(false);
@@ -135,7 +158,9 @@ export function AggregateOverview() {
     .map((b) => b.id);
   const pl = useAggregateWealth(summableIds, today, today);
 
-  if (isPending)
+  // …including while the stored range is still on its way: the same skeleton
+  // stands in, so the page never renders a chart for a range nobody picked.
+  if (isPending || range === null)
     return <div className="w-full p-4" data-testid="aggregate-loading" />;
   if (isError || !data) return null;
 
@@ -470,7 +495,7 @@ export function AggregateOverview() {
           pinnedClassName="border-b border-[var(--hairline-dark)]"
         >
           <div data-testid="aggregate-range">
-            <RangeSelector value={range} onChange={setRange} />
+            <RangeSelector value={range} onChange={applyRange} />
           </div>
         </StickOnScroll>
 
