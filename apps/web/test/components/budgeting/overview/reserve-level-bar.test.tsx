@@ -1,16 +1,32 @@
 /**
- * reserve-level-bar.test.tsx — held against needed, drawn as layers (260804).
+ * reserve-level-bar.test.tsx — held against needed, as a meter (260804).
  *
- * The stacked version read as three unrelated chunks. This one is a pipe: its
- * outline is what the history asked for, the fill inside is what is actually
- * held. Under-filled, the gap is what to top up; filled past the end, the
- * overflow is what can come out.
+ * Two earlier attempts failed the same way: they asked the reader to decode a
+ * shape. Stacked chunks did not say which was which; a "pipe" gave the outline
+ * one meaning, the fill another and a hatched remainder a third — and hatching
+ * is a texture, which belongs to accessibility fallbacks, not decoration.
+ *
+ * A ratio against a limit is a METER: one bar for what is held, a target mark
+ * for what the history asked for. Past the mark, money is idle; short of it, the
+ * buffer is exposed. Every figure is direct-labelled — the hover only repeats
+ * what is already on screen.
  */
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import messages from "../../../../messages/en.json";
 
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
+  // Echoes the key, but resolves it against the real en.json first and throws
+  // when it is missing — a typo'd key renders as MISSING_MESSAGE in the browser
+  // while the suite stays green otherwise (260804).
+  useTranslations: (ns: string) => (key: string) => {
+    let node: unknown = messages;
+    for (const part of `${ns}.${key}`.split(".")) {
+      node = (node as Record<string, unknown> | undefined)?.[part];
+      if (node === undefined) throw new Error(`missing i18n key: ${ns}.${key}`);
+    }
+    return key;
+  },
   useLocale: () => "en",
 }));
 
@@ -27,59 +43,79 @@ const setup = (heldCents: number, neededCents: number) =>
     />,
   );
 
-const width = (testId: string) =>
-  parseFloat(screen.getByTestId(testId).style.width);
+const pctOf = (testId: string, prop: "width" | "left") =>
+  parseFloat(screen.getByTestId(testId).style[prop]);
 
 describe("ReserveLevelBar", () => {
-  it("draws the pipe at what the history asked for", () => {
+  it("fills the meter to what is held", () => {
     setup(3000, 6000);
-    // needed is the whole scale here — held is short of it.
-    expect(width("reserve-bar-pipe")).toBeCloseTo(100, 1);
-    expect(width("reserve-bar-fill")).toBeCloseTo(50, 1);
+    // Needed is the larger figure, so it sets the scale.
+    expect(pctOf("reserve-bar-fill", "width")).toBeCloseTo(50, 1);
   });
 
-  it("shows the gap that still has to go in", () => {
+  it("marks what the history asked for", () => {
+    setup(9000, 3000);
+    // Held sets the scale here, so the mark sits a third along.
+    expect(pctOf("reserve-bar-mark", "left")).toBeCloseTo(33.3, 0);
+    expect(pctOf("reserve-bar-fill", "width")).toBeCloseTo(100, 1);
+  });
+
+  it("says what to do when the buffer is short", () => {
     setup(3000, 6000);
-    fireEvent.pointerEnter(screen.getByTestId("reserve-bar-gap"));
-    const tip = screen.getByTestId("reserve-bar-tooltip");
-    expect(tip.textContent).toContain("reserveFit.topUp");
-    expect(tip.textContent).toContain("3000 zl");
+    const action = screen.getByTestId("reserve-bar-action");
+    expect(action.textContent).toContain("reserveFit.topUp");
+    expect(action.textContent).toContain("3000 zl");
   });
 
-  it("draws the overflow past the pipe when there is more than enough", () => {
+  it("says what can come out when there is more than enough", () => {
     setup(9000, 3000);
-    // Scale is the held amount: the pipe takes a third, the overflow the rest.
-    expect(width("reserve-bar-pipe")).toBeCloseTo(33.3, 0);
-    expect(width("reserve-bar-overflow")).toBeCloseTo(66.7, 0);
-    expect(screen.queryByTestId("reserve-bar-gap")).toBeNull();
+    const action = screen.getByTestId("reserve-bar-action");
+    expect(action.textContent).toContain("reserveFit.canWithdraw");
+    expect(action.textContent).toContain("6000 zl");
   });
 
-  it("names the overflow as money that can come out", () => {
-    setup(9000, 3000);
-    fireEvent.pointerEnter(screen.getByTestId("reserve-bar-overflow"));
-    const tip = screen.getByTestId("reserve-bar-tooltip");
-    expect(tip.textContent).toContain("reserveFit.canWithdraw");
-    expect(tip.textContent).toContain("6000 zl");
-  });
-
-  it("names the fill as what is held", () => {
-    setup(9000, 3000);
-    fireEvent.pointerEnter(screen.getByTestId("reserve-bar-fill"));
-    expect(screen.getByTestId("reserve-bar-tooltip").textContent).toContain(
-      "reserveFit.heldTotal",
+  it("says nothing needs doing when the two match", () => {
+    setup(5000, 5000);
+    expect(screen.getByTestId("reserve-bar-action").textContent).toContain(
+      "reserveFit.inBalance",
     );
   });
 
-  it("says nothing until something is pointed at", () => {
-    setup(9000, 3000);
-    expect(screen.queryByTestId("reserve-bar-tooltip")).toBeNull();
+  // Both directions are a problem — too little is overspend risk, too much is
+  // idle money — so the meter bands by DISTANCE, the same way the bars under it
+  // do: close is green, further yellow, far red.
+  it("reads green while the buffer is about right", () => {
+    setup(5200, 5000);
+    expect(screen.getByTestId("reserve-bar-fill").style.background).toContain(
+      "--trading-up",
+    );
   });
 
-  it("fills the pipe exactly when held meets needed", () => {
-    setup(5000, 5000);
-    expect(width("reserve-bar-fill")).toBeCloseTo(100, 1);
-    expect(screen.queryByTestId("reserve-bar-gap")).toBeNull();
-    expect(screen.queryByTestId("reserve-bar-overflow")).toBeNull();
+  it("reads red when it is nowhere near", () => {
+    setup(500, 5000);
+    expect(screen.getByTestId("reserve-bar-fill").style.background).toContain(
+      "--trading-down",
+    );
+  });
+
+  // Nothing is hover-gated: the two figures the meter compares are both on
+  // screen without pointing at anything.
+  it("labels both figures without being pointed at", () => {
+    setup(9000, 3000);
+    expect(screen.getByTestId("reserve-bar-held").textContent).toContain(
+      "9000 zl",
+    );
+    expect(screen.getByTestId("reserve-bar-needed").textContent).toContain(
+      "3000 zl",
+    );
+  });
+
+  it("drops the mark when the history asked for nothing", () => {
+    setup(4000, 0);
+    expect(screen.queryByTestId("reserve-bar-mark")).toBeNull();
+    expect(screen.getByTestId("reserve-bar-action").textContent).toContain(
+      "reserveFit.canWithdraw",
+    );
   });
 
   it("draws nothing at all when there is nothing either way", () => {
@@ -87,9 +123,10 @@ describe("ReserveLevelBar", () => {
     expect(screen.queryByTestId("reserve-bar")).toBeNull();
   });
 
-  it("holds money against no requirement at all", () => {
-    setup(4000, 0);
-    expect(screen.queryByTestId("reserve-bar-pipe")).toBeNull();
-    expect(width("reserve-bar-overflow")).toBeCloseTo(100, 1);
+  it("sits on the money forecast's width", () => {
+    setup(9000, 3000);
+    const bar = screen.getByTestId("reserve-bar");
+    expect(bar.style.marginLeft).toBe("8px");
+    expect(bar.style.marginRight).toBe("8px");
   });
 });

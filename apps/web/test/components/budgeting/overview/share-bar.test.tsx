@@ -1,10 +1,11 @@
 /**
  * share-bar.test.tsx — the stacked bar that replaced two figure strips.
  *
- * It must read at a glance and give up its numbers on hover (or tap, which is
- * the same event here) — as a floating tooltip like the money forecast's, not a
- * caption parked underneath (user, 260804). Nothing is pointed at, nothing is
- * said.
+ * It must read at a glance and give up its numbers on hover — as a floating
+ * tooltip like the money forecast's, not a caption parked underneath. And like
+ * the forecast, the whole strip is one scrub surface: moving or dragging across
+ * it slides the tooltip from piece to piece, rather than each piece waiting to
+ * be entered separately (user, 260804).
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -22,14 +23,37 @@ const SEGMENTS = [
   { key: "over", label: "Overspent", value: 0, color: "#f00" },
 ];
 
-const setup = () =>
-  render(
+const setup = () => {
+  const r = render(
     <ShareBar
       testId="spend-bar"
       segments={SEGMENTS}
       format={(n: number) => `${n} zl`}
     />,
   );
+  const track = screen.getByTestId("spend-bar-track");
+  // happy-dom gives every element a zero-width box; the scrub maths needs a real
+  // one to turn a clientX into a fraction.
+  track.getBoundingClientRect = () =>
+    ({
+      left: 0,
+      width: 100,
+      right: 100,
+      top: 0,
+      bottom: 12,
+      height: 12,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect;
+  return r;
+};
+
+/** Scrub to a percentage along the track. */
+const scrubTo = (pct: number) =>
+  fireEvent.pointerMove(screen.getByTestId("spend-bar-track"), {
+    clientX: pct,
+  });
 
 describe("ShareBar", () => {
   it("says nothing until a piece is pointed at", () => {
@@ -45,34 +69,49 @@ describe("ShareBar", () => {
     expect(screen.queryByTestId("spend-bar-piece-over")).toBeNull();
   });
 
-  it("floats the type and amount over the piece under the pointer", () => {
+  it("floats the type and amount over whatever the pointer is on", () => {
     setup();
-    fireEvent.pointerEnter(screen.getByTestId("spend-bar-piece-reserve"));
+    // 48,483 of 64,599 is the first ~75% of the track; 90% is inside the second.
+    scrubTo(90);
     const tip = screen.getByTestId("spend-bar-tooltip");
     expect(tip.textContent).toContain("Used reserves");
     expect(tip.textContent).toContain("16116 zl");
   });
 
-  it("takes the tooltip away when the pointer leaves", () => {
+  it("slides from piece to piece as the pointer drags across", () => {
     setup();
-    const piece = screen.getByTestId("spend-bar-piece-reserve");
-    fireEvent.pointerEnter(piece);
-    fireEvent.pointerLeave(piece);
+    scrubTo(90);
+    expect(screen.getByTestId("spend-bar-tooltip").textContent).toContain(
+      "Used reserves",
+    );
+    scrubTo(20);
+    expect(screen.getByTestId("spend-bar-tooltip").textContent).toContain(
+      "Planned spent",
+    );
+  });
+
+  it("follows the pointer rather than parking on the piece's middle", () => {
+    setup();
+    scrubTo(20);
+    const near = screen.getByTestId("spend-bar-tooltip").style.left;
+    scrubTo(60);
+    expect(screen.getByTestId("spend-bar-tooltip").style.left).not.toBe(near);
+  });
+
+  it("takes the tooltip away when the pointer leaves the strip", () => {
+    setup();
+    scrubTo(90);
+    fireEvent.pointerLeave(screen.getByTestId("spend-bar-track"));
     expect(screen.queryByTestId("spend-bar-tooltip")).toBeNull();
   });
 
-  it("sits exactly as wide as the chart it belongs to", () => {
-    render(
-      <ShareBar
-        testId="inset-bar"
-        segments={SEGMENTS}
-        format={(n: number) => `${n}`}
-        insetLeft={48}
-        insetRight={8}
-      />,
-    );
-    const bar = screen.getByTestId("inset-bar");
-    expect(bar.style.marginLeft).toBe("48px");
+  // The money forecast is a card with 16px of padding; a section body has 8px.
+  // Same outer card, so 8px more each side puts the strip on exactly the
+  // forecast band's width (user, 260804).
+  it("lines up with the money forecast band by default", () => {
+    setup();
+    const bar = screen.getByTestId("spend-bar");
+    expect(bar.style.marginLeft).toBe("8px");
     expect(bar.style.marginRight).toBe("8px");
   });
 
@@ -95,5 +134,14 @@ describe("ShareBar", () => {
     expect(screen.getByTestId("spend-bar-tooltip").textContent).toContain(
       "Planned spent",
     );
+  });
+
+  // A tooltip must never be the only way to read a value: a screen reader gets
+  // the same label without pointing at anything.
+  it("names each piece and its amount for a screen reader", () => {
+    setup();
+    expect(
+      screen.getByTestId("spend-bar-piece-within").getAttribute("aria-label"),
+    ).toBe("Planned spent: 48483 zl");
   });
 });

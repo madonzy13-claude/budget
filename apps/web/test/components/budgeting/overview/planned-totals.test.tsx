@@ -61,11 +61,23 @@ describe("PlannedTotals", () => {
       expect(screen.getByTestId(`planned-breakdown-piece-${k}`)).toBeTruthy();
   });
 
-  it("floats the type and amount over the piece on hover", () => {
+  it("floats the type and amount over whatever is scrubbed", () => {
     renderTotals();
-    fireEvent.pointerEnter(
-      screen.getByTestId("planned-breakdown-piece-reserve"),
-    );
+    const track = screen.getByTestId("planned-breakdown-track");
+    track.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        width: 100,
+        right: 100,
+        top: 0,
+        bottom: 12,
+        height: 12,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    // 23,629 of 25,302 is the first ~93%; 96% is inside the reserve piece.
+    fireEvent.pointerMove(track, { clientX: 96 });
     const tip = screen.getByTestId("planned-breakdown-tooltip");
     expect(tip.textContent).toContain("planned.fromReserve");
     expect(tip.textContent).toContain("870 zl");
@@ -76,10 +88,10 @@ describe("PlannedTotals", () => {
     expect(screen.queryByTestId("planned-breakdown-tooltip")).toBeNull();
   });
 
-  it("spans the chart's plotted width, not the whole section", () => {
+  it("sits on the money forecast's width", () => {
     renderTotals();
     const bar = screen.getByTestId("planned-breakdown");
-    expect(bar.style.marginLeft).toBe("48px");
+    expect(bar.style.marginLeft).toBe("8px");
     expect(bar.style.marginRight).toBe("8px");
   });
 

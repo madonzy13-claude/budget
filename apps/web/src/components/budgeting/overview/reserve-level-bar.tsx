@@ -1,171 +1,119 @@
 "use client";
 /**
- * reserve-level-bar.tsx — held against needed, as layers (260804).
+ * reserve-level-bar.tsx — held against needed, as a meter (260804).
  *
- * The stacked version read as three unrelated chunks. This is a PIPE: its
- * outline is what the category history asked for, and the fill inside it is
- * what is actually held. Under-filled, the empty stretch is what has to go in;
- * filled past the end, the overflow is what can come out. One shape, and which
- * way to move the money is obvious before any number is read.
+ * Two earlier attempts asked the reader to decode a shape. Stacked chunks never
+ * said which was which; a "pipe" gave the outline one meaning, the fill another
+ * and a hatched remainder a third — and hatching is a texture, which belongs to
+ * accessibility fallbacks, not decoration.
  *
- * Hovering (or tapping, or tabbing to) a layer floats the same tooltip the money
- * forecast uses — type and amount, no scrubber line.
+ * A ratio against a limit is a METER, so this is one: a single bar for what is
+ * HELD, and a target mark for what the history asked for. One quantity, one
+ * encoding. Past the mark the money is idle; short of it the buffer is exposed,
+ * and the stretch between the two is the amount to move — which the line
+ * underneath states outright.
+ *
+ * The fill bands by DISTANCE from the target, exactly as the bars below it do,
+ * because both directions are a problem: too little is overspend risk, too much
+ * is money the engine will never hand back.
+ *
+ * Nothing is hover-gated. Both figures and the action are on screen; the hover
+ * only repeats them.
  */
-import * as React from "react";
 import { useTranslations } from "next-intl";
+import { varianceColor } from "@/components/budgeting/charts/diverging-bar-chart";
 
 export function ReserveLevelBar({
   heldCents,
   neededCents,
   format,
   testId,
-  insetLeft = 0,
-  insetRight = 0,
+  // The money forecast is a card with 16px of padding and a section body has 8,
+  // so 8px more each side puts this on exactly the forecast band's width.
+  insetLeft = 8,
+  insetRight = 8,
 }: {
   heldCents: number;
   neededCents: number;
   format: (n: number) => string;
   testId: string;
-  /** Match the chart below: its axis width and right margin, in px. */
   insetLeft?: number;
   insetRight?: number;
 }) {
   const t = useTranslations("bdp.tab.overview");
-  const [active, setActive] = React.useState<{
-    label: string;
-    value: number;
-    color: string;
-    leftPct: number;
-  } | null>(null);
 
   const held = Math.max(0, heldCents);
   const needed = Math.max(0, neededCents);
   const scale = Math.max(held, needed);
   if (scale <= 0) return null;
 
-  const pct = (v: number) => (100 * v) / scale;
-  const filled = Math.min(held, needed);
-  const gap = Math.max(0, needed - held);
-  const overflow = Math.max(0, held - needed);
+  const slack = held - needed;
+  // No requirement at all: every zloty of it is spare, which reads as "far off"
+  // rather than as a division by zero.
+  const pct = needed > 0 ? (100 * slack) / needed : held > 0 ? 100 : 0;
+  const tone = varianceColor(pct);
 
-  const layer = (
-    key: string,
-    label: string,
-    value: number,
-    color: string,
-    leftPct: number,
-  ) => ({
-    onPointerEnter: () => setActive({ label, value, color, leftPct }),
-    onPointerLeave: () => setActive(null),
-    onFocus: () => setActive({ label, value, color, leftPct }),
-    onBlur: () => setActive(null),
-    role: "button" as const,
-    tabIndex: 0,
-    "aria-label": `${label}: ${format(value)}`,
-    "data-testid": `${testId}-${key}`,
-  });
+  const action = slack > 0 ? "canWithdraw" : slack < 0 ? "topUp" : "inBalance";
 
   return (
     <div
       data-testid={testId}
-      className="relative"
+      className="flex flex-col gap-1.5"
       style={{ marginLeft: insetLeft, marginRight: insetRight }}
     >
-      <div className="relative flex h-4 w-full items-stretch">
-        {/* The pipe: what the history asked for. Its border is the requirement,
-            and everything inside it is money that is actually there. */}
-        {needed > 0 && (
-          <div
-            {...layer(
-              "pipe",
-              t("reserveFit.neededTotal"),
-              needed,
-              "var(--chart-bar-1)",
-              pct(needed) / 2,
-            )}
-            className="relative h-full cursor-pointer overflow-hidden rounded-l-full border border-[var(--chart-bar-1)] bg-[var(--surface-elevated-dark)]"
-            style={{
-              width: `${pct(needed)}%`,
-              borderRightWidth: overflow > 0 ? 0 : 1,
-              borderTopRightRadius: overflow > 0 ? 0 : 9999,
-              borderBottomRightRadius: overflow > 0 ? 0 : 9999,
-            }}
-          >
-            <div
-              {...layer(
-                "fill",
-                t("reserveFit.heldTotal"),
-                held,
-                "var(--chart-bar-1)",
-                pct(filled) / 2,
-              )}
-              className="h-full cursor-pointer bg-[var(--chart-bar-1)]"
-              style={{ width: `${needed > 0 ? (100 * filled) / needed : 0}%` }}
-            />
-            {gap > 0 && (
-              <div
-                {...layer(
-                  "gap",
-                  t("reserveFit.topUp"),
-                  gap,
-                  "var(--trading-down)",
-                  pct(held + gap / 2),
-                )}
-                aria-hidden={false}
-                className="absolute inset-y-0 right-0 cursor-pointer"
-                style={{
-                  width: `${needed > 0 ? (100 * gap) / needed : 0}%`,
-                  background:
-                    "repeating-linear-gradient(45deg, var(--trading-down) 0 2px, transparent 2px 6px)",
-                  opacity: 0.5,
-                }}
-              />
-            )}
-          </div>
-        )}
+      {/* Both sides of the comparison, named — the meter shows the ratio, these
+          say what it is a ratio OF. */}
+      <div className="flex items-baseline justify-between gap-3 text-caption">
+        <span
+          data-testid={`${testId}-held`}
+          className="text-[var(--muted-foreground)]"
+        >
+          {t("reserveFit.heldTotal")}{" "}
+          <span className="num text-[var(--body-on-dark)]">{format(held)}</span>
+        </span>
+        <span
+          data-testid={`${testId}-needed`}
+          className="text-[var(--muted-foreground)]"
+        >
+          {t("reserveFit.neededTotal")}{" "}
+          <span className="num text-[var(--body-on-dark)]">
+            {format(needed)}
+          </span>
+        </span>
+      </div>
 
-        {/* Past the pipe: money the history never asked for. */}
-        {overflow > 0 && (
-          <div
-            {...layer(
-              "overflow",
-              t("reserveFit.canWithdraw"),
-              overflow,
-              "var(--muted-foreground)",
-              pct(needed + overflow / 2),
-            )}
-            className="h-full cursor-pointer rounded-r-full bg-[var(--muted-foreground)]"
-            style={{ width: `${pct(overflow)}%`, opacity: 0.55 }}
+      <div className="relative h-3 w-full overflow-hidden rounded-full bg-[var(--surface-elevated-dark)]">
+        <div
+          data-testid={`${testId}-fill`}
+          className="h-full rounded-full transition-[width]"
+          style={{ width: `${(100 * held) / scale}%`, background: tone }}
+          aria-label={`${t("reserveFit.heldTotal")}: ${format(held)}`}
+        />
+        {needed > 0 && (
+          <span
+            data-testid={`${testId}-mark`}
+            aria-label={`${t("reserveFit.neededTotal")}: ${format(needed)}`}
+            // The target: a full-height notch in the surface colour, so it reads
+            // as a division of the bar rather than as another quantity in it.
+            className="absolute inset-y-0 w-0.5 -translate-x-1/2 rounded-full bg-[var(--body-on-dark)]"
+            style={{ left: `${(100 * needed) / scale}%` }}
           />
         )}
       </div>
 
-      {active && (
-        <div
-          data-testid={`${testId}-tooltip`}
-          // Above the bar so a finger never covers it, edge-anchored so it can
-          // never clip out of the card — same rules as the forecast tooltip.
-          style={{
-            left: `${active.leftPct}%`,
-            transform: `translateX(${active.leftPct < 22 ? 0 : active.leftPct > 78 ? -100 : -50}%)`,
-          }}
-          className="pointer-events-none absolute bottom-full z-10 mb-2 w-max rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] px-3 py-2 text-xs shadow-lg"
-        >
-          <span className="flex items-center gap-2">
-            <span
-              aria-hidden
-              className="size-2 shrink-0 rounded-full"
-              style={{ background: active.color }}
-            />
-            <span className="text-[var(--muted-foreground)]">
-              {active.label}
-            </span>
-            <span className="num font-semibold text-[var(--body-on-dark)]">
-              {format(active.value)}
-            </span>
+      {/* The conclusion, which is the only thing here to act on. */}
+      <p
+        data-testid={`${testId}-action`}
+        className="text-caption text-center"
+        style={{ color: slack === 0 ? undefined : tone }}
+      >
+        {t(`reserveFit.${action}`)}
+        {slack !== 0 && (
+          <span className="num ml-1 font-semibold">
+            {format(Math.abs(slack))}
           </span>
-        </div>
-      )}
+        )}
+      </p>
     </div>
   );
 }

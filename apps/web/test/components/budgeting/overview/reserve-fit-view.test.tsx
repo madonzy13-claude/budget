@@ -55,6 +55,8 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
     />
   ),
   varianceColorForRange: () => "#fff",
+  // The meter bands its fill by distance from target, same as the bars.
+  varianceColor: () => "var(--trading-up)",
 }));
 
 vi.mock("@/components/budgeting/overview/reserve-fit-one-offs", () => ({
@@ -306,25 +308,28 @@ describe("ReserveFitView", () => {
   // 260804: held against needed reads as a pipe — outline = what the history
   // asked for, fill = what is actually there (reserve-level-bar.test.tsx covers
   // the layers themselves; this pins the wiring).
-  it("draws the pipe with what is held inside it", () => {
+  it("meters what is held against the target", () => {
     view();
-    expect(screen.getByTestId("reserve-bar-pipe")).toBeTruthy();
     expect(screen.getByTestId("reserve-bar-fill")).toBeTruthy();
+    expect(screen.getByTestId("reserve-bar-mark")).toBeTruthy();
   });
 
   it("hands it the section's totals", () => {
     view();
-    // Sport 4,600 held / 0 needed; Car 1,000 / 5,000 → 5,600 held, 5,000 needed:
-    // over-filled, so the overflow shows and no gap does.
-    expect(screen.getByTestId("reserve-bar-overflow")).toBeTruthy();
-    expect(screen.queryByTestId("reserve-bar-gap")).toBeNull();
+    // Sport 4,600 held / 0 needed; Car 1,000 / 5,000 → 5,600 held, 5,000 needed.
+    expect(screen.getByTestId("reserve-bar-held").textContent).toContain(
+      "5600",
+    );
+    expect(screen.getByTestId("reserve-bar-action").textContent).toContain(
+      "reserveFit.canWithdraw",
+    );
   });
 
-  it("spans the chart's plotted width", () => {
+  it("sits on the money forecast's width", () => {
     view();
     const bar = screen.getByTestId("reserve-bar");
-    expect(bar.style.marginLeft).toBe("80px");
-    expect(bar.style.marginRight).toBe("14px");
+    expect(bar.style.marginLeft).toBe("8px");
+    expect(bar.style.marginRight).toBe("8px");
   });
 
   it("says so when there is nothing to size at all", () => {

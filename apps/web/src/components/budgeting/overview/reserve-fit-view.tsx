@@ -88,12 +88,6 @@ export function ReserveFitView({
         neededCents={totals.neededCents}
         format={format}
         testId="reserve-bar"
-        // Line up with the chart below: 8px left margin + a 72px Y axis, and
-        // 14px of gutter on the right — measured against the plotted area
-        // rather than trusting the margin prop, which recharts spends partly on
-        // the last tick label (user, 260804).
-        insetLeft={80}
-        insetRight={14}
       />
 
       {/* The switch stays centred on its own line; the one-offs button floats in
