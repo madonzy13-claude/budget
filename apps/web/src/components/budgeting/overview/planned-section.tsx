@@ -66,7 +66,7 @@ import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { todayInTz, type OverviewRange } from "@/lib/overview-range";
 import { trimLeadingEmpty } from "@/lib/trim-leading-empty";
 import { PlannedTotals } from "./planned-totals";
-import { PlannedAvgSummary } from "./planned-avg-summary";
+import { monthsInRange } from "@/lib/months-in-range";
 
 const NEUTRAL = "var(--muted-foreground)";
 
@@ -406,6 +406,9 @@ export function PlannedSection({
               reserveUsedCents={data.rangeTotals?.reserve_used_cents ?? "0"}
               overspentCents={data.rangeTotals?.overspent_cents ?? "0"}
               rangeWithinRunningMonth={rangeWithinRunningMonth}
+              // Each total also says what it comes to in a month (user,
+              // 260805) — one month of range has nothing to average.
+              months={monthsInRange(range.from, range.to)}
               format={(cents) => centsToRounded(cents, ccy, "en", true)}
               // Deliberately NOT masked (user, 260803): these are the plan and
               // what it cost, not a balance — the figures the member reads while
@@ -590,13 +593,6 @@ export function PlannedSection({
             data.plannedAvgVsReal.length > 0 && (
               <div className="flex flex-col gap-2">
                 <ChartLabel>{t("planned.avgByCategory")}</ChartLabel>
-                {/* What the bars never say: the bars are per category, so a
-                    screen of red could be 200 zł of drift or 2,000 (user,
-                    260805). */}
-                <PlannedAvgSummary
-                  rows={data.plannedAvgVsReal}
-                  format={fmtTooltip}
-                />
                 {/* Percent or money — the same pill track the running-month
                   toggle used to own (260804 request). */}
                 {/* The switch stays centred; the one-offs button floats in the

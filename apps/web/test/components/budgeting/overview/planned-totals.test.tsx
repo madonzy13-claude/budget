@@ -140,6 +140,45 @@ describe("PlannedTotals", () => {
     expect(totals.className).not.toContain("border-t");
   });
 
+  // 260805: the averages moved here from under the by-category bars, where they
+  // duplicated the same three questions in a second place. Each total now says
+  // what it comes to in a month, right beneath itself.
+  describe("per month", () => {
+    it("says what each total comes to in a month", () => {
+      // 29,000 planned and 25,302 spent over 4 months.
+      renderTotals({ months: 4 });
+      expect(cell("planned-avg").textContent).toContain("7250");
+      expect(cell("spent-avg").textContent).toContain("6325");
+    });
+
+    it("reads the difference as a monthly figure, not a range total", () => {
+      renderTotals({ months: 4 });
+      // −3,698 over the range is −924 a month.
+      const diff = cell("difference").textContent ?? "";
+      expect(diff).toContain("924");
+      expect(diff).not.toContain("3698");
+    });
+
+    // The percent is a ratio, so it is the same whether it is read over the
+    // range or over one month — it stays as it was.
+    it("leaves the percent alone", () => {
+      renderTotals({ months: 4 });
+      expect(cell("difference").textContent).toContain("12.8%");
+    });
+
+    it("says nothing per month when the range is a single month", () => {
+      renderTotals({ months: 1 });
+      expect(screen.queryByTestId("planned-total-planned-avg")).toBeNull();
+    });
+
+    it("marks the monthly figures as monthly, for a reader who cannot see", () => {
+      renderTotals({ months: 4 });
+      expect(cell("planned-avg").getAttribute("aria-label")).toContain(
+        "perMonth",
+      );
+    });
+  });
+
   it("centres every figure over its label", () => {
     renderTotals();
     for (const k of ["spent", "planned"])

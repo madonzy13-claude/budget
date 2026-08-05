@@ -81,4 +81,13 @@ describe("Range selector arrows", () => {
     expect(screen.getByTestId("range-step-back")).toBeDisabled();
     expect(screen.getByTestId("range-step-forward")).toBeDisabled();
   });
+
+  // 260805: the strip claimed pan-x for a horizontal swipe it does not have —
+  // the pills fit — so a finger starting here could not scroll the page at all.
+  it("leaves the page free to scroll when the pills fit", () => {
+    render(<RangeSelector value={august} onChange={vi.fn()} />);
+    expect(
+      screen.getByTestId("overview-range-selector").className,
+    ).not.toContain("touch-pan-x");
+  });
 });

@@ -7,6 +7,7 @@
  * the range-scoped sections only — the recurring charts + reserves bar ignore it.
  * Emits a resolved {preset, from, to} so callers key their RQ fetch off it.
  */
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -44,6 +45,24 @@ export function RangeSelector({
   const t = useTranslations("bdp.tab.overview.range");
   const tz = useUserTimezone();
   const isCustom = value.preset === "custom";
+
+  // Only claim the finger when there is a horizontal swipe worth protecting.
+  // touch-pan-x told the browser this strip owns every gesture that starts on
+  // it, so a page scroll begun on the range row did nothing at all — and on a
+  // phone the pills FIT, so there was no sideways swipe to protect (user,
+  // 260805). Measured rather than assumed: it does overflow in some locales.
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [scrolls, setScrolls] = useState(false);
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const measure = () => setScrolls(el.scrollWidth > el.clientWidth + 1);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Step the SAME window back and forward (260802 request). "All" already
   // reaches as far as the data goes, and forward stops at today — shown as a
@@ -99,14 +118,19 @@ export function RangeSelector({
       <div className="flex items-center gap-1">
         {step(-1)}
         <div
+          ref={scrollerRef}
           role="group"
           aria-label={t("month")}
-          // touch-pan-x + overscroll-x-contain: a horizontal swipe on this scroller
-          // stays horizontal and never chains to the page. Without it, iOS Safari
-          // read a swipe's vertical drift as a page pan → the bar collapsed / the
-          // page rubber-banded, flashing the black canvas at the bottom of the
-          // screen when "passing" the range strip (user report, browser tab).
-          className="flex flex-1 touch-pan-x items-center justify-center gap-1 overflow-x-auto overscroll-x-contain"
+          // touch-pan-x + overscroll-x-contain, but ONLY while the pills really
+          // overflow: a horizontal swipe then stays horizontal and never chains
+          // to the page, which is what stopped iOS Safari reading a swipe's
+          // vertical drift as a page pan (the bar collapsed and the black canvas
+          // flashed at the bottom — 260721). With nothing to swipe, that same
+          // rule only blocked the page scroll (260805).
+          className={cn(
+            "flex flex-1 items-center justify-center gap-1 overflow-x-auto",
+            scrolls && "touch-pan-x overscroll-x-contain",
+          )}
           data-testid="overview-range-selector"
         >
           {PRESETS.map((p) =>

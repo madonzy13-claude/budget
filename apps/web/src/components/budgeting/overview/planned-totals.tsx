@@ -38,9 +38,43 @@ interface Cell {
   tone?: string;
   /** Trails the figure, one size down — the percent beside the amount. */
   suffix?: string;
+  /** What the total comes to in a month, under it. Absent for a one-month
+   *  range, where it would only repeat the figure above (260805). */
+  perMonth?: string;
 }
 
-function Figure({ cell, mask }: { cell: Cell; mask: boolean }) {
+/** The monthly figure under a range total. "⌀" rather than a word: it sits in a
+ *  111px column on a phone, and a screen reader gets the label instead. */
+function PerMonth({
+  testId,
+  value,
+  label,
+}: {
+  testId: string;
+  value: string;
+  label: string;
+}) {
+  return (
+    <span
+      data-testid={testId}
+      aria-label={`${label}: ${value}`}
+      className="num text-caption whitespace-nowrap text-[var(--muted-foreground)]"
+    >
+      <span aria-hidden>⌀ </span>
+      {value}
+    </span>
+  );
+}
+
+function Figure({
+  cell,
+  mask,
+  perMonthLabel,
+}: {
+  cell: Cell;
+  mask: boolean;
+  perMonthLabel: string;
+}) {
   return (
     <div className="flex min-w-0 flex-col items-center gap-0.5 text-center">
       <p className="text-caption text-[var(--muted-foreground)]">
@@ -59,6 +93,13 @@ function Figure({ cell, mask }: { cell: Cell; mask: boolean }) {
           <span className="text-caption ml-1">{cell.suffix}</span>
         )}
       </span>
+      {cell.perMonth && (
+        <PerMonth
+          testId={`planned-total-${cell.key}-avg`}
+          value={cell.perMonth}
+          label={perMonthLabel}
+        />
+      )}
     </div>
   );
 }
@@ -73,6 +114,7 @@ export function PlannedTotals({
   maskValue = false,
   reservesEnabled = true,
   rangeWithinRunningMonth = false,
+  months = 1,
 }: {
   plannedCents: string;
   spentCents: string;
@@ -87,6 +129,9 @@ export function PlannedTotals({
    *  verdict yet, so it reads plain. A range reaching further back is mostly
    *  finished history and keeps its colour (260803 user decision). */
   rangeWithinRunningMonth?: boolean;
+  /** Calendar months the range covers — the divisor for the monthly figures.
+   *  1 means there is nothing to average and they are dropped (260805). */
+  months?: number;
 }) {
   const t = useTranslations("bdp.tab.overview");
   const n = (v: string) => BigInt(v || "0");
@@ -100,12 +145,25 @@ export function PlannedTotals({
   const sign = diff > 0n ? "+" : diff < 0n ? "−" : "";
   const absDiff = diff < 0n ? -diff : diff;
 
+  // The averages live here now, under the totals they are averages OF — under
+  // the by-category bars they asked the same three questions a second time
+  // (user, 260805). Range totals over calendar months, so all three figures
+  // come from one source and cannot disagree.
+  const per = (v: bigint) =>
+    months > 1 ? format(v / BigInt(months)) : undefined;
+
   const comparison: Cell[] = [
-    { key: "spent", label: t("planned.totalSpent"), value: format(spent) },
+    {
+      key: "spent",
+      label: t("planned.totalSpent"),
+      value: format(spent),
+      perMonth: per(spent),
+    },
     {
       key: "planned",
       label: t("planned.totalPlanned"),
       value: format(planned),
+      perMonth: per(planned),
     },
   ];
 
@@ -155,13 +213,20 @@ export function PlannedTotals({
           260805). */}
       <div className="grid grid-cols-3 items-start gap-x-3 gap-y-1 pt-1">
         {comparison.map((c) => (
-          <Figure key={c.key} cell={c} mask={maskValue} />
+          <Figure
+            key={c.key}
+            cell={c}
+            mask={maskValue}
+            perMonthLabel={t("planned.perMonth")}
+          />
         ))}
         <CombinedStat
           testId="planned-total-difference"
           label={t("planned.difference")}
           pct={pct}
-          amount={`${sign}${format(absDiff)}`}
+          // The AMOUNT is monthly like its neighbours; the percent is a ratio,
+          // identical either way, so it stays as it was (user, 260805).
+          amount={`${sign}${format(months > 1 ? absDiff / BigInt(months) : absDiff)}`}
           mask={maskValue}
           // Only while the range is this month alone: five days in, being under
           // says nothing. Reach back further and the colour returns (260803).

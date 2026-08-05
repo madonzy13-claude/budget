@@ -1000,10 +1000,6 @@ describe("Diverging chart — how the two callers ask for it", () => {
     expect(src("reserve-fit-view.tsx")).not.toContain("driftBand");
   });
 
-  it("puts the average month under the by-category bars", () => {
-    expect(src("planned-section.tsx")).toContain("PlannedAvgSummary");
-  });
-
   it("colours both from the percent, whatever the axis reads in", () => {
     for (const f of ["planned-section.tsx", "reserve-fit-view.tsx"])
       expect(src(f)).toContain('colorKey="pct"');
