@@ -128,7 +128,24 @@ export function ChartTooltipContent({
   );
   return (
     <div
-      onClick={onDismiss ? () => onDismiss(label) : undefined}
+      // Everything stops here. The tooltip sits INSIDE the chart, so without
+      // this a tap on it reached the chart underneath and selected whatever the
+      // tooltip was covering — the dismissal and the re-selection cancelled out
+      // and it looked as though the tooltip were not there at all (user, 260805).
+      // The synthesised mouse sequence that follows a touch has to be stopped
+      // too, not just the click.
+      onClick={
+        onDismiss
+          ? (e) => {
+              e.stopPropagation();
+              onDismiss(label);
+            }
+          : undefined
+      }
+      onMouseMove={onDismiss ? (e) => e.stopPropagation() : undefined}
+      onMouseDown={onDismiss ? (e) => e.stopPropagation() : undefined}
+      onTouchStart={onDismiss ? (e) => e.stopPropagation() : undefined}
+      onTouchMove={onDismiss ? (e) => e.stopPropagation() : undefined}
       style={{
         background: CHART_THEME.tooltipBg,
         border: `1px solid ${CHART_THEME.tooltipBorder}`,

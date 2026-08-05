@@ -86,6 +86,26 @@ export function varianceColor(pct: number): string {
  * so a chart that called it red disagreed with the shape directly above it and
  * turned a page of ordinary surpluses into a wall of alarm (user, 260805).
  */
+/**
+ * What a FINGER selects (260805). A cursor may hover anywhere along a row — the
+ * whole width is a fine target with a mouse — but on touch that meant tapping
+ * the empty half of a row picked a bar you were nowhere near, and tapping the
+ * tooltip picked whatever sat beneath it. A finger has to be on the bar itself.
+ */
+export function touchSelection(
+  index: number | null,
+  elementAtTouch: Element | null,
+): number | null {
+  if (index === null || !elementAtTouch) return null;
+  return elementAtTouch.closest(".recharts-rectangle") ? index : null;
+}
+
+/** The named field, when the row actually carries a readable number for it. */
+function colorValue(raw: unknown): number | null {
+  const n = Number(raw);
+  return raw !== undefined && raw !== null && Number.isFinite(n) ? n : null;
+}
+
 export function reserveFitColor(pct: number): string {
   if (Math.abs(pct) <= ON_PLAN_BAND_PCT) return "var(--trading-up)";
   return pct > 0 ? "var(--primary)" : "var(--trading-down)";
@@ -263,7 +283,7 @@ export function OverviewDivergingBarChart({
   labelFormat,
   maskAmounts = false,
   colorForPct = varianceColor,
-  colorKey,
+  colorKey = "pct",
   formatValue,
 }: {
   data: Array<Record<string, unknown>>;
@@ -282,8 +302,13 @@ export function OverviewDivergingBarChart({
   maskAmounts?: boolean;
   /** Which field the COLOUR comes from, when it is not the plotted one. A bar
    *  drawn in zł is still banded by how far off plan it is — cents are not a
-   *  percentage, and feeding them to a band function painted everything red
-   *  (user, 260804). */
+   *  percentage, and feeding them to a band function painted a +5% category red
+   *  (user screenshots, 260805).
+   *
+   *  Defaults to "pct" rather than to the plotted value: this is a VARIANCE
+   *  chart, its colour is always about variance, and as an opt-in prop one of
+   *  the two call sites simply never got it. Rows without that field fall back
+   *  to what is plotted. */
   colorKey?: string;
   /** Reads the axis and the bar labels in the caller's own unit — money instead
    *  of percent (260804). Given one, the ±10% "on plan" band is dropped too:
@@ -300,6 +325,10 @@ export function OverviewDivergingBarChart({
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activeRef = useRef<number | null>(null);
   const pressStart = useRef<number | null>(null);
+  // A touch is followed by a synthesised mouse sequence at the same point; this
+  // is how long the mouse handlers stay out of the way afterwards.
+  const touchedAt = useRef(0);
+  const isGhostMouse = () => performance.now() - touchedAt.current < 700;
   const setActive = (v: number | null) => {
     activeRef.current = v;
     setActiveIndex(v);
@@ -309,6 +338,20 @@ export function OverviewDivergingBarChart({
   ): number | null => {
     const n = raw == null || raw === "" ? NaN : Number(raw);
     return Number.isFinite(n) ? n : null;
+  };
+
+  const fromTouch = (
+    s: { activeTooltipIndex?: number | string | null },
+    e: React.TouchEvent,
+  ) => {
+    touchedAt.current = performance.now();
+    const t = e.touches?.[0] ?? e.changedTouches?.[0];
+    setActive(
+      touchSelection(
+        coerceIdx(s?.activeTooltipIndex),
+        t ? document.elementFromPoint(t.clientX, t.clientY) : null,
+      ),
+    );
   };
 
   const values = data.map((r) => Number(r[valueKey]));
@@ -354,16 +397,20 @@ export function OverviewDivergingBarChart({
             pressStart.current = activeRef.current;
           }}
           onMouseMove={(s: { activeTooltipIndex?: number | string | null }) => {
+            // A touch synthesises a whole mouse sequence a moment later; it must
+            // not re-select what the finger rules just declined.
+            if (isGhostMouse()) return;
             setActive(coerceIdx(s?.activeTooltipIndex));
           }}
           onMouseLeave={() => setActive(null)}
-          // A finger slid across scrubs directly: recharts only sees a mouse
-          // move once a tap has synthesised one, so without this the bars
-          // answered nothing until they were tapped first (user, 260804).
-          onTouchMove={(s: { activeTooltipIndex?: number | string | null }) => {
-            setActive(coerceIdx(s?.activeTooltipIndex));
-          }}
+          // A finger put down and slid scrubs directly: recharts only sees a
+          // mouse move once a tap has synthesised one, so without this the bars
+          // answered nothing until they were tapped first (user, 260804) — and
+          // it must be ON a bar, not anywhere along the row (user, 260805).
+          onTouchStart={fromTouch}
+          onTouchMove={fromTouch}
           onClick={(s: { activeTooltipIndex?: number | string | null }) => {
+            if (isGhostMouse()) return;
             const idx = coerceIdx(s?.activeTooltipIndex);
             if (idx == null) return;
             if (idx === pressStart.current) setActive(null);
@@ -460,9 +507,8 @@ export function OverviewDivergingBarChart({
               <Cell
                 key={ri}
                 fill={colorForPct(
-                  colorKey
-                    ? Number((row as Record<string, unknown>)[colorKey])
-                    : row.__raw,
+                  colorValue((row as Record<string, unknown>)[colorKey]) ??
+                    row.__raw,
                 )}
                 fillOpacity={dim(ri)}
               />

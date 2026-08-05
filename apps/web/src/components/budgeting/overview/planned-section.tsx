@@ -665,6 +665,11 @@ export function PlannedSection({
                       runningMonthOnly: rangeWithinRunningMonth,
                     })
                   }
+                  // Band by the PERCENT even when the axis is drawn in zł:
+                  // cents are not a percentage, and feeding them to a band
+                  // function turned +5% green into red the moment the scale was
+                  // flipped (user screenshots, 260805).
+                  colorKey="pct"
                   tooltipExtra={(row) => {
                     const diff = Number(row.real) - Number(row.planned);
                     const pct = Number(row.pct);

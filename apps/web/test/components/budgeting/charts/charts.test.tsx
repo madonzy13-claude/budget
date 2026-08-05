@@ -19,6 +19,7 @@ import {
   amountTicks,
   OverviewDivergingBarChart,
   reserveFitColor,
+  touchSelection,
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { OverviewOverlapBarChart } from "@/components/budgeting/charts/overlap-bar-chart";
@@ -843,14 +844,34 @@ describe("Diverging chart — colour source", () => {
     );
   };
 
-  it("colours from the plotted value by default", () => {
-    // 190000 cents is nowhere near ±10 — the plotted number IS the percent when
-    // no other field is named.
-    expect(fills({})).toContain("BAD");
+  // 260805: this was an opt-in prop, and the planned chart simply never got it
+  // — so flipping that chart to zł painted a +5% category red. A variance chart
+  // is ALWAYS coloured by variance, so a row carrying `pct` is banded by it
+  // whether or not the call site remembered to say so.
+  it("colours from the row's percent without being asked", () => {
+    expect(fills({})).toContain("GOOD");
   });
 
-  it("colours from the named field when one is given", () => {
+  it("still honours an explicitly named field", () => {
     expect(fills({ colorKey: "pct" })).toContain("GOOD");
+  });
+
+  it("falls back to the plotted value when the row has no percent", () => {
+    const { container } = render(
+      <div style={{ width: 600, height: 400 }}>
+        <OverviewDivergingBarChart
+          data={[{ name: "Car", other: 4 }]}
+          categoryKey="name"
+          valueKey="other"
+          colorForPct={(pct) => (Math.abs(pct) <= 10 ? "GOOD" : "BAD")}
+        />
+      </div>,
+    );
+    expect(
+      [...container.querySelectorAll("path[fill]")].map((p) =>
+        p.getAttribute("fill"),
+      ),
+    ).toContain("GOOD");
   });
 });
 
@@ -892,5 +913,49 @@ describe("Diverging chart — dismissing the tooltip", () => {
       ".recharts-tooltip-wrapper",
     );
     expect(wrapper?.style.pointerEvents).toBe("auto");
+  });
+});
+
+// 260805: a finger is not a cursor. Hovering anywhere along a row is a fine way
+// to read a chart with a mouse, but on touch the same rule meant tapping the
+// empty half of a row selected a bar you were nowhere near — and tapping the
+// tooltip selected whatever sat under it.
+describe("touchSelection", () => {
+  const bar = () => {
+    const el = document.createElement("div");
+    el.className = "recharts-rectangle";
+    return el;
+  };
+  const inBar = () => {
+    const outer = bar();
+    const inner = document.createElement("span");
+    outer.appendChild(inner);
+    return inner;
+  };
+
+  it("selects when the finger is on a bar", () => {
+    expect(touchSelection(3, bar())).toBe(3);
+  });
+
+  it("selects when the finger is on something drawn inside a bar", () => {
+    expect(touchSelection(3, inBar())).toBe(3);
+  });
+
+  it("selects nothing in the empty stretch of a row", () => {
+    expect(touchSelection(3, document.createElement("div"))).toBeNull();
+  });
+
+  it("selects nothing when the finger is on the tooltip", () => {
+    const tip = document.createElement("div");
+    tip.className = "recharts-tooltip-wrapper";
+    expect(touchSelection(3, tip)).toBeNull();
+  });
+
+  it("selects nothing when there is nothing under the finger", () => {
+    expect(touchSelection(3, null)).toBeNull();
+  });
+
+  it("selects nothing when the chart could not name a row", () => {
+    expect(touchSelection(null, bar())).toBeNull();
   });
 });
