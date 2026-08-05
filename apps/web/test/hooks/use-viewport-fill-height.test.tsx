@@ -134,6 +134,10 @@ const setVisibility = (state: "hidden" | "visible") => {
 
 const sizeOf = (el: HTMLElement) => el.style.getPropertyValue("--grid-max-h");
 
+/** What the hook writes: the 100svh floor, with the measured height over it. */
+const filled = (top: number, px: number) =>
+  `max(160px, calc(100svh - ${top}px), ${px}px)`;
+
 afterEach(() => {
   document.body.innerHTML = "";
   vi.restoreAllMocks();
@@ -148,7 +152,7 @@ describe("useViewportFillHeight (fitVisible)", () => {
       const ref = useRef(el);
       useViewportFillHeight(ref, { fitVisible: true });
     });
-    expect(sizeOf(el)).toBe("max(160px, 786px)");
+    expect(sizeOf(el)).toBe(filled(114, 786));
     pointer();
     restore();
   });
@@ -166,7 +170,7 @@ describe("useViewportFillHeight (fitVisible)", () => {
     });
     // 900/1.5 − 114 = 486 local px → 729 on screen; 171 + 729 = 900, exactly
     // the viewport, with nothing left over to scroll.
-    expect(sizeOf(el)).toBe("max(160px, 486px)");
+    expect(sizeOf(el)).toBe(filled(114, 486));
     pointer();
     restore();
   });
@@ -189,7 +193,7 @@ describe("useViewportFillHeight (fitVisible)", () => {
       const ref = useRef(el);
       useViewportFillHeight(ref, { fitVisible: true });
     });
-    expect(sizeOf(el)).toBe("max(160px, 786px)");
+    expect(sizeOf(el)).toBe(filled(114, 786));
     pointer();
     restore();
   });
@@ -207,7 +211,7 @@ describe("useViewportFillHeight (fitVisible)", () => {
       const ref = useRef(el);
       useViewportFillHeight(ref, { fitVisible: true });
     });
-    expect(sizeOf(el)).toBe("max(160px, 402px)");
+    expect(sizeOf(el)).toBe(filled(114, 402));
     pointer();
     restore();
   });
@@ -224,12 +228,12 @@ describe("useViewportFillHeight (fitVisible)", () => {
       const ref = useRef(el);
       useViewportFillHeight(ref, { fitVisible: true });
     });
-    expect(sizeOf(el)).toBe("max(160px, 786px)");
+    expect(sizeOf(el)).toBe(filled(114, 786));
 
     setVisibility("hidden");
     vv.setHeight(500); // the other app's keyboard, reserved
     vv.fireResize();
-    expect(sizeOf(el)).toBe("max(160px, 786px)");
+    expect(sizeOf(el)).toBe(filled(114, 786));
 
     setVisibility("visible");
     pointer();
@@ -237,12 +241,16 @@ describe("useViewportFillHeight (fitVisible)", () => {
   });
 
   // Guarding the hidden reading alone still let the band FLASH: the shrunken
-  // viewport is what iOS reports for the first few hundred ms after the app is
-  // visible again, so re-measuring on resume wrote the short box, showed the
-  // band, and corrected it a moment later (user video, 260805). Nothing may
-  // SHRINK the box while the viewport is still settling.
-  it("does not shrink the box while the viewport is still settling", () => {
-    vi.useFakeTimers();
+  // viewport is what iOS reports for the first few hundred ms AFTER the app is
+  // visible again, so re-measuring on resume wrote a short box, showed the
+  // band, and corrected it a moment later (user video, 260805).
+  //
+  // The answer is a FLOOR rather than a timing window. 100svh is the viewport
+  // with every dynamic toolbar shown — the smallest the visible area can
+  // legitimately be — so a reading still carrying the previous app's keyboard
+  // falls under it and changes nothing. There is no window to get wrong and no
+  // state to hold.
+  it("keeps a floor under the box, so a stale viewport cannot shorten it", () => {
     const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
     const vv = liveViewport(900);
     const pointer = withPointer(true);
@@ -250,25 +258,42 @@ describe("useViewportFillHeight (fitVisible)", () => {
       const ref = useRef(el);
       useViewportFillHeight(ref, { fitVisible: true });
     });
-    expect(sizeOf(el)).toBe("max(160px, 786px)");
 
     setVisibility("hidden");
     setVisibility("visible");
-    // iOS is still holding the keyboard's space, and says so repeatedly.
+    // iOS is still holding the keyboard's space.
     vv.setHeight(500);
     vv.fireResize();
-    vi.advanceTimersByTime(200);
-    expect(sizeOf(el)).toBe("max(160px, 786px)");
 
+    // The short reading is written, but only ever as something that could ADD
+    // height — the floor is what the box actually takes.
+    expect(sizeOf(el)).toBe(filled(114, 386));
     pointer();
     vv.restore();
-    vi.useRealTimers();
   });
 
-  // Growing is safe — an over-tall box is invisible, a short one is a black
-  // band — so a resume that genuinely gained height takes it at once.
+  // Every write carries the floor, whatever the viewport is doing — that is the
+  // whole guarantee, so it is worth asserting on its own.
+  it("never writes a height without that floor under it", () => {
+    const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
+    const vv = liveViewport(900);
+    const pointer = withPointer(true);
+    renderHook(() => {
+      const ref = useRef(el);
+      useViewportFillHeight(ref, { fitVisible: true });
+    });
+    for (const h of [500, 900, 1000, 300]) {
+      vv.setHeight(h);
+      vv.fireResize();
+      expect(sizeOf(el)).toContain("calc(100svh - 114px)");
+    }
+    pointer();
+    vv.restore();
+  });
+
+  // A viewport that genuinely gained height — the iOS bar collapsing — is what
+  // the measured value is FOR, and it still wins over the floor.
   it("takes a taller viewport straight away on resume", () => {
-    vi.useFakeTimers();
     const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
     const vv = liveViewport(900);
     const pointer = withPointer(true);
@@ -282,33 +307,9 @@ describe("useViewportFillHeight (fitVisible)", () => {
     vv.setHeight(1000);
     vv.fireResize();
 
-    expect(sizeOf(el)).toBe("max(160px, 886px)");
+    expect(sizeOf(el)).toBe(filled(114, 886));
     pointer();
     vv.restore();
-    vi.useRealTimers();
-  });
-
-  // …and a viewport that really did get smaller — rotated while the app was
-  // away — is honoured once the settling window has passed.
-  it("takes the smaller viewport once it has settled", () => {
-    vi.useFakeTimers();
-    const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
-    const vv = liveViewport(900);
-    const pointer = withPointer(true);
-    renderHook(() => {
-      const ref = useRef(el);
-      useViewportFillHeight(ref, { fitVisible: true });
-    });
-
-    setVisibility("hidden");
-    setVisibility("visible");
-    vv.setHeight(700);
-    vi.advanceTimersByTime(1000);
-
-    expect(sizeOf(el)).toBe("max(160px, 586px)");
-    pointer();
-    vv.restore();
-    vi.useRealTimers();
   });
 
   it("falls back to the window when there is no visualViewport", () => {
@@ -324,7 +325,7 @@ describe("useViewportFillHeight (fitVisible)", () => {
       useViewportFillHeight(ref, { fitVisible: true });
     });
     // innerHeight is the same screen space, so the box still lands right.
-    expect(sizeOf(el)).toBe(`max(160px, ${window.innerHeight - 100}px)`);
+    expect(sizeOf(el)).toBe(filled(100, window.innerHeight - 100));
     pointer();
     restore();
   });
