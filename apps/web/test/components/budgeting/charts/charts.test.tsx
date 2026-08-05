@@ -18,6 +18,7 @@ import {
 import {
   amountTicks,
   OverviewDivergingBarChart,
+  varianceColorPassFail,
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { OverviewOverlapBarChart } from "@/components/budgeting/charts/overlap-bar-chart";
@@ -794,5 +795,81 @@ describe("Diverging chart — money reading", () => {
       el.querySelectorAll(".recharts-reference-area").length;
     expect(bands(pct)).toBeGreaterThan(0);
     expect(bands(money)).toBe(0);
+  });
+});
+
+// 260804: the reserve chart drops the middle band. A buffer is either about the
+// right size or it is not — "drifting" is not a state you would act on
+// differently, and the yellow only made two shades of wrong.
+describe("varianceColorPassFail", () => {
+  it("passes anything inside ten percent either way", () => {
+    for (const pct of [0, 10, -10, 4.9, -9.9])
+      expect(varianceColorPassFail(pct)).toContain("--trading-up");
+  });
+
+  it("fails everything outside it, in both directions", () => {
+    for (const pct of [10.1, -10.1, 30, -30, 248])
+      expect(varianceColorPassFail(pct)).toContain("--trading-down");
+  });
+
+  it("never returns the drift yellow", () => {
+    for (const pct of [0, 15, -15, 100])
+      expect(varianceColorPassFail(pct)).not.toContain("--primary");
+  });
+});
+
+// A bar drawn in zł still has to be COLOURED by how far off plan it is: cents
+// are not a percentage, and feeding them to a band function painted every
+// category red (user, 260804).
+describe("Diverging chart — colour source", () => {
+  const ROWS = [{ name: "Car", pct: 4, gap: 190000 }];
+
+  const fills = (extra: Record<string, unknown>) => {
+    const { container } = render(
+      <div style={{ width: 600, height: 400 }}>
+        <OverviewDivergingBarChart
+          data={ROWS}
+          categoryKey="name"
+          valueKey="gap"
+          formatValue={(n: number) => String(n)}
+          colorForPct={(pct) => (Math.abs(pct) <= 10 ? "GOOD" : "BAD")}
+          {...extra}
+        />
+      </div>,
+    );
+    return [...container.querySelectorAll("path[fill]")].map((p) =>
+      p.getAttribute("fill"),
+    );
+  };
+
+  it("colours from the plotted value by default", () => {
+    // 190000 cents is nowhere near ±10 — the plotted number IS the percent when
+    // no other field is named.
+    expect(fills({})).toContain("BAD");
+  });
+
+  it("colours from the named field when one is given", () => {
+    expect(fills({ colorKey: "pct" })).toContain("GOOD");
+  });
+});
+
+// 260804: on a phone the per-category bars only answered after a discrete tap —
+// recharts sees a mouse move only once a tap has synthesised one. A finger put
+// down and slid should scrub, so the chart takes touchmove directly. The page
+// must still scroll THROUGH it, though: this chart is a tall list, and trapping
+// vertical scroll over it would strand the reader.
+describe("Diverging chart — touch scrubbing", () => {
+  it("lets a horizontal drag scrub while the page still scrolls vertically", () => {
+    const { container } = render(
+      <div style={{ width: 600, height: 400 }}>
+        <OverviewDivergingBarChart
+          data={[{ name: "Car", pct: 4 }]}
+          categoryKey="name"
+          valueKey="pct"
+        />
+      </div>,
+    );
+    const surface = container.querySelector<HTMLElement>("[data-scrub]");
+    expect(surface?.style.touchAction).toBe("pan-y");
   });
 });

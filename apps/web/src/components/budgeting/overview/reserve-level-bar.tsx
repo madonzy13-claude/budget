@@ -20,7 +20,7 @@
  * the bar solid red — including the 8,313 that is doing exactly its job (user
  * screenshot, 260804). Each stretch says what it is instead:
  *
- *   covered  (inside the outline)   green   — this money is earning its keep
+ *   covered  (inside the outline)   grey    — the baseline; nothing to act on
  *   surplus  (past the outline)     amber   — idle; a slow loss, attention not alarm
  *   missing  (never reached)        dashed  — an absence, drawn as one
  *
@@ -32,11 +32,13 @@
  */
 import { useTranslations } from "next-intl";
 
-const COVERED = "var(--trading-up)";
+const COVERED = "var(--muted-foreground)";
 const SURPLUS = "var(--primary)";
 const SHORT = "var(--trading-down)";
-/** Breathing room between the outline and the bar it contains, in px. */
-const INNER_PAD = 3;
+/** Breathing room between the outline and the bar it contains, in px: the box is
+ *  16 tall with a 1px border around a 6px bar, so 4px of clearance above and
+ *  below — 5 from the outer edge, matched here at the sides. */
+const INNER_PAD = 5;
 
 /** Coarse 45° dashes — dense hatching shimmers, and this is background. */
 const MISSING = `repeating-linear-gradient(45deg, ${SHORT} 0 2px, transparent 2px 7px)`;
@@ -69,6 +71,10 @@ export function ReserveLevelBar({
   const covered = Math.min(held, needed);
   const surplus = Math.max(0, slack);
   const missing = Math.max(0, -slack);
+  // Padding only works while the bar is INSIDE the box. Once it runs past, the
+  // inset shifts the covered stretch off the outline's right edge and the colour
+  // spills over the border (user screenshot, 260804).
+  const pad = surplus > 0 ? 0 : INNER_PAD;
   const width = (v: number) => `${(100 * v) / scale}%`;
 
   const action = slack > 0 ? "canWithdraw" : slack < 0 ? "topUp" : "inBalance";
@@ -120,13 +126,11 @@ export function ReserveLevelBar({
         {/* What is actually held — thinner, centred, and free to run past the
             outline's right edge when there is more than the target asked for. */}
         {/* Inset so the bar sits INSIDE the outline rather than welding itself
-            to the border — touching edges read as one shape. At a full outline
-            (the short case) this is exactly the gap at both ends; past it, the
-            boundary is a colour change anyway. */}
+            to the border — touching edges read as one shape. */}
         <div
           data-testid={`${testId}-inner`}
           className="absolute top-1/2 flex h-1.5 -translate-y-1/2"
-          style={{ left: INNER_PAD, right: INNER_PAD }}
+          style={{ left: pad, right: pad }}
         >
           {covered > 0 && (
             <div

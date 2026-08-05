@@ -55,8 +55,7 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
     />
   ),
   varianceColorForRange: () => "#fff",
-  // The meter bands its fill by distance from target, same as the bars.
-  varianceColor: () => "var(--trading-up)",
+  varianceColorPassFail: () => "#fff",
 }));
 
 vi.mock("@/components/budgeting/overview/reserve-fit-one-offs", () => ({

@@ -57,13 +57,24 @@ const pctOf = (testId: string, prop: "width" | "left") =>
   parseFloat(screen.getByTestId(testId).style[prop]);
 
 describe("ReserveLevelBar", () => {
-  // The held bar should sit INSIDE the outline, not weld itself to the border —
-  // touching edges read as one shape (user, 260804).
-  it("keeps the held bar clear of the outline's edges", () => {
+  // The held bar sits INSIDE the outline, by the same clearance it has above and
+  // below — 16px box, 1px border, 6px bar leaves 4px, so 5px from the outer edge
+  // (user, 260804).
+  it("clears the outline by as much at the sides as at the top", () => {
     setup(3000, 6000);
     const inner = screen.getByTestId("reserve-bar-inner");
-    expect(parseFloat(inner.style.left)).toBeGreaterThan(0);
-    expect(parseFloat(inner.style.right)).toBeGreaterThan(0);
+    expect(parseFloat(inner.style.left)).toBe(5);
+    expect(parseFloat(inner.style.right)).toBe(5);
+  });
+
+  // Padding only works while the bar is INSIDE the box. Once it runs past, the
+  // inset shifts the covered stretch off the outline's right edge and the colour
+  // spills over the border (user screenshot, 260804).
+  it("drops the padding once the bar runs past the outline", () => {
+    setup(28934, 4409);
+    const inner = screen.getByTestId("reserve-bar-inner");
+    expect(parseFloat(inner.style.left)).toBe(0);
+    expect(parseFloat(inner.style.right)).toBe(0);
   });
 
   it("outlines what the history asked for", () => {
@@ -108,11 +119,13 @@ describe("ReserveLevelBar", () => {
     );
   });
 
-  it("greens the stretch that is doing its job and ambers the excess", () => {
+  // Grey, not green (user, 260804): the covered stretch is the baseline, not an
+  // achievement — the colour in this shape belongs to what needs attention.
+  it("greys the stretch that is doing its job and ambers the excess", () => {
     setup(9000, 3000);
     expect(
       screen.getByTestId("reserve-bar-covered").style.background,
-    ).toContain("--trading-up");
+    ).toContain("--muted-foreground");
     expect(
       screen.getByTestId("reserve-bar-surplus").style.background,
     ).toContain("--primary");
@@ -122,7 +135,7 @@ describe("ReserveLevelBar", () => {
     setup(3000, 6000);
     expect(
       screen.getByTestId("reserve-bar-covered").style.background,
-    ).toContain("--trading-up");
+    ).toContain("--muted-foreground");
     const gap = screen.getByTestId("reserve-bar-gap");
     expect(pctOf("reserve-bar-gap", "width")).toBeCloseTo(50, 1);
     // Dashes, not a solid block: it is an absence, and it should not shout as

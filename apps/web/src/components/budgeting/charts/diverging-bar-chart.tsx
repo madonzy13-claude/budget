@@ -78,6 +78,18 @@ export function varianceColor(pct: number): string {
  * grey rather than claiming success (260803 user request). Being OVER this
  * early is real, and keeps its band.
  */
+/**
+ * Two bands, not three (260804 user decision, reserve chart): inside ±10% the
+ * buffer is about the right size, outside it — either way — it is not. "Drifting"
+ * is not a state anyone acts on differently, so the middle yellow only offered
+ * two shades of wrong.
+ */
+export function varianceColorPassFail(pct: number): string {
+  return Math.abs(pct) <= ON_PLAN_BAND_PCT
+    ? "var(--trading-up)"
+    : "var(--trading-down)";
+}
+
 export function varianceColorForRange(
   pct: number,
   opts: { runningMonthOnly: boolean },
@@ -250,6 +262,7 @@ export function OverviewDivergingBarChart({
   labelFormat,
   maskAmounts = false,
   colorForPct = varianceColor,
+  colorKey,
   formatValue,
 }: {
   data: Array<Record<string, unknown>>;
@@ -266,6 +279,11 @@ export function OverviewDivergingBarChart({
   labelFormat?: (label: string | number) => string;
   /** Privacy: money inside the tooltip hides until the shared reveal. */
   maskAmounts?: boolean;
+  /** Which field the COLOUR comes from, when it is not the plotted one. A bar
+   *  drawn in zł is still banded by how far off plan it is — cents are not a
+   *  percentage, and feeding them to a band function painted everything red
+   *  (user, 260804). */
+  colorKey?: string;
   /** Reads the axis and the bar labels in the caller's own unit — money instead
    *  of percent (260804). Given one, the ±10% "on plan" band is dropped too:
    *  a corridor measured in percent means nothing on a money axis, and its ticks
@@ -318,7 +336,14 @@ export function OverviewDivergingBarChart({
     activeIndex === null || activeIndex === ri ? 1 : 0.3;
 
   return (
-    <div className="flex flex-col gap-1">
+    <div
+      className="flex flex-col gap-1"
+      data-scrub
+      // pan-y, not none: a horizontal drag scrubs the bars, while the page still
+      // scrolls THROUGH the chart. This one is a tall list — trapping vertical
+      // scroll over it would strand the reader (260804).
+      style={{ touchAction: "pan-y" }}
+    >
       <ResponsiveContainer width="100%" height={chartHeight}>
         <BarChart
           data={rows}
@@ -331,6 +356,12 @@ export function OverviewDivergingBarChart({
             setActive(coerceIdx(s?.activeTooltipIndex));
           }}
           onMouseLeave={() => setActive(null)}
+          // A finger slid across scrubs directly: recharts only sees a mouse
+          // move once a tap has synthesised one, so without this the bars
+          // answered nothing until they were tapped first (user, 260804).
+          onTouchMove={(s: { activeTooltipIndex?: number | string | null }) => {
+            setActive(coerceIdx(s?.activeTooltipIndex));
+          }}
           onClick={(s: { activeTooltipIndex?: number | string | null }) => {
             const idx = coerceIdx(s?.activeTooltipIndex);
             if (idx == null) return;
@@ -423,7 +454,11 @@ export function OverviewDivergingBarChart({
             {rows.map((row, ri) => (
               <Cell
                 key={ri}
-                fill={colorForPct(row.__raw)}
+                fill={colorForPct(
+                  colorKey
+                    ? Number((row as Record<string, unknown>)[colorKey])
+                    : row.__raw,
+                )}
                 fillOpacity={dim(ri)}
               />
             ))}
