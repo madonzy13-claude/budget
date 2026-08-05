@@ -165,6 +165,15 @@ export function ReserveRebalance({
     }
   };
 
+  // Every row's "what it holds now" gets ONE width, sized to the widest of them
+  // — the arrows and the fields then land on a single line down the dialog
+  // without any row carrying more empty space than the widest figure needs. A
+  // 1fr column did align them, but it handed the short rows a hundred px of
+  // indent and the numbers read as adrift from the name above (user, 260805).
+  // `num` is tabular, so a character really is a `ch`.
+  const currentCh =
+    Math.max(5, ...shown.map((r) => format(r.currentCents).length)) + 0.5;
+
   // A plain function, NOT a nested component: a component declared inside this
   // one gets a fresh identity every render, so React tears the row down and
   // builds it again — and the target field being typed into goes with it, one
@@ -219,15 +228,15 @@ export function ReserveRebalance({
             )}
           </Button>
         </div>
-        {/* A GRID, not a row of flex items: the reserves hold wildly different
-            amounts, and sizing the first cell to its own text stepped every
-            target field along by however wide that row's figure happened to be
-            (user screenshot, 260805). Equal columns put every field, and every
-            arrow, on one line down the dialog. */}
-        <div className="grid grid-cols-[1fr_auto_6.5rem_1fr] items-center gap-2">
+        {/* Both lines run edge to edge: the figure starts under the name and
+            the move ends under the button, so the card reads as two lines of
+            one block rather than two rows that happen to be near each other
+            (user, 260805). */}
+        <div className="flex items-center gap-2">
           <span
             data-testid={`reserve-rebalance-current-${row.categoryId}`}
-            className="num truncate text-right text-caption text-[var(--muted-foreground)]"
+            style={{ width: `${currentCh}ch` }}
+            className="num shrink-0 truncate text-num-sm text-[var(--muted-foreground)]"
           >
             {format(row.currentCents)}
           </span>
@@ -252,17 +261,18 @@ export function ReserveRebalance({
               if (cents !== null)
                 setTargets((g) => ({ ...g, [row.categoryId]: cents }));
             }}
-            className="h-8 w-full min-w-0 text-right text-num-sm"
+            className="h-8 w-[6.5rem] shrink-0 text-right text-num-sm"
           />
           {/* The MOVE, not the gap: what the button would do to this reserve.
               So it reads + when money goes IN and − when it comes back out —
               the opposite sign to the chart's bar, which measures how far the
               buffer is from where it should be (user, 260805). The colour is
               the row's own, so sign and colour cannot disagree: adding is red
-              because the buffer is short, taking back is amber. */}
+              because the buffer is short, taking back is amber. Pushed to the
+              row's right edge, under the button that would carry it out. */}
           <span
             data-testid={`reserve-rebalance-move-${row.categoryId}`}
-            className="num truncate text-right text-caption"
+            className="num ml-auto shrink-0 truncate text-num-sm"
             style={{ color }}
           >
             {move > 0 ? "+" : move < 0 ? "−" : ""}
