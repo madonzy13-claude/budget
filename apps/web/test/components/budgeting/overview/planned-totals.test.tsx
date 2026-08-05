@@ -171,6 +171,16 @@ describe("PlannedTotals", () => {
       expect(screen.queryByTestId("planned-total-planned-avg")).toBeNull();
     });
 
+    // 260805: the percent led at one size up, so the third column stood taller
+    // than the two beside it and the row looked broken.
+    it("stands the same height as the figures beside it", () => {
+      renderTotals({ months: 4 });
+      const size = (el: Element) =>
+        el.className.match(/text-num-[a-z]+/)?.[0] ?? "";
+      expect(size(cell("difference-pct"))).toBe(size(cell("spent")));
+      expect(size(cell("difference-pct"))).not.toBe("");
+    });
+
     it("marks the monthly figures as monthly, for a reader who cannot see", () => {
       renderTotals({ months: 4 });
       expect(cell("planned-avg").getAttribute("aria-label")).toContain(

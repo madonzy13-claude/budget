@@ -223,6 +223,9 @@ export function PlannedTotals({
         <CombinedStat
           testId="planned-total-difference"
           label={t("planned.difference")}
+          // Level with the two totals beside it: leading a size up made this
+          // column taller than the row (user, 260805).
+          size="sm"
           pct={pct}
           // The AMOUNT is monthly like its neighbours; the percent is a ratio,
           // identical either way, so it stays as it was (user, 260805).

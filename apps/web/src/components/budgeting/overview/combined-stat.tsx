@@ -23,6 +23,7 @@ export function CombinedStat({
   tone = "auto",
   color,
   testId,
+  size = "md",
 }: {
   label: string;
   pct: number | null;
@@ -35,6 +36,9 @@ export function CombinedStat({
    *  `tone` is "plain". */
   color?: string;
   testId?: string;
+  /** "sm" where the stat shares a row with plain figures: leading a size up
+   *  stood the column taller than its neighbours (user, 260805). */
+  size?: "md" | "sm";
 }) {
   const up = pct !== null && pct >= 0;
   const down = pct !== null && pct < 0;
@@ -58,7 +62,8 @@ export function CombinedStat({
       <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
       <span
         className={cn(
-          "num inline-flex items-center gap-1 whitespace-nowrap text-num-md",
+          "num inline-flex items-center gap-1 whitespace-nowrap",
+          size === "sm" ? "text-num-sm" : "text-num-md",
           !explicit && colorClass,
         )}
         style={explicit ? { color } : undefined}
