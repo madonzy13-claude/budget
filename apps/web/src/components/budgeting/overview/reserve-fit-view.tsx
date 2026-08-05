@@ -28,6 +28,7 @@ import {
   ReserveFitOneOffs,
   type OneOffCandidate,
 } from "./reserve-fit-one-offs";
+import { ReserveRebalance } from "./reserve-rebalance";
 
 /** Wraps a money formatter so a signed gap reads as one. Uses the same U+2212
  *  minus the percent labels use. */
@@ -39,6 +40,7 @@ export function signedMoney(format: (cents: number) => string) {
 export function ReserveFitView({
   data,
   onSave,
+  onRebalance,
   format,
   scale = "pct",
   scaleSwitch,
@@ -46,6 +48,9 @@ export function ReserveFitView({
   data: ReserveFitDTO;
   /** One save of the one-off dialog: what to set aside, what to count again. */
   onSave: (delta: { add: string[]; remove: string[] }) => void;
+  /** Sets one category's reserve to `targetCents`; resolves with what the
+   *  server settled on. Drives the rebalance dialog (260805). */
+  onRebalance: (categoryId: string, targetCents: number) => Promise<number>;
   format: (cents: number) => string;
   /** Percent of what the history asked for, or the money itself (260804). */
   scale?: "pct" | "amount";
@@ -90,11 +95,24 @@ export function ReserveFitView({
         testId="reserve-bar"
       />
 
-      {/* The switch stays centred on its own line; the one-offs button floats in
-          the chart's top-right corner so appearing or disappearing never shoves
-          the switch off-centre (user, 260804). */}
+      {/* The switch stays centred on its own line; the two dialogs float in the
+          chart's top corners so appearing or disappearing never shoves the
+          switch off-centre (user, 260804). Rebalance on the LEFT of the switch,
+          one-offs on the right where it has always been (user, 260805). */}
       <div className="relative flex items-center justify-center">
         {scaleSwitch}
+        <div data-testid="reserve-fit-corner-left" className="absolute left-0 top-0">
+          <ReserveRebalance
+            rows={sized.map((r) => ({
+              categoryId: r.categoryId,
+              name: r.name,
+              heldCents: r.heldCents,
+              neededCents: r.neededCents,
+            }))}
+            onRebalance={onRebalance}
+            format={format}
+          />
+        </div>
         <div
           data-testid="reserve-fit-corner"
           className="absolute right-0 top-0"

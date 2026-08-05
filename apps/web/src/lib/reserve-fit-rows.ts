@@ -34,11 +34,22 @@ export interface ReserveFitRowsResult {
   sized: SizedReserveRow[];
 }
 
+/**
+ * The signed percent a bar is drawn at: how far `held` is from `needed`, as a
+ * share of `needed`. Exported because the rebalance dialog colours its rows
+ * from the member's TARGET rather than from `needed` — same formula, different
+ * denominator, and the two must never disagree about which colour a row is.
+ */
+export function fitPct(heldCents: number, neededCents: number): number {
+  if (neededCents > 0) return ((heldCents - neededCents) / neededCents) * 100;
+  return heldCents > 0 ? 100 : 0;
+}
+
 function toSized(r: ReserveFitRow): SizedReserveRow {
   const held = Number(r.held_cents);
   const needed = Number(r.needed_cents);
   const gap = Number(r.gap_cents);
-  const pct = needed > 0 ? (gap / needed) * 100 : held > 0 ? 100 : 0;
+  const pct = fitPct(held, needed);
   return {
     categoryId: r.category_id,
     name: r.name,

@@ -88,6 +88,25 @@ vi.mock("@/components/budgeting/overview/reserve-fit-one-offs", () => ({
   ),
 }));
 
+vi.mock("@/components/budgeting/overview/reserve-rebalance", () => ({
+  ReserveRebalance: ({
+    rows,
+    onRebalance,
+  }: {
+    rows: { categoryId: string; heldCents: number; neededCents: number }[];
+    onRebalance: (id: string, cents: number) => Promise<number>;
+  }) => (
+    <div>
+      <span data-testid="rebalance" data-rows={JSON.stringify(rows)} />
+      <button
+        type="button"
+        data-testid="rebalance-run"
+        onClick={() => void onRebalance("car", 500000)}
+      />
+    </div>
+  ),
+}));
+
 const { ReserveFitView } =
   await import("@/components/budgeting/overview/reserve-fit-view");
 
@@ -151,11 +170,12 @@ const DTO = {
   ],
 };
 
-const view = (onSave = vi.fn()) => {
+const view = (onSave = vi.fn(), onRebalance = vi.fn(async () => 0)) => {
   render(
     <ReserveFitView
       data={DTO}
       onSave={onSave}
+      onRebalance={onRebalance}
       format={(c: number) => `${Math.round(c / 100)} zl`}
     />,
   );
@@ -194,6 +214,44 @@ describe("ReserveFitView", () => {
       { ledger_id: "tx-ins", category_name: "Car" },
       { ledger_id: "tx-jump", category_name: "Sport" },
     ]);
+  });
+
+  // 260805: the two dialogs sit in opposite corners of the chart's header —
+  // one-offs on the right where it has always been, rebalance on the left, so
+  // neither can shove the centred scale switch off its axis.
+  it("puts the rebalance dialog in the chart's left corner", () => {
+    view();
+    const left = screen.getByTestId("reserve-fit-corner-left");
+    expect(within(left).getByTestId("rebalance")).toBeTruthy();
+    expect(
+      within(screen.getByTestId("reserve-fit-corner")).getByTestId("one-offs"),
+    ).toBeTruthy();
+  });
+
+  it("hands the rebalance dialog what every reserve holds and needs", () => {
+    view();
+    const rows = JSON.parse(
+      screen.getByTestId("rebalance").getAttribute("data-rows")!,
+    );
+    // Every category, in the chart's own order.
+    expect(rows).toEqual([
+      {
+        categoryId: "car",
+        name: "Car",
+        heldCents: 100000,
+        neededCents: 500000,
+      },
+      { categoryId: "new", name: "Newborn", heldCents: 0, neededCents: 0 },
+      { categoryId: "sport", name: "Sport", heldCents: 460000, neededCents: 0 },
+    ]);
+  });
+
+  it("passes a rebalance straight through", async () => {
+    const user = userEvent.setup();
+    const onRebalance = vi.fn(async () => 500000);
+    view(vi.fn(), onRebalance);
+    await user.click(screen.getByTestId("rebalance-run"));
+    expect(onRebalance).toHaveBeenCalledWith("car", 500000);
   });
 
   it("passes a save straight through", async () => {

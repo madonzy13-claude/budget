@@ -36,6 +36,11 @@ vi.mock("@/hooks/use-reserve-fit", () => ({
   useReserveFit: () => ({ data: undefined, isPending: false, isError: false }),
   useSaveReserveFitExclusions: () => ({ mutate: () => {} }),
 }));
+vi.mock("@/hooks/use-update-reserve-adjustment", () => ({
+  useUpdateReserveAdjustment: () => ({
+    mutateAsync: async () => ({ reserveCents: "0" }),
+  }),
+}));
 vi.mock("@/hooks/use-budget-data", () => ({
   useCategories: () => ({
     data: [

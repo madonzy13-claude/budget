@@ -1562,7 +1562,18 @@
           "unassigned": "Nie liczone — brak kategorii: {list}. Przypisz ją w Ustawienia → Cykliczne, a wpłyną na rezerwę.",
           "aboveTarget": "ponad potrzebę",
           "belowTarget": "poniżej potrzeby",
-          "onTarget": "Dokładnie tyle, ile trzeba"
+          "onTarget": "Dokładnie tyle, ile trzeba",
+          "rebalanceTitle": "Zbilansuj rezerwy",
+          "rebalanceExplainer": "Uzupełnij te, którym brakuje, i odbierz to, co nie jest potrzebne. Jeśli liczba wyliczona z historii Ci nie odpowiada, najpierw zmień cel.",
+          "openRebalance": "Zbilansuj rezerwy",
+          "rebalanceAction": "Zbilansuj",
+          "undoAction": "Cofnij",
+          "targetLabel": "Cel",
+          "targetAria": "Docelowa rezerwa dla {name}",
+          "rebalanceAria": "Zbilansuj {name}",
+          "undoAria": "Cofnij zmianę w {name}",
+          "nothingToMove": "Już we właściwej wysokości",
+          "coveredOverspend": "{amount} z tego poszło na pokrycie przekroczeń, więc rezerwie nadal brakuje."
         },
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",

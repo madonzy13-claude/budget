@@ -1539,7 +1539,18 @@
           "unassigned": "Not counted — no category: {list}. Give them one in Settings → Recurring and they will size their reserve.",
           "aboveTarget": "more than needed",
           "belowTarget": "less than needed",
-          "onTarget": "Exactly what is needed"
+          "onTarget": "Exactly what is needed",
+          "rebalanceTitle": "Rebalance reserves",
+          "rebalanceExplainer": "Top up what is short, take back what is not needed. Change a target first if the number the history came up with is not the one you want.",
+          "openRebalance": "Rebalance reserves",
+          "rebalanceAction": "Rebalance",
+          "undoAction": "Undo",
+          "targetLabel": "Target",
+          "targetAria": "Target reserve for {name}",
+          "rebalanceAria": "Rebalance {name}",
+          "undoAria": "Undo the move in {name}",
+          "nothingToMove": "Already the right size",
+          "coveredOverspend": "{amount} of that went to covering overspending, so the buffer is still short."
         },
         "needsCompletedMonth": {
           "title": "Nothing to judge yet",

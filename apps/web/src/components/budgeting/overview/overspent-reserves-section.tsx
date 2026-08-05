@@ -24,6 +24,7 @@ import {
   useReserveFit,
   useSaveReserveFitExclusions,
 } from "@/hooks/use-reserve-fit";
+import { useUpdateReserveAdjustment } from "@/hooks/use-update-reserve-adjustment";
 import { ReserveFitView } from "./reserve-fit-view";
 import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { useCategories } from "@/hooks/use-budget-data";
@@ -58,6 +59,21 @@ export function OverspentReservesSection({
     enabled: reservesOpen,
   });
   const saveExclusions = useSaveReserveFitExclusions(budgetId);
+  // 260805: the fit chart says which buffers are the wrong size, so the move
+  // that fixes them belongs here rather than a trip to the Reserves tab. The
+  // SAME adjust the Reserves tab posts — one way to set a reserve, and it
+  // refreshes the Overview itself — with its toast held back, because the
+  // dialog's own rows report each move.
+  const adjustReserve = useUpdateReserveAdjustment(budgetId, { silent: true });
+  const onRebalance = async (categoryId: string, targetCents: number) => {
+    const res = await adjustReserve.mutateAsync({
+      categoryId,
+      expectedCents: targetCents,
+    });
+    // What the engine SETTLED on, which is below the target when the raise
+    // covered this month's overspend.
+    return Number(res?.reserveCents ?? targetCents);
+  };
   // Money by default (user, 260804): the action here is "move 2,900 zł", and a
   // percentage of a buffer is a step away from that. The percent view stays one
   // tap away for comparing categories of different sizes.
@@ -123,6 +139,7 @@ export function OverspentReservesSection({
                   data={fit.data}
                   format={fmtTooltip}
                   onSave={(delta) => saveExclusions.mutate(delta)}
+                  onRebalance={onRebalance}
                   scale={fitScale}
                   scaleSwitch={
                     <SegmentedToggle

@@ -65,6 +65,11 @@ export interface UpdateReserveAdjustmentOpts {
     coverCents: bigint;
     summary: ReservesSummaryDto;
   }) => void;
+  /** Drops the "saved" toast. For callers whose own UI already reports the
+   *  move — the rebalance dialog turns the row's button into Undo — and which
+   *  fire several adjusts in a row, so the toasts would stack (260805).
+   *  Failures still speak up: those carry news the caller cannot show. */
+  silent?: boolean;
 }
 
 export function useUpdateReserveAdjustment(
@@ -159,6 +164,12 @@ export function useUpdateReserveAdjustment(
       // Cash-flow projection inputs changed — refresh the banner.
       qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
 
+      // The Overview draws held reserves in its cards and in the reserve-fit
+      // chart — which is now where an adjust can be fired from (260805), so a
+      // rebalance that left the chart's own numbers stale would be visible on
+      // the spot. One prefix covers every Overview query.
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "overview"] });
+
       // Did part of the added reserve cover THIS month's overspend? cover =
       // typed target − resulting reserve. When it did (and a caller wants the
       // reveal), DEFER the snap: keep the optimistic numbers on screen so the
@@ -180,7 +191,7 @@ export function useUpdateReserveAdjustment(
       if (data?.summary) {
         qc.setQueryData(["budget", budgetId, "reserves"], data.summary);
       }
-      toast.success(t("saved"));
+      if (!opts.silent) toast.success(t("saved"));
     },
   });
 }
