@@ -9,22 +9,24 @@
  *
  * A ratio against a limit is a METER, and the target is drawn as a CONTAINER
  * (user's design, 260804): an outlined, taller box spanning what the history
- * asked for, holding a thinner bar for what is actually held. Short, the bar
- * sits inside it with visible empty space; over, it runs out past the outline's
- * end. The outline IS the target, so nothing has to mark it separately, and the
- * two quantities never compete for the same stretch of pixels.
+ * asked for, holding a thinner bar for what is actually held. Over, the bar runs
+ * out past the outline's end; short, the stretch it never reached is struck
+ * through in a soft dashed red. The outline IS the target, so nothing has to
+ * mark it separately, and the two quantities never compete for the same stretch
+ * of pixels.
  *
  * Colour follows the PART, never the whole bar. Holding 28,934 against a target
  * of 8,313 is 248% off, and painting the entire fill by that one number turned
  * the bar solid red — including the 8,313 that is doing exactly its job (user
  * screenshot, 260804). Each stretch says what it is instead:
  *
- *   covered  (inside the outline)  green  — this money is earning its keep
- *   surplus  (past the outline)    amber  — idle; a slow loss, attention not alarm
+ *   covered  (inside the outline)   green   — this money is earning its keep
+ *   surplus  (past the outline)     amber   — idle; a slow loss, attention not alarm
+ *   missing  (never reached)        dashed  — an absence, drawn as one
  *
- * A shortfall gets no colour of its own: the outline already shows how far the
- * target reaches, and the line underneath says how much is missing. Painting it
- * red as well was the third colour in a shape that only has two quantities.
+ * The shortfall is dashed and soft on purpose: left as plain empty space it read
+ * as nothing at all rather than as something missing (user, 260804), but a solid
+ * red block would shout louder than the money that is really there.
  *
  * Nothing is hover-gated. Both figures and the action are on screen.
  */
@@ -32,8 +34,9 @@ import { useTranslations } from "next-intl";
 
 const COVERED = "var(--trading-up)";
 const SURPLUS = "var(--primary)";
-/** Only the words are red — see the note above. */
 const SHORT = "var(--trading-down)";
+/** Coarse 45° dashes — dense hatching shimmers, and this is background. */
+const MISSING = `repeating-linear-gradient(45deg, ${SHORT} 0 2px, transparent 2px 7px)`;
 
 export function ReserveLevelBar({
   heldCents,
@@ -62,6 +65,7 @@ export function ReserveLevelBar({
   const slack = held - needed;
   const covered = Math.min(held, needed);
   const surplus = Math.max(0, slack);
+  const missing = Math.max(0, -slack);
   const width = (v: number) => `${(100 * v) / scale}%`;
 
   const action = slack > 0 ? "canWithdraw" : slack < 0 ? "topUp" : "inBalance";
@@ -77,14 +81,10 @@ export function ReserveLevelBar({
     >
       {/* Both sides of the comparison, named — the meter shows the ratio, these
           say what it is a ratio OF. */}
-      <div className="flex items-baseline justify-between gap-3 text-caption">
-        <span
-          data-testid={`${testId}-held`}
-          className="text-[var(--muted-foreground)]"
-        >
-          {t("reserveFit.heldTotal")}{" "}
-          <span className="num text-[var(--body-on-dark)]">{format(held)}</span>
-        </span>
+      <div
+        data-testid={`${testId}-labels`}
+        className="flex items-baseline justify-between gap-3 text-caption"
+      >
         <span
           data-testid={`${testId}-needed`}
           className="text-[var(--muted-foreground)]"
@@ -93,6 +93,13 @@ export function ReserveLevelBar({
           <span className="num text-[var(--body-on-dark)]">
             {format(needed)}
           </span>
+        </span>
+        <span
+          data-testid={`${testId}-held`}
+          className="text-[var(--muted-foreground)]"
+        >
+          {t("reserveFit.heldTotal")}{" "}
+          <span className="num text-[var(--body-on-dark)]">{format(held)}</span>
         </span>
       </div>
 
@@ -120,6 +127,18 @@ export function ReserveLevelBar({
                 background: COVERED,
                 borderTopRightRadius: surplus > 0 ? 0 : 9999,
                 borderBottomRightRadius: surplus > 0 ? 0 : 9999,
+              }}
+            />
+          )}
+          {missing > 0 && (
+            <div
+              data-testid={`${testId}-gap`}
+              aria-label={`${t("reserveFit.topUp")}: ${format(missing)}`}
+              className="ml-auto h-full rounded-r-full"
+              style={{
+                width: width(missing),
+                background: MISSING,
+                opacity: 0.55,
               }}
             />
           )}

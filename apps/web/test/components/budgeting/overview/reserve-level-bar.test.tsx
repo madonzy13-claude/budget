@@ -8,9 +8,11 @@
  *
  * A ratio against a limit is a METER, and the target is drawn as a CONTAINER
  * (user's design, 260804): an outlined, taller box spanning what the history
- * asked for, with a thinner inner bar for what is actually held. Short, the
- * inner bar sits inside it with visible empty space; over, it runs out past the
- * outline's end. The outline IS the target, so no separate mark is needed.
+ * asked for, with a thinner inner bar for what is actually held. Over, the bar
+ * runs out past the outline's end; short, the stretch it never reached is
+ * struck through in a soft dashed red — empty space alone left the shortfall
+ * looking like nothing rather than like something missing (user, 260804). The
+ * outline IS the target, so no separate mark is needed.
  *
  * Colour follows the PART, never the whole bar. Holding 28,934 against a target
  * of 8,313 is 248% off, and painting the entire fill by that number turned the
@@ -68,7 +70,7 @@ describe("ReserveLevelBar", () => {
     expect(pctOf("reserve-bar-surplus", "width")).toBeCloseTo(66.7, 0);
   });
 
-  it("leaves visible empty space inside the outline when short", () => {
+  it("keeps the held bar inside the outline when short", () => {
     setup(3000, 6000);
     // Outline spans the whole track; the held bar covers only half of it.
     expect(pctOf("reserve-bar-target", "width")).toBeCloseTo(100, 1);
@@ -107,13 +109,22 @@ describe("ReserveLevelBar", () => {
     ).toContain("--primary");
   });
 
-  it("says the shortfall with the outline and the words, not more colour", () => {
+  it("strikes the missing stretch through in a soft dashed red", () => {
     setup(3000, 6000);
     expect(
       screen.getByTestId("reserve-bar-covered").style.background,
     ).toContain("--trading-up");
-    // The empty stretch is empty — the outline shows how far the target reaches
-    // and the action line underneath says how much is missing.
+    const gap = screen.getByTestId("reserve-bar-gap");
+    expect(pctOf("reserve-bar-gap", "width")).toBeCloseTo(50, 1);
+    // Dashes, not a solid block: it is an absence, and it should not shout as
+    // loudly as money that is really there.
+    expect(gap.style.background).toContain("repeating-linear-gradient");
+    expect(gap.style.background).toContain("--trading-down");
+    expect(Number(gap.style.opacity)).toBeLessThan(1);
+  });
+
+  it("has nothing to strike through when the target is met", () => {
+    setup(9000, 3000);
     expect(screen.queryByTestId("reserve-bar-gap")).toBeNull();
   });
 
@@ -148,6 +159,17 @@ describe("ReserveLevelBar", () => {
     expect(screen.getByTestId("reserve-bar-needed").textContent).toContain(
       "3000 zl",
     );
+  });
+
+  // The target is what the bar is measured against, so it is read first
+  // (user, 260804).
+  it("reads needed first, then held", () => {
+    setup(9000, 3000);
+    const labels = screen.getByTestId("reserve-bar-labels");
+    const order = [...labels.querySelectorAll("[data-testid]")].map((n) =>
+      n.getAttribute("data-testid"),
+    );
+    expect(order).toEqual(["reserve-bar-needed", "reserve-bar-held"]);
   });
 
   it("drops the outline when the history asked for nothing", () => {
