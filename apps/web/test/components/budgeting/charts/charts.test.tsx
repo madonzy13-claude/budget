@@ -927,28 +927,46 @@ describe("Diverging chart — dismissing the tooltip", () => {
 // plot border. The clearance from the bar's end is also the clearance from that
 // line, so it has to be worth seeing.
 describe("labelPlacement", () => {
+  // A bar just under the old fixed threshold was told it could not hold its own
+  // figure, and the figure went outside — into the gutter between the category
+  // names and the plot, straight over the axis line (user screenshot, 260805).
+  // It is decided by whether the text FITS now, which is safe in both
+  // directions: the shorter the bar, the more room there is outside it.
+  it("keeps a figure inside a bar wide enough to hold it", () => {
+    // 63px of bar, "−45%" is ~26px of text plus clearance either side.
+    expect(labelPlacement(160, -63, 4).inside).toBe(true);
+  });
+
+  it("puts a figure outside a bar too narrow to hold it", () => {
+    expect(labelPlacement(200, -20, 4).inside).toBe(false);
+  });
+
+  it("asks more room of a longer figure", () => {
+    expect(labelPlacement(160, -63, 7).inside).toBe(false);
+  });
+
   it("keeps the figure clear of a left-growing bar's end", () => {
-    const { tx, anchor, inside } = labelPlacement(300, -200);
+    const { tx, anchor, inside } = labelPlacement(300, -200, 4);
     expect(inside).toBe(true);
     expect(anchor).toBe("start");
     expect(tx - 100).toBeGreaterThanOrEqual(10); // bar ends at 100
   });
 
   it("keeps the figure clear of a right-growing bar's end", () => {
-    const { tx, anchor } = labelPlacement(300, 200);
+    const { tx, anchor } = labelPlacement(300, 200, 4);
     expect(anchor).toBe("end");
     expect(500 - tx).toBeGreaterThanOrEqual(10);
   });
 
   it("puts a stub bar's figure outside, past its end", () => {
-    const { tx, anchor, inside } = labelPlacement(300, 10);
+    const { tx, anchor, inside } = labelPlacement(300, 10, 4);
     expect(inside).toBe(false);
     expect(anchor).toBe("start");
     expect(tx).toBeGreaterThanOrEqual(320);
   });
 
   it("puts a short left-growing bar's figure outside, to its left", () => {
-    const { tx, anchor } = labelPlacement(300, -10);
+    const { tx, anchor } = labelPlacement(300, -10, 4);
     expect(anchor).toBe("end");
     expect(tx).toBeLessThanOrEqual(280);
   });

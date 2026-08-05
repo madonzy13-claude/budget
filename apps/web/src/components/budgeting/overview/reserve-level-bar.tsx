@@ -32,10 +32,10 @@
  */
 import { useTranslations } from "next-intl";
 
-/** The target is what "right" looks like, so it wears the on-plan green — and so
- *  does the word that names it, or the reader has to work out which line the
- *  label belongs to (user, 260805). */
+/** The target is what "right" looks like, so it wears the on-plan green — the
+ *  outline, the word that names it, and the held bar once it gets there. */
 const TARGET = "var(--trading-up)";
+/** Held, but not yet enough. */
 const COVERED = "var(--muted-foreground)";
 const SURPLUS = "var(--primary)";
 const SHORT = "var(--trading-down)";
@@ -82,6 +82,11 @@ export function ReserveLevelBar({
   const padRight = surplus > 0 ? 0 : INNER_PAD;
   const width = (v: number) => `${(100 * v) / scale}%`;
 
+  // The one thing the meter is asked: is the target reached? Green says yes,
+  // grey says not yet — a grey baseline said nothing at all (user, 260805). The
+  // surplus past the outline stays amber whatever: idle money is not a win.
+  const reached = held >= needed;
+
   const action = slack > 0 ? "canWithdraw" : slack < 0 ? "topUp" : "inBalance";
   // The action inherits the colour of the stretch it is about, so the sentence
   // and the shape never disagree.
@@ -121,17 +126,7 @@ export function ReserveLevelBar({
             aria-label={`${t("reserveFit.neededTotal")}: ${format(needed)}`}
             className="absolute inset-y-0 left-0 rounded-full border"
             style={{ width: width(needed), borderColor: TARGET }}
-          >
-            {/* A wash rather than a fill: enough to read the box as an area,
-                faint enough that the bar inside never has to compete with it.
-                Its own element, so the fade cannot reach the border. */}
-            <div
-              aria-hidden
-              data-testid={`${testId}-wash`}
-              className="absolute inset-0 rounded-full"
-              style={{ background: TARGET, opacity: 0.08 }}
-            />
-          </div>
+          />
         )}
         {/* What is actually held — thinner, centred, and free to run past the
             outline's right edge when there is more than the target asked for. */}
@@ -155,7 +150,7 @@ export function ReserveLevelBar({
                   surplus > 0
                     ? `calc(${width(covered)} - ${INNER_PAD}px)`
                     : width(covered),
-                background: COVERED,
+                background: reached ? TARGET : COVERED,
                 borderTopRightRadius: surplus > 0 ? 0 : 9999,
                 borderBottomRightRadius: surplus > 0 ? 0 : 9999,
               }}

@@ -270,15 +270,23 @@ export const LABEL_CLEARANCE = 12;
 
 /** Where the figure sits, and which end of it is pinned. Pure, so the clearance
  *  can be pinned by a test rather than eyeballed against a screenshot. */
+/** Rough width of one glyph of the label at its 11px size — digits, sign, "%"
+ *  and a thousands separator are all close to this. */
+const LABEL_CHAR_PX = 6.5;
+
 export function labelPlacement(
   x: number,
   width: number,
+  chars: number,
 ): { tx: number; anchor: "start" | "end"; inside: boolean } {
   const grewRight = width >= 0;
-  // A long bar gets its label INSIDE its outer end (there may be no room left on
-  // the outside, and on the left it would land on the category name); a short one
-  // gets it just outside, where it reads better against the background.
-  const inside = Math.abs(width) > 64;
+  // Inside whenever the bar can actually hold the text, outside when it cannot.
+  // A fixed threshold got this backwards at the boundary: a 63px bar was sent
+  // outside, where the gutter between the category names and the plot is
+  // narrower than the text — so the figure landed on the axis line (user, 260805).
+  // The shorter the bar, the further its end is from that edge, so "outside" is
+  // only ever chosen where there is room for it.
+  const inside = Math.abs(width) >= chars * LABEL_CHAR_PX + 2 * LABEL_CLEARANCE;
   const end = x + width;
   const away = grewRight ? -1 : 1;
   return {
@@ -300,7 +308,11 @@ function VarianceLabel(props: {
   value?: string | number;
 }) {
   const { x = 0, y = 0, width = 0, height = 0, value } = props;
-  const { tx, anchor, inside } = labelPlacement(x, width);
+  const { tx, anchor, inside } = labelPlacement(
+    x,
+    width,
+    String(value ?? "").length,
+  );
   return (
     <text
       data-variance-label

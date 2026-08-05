@@ -129,11 +129,13 @@ describe("ReserveLevelBar", () => {
 
   // Grey, not green (user, 260804): the covered stretch is the baseline, not an
   // achievement — the colour in this shape belongs to what needs attention.
-  it("greys the stretch that is doing its job and ambers the excess", () => {
+  // 260805: the covered stretch went green — the target IS met here — while the
+  // excess past the outline stays amber, because idle money is not a win.
+  it("greens the stretch that is doing its job and ambers the excess", () => {
     setup(9000, 3000);
     expect(
       screen.getByTestId("reserve-bar-covered").style.background,
-    ).toContain("--muted-foreground");
+    ).toContain("--trading-up");
     expect(
       screen.getByTestId("reserve-bar-surplus").style.background,
     ).toContain("--primary");
@@ -229,14 +231,40 @@ describe("ReserveLevelBar", () => {
   // being on target — and the label that names it wears the same, or the reader
   // has to work out which grey line the words belong to.
   describe("the target reads as the target", () => {
-    it("outlines the target in green, over a green wash", () => {
+    it("outlines the target in green, and fills nothing", () => {
       setup(5000, 10000);
       const el = screen.getByTestId("reserve-bar-target");
       expect(el.getAttribute("style")).toContain("--trading-up");
-      // …over a wash faint enough that the bar inside never fights it.
-      const wash = screen.getByTestId("reserve-bar-wash");
-      expect(wash.getAttribute("style")).toContain("--trading-up");
-      expect(Number(wash.style.opacity)).toBeLessThan(0.2);
+      // No wash inside it (user, 260805) — the outline alone is the target.
+      expect(screen.queryByTestId("reserve-bar-wash")).toBeNull();
+    });
+
+    // 260805: the bar inside says whether the target has been REACHED, which is
+    // the one thing the meter is asked. Grey is "not there yet", not a baseline.
+    it("turns the held bar green once the target is met", () => {
+      setup(10000, 10000);
+      expect(
+        screen.getByTestId("reserve-bar-covered").getAttribute("style"),
+      ).toContain("--trading-up");
+    });
+
+    it("keeps it green with more than enough held", () => {
+      setup(24800, 10000);
+      expect(
+        screen.getByTestId("reserve-bar-covered").getAttribute("style"),
+      ).toContain("--trading-up");
+      // …and the surplus past the outline stays amber: idle money, not a win.
+      expect(
+        screen.getByTestId("reserve-bar-surplus").getAttribute("style"),
+      ).toContain("--primary");
+    });
+
+    it("leaves it grey while the reserve is still short", () => {
+      setup(9999, 10000);
+      const style =
+        screen.getByTestId("reserve-bar-covered").getAttribute("style") ?? "";
+      expect(style).toContain("--muted-foreground");
+      expect(style).not.toContain("--trading-up");
     });
 
     it("names it in the same green", () => {
