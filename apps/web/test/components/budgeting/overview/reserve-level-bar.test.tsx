@@ -6,10 +6,18 @@
  * one meaning, the fill another and a hatched remainder a third — and hatching
  * is a texture, which belongs to accessibility fallbacks, not decoration.
  *
- * A ratio against a limit is a METER: one bar for what is held, a target mark
- * for what the history asked for. Past the mark, money is idle; short of it, the
- * buffer is exposed. Every figure is direct-labelled — the hover only repeats
- * what is already on screen.
+ * A ratio against a limit is a METER, and the target is drawn as a CONTAINER
+ * (user's design, 260804): an outlined, taller box spanning what the history
+ * asked for, with a thinner inner bar for what is actually held. Short, the
+ * inner bar sits inside it with visible empty space; over, it runs out past the
+ * outline's end. The outline IS the target, so no separate mark is needed.
+ *
+ * Colour follows the PART, never the whole bar. Holding 28,934 against a target
+ * of 8,313 is 248% off, and painting the entire fill by that number turned the
+ * bar solid red — including the 8,313 that is doing exactly its job (user
+ * screenshot, 260804). Each stretch says what it is instead: covered is green,
+ * surplus is the attention amber, and only an UNCOVERED requirement is red,
+ * because that is the only one that can actually fail.
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -47,17 +55,25 @@ const pctOf = (testId: string, prop: "width" | "left") =>
   parseFloat(screen.getByTestId(testId).style[prop]);
 
 describe("ReserveLevelBar", () => {
-  it("fills the meter to what is held", () => {
-    setup(3000, 6000);
-    // Needed is the larger figure, so it sets the scale.
-    expect(pctOf("reserve-bar-fill", "width")).toBeCloseTo(50, 1);
+  it("outlines what the history asked for", () => {
+    setup(9000, 3000);
+    // Held sets the scale here, so the target box spans a third of the track.
+    expect(pctOf("reserve-bar-target", "width")).toBeCloseTo(33.3, 0);
   });
 
-  it("marks what the history asked for", () => {
+  it("runs the held bar out past the outline when there is more than enough", () => {
     setup(9000, 3000);
-    // Held sets the scale here, so the mark sits a third along.
-    expect(pctOf("reserve-bar-mark", "left")).toBeCloseTo(33.3, 0);
-    expect(pctOf("reserve-bar-fill", "width")).toBeCloseTo(100, 1);
+    // The bar reaches the full track while the outline stops at a third.
+    expect(pctOf("reserve-bar-covered", "width")).toBeCloseTo(33.3, 0);
+    expect(pctOf("reserve-bar-surplus", "width")).toBeCloseTo(66.7, 0);
+  });
+
+  it("leaves visible empty space inside the outline when short", () => {
+    setup(3000, 6000);
+    // Outline spans the whole track; the held bar covers only half of it.
+    expect(pctOf("reserve-bar-target", "width")).toBeCloseTo(100, 1);
+    expect(pctOf("reserve-bar-covered", "width")).toBeCloseTo(50, 1);
+    expect(screen.queryByTestId("reserve-bar-surplus")).toBeNull();
   });
 
   it("says what to do when the buffer is short", () => {
@@ -81,19 +97,43 @@ describe("ReserveLevelBar", () => {
     );
   });
 
-  // Both directions are a problem — too little is overspend risk, too much is
-  // idle money — so the meter bands by DISTANCE, the same way the bars under it
-  // do: close is green, further yellow, far red.
-  it("reads green while the buffer is about right", () => {
-    setup(5200, 5000);
-    expect(screen.getByTestId("reserve-bar-fill").style.background).toContain(
-      "--trading-up",
-    );
+  it("greens the stretch that is doing its job and ambers the excess", () => {
+    setup(9000, 3000);
+    expect(
+      screen.getByTestId("reserve-bar-covered").style.background,
+    ).toContain("--trading-up");
+    expect(
+      screen.getByTestId("reserve-bar-surplus").style.background,
+    ).toContain("--primary");
   });
 
-  it("reads red when it is nowhere near", () => {
+  it("says the shortfall with the outline and the words, not more colour", () => {
+    setup(3000, 6000);
+    expect(
+      screen.getByTestId("reserve-bar-covered").style.background,
+    ).toContain("--trading-up");
+    // The empty stretch is empty — the outline shows how far the target reaches
+    // and the action line underneath says how much is missing.
+    expect(screen.queryByTestId("reserve-bar-gap")).toBeNull();
+  });
+
+  it("is all green and nothing else when the two match", () => {
+    setup(5000, 5000);
+    expect(pctOf("reserve-bar-covered", "width")).toBeCloseTo(100, 1);
+    expect(pctOf("reserve-bar-target", "width")).toBeCloseTo(100, 1);
+    expect(screen.queryByTestId("reserve-bar-surplus")).toBeNull();
+  });
+
+  it("calls idle money attention, not alarm", () => {
+    setup(9000, 3000);
+    // Over-held is a slow loss, not a failure — amber, never the danger red.
+    const action = screen.getByTestId("reserve-bar-action");
+    expect(action.style.color).toContain("--primary");
+  });
+
+  it("calls an exposed buffer what it is", () => {
     setup(500, 5000);
-    expect(screen.getByTestId("reserve-bar-fill").style.background).toContain(
+    expect(screen.getByTestId("reserve-bar-action").style.color).toContain(
       "--trading-down",
     );
   });
@@ -110,9 +150,12 @@ describe("ReserveLevelBar", () => {
     );
   });
 
-  it("drops the mark when the history asked for nothing", () => {
+  it("drops the outline when the history asked for nothing", () => {
     setup(4000, 0);
-    expect(screen.queryByTestId("reserve-bar-mark")).toBeNull();
+    expect(screen.queryByTestId("reserve-bar-target")).toBeNull();
+    // Nothing is covering anything — it is all spare.
+    expect(pctOf("reserve-bar-surplus", "width")).toBeCloseTo(100, 1);
+    expect(screen.queryByTestId("reserve-bar-covered")).toBeNull();
     expect(screen.getByTestId("reserve-bar-action").textContent).toContain(
       "reserveFit.canWithdraw",
     );

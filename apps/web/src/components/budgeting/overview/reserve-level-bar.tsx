@@ -7,21 +7,33 @@
  * and a hatched remainder a third — and hatching is a texture, which belongs to
  * accessibility fallbacks, not decoration.
  *
- * A ratio against a limit is a METER, so this is one: a single bar for what is
- * HELD, and a target mark for what the history asked for. One quantity, one
- * encoding. Past the mark the money is idle; short of it the buffer is exposed,
- * and the stretch between the two is the amount to move — which the line
- * underneath states outright.
+ * A ratio against a limit is a METER, and the target is drawn as a CONTAINER
+ * (user's design, 260804): an outlined, taller box spanning what the history
+ * asked for, holding a thinner bar for what is actually held. Short, the bar
+ * sits inside it with visible empty space; over, it runs out past the outline's
+ * end. The outline IS the target, so nothing has to mark it separately, and the
+ * two quantities never compete for the same stretch of pixels.
  *
- * The fill bands by DISTANCE from the target, exactly as the bars below it do,
- * because both directions are a problem: too little is overspend risk, too much
- * is money the engine will never hand back.
+ * Colour follows the PART, never the whole bar. Holding 28,934 against a target
+ * of 8,313 is 248% off, and painting the entire fill by that one number turned
+ * the bar solid red — including the 8,313 that is doing exactly its job (user
+ * screenshot, 260804). Each stretch says what it is instead:
  *
- * Nothing is hover-gated. Both figures and the action are on screen; the hover
- * only repeats them.
+ *   covered  (inside the outline)  green  — this money is earning its keep
+ *   surplus  (past the outline)    amber  — idle; a slow loss, attention not alarm
+ *
+ * A shortfall gets no colour of its own: the outline already shows how far the
+ * target reaches, and the line underneath says how much is missing. Painting it
+ * red as well was the third colour in a shape that only has two quantities.
+ *
+ * Nothing is hover-gated. Both figures and the action are on screen.
  */
 import { useTranslations } from "next-intl";
-import { varianceColor } from "@/components/budgeting/charts/diverging-bar-chart";
+
+const COVERED = "var(--trading-up)";
+const SURPLUS = "var(--primary)";
+/** Only the words are red — see the note above. */
+const SHORT = "var(--trading-down)";
 
 export function ReserveLevelBar({
   heldCents,
@@ -48,12 +60,14 @@ export function ReserveLevelBar({
   if (scale <= 0) return null;
 
   const slack = held - needed;
-  // No requirement at all: every zloty of it is spare, which reads as "far off"
-  // rather than as a division by zero.
-  const pct = needed > 0 ? (100 * slack) / needed : held > 0 ? 100 : 0;
-  const tone = varianceColor(pct);
+  const covered = Math.min(held, needed);
+  const surplus = Math.max(0, slack);
+  const width = (v: number) => `${(100 * v) / scale}%`;
 
   const action = slack > 0 ? "canWithdraw" : slack < 0 ? "topUp" : "inBalance";
+  // The action inherits the colour of the stretch it is about, so the sentence
+  // and the shape never disagree.
+  const actionTone = slack > 0 ? SURPLUS : slack < 0 ? SHORT : undefined;
 
   return (
     <div
@@ -82,30 +96,54 @@ export function ReserveLevelBar({
         </span>
       </div>
 
-      <div className="relative h-3 w-full overflow-hidden rounded-full bg-[var(--surface-elevated-dark)]">
-        <div
-          data-testid={`${testId}-fill`}
-          className="h-full rounded-full transition-[width]"
-          style={{ width: `${(100 * held) / scale}%`, background: tone }}
-          aria-label={`${t("reserveFit.heldTotal")}: ${format(held)}`}
-        />
+      <div className="relative h-4 w-full">
+        {/* The target, as a box you can see the held bar sit inside — or spill
+            out of. Transparent, so the bar inside is never fighting a fill. */}
         {needed > 0 && (
-          <span
-            data-testid={`${testId}-mark`}
+          <div
+            data-testid={`${testId}-target`}
             aria-label={`${t("reserveFit.neededTotal")}: ${format(needed)}`}
-            // The target: a full-height notch in the surface colour, so it reads
-            // as a division of the bar rather than as another quantity in it.
-            className="absolute inset-y-0 w-0.5 -translate-x-1/2 rounded-full bg-[var(--body-on-dark)]"
-            style={{ left: `${(100 * needed) / scale}%` }}
+            className="absolute inset-y-0 left-0 rounded-full border border-[var(--muted-foreground)]"
+            style={{ width: width(needed) }}
           />
         )}
+        {/* What is actually held — thinner, centred, and free to run past the
+            outline's right edge when there is more than the target asked for. */}
+        <div className="absolute inset-x-0 top-1/2 flex h-1.5 -translate-y-1/2">
+          {covered > 0 && (
+            <div
+              data-testid={`${testId}-covered`}
+              aria-label={`${t("reserveFit.heldTotal")}: ${format(held)}`}
+              className="h-full rounded-l-full"
+              style={{
+                width: width(covered),
+                background: COVERED,
+                borderTopRightRadius: surplus > 0 ? 0 : 9999,
+                borderBottomRightRadius: surplus > 0 ? 0 : 9999,
+              }}
+            />
+          )}
+          {surplus > 0 && (
+            <div
+              data-testid={`${testId}-surplus`}
+              aria-label={`${t("reserveFit.canWithdraw")}: ${format(surplus)}`}
+              className="h-full rounded-r-full"
+              style={{
+                width: width(surplus),
+                background: SURPLUS,
+                borderTopLeftRadius: covered > 0 ? 0 : 9999,
+                borderBottomLeftRadius: covered > 0 ? 0 : 9999,
+              }}
+            />
+          )}
+        </div>
       </div>
 
       {/* The conclusion, which is the only thing here to act on. */}
       <p
         data-testid={`${testId}-action`}
         className="text-caption text-center"
-        style={{ color: slack === 0 ? undefined : tone }}
+        style={{ color: actionTone }}
       >
         {t(`reserveFit.${action}`)}
         {slack !== 0 && (

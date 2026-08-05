@@ -308,10 +308,10 @@ describe("ReserveFitView", () => {
   // 260804: held against needed reads as a pipe — outline = what the history
   // asked for, fill = what is actually there (reserve-level-bar.test.tsx covers
   // the layers themselves; this pins the wiring).
-  it("meters what is held against the target", () => {
+  it("meters what is held inside the target's outline", () => {
     view();
-    expect(screen.getByTestId("reserve-bar-fill")).toBeTruthy();
-    expect(screen.getByTestId("reserve-bar-mark")).toBeTruthy();
+    expect(screen.getByTestId("reserve-bar-target")).toBeTruthy();
+    expect(screen.getByTestId("reserve-bar-covered")).toBeTruthy();
   });
 
   it("hands it the section's totals", () => {
