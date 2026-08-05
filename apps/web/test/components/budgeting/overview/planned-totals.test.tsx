@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import messages from "../../../../messages/en.json";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 
 vi.mock("next-intl", () => ({
   // Echoes the KEY (so assertions stay readable) but resolves it against the
@@ -88,11 +88,18 @@ describe("PlannedTotals", () => {
     expect(screen.queryByTestId("planned-breakdown-tooltip")).toBeNull();
   });
 
-  it("sits on the money forecast's width", () => {
+  // 260805: it sits directly over the figures it breaks down, so it takes THEIR
+  // width — an inset borrowed from the money forecast left it 16px narrower than
+  // the row underneath and the two read as unrelated blocks.
+  it("spans exactly the figures it breaks down", () => {
     renderTotals();
     const bar = screen.getByTestId("planned-breakdown");
-    expect(bar.style.marginLeft).toBe("8px");
-    expect(bar.style.marginRight).toBe("8px");
+    const totals = screen
+      .getByTestId("planned-totals")
+      .querySelector(".grid") as HTMLElement;
+    expect(bar.style.marginLeft || "0px").toBe("0px");
+    expect(bar.style.marginRight || "0px").toBe("0px");
+    expect(totals.style.marginLeft || "0px").toBe("0px");
   });
 
   it("shows what was spent against what was planned", () => {
@@ -181,6 +188,23 @@ describe("PlannedTotals", () => {
       expect(size(cell("difference-pct"))).not.toBe("");
     });
 
+    // 260805: with no monthly line to show, the two totals were two lines tall
+    // and the difference — which always carries its amount underneath — was
+    // three, so the third column hung below the row in a one-month range.
+    it("stands level even where there is no monthly figure", () => {
+      renderTotals({ months: 1 });
+      const lines = (k: string) => cell(k).parentElement!.children;
+      for (const k of ["spent", "planned"]) {
+        expect(lines(k)).toHaveLength(3);
+        // …and the third one has to take up a line, not merely exist.
+        expect(lines(k)[2]!.className).toContain("text-caption");
+        expect(lines(k)[2]!.className).not.toContain("hidden");
+      }
+      expect(
+        screen.getByTestId("planned-total-difference").childElementCount,
+      ).toBe(3);
+    });
+
     it("marks the monthly figures as monthly, for a reader who cannot see", () => {
       renderTotals({ months: 4 });
       expect(cell("planned-avg").getAttribute("aria-label")).toContain(
@@ -210,10 +234,34 @@ describe("PlannedTotals", () => {
     expect(pct.className).not.toContain("trading-");
   });
 
-  it("colours the gap by DISTANCE from plan, not by direction", () => {
-    // Within 10% is on plan and green either way; to 30% yellow; beyond red
-    // (260803 user decision). Being 5% under is not a triumph, and 50% under is
-    // as much a planning miss as 50% over.
+  // 260805: "Difference" made the reader work out which way from the sign. The
+  // label says it.
+  it("names the direction instead of calling it a difference", () => {
+    renderTotals({ spentCents: "2000000" }); // 20,000 spent against 29,000
+    expect(screen.getByTestId("planned-totals").textContent).toContain(
+      "planned.underPlan",
+    );
+    cleanup();
+    renderTotals({ spentCents: "4000000" });
+    expect(screen.getByTestId("planned-totals").textContent).toContain(
+      "planned.overPlan",
+    );
+  });
+
+  it("still calls a dead heat a difference", () => {
+    renderTotals({ spentCents: "2900000" });
+    expect(screen.getByTestId("planned-totals").textContent).toContain(
+      "planned.difference",
+    );
+  });
+
+  it("colours the gap as money kept or money overspent", () => {
+    // 260805, second pass: this one figure answers "did we stay inside the
+    // budget", so under plan is simply good — green — however far under, until
+    // 30% under says the plan itself is wrong and turns yellow. Over is red at
+    // any size. (The by-category bars keep their own ±10% corridor: there the
+    // question is how well each category was PLANNED, not whether money was
+    // kept.)
     const style = (spent: string) => {
       const c = render(
         <PlannedTotals
@@ -231,11 +279,13 @@ describe("PlannedTotals", () => {
           ?.getAttribute("style") ?? ""
       );
     };
-    expect(style("95000")).toContain("--trading-up"); // -5%  green
-    expect(style("108000")).toContain("--trading-up"); // +8%  green
-    expect(style("80000")).toContain("--primary"); // -20% yellow
-    expect(style("125000")).toContain("--primary"); // +25% yellow
-    expect(style("50000")).toContain("--trading-down"); // -50% red
+    expect(style("100000")).toContain("--trading-up"); //   0%  green
+    expect(style("95000")).toContain("--trading-up"); //  -5%  green
+    expect(style("80000")).toContain("--trading-up"); // -20%  green
+    expect(style("70000")).toContain("--trading-up"); // -30%  green, exactly
+    expect(style("69000")).toContain("--primary"); // -31%  yellow
+    expect(style("0")).toContain("--primary"); // -100% yellow
+    expect(style("100100")).toContain("--trading-down"); // +0.1% red
     expect(style("200000")).toContain("--trading-down"); // +100% red
   });
 

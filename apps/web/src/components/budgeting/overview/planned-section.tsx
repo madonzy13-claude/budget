@@ -674,9 +674,6 @@ export function PlannedSection({
                   // function turned +5% green into red the moment the scale was
                   // flipped (user screenshots, 260805).
                   colorKey="pct"
-                  // This chart bands green / yellow / red, so the yellow tier
-                  // gets a shape as well as a colour (user, 260805).
-                  driftBand
                   tooltipExtra={(row) => {
                     const diff = Number(row.real) - Number(row.planned);
                     const pct = Number(row.pct);

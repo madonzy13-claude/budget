@@ -55,31 +55,35 @@ beforeAll(() => {
   }
 });
 
-describe("Variance bands (colour by how far off plan, either direction)", () => {
+describe("Variance bands", () => {
+  // 260805: the magnitude rule went. Overspending and underspending are not the
+  // same mistake — one costs money you do not have, the other only means the
+  // plan was loose — so the two directions no longer share a colour.
   it("green inside ±10%", () => {
     expect(varianceBand(0)).toBe("on-plan");
     expect(varianceBand(10)).toBe("on-plan");
     expect(varianceBand(-10)).toBe("on-plan");
   });
 
-  it("yellow between 10% and 30% off, over OR under", () => {
-    expect(varianceBand(10.1)).toBe("drift");
-    expect(varianceBand(30)).toBe("drift");
-    expect(varianceBand(-25)).toBe("drift");
-    expect(varianceBand(-30)).toBe("drift");
+  it("yellow more than 10% UNDER plan, however far under", () => {
+    expect(varianceBand(-10.1)).toBe("under");
+    expect(varianceBand(-55)).toBe("under");
+    expect(varianceBand(-100)).toBe("under");
   });
 
-  it("red past 30% off, over OR under", () => {
-    expect(varianceBand(30.1)).toBe("off");
-    expect(varianceBand(408)).toBe("off");
-    expect(varianceBand(-55)).toBe("off");
-    expect(varianceBand(-100)).toBe("off");
+  it("red more than 10% OVER plan, however far over", () => {
+    expect(varianceBand(10.1)).toBe("over");
+    expect(varianceBand(30)).toBe("over");
+    expect(varianceBand(408)).toBe("over");
   });
 
-  it("maps each band to its colour", () => {
+  it("gives the two directions different colours", () => {
     expect(varianceColor(5)).toBe(varianceColor(-5));
-    expect(varianceColor(5)).not.toBe(varianceColor(20));
-    expect(varianceColor(20)).not.toBe(varianceColor(60));
+    expect(varianceColor(-40)).not.toBe(varianceColor(40));
+    expect(varianceColor(-40)).not.toBe(varianceColor(5));
+    // No second tier either way: 20% over and 60% over read the same.
+    expect(varianceColor(20)).toBe(varianceColor(60));
+    expect(varianceColor(-20)).toBe(varianceColor(-60));
   });
 });
 

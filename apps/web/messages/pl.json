@@ -1486,7 +1486,9 @@
           "scalePct": "%",
           "scaleAmount": "zł",
           "ongoingExcluded": "Trwający miesiąc nie wchodzi do średnich.",
-          "perMonth": "miesięcznie"
+          "perMonth": "miesięcznie",
+          "overPlan": "Ponad plan",
+          "underPlan": "Poniżej planu"
         },
         "wealth": {
           "capitalization": "Kapitalizacja",

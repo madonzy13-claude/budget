@@ -992,14 +992,6 @@ describe("Diverging chart — how the two callers ask for it", () => {
     // Relative to the vitest root (apps/web), which is where the suite runs.
     readFileSync(`src/components/budgeting/overview/${f}`, "utf8");
 
-  it("bands the planned chart's drift tier", () => {
-    expect(src("planned-section.tsx")).toContain("driftBand");
-  });
-
-  it("leaves the reserve chart unbanded — it has no drift tier", () => {
-    expect(src("reserve-fit-view.tsx")).not.toContain("driftBand");
-  });
-
   it("colours both from the percent, whatever the axis reads in", () => {
     for (const f of ["planned-section.tsx", "reserve-fit-view.tsx"])
       expect(src(f)).toContain('colorKey="pct"');
@@ -1060,13 +1052,12 @@ describe("Diverging chart — banded background", () => {
     expect(areas({})).toBe(1);
   });
 
-  it("adds a strip either side when the chart has a drift tier", () => {
-    expect(areas({ driftBand: true })).toBe(3);
+  // 260805: the ±10–30% strips went with the drift tier that named them.
+  it("shades nothing but the corridor", () => {
+    expect(areas({})).toBe(1);
   });
 
   it("drops every band in money, where a percent corridor means nothing", () => {
-    expect(
-      areas({ driftBand: true, formatValue: (n: number) => String(n) }),
-    ).toBe(0);
+    expect(areas({ formatValue: (n: number) => String(n) })).toBe(0);
   });
 });

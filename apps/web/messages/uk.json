@@ -1486,7 +1486,9 @@
           "scalePct": "%",
           "scaleAmount": "zł",
           "ongoingExcluded": "Поточний місяць не входить у середні.",
-          "perMonth": "на місяць"
+          "perMonth": "на місяць",
+          "overPlan": "Понад план",
+          "underPlan": "Менше плану"
         },
         "wealth": {
           "capitalization": "Капіталізація",

@@ -1463,7 +1463,9 @@
           "scalePct": "%",
           "scaleAmount": "zł",
           "ongoingExcluded": "The month still running is left out of the averages.",
-          "perMonth": "per month"
+          "perMonth": "per month",
+          "overPlan": "Over plan",
+          "underPlan": "Under plan"
         },
         "wealth": {
           "capitalization": "Capitalization",

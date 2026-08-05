@@ -49,27 +49,25 @@ const ROW_PX = 34;
 /** Axis padding (share of the span) so the outermost percent label has room. */
 const AXIS_PAD = 0.12;
 
-export type VarianceBand = "on-plan" | "drift" | "off";
-
-/** Second band edge: past this, a category is treated as genuinely off plan. */
-export const OFF_PLAN_BAND_PCT = 30;
+export type VarianceBand = "on-plan" | "under" | "over";
 
 /**
- * Colour band by MAGNITUDE, not direction (260731 user decision): being 50% under
- * plan is as much a planning miss as being 50% over, so both go red. Green ≤10%,
- * yellow ≤30%, red beyond.
+ * Colour band by DIRECTION past ±10% (260805 user decision, replacing the
+ * magnitude rule of 260731). Overspending and underspending are not the same
+ * mistake: one costs money the budget does not have, the other only means the
+ * plan was loose. So over goes red and under goes yellow, and there is no
+ * second tier either way — 60% over is not a different KIND of problem from 20%
+ * over, and the bar's own length already says which is worse.
  */
 export function varianceBand(pct: number): VarianceBand {
-  const off = Math.abs(pct);
-  if (off <= ON_PLAN_BAND_PCT) return "on-plan";
-  if (off <= OFF_PLAN_BAND_PCT) return "drift";
-  return "off";
+  if (Math.abs(pct) <= ON_PLAN_BAND_PCT) return "on-plan";
+  return pct > 0 ? "over" : "under";
 }
 
 const BAND_COLOR: Record<VarianceBand, string> = {
   "on-plan": "var(--trading-up)",
-  drift: "var(--primary)",
-  off: "var(--trading-down)",
+  under: "var(--primary)",
+  over: "var(--trading-down)",
 };
 
 export function varianceColor(pct: number): string {
@@ -82,6 +80,25 @@ export function varianceColor(pct: number): string {
  * grey rather than claiming success (260803 user request). Being OVER this
  * early is real, and keeps its band.
  */
+/** Past this far under plan, the plan itself is the problem. */
+export const PLAN_TOO_LOOSE_PCT = 30;
+
+/**
+ * The colour of the range's gap between planned and spent (260805).
+ *
+ * A different question from the by-category bars, so a different rule. Those ask
+ * how well each category was PLANNED, and are green only inside a ±10% corridor.
+ * This one figure asks whether the household stayed inside its budget: under is
+ * simply money kept, green however far under — until 30% under, where the plan
+ * is so far from what actually happens that it has stopped being a plan, and it
+ * turns yellow. Over is red at any size; there is no amount of overspending that
+ * is fine.
+ */
+export function plannedGapColor(pct: number): string {
+  if (pct > 0) return "var(--trading-down)";
+  return pct < -PLAN_TOO_LOOSE_PCT ? "var(--primary)" : "var(--trading-up)";
+}
+
 /**
  * The reserve chart's bands (260805). No drift band — a buffer is either about
  * the right size or it is not — and the two directions do NOT mean the same
@@ -319,7 +336,6 @@ export function OverviewDivergingBarChart({
   maskAmounts = false,
   colorForPct = varianceColor,
   colorKey = "pct",
-  driftBand = false,
   formatValue,
 }: {
   data: Array<Record<string, unknown>>;
@@ -346,10 +362,6 @@ export function OverviewDivergingBarChart({
    *  the two call sites simply never got it. Rows without that field fall back
    *  to what is plotted. */
   colorKey?: string;
-  /** Shades the ±10–30% strips too. Only for charts that HAVE a drift tier: the
-   *  reserve chart bands green-or-not, so a middle strip there would draw a
-   *  boundary its colours do not use (260805). */
-  driftBand?: boolean;
   /** Reads the axis and the bar labels in the caller's own unit — money instead
    *  of percent (260804). Given one, the ±10% "on plan" band is dropped too:
    *  a corridor measured in percent means nothing on a money axis, and its ticks
@@ -478,22 +490,6 @@ export function OverviewDivergingBarChart({
           />
           {/* The "close enough" corridor — read the centre as a target zone, not a
               hairline. Drawn before the bars so it sits underneath. */}
-          {/* Where the chart has a middle tier, it gets a shape too: a strip
-              either side of the corridor, so "drifting" is somewhere you can
-              see a bar end up rather than only a colour it turns (user,
-              260805). Drawn first, so the green corridor sits over it. */}
-          {!money &&
-            driftBand &&
-            ([-1, 1] as const).map((side) => (
-              <ReferenceArea
-                key={side}
-                x1={symlog(side * ON_PLAN_BAND_PCT)}
-                x2={symlog(side * OFF_PLAN_BAND_PCT)}
-                fill="var(--primary)"
-                fillOpacity={0.07}
-                strokeOpacity={0}
-              />
-            ))}
           {!money && (
             <ReferenceArea
               x1={symlog(-ON_PLAN_BAND_PCT)}

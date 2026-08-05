@@ -21,7 +21,7 @@
 import { useTranslations } from "next-intl";
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 import { CombinedStat } from "@/components/budgeting/overview/combined-stat";
-import { varianceColor } from "@/components/budgeting/charts/diverging-bar-chart";
+import { plannedGapColor } from "@/components/budgeting/charts/diverging-bar-chart";
 import { ShareBar } from "@/components/budgeting/overview/share-bar";
 
 /** Matches the plan-zone line: limit-covered green, reserve yellow, over red. */
@@ -93,12 +93,19 @@ function Figure({
           <span className="text-caption ml-1">{cell.suffix}</span>
         )}
       </span>
-      {cell.perMonth && (
+      {cell.perMonth ? (
         <PerMonth
           testId={`planned-total-${cell.key}-avg`}
           value={cell.perMonth}
           label={perMonthLabel}
         />
+      ) : (
+        // The gap always carries its amount on a third line, so without this the
+        // two totals stood two lines tall and it stood three — the column hung
+        // below the row whenever the range was a single month (user, 260805).
+        <span aria-hidden className="text-caption">
+          &nbsp;
+        </span>
       )}
     </div>
   );
@@ -182,6 +189,11 @@ export function PlannedTotals({
           reading a number. The caption carries the amount on hover or tap. */}
       <ShareBar
         testId="planned-breakdown"
+        // Flush with the figures directly beneath it: the money forecast's own
+        // inset left this 16px narrower than the row it breaks down, and the two
+        // stopped reading as one block (user, 260805).
+        insetLeft={0}
+        insetRight={0}
         segments={[
           {
             key: "within",
@@ -222,7 +234,15 @@ export function PlannedTotals({
         ))}
         <CombinedStat
           testId="planned-total-difference"
-          label={t("planned.difference")}
+          // The label names the direction rather than leaving the reader to work
+          // it out from a sign (user, 260805); a dead heat is neither.
+          label={t(
+            diff > 0n
+              ? "planned.overPlan"
+              : diff < 0n
+                ? "planned.underPlan"
+                : "planned.difference",
+          )}
           // Level with the two totals beside it: leading a size up made this
           // column taller than the row (user, 260805).
           size="sm"
@@ -234,10 +254,11 @@ export function PlannedTotals({
           // Only while the range is this month alone: five days in, being under
           // says nothing. Reach back further and the colour returns (260803).
           tone={rangeWithinRunningMonth ? "plain" : "auto"}
-          // Banded by DISTANCE from plan, the same green/yellow/red the
-          // by-category bars use — 5% under is not a triumph, and 50% under is
-          // as much a planning miss as 50% over.
-          color={pct === null ? undefined : varianceColor(pct)}
+          // Under plan is money kept (green) until the plan is 30% adrift and
+          // reads as wrong (yellow); over is red at any size. Deliberately NOT
+          // the by-category bands: that chart asks how well each category was
+          // planned, this figure asks whether the budget held (user, 260805).
+          color={pct === null ? undefined : plannedGapColor(pct)}
         />
       </div>
     </div>
