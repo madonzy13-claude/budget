@@ -24,6 +24,7 @@ export function CombinedStat({
   color,
   testId,
   size = "md",
+  labelRef,
 }: {
   label: string;
   pct: number | null;
@@ -39,18 +40,24 @@ export function CombinedStat({
   /** "sm" where the stat shares a row with plain figures: leading a size up
    *  stood the column taller than its neighbours (user, 260805). */
   size?: "md" | "sm";
+  /** Measures the LABEL's own width, for a caller lining something up with it. */
+  labelRef?: React.Ref<HTMLSpanElement>;
 }) {
   const up = pct !== null && pct >= 0;
   const down = pct !== null && pct < 0;
-  const colorClass =
+  // Inline, never a class. cn() is tailwind-merge, which reads an arbitrary
+  // text-[…] as a FONT SIZE and therefore dropped the size class sitting beside
+  // it — the ongoing month, the one range that takes this neutral colour, kept
+  // rendering its percent a size up long after the size was set (user, 260805).
+  const toneColor =
     tone === "plain"
-      ? "text-[var(--body-on-dark)]"
+      ? "var(--body-on-dark)"
       : up
-        ? "text-[var(--trading-up)]"
+        ? "var(--trading-up)"
         : down
-          ? "text-[var(--trading-down)]"
-          : "text-[var(--muted-foreground)]";
-  const explicit = tone !== "plain" && color !== undefined;
+          ? "var(--trading-down)"
+          : "var(--muted-foreground)";
+  const resolved = tone !== "plain" && color !== undefined ? color : toneColor;
   const Arrow = up ? ArrowUp : ArrowDown;
   const pctStr =
     pct === null ? "—" : `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`;
@@ -59,14 +66,15 @@ export function CombinedStat({
       className="flex flex-col items-center gap-0.5 text-center"
       data-testid={testId}
     >
-      <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
+      <p className="text-caption text-[var(--muted-foreground)]">
+        <span ref={labelRef}>{label}</span>
+      </p>
       <span
         className={cn(
           "num inline-flex items-center gap-1 whitespace-nowrap",
           size === "sm" ? "text-num-sm" : "text-num-md",
-          !explicit && colorClass,
         )}
-        style={explicit ? { color } : undefined}
+        style={{ color: resolved }}
         data-testid={testId ? `${testId}-pct` : undefined}
       >
         {pct !== null && <Arrow className="size-3.5" aria-hidden="true" />}

@@ -224,4 +224,31 @@ describe("ReserveLevelBar", () => {
     expect(bar.style.marginLeft).toBe("8px");
     expect(bar.style.marginRight).toBe("8px");
   });
+
+  // 260805: the target is the thing being aimed at, so it wears the colour of
+  // being on target — and the label that names it wears the same, or the reader
+  // has to work out which grey line the words belong to.
+  describe("the target reads as the target", () => {
+    it("outlines the target in green, over a green wash", () => {
+      setup(5000, 10000);
+      const el = screen.getByTestId("reserve-bar-target");
+      expect(el.getAttribute("style")).toContain("--trading-up");
+      // …over a wash faint enough that the bar inside never fights it.
+      const wash = screen.getByTestId("reserve-bar-wash");
+      expect(wash.getAttribute("style")).toContain("--trading-up");
+      expect(Number(wash.style.opacity)).toBeLessThan(0.2);
+    });
+
+    it("names it in the same green", () => {
+      setup(5000, 10000);
+      const el = screen.getByTestId("reserve-bar-needed");
+      expect(el.outerHTML).toContain("--trading-up");
+    });
+
+    it("leaves the held figure alone — it is not the target", () => {
+      setup(5000, 10000);
+      const el = screen.getByTestId("reserve-bar-held");
+      expect(el.outerHTML).not.toContain("--trading-up");
+    });
+  });
 });

@@ -18,11 +18,13 @@
  * They sit under the category picker on purpose — both sides are filtered by
  * it, so the thing that narrows them is directly above.
  */
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 import { CombinedStat } from "@/components/budgeting/overview/combined-stat";
 import { plannedGapColor } from "@/components/budgeting/charts/diverging-bar-chart";
 import { ShareBar } from "@/components/budgeting/overview/share-bar";
+import { labelSpan } from "@/lib/label-span";
 
 /** Matches the plan-zone line: limit-covered green, reserve yellow, over red. */
 const ZONE = {
@@ -70,15 +72,19 @@ function Figure({
   cell,
   mask,
   perMonthLabel,
+  labelRef,
 }: {
   cell: Cell;
   mask: boolean;
   perMonthLabel: string;
+  labelRef?: React.Ref<HTMLSpanElement>;
 }) {
   return (
     <div className="flex min-w-0 flex-col items-center gap-0.5 text-center">
       <p className="text-caption text-[var(--muted-foreground)]">
-        {cell.label}
+        {/* Inline, so a measurement of it is the width of the WORDS rather than
+            of the column they are centred in (260805). */}
+        <span ref={labelRef}>{cell.label}</span>
       </p>
       {/* nowrap: at 390px the cell is ~111px and "−3,698 zł · −13%" wanted ~112,
           so the percent dropped to a second line (user screenshot). Set one size
@@ -143,6 +149,44 @@ export function PlannedTotals({
   const t = useTranslations("bdp.tab.overview");
   const n = (v: string) => BigInt(v || "0");
 
+  // The bar reads as this row's key, so it spans the row's WORDS: from where
+  // "Total spent" begins to where "Under plan" ends (user, 260805). Measured,
+  // because the columns are equal and the labels are not — and the labels change
+  // with the locale.
+  const rowRef = useRef<HTMLDivElement>(null);
+  const firstLabelRef = useRef<HTMLSpanElement>(null);
+  const lastLabelRef = useRef<HTMLSpanElement>(null);
+  const [inset, setInset] = useState({ left: 0, right: 0 });
+  const measure = useCallback(() => {
+    const row = rowRef.current;
+    const first = firstLabelRef.current;
+    const last = lastLabelRef.current;
+    if (!row || !first || !last) return;
+    const next = labelSpan(
+      row.getBoundingClientRect(),
+      first.getBoundingClientRect(),
+      last.getBoundingClientRect(),
+    );
+    setInset((cur) =>
+      cur.left === next.left && cur.right === next.right ? cur : next,
+    );
+  }, []);
+  useEffect(() => {
+    measure();
+    // A resize listener as well as the observer: a font swap or a locale change
+    // moves the words without resizing the row that holds them.
+    window.addEventListener("resize", measure);
+    const ro =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(measure);
+    if (ro && rowRef.current) ro.observe(rowRef.current);
+    return () => {
+      window.removeEventListener("resize", measure);
+      ro?.disconnect();
+    };
+  });
+
   const planned = n(plannedCents);
   const spent = n(spentCents);
   const diff = spent - planned;
@@ -189,11 +233,10 @@ export function PlannedTotals({
           reading a number. The caption carries the amount on hover or tap. */}
       <ShareBar
         testId="planned-breakdown"
-        // Flush with the figures directly beneath it: the money forecast's own
-        // inset left this 16px narrower than the row it breaks down, and the two
-        // stopped reading as one block (user, 260805).
-        insetLeft={0}
-        insetRight={0}
+        insetLeft={inset.left}
+        insetRight={inset.right}
+        months={months}
+        perMonthLabel={t("planned.perMonth")}
         segments={[
           {
             key: "within",
@@ -223,13 +266,17 @@ export function PlannedTotals({
       {/* No rule above them: the bar is already a boundary, and a hairline under
           it cut the block in two where nothing needed separating (user,
           260805). */}
-      <div className="grid grid-cols-3 items-start gap-x-3 gap-y-1 pt-1">
-        {comparison.map((c) => (
+      <div
+        ref={rowRef}
+        className="grid grid-cols-3 items-start gap-x-3 gap-y-1 pt-1"
+      >
+        {comparison.map((c, i) => (
           <Figure
             key={c.key}
             cell={c}
             mask={maskValue}
             perMonthLabel={t("planned.perMonth")}
+            labelRef={i === 0 ? firstLabelRef : undefined}
           />
         ))}
         <CombinedStat
@@ -246,6 +293,7 @@ export function PlannedTotals({
           // Level with the two totals beside it: leading a size up made this
           // column taller than the row (user, 260805).
           size="sm"
+          labelRef={lastLabelRef}
           pct={pct}
           // The AMOUNT is monthly like its neighbours; the percent is a ratio,
           // identical either way, so it stays as it was (user, 260805).

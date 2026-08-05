@@ -263,6 +263,31 @@ const fmtPct = (n: number) => {
   return `${sign}${Math.abs(rounded)}%`;
 };
 
+/** Clearance between the figure and the bar's end, in px. A bar that reaches the
+ *  chart's own edge puts its label right on the plot border, so this is also the
+ *  distance from that line (user, 260805). */
+export const LABEL_CLEARANCE = 12;
+
+/** Where the figure sits, and which end of it is pinned. Pure, so the clearance
+ *  can be pinned by a test rather than eyeballed against a screenshot. */
+export function labelPlacement(
+  x: number,
+  width: number,
+): { tx: number; anchor: "start" | "end"; inside: boolean } {
+  const grewRight = width >= 0;
+  // A long bar gets its label INSIDE its outer end (there may be no room left on
+  // the outside, and on the left it would land on the category name); a short one
+  // gets it just outside, where it reads better against the background.
+  const inside = Math.abs(width) > 64;
+  const end = x + width;
+  const away = grewRight ? -1 : 1;
+  return {
+    tx: end + LABEL_CLEARANCE * (inside ? away : -away),
+    anchor: inside === grewRight ? "end" : "start",
+    inside,
+  };
+}
+
 /**
  * Percent label pinned to the bar's outer end (right when over, left when under),
  * so it never lands on the category name of a left-growing bar.
@@ -275,20 +300,7 @@ function VarianceLabel(props: {
   value?: string | number;
 }) {
   const { x = 0, y = 0, width = 0, height = 0, value } = props;
-  const grewRight = width >= 0;
-  // A long bar gets its label INSIDE its outer end (there may be no room left on
-  // the outside, and on the left it would land on the category name); a short one
-  // gets it just outside, where it reads better against the background.
-  const inside = Math.abs(width) > 64;
-  const end = x + width;
-  const tx = inside ? end + (grewRight ? -8 : 8) : end + (grewRight ? 6 : -6);
-  const anchor = inside
-    ? grewRight
-      ? "end"
-      : "start"
-    : grewRight
-      ? "start"
-      : "end";
+  const { tx, anchor, inside } = labelPlacement(x, width);
   return (
     <text
       data-variance-label

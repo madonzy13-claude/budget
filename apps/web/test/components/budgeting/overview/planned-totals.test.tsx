@@ -88,18 +88,27 @@ describe("PlannedTotals", () => {
     expect(screen.queryByTestId("planned-breakdown-tooltip")).toBeNull();
   });
 
-  // 260805: it sits directly over the figures it breaks down, so it takes THEIR
-  // width — an inset borrowed from the money forecast left it 16px narrower than
-  // the row underneath and the two read as unrelated blocks.
-  it("spans exactly the figures it breaks down", () => {
+  // 260805: it sits directly over the figures it breaks down, so it spans their
+  // WORDS — from where "Total spent" begins to where "Under plan" ends. An inset
+  // borrowed from the money forecast made it a different width entirely.
+  it("spans the words of the row it breaks down", () => {
     renderTotals();
-    const bar = screen.getByTestId("planned-breakdown");
-    const totals = screen
+    const row = screen
       .getByTestId("planned-totals")
       .querySelector(".grid") as HTMLElement;
-    expect(bar.style.marginLeft || "0px").toBe("0px");
-    expect(bar.style.marginRight || "0px").toBe("0px");
-    expect(totals.style.marginLeft || "0px").toBe("0px");
+    const labels = row.querySelectorAll("p > span");
+    expect(labels).toHaveLength(3);
+    const first = labels[0]!;
+    const last = labels[2]!;
+    expect(first.textContent).toBe("planned.totalSpent");
+    expect(last.textContent).toContain("planned.");
+    row.getBoundingClientRect = () => ({ left: 0, right: 300 }) as DOMRect;
+    first.getBoundingClientRect = () => ({ left: 20, right: 80 }) as DOMRect;
+    last.getBoundingClientRect = () => ({ left: 220, right: 285 }) as DOMRect;
+    fireEvent.resize(window);
+    const bar = screen.getByTestId("planned-breakdown");
+    expect(bar.style.marginLeft).toBe("20px");
+    expect(bar.style.marginRight).toBe("15px");
   });
 
   it("shows what was spent against what was planned", () => {
@@ -205,6 +214,17 @@ describe("PlannedTotals", () => {
       ).toBe(3);
     });
 
+    // 260805: this is why the ongoing month kept its bigger percent after the
+    // size was set. A range inside the running month drops the colour, which put
+    // an arbitrary text-[var(--…)] through cn() AFTER the size class — and
+    // tailwind-merge reads an arbitrary text-* as a font size, so it dropped
+    // text-num-sm and the percent fell back to the inherited size.
+    it("keeps its size when the colour is dropped", () => {
+      renderTotals({ months: 4, rangeWithinRunningMonth: true });
+      expect(cell("difference-pct").className).toContain("text-num-sm");
+      expect(cell("difference-pct").className).not.toContain("text-num-md");
+    });
+
     it("marks the monthly figures as monthly, for a reader who cannot see", () => {
       renderTotals({ months: 4 });
       expect(cell("planned-avg").getAttribute("aria-label")).toContain(
@@ -229,9 +249,10 @@ describe("PlannedTotals", () => {
     // Five days into August, being under the plan says nothing yet — it reads
     // plain rather than green or red (260803 request).
     renderTotals({ rangeWithinRunningMonth: true });
+    // Inline, not a class: a class here would take the size class with it.
     const pct = screen.getByTestId("planned-total-difference-pct");
-    expect(pct.className).toContain("--body-on-dark");
-    expect(pct.className).not.toContain("trading-");
+    expect(pct.getAttribute("style")).toContain("--body-on-dark");
+    expect(pct.outerHTML).not.toContain("trading-");
   });
 
   // 260805: "Difference" made the reader work out which way from the sign. The

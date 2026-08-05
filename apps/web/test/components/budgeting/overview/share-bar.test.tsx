@@ -100,6 +100,42 @@ describe("ShareBar", () => {
     expect(tip).not.toContain("4%");
   });
 
+  // 260805: the range total alone left the reader dividing in their head — the
+  // figures under the bar all carry their monthly figure, so the pieces do too.
+  it("carries the piece's monthly figure on a second row", () => {
+    render(
+      <ShareBar
+        testId="avg-bar"
+        segments={SEGMENTS}
+        format={(n: number) => `${n} zl`}
+        months={4}
+      />,
+    );
+    const track = screen.getByTestId("avg-bar-track");
+    track.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        width: 100,
+        right: 100,
+        top: 0,
+        bottom: 12,
+        height: 12,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    fireEvent.pointerMove(track, { clientX: 90 });
+    const tip = screen.getByTestId("avg-bar-tooltip").textContent ?? "";
+    expect(tip).toContain("16116 zl"); // the range
+    expect(tip).toContain("4029 zl"); // …and a month of it
+  });
+
+  it("says nothing about a month when the range is one month", () => {
+    setup();
+    scrubTo(90);
+    expect(screen.queryByTestId("spend-bar-tooltip-per-month")).toBeNull();
+  });
+
   it("says nothing until a piece is pointed at", () => {
     setup();
     expect(screen.queryByTestId("spend-bar-tooltip")).toBeNull();

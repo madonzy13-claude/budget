@@ -19,6 +19,7 @@ import {
 import {
   amountTicks,
   OverviewDivergingBarChart,
+  labelPlacement,
   reserveFitColor,
   rowHitBoxes,
   touchSelection,
@@ -922,6 +923,37 @@ describe("Diverging chart — dismissing the tooltip", () => {
 // to read a chart with a mouse, but on touch the same rule meant tapping the
 // empty half of a row selected a bar you were nowhere near — and tapping the
 // tooltip selected whatever sat under it.
+// 260805: a −76% bar reaches the chart's own edge, and its figure sat on the
+// plot border. The clearance from the bar's end is also the clearance from that
+// line, so it has to be worth seeing.
+describe("labelPlacement", () => {
+  it("keeps the figure clear of a left-growing bar's end", () => {
+    const { tx, anchor, inside } = labelPlacement(300, -200);
+    expect(inside).toBe(true);
+    expect(anchor).toBe("start");
+    expect(tx - 100).toBeGreaterThanOrEqual(10); // bar ends at 100
+  });
+
+  it("keeps the figure clear of a right-growing bar's end", () => {
+    const { tx, anchor } = labelPlacement(300, 200);
+    expect(anchor).toBe("end");
+    expect(500 - tx).toBeGreaterThanOrEqual(10);
+  });
+
+  it("puts a stub bar's figure outside, past its end", () => {
+    const { tx, anchor, inside } = labelPlacement(300, 10);
+    expect(inside).toBe(false);
+    expect(anchor).toBe("start");
+    expect(tx).toBeGreaterThanOrEqual(320);
+  });
+
+  it("puts a short left-growing bar's figure outside, to its left", () => {
+    const { tx, anchor } = labelPlacement(300, -10);
+    expect(anchor).toBe("end");
+    expect(tx).toBeLessThanOrEqual(280);
+  });
+});
+
 describe("rowHitBoxes", () => {
   const bar = (i: number) => ({ left: 100, right: 200, top: i, bottom: i + 1 });
   const label = (i: number) => ({

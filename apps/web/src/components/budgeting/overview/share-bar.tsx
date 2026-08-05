@@ -34,12 +34,18 @@ export function ShareBar({
   // so 8px more each side puts this on exactly the forecast band's width.
   insetLeft = 8,
   insetRight = 8,
+  months = 1,
+  perMonthLabel,
 }: {
   segments: ShareBarSegment[];
   format: (n: number) => string;
   testId: string;
   insetLeft?: number;
   insetRight?: number;
+  /** Calendar months the range covers. Above 1, each piece also says what it
+   *  comes to in a month — the figures under the bar all do (260805). */
+  months?: number;
+  perMonthLabel?: string;
 }) {
   const trackRef = React.useRef<HTMLDivElement | null>(null);
   const [at, setAt] = React.useState<{ key: string; pct: number } | null>(null);
@@ -124,23 +130,41 @@ export function ShareBar({
           }}
           className="pointer-events-none absolute bottom-full z-10 mb-2 w-max rounded-[var(--radius-md)] border border-[var(--hairline-dark)] bg-[var(--surface-card-dark)] px-3 py-2 text-xs shadow-lg"
         >
-          <span className="flex items-center gap-2">
-            <span
-              aria-hidden
-              className="size-2 shrink-0 rounded-full"
-              style={{ background: shown.color }}
-            />
-            <span className="text-[var(--muted-foreground)]">
-              {shown.label}
+          {/* Two rows: what this piece is and how much of it there is, then the
+              same piece read per month. One row had four figures fighting for a
+              phone's width (user, 260805). */}
+          <span className="flex flex-col gap-1">
+            <span className="flex items-center gap-2">
+              <span
+                aria-hidden
+                className="size-2 shrink-0 rounded-full"
+                style={{ background: shown.color }}
+              />
+              <span className="text-[var(--muted-foreground)]">
+                {shown.label}
+              </span>
+              <span className="num ml-auto font-semibold text-[var(--body-on-dark)]">
+                {format(shown.value)}
+              </span>
             </span>
-            <span className="num font-semibold text-[var(--body-on-dark)]">
-              {format(shown.value)}
-            </span>
-            {/* An amount alone says nothing about how big a slice it is, which
-                is the only thing a part-to-whole bar exists to say (user,
-                260805). */}
-            <span className="num text-[var(--muted-foreground)]">
-              {shareLabel(shown.value, total)}
+            <span className="flex items-center gap-3 text-[var(--muted-foreground)]">
+              {/* An amount alone says nothing about how big a slice it is, which
+                  is the only thing a part-to-whole bar exists to say. */}
+              <span className="num">{shareLabel(shown.value, total)}</span>
+              {months > 1 && (
+                <span
+                  data-testid={`${testId}-tooltip-per-month`}
+                  aria-label={
+                    perMonthLabel
+                      ? `${perMonthLabel}: ${format(shown.value / months)}`
+                      : undefined
+                  }
+                  className="num ml-auto"
+                >
+                  <span aria-hidden>⌀ </span>
+                  {format(shown.value / months)}
+                </span>
+              )}
             </span>
           </span>
         </div>
