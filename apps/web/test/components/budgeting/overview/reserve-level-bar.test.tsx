@@ -159,7 +159,7 @@ describe("ReserveLevelBar", () => {
     setup(3000, 6000);
     expect(
       screen.getByTestId("reserve-bar-covered").style.background,
-    ).toContain("--muted-foreground");
+    ).toContain("--trading-up");
     const gap = screen.getByTestId("reserve-bar-gap");
     expect(gap.style.width).toBe("calc(50% - 5px)");
     // Dashes, not a solid block: it is an absence, and it should not shout as
@@ -309,9 +309,11 @@ describe("ReserveLevelBar", () => {
       expect(screen.queryByTestId("reserve-bar-wash")).toBeNull();
     });
 
-    // 260805: the bar inside says whether the target has been REACHED, which is
-    // the one thing the meter is asked. Grey is "not there yet", not a baseline.
-    it("turns the held bar green once the target is met", () => {
+    // 260805, second pass: green whatever the level. The money that IS held is
+    // doing its job at any size, and what is missing is already said by the
+    // dashed red beside it — greying the held stretch made a nearly-full
+    // reserve look as inert as an empty one (user).
+    it("draws the held bar green once the target is met", () => {
       setup(10000, 10000);
       expect(
         screen.getByTestId("reserve-bar-covered").getAttribute("style"),
@@ -329,12 +331,19 @@ describe("ReserveLevelBar", () => {
       ).toContain("--primary");
     });
 
-    it("leaves it grey while the reserve is still short", () => {
+    it("draws it green while the reserve is still short", () => {
       setup(9999, 10000);
       const style =
         screen.getByTestId("reserve-bar-covered").getAttribute("style") ?? "";
-      expect(style).toContain("--muted-foreground");
-      expect(style).not.toContain("--trading-up");
+      expect(style).toContain("--trading-up");
+      expect(style).not.toContain("--muted-foreground");
+    });
+
+    it("leaves the shortfall to say what is missing", () => {
+      setup(3000, 10000);
+      expect(screen.getByTestId("reserve-bar-gap").style.background).toContain(
+        "--trading-down",
+      );
     });
 
     it("names it in the same green", () => {

@@ -20,23 +20,29 @@
  * the bar solid red — including the 8,313 that is doing exactly its job (user
  * screenshot, 260804). Each stretch says what it is instead:
  *
- *   covered  (inside the outline)   grey    — the baseline; nothing to act on
- *   surplus  (past the outline)     amber   — idle; a slow loss, attention not alarm
- *   missing  (never reached)        dashed  — an absence, drawn as one
+ *   covered  (inside the outline)   green, solid    — money doing its job
+ *   surplus  (past the outline)     amber, dashed   — idle; a slow loss
+ *   missing  (never reached)        red, dashed     — an absence, drawn as one
  *
- * The shortfall is dashed and soft on purpose: left as plain empty space it read
- * as nothing at all rather than as something missing (user, 260804), but a solid
- * red block would shout louder than the money that is really there.
+ * Only the covered stretch is solid, and only it is green. Both of the others
+ * are money that is NOT working — one not there, one doing nothing — and the
+ * dashes say so without either of them shouting louder than the money that is
+ * really present. Green at any level, not only once the target is met (user,
+ * 260805): what is missing is already stated in red beside it, and greying the
+ * held stretch until then left a nearly-full reserve looking as inert as an
+ * empty one.
  *
  * Nothing is hover-gated. Both figures and the action are on screen.
  */
 import { useTranslations } from "next-intl";
 
-/** The target is what "right" looks like, so it wears the on-plan green — the
- *  outline, the word that names it, and the held bar once it gets there. */
+/** The target is what "right" looks like, so it wears the on-plan green: the
+ *  outline, the word that names it, and the money held inside it — at any level
+ *  (user, 260805). Held money is doing its job whether or not there is enough of
+ *  it yet, and what is MISSING is already said, in red, right beside it; greying
+ *  the held stretch until the target was met left a nearly-full reserve looking
+ *  as inert as an empty one. */
 const TARGET = "var(--trading-up)";
-/** Held, but not yet enough. */
-const COVERED = "var(--muted-foreground)";
 const SURPLUS = "var(--primary)";
 const SHORT = "var(--trading-down)";
 /** Breathing room between the outline and the bar it contains, in px: the box is
@@ -98,11 +104,6 @@ export function ReserveLevelBar({
   // starts ON the border rather than a padding's width before it.
   const stretch = (v: number, giveBack: number) =>
     giveBack > 0 ? `calc(${width(v)} - ${giveBack}px)` : width(v);
-
-  // The one thing the meter is asked: is the target reached? Green says yes,
-  // grey says not yet — a grey baseline said nothing at all (user, 260805). The
-  // surplus past the outline stays amber whatever: idle money is not a win.
-  const reached = held >= needed;
 
   // Informative, not an instruction (user, 260805): the meter reports where the
   // buffer stands against what the history asked for, and leaves what to do
@@ -169,7 +170,7 @@ export function ReserveLevelBar({
                 // Twice over when nothing follows it inside the box: it is
                 // then behind the outline's right edge as well as its left.
                 width: stretch(covered, INNER_PAD * (missing === 0 ? 2 : 1)),
-                background: reached ? TARGET : COVERED,
+                background: TARGET,
                 borderTopRightRadius: surplus > 0 ? 0 : 9999,
                 borderBottomRightRadius: surplus > 0 ? 0 : 9999,
               }}
