@@ -40,6 +40,8 @@ import { useSlotReveal } from "@/components/budgeting/overview/slot-amount";
 
 /** Half-width of the "close enough to plan" band, in percent. */
 export const ON_PLAN_BAND_PCT = 10;
+/** One per row, in row order — recharts wraps each bar's path in this. */
+const BAR_SELECTOR = ".recharts-bar-rectangle";
 const BAR_SIZE = 14;
 const ROW_PX = 34;
 /** Axis padding (share of the span) so the outermost percent label has room. */
@@ -91,13 +93,25 @@ export function varianceColor(pct: number): string {
  * whole width is a fine target with a mouse — but on touch that meant tapping
  * the empty half of a row picked a bar you were nowhere near, and tapping the
  * tooltip picked whatever sat beneath it. A finger has to be on the bar itself.
+ *
+ * The row is read off the DOM rather than taken from the chart's own event: on
+ * touch, recharts hands the handler the state from BEFORE the tap, so the
+ * highlight always named the previously-tapped bar while the tooltip showed the
+ * new one (user, 260805). What is under the finger cannot lag.
  */
 export function touchSelection(
-  index: number | null,
-  elementAtTouch: Element | null,
+  stackAtTouch: readonly Element[],
+  bars: readonly Element[],
 ): number | null {
-  if (index === null || !elementAtTouch) return null;
-  return elementAtTouch.closest(".recharts-rectangle") ? index : null;
+  for (const el of stackAtTouch) {
+    // The tooltip cursor is drawn over the row, so the first BAR in the stack
+    // wins rather than the first element.
+    const bar = el.closest?.(BAR_SELECTOR);
+    if (!bar) continue;
+    const i = bars.indexOf(bar);
+    if (i >= 0) return i;
+  }
+  return null;
 }
 
 /** The named field, when the row actually carries a readable number for it. */
@@ -284,6 +298,7 @@ export function OverviewDivergingBarChart({
   maskAmounts = false,
   colorForPct = varianceColor,
   colorKey = "pct",
+  driftBand = false,
   formatValue,
 }: {
   data: Array<Record<string, unknown>>;
@@ -310,6 +325,10 @@ export function OverviewDivergingBarChart({
    *  the two call sites simply never got it. Rows without that field fall back
    *  to what is plotted. */
   colorKey?: string;
+  /** Shades the ±10–30% strips too. Only for charts that HAVE a drift tier: the
+   *  reserve chart bands green-or-not, so a middle strip there would draw a
+   *  boundary its colours do not use (260805). */
+  driftBand?: boolean;
   /** Reads the axis and the bar labels in the caller's own unit — money instead
    *  of percent (260804). Given one, the ±10% "on plan" band is dropped too:
    *  a corridor measured in percent means nothing on a money axis, and its ticks
@@ -324,6 +343,7 @@ export function OverviewDivergingBarChart({
 
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activeRef = useRef<number | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const pressStart = useRef<number | null>(null);
   // A touch is followed by a synthesised mouse sequence at the same point; this
   // is how long the mouse handlers stay out of the way afterwards.
@@ -341,16 +361,19 @@ export function OverviewDivergingBarChart({
   };
 
   const fromTouch = (
-    s: { activeTooltipIndex?: number | string | null },
-    e: React.TouchEvent,
+    // recharts hands the touch handlers either (state, event) or the event
+    // alone depending on which one fired, and only the event is wanted here.
+    first: unknown,
+    second?: React.TouchEvent,
   ) => {
     touchedAt.current = performance.now();
-    const t = e.touches?.[0] ?? e.changedTouches?.[0];
+    const e = (second ?? first) as React.TouchEvent | undefined;
+    const t = e?.touches?.[0] ?? e?.changedTouches?.[0];
+    if (!t) return setActive(null);
     setActive(
-      touchSelection(
-        coerceIdx(s?.activeTooltipIndex),
-        t ? document.elementFromPoint(t.clientX, t.clientY) : null,
-      ),
+      touchSelection(document.elementsFromPoint(t.clientX, t.clientY), [
+        ...(wrapRef.current?.querySelectorAll(BAR_SELECTOR) ?? []),
+      ]),
     );
   };
 
@@ -381,6 +404,7 @@ export function OverviewDivergingBarChart({
 
   return (
     <div
+      ref={wrapRef}
       className="flex flex-col gap-1"
       data-scrub
       // pan-y, not none: a horizontal drag scrubs the bars, while the page still
@@ -424,6 +448,22 @@ export function OverviewDivergingBarChart({
           />
           {/* The "close enough" corridor — read the centre as a target zone, not a
               hairline. Drawn before the bars so it sits underneath. */}
+          {/* Where the chart has a middle tier, it gets a shape too: a strip
+              either side of the corridor, so "drifting" is somewhere you can
+              see a bar end up rather than only a colour it turns (user,
+              260805). Drawn first, so the green corridor sits over it. */}
+          {!money &&
+            driftBand &&
+            ([-1, 1] as const).map((side) => (
+              <ReferenceArea
+                key={side}
+                x1={symlog(side * ON_PLAN_BAND_PCT)}
+                x2={symlog(side * OFF_PLAN_BAND_PCT)}
+                fill="var(--primary)"
+                fillOpacity={0.07}
+                strokeOpacity={0}
+              />
+            ))}
           {!money && (
             <ReferenceArea
               x1={symlog(-ON_PLAN_BAND_PCT)}

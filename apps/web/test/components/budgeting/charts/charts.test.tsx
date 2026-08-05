@@ -6,6 +6,7 @@
  * assertions stay at smoke level (mounts without throwing) per the plan — NOT pixel
  * geometry, which recharts + happy-dom cannot measure.
  */
+import { readFileSync } from "node:fs";
 import { describe, it, expect, beforeAll, vi } from "vitest";
 import { render, fireEvent, act } from "@testing-library/react";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
@@ -921,41 +922,120 @@ describe("Diverging chart — dismissing the tooltip", () => {
 // empty half of a row selected a bar you were nowhere near — and tapping the
 // tooltip selected whatever sat under it.
 describe("touchSelection", () => {
-  const bar = () => {
-    const el = document.createElement("div");
-    el.className = "recharts-rectangle";
-    return el;
-  };
-  const inBar = () => {
-    const outer = bar();
-    const inner = document.createElement("span");
-    outer.appendChild(inner);
-    return inner;
-  };
+  const bars = () =>
+    [0, 1, 2].map(() => {
+      const el = document.createElement("div");
+      el.className = "recharts-bar-rectangle";
+      const path = document.createElement("span");
+      el.appendChild(path);
+      return el;
+    });
 
-  it("selects when the finger is on a bar", () => {
-    expect(touchSelection(3, bar())).toBe(3);
+  it("names the row the finger is actually on", () => {
+    const all = bars();
+    expect(touchSelection([all[2]!], all)).toBe(2);
   });
 
-  it("selects when the finger is on something drawn inside a bar", () => {
-    expect(touchSelection(3, inBar())).toBe(3);
+  it("counts a hit on something drawn inside the bar", () => {
+    const all = bars();
+    expect(touchSelection([all[1]!.firstChild as Element], all)).toBe(1);
+  });
+
+  // The tooltip cursor is a rectangle too, and it lies over the row the finger
+  // is on — so the FIRST bar in the stack wins, not the first element.
+  it("looks past whatever is layered over the bar", () => {
+    const all = bars();
+    const cursor = document.createElement("div");
+    cursor.className = "recharts-tooltip-cursor";
+    expect(touchSelection([cursor, all[0]!], all)).toBe(0);
   });
 
   it("selects nothing in the empty stretch of a row", () => {
-    expect(touchSelection(3, document.createElement("div"))).toBeNull();
-  });
-
-  it("selects nothing when the finger is on the tooltip", () => {
-    const tip = document.createElement("div");
-    tip.className = "recharts-tooltip-wrapper";
-    expect(touchSelection(3, tip)).toBeNull();
+    expect(touchSelection([document.createElement("div")], bars())).toBeNull();
   });
 
   it("selects nothing when there is nothing under the finger", () => {
-    expect(touchSelection(3, null)).toBeNull();
+    expect(touchSelection([], bars())).toBeNull();
   });
 
-  it("selects nothing when the chart could not name a row", () => {
-    expect(touchSelection(null, bar())).toBeNull();
+  it("selects nothing for a bar the chart does not own", () => {
+    const stray = document.createElement("div");
+    stray.className = "recharts-bar-rectangle";
+    expect(touchSelection([stray], bars())).toBeNull();
+  });
+});
+
+// 260805: the ±30% drift band was a colour with no shape. The chart shades the
+// on-plan corridor, so the band beyond it should read the same way — but only
+// where a drift band means something: the reserve chart has no such tier.
+// The call sites are pinned in source because that is where this keeps
+// breaking: `colorKey` was added to the chart, added to one caller, and silently
+// dropped from the other — every test stayed green and the deployed chart was
+// wrong (260805). Neither call site renders in a unit test, so nothing else
+// notices a prop that goes missing.
+describe("Diverging chart — how the two callers ask for it", () => {
+  const src = (f: string) =>
+    // Relative to the vitest root (apps/web), which is where the suite runs.
+    readFileSync(`src/components/budgeting/overview/${f}`, "utf8");
+
+  it("bands the planned chart's drift tier", () => {
+    expect(src("planned-section.tsx")).toContain("driftBand");
+  });
+
+  it("leaves the reserve chart unbanded — it has no drift tier", () => {
+    expect(src("reserve-fit-view.tsx")).not.toContain("driftBand");
+  });
+
+  it("colours both from the percent, whatever the axis reads in", () => {
+    for (const f of ["planned-section.tsx", "reserve-fit-view.tsx"])
+      expect(src(f)).toContain('colorKey="pct"');
+  });
+});
+
+describe("Diverging chart — banded background", () => {
+  const areas = (extra: Record<string, unknown>) =>
+    render(
+      <div style={{ width: 600, height: 400 }}>
+        <OverviewDivergingBarChart
+          data={[{ name: "Car", pct: 4 }]}
+          categoryKey="name"
+          valueKey="pct"
+          {...extra}
+        />
+      </div>,
+    ).container.querySelectorAll(".recharts-reference-area").length;
+
+  // The touch rule finds its row by counting these, so a recharts rename would
+  // silently make every tap select nothing.
+  it("wraps each bar in the element the touch rule counts", () => {
+    const { container } = render(
+      <div style={{ width: 600, height: 400 }}>
+        <OverviewDivergingBarChart
+          data={[
+            { name: "Car", pct: 4 },
+            { name: "Food", pct: -20 },
+          ]}
+          categoryKey="name"
+          valueKey="pct"
+        />
+      </div>,
+    );
+    expect(container.querySelectorAll(".recharts-bar-rectangle")).toHaveLength(
+      2,
+    );
+  });
+
+  it("shades the on-plan corridor only, by default", () => {
+    expect(areas({})).toBe(1);
+  });
+
+  it("adds a strip either side when the chart has a drift tier", () => {
+    expect(areas({ driftBand: true })).toBe(3);
+  });
+
+  it("drops every band in money, where a percent corridor means nothing", () => {
+    expect(
+      areas({ driftBand: true, formatValue: (n: number) => String(n) }),
+    ).toBe(0);
   });
 });
