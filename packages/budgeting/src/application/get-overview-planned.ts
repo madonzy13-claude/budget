@@ -213,7 +213,16 @@ export interface OverviewPlannedDTO {
      *  the average and the total side by side (260803 user request). */
     planned_total_cents: string;
     real_total_cents: string;
+    /** The limit in force in the LAST month of the range — "what it is set to
+     *  now". The average above is what it WAS across the range; the two differ
+     *  only when the limit moved, which is exactly when the caller offers the
+     *  choice between them (260805). */
+    planned_current_cents: string;
   }[];
+  /** True when ANY category's limit moved inside the range. The caller offers
+   *  the average-vs-current choice only then — with a steady limit the two
+   *  figures are the same number and the switch is noise (260805). */
+  limits_moved: boolean;
   recurringPerMonth: {
     month: number;
     planned_cents: string;
@@ -686,6 +695,9 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           (excludedKey.get(`${e.category_id}|${e.month}`) ?? 0n) + e.cents,
         );
 
+      // Did ANY category's limit move inside the range? The switch between
+      // "what it averaged" and "what it is now" only means something if so.
+      let limitsMoved = false;
       const plannedAvgVsReal = windows
         .map((w) => {
           const from = startOf(w);
@@ -706,11 +718,20 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           let rs = 0n;
           let rsTyp = 0n; // the same spend with the one-offs taken out
           let ns = 0n;
+          // The limit as it stands at the END of the range, and whether it
+          // moved along the way. A range whose limits never changed has nothing
+          // to choose between, so the caller hides the choice (260805).
+          const limits = months.map(
+            (m) => plannedKey.get(`${w.category_id}|${m}`) ?? 0n,
+          );
+          const current = limits[limits.length - 1] ?? 0n;
+          if (limits.some((v) => v !== limits[0])) limitsMoved = true;
           for (const m of months) {
             const key = `${w.category_id}|${m}`;
             const spent = spendKey.get(key) ?? 0n;
             const dropped = excludedKey.get(key) ?? 0n;
-            ps += plannedKey.get(key) ?? 0n;
+            const limit = plannedKey.get(key) ?? 0n;
+            ps += limit;
             rs += spent;
             // Floored: a refund could make the set-aside sum exceed the month.
             rsTyp += spent > dropped ? spent - dropped : 0n;
@@ -724,6 +745,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
             needs_avg_cents: avgCents(ns, months.length).toString(),
             planned_total_cents: ps.toString(),
             real_total_cents: rs.toString(),
+            planned_current_cents: current.toString(),
           };
         })
         .filter((x): x is NonNullable<typeof x> => x !== null);
@@ -780,6 +802,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         rangeTotals,
         timeline,
         plannedAvgVsReal,
+        limits_moved: limitsMoved,
         recurringPerMonth: perMonth.map((cents, i) => ({
           month: i + 1,
           planned_cents: cents.toString(),

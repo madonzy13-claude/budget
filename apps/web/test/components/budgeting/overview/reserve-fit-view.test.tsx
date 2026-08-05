@@ -229,6 +229,20 @@ describe("ReserveFitView", () => {
     ).toBeTruthy();
   });
 
+  // The %/zł switch that used to hold this row open has gone (260805). Without
+  // a real row the box collapsed to nothing and took both buttons' hit areas
+  // with it — every rebalance E2E scenario failed on an unclickable trigger.
+  it("keeps both corner buttons in a row that stands up on its own", () => {
+    view();
+    const left = screen.getByTestId("reserve-fit-corner-left");
+    const right = screen.getByTestId("reserve-fit-corner");
+    const row = left.parentElement!;
+    expect(row).toBe(right.parentElement);
+    expect(row.className).not.toContain("absolute");
+    expect(left.className).not.toContain("absolute");
+    expect(right.className).not.toContain("absolute");
+  });
+
   it("hands the rebalance dialog what every reserve holds and needs", () => {
     view();
     const rows = JSON.parse(

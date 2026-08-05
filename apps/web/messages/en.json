@@ -1465,7 +1465,12 @@
           "ongoingExcluded": "The month still running is left out of the averages.",
           "perMonth": "per month",
           "overPlan": "Over plan",
-          "underPlan": "Under plan"
+          "underPlan": "Under plan",
+          "basis": "Limit",
+          "basisAverage": "Average",
+          "basisCurrent": "Current",
+          "avgLimit": "Average limit",
+          "currentLimit": "Current limit"
         },
         "wealth": {
           "capitalization": "Capitalization",

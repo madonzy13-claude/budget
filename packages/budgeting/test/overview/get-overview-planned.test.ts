@@ -174,6 +174,54 @@ describe("getOverviewPlanned", () => {
     expect(x.real_avg_cents).toBe("17667");
   });
 
+  // 260805: the by-category chart can be read against what the limit AVERAGED
+  // across the range, or against what it is set to NOW. The two differ only
+  // when a limit moved, which is also the only time the choice is offered.
+  test("reports the limit as it stands at the end of the range", async () => {
+    const dto = (
+      await getOverviewPlanned(deps())({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-01-01",
+        to: "2026-03-31",
+      })
+    )._unsafeUnwrap();
+    const x = dto.plannedAvgVsReal.find((c) => c.category_id === "X")!;
+    // X ran 20000, 20000, 15000 — it averaged 18333 but it is set to 15000.
+    expect(x.planned_avg_cents).toBe("18333");
+    expect(x.planned_current_cents).toBe("15000");
+    const y = dto.plannedAvgVsReal.find((c) => c.category_id === "Y")!;
+    // Y never moved, so both readings are the same number.
+    expect(y.planned_avg_cents).toBe("30000");
+    expect(y.planned_current_cents).toBe("30000");
+  });
+
+  test("says a limit moved inside the range", async () => {
+    const dto = (
+      await getOverviewPlanned(deps())({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-01-01",
+        to: "2026-03-31",
+      })
+    )._unsafeUnwrap();
+    expect(dto.limits_moved).toBe(true);
+  });
+
+  test("says nothing moved when every limit held still", async () => {
+    const dto = (
+      await getOverviewPlanned(deps())({
+        tenantId: "b1",
+        budgetId: "b1",
+        // January and February alone: X is on 20000 for both, Y not yet active.
+        from: "2026-01-01",
+        to: "2026-02-28",
+        categoryId: "X",
+      })
+    )._unsafeUnwrap();
+    expect(dto.limits_moved).toBe(false);
+  });
+
   test("adaptive bucket: a within-one-month range is daily (D-20)", async () => {
     const dto = (
       await getOverviewPlanned(deps())({

@@ -8,7 +8,6 @@
  * as the other half of "how did the plan go" — and shares this same payload.
  * By-category bars use each category's colorKey.
  */
-import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
@@ -26,7 +25,6 @@ import {
 } from "@/hooks/use-reserve-fit";
 import { useUpdateReserveAdjustment } from "@/hooks/use-update-reserve-adjustment";
 import { ReserveFitView } from "./reserve-fit-view";
-import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { useCategories } from "@/hooks/use-budget-data";
 import { centsToRounded, centsToDisplayCompact } from "@/lib/cents-format";
 import { hexForColorKey } from "@/lib/category-colors";
@@ -74,10 +72,10 @@ export function OverspentReservesSection({
     // covered this month's overspend.
     return Number(res?.reserveCents ?? targetCents);
   };
-  // Money by default (user, 260804): the action here is "move 2,900 zł", and a
-  // percentage of a buffer is a step away from that. The percent view stays one
-  // tap away for comparing categories of different sizes.
-  const [fitScale, setFitScale] = useState<"pct" | "amount">("amount");
+  // Always money (user, 260805): the action here is "move 2,900 zł", and a
+  // percentage of a buffer is a step away from that. The percent view went with
+  // the switch — nobody was reaching for it, and its absence buys the header
+  // back for the two dialogs.
   const hasCompletedMonth = rangeHasCompletedMonth(
     range.from,
     range.to,
@@ -146,20 +144,7 @@ export function OverspentReservesSection({
                   formatExact={fmtExact}
                   onSave={(delta) => saveExclusions.mutate(delta)}
                   onRebalance={onRebalance}
-                  scale={fitScale}
-                  scaleSwitch={
-                    <SegmentedToggle
-                      className="text-caption"
-                      testId="reserve-fit-scale"
-                      label={t("planned.scale")}
-                      value={fitScale}
-                      onChange={(v) => setFitScale(v as "pct" | "amount")}
-                      options={[
-                        { value: "pct", label: t("planned.scalePct") },
-                        { value: "amount", label: t("planned.scaleAmount") },
-                      ]}
-                    />
-                  }
+                  scale="amount"
                 />
               </div>
             )

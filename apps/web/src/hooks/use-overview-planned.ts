@@ -49,7 +49,14 @@ export interface OverviewPlannedDTO {
      *  the average and the total side by side (260803 user request). */
     planned_total_cents: string;
     real_total_cents: string;
+    /** The limit in force in the LAST month of the range — "what it is set to
+     *  now". Optional: a payload cached before the field existed replays
+     *  without it (260805). */
+    planned_current_cents?: string;
   }[];
+  /** True when ANY category's limit moved inside the range — the only case
+   *  where average-vs-current is a real choice. Optional for cached payloads. */
+  limits_moved?: boolean;
   recurringPerMonth: {
     month: number;
     planned_cents: string;

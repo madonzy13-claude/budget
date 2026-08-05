@@ -1488,7 +1488,12 @@
           "ongoingExcluded": "Trwający miesiąc nie wchodzi do średnich.",
           "perMonth": "miesięcznie",
           "overPlan": "Ponad plan",
-          "underPlan": "Poniżej planu"
+          "underPlan": "Poniżej planu",
+          "basis": "Limit",
+          "basisAverage": "Średni",
+          "basisCurrent": "Bieżący",
+          "avgLimit": "Średni limit",
+          "currentLimit": "Bieżący limit"
         },
         "wealth": {
           "capitalization": "Kapitalizacja",

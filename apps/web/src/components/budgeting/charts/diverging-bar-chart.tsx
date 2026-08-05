@@ -49,23 +49,27 @@ const ROW_PX = 34;
 /** Axis padding (share of the span) so the outermost percent label has room. */
 const AXIS_PAD = 0.12;
 
-export type VarianceBand = "on-plan" | "under" | "over";
+export type VarianceBand = "even" | "under" | "over";
 
 /**
- * Colour band by DIRECTION past ±10% (260805 user decision, replacing the
- * magnitude rule of 260731). Overspending and underspending are not the same
- * mistake: one costs money the budget does not have, the other only means the
- * plan was loose. So over goes red and under goes yellow, and there is no
- * second tier either way — 60% over is not a different KIND of problem from 20%
- * over, and the bar's own length already says which is worse.
+ * Colour band by DIRECTION, with no corridor (260805 user decision, second
+ * pass). Overspending and underspending are not the same mistake — one costs
+ * money the budget does not have, the other only means the plan was loose — so
+ * over goes red and under goes yellow. There is no second tier either way (60%
+ * over is not a different KIND of problem from 20% over; the bar's own length
+ * says which is worse) and no green middle: a category 3% over is over, and
+ * painting it green claimed an accuracy nobody asked for.
+ *
+ * Deliberately the MIRROR of `reserveFitColor`, which runs the same shape with
+ * the poles swapped — over on a buffer means it holds more than it needs.
  */
 export function varianceBand(pct: number): VarianceBand {
-  if (Math.abs(pct) <= ON_PLAN_BAND_PCT) return "on-plan";
+  if (pct === 0) return "even";
   return pct > 0 ? "over" : "under";
 }
 
 const BAND_COLOR: Record<VarianceBand, string> = {
-  "on-plan": "var(--trading-up)",
+  even: "var(--muted-foreground)",
   under: "var(--primary)",
   over: "var(--trading-down)",
 };

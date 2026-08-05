@@ -105,9 +105,13 @@ export function ReserveFitView({
           chart's top corners so appearing or disappearing never shoves the
           switch off-centre (user, 260804). Rebalance on the LEFT of the switch,
           one-offs on the right where it has always been (user, 260805). */}
-      <div className="relative flex items-center justify-center">
-        {scaleSwitch}
-        <div data-testid="reserve-fit-corner-left" className="absolute left-0 top-0">
+      {/* A real row, not a centred box with absolutely-positioned corners: the
+          scale switch that used to hold the row open has gone (260805), and
+          without it the box collapsed to nothing and took both buttons' hit
+          areas with it (E2E caught it). justify-between keeps them at the ends
+          whether or not anything sits between them. */}
+      <div className="flex items-center justify-between">
+        <div data-testid="reserve-fit-corner-left">
           <ReserveRebalance
             rows={sized.map((r) => ({
               categoryId: r.categoryId,
@@ -119,10 +123,8 @@ export function ReserveFitView({
             format={formatExact}
           />
         </div>
-        <div
-          data-testid="reserve-fit-corner"
-          className="absolute right-0 top-0"
-        >
+        {scaleSwitch}
+        <div data-testid="reserve-fit-corner">
           <ReserveFitOneOffs
             candidates={candidates}
             onSave={onSave}

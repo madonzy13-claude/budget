@@ -252,12 +252,16 @@ export function PlannedSection({
   // the chart says so — and the pill track it used to own switches the chart
   // between percent and money instead. Reading "1,900 zł too much" is what you
   // act on; "240% too much" is only how far off it is.
-  const [scale, setScaleState] = useState<"pct" | "amount">(
-    () => store?.overview.plannedScale ?? "pct",
+  // Which baseline the by-category bars are drawn against (260805). Average by
+  // default: it is what the range actually ran on, and "current" only means
+  // something once a limit has moved. Persisted across pill navigation like the
+  // rest of this section's UI state.
+  const [basis, setBasisState] = useState<"average" | "current">(
+    () => store?.overview.plannedBasis ?? "average",
   );
-  const setScale = (v: "pct" | "amount") => {
-    if (store) store.overview.plannedScale = v;
-    setScaleState(v);
+  const setBasis = (v: "average" | "current") => {
+    if (store) store.overview.plannedBasis = v;
+    setBasisState(v);
   };
 
   // The same one-off decisions the reserve chart uses — they come off THESE
@@ -593,26 +597,35 @@ export function PlannedSection({
             data.plannedAvgVsReal.length > 0 && (
               <div className="flex flex-col gap-2">
                 <ChartLabel>{t("planned.avgByCategory")}</ChartLabel>
-                {/* Percent or money — the same pill track the running-month
-                  toggle used to own (260804 request). */}
+                {/* The percent/zł switch went (260805): a percentage of a limit
+                  is a step away from the money, and the money is what you act
+                  on. What the pill track carries instead is the BASELINE —
+                  what the limit averaged across the range, or what it is set to
+                  now. The two differ only when a limit moved, so the switch is
+                  offered only then; otherwise it would be two names for one
+                  number. */}
                 {/* The switch stays centred; the one-offs button floats in the
                   chart's corner so it never shoves it off-centre (260804). */}
-                <div className="relative flex items-center justify-center">
-                  <SegmentedToggle
-                    className="text-caption"
-                    testId="overview-planned-scale"
-                    label={t("planned.scale")}
-                    value={scale}
-                    onChange={(v) => setScale(v as "pct" | "amount")}
-                    options={[
-                      { value: "pct", label: t("planned.scalePct") },
-                      { value: "amount", label: t("planned.scaleAmount") },
-                    ]}
-                  />
-                  <div
-                    data-testid="overview-planned-corner"
-                    className="absolute right-0 top-0"
-                  >
+                {/* A real row, not a centred box with an absolutely-positioned
+                  corner: the switch is conditional now, and without it the box
+                  collapsed to nothing and took the one-offs button's hit area
+                  with it. A spacer opposite keeps the switch centred. */}
+                <div className="flex items-center justify-between">
+                  <span aria-hidden className="size-9 shrink-0" />
+                  {data.limits_moved && (
+                    <SegmentedToggle
+                      className="text-caption"
+                      testId="overview-planned-basis"
+                      label={t("planned.basis")}
+                      value={basis}
+                      onChange={(v) => setBasis(v as "average" | "current")}
+                      options={[
+                        { value: "average", label: t("planned.basisAverage") },
+                        { value: "current", label: t("planned.basisCurrent") },
+                      ]}
+                    />
+                  )}
+                  <div data-testid="overview-planned-corner">
                     <ReserveFitOneOffs
                       candidates={oneOffCandidates}
                       onSave={(delta) => saveExclusions.mutate(delta)}
@@ -624,7 +637,17 @@ export function PlannedSection({
                   data={data.plannedAvgVsReal
                     .map((c) => {
                       const real = Number(c.real_avg_cents);
-                      const planned = Number(c.planned_avg_cents);
+                      const avg = Number(c.planned_avg_cents);
+                      // A payload cached before the field existed replays
+                      // without it — fall back to the average, which is what
+                      // the chart used to draw either way.
+                      const current = Number(
+                        c.planned_current_cents ?? c.planned_avg_cents,
+                      );
+                      // Whichever baseline is being read is the one the bar and
+                      // its colour come from; the other rides along in the
+                      // tooltip so the comparison is visible either way.
+                      const planned = basis === "current" ? current : avg;
                       const pct =
                         planned > 0
                           ? ((real - planned) / planned) * 100
@@ -635,32 +658,24 @@ export function PlannedSection({
                         name: c.name,
                         real,
                         planned,
+                        avg,
+                        current,
                         pct,
                         gap: real - planned,
                         realTotal: Number(c.real_total_cents),
                         plannedTotal: Number(c.planned_total_cents),
                       };
                     })
-                    // Ordered the way the chart is being READ (260804).
-                    .sort((a, b) =>
-                      scale === "amount" ? b.gap - a.gap : b.pct - a.pct,
-                    )}
+                    // Ordered the way the chart is being READ (260804) — always
+                    // money now that the percent axis has gone.
+                    .sort((a, b) => b.gap - a.gap)}
                   categoryKey="name"
-                  valueKey={scale === "amount" ? "gap" : "pct"}
-                  formatValue={
-                    scale === "amount"
-                      ? // Signed, like the percent labels: the bar is a GAP, so
-                        // "+1,900" reads as overspend and "−320" as room left.
-                        signedMoney((n) =>
-                          centsToRounded(
-                            BigInt(Math.round(n)),
-                            ccy,
-                            "en",
-                            true,
-                          ),
-                        )
-                      : undefined
-                  }
+                  valueKey="gap"
+                  // Signed: the bar is a GAP, so "+1,900" reads as overspend and
+                  // "−320" as room left.
+                  formatValue={signedMoney((n) =>
+                    centsToRounded(BigInt(Math.round(n)), ccy, "en", true),
+                  )}
                   // Under plan while the range is the month still running is just
                   // "not spent yet" — those bars read grey rather than claiming
                   // success (260803 user request). Over plan still bands.
@@ -689,10 +704,19 @@ export function PlannedSection({
                         value2: t("planned.totalColumn"),
                         head: true,
                       },
+                      // Both baselines, always — the difference below is
+                      // measured against whichever one the switch is on, and
+                      // seeing the other beside it is how you judge the choice
+                      // (260805). The total column belongs to the average,
+                      // which is the one that actually accumulated.
                       {
-                        label: t("planned.planned"),
-                        value: fmtTooltip(Number(row.planned)),
+                        label: t("planned.avgLimit"),
+                        value: fmtTooltip(Number(row.avg)),
                         value2: fmtTooltip(Number(row.plannedTotal)),
+                      },
+                      {
+                        label: t("planned.currentLimit"),
+                        value: fmtTooltip(Number(row.current)),
                       },
                       {
                         label: t("planned.real"),

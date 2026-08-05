@@ -15,6 +15,7 @@ import {
   divergingTicks,
   varianceBand,
   varianceColor,
+  reserveFitColor,
   symlog,
   symexp,
   ON_PLAN_BAND_PCT,
@@ -56,34 +57,41 @@ beforeAll(() => {
 });
 
 describe("Variance bands", () => {
-  // 260805: the magnitude rule went. Overspending and underspending are not the
-  // same mistake — one costs money you do not have, the other only means the
-  // plan was loose — so the two directions no longer share a colour.
-  it("green inside ±10%", () => {
-    expect(varianceBand(0)).toBe("on-plan");
-    expect(varianceBand(10)).toBe("on-plan");
-    expect(varianceBand(-10)).toBe("on-plan");
-  });
-
-  it("yellow more than 10% UNDER plan, however far under", () => {
-    expect(varianceBand(-10.1)).toBe("under");
-    expect(varianceBand(-55)).toBe("under");
-    expect(varianceBand(-100)).toBe("under");
-  });
-
-  it("red more than 10% OVER plan, however far over", () => {
-    expect(varianceBand(10.1)).toBe("over");
-    expect(varianceBand(30)).toBe("over");
+  // 260805, second pass: the ±10% corridor went too. A category that came in
+  // 3% over is over, and a green bar for it claimed an accuracy the household
+  // never asked for. Now the sign is the whole rule — over is red, under is
+  // yellow, and only a dead heat is grey.
+  it("is over the moment it is over, however slightly", () => {
+    expect(varianceBand(0.1)).toBe("over");
+    expect(varianceBand(3)).toBe("over");
     expect(varianceBand(408)).toBe("over");
   });
 
-  it("gives the two directions different colours", () => {
-    expect(varianceColor(5)).toBe(varianceColor(-5));
-    expect(varianceColor(-40)).not.toBe(varianceColor(40));
-    expect(varianceColor(-40)).not.toBe(varianceColor(5));
+  it("is under the moment it is under, however slightly", () => {
+    expect(varianceBand(-0.1)).toBe("under");
+    expect(varianceBand(-3)).toBe("under");
+    expect(varianceBand(-100)).toBe("under");
+  });
+
+  it("keeps a dead heat for exactly nothing", () => {
+    expect(varianceBand(0)).toBe("even");
+  });
+
+  it("paints over red, under yellow, and a dead heat grey", () => {
+    expect(varianceColor(20)).toBe("var(--trading-down)");
+    expect(varianceColor(-20)).toBe("var(--primary)");
+    expect(varianceColor(0)).toBe("var(--muted-foreground)");
     // No second tier either way: 20% over and 60% over read the same.
     expect(varianceColor(20)).toBe(varianceColor(60));
     expect(varianceColor(-20)).toBe(varianceColor(-60));
+  });
+
+  // The reserve chart runs the SAME shape with the poles swapped — a fat buffer
+  // is yellow there, a short one red — so the two must not be confused.
+  it("is the mirror of the reserve rule, not a copy of it", () => {
+    expect(varianceColor(20)).not.toBe(reserveFitColor(20));
+    expect(varianceColor(-20)).not.toBe(reserveFitColor(-20));
+    expect(varianceColor(0)).toBe(reserveFitColor(0));
   });
 });
 
