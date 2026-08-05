@@ -158,7 +158,7 @@ function colorValue(raw: unknown): number | null {
 }
 
 export function reserveFitColor(pct: number): string {
-  if (Math.abs(pct) <= ON_PLAN_BAND_PCT) return "var(--trading-up)";
+  if (pct === 0) return "var(--muted-foreground)";
   return pct > 0 ? "var(--primary)" : "var(--trading-down)";
 }
 
@@ -360,6 +360,7 @@ export function OverviewDivergingBarChart({
   maskAmounts = false,
   colorForPct = varianceColor,
   colorKey = "pct",
+  onPlanBand = true,
   formatValue,
 }: {
   data: Array<Record<string, unknown>>;
@@ -386,6 +387,10 @@ export function OverviewDivergingBarChart({
    *  the two call sites simply never got it. Rows without that field fall back
    *  to what is plotted. */
   colorKey?: string;
+  /** Shades the ±10% corridor. Off for a chart with no tolerance to shade: the
+   *  reserve chart is short-or-fat, so a green stripe down its middle claimed a
+   *  pass its own colours never grant (user, 260805). */
+  onPlanBand?: boolean;
   /** Reads the axis and the bar labels in the caller's own unit — money instead
    *  of percent (260804). Given one, the ±10% "on plan" band is dropped too:
    *  a corridor measured in percent means nothing on a money axis, and its ticks
@@ -514,7 +519,7 @@ export function OverviewDivergingBarChart({
           />
           {/* The "close enough" corridor — read the centre as a target zone, not a
               hairline. Drawn before the bars so it sits underneath. */}
-          {!money && (
+          {!money && onPlanBand && (
             <ReferenceArea
               x1={symlog(-ON_PLAN_BAND_PCT)}
               x2={symlog(ON_PLAN_BAND_PCT)}

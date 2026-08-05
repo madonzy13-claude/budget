@@ -36,17 +36,20 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
     categoryKey,
     valueKey,
     formatValue,
+    onPlanBand,
   }: {
     data: Record<string, unknown>[];
     categoryKey: string;
     valueKey: string;
     formatValue?: (n: number) => string;
+    onPlanBand?: boolean;
   }) => (
     <div
       data-testid="fit-chart"
       data-rows={data.map((d) => String(d[categoryKey])).join(",")}
       data-value-key={valueKey}
       data-money={String(typeof formatValue === "function")}
+      data-band={String(onPlanBand)}
       data-samples={JSON.stringify({
         positive: formatValue?.(4600),
         negative: formatValue?.(-4600),
@@ -160,12 +163,14 @@ const view = (onSave = vi.fn()) => {
 };
 
 describe("ReserveFitView", () => {
-  it("draws a bar per category, fattest reserve first", () => {
+  // 260805: shortest first. The list is a queue of things to do, and a buffer
+  // that cannot cover its next charge outranks one holding money it does not
+  // need — the reader should not have to scroll past every surplus to find it.
+  it("draws a bar per category, shortest reserve first", () => {
     view();
-    // Sport is +100% (holds 4,600, needs nothing), Newborn 0%, Car −80%:
-    // most over-held at the top, by percent (260804).
+    // Car is −80%, Newborn 0%, Sport +100% (holds 4,600, needs nothing).
     expect(screen.getByTestId("fit-chart").getAttribute("data-rows")).toBe(
-      "Sport,Newborn,Car",
+      "Car,Newborn,Sport",
     );
   });
 
@@ -184,9 +189,10 @@ describe("ReserveFitView", () => {
     const dialogProps = JSON.parse(
       screen.getByTestId("one-offs").getAttribute("data-candidates")!,
     );
+    // In the chart's own order, which now leads with the shortest reserve.
     expect(dialogProps).toEqual([
-      { ledger_id: "tx-jump", category_name: "Sport" },
       { ledger_id: "tx-ins", category_name: "Car" },
+      { ledger_id: "tx-jump", category_name: "Sport" },
     ]);
   });
 
@@ -199,6 +205,15 @@ describe("ReserveFitView", () => {
 
   // 260804: the same chart reads in zł when the member asks — "1,900 too much"
   // is what you act on; "240% too much" is only how far off it is.
+  // 260805: a green stripe down the middle claimed a tolerance this chart's
+  // colours never grant — short is red at any size.
+  it("asks for no corridor down the middle", () => {
+    view();
+    expect(screen.getByTestId("fit-chart").getAttribute("data-band")).toBe(
+      "false",
+    );
+  });
+
   it("plots percent by default", () => {
     view();
     const chart = screen.getByTestId("fit-chart");
@@ -272,9 +287,9 @@ describe("ReserveFitView", () => {
         format={(c: number) => `${c}`}
       />,
     );
-    // percent: Tiny (+300%) leads
+    // percent: Car (−80%) leads, Tiny (+300%) sinks to the bottom
     expect(screen.getByTestId("fit-chart").getAttribute("data-rows")).toBe(
-      "Tiny,Sport,Newborn,Car",
+      "Car,Newborn,Sport,Tiny",
     );
     unmount();
     render(
@@ -285,9 +300,10 @@ describe("ReserveFitView", () => {
         scale="amount"
       />,
     );
-    // money: Sport's 4,600 dwarfs Tiny's 30
+    // money: Car is 4,000 short, then the balanced row, then the surpluses with
+    // the largest last
     expect(screen.getByTestId("fit-chart").getAttribute("data-rows")).toBe(
-      "Sport,Tiny,Newborn,Car",
+      "Car,Newborn,Tiny,Sport",
     );
   });
 

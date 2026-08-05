@@ -64,14 +64,20 @@ export function reserveFitRows(
   scale: "pct" | "amount" = "pct",
 ): ReserveFitRowsResult {
   const sized = rows.map(toSized);
-  // In percent: a big reserve that is 20% fat must not outrank a small one
-  // holding four times what it needs. Ties — every "needs nothing" row is
-  // +100% — fall back to the money at stake, which is what makes one of them
+  // Shortest first (260805): this list is a queue of things to do, and a buffer
+  // that cannot cover its next charge outranks one sitting on money it does not
+  // need. Reading it the other way round made the reader scroll past every
+  // surplus to reach the one row that can actually fail.
+  //
+  // In percent: a big reserve that is 20% short must not outrank a small one
+  // holding a quarter of what it needs. Ties — every "needs nothing" row is
+  // +100% — fall back to the SIZE of the money at stake, in either direction:
+  // whether the gap is a shortfall or a surplus, the larger one is the one
   // worth acting on first.
   sized.sort((a, b) =>
     scale === "amount"
-      ? b.gapCents - a.gapCents
-      : b.pct - a.pct || b.gapCents - a.gapCents,
+      ? a.gapCents - b.gapCents
+      : a.pct - b.pct || Math.abs(b.gapCents) - Math.abs(a.gapCents),
   );
   return { sized };
 }

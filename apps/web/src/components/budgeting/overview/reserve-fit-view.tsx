@@ -121,9 +121,12 @@ export function ReserveFitView({
           // as slack and "−320" as a shortfall (user, 260804).
           formatValue={scale === "amount" ? signedMoney(format) : undefined}
           formatTooltip={format}
-          // Inside ±10% green; short is red, fat is amber — the same amber the
-          // meter above uses for "Can withdraw" (user, 260805).
+          // Short is red at any size, fat is amber — the same amber the meter
+          // above uses for "Can withdraw" — and exactly right is grey.
           colorForPct={reserveFitColor}
+          // No corridor to shade: this chart has no tolerance band — a buffer is
+          // short, fat, or exactly right (user, 260805).
+          onPlanBand={false}
           // …and always from the PERCENT, even when the axis is drawn in zł:
           // cents fed to a band function painted every row red.
           colorKey="pct"

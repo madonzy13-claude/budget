@@ -68,7 +68,7 @@ describe("reserveFitRows", () => {
   // 260804 (user): order by PERCENT, not by amount — the bar is a percentage,
   // so a big category holding 20% too much must not outrank a small one holding
   // four times what it needs.
-  it("runs from most over-held to most short, by percent", () => {
+  it("runs from most short to most over-held, by percent", () => {
     const { sized } = reserveFitRows([
       // +25%: a large reserve, only slightly fat
       row({
@@ -95,7 +95,7 @@ describe("reserveFitRows", () => {
         gap_cents: "3000",
       }),
     ]);
-    expect(sized.map((r) => r.name)).toEqual(["C", "A", "B"]);
+    expect(sized.map((r) => r.name)).toEqual(["B", "A", "C"]);
   });
 
   // 260804: reading the chart in zł must order it in zł too — otherwise the top
@@ -129,10 +129,12 @@ describe("reserveFitRows", () => {
       ],
       "amount",
     );
-    expect(sized.map((r) => r.name)).toEqual(["A", "C", "B"]);
+    expect(sized.map((r) => r.name)).toEqual(["B", "C", "A"]);
   });
 
-  it("breaks a percent tie on the money at stake", () => {
+  // Either direction: the bigger gap leads, shortfall or surplus. Ordering the
+  // tie by signed money would have put a 1,000 shortfall above a 90,000 one.
+  it("breaks a percent tie on the size of the money at stake", () => {
     const { sized } = reserveFitRows([
       row({
         category_id: "a",

@@ -807,19 +807,20 @@ describe("Diverging chart — money reading", () => {
 // much is idle money — the meter above the chart already calls that amber, and
 // a chart that called it red disagreed with the shape directly above it.
 describe("reserveFitColor", () => {
-  it("passes anything inside ten percent either way", () => {
-    for (const pct of [0, 10, -10, 4.9, -9.9])
-      expect(reserveFitColor(pct)).toContain("--trading-up");
-  });
-
-  it("reds a buffer that is short — the only side that can fail", () => {
-    for (const pct of [-10.1, -30, -100])
+  // 260805, second pass: no corridor at all. A buffer is short, fat, or exactly
+  // right, and the first of those is the only one that can fail a payment.
+  it("reds any buffer that is short, however slightly", () => {
+    for (const pct of [-0.1, -5, -10, -30, -100])
       expect(reserveFitColor(pct)).toContain("--trading-down");
   });
 
-  it("ambers a buffer that is fat, matching the meter's Can withdraw", () => {
-    for (const pct of [10.1, 30, 248, 15525])
+  it("ambers any buffer that is fat, matching the meter's Can withdraw", () => {
+    for (const pct of [0.1, 5, 10, 248, 15525])
       expect(reserveFitColor(pct)).toContain("--primary");
+  });
+
+  it("greys a buffer that is exactly the size asked for", () => {
+    expect(reserveFitColor(0)).toContain("--muted-foreground");
   });
 });
 
@@ -1103,8 +1104,14 @@ describe("Diverging chart — banded background", () => {
   });
 
   // 260805: the ±10–30% strips went with the drift tier that named them.
-  it("shades nothing but the corridor", () => {
+  it("shades the corridor when the chart has one", () => {
     expect(areas({})).toBe(1);
+  });
+
+  // 260805: the reserve chart has no corridor — short is short — so the green
+  // stripe down its middle was claiming a tolerance its colours never grant.
+  it("shades nothing when the chart has no corridor", () => {
+    expect(areas({ onPlanBand: false })).toBe(0);
   });
 
   it("drops every band in money, where a percent corridor means nothing", () => {
