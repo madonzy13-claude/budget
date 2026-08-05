@@ -71,10 +71,11 @@ export function ReserveLevelBar({
   const covered = Math.min(held, needed);
   const surplus = Math.max(0, slack);
   const missing = Math.max(0, -slack);
-  // Padding only works while the bar is INSIDE the box. Once it runs past, the
-  // inset shifts the covered stretch off the outline's right edge and the colour
-  // spills over the border (user screenshot, 260804).
-  const pad = surplus > 0 ? 0 : INNER_PAD;
+  // The bar always starts inset. It is the RIGHT edge that has to meet the
+  // outline exactly, so when the bar runs PAST the box there is no right inset
+  // and the covered stretch gives the left one back — otherwise it ended beyond
+  // the border and the colour spilled over it (user screenshots, 260804/05).
+  const padRight = surplus > 0 ? 0 : INNER_PAD;
   const width = (v: number) => `${(100 * v) / scale}%`;
 
   const action = slack > 0 ? "canWithdraw" : slack < 0 ? "topUp" : "inBalance";
@@ -130,7 +131,7 @@ export function ReserveLevelBar({
         <div
           data-testid={`${testId}-inner`}
           className="absolute top-1/2 flex h-1.5 -translate-y-1/2"
-          style={{ left: pad, right: pad }}
+          style={{ left: INNER_PAD, right: padRight }}
         >
           {covered > 0 && (
             <div
@@ -138,7 +139,13 @@ export function ReserveLevelBar({
               aria-label={`${t("reserveFit.heldTotal")}: ${format(held)}`}
               className="h-full rounded-l-full"
               style={{
-                width: width(covered),
+                // Past the outline the row runs to the track's end, so the
+                // covered stretch hands back the inset it was pushed in by and
+                // lands exactly on the border.
+                width:
+                  surplus > 0
+                    ? `calc(${width(covered)} - ${INNER_PAD}px)`
+                    : width(covered),
                 background: COVERED,
                 borderTopRightRadius: surplus > 0 ? 0 : 9999,
                 borderBottomRightRadius: surplus > 0 ? 0 : 9999,

@@ -70,11 +70,17 @@ describe("ReserveLevelBar", () => {
   // Padding only works while the bar is INSIDE the box. Once it runs past, the
   // inset shifts the covered stretch off the outline's right edge and the colour
   // spills over the border (user screenshot, 260804).
-  it("drops the padding once the bar runs past the outline", () => {
+  // …but only on the side it breaks. The bar always starts inset; it is the
+  // RIGHT edge that has to meet the border exactly, and the covered stretch
+  // gives back the left inset so it lands there (user, 260805).
+  it("keeps the left inset even when the bar runs past the outline", () => {
     setup(28934, 4409);
-    const inner = screen.getByTestId("reserve-bar-inner");
-    expect(parseFloat(inner.style.left)).toBe(0);
-    expect(parseFloat(inner.style.right)).toBe(0);
+    expect(parseFloat(screen.getByTestId("reserve-bar-inner").style.left)).toBe(
+      5,
+    );
+    // 4409/28934 of the track, less the 5px the bar was pushed in by.
+    const w = screen.getByTestId("reserve-bar-covered").style.width;
+    expect(w).toMatch(/^calc\(15\.23\d*% - 5px\)$/);
   });
 
   it("outlines what the history asked for", () => {
@@ -85,8 +91,10 @@ describe("ReserveLevelBar", () => {
 
   it("runs the held bar out past the outline when there is more than enough", () => {
     setup(9000, 3000);
-    // The bar reaches the full track while the outline stops at a third.
-    expect(pctOf("reserve-bar-covered", "width")).toBeCloseTo(33.3, 0);
+    // The outline stops a third along and the surplus carries on to the end.
+    expect(screen.getByTestId("reserve-bar-covered").style.width).toContain(
+      "33.33",
+    );
     expect(pctOf("reserve-bar-surplus", "width")).toBeCloseTo(66.7, 0);
   });
 

@@ -79,15 +79,16 @@ export function varianceColor(pct: number): string {
  * early is real, and keeps its band.
  */
 /**
- * Two bands, not three (260804 user decision, reserve chart): inside ±10% the
- * buffer is about the right size, outside it — either way — it is not. "Drifting"
- * is not a state anyone acts on differently, so the middle yellow only offered
- * two shades of wrong.
+ * The reserve chart's bands (260805). No drift band — a buffer is either about
+ * the right size or it is not — and the two directions do NOT mean the same
+ * thing: holding too little can fail a payment, holding too much is only idle
+ * money. The meter above the chart already calls that amber ("Can withdraw"),
+ * so a chart that called it red disagreed with the shape directly above it and
+ * turned a page of ordinary surpluses into a wall of alarm (user, 260805).
  */
-export function varianceColorPassFail(pct: number): string {
-  return Math.abs(pct) <= ON_PLAN_BAND_PCT
-    ? "var(--trading-up)"
-    : "var(--trading-down)";
+export function reserveFitColor(pct: number): string {
+  if (Math.abs(pct) <= ON_PLAN_BAND_PCT) return "var(--trading-up)";
+  return pct > 0 ? "var(--primary)" : "var(--trading-down)";
 }
 
 export function varianceColorForRange(
@@ -409,7 +410,10 @@ export function OverviewDivergingBarChart({
           <Customized component={<ZeroLine />} />
           <Tooltip
             active={activeIndex !== null}
-            wrapperStyle={{ pointerEvents: "none" }}
+            // Tappable, so a finger can put the tooltip away and clear the
+            // selection — on touch there is no "move away" to dismiss with
+            // (user, 260805).
+            wrapperStyle={{ pointerEvents: "auto" }}
             cursor={{ fill: CHART_THEME.grid, fillOpacity: 0.15 }}
             content={
               <ChartTooltipContent
@@ -421,6 +425,7 @@ export function OverviewDivergingBarChart({
                 hideSeriesRows
                 labelFormat={labelFormat}
                 extra={tooltipExtra}
+                onDismiss={() => setActive(null)}
               />
             }
           />

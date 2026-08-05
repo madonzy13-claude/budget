@@ -55,7 +55,7 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
     />
   ),
   varianceColorForRange: () => "#fff",
-  varianceColorPassFail: () => "#fff",
+  reserveFitColor: () => "#fff",
 }));
 
 vi.mock("@/components/budgeting/overview/reserve-fit-one-offs", () => ({

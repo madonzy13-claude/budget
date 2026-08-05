@@ -18,7 +18,7 @@ import type * as React from "react";
 import { useTranslations } from "next-intl";
 import {
   OverviewDivergingBarChart,
-  varianceColorPassFail,
+  reserveFitColor,
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { reserveFitRows } from "@/lib/reserve-fit-rows";
 import { reserveTotals } from "@/lib/reserve-totals";
@@ -121,9 +121,9 @@ export function ReserveFitView({
           // as slack and "−320" as a shortfall (user, 260804).
           formatValue={scale === "amount" ? signedMoney(format) : undefined}
           formatTooltip={format}
-          // Two bands only (user, 260804): inside ±10% the buffer is about the
-          // right size, outside it — either way — it is not.
-          colorForPct={varianceColorPassFail}
+          // Inside ±10% green; short is red, fat is amber — the same amber the
+          // meter above uses for "Can withdraw" (user, 260805).
+          colorForPct={reserveFitColor}
           // …and always from the PERCENT, even when the axis is drawn in zł:
           // cents fed to a band function painted every row red.
           colorKey="pct"

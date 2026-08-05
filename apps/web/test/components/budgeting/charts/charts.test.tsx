@@ -18,7 +18,7 @@ import {
 import {
   amountTicks,
   OverviewDivergingBarChart,
-  varianceColorPassFail,
+  reserveFitColor,
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { OverviewOverlapBarChart } from "@/components/budgeting/charts/overlap-bar-chart";
@@ -798,23 +798,24 @@ describe("Diverging chart — money reading", () => {
   });
 });
 
-// 260804: the reserve chart drops the middle band. A buffer is either about the
-// right size or it is not — "drifting" is not a state you would act on
-// differently, and the yellow only made two shades of wrong.
-describe("varianceColorPassFail", () => {
+// 260805: the reserve chart drops the drift band, and the two directions stop
+// meaning the same thing. Holding too little can fail a payment; holding too
+// much is idle money — the meter above the chart already calls that amber, and
+// a chart that called it red disagreed with the shape directly above it.
+describe("reserveFitColor", () => {
   it("passes anything inside ten percent either way", () => {
     for (const pct of [0, 10, -10, 4.9, -9.9])
-      expect(varianceColorPassFail(pct)).toContain("--trading-up");
+      expect(reserveFitColor(pct)).toContain("--trading-up");
   });
 
-  it("fails everything outside it, in both directions", () => {
-    for (const pct of [10.1, -10.1, 30, -30, 248])
-      expect(varianceColorPassFail(pct)).toContain("--trading-down");
+  it("reds a buffer that is short — the only side that can fail", () => {
+    for (const pct of [-10.1, -30, -100])
+      expect(reserveFitColor(pct)).toContain("--trading-down");
   });
 
-  it("never returns the drift yellow", () => {
-    for (const pct of [0, 15, -15, 100])
-      expect(varianceColorPassFail(pct)).not.toContain("--primary");
+  it("ambers a buffer that is fat, matching the meter's Can withdraw", () => {
+    for (const pct of [10.1, 30, 248, 15525])
+      expect(reserveFitColor(pct)).toContain("--primary");
   });
 });
 
@@ -871,5 +872,25 @@ describe("Diverging chart — touch scrubbing", () => {
     );
     const surface = container.querySelector<HTMLElement>("[data-scrub]");
     expect(surface?.style.touchAction).toBe("pan-y");
+  });
+});
+
+// 260805: on touch there is no "move the cursor away" — a tooltip that ignores
+// pointers can only be dismissed by finding some other bar to tap.
+describe("Diverging chart — dismissing the tooltip", () => {
+  it("lets a tap reach the tooltip instead of passing through it", () => {
+    const { container } = render(
+      <div style={{ width: 600, height: 400 }}>
+        <OverviewDivergingBarChart
+          data={[{ name: "Car", pct: 4 }]}
+          categoryKey="name"
+          valueKey="pct"
+        />
+      </div>,
+    );
+    const wrapper = container.querySelector<HTMLElement>(
+      ".recharts-tooltip-wrapper",
+    );
+    expect(wrapper?.style.pointerEvents).toBe("auto");
   });
 });
