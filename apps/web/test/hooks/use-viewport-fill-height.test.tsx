@@ -134,9 +134,8 @@ const setVisibility = (state: "hidden" | "visible") => {
 
 const sizeOf = (el: HTMLElement) => el.style.getPropertyValue("--grid-max-h");
 
-/** What the hook writes: the 100svh floor, with the measured height over it. */
-const filled = (top: number, px: number) =>
-  `max(160px, calc(100svh - ${top}px), ${px}px)`;
+/** What the hook writes: the measured height, in the element's own pixels. */
+const filled = (_top: number, px: number) => `max(160px, ${px}px)`;
 
 afterEach(() => {
   document.body.innerHTML = "";
@@ -245,12 +244,42 @@ describe("useViewportFillHeight (fitVisible)", () => {
   // visible again, so re-measuring on resume wrote a short box, showed the
   // band, and corrected it a moment later (user video, 260805).
   //
-  // The answer is a FLOOR rather than a timing window. 100svh is the viewport
-  // with every dynamic toolbar shown — the smallest the visible area can
-  // legitimately be — so a reading still carrying the previous app's keyboard
-  // falls under it and changes nothing. There is no window to get wrong and no
-  // state to hold.
-  it("keeps a floor under the box, so a stale viewport cannot shorten it", () => {
+  // So nothing is written at all while it settles. The box keeps the height it
+  // had while away — which is what it should be anyway — and every lie iOS
+  // tells in that window is simply not acted on. Doing nothing is the only
+  // option that cannot go wrong in EITHER direction: writing the short reading
+  // flashes a band under the shell, and refusing to shrink instead pins the box
+  // too tall, which lets the document scroll past the shell into the same black
+  // (user screenshot, 260805).
+  it("writes nothing at all while the viewport is settling after a resume", () => {
+    vi.useFakeTimers();
+    const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
+    const vv = liveViewport(900);
+    const pointer = withPointer(true);
+    renderHook(() => {
+      const ref = useRef(el);
+      useViewportFillHeight(ref, { fitVisible: true });
+    });
+    expect(sizeOf(el)).toBe(filled(114, 786));
+
+    setVisibility("hidden");
+    setVisibility("visible");
+    // iOS is still holding the keyboard's space, and says so more than once.
+    vv.setHeight(500);
+    vv.fireResize();
+    vi.advanceTimersByTime(200);
+    vv.fireResize();
+
+    expect(sizeOf(el)).toBe(filled(114, 786));
+    pointer();
+    vv.restore();
+    vi.useRealTimers();
+  });
+
+  // …and once the window is over it takes the viewport as it finds it, whichever
+  // way that went — a device rotated while the app was away has to be picked up.
+  it("takes the viewport as it finds it once settled", () => {
+    vi.useFakeTimers();
     const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
     const vv = liveViewport(900);
     const pointer = withPointer(true);
@@ -261,39 +290,19 @@ describe("useViewportFillHeight (fitVisible)", () => {
 
     setVisibility("hidden");
     setVisibility("visible");
-    // iOS is still holding the keyboard's space.
-    vv.setHeight(500);
-    vv.fireResize();
+    vv.setHeight(700);
+    vi.advanceTimersByTime(1000);
 
-    // The short reading is written, but only ever as something that could ADD
-    // height — the floor is what the box actually takes.
-    expect(sizeOf(el)).toBe(filled(114, 386));
+    expect(sizeOf(el)).toBe(filled(114, 586));
     pointer();
     vv.restore();
+    vi.useRealTimers();
   });
 
-  // Every write carries the floor, whatever the viewport is doing — that is the
-  // whole guarantee, so it is worth asserting on its own.
-  it("never writes a height without that floor under it", () => {
-    const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
-    const vv = liveViewport(900);
-    const pointer = withPointer(true);
-    renderHook(() => {
-      const ref = useRef(el);
-      useViewportFillHeight(ref, { fitVisible: true });
-    });
-    for (const h of [500, 900, 1000, 300]) {
-      vv.setHeight(h);
-      vv.fireResize();
-      expect(sizeOf(el)).toContain("calc(100svh - 114px)");
-    }
-    pointer();
-    vv.restore();
-  });
-
-  // A viewport that genuinely gained height — the iOS bar collapsing — is what
-  // the measured value is FOR, and it still wins over the floor.
-  it("takes a taller viewport straight away on resume", () => {
+  // The box is never pinned TALLER than the viewport: that is what let the
+  // document scroll past the shell and show black under it (user, 260805).
+  it("never leaves the box taller than the viewport once settled", () => {
+    vi.useFakeTimers();
     const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
     const vv = liveViewport(900);
     const pointer = withPointer(true);
@@ -305,11 +314,17 @@ describe("useViewportFillHeight (fitVisible)", () => {
     setVisibility("hidden");
     setVisibility("visible");
     vv.setHeight(1000);
-    vv.fireResize();
-
+    vi.advanceTimersByTime(500);
     expect(sizeOf(el)).toBe(filled(114, 886));
+
+    // …and back down again, with no floor holding it up.
+    vv.setHeight(800);
+    vv.fireResize();
+    expect(sizeOf(el)).toBe(filled(114, 686));
+
     pointer();
     vv.restore();
+    vi.useRealTimers();
   });
 
   it("falls back to the window when there is no visualViewport", () => {

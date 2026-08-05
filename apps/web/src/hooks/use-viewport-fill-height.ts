@@ -85,8 +85,21 @@ export function useViewportFillHeight(
       return top;
     }
 
+    /** True from the moment the app comes back until iOS stops lying (below). */
+    let settling = false;
+
     function update() {
       if (!el || isKeyboardEditing()) return;
+      // Coming back from the background, iOS keeps reporting the viewport short
+      // by the keyboard of the app you just left — for a few hundred ms AFTER
+      // this one is visible again. Every measurement in that window is a lie, so
+      // none of them are written: the box simply keeps the height it had while
+      // away, which is what it should be anyway. Doing nothing is the only
+      // option that cannot go wrong in either direction — writing the short
+      // reading flashes a black band under the shell, and refusing to shrink
+      // instead pins the box too TALL, which lets the document scroll past the
+      // shell into the same black (three rounds of this, 260805).
+      if (settling) return;
       // A viewport measured while the app is in the BACKGROUND is a reading for
       // a window nobody is looking at. Leave the app with another one's keyboard
       // up and iOS hands the PWA a visualViewport still short by that keyboard;
@@ -117,25 +130,13 @@ export function useViewportFillHeight(
         // bare canvas beneath it, more the further the user zoomed (their own
         // console numbers, 260802). Unpinched the scale is 1, so the iOS
         // bar-collapse tracking below is untouched.
-        //
-        // 100svh is a FLOOR under the measured value, and it is what makes a
-        // stale measurement harmless (user report, 260805). svh is the viewport
-        // with every dynamic toolbar SHOWN — the smallest the visible area can
-        // legitimately be — so the box is never shorter than that, whatever
-        // visualViewport happens to say. A reading still carrying the keyboard
-        // of the app you just came back from simply falls under the floor and
-        // is ignored, with no window to time and no state to keep. The measured
-        // value still wins when it is TALLER, which is the case this branch
-        // exists for: the iOS bar collapsing gives back height that no static
-        // unit can see.
         const vv = window.visualViewport;
         const vvh = vv ? vv.height * (vv.scale || 1) : window.innerHeight;
-        const floor = `calc(100svh - ${top}px)`;
         el.style.setProperty(
           "--grid-max-h",
           vvh > 0
-            ? `max(160px, ${floor}, ${Math.round(vvh / zoom - top)}px)`
-            : `max(160px, ${floor})`,
+            ? `max(160px, ${Math.round(vvh / zoom - top)}px)`
+            : `max(160px, calc(100svh - ${top}px))`,
         );
         return;
       }
@@ -167,10 +168,11 @@ export function useViewportFillHeight(
     const onFocusOut = () => requestAnimationFrame(update);
     el.addEventListener("focusout", onFocusOut);
 
-    // Coming back to the front, once now and once after the keyboard's dismissal
-    // animation — iOS does not always send a resize when it finally lets that
-    // space go. Neither pass can do harm: the floor in update() means a
-    // measurement taken too early cannot shorten the box.
+    // Coming back to the front: hold everything still until the keyboard's
+    // dismissal animation is over, then take whatever the viewport says — in
+    // either direction, so a device rotated while the app was away is picked up
+    // too. The second pass covers iOS not always sending a resize when it
+    // finally lets that space go.
     let timers: ReturnType<typeof setTimeout>[] = [];
     const onVisible = () => {
       if (document.hidden) return;
@@ -178,8 +180,14 @@ export function useViewportFillHeight(
       // its own timers behind.
       timers.forEach(clearTimeout);
       timers = [];
-      update();
-      timers.push(setTimeout(update, 400));
+      settling = true;
+      timers.push(
+        setTimeout(() => {
+          settling = false;
+          update();
+        }, 450),
+        setTimeout(update, 900),
+      );
     };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("pageshow", onVisible);
