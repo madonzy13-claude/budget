@@ -130,6 +130,16 @@ describe("PlannedTotals", () => {
     expect(strip.className).toContain("my-2");
   });
 
+  // 260805: the bar is already a boundary; a rule under it cut the block in two
+  // where nothing needed separating.
+  it("runs no rule between the bar and the totals", () => {
+    renderTotals();
+    const totals = screen
+      .getByTestId("planned-totals")
+      .querySelector(".grid") as HTMLElement;
+    expect(totals.className).not.toContain("border-t");
+  });
+
   it("centres every figure over its label", () => {
     renderTotals();
     for (const k of ["spent", "planned"])

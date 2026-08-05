@@ -42,6 +42,8 @@ import { useSlotReveal } from "@/components/budgeting/overview/slot-amount";
 export const ON_PLAN_BAND_PCT = 10;
 /** One per row, in row order — recharts wraps each bar's path in this. */
 const BAR_SELECTOR = ".recharts-bar-rectangle";
+/** The percent (or amount) printed at the bar's end — a tap target of its own. */
+const LABEL_SELECTOR = "[data-variance-label]";
 const BAR_SIZE = 14;
 const ROW_PX = 34;
 /** Axis padding (share of the span) so the outermost percent label has room. */
@@ -99,19 +101,37 @@ export function varianceColor(pct: number): string {
  * highlight always named the previously-tapped bar while the tooltip showed the
  * new one (user, 260805). What is under the finger cannot lag.
  */
+export interface HitBox {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/**
+ * Pairs each bar with the figure printed at its end, so a row can be hit by
+ * either. Pairing only when the counts line up: a mismatch would shift the
+ * labels by a row and tag taps to the wrong category.
+ */
+export function rowHitBoxes(
+  bars: readonly HitBox[],
+  labels: readonly HitBox[],
+): HitBox[][] {
+  const paired = labels.length === bars.length;
+  return bars.map((b, i) => (paired ? [b, labels[i]!] : [b]));
+}
+
 export function touchSelection(
-  stackAtTouch: readonly Element[],
-  bars: readonly Element[],
+  point: { x: number; y: number },
+  rows: readonly (readonly HitBox[])[],
 ): number | null {
-  for (const el of stackAtTouch) {
-    // The tooltip cursor is drawn over the row, so the first BAR in the stack
-    // wins rather than the first element.
-    const bar = el.closest?.(BAR_SELECTOR);
-    if (!bar) continue;
-    const i = bars.indexOf(bar);
-    if (i >= 0) return i;
-  }
-  return null;
+  const hit = (b: HitBox) =>
+    point.x >= b.left &&
+    point.x <= b.right &&
+    point.y >= b.top &&
+    point.y <= b.bottom;
+  const i = rows.findIndex((targets) => targets.some(hit));
+  return i >= 0 ? i : null;
 }
 
 /** The named field, when the row actually carries a readable number for it. */
@@ -254,6 +274,7 @@ function VarianceLabel(props: {
       : "end";
   return (
     <text
+      data-variance-label
       x={tx}
       y={y + height / 2}
       dy={4}
@@ -360,6 +381,19 @@ export function OverviewDivergingBarChart({
     return Number.isFinite(n) ? n : null;
   };
 
+  /** Per row, everything a finger may land on: the bar, and the figure printed
+   *  at its end. A stub bar is a few pixels wide, so its "+5%" is the only part
+   *  of that row worth aiming at (user, 260805). Measured rather than hit-tested
+   *  through the DOM: an SVG <text> only answers on its glyphs, so the gaps
+   *  between the digits were dead. */
+  const rowTargets = (): HitBox[][] => {
+    const boxes = (sel: string) =>
+      [...(wrapRef.current?.querySelectorAll(sel) ?? [])].map((el) =>
+        el.getBoundingClientRect(),
+      );
+    return rowHitBoxes(boxes(BAR_SELECTOR), boxes(LABEL_SELECTOR));
+  };
+
   const fromTouch = (
     // recharts hands the touch handlers either (state, event) or the event
     // alone depending on which one fired, and only the event is wanted here.
@@ -370,11 +404,7 @@ export function OverviewDivergingBarChart({
     const e = (second ?? first) as React.TouchEvent | undefined;
     const t = e?.touches?.[0] ?? e?.changedTouches?.[0];
     if (!t) return setActive(null);
-    setActive(
-      touchSelection(document.elementsFromPoint(t.clientX, t.clientY), [
-        ...(wrapRef.current?.querySelectorAll(BAR_SELECTOR) ?? []),
-      ]),
-    );
+    setActive(touchSelection({ x: t.clientX, y: t.clientY }, rowTargets()));
   };
 
   const values = data.map((r) => Number(r[valueKey]));

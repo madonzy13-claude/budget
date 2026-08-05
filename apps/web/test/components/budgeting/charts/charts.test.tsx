@@ -20,6 +20,7 @@ import {
   amountTicks,
   OverviewDivergingBarChart,
   reserveFitColor,
+  rowHitBoxes,
   touchSelection,
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
@@ -921,53 +922,66 @@ describe("Diverging chart — dismissing the tooltip", () => {
 // to read a chart with a mouse, but on touch the same rule meant tapping the
 // empty half of a row selected a bar you were nowhere near — and tapping the
 // tooltip selected whatever sat under it.
-describe("touchSelection", () => {
-  const bars = () =>
-    [0, 1, 2].map(() => {
-      const el = document.createElement("div");
-      el.className = "recharts-bar-rectangle";
-      const path = document.createElement("span");
-      el.appendChild(path);
-      return el;
-    });
-
-  it("names the row the finger is actually on", () => {
-    const all = bars();
-    expect(touchSelection([all[2]!], all)).toBe(2);
+describe("rowHitBoxes", () => {
+  const bar = (i: number) => ({ left: 100, right: 200, top: i, bottom: i + 1 });
+  const label = (i: number) => ({
+    left: 206,
+    right: 240,
+    top: i,
+    bottom: i + 1,
   });
 
-  it("counts a hit on something drawn inside the bar", () => {
-    const all = bars();
-    expect(touchSelection([all[1]!.firstChild as Element], all)).toBe(1);
+  it("makes the printed figure a target of its own row", () => {
+    expect(rowHitBoxes([bar(0), bar(9)], [label(0), label(9)])).toEqual([
+      [bar(0), label(0)],
+      [bar(9), label(9)],
+    ]);
   });
 
-  // The tooltip cursor is a rectangle too, and it lies over the row the finger
-  // is on — so the FIRST bar in the stack wins, not the first element.
-  it("looks past whatever is layered over the bar", () => {
-    const all = bars();
-    const cursor = document.createElement("div");
-    cursor.className = "recharts-tooltip-cursor";
-    expect(touchSelection([cursor, all[0]!], all)).toBe(0);
-  });
-
-  it("selects nothing in the empty stretch of a row", () => {
-    expect(touchSelection([document.createElement("div")], bars())).toBeNull();
-  });
-
-  it("selects nothing when there is nothing under the finger", () => {
-    expect(touchSelection([], bars())).toBeNull();
-  });
-
-  it("selects nothing for a bar the chart does not own", () => {
-    const stray = document.createElement("div");
-    stray.className = "recharts-bar-rectangle";
-    expect(touchSelection([stray], bars())).toBeNull();
+  it("falls back to the bars alone when the figures do not line up", () => {
+    expect(rowHitBoxes([bar(0), bar(9)], [label(0)])).toEqual([
+      [bar(0)],
+      [bar(9)],
+    ]);
   });
 });
 
-// 260805: the ±30% drift band was a colour with no shape. The chart shades the
-// on-plan corridor, so the band beyond it should read the same way — but only
-// where a drift band means something: the reserve chart has no such tier.
+describe("touchSelection", () => {
+  const at = (x: number, y: number) => ({ x, y });
+  // Three rows, 20px tall; each bar is followed by its percent label just past
+  // the bar's end.
+  const rows = [0, 1, 2].map((i) => [
+    { left: 100, right: 200, top: i * 20, bottom: i * 20 + 20 },
+    { left: 206, right: 240, top: i * 20, bottom: i * 20 + 20 },
+  ]);
+
+  it("names the row whose bar the finger landed on", () => {
+    expect(touchSelection(at(150, 45), rows)).toBe(2);
+  });
+
+  // 260805: "+5%" is the only thing on that row wide enough to aim at when the
+  // bar is a stub, and tapping it did nothing.
+  it("counts the percent printed outside the bar as the same row", () => {
+    expect(touchSelection(at(220, 5), rows)).toBe(0);
+  });
+
+  it("selects nothing in the empty stretch of a row", () => {
+    expect(touchSelection(at(300, 25), rows)).toBeNull();
+  });
+
+  it("selects nothing above or below every row", () => {
+    expect(touchSelection(at(150, 500), rows)).toBeNull();
+  });
+
+  it("selects nothing when the chart has no rows yet", () => {
+    expect(touchSelection(at(150, 5), [])).toBeNull();
+  });
+
+  it("counts the edge of a target as a hit", () => {
+    expect(touchSelection(at(100, 0), rows)).toBe(0);
+  });
+});
+
 // The call sites are pinned in source because that is where this keeps
 // breaking: `colorKey` was added to the chart, added to one caller, and silently
 // dropped from the other — every test stayed green and the deployed chart was
@@ -984,6 +998,10 @@ describe("Diverging chart — how the two callers ask for it", () => {
 
   it("leaves the reserve chart unbanded — it has no drift tier", () => {
     expect(src("reserve-fit-view.tsx")).not.toContain("driftBand");
+  });
+
+  it("puts the average month under the by-category bars", () => {
+    expect(src("planned-section.tsx")).toContain("PlannedAvgSummary");
   });
 
   it("colours both from the percent, whatever the axis reads in", () => {
@@ -1023,6 +1041,23 @@ describe("Diverging chart — banded background", () => {
     expect(container.querySelectorAll(".recharts-bar-rectangle")).toHaveLength(
       2,
     );
+  });
+
+  // Same reason: the printed figure is a tap target, found by this attribute.
+  it("marks each printed figure so the touch rule can measure it", () => {
+    const { container } = render(
+      <div style={{ width: 600, height: 400 }}>
+        <OverviewDivergingBarChart
+          data={[
+            { name: "Car", pct: 4 },
+            { name: "Food", pct: -20 },
+          ]}
+          categoryKey="name"
+          valueKey="pct"
+        />
+      </div>,
+    );
+    expect(container.querySelectorAll("[data-variance-label]")).toHaveLength(2);
   });
 
   it("shades the on-plan corridor only, by default", () => {

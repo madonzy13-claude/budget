@@ -1462,7 +1462,9 @@
           "scale": "Scale",
           "scalePct": "%",
           "scaleAmount": "zł",
-          "ongoingExcluded": "The month still running is left out of the averages."
+          "ongoingExcluded": "The month still running is left out of the averages.",
+          "avgPlanned": "Avg planned",
+          "avgSpent": "Avg spent"
         },
         "wealth": {
           "capitalization": "Capitalization",

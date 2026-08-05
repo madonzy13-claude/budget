@@ -150,7 +150,10 @@ export function PlannedTotals({
       />
       {/* The two totals sit level with the difference's own label, so the three
           read across as one line of figures. */}
-      <div className="grid grid-cols-3 items-start gap-x-3 gap-y-1 border-t border-[var(--hairline-dark)] pt-2">
+      {/* No rule above them: the bar is already a boundary, and a hairline under
+          it cut the block in two where nothing needed separating (user,
+          260805). */}
+      <div className="grid grid-cols-3 items-start gap-x-3 gap-y-1 pt-1">
         {comparison.map((c) => (
           <Figure key={c.key} cell={c} mask={maskValue} />
         ))}

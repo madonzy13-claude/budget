@@ -36,3 +36,17 @@ export function shareBarWidths(values: readonly number[]): number[] {
       : p - (spareTotal > 0 ? (owed * p) / spareTotal : 0),
   );
 }
+
+/**
+ * The piece's share of the whole, as a label (260805). Read from the MONEY, not
+ * from the drawn width: a segment is never drawn thinner than MIN_SEGMENT_PCT,
+ * so a 0.1% overspend would otherwise announce itself as 4%.
+ *
+ * A decimal only under 10%, where the difference between "0.1" and "0" is the
+ * whole message; above that it is noise beside a rounded figure.
+ */
+export function shareLabel(value: number, total: number): string {
+  if (!(total > 0) || !Number.isFinite(value)) return "";
+  const pct = (100 * value) / total;
+  return `${pct < 10 ? Math.round(pct * 10) / 10 : Math.round(pct)}%`;
+}

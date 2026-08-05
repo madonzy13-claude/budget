@@ -1485,7 +1485,9 @@
           "scale": "Шкала",
           "scalePct": "%",
           "scaleAmount": "zł",
-          "ongoingExcluded": "Поточний місяць не входить у середні."
+          "ongoingExcluded": "Поточний місяць не входить у середні.",
+          "avgPlanned": "Сер. заплановано",
+          "avgSpent": "Сер. витрачено"
         },
         "wealth": {
           "capitalization": "Капіталізація",

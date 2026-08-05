@@ -16,7 +16,7 @@
  * amount as its accessible name, which is also what a keyboard reaches.
  */
 import * as React from "react";
-import { shareBarWidths } from "@/lib/share-bar";
+import { shareBarWidths, shareLabel } from "@/lib/share-bar";
 
 export interface ShareBarSegment {
   key: string;
@@ -45,6 +45,10 @@ export function ShareBar({
   const [at, setAt] = React.useState<{ key: string; pct: number } | null>(null);
 
   const widths = shareBarWidths(segments.map((s) => s.value));
+  const total = segments.reduce(
+    (acc, s) => acc + (Number.isFinite(s.value) && s.value > 0 ? s.value : 0),
+    0,
+  );
   let running = 0;
   const drawn = segments
     .map((s, i) => {
@@ -131,6 +135,12 @@ export function ShareBar({
             </span>
             <span className="num font-semibold text-[var(--body-on-dark)]">
               {format(shown.value)}
+            </span>
+            {/* An amount alone says nothing about how big a slice it is, which
+                is the only thing a part-to-whole bar exists to say (user,
+                260805). */}
+            <span className="num text-[var(--muted-foreground)]">
+              {shareLabel(shown.value, total)}
             </span>
           </span>
         </div>

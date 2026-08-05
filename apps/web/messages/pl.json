@@ -1485,7 +1485,9 @@
           "scale": "Skala",
           "scalePct": "%",
           "scaleAmount": "zł",
-          "ongoingExcluded": "Trwający miesiąc nie wchodzi do średnich."
+          "ongoingExcluded": "Trwający miesiąc nie wchodzi do średnich.",
+          "avgPlanned": "Śr. zaplanowane",
+          "avgSpent": "Śr. wydane"
         },
         "wealth": {
           "capitalization": "Kapitalizacja",

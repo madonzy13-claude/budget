@@ -56,6 +56,50 @@ const scrubTo = (pct: number) =>
   });
 
 describe("ShareBar", () => {
+  // 260805: "16,116 zł" alone says nothing about how big a slice that is; the
+  // whole point of a part-to-whole bar is the share, so the tooltip carries it.
+  it("says what share of the whole the piece is", () => {
+    setup();
+    scrubTo(90);
+    // 16,116 of 64,599.
+    expect(screen.getByTestId("spend-bar-tooltip").textContent).toContain(
+      "25%",
+    );
+  });
+
+  // The pieces are DRAWN with a 4% floor so a sliver stays hoverable — the share
+  // must come from the money, or a 0.2% overspend would claim 4%.
+  it("reads the share from the money, not from the drawn width", () => {
+    render(
+      <ShareBar
+        testId="tiny-bar"
+        segments={[
+          { key: "big", label: "Planned spent", value: 99900, color: "#0f0" },
+          { key: "over", label: "Overspent", value: 100, color: "#f00" },
+        ]}
+        format={(n: number) => `${n} zl`}
+      />,
+    );
+    const track = screen.getByTestId("tiny-bar-track");
+    track.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        width: 100,
+        right: 100,
+        top: 0,
+        bottom: 12,
+        height: 12,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    fireEvent.pointerMove(track, { clientX: 99 });
+    const tip = screen.getByTestId("tiny-bar-tooltip").textContent ?? "";
+    expect(tip).toContain("Overspent");
+    expect(tip).toContain("0.1%");
+    expect(tip).not.toContain("4%");
+  });
+
   it("says nothing until a piece is pointed at", () => {
     setup();
     expect(screen.queryByTestId("spend-bar-tooltip")).toBeNull();
