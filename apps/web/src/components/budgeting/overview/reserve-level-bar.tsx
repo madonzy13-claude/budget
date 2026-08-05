@@ -44,8 +44,16 @@ const SHORT = "var(--trading-down)";
  *  below — 5 from the outer edge, matched here at the sides. */
 const INNER_PAD = 5;
 
-/** Coarse 45° dashes — dense hatching shimmers, and this is background. */
-const MISSING = `repeating-linear-gradient(45deg, ${SHORT} 0 2px, transparent 2px 7px)`;
+/** Coarse 45° dashes — dense hatching shimmers, and this is background.
+ *
+ *  Both ends of the bar wear them (user, 260805): one stretch is money that is
+ *  not there and one is money doing nothing, and neither should read as solidly
+ *  as the stretch that is actually covering the reserve. Only that middle
+ *  stretch stays a solid fill. */
+const dashed = (color: string) =>
+  `repeating-linear-gradient(45deg, ${color} 0 2px, transparent 2px 7px)`;
+const MISSING = dashed(SHORT);
+const IDLE = dashed(SURPLUS);
 
 export function ReserveLevelBar({
   heldCents,
@@ -175,7 +183,8 @@ export function ReserveLevelBar({
               className="h-full rounded-r-full"
               style={{
                 width: width(surplus),
-                background: SURPLUS,
+                background: IDLE,
+                opacity: 0.55,
                 borderTopLeftRadius: covered > 0 ? 0 : 9999,
                 borderBottomLeftRadius: covered > 0 ? 0 : 9999,
               }}

@@ -155,6 +155,23 @@ describe("ReserveLevelBar", () => {
     expect(Number(gap.style.opacity)).toBeLessThan(1);
   });
 
+  // 260805: the surplus is dashed too. Neither end of the bar is money doing its
+  // job — one is missing and one is idle — and only the stretch that IS doing
+  // its job stays solid.
+  it("dashes the surplus stretch as well, in its own amber", () => {
+    setup(9000, 3000);
+    const surplus = screen.getByTestId("reserve-bar-surplus");
+    expect(surplus.style.background).toContain("repeating-linear-gradient");
+    expect(surplus.style.background).toContain("--primary");
+    expect(Number(surplus.style.opacity)).toBeLessThan(1);
+  });
+
+  it("leaves the stretch that is doing its job solid", () => {
+    setup(9000, 3000);
+    const covered = screen.getByTestId("reserve-bar-covered");
+    expect(covered.style.background).not.toContain("repeating-linear-gradient");
+  });
+
   it("has nothing to strike through when the target is met", () => {
     setup(9000, 3000);
     expect(screen.queryByTestId("reserve-bar-gap")).toBeNull();
