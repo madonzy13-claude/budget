@@ -81,6 +81,57 @@ const withViewport = (height: number, scale = 1) => {
     });
 };
 
+/**
+ * A visualViewport whose height can be moved and whose listeners actually fire —
+ * needed to replay what iOS does when the app comes back to the front.
+ */
+const liveViewport = (height: number) => {
+  const listeners = new Map<string, Set<() => void>>();
+  const vv = {
+    height,
+    scale: 1,
+    addEventListener(type: string, fn: () => void) {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type)!.add(fn);
+    },
+    removeEventListener(type: string, fn: () => void) {
+      listeners.get(type)?.delete(fn);
+    },
+  };
+  const original = window.visualViewport;
+  Object.defineProperty(window, "visualViewport", {
+    configurable: true,
+    value: vv,
+  });
+  return {
+    setHeight(h: number) {
+      vv.height = h;
+    },
+    fireResize() {
+      listeners.get("resize")?.forEach((fn) => fn());
+    },
+    restore() {
+      Object.defineProperty(window, "visualViewport", {
+        configurable: true,
+        value: original,
+      });
+    },
+  };
+};
+
+/** Background or foreground the tab the way a real app switch does. */
+const setVisibility = (state: "hidden" | "visible") => {
+  Object.defineProperty(document, "visibilityState", {
+    configurable: true,
+    value: state,
+  });
+  Object.defineProperty(document, "hidden", {
+    configurable: true,
+    value: state === "hidden",
+  });
+  document.dispatchEvent(new Event("visibilitychange"));
+};
+
 const sizeOf = (el: HTMLElement) => el.style.getPropertyValue("--grid-max-h");
 
 afterEach(() => {
@@ -159,6 +210,53 @@ describe("useViewportFillHeight (fitVisible)", () => {
     expect(sizeOf(el)).toBe("max(160px, 402px)");
     pointer();
     restore();
+  });
+
+  // Leave the app with another one's keyboard up and come back, and iOS hands
+  // the PWA a visualViewport still short by the keyboard — a reading taken for
+  // a window we were not even looking at. Sizing the box to it left a black
+  // band of bare canvas where the keyboard had been (user report, 260805).
+  it("ignores a viewport measured while the app was in the background", () => {
+    const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
+    const vv = liveViewport(900);
+    const pointer = withPointer(true);
+    renderHook(() => {
+      const ref = useRef(el);
+      useViewportFillHeight(ref, { fitVisible: true });
+    });
+    expect(sizeOf(el)).toBe("max(160px, 786px)");
+
+    setVisibility("hidden");
+    vv.setHeight(500); // the other app's keyboard, reserved
+    vv.fireResize();
+    expect(sizeOf(el)).toBe("max(160px, 786px)");
+
+    setVisibility("visible");
+    pointer();
+    vv.restore();
+  });
+
+  // …and the correcting resize does not always arrive, so coming back to the
+  // front has to re-measure rather than wait to be told.
+  it("re-measures the moment the app comes back to the front", () => {
+    const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
+    const vv = liveViewport(900);
+    const pointer = withPointer(true);
+    renderHook(() => {
+      const ref = useRef(el);
+      useViewportFillHeight(ref, { fitVisible: true });
+    });
+
+    setVisibility("hidden");
+    vv.setHeight(500);
+    vv.fireResize();
+    // Back on screen at a different height, and NO resize event to announce it.
+    vv.setHeight(700);
+    setVisibility("visible");
+
+    expect(sizeOf(el)).toBe("max(160px, 586px)");
+    pointer();
+    vv.restore();
   });
 
   it("falls back to the window when there is no visualViewport", () => {

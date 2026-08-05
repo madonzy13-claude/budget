@@ -87,6 +87,13 @@ export function useViewportFillHeight(
 
     function update() {
       if (!el || isKeyboardEditing()) return;
+      // A viewport measured while the app is in the BACKGROUND is a reading for
+      // a window nobody is looking at. Leave the app with another one's keyboard
+      // up and iOS hands the PWA a visualViewport still short by that keyboard;
+      // sizing the box to it left a black band of bare canvas exactly where the
+      // keyboard had been, and it stayed until something else resized (user
+      // report, 260805). Coming back to the front re-measures — see below.
+      if (typeof document !== "undefined" && document.hidden) return;
       const zoom = zoomFactor(el);
       const top = Math.max(0, Math.round(unscrolledTop(el) / zoom));
       if (fitVisible) {
@@ -147,12 +154,31 @@ export function useViewportFillHeight(
     vv?.addEventListener("scroll", update, { passive: true });
     const onFocusOut = () => requestAnimationFrame(update);
     el.addEventListener("focusout", onFocusOut);
+
+    // Coming back to the front. Measured three times on purpose: once now, so a
+    // box that is already right stays right; once next frame; and once after the
+    // keyboard's dismissal animation, because iOS keeps reporting the shrunken
+    // viewport for a few hundred milliseconds after the app is visible again and
+    // does not always send a resize when it finally lets go.
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const onVisible = () => {
+      if (document.hidden) return;
+      update();
+      requestAnimationFrame(update);
+      timers.push(setTimeout(update, 300));
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", onVisible);
+
     return () => {
       ro.disconnect();
       window.removeEventListener("resize", update);
       vv?.removeEventListener("resize", update);
       vv?.removeEventListener("scroll", update);
       el.removeEventListener("focusout", onFocusOut);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onVisible);
+      timers.forEach(clearTimeout);
     };
   }, [ref, fitVisible]);
 }
