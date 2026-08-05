@@ -336,7 +336,7 @@ describe("ReserveFitView", () => {
       "5600",
     );
     expect(screen.getByTestId("reserve-bar-action").textContent).toContain(
-      "reserveFit.canWithdraw",
+      "reserveFit.aboveTarget",
     );
   });
 

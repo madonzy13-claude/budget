@@ -62,25 +62,26 @@ describe("ReserveLevelBar", () => {
   // (user, 260804).
   it("clears the outline by as much at the sides as at the top", () => {
     setup(3000, 6000);
-    const inner = screen.getByTestId("reserve-bar-inner");
-    expect(parseFloat(inner.style.left)).toBe(5);
-    expect(parseFloat(inner.style.right)).toBe(5);
+    expect(
+      parseFloat(screen.getByTestId("reserve-bar-covered").style.marginLeft),
+    ).toBe(5);
+    // Short: the outline's far edge is the track's end, and the dashes stop
+    // 5px inside it.
+    expect(screen.getByTestId("reserve-bar-gap").style.width).toBe(
+      "calc(50% - 5px)",
+    );
   });
 
   // Padding only works while the bar is INSIDE the box. Once it runs past, the
-  // inset shifts the covered stretch off the outline's right edge and the colour
-  // spills over the border (user screenshot, 260804).
-  // …but only on the side it breaks. The bar always starts inset; it is the
-  // RIGHT edge that has to meet the border exactly, and the covered stretch
-  // gives back the left inset so it lands there (user, 260805).
-  it("keeps the left inset even when the bar runs past the outline", () => {
+  // covered stretch has to land exactly ON the outline's right edge — short of
+  // it and the idle dashes start inside the box, past it and the colour spills
+  // over the border (user screenshots, 260804/05).
+  it("lands on the outline exactly when the bar runs past it", () => {
     setup(28934, 4409);
-    expect(parseFloat(screen.getByTestId("reserve-bar-inner").style.left)).toBe(
-      5,
-    );
+    const covered = screen.getByTestId("reserve-bar-covered");
+    expect(parseFloat(covered.style.marginLeft)).toBe(5);
     // 4409/28934 of the track, less the 5px the bar was pushed in by.
-    const w = screen.getByTestId("reserve-bar-covered").style.width;
-    expect(w).toMatch(/^calc\(15\.23\d*% - 5px\)$/);
+    expect(covered.style.width).toMatch(/^calc\(15\.23\d*% - 10px\)$/);
   });
 
   it("outlines what the history asked for", () => {
@@ -95,6 +96,11 @@ describe("ReserveLevelBar", () => {
     expect(screen.getByTestId("reserve-bar-covered").style.width).toContain(
       "33.33",
     );
+    // …and stops a padding's width behind the outline, so the idle dashes can
+    // start ON the border rather than inside it.
+    expect(screen.getByTestId("reserve-bar-covered").style.width).toMatch(
+      /- 10px\)$/,
+    );
     expect(pctOf("reserve-bar-surplus", "width")).toBeCloseTo(66.7, 0);
   });
 
@@ -102,28 +108,36 @@ describe("ReserveLevelBar", () => {
     setup(3000, 6000);
     // Outline spans the whole track; the held bar covers only half of it.
     expect(pctOf("reserve-bar-target", "width")).toBeCloseTo(100, 1);
-    expect(pctOf("reserve-bar-covered", "width")).toBeCloseTo(50, 1);
+    expect(screen.getByTestId("reserve-bar-covered").style.width).toBe(
+      "calc(50% - 5px)",
+    );
     expect(screen.queryByTestId("reserve-bar-surplus")).toBeNull();
   });
 
-  it("says what to do when the buffer is short", () => {
+  it("reports how far below the target the buffer sits", () => {
     setup(3000, 6000);
     const action = screen.getByTestId("reserve-bar-action");
-    expect(action.textContent).toContain("reserveFit.topUp");
+    // 260805: informative, not an instruction — the meter reports, it does not
+    // tell the household what to do with its money.
+    expect(action.textContent).toContain("reserveFit.belowTarget");
+    expect(action.textContent).not.toContain("topUp");
+    // The amount leads, so the line reads as one sentence.
+    expect(action.textContent).toMatch(/^3000 zl/);
     expect(action.textContent).toContain("3000 zl");
   });
 
-  it("says what can come out when there is more than enough", () => {
+  it("reports how far above the target it sits", () => {
     setup(9000, 3000);
     const action = screen.getByTestId("reserve-bar-action");
-    expect(action.textContent).toContain("reserveFit.canWithdraw");
+    expect(action.textContent).toContain("reserveFit.aboveTarget");
+    expect(action.textContent).not.toContain("canWithdraw");
     expect(action.textContent).toContain("6000 zl");
   });
 
-  it("says nothing needs doing when the two match", () => {
+  it("says it is exactly on target when the two match", () => {
     setup(5000, 5000);
     expect(screen.getByTestId("reserve-bar-action").textContent).toContain(
-      "reserveFit.inBalance",
+      "reserveFit.onTarget",
     );
   });
 
@@ -147,12 +161,49 @@ describe("ReserveLevelBar", () => {
       screen.getByTestId("reserve-bar-covered").style.background,
     ).toContain("--muted-foreground");
     const gap = screen.getByTestId("reserve-bar-gap");
-    expect(pctOf("reserve-bar-gap", "width")).toBeCloseTo(50, 1);
+    expect(gap.style.width).toBe("calc(50% - 5px)");
     // Dashes, not a solid block: it is an absence, and it should not shout as
     // loudly as money that is really there.
     expect(gap.style.background).toContain("repeating-linear-gradient");
     expect(gap.style.background).toContain("--trading-down");
     expect(Number(gap.style.opacity)).toBeLessThan(1);
+  });
+
+  // 260805: the stretches were sized as percentages of the INNER row, which is
+  // narrower than the track by the left inset — so every boundary drifted left
+  // by up to that inset, and the idle dashes started INSIDE the outline they
+  // were supposed to begin at (user screenshot).
+  describe("stretch geometry", () => {
+    const style = (id: string) => screen.getByTestId(id).style;
+
+    it("measures the stretches against the whole track, not the inset row", () => {
+      setup(15000, 9000);
+      expect(style("reserve-bar-inner").left).toBe("0px");
+      expect(style("reserve-bar-inner").right).toBe("0px");
+    });
+
+    it("ends the covered stretch exactly on the outline, so the idle dashes start there", () => {
+      // needed 9,000 of a 15,000 scale — the outline's right edge is at 60%.
+      setup(15000, 9000);
+      expect(style("reserve-bar-covered").marginLeft).toBe("5px");
+      expect(style("reserve-bar-covered").width).toBe("calc(60% - 10px)");
+      // …and the idle stretch takes the rest, untrimmed: nothing contains it.
+      // It starts a padding's width later, ON the outline's right edge.
+      expect(style("reserve-bar-surplus").marginLeft).toBe("5px");
+      expect(style("reserve-bar-surplus").width).toBe("40%");
+    });
+
+    it("keeps the shortfall inside the outline's far edge", () => {
+      // held 3,000 of 6,000 needed: the outline spans the whole track.
+      setup(3000, 6000);
+      expect(style("reserve-bar-covered").width).toBe("calc(50% - 5px)");
+      expect(style("reserve-bar-gap").width).toBe("calc(50% - 5px)");
+    });
+
+    it("insets both ends when the bar exactly fills the outline", () => {
+      setup(6000, 6000);
+      expect(style("reserve-bar-covered").width).toBe("calc(100% - 10px)");
+    });
   });
 
   // 260805: the surplus is dashed too. Neither end of the bar is money doing its
@@ -179,7 +230,9 @@ describe("ReserveLevelBar", () => {
 
   it("is all green and nothing else when the two match", () => {
     setup(5000, 5000);
-    expect(pctOf("reserve-bar-covered", "width")).toBeCloseTo(100, 1);
+    expect(screen.getByTestId("reserve-bar-covered").style.width).toBe(
+      "calc(100% - 10px)",
+    );
     expect(pctOf("reserve-bar-target", "width")).toBeCloseTo(100, 1);
     expect(screen.queryByTestId("reserve-bar-surplus")).toBeNull();
   });
@@ -228,7 +281,7 @@ describe("ReserveLevelBar", () => {
     expect(pctOf("reserve-bar-surplus", "width")).toBeCloseTo(100, 1);
     expect(screen.queryByTestId("reserve-bar-covered")).toBeNull();
     expect(screen.getByTestId("reserve-bar-action").textContent).toContain(
-      "reserveFit.canWithdraw",
+      "reserveFit.aboveTarget",
     );
   });
 

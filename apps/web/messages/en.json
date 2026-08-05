@@ -1537,9 +1537,9 @@
           "heldTotal": "Held",
           "neededTotal": "Needed",
           "unassigned": "Not counted — no category: {list}. Give them one in Settings → Recurring and they will size their reserve.",
-          "canWithdraw": "Can withdraw",
-          "topUp": "Top up by",
-          "inBalance": "Just right"
+          "aboveTarget": "more than needed",
+          "belowTarget": "less than needed",
+          "onTarget": "Exactly what is needed"
         },
         "needsCompletedMonth": {
           "title": "Nothing to judge yet",

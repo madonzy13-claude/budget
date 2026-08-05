@@ -1560,9 +1560,9 @@
           "heldTotal": "Trzymane",
           "neededTotal": "Potrzebne",
           "unassigned": "Nie liczone — brak kategorii: {list}. Przypisz ją w Ustawienia → Cykliczne, a wpłyną na rezerwę.",
-          "canWithdraw": "Można wypłacić",
-          "topUp": "Dopłać",
-          "inBalance": "W sam raz"
+          "aboveTarget": "ponad potrzebę",
+          "belowTarget": "poniżej potrzeby",
+          "onTarget": "Dokładnie tyle, ile trzeba"
         },
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",

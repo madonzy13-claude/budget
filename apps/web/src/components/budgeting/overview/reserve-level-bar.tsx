@@ -83,19 +83,32 @@ export function ReserveLevelBar({
   const covered = Math.min(held, needed);
   const surplus = Math.max(0, slack);
   const missing = Math.max(0, -slack);
-  // The bar always starts inset. It is the RIGHT edge that has to meet the
-  // outline exactly, so when the bar runs PAST the box there is no right inset
-  // and the covered stretch gives the left one back — otherwise it ended beyond
-  // the border and the colour spilled over it (user screenshots, 260804/05).
-  const padRight = surplus > 0 ? 0 : INNER_PAD;
   const width = (v: number) => `${(100 * v) / scale}%`;
+  // Every stretch is a percentage of the WHOLE track, and the bar's left inset
+  // is then subtracted in pixels. Measuring them against the inset row instead
+  // shrank each one by that inset's share, which walked every boundary left —
+  // and the idle dashes began INSIDE the outline they mark the end of (user
+  // screenshot, 260805).
+  //
+  // Each stretch then gives back, in pixels, the insets its own ends sit behind:
+  // the covered one for the outline's left edge, and again for its right edge
+  // when it is the last thing inside the box. The bar therefore clears the
+  // outline at BOTH ends whether it is short of the target or past it (user,
+  // 260805) — and the idle stretch, which belongs outside the box entirely,
+  // starts ON the border rather than a padding's width before it.
+  const stretch = (v: number, giveBack: number) =>
+    giveBack > 0 ? `calc(${width(v)} - ${giveBack}px)` : width(v);
 
   // The one thing the meter is asked: is the target reached? Green says yes,
   // grey says not yet — a grey baseline said nothing at all (user, 260805). The
   // surplus past the outline stays amber whatever: idle money is not a win.
   const reached = held >= needed;
 
-  const action = slack > 0 ? "canWithdraw" : slack < 0 ? "topUp" : "inBalance";
+  // Informative, not an instruction (user, 260805): the meter reports where the
+  // buffer stands against what the history asked for, and leaves what to do
+  // about it to the household.
+  const action =
+    slack > 0 ? "aboveTarget" : slack < 0 ? "belowTarget" : "onTarget";
   // The action inherits the colour of the stretch it is about, so the sentence
   // and the shape never disagree.
   const actionTone = slack > 0 ? SURPLUS : slack < 0 ? SHORT : undefined;
@@ -143,7 +156,8 @@ export function ReserveLevelBar({
         <div
           data-testid={`${testId}-inner`}
           className="absolute top-1/2 flex h-1.5 -translate-y-1/2"
-          style={{ left: INNER_PAD, right: padRight }}
+          // The full track: the stretches inside are percentages OF it.
+          style={{ left: 0, right: 0 }}
         >
           {covered > 0 && (
             <div
@@ -151,13 +165,10 @@ export function ReserveLevelBar({
               aria-label={`${t("reserveFit.heldTotal")}: ${format(held)}`}
               className="h-full rounded-l-full"
               style={{
-                // Past the outline the row runs to the track's end, so the
-                // covered stretch hands back the inset it was pushed in by and
-                // lands exactly on the border.
-                width:
-                  surplus > 0
-                    ? `calc(${width(covered)} - ${INNER_PAD}px)`
-                    : width(covered),
+                marginLeft: INNER_PAD,
+                // Twice over when nothing follows it inside the box: it is
+                // then behind the outline's right edge as well as its left.
+                width: stretch(covered, INNER_PAD * (missing === 0 ? 2 : 1)),
                 background: reached ? TARGET : COVERED,
                 borderTopRightRadius: surplus > 0 ? 0 : 9999,
                 borderBottomRightRadius: surplus > 0 ? 0 : 9999,
@@ -167,10 +178,12 @@ export function ReserveLevelBar({
           {missing > 0 && (
             <div
               data-testid={`${testId}-gap`}
-              aria-label={`${t("reserveFit.topUp")}: ${format(missing)}`}
+              aria-label={`${format(missing)} ${t("reserveFit.belowTarget")}`}
               className="ml-auto h-full rounded-r-full"
               style={{
-                width: width(missing),
+                // Behind the outline's right edge; the covered stretch has
+                // already given back the left one.
+                width: stretch(missing, INNER_PAD),
                 background: MISSING,
                 opacity: 0.55,
               }}
@@ -179,9 +192,13 @@ export function ReserveLevelBar({
           {surplus > 0 && (
             <div
               data-testid={`${testId}-surplus`}
-              aria-label={`${t("reserveFit.canWithdraw")}: ${format(surplus)}`}
+              aria-label={`${format(surplus)} ${t("reserveFit.aboveTarget")}`}
               className="h-full rounded-r-full"
               style={{
+                // Clear of the outline's right edge, which the covered stretch
+                // now stops behind — so this begins exactly ON the border and
+                // never inside it (user screenshot, 260805).
+                marginLeft: INNER_PAD,
                 width: width(surplus),
                 background: IDLE,
                 opacity: 0.55,
@@ -199,12 +216,14 @@ export function ReserveLevelBar({
         className="text-caption text-center"
         style={{ color: actionTone }}
       >
-        {t(`reserveFit.${action}`)}
+        {/* Amount first, so the line reads as a statement rather than a label
+            with a figure stuck on the end. */}
         {slack !== 0 && (
-          <span className="num ml-1 font-semibold">
+          <span className="num mr-1 font-semibold">
             {format(Math.abs(slack))}
           </span>
         )}
+        {t(`reserveFit.${action}`)}
       </p>
     </div>
   );
