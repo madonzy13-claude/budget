@@ -22,7 +22,7 @@
  * because that is the only one that can actually fail.
  */
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import messages from "../../../../messages/en.json";
 
 vi.mock("next-intl", () => ({
@@ -337,6 +337,19 @@ describe("ReserveLevelBar", () => {
         screen.getByTestId("reserve-bar-covered").getAttribute("style") ?? "";
       expect(style).toContain("--trading-up");
       expect(style).not.toContain("--muted-foreground");
+    });
+
+    // 260805: all three stretches sit at the same weight — a solid green next to
+    // two faded dashes read as a different kind of thing rather than the same
+    // bar in three states.
+    it("carries the same weight as the dashed stretches", () => {
+      setup(24800, 10000);
+      const o = (id: string) => Number(screen.getByTestId(id).style.opacity);
+      expect(o("reserve-bar-covered")).toBe(o("reserve-bar-surplus"));
+      expect(o("reserve-bar-covered")).toBeLessThan(1);
+      cleanup();
+      setup(3000, 10000);
+      expect(o("reserve-bar-covered")).toBe(o("reserve-bar-gap"));
     });
 
     it("leaves the shortfall to say what is missing", () => {
