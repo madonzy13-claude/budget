@@ -85,6 +85,11 @@ export function useViewportFillHeight(
       return top;
     }
 
+    /** The last height written, so a settling resume can refuse to shrink. */
+    let lastPx = 0;
+    /** True from the moment the app comes back until the viewport has settled. */
+    let resuming = false;
+
     function update() {
       if (!el || isKeyboardEditing()) return;
       // A viewport measured while the app is in the BACKGROUND is a reading for
@@ -119,12 +124,24 @@ export function useViewportFillHeight(
         // bar-collapse tracking below is untouched.
         const vv = window.visualViewport;
         const vvh = vv ? vv.height * (vv.scale || 1) : window.innerHeight;
-        el.style.setProperty(
-          "--grid-max-h",
-          vvh > 0
-            ? `max(160px, ${Math.round(vvh / zoom - top)}px)`
-            : `max(160px, calc(100svh - ${top}px))`,
-        );
+        if (vvh <= 0) {
+          el.style.setProperty(
+            "--grid-max-h",
+            `max(160px, calc(100svh - ${top}px))`,
+          );
+          return;
+        }
+        const px = Math.round(vvh / zoom - top);
+        // While the app is settling back from the background, the box may GROW
+        // but never shrink. Dropping the hidden readings alone was not enough:
+        // iOS keeps reporting the keyboard-shrunk viewport for a few hundred ms
+        // AFTER the app is visible again, so the first measurement wrote a short
+        // box, flashed the black band, and corrected itself a moment later (user
+        // video, 260805). A box that is briefly too tall shows nothing at all,
+        // which is why the asymmetry is safe.
+        if (resuming && px < lastPx) return;
+        lastPx = px;
+        el.style.setProperty("--grid-max-h", `max(160px, ${px}px)`);
         return;
       }
       const isIOS =
@@ -155,17 +172,29 @@ export function useViewportFillHeight(
     const onFocusOut = () => requestAnimationFrame(update);
     el.addEventListener("focusout", onFocusOut);
 
-    // Coming back to the front. Measured three times on purpose: once now, so a
-    // box that is already right stays right; once next frame; and once after the
-    // keyboard's dismissal animation, because iOS keeps reporting the shrunken
-    // viewport for a few hundred milliseconds after the app is visible again and
-    // does not always send a resize when it finally lets go.
-    const timers: ReturnType<typeof setTimeout>[] = [];
+    // Coming back to the front. The box keeps the height it had while away —
+    // which is almost always still right — and only grows until the viewport
+    // settles; see the guard in update(). Re-measured along the way because iOS
+    // does not always send a resize when it finally lets the keyboard's space
+    // go, and once more at the end of the window, which is what lets a viewport
+    // that really did get smaller (rotated while away) through.
+    let timers: ReturnType<typeof setTimeout>[] = [];
     const onVisible = () => {
       if (document.hidden) return;
+      // Flick between apps a few times and each resume would otherwise leave
+      // its own three timers behind.
+      timers.forEach(clearTimeout);
+      timers = [];
+      resuming = true;
       update();
-      requestAnimationFrame(update);
-      timers.push(setTimeout(update, 300));
+      timers.push(
+        setTimeout(update, 250),
+        setTimeout(update, 500),
+        setTimeout(() => {
+          resuming = false;
+          update();
+        }, 800),
+      );
     };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("pageshow", onVisible);

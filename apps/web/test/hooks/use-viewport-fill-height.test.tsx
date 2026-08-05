@@ -236,9 +236,39 @@ describe("useViewportFillHeight (fitVisible)", () => {
     vv.restore();
   });
 
-  // …and the correcting resize does not always arrive, so coming back to the
-  // front has to re-measure rather than wait to be told.
-  it("re-measures the moment the app comes back to the front", () => {
+  // Guarding the hidden reading alone still let the band FLASH: the shrunken
+  // viewport is what iOS reports for the first few hundred ms after the app is
+  // visible again, so re-measuring on resume wrote the short box, showed the
+  // band, and corrected it a moment later (user video, 260805). Nothing may
+  // SHRINK the box while the viewport is still settling.
+  it("does not shrink the box while the viewport is still settling", () => {
+    vi.useFakeTimers();
+    const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
+    const vv = liveViewport(900);
+    const pointer = withPointer(true);
+    renderHook(() => {
+      const ref = useRef(el);
+      useViewportFillHeight(ref, { fitVisible: true });
+    });
+    expect(sizeOf(el)).toBe("max(160px, 786px)");
+
+    setVisibility("hidden");
+    setVisibility("visible");
+    // iOS is still holding the keyboard's space, and says so repeatedly.
+    vv.setHeight(500);
+    vv.fireResize();
+    vi.advanceTimersByTime(200);
+    expect(sizeOf(el)).toBe("max(160px, 786px)");
+
+    pointer();
+    vv.restore();
+    vi.useRealTimers();
+  });
+
+  // Growing is safe — an over-tall box is invisible, a short one is a black
+  // band — so a resume that genuinely gained height takes it at once.
+  it("takes a taller viewport straight away on resume", () => {
+    vi.useFakeTimers();
     const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
     const vv = liveViewport(900);
     const pointer = withPointer(true);
@@ -248,15 +278,37 @@ describe("useViewportFillHeight (fitVisible)", () => {
     });
 
     setVisibility("hidden");
-    vv.setHeight(500);
-    vv.fireResize();
-    // Back on screen at a different height, and NO resize event to announce it.
-    vv.setHeight(700);
     setVisibility("visible");
+    vv.setHeight(1000);
+    vv.fireResize();
+
+    expect(sizeOf(el)).toBe("max(160px, 886px)");
+    pointer();
+    vv.restore();
+    vi.useRealTimers();
+  });
+
+  // …and a viewport that really did get smaller — rotated while the app was
+  // away — is honoured once the settling window has passed.
+  it("takes the smaller viewport once it has settled", () => {
+    vi.useFakeTimers();
+    const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
+    const vv = liveViewport(900);
+    const pointer = withPointer(true);
+    renderHook(() => {
+      const ref = useRef(el);
+      useViewportFillHeight(ref, { fitVisible: true });
+    });
+
+    setVisibility("hidden");
+    setVisibility("visible");
+    vv.setHeight(700);
+    vi.advanceTimersByTime(1000);
 
     expect(sizeOf(el)).toBe("max(160px, 586px)");
     pointer();
     vv.restore();
+    vi.useRealTimers();
   });
 
   it("falls back to the window when there is no visualViewport", () => {
