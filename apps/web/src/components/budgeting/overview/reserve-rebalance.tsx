@@ -14,15 +14,11 @@
  *     take the move back. A reserve already on its target has that button
  *     visibly inert — "nothing to do here" has to look different from "not done
  *     yet" (user, 260805).
- *   - The queue is ordered short → fat → settled, and re-files itself after a
- *     move, so a rebalanced row sinks out of the way of the ones still to do.
- *
- * Two details that are load-bearing rather than decorative:
- *   - the order FREEZES while a target is being typed. Re-sorting on every
- *     keystroke slides the row out from under the finger holding it.
- *   - the action button prevents the mousedown default, so pressing it does not
- *     blur the field first — that blur would re-sort the list between press and
- *     release, and the tap would land on whichever row moved into its place.
+ *   - The queue is ordered short → fat → settled ONCE, when the dialog opens,
+ *     and then holds. It used to re-file itself after every move, which slid
+ *     the next row under the finger already going for it and lost the reader
+ *     their place in a list they were working down (user, 260805). Open it
+ *     again for a fresh queue.
  */
 import * as React from "react";
 import { useTranslations } from "next-intl";
@@ -93,9 +89,8 @@ export function ReserveRebalance({
    *  than putting in the buffer — see the note under the row. */
   const [covered, setCovered] = React.useState<Record<string, number>>({});
   const [busy, setBusy] = React.useState<string | null>(null);
-  /** The row whose target is being typed — while one is, the order holds. */
-  const [editing, setEditing] = React.useState<string | null>(null);
-  const orderRef = React.useRef<string[]>([]);
+  /** The queue as it stood when the dialog opened. Null until first opened. */
+  const [order, setOrder] = React.useState<string[] | null>(null);
 
   const state: RebalanceRow[] = rows.map((r) => ({
     categoryId: r.categoryId,
@@ -105,16 +100,20 @@ export function ReserveRebalance({
     baselineCents: applied[r.categoryId]?.baselineCents ?? null,
   }));
 
-  let shown: RebalanceRow[];
-  if (editing === null) {
-    shown = sortRebalanceRows(state);
-    orderRef.current = shown.map((r) => r.categoryId);
-  } else {
-    const byId = new Map(state.map((r) => [r.categoryId, r]));
-    shown = orderRef.current
-      .map((id) => byId.get(id))
-      .filter((r): r is RebalanceRow => r !== undefined);
-  }
+  // The queue is settled ONCE, when the dialog opens, and then holds. Re-filing
+  // a row the moment it is acted on slides the next one under the finger that
+  // is already going for it, and the reader loses their place in a list they
+  // were working down (user, 260805). Open it again for a fresh queue.
+  // A category that arrived since (a refetch) is appended rather than dropped.
+  const byId = new Map(state.map((r) => [r.categoryId, r]));
+  const shown: RebalanceRow[] = order
+    ? [
+        ...order
+          .map((id) => byId.get(id))
+          .filter((r): r is RebalanceRow => r !== undefined),
+        ...state.filter((r) => !order.includes(r.categoryId)),
+      ]
+    : sortRebalanceRows(state);
 
   if (rows.length === 0) return null;
 
@@ -204,7 +203,10 @@ export function ReserveRebalance({
           <Button
             type="button"
             size="sm"
-            variant={kind === "undo" ? "ghost" : "secondary"}
+            // Both states are BUTTONS. Undo was a ghost, which on a dark card
+            // is bare text and read as a link — it undoes a money move and has
+            // to look as pressable as what it replaced (user, 260805).
+            variant={kind === "undo" ? "outline" : "secondary"}
             data-testid={`reserve-rebalance-action-${row.categoryId}`}
             data-kind={kind}
             disabled={disabled || busy === row.categoryId}
@@ -215,9 +217,6 @@ export function ReserveRebalance({
                 : "reserveFit.rebalanceAria",
               { name: row.name },
             )}
-            // Keeps the field focused through the press: a blur here would
-            // re-sort the list between press and release.
-            onMouseDown={(e) => e.preventDefault()}
             onClick={() => void run(row)}
             className="h-7 shrink-0 px-2.5 text-caption"
           >
@@ -250,8 +249,6 @@ export function ReserveRebalance({
             inputMode="decimal"
             aria-label={t("reserveFit.targetAria", { name: row.name })}
             value={drafts[row.categoryId] ?? toInput(row.targetCents)}
-            onFocus={() => setEditing(row.categoryId)}
-            onBlur={() => setEditing(null)}
             onChange={(e) => {
               const text = e.target.value;
               setDrafts((d) => ({ ...d, [row.categoryId]: text }));
@@ -301,7 +298,10 @@ export function ReserveRebalance({
         size="icon"
         data-testid="reserve-rebalance-open"
         aria-label={t("reserveFit.openRebalance")}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOrder(sortRebalanceRows(state).map((r) => r.categoryId));
+          setOpen(true);
+        }}
       >
         <Scale aria-hidden className="size-4" />
       </Button>

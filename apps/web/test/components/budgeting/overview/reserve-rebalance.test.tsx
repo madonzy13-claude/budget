@@ -6,8 +6,8 @@
  * a single button that does the move — or takes it back.
  *
  * What is worth pinning down here:
- *   - the ORDER is the queue: short, then fat, then settled, and it re-files
- *     itself the moment a move goes through;
+ *   - the ORDER is the queue: short, then fat, then settled, settled ONCE when
+ *     the dialog opens and held from then on;
  *   - a row already on its target has a VISIBLY inert button, not a missing one;
  *   - the target field takes a comma as readily as a dot (the Polish keyboard's
  *     decimal key), and typing a new one re-arms a row that was already moved;
@@ -240,10 +240,30 @@ describe("ReserveRebalance", () => {
     );
   });
 
-  it("re-files the row once the move has gone through", async () => {
+  // The queue is settled when the dialog opens and then holds: a row that
+  // re-files itself the moment you act on it moves the NEXT row under the
+  // finger that is already going for it (user, 260805).
+  it("keeps the queue in the order it opened with", async () => {
     const { user } = await open();
     await user.click(action("car"));
-    // Car is on its target now, so the fat reserve is the only thing left to do.
+    await waitFor(() =>
+      expect(action("car").getAttribute("data-kind")).toBe("undo"),
+    );
+    // Car is on its target now and would sort last — it stays where it was.
+    expect(order()).toEqual(["car", "sport", "newborn", "food"]);
+  });
+
+  it("sorts afresh the next time it is opened", async () => {
+    const { user } = await open();
+    await user.click(action("car"));
+    await waitFor(() =>
+      expect(action("car").getAttribute("data-kind")).toBe("undo"),
+    );
+
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByTestId("reserve-rebalance-open"));
+
+    // A fresh queue: the fat reserve is the only thing left to do.
     await waitFor(() =>
       expect(order()).toEqual(["sport", "car", "newborn", "food"]),
     );
@@ -330,19 +350,28 @@ describe("ReserveRebalance", () => {
     expect(onRebalance).toHaveBeenLastCalledWith("car", 100_000);
   });
 
-  // The list must not slide out from under a finger that is still typing in it.
+  // …including while a target is being typed, which would otherwise slide the
+  // row out from under the finger holding it.
   it("holds the order still while a target is being typed", async () => {
     const { user } = await open();
     await user.clear(target("car"));
     await user.type(target("car"), "1000");
-    // Car sits on its target now, but it stays put while the field has focus.
     expect(order()).toEqual(["car", "sport", "newborn", "food"]);
-
-    // Leaving the field settles it.
     await user.tab();
+    expect(order()).toEqual(["car", "sport", "newborn", "food"]);
+  });
+
+  // Undo is a real button, not a link dressed as one: it undoes a money move,
+  // and it has to look as pressable as the button it replaced (user, 260805).
+  it("gives undo a button's own outline", async () => {
+    const { user } = await open();
+    await user.click(action("car"));
     await waitFor(() =>
-      expect(order()).toEqual(["sport", "car", "newborn", "food"]),
+      expect(action("car").getAttribute("data-kind")).toBe("undo"),
     );
+    const cls = action("car").className;
+    expect(cls).toContain("border");
+    expect(cls).not.toContain("underline");
   });
 
   it("stays out of the way when no reserve has anything to move", async () => {
