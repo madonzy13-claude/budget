@@ -166,7 +166,7 @@ describe("ReserveLevelBar", () => {
     // loudly as money that is really there.
     expect(gap.style.background).toContain("repeating-linear-gradient");
     expect(gap.style.background).toContain("--trading-down");
-    expect(Number(gap.style.opacity)).toBeLessThan(1);
+    expect(gap.style.opacity).toBe("");
   });
 
   // 260805: the stretches were sized as percentages of the INNER row, which is
@@ -214,7 +214,7 @@ describe("ReserveLevelBar", () => {
     const surplus = screen.getByTestId("reserve-bar-surplus");
     expect(surplus.style.background).toContain("repeating-linear-gradient");
     expect(surplus.style.background).toContain("--primary");
-    expect(Number(surplus.style.opacity)).toBeLessThan(1);
+    expect(surplus.style.opacity).toBe("");
   });
 
   it("leaves the stretch that is doing its job solid", () => {
@@ -339,17 +339,16 @@ describe("ReserveLevelBar", () => {
       expect(style).not.toContain("--muted-foreground");
     });
 
-    // 260805: all three stretches sit at the same weight — a solid green next to
-    // two faded dashes read as a different kind of thing rather than the same
-    // bar in three states.
-    it("carries the same weight as the dashed stretches", () => {
+    // 260805, second pass: no transparency at all. Faded against a dark canvas
+    // the three colours all drifted toward the background and toward each
+    // other; the dashes already separate them from solid money.
+    it("draws every stretch at full strength", () => {
       setup(24800, 10000);
-      const o = (id: string) => Number(screen.getByTestId(id).style.opacity);
-      expect(o("reserve-bar-covered")).toBe(o("reserve-bar-surplus"));
-      expect(o("reserve-bar-covered")).toBeLessThan(1);
+      for (const id of ["reserve-bar-covered", "reserve-bar-surplus"])
+        expect(screen.getByTestId(id).style.opacity).toBe("");
       cleanup();
       setup(3000, 10000);
-      expect(o("reserve-bar-covered")).toBe(o("reserve-bar-gap"));
+      expect(screen.getByTestId("reserve-bar-gap").style.opacity).toBe("");
     });
 
     it("leaves the shortfall to say what is missing", () => {

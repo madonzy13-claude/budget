@@ -26,11 +26,11 @@
  *
  * Only the covered stretch is solid, and only it is green. Both of the others
  * are money that is NOT working — one not there, one doing nothing — and the
- * dashes say so without either of them shouting louder than the money that is
- * really present. Green at any level, not only once the target is met (user,
- * 260805): what is missing is already stated in red beside it, and greying the
- * held stretch until then left a nearly-full reserve looking as inert as an
- * empty one.
+ * dashes carry that on their own, at full strength: faded against a dark canvas
+ * the three colours drifted toward the background and toward each other (user,
+ * 260805). Green at any level, not only once the target is met: what is missing
+ * is already stated in red beside it, and greying the held stretch until then
+ * left a nearly-full reserve looking as inert as an empty one.
  *
  * Nothing is hover-gated. Both figures and the action are on screen.
  */
@@ -56,10 +56,6 @@ const INNER_PAD = 5;
  *  not there and one is money doing nothing, and neither should read as solidly
  *  as the stretch that is actually covering the reserve. Only that middle
  *  stretch stays a solid fill. */
-/** One weight for every stretch. A solid green beside two faded dashes read as a
- *  different kind of thing rather than as the same bar in three states (user,
- *  260805). */
-const STRETCH_ALPHA = 0.55;
 const dashed = (color: string) =>
   `repeating-linear-gradient(45deg, ${color} 0 2px, transparent 2px 7px)`;
 const MISSING = dashed(SHORT);
@@ -175,7 +171,6 @@ export function ReserveLevelBar({
                 // then behind the outline's right edge as well as its left.
                 width: stretch(covered, INNER_PAD * (missing === 0 ? 2 : 1)),
                 background: TARGET,
-                opacity: STRETCH_ALPHA,
                 borderTopRightRadius: surplus > 0 ? 0 : 9999,
                 borderBottomRightRadius: surplus > 0 ? 0 : 9999,
               }}
@@ -191,7 +186,6 @@ export function ReserveLevelBar({
                 // already given back the left one.
                 width: stretch(missing, INNER_PAD),
                 background: MISSING,
-                opacity: STRETCH_ALPHA,
               }}
             />
           )}
@@ -207,7 +201,6 @@ export function ReserveLevelBar({
                 marginLeft: INNER_PAD,
                 width: width(surplus),
                 background: IDLE,
-                opacity: STRETCH_ALPHA,
                 borderTopLeftRadius: covered > 0 ? 0 : 9999,
                 borderBottomLeftRadius: covered > 0 ? 0 : 9999,
               }}
