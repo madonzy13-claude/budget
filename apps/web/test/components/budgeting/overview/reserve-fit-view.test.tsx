@@ -177,6 +177,7 @@ const view = (onSave = vi.fn(), onRebalance = vi.fn(async () => 0)) => {
       onSave={onSave}
       onRebalance={onRebalance}
       format={(c: number) => `${Math.round(c / 100)} zl`}
+      formatExact={(c: number) => `${(c / 100).toFixed(2)} zl`}
     />,
   );
   return onSave;

@@ -54,7 +54,10 @@ const ROWS = [
   },
 ];
 
-const format = (c: number) => `${Math.round(c / 100)} zl`;
+// The dialog is handed an EXACT formatter, not the chart's rounded one: a
+// target typed as 661.63 next to a current of "662 zł" reads as a mismatch that
+// isn't there (user screenshot, 260805).
+const format = (c: number) => `${(c / 100).toFixed(2)} zl`;
 
 async function open(
   onRebalance: (id: string, cents: number) => Promise<number> = vi.fn(
@@ -113,8 +116,45 @@ describe("ReserveRebalance", () => {
     await open();
     expect(
       screen.getByTestId("reserve-rebalance-current-car").textContent,
-    ).toBe("1000 zl");
+    ).toBe("1000.00 zl");
     expect(target("car").value).toBe("5000");
+  });
+
+  // The figure on the right is the MOVE, not the gap: what pressing the button
+  // would do to the reserve. So it is positive when money goes IN, whichever
+  // way the chart's own bar points (user, 260805).
+  it("reads the money going in as a plus", async () => {
+    await open();
+    // Car holds 1,000 and needs 5,000 — the press puts 4,000 in.
+    expect(screen.getByTestId("reserve-rebalance-move-car").textContent).toBe(
+      "+4000.00 zl",
+    );
+  });
+
+  it("reads the money coming out as a minus", async () => {
+    await open();
+    // Sport holds 4,600 and needs none — the press takes all of it back.
+    expect(screen.getByTestId("reserve-rebalance-move-sport").textContent).toBe(
+      "−4600.00 zl",
+    );
+  });
+
+  it("leaves a settled reserve's figure unsigned", async () => {
+    await open();
+    expect(screen.getByTestId("reserve-rebalance-move-food").textContent).toBe(
+      "0.00 zl",
+    );
+  });
+
+  // Adding is red and taking back is amber — the row's own band colour, so the
+  // sign and the colour cannot tell different stories.
+  it("keeps the move in the row's own colour", async () => {
+    await open();
+    const move = (id: string) =>
+      screen.getByTestId(`reserve-rebalance-move-${id}`).style.color;
+    expect(move("car")).toBe(reserveFitColor(-80));
+    expect(move("sport")).toBe(reserveFitColor(100));
+    expect(move("car")).not.toBe(move("sport"));
   });
 
   // "If current and Target value are same, but it wasn't rebalanced — just make
@@ -138,7 +178,7 @@ describe("ReserveRebalance", () => {
     // The current value follows the move, so the row reads as done.
     expect(
       screen.getByTestId("reserve-rebalance-current-car").textContent,
-    ).toBe("5000 zl");
+    ).toBe("5000.00 zl");
   });
 
   // The engine can settle BELOW the typed target when the raise covered this
@@ -150,7 +190,7 @@ describe("ReserveRebalance", () => {
     await waitFor(() =>
       expect(
         screen.getByTestId("reserve-rebalance-current-car").textContent,
-      ).toBe("3200 zl"),
+      ).toBe("3200.00 zl"),
     );
   });
 
@@ -162,7 +202,7 @@ describe("ReserveRebalance", () => {
     await waitFor(() =>
       expect(
         screen.getByTestId("reserve-rebalance-covered-car").textContent,
-      ).toContain("1800 zl"),
+      ).toContain("1800.00 zl"),
     );
   });
 
@@ -225,7 +265,7 @@ describe("ReserveRebalance", () => {
     );
     expect(
       screen.getByTestId("reserve-rebalance-current-car").textContent,
-    ).toBe("1000 zl");
+    ).toBe("1000.00 zl");
   });
 
   it("takes a comma as readily as a dot", async () => {

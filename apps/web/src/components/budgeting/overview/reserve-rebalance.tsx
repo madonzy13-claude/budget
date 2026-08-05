@@ -173,7 +173,7 @@ export function ReserveRebalance({
     const band = rebalanceBand(row.currentCents, row.targetCents);
     const color = reserveFitColor(rebalanceRowPct(row));
     const { kind, disabled } = rebalanceButton(row);
-    const gap = row.currentCents - row.targetCents;
+    const move = row.targetCents - row.currentCents;
     return (
       <li
         key={row.categoryId}
@@ -219,10 +219,15 @@ export function ReserveRebalance({
             )}
           </Button>
         </div>
-        <div className="flex items-center gap-2">
+        {/* A GRID, not a row of flex items: the reserves hold wildly different
+            amounts, and sizing the first cell to its own text stepped every
+            target field along by however wide that row's figure happened to be
+            (user screenshot, 260805). Equal columns put every field, and every
+            arrow, on one line down the dialog. */}
+        <div className="grid grid-cols-[1fr_auto_6.5rem_1fr] items-center gap-2">
           <span
             data-testid={`reserve-rebalance-current-${row.categoryId}`}
-            className="num shrink-0 text-caption text-[var(--muted-foreground)]"
+            className="num truncate text-right text-caption text-[var(--muted-foreground)]"
           >
             {format(row.currentCents)}
           </span>
@@ -247,17 +252,21 @@ export function ReserveRebalance({
               if (cents !== null)
                 setTargets((g) => ({ ...g, [row.categoryId]: cents }));
             }}
-            className="h-8 w-24 min-w-0 text-right text-num-sm"
+            className="h-8 w-full min-w-0 text-right text-num-sm"
           />
-          {/* The chart's own figure, in the chart's own colour — the reason
-              this row sits where it does in the queue. */}
+          {/* The MOVE, not the gap: what the button would do to this reserve.
+              So it reads + when money goes IN and − when it comes back out —
+              the opposite sign to the chart's bar, which measures how far the
+              buffer is from where it should be (user, 260805). The colour is
+              the row's own, so sign and colour cannot disagree: adding is red
+              because the buffer is short, taking back is amber. */}
           <span
-            data-testid={`reserve-rebalance-gap-${row.categoryId}`}
-            className="num ml-auto shrink-0 text-caption"
+            data-testid={`reserve-rebalance-move-${row.categoryId}`}
+            className="num truncate text-right text-caption"
             style={{ color }}
           >
-            {gap > 0 ? "+" : gap < 0 ? "−" : ""}
-            {format(Math.abs(gap))}
+            {move > 0 ? "+" : move < 0 ? "−" : ""}
+            {format(Math.abs(move))}
           </span>
         </div>
         {covered[row.categoryId] !== undefined && (

@@ -28,7 +28,7 @@ import { useUpdateReserveAdjustment } from "@/hooks/use-update-reserve-adjustmen
 import { ReserveFitView } from "./reserve-fit-view";
 import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { useCategories } from "@/hooks/use-budget-data";
-import { centsToRounded } from "@/lib/cents-format";
+import { centsToRounded, centsToDisplayCompact } from "@/lib/cents-format";
 import { hexForColorKey } from "@/lib/category-colors";
 import type { OverviewRange } from "@/lib/overview-range";
 
@@ -87,6 +87,11 @@ export function OverspentReservesSection({
   const ccy = data?.currency ?? "USD";
   const fmtTooltip = (n: number) =>
     centsToRounded(BigInt(Math.round(n)), ccy, "en", true);
+  // Keeps the cents where there are any. The rebalance dialog needs them: its
+  // target field is editable to the cent, so rounding what the reserve holds
+  // beside it invents a difference (user screenshot, 260805).
+  const fmtExact = (n: number) =>
+    centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en", true);
   const BAR_BLUE = "var(--chart-bar-1)";
 
   const balanceSlices = reserveBalanceSlices(data?.reserves_by_category ?? []);
@@ -138,6 +143,7 @@ export function OverspentReservesSection({
                 <ReserveFitView
                   data={fit.data}
                   format={fmtTooltip}
+                  formatExact={fmtExact}
                   onSave={(delta) => saveExclusions.mutate(delta)}
                   onRebalance={onRebalance}
                   scale={fitScale}

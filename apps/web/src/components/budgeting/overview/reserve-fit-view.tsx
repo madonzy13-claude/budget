@@ -42,6 +42,7 @@ export function ReserveFitView({
   onSave,
   onRebalance,
   format,
+  formatExact,
   scale = "pct",
   scaleSwitch,
 }: {
@@ -52,6 +53,11 @@ export function ReserveFitView({
    *  server settled on. Drives the rebalance dialog (260805). */
   onRebalance: (categoryId: string, targetCents: number) => Promise<number>;
   format: (cents: number) => string;
+  /** Money to the cent. The chart rounds — on a bar that is the right call —
+   *  but the rebalance dialog puts an editable "661.63" beside what the reserve
+   *  holds, and a rounded "662 zł" next to it reads as a mismatch that is not
+   *  there (user screenshot, 260805). */
+  formatExact: (cents: number) => string;
   /** Percent of what the history asked for, or the money itself (260804). */
   scale?: "pct" | "amount";
   /** The switch, rendered by the section so it sits in the chart's own header. */
@@ -110,7 +116,7 @@ export function ReserveFitView({
               neededCents: r.neededCents,
             }))}
             onRebalance={onRebalance}
-            format={format}
+            format={formatExact}
           />
         </div>
         <div

@@ -213,6 +213,33 @@ Then(
 );
 
 Then(
+  "the rebalance target fields all share one left edge",
+  async ({ page }) => {
+    const fields = page.locator('[data-testid^="reserve-rebalance-target-"]');
+    const count = await fields.count();
+    // Two rows at least, or the assertion cannot fail.
+    expect(count).toBeGreaterThan(1);
+    const lefts: number[] = [];
+    for (let i = 0; i < count; i++) {
+      const box = await fields.nth(i).boundingBox();
+      if (box) lefts.push(Math.round(box.x));
+    }
+    expect(new Set(lefts).size).toBe(1);
+  },
+);
+
+Then(
+  /^the rebalance figure for "(.+?)" reads "(.)"$/,
+  async ({ page }, name: string, sign: string) => {
+    const row = new OverviewPo(page).rebalanceRow(name);
+    const text = await row
+      .locator('[data-testid^="reserve-rebalance-move-"]')
+      .innerText();
+    expect(text.startsWith(sign)).toBe(true);
+  },
+);
+
+Then(
   /^the reserve ledger for "(.+?)" holds a delta of (-?\d+) cents$/,
   async ({ freshUser }, name: string, deltaCents: string) => {
     const catId = await categoryId(freshUser.budgetId, name);
