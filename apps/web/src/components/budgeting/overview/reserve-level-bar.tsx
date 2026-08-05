@@ -35,6 +35,9 @@ import { useTranslations } from "next-intl";
 const COVERED = "var(--trading-up)";
 const SURPLUS = "var(--primary)";
 const SHORT = "var(--trading-down)";
+/** Breathing room between the outline and the bar it contains, in px. */
+const INNER_PAD = 3;
+
 /** Coarse 45° dashes — dense hatching shimmers, and this is background. */
 const MISSING = `repeating-linear-gradient(45deg, ${SHORT} 0 2px, transparent 2px 7px)`;
 
@@ -116,7 +119,15 @@ export function ReserveLevelBar({
         )}
         {/* What is actually held — thinner, centred, and free to run past the
             outline's right edge when there is more than the target asked for. */}
-        <div className="absolute inset-x-0 top-1/2 flex h-1.5 -translate-y-1/2">
+        {/* Inset so the bar sits INSIDE the outline rather than welding itself
+            to the border — touching edges read as one shape. At a full outline
+            (the short case) this is exactly the gap at both ends; past it, the
+            boundary is a colour change anyway. */}
+        <div
+          data-testid={`${testId}-inner`}
+          className="absolute top-1/2 flex h-1.5 -translate-y-1/2"
+          style={{ left: INNER_PAD, right: INNER_PAD }}
+        >
           {covered > 0 && (
             <div
               data-testid={`${testId}-covered`}

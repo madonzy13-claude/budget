@@ -57,6 +57,15 @@ const pctOf = (testId: string, prop: "width" | "left") =>
   parseFloat(screen.getByTestId(testId).style[prop]);
 
 describe("ReserveLevelBar", () => {
+  // The held bar should sit INSIDE the outline, not weld itself to the border —
+  // touching edges read as one shape (user, 260804).
+  it("keeps the held bar clear of the outline's edges", () => {
+    setup(3000, 6000);
+    const inner = screen.getByTestId("reserve-bar-inner");
+    expect(parseFloat(inner.style.left)).toBeGreaterThan(0);
+    expect(parseFloat(inner.style.right)).toBeGreaterThan(0);
+  });
+
   it("outlines what the history asked for", () => {
     setup(9000, 3000);
     // Held sets the scale here, so the target box spans a third of the track.
