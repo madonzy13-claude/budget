@@ -37,13 +37,17 @@ async function withBudgetGuc(
 
 async function budgetCurrency(budgetId: string): Promise<string> {
   let ccy = "USD";
-  await withBudgetGuc(budgetId, "00000000-0000-0000-0000-000000000001", async (c) => {
-    const r = await c.query<{ default_currency: string }>(
-      `SELECT default_currency FROM tenancy.budgets WHERE id = $1::uuid`,
-      [budgetId],
-    );
-    ccy = r.rows[0]?.default_currency ?? "USD";
-  });
+  await withBudgetGuc(
+    budgetId,
+    "00000000-0000-0000-0000-000000000001",
+    async (c) => {
+      const r = await c.query<{ default_currency: string }>(
+        `SELECT default_currency FROM tenancy.budgets WHERE id = $1::uuid`,
+        [budgetId],
+      );
+      ccy = r.rows[0]?.default_currency ?? "USD";
+    },
+  );
   return ccy;
 }
 
@@ -95,9 +99,7 @@ Then(
 );
 
 Then("the Investments column shows an overinvested row", async ({ page }) => {
-  await expect(
-    new InvestmentCategoryPo(page).overinvestedRow(),
-  ).toBeVisible();
+  await expect(new InvestmentCategoryPo(page).overinvestedRow()).toBeVisible();
 });
 
 Then("the smart limit option is disabled", async ({ page }) => {
@@ -121,7 +123,13 @@ Then(
     await expect
       .poll(async () => {
         const txt = (await po.plannedCell().textContent()) ?? "";
-        return txt.replace(/\D/g, "");
+        // The row reads `spent / limit`, so stripping every non-digit from the
+        // whole cell glues the two together — "0 / 1500" became "01500". Only
+        // the limit is under test here; take the side after the slash.
+        const limit = txt.includes("/")
+          ? txt.slice(txt.lastIndexOf("/") + 1)
+          : txt;
+        return limit.replace(/\D/g, "");
       })
       .toBe(expected);
   },

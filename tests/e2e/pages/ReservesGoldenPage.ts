@@ -469,10 +469,13 @@ export class ReservesGoldenPage {
         this.spendings.columnHeaderRow(name, "reserves-used"),
         `${where} reserves-used`,
       ).toHaveText(fmtMajor(cells.used), { timeout: 10000 });
-      await expect(
-        this.spendings.columnHeaderRow(name, "balance"),
-        `${where} balance/left`,
-      ).toHaveText(fmtMajor(cells.left), { timeout: 10000 });
+      // The "left" row is gone from the grid (260806): it repeated the figure
+      // already above it, so the row now reads `spent / limit` instead. There
+      // is no longer a cell showing what remains, so there is nothing to
+      // assert — and `limit - left` would not reconstruct spent anyway, since
+      // an overspent month pins left at 0 while spent runs past the limit.
+      // cells.left stays in the fixture as the golden table's own record.
+      // overspent and reserves-used above still cover this row's behaviour.
     }
   }
 

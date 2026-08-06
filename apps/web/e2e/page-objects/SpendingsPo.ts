@@ -169,24 +169,28 @@ export class SpendingsPo {
   }
 
   /**
-   * Row 2 "planned" label cell — a NON-name header row cell. Clicking it
+   * Row 2 "limit used" label cell — a NON-name header row cell. Clicking it
    * toggles the column-wide action reveal (260611-vuo FEATURE3).
-   * EN catalog value: grid.header.row2.planned = "planned".
+   * EN catalog value: grid.header.row2.limitUsed = "limit used" (was
+   * "planned" until the row started showing spent-against-limit, 260806).
    */
   columnPlannedCell(categoryName: string): Locator {
-    return this.columnHeader(categoryName).getByText("planned", {
+    return this.columnHeader(categoryName).getByText("limit used", {
       exact: true,
     });
   }
 
   /**
-   * The bare planned amount in row 2 (centsToBare format, e.g. 50000 cents
-   * → "500"). Exact-match keeps it from colliding with other row values.
+   * The limit in row 2. The row reads `spent / limit` across two spans, so the
+   * limit's own span carries the slash — " / 500", never a bare "500". Scoped
+   * to the row's testid and matched on substring: an exact match on the whole
+   * row would have to spell the spent side too, which is what the assertion is
+   * deliberately not about.
    */
   columnPlannedAmount(categoryName: string, bareAmount: string): Locator {
-    return this.columnHeader(categoryName).getByText(bareAmount, {
-      exact: true,
-    });
+    return this.columnHeader(categoryName)
+      .getByTestId(`column-header-${categoryName.toLowerCase()}-planned`)
+      .filter({ hasText: `/ ${bareAmount}` });
   }
 
   /** The category edit slider sheet. */
