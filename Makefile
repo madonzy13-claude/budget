@@ -11,7 +11,7 @@ COMPOSE := docker compose --env-file .env $(ENV_FILE_LOCAL)
 # warnings on every command because those secrets live in Infisical, not .env.
 INFISICAL := infisical run --env=$(ENV) --
 
-.PHONY: dev dev-build stop down destroy logs ps build restart \
+.PHONY: dev dev-build build-% stop down destroy logs ps build restart \
         migrate seed shell-db \
         test test-watch test-e2e test-clean ci-gate \
         lint typecheck fmt \
@@ -24,6 +24,17 @@ dev: ## Start full stack (secrets injected from Infisical)
 
 dev-build: ## Build images then start
 	$(INFISICAL) $(COMPOSE) up --build -d
+
+# Rebuild + restart ONE service without touching the rest of the stack. Use this
+# rather than a bare `docker compose build <svc>`: the web bundle INLINES
+# NEXT_PUBLIC_VAPID_PUBLIC_KEY at BUILD time, so a build without Infisical in
+# front of it silently ships an image where push notifications cannot be turned
+# on at all — no error, just a dead toggle (hit twice, 260803 + 260806). The
+# guard below fails loudly instead of shipping that.
+build-%: ## Rebuild + recreate ONE service with secrets injected (e.g. make build-web)
+	@if [ "$*" = "web" ]; then 		$(INFISICAL) sh -c 'test -n "$$NEXT_PUBLIC_VAPID_PUBLIC_KEY"' 			|| { echo "ERROR: NEXT_PUBLIC_VAPID_PUBLIC_KEY is empty — the web bundle would ship without push. Check Infisical."; exit 1; }; 	fi
+	$(INFISICAL) $(COMPOSE) build $*
+	$(INFISICAL) $(COMPOSE) up -d --no-deps --force-recreate $*
 
 stop: ## Stop containers, preserve volumes
 	$(INFISICAL) $(COMPOSE) stop

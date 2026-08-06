@@ -131,3 +131,28 @@ describe("usePrefetchBudgetTabs (tiered first-open prefetch)", () => {
     expect(client.getQueryData(["categories-lite", BUDGET_ID])).toBeDefined();
   });
 });
+
+// 260806 (user): "are you also preloading the all-budgets page data even when
+// the user didn't visit it?" — no. That page belongs to no single budget, so
+// nothing warmed it: open a budget, lose the network, tap through to the
+// switcher and the aggregate view had never been fetched. It rides the deferred
+// tier now, behind the tab drivers that are actually on the critical path.
+it("warms the all-budgets aggregate too, after the tab drivers", async () => {
+  // `calls` is module-level and accumulates across the tests above.
+  calls.length = 0;
+  const qc = makeClient();
+  renderHook(() => usePrefetchBudgetTabs(BUDGET_ID), {
+    wrapper: ({ children }) => (
+      <TestQueryProvider client={qc}>{children}</TestQueryProvider>
+    ),
+  });
+
+  // Still on the critical path — the aggregate must NOT be in the first burst.
+  expect(calls.some((p) => p.includes("/budgets/aggregate"))).toBe(false);
+
+  releasePriority();
+  await vi.waitFor(() =>
+    expect(calls.some((p) => p.includes("/budgets/aggregate"))).toBe(true),
+  );
+  expect(qc.getQueryData(["budgets", "aggregate"])).toBeDefined();
+});

@@ -13,6 +13,7 @@ import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DateInput } from "@/components/budgeting/fields/date-input";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
+import { useConnectivity } from "@/components/common/connectivity-provider";
 import {
   type OverviewRange,
   type RangePreset,
@@ -44,6 +45,12 @@ export function RangeSelector({
 }) {
   const t = useTranslations("bdp.tab.overview.range");
   const tz = useUserTimezone();
+  // The persisted cache only ever holds the range that was last looked at, so
+  // switching range with no way to fetch would answer with the numbers for a
+  // DIFFERENT window — silently wrong, which is worse than not answering at all
+  // (user, 260806). The strip locks until the link is back, and says why.
+  const { degraded, reason } = useConnectivity();
+  const locked = degraded;
   const isCustom = value.preset === "custom";
 
   // Only claim the finger when there is a horizontal swipe worth protecting.
@@ -69,7 +76,7 @@ export function RangeSelector({
   // disabled arrow rather than one that quietly does nothing.
   const step = (direction: -1 | 1) => {
     const label = direction < 0 ? t("previous") : t("next");
-    const disabled = !canShiftRange(value, direction, tz);
+    const disabled = locked || !canShiftRange(value, direction, tz);
     const Icon = direction < 0 ? ChevronLeft : ChevronRight;
     return (
       <button
@@ -98,6 +105,7 @@ export function RangeSelector({
       type="button"
       onClick={onClick}
       aria-pressed={active}
+      disabled={locked}
       className={cn(
         // Tighter on a phone so the whole row — arrows included — fits without
         // scrolling; roomier once there is space for it.
@@ -105,6 +113,10 @@ export function RangeSelector({
         active
           ? "border-[var(--primary)] text-[var(--body-on-dark)]"
           : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]",
+        // Locked: dimmed but still legible — the member has to be able to read
+        // which range they are looking at, which is the whole reason the strip
+        // stays on screen (260806).
+        locked && "cursor-not-allowed opacity-40 hover:text-inherit",
       )}
     >
       {label}
@@ -113,6 +125,14 @@ export function RangeSelector({
 
   return (
     <div className="flex flex-col gap-2">
+      {locked && (
+        <p
+          data-testid="range-locked"
+          className="text-center text-caption text-[var(--muted-foreground)]"
+        >
+          {t(reason === "server-down" ? "lockedServer" : "lockedOffline")}
+        </p>
+      )}
       {/* The arrows sit OUTSIDE the scroller: inside it they scrolled off the
           edge of a phone and the user never saw them (260802 report). */}
       <div className="flex items-center gap-1">

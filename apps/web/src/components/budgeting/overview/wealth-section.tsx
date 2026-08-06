@@ -129,6 +129,11 @@ export function WealthSection({
   // Investments view now STACKS contributions + profit, so we always fetch the
   // TOTAL (incl) series here + a SECOND market-only (excl-contributions) series
   // below; profit = excl, contributions = incl − excl.
+  // The investments-only series is a second query on the heaviest endpoint, so
+  // it takes its own wave behind the totals one.
+  const warmExcl = useStagedWarmup(4, {
+    now: open && effectiveView === "investments",
+  });
   const { data, isPending, isError } = useOverviewWealth(budgetId, {
     from: range.from,
     to: range.to,
@@ -140,7 +145,10 @@ export function WealthSection({
     from: range.from,
     to: range.to,
     view: "investments",
-    enabled: warm && effectiveView === "investments",
+    // Warmed whichever view is showing (260806): gating this on the investments
+    // view meant switching to it cost a fetch, and offline it had nothing at
+    // all. A wave later than the totals series so the two do not go together.
+    enabled: warmExcl,
     net: true,
   });
   const exclByLabel = new Map<string, number>();

@@ -5,7 +5,15 @@
  * stops at today and says so by being disabled, and the all-time range has
  * nothing to walk.
  */
-import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  afterAll,
+  afterEach,
+} from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 vi.mock("next-intl", () => ({
@@ -14,6 +22,15 @@ vi.mock("next-intl", () => ({
 
 vi.mock("@/components/common/user-timezone-provider", () => ({
   useUserTimezone: () => "UTC",
+}));
+
+const link = { degraded: false, reason: "online" as string };
+vi.mock("@/components/common/connectivity-provider", () => ({
+  useConnectivity: () => ({
+    status: link.reason,
+    degraded: link.degraded,
+    reason: link.reason,
+  }),
 }));
 
 const { RangeSelector } =
@@ -89,5 +106,78 @@ describe("Range selector arrows", () => {
     expect(
       screen.getByTestId("overview-range-selector").className,
     ).not.toContain("touch-pan-x");
+  });
+});
+
+// 260806 (user): the cache only ever holds the range you were last looking at,
+// so letting someone switch range while the network is gone would answer with
+// data for a DIFFERENT window — silently wrong numbers, which is worse than not
+// answering. The strip locks instead, and says why.
+describe("Range selector — locked while the link is down", () => {
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-02T12:00:00Z"));
+  });
+  afterAll(() => vi.useRealTimers());
+  afterEach(() => {
+    link.degraded = false;
+    link.reason = "online";
+  });
+
+  it("leaves everything usable while the link is fine", () => {
+    render(<RangeSelector value={august} onChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "3M" })).not.toBeDisabled();
+    expect(screen.getByTestId("range-step-back")).not.toBeDisabled();
+    expect(screen.queryByTestId("range-locked")).toBeNull();
+  });
+
+  it("locks every preset when the device is offline", () => {
+    link.degraded = true;
+    link.reason = "offline";
+    render(<RangeSelector value={august} onChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "3M" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "all" })).toBeDisabled();
+  });
+
+  it("locks the step arrows too — they change the window just as much", () => {
+    link.degraded = true;
+    link.reason = "offline";
+    render(<RangeSelector value={august} onChange={vi.fn()} />);
+    expect(screen.getByTestId("range-step-back")).toBeDisabled();
+  });
+
+  it("locks when the server is unreachable, not just when the device is", () => {
+    link.degraded = true;
+    link.reason = "server-down";
+    render(<RangeSelector value={august} onChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "3M" })).toBeDisabled();
+  });
+
+  it("says why, rather than looking broken", () => {
+    link.degraded = true;
+    link.reason = "offline";
+    render(<RangeSelector value={august} onChange={vi.fn()} />);
+    expect(screen.getByTestId("range-locked")).toBeTruthy();
+  });
+
+  it("does not fire a change from a locked preset", () => {
+    link.degraded = true;
+    link.reason = "offline";
+    const onChange = vi.fn();
+    render(<RangeSelector value={august} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "3M" }));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  // The range that IS showing must stay legible — locking is not blanking.
+  it("keeps the current range readable while locked", () => {
+    link.degraded = true;
+    link.reason = "offline";
+    render(<RangeSelector value={august} onChange={vi.fn()} />);
+    // The active preset is still on screen and still marked active — locked is
+    // not the same as gone.
+    const active = screen.getByRole("button", { name: "1M" });
+    expect(active).toBeTruthy();
+    expect(active.getAttribute("aria-pressed")).toBe("true");
   });
 });
