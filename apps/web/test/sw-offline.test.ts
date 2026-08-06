@@ -76,7 +76,6 @@ describe("SW navigation strategy — cached routes paint immediately", () => {
       matchCache,
       cachePut,
       matchShell,
-      3_000,
       // ONLINE — this is the slow-link case, not the offline one.
       false,
     );
@@ -100,7 +99,6 @@ describe("SW navigation strategy — cached routes paint immediately", () => {
       matchCache,
       cachePut,
       vi.fn(),
-      3_000,
       false,
     );
 
@@ -121,7 +119,6 @@ describe("SW navigation strategy — cached routes paint immediately", () => {
       matchCache,
       cachePut,
       vi.fn(),
-      3_000,
       false,
     );
 
@@ -143,7 +140,6 @@ describe("SW navigation strategy — cached routes paint immediately", () => {
       matchCache,
       cachePut,
       vi.fn(),
-      3_000,
       false,
     );
     await new Promise((r) => setTimeout(r, 0));
@@ -164,7 +160,6 @@ describe("SW navigation strategy — cached routes paint immediately", () => {
       matchCache,
       cachePut,
       vi.fn(),
-      3_000,
       false,
     );
 
@@ -278,7 +273,6 @@ describe("SW navigation strategy (network-first-with-write → cached doc → ap
       matchCache,
       cachePut,
       matchShell,
-      3_000,
       true, // isOffline
     );
 
@@ -300,7 +294,6 @@ describe("SW navigation strategy (network-first-with-write → cached doc → ap
       matchCache,
       cachePut,
       matchShell,
-      3_000,
       true, // isOffline
     );
 

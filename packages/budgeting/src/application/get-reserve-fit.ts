@@ -65,6 +65,13 @@ export interface GetReserveFitDeps {
       amount_cents: bigint;
       cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
       yearly_month: number | null;
+      /** The rule's own note, and the category it points at. Both optional:
+       *  a rule with NO category has no category name, which is exactly the
+       *  case `unassigned_recurring` reports. The repo has always selected
+       *  them (overview-repo `rr.note AS rule_name`, `c.name AS name`); this
+       *  type simply never said so, and the read below did not compile. */
+      rule_name?: string | null;
+      name?: string | null;
     }[]
   >;
   now?: () => Date;

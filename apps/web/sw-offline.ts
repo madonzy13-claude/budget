@@ -31,7 +31,8 @@ export const SUPPORTED_LOCALES = ["en", "pl", "uk"] as const;
  * Navigation strategy: network-first WITH WRITE, fall back to the cached real
  * document, then to the precached app-shell.
  *
- * Try the network with a timeout.
+ * A route we already hold is served from cache at once (see below); otherwise
+ * we go to the network.
  *   - A real 2xx is cached (cachePut) before returning so the route replays
  *     offline. 3xx/4xx pass through uncached (auth redirects, 404s stay correct).
  *   - A 5xx (server up but erroring) or a thrown fetch (offline / DNS / connect-
@@ -45,7 +46,6 @@ export async function handleNavigationRequest(
   matchCache: (req: Request) => Promise<Response | undefined>,
   cachePut: (req: Request, res: Response) => Promise<void> | void,
   matchShell: () => Promise<Response | undefined>,
-  timeoutMs = 3_000,
   isOffline = false,
 ): Promise<Response> {
   // CACHE-FIRST for a route we already hold (260806 user request: "all pages
