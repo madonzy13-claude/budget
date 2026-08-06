@@ -559,11 +559,14 @@ Then(
   },
 );
 
+// The header's "left" row is gone — the grid now shows "limit used" as
+// `spent / limit`, which carries the same information one subtraction away. The
+// step follows the UI: it asserts what was SPENT, not what remains.
 Then(
-  "I see the column {string} header balance shows {string}",
+  "I see the column {string} header limit used shows {string}",
   async ({ page }, catName: string, value: string) => {
     const spendings = new SpendingsPage(page);
-    await expect(spendings.columnHeaderRow(catName, "balance")).toContainText(
+    await expect(spendings.columnHeaderRow(catName, "planned")).toContainText(
       value,
       { timeout: 10000 },
     );
@@ -700,11 +703,9 @@ When(
   async ({ page, scenarioCtx }, fromCatName: string, toCatName: string) => {
     const budgetId =
       ((scenarioCtx as Record<string, unknown>)["activeBudgetId"] as
-        | string
-        | undefined) ??
+        string | undefined) ??
       ((scenarioCtx as Record<string, unknown>)["workspaceId"] as
-        | string
-        | undefined);
+        string | undefined);
     if (!budgetId)
       throw new Error(
         "No active budget; run 'I open the Spendings tab on a budget' first.",
@@ -798,11 +799,9 @@ When(
   async ({ page, scenarioCtx }, catName: string, plannedStr: string) => {
     const budgetId =
       ((scenarioCtx as Record<string, unknown>)["activeBudgetId"] as
-        | string
-        | undefined) ??
+        string | undefined) ??
       ((scenarioCtx as Record<string, unknown>)["workspaceId"] as
-        | string
-        | undefined);
+        string | undefined);
     if (!budgetId)
       throw new Error(
         "No active budget; run 'I open the Spendings tab on a budget' first.",

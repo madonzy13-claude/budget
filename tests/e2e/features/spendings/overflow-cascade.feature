@@ -8,7 +8,7 @@ Feature: Overflow cascade when reserve exhausted (RSCM-04)
     And I type "90.00" into the quick-entry input for category "Groceries"
     And I press Enter in the quick-entry input
     Then I see a transaction row "90" in the "Groceries" column
-    And I see the column "Groceries" header balance shows "10"
+    And I see the column "Groceries" header limit used shows "90"
     When I type "50.00" into the quick-entry input for category "Groceries"
     And I press Enter in the quick-entry input
     Then I see a transaction row "50" in the "Groceries" column

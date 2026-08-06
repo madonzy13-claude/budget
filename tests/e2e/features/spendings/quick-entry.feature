@@ -8,4 +8,4 @@ Feature: Quick-entry expense from Spendings grid
     And I type "12.50" into the quick-entry input for category "Groceries"
     And I press Enter in the quick-entry input
     Then I see a transaction row "12.50" in the "Groceries" column
-    And I see the column "Groceries" header balance shows "187.50"
+    And I see the column "Groceries" header limit used shows "12.50"

@@ -9,4 +9,4 @@ Feature: Capture a transaction from the Spendings grid
     And I press Enter in the quick-entry input
     Then I see a transaction row "50.00" in the "Groceries" column
     # centsToBare trims trailing .00 by design (UAT-PH5-T3-29).
-    And I see the column "Groceries" header balance shows "150"
+    And I see the column "Groceries" header limit used shows "50"

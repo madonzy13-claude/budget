@@ -8,4 +8,4 @@ Feature: Real-time reserve deduction on quick-entry (RSCM-03)
     And I type "95.00" into the quick-entry input for category "Groceries"
     And I press Enter in the quick-entry input
     Then I see a transaction row "95" in the "Groceries" column
-    And I see the column "Groceries" header balance shows "5"
+    And I see the column "Groceries" header limit used shows "95"
