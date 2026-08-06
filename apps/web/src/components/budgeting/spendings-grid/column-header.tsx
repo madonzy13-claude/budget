@@ -66,7 +66,6 @@ export function ColumnHeader({
   const locale = useLocale();
   const { revealed, setRevealed, ref } = useRevealActions();
 
-  const balanceCents = BigInt(summary.balanceCents);
   const overspentCents = BigInt(summary.overspentCents);
   const reserveUsedCents = BigInt(summary.reserveUsedCents);
   // When the category is excluded from reserves NOW, the "available" side is a dash.
