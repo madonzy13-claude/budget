@@ -67,6 +67,13 @@ export async function insertIdempotency(
       ${row.responseStatus}, ${JSON.stringify(row.responseBody)}::jsonb,
       now() + interval '24 hours'
     )
+    -- An UPSERT because the key is RESERVED before the handler runs (see
+    -- reserveIdempotency): this call fills in the real response on the row that
+    -- reservation already created.
+    ON CONFLICT (scope_hash) DO UPDATE
+      SET response_status = EXCLUDED.response_status,
+          response_body_jsonb = EXCLUDED.response_body_jsonb,
+          expires_at = EXCLUDED.expires_at
   `);
 }
 
@@ -81,4 +88,48 @@ export async function deleteExpiredIdempotency(tx: Tx): Promise<number> {
     sql`DELETE FROM shared_kernel.idempotency_keys WHERE expires_at < now()`,
   );
   return r.rowCount ?? 0;
+}
+
+/**
+ * Claim a scope_hash BEFORE the handler runs, so two requests carrying the same
+ * key cannot both execute it.
+ *
+ * The lookup-then-insert pair around the handler is not enough on its own: two
+ * concurrent duplicates both miss the lookup, both run the handler, and both
+ * write. A service worker re-issuing a POST produced exactly that, and one
+ * transaction was recorded twice (260806).
+ *
+ * Returns true when this request is the one that claimed the key, false when
+ * another already holds it — in which case the caller waits for that one's
+ * response rather than repeating its work. The reservation row carries status 0
+ * until the real response replaces it.
+ */
+export async function reserveIdempotency(
+  tx: Tx,
+  row: {
+    scopeHash: string;
+    bodyHash: string;
+    tenantId: string;
+    userId: string;
+    route: string;
+  },
+): Promise<boolean> {
+  const res = await tx.execute(sql`
+    INSERT INTO shared_kernel.idempotency_keys
+      (scope_hash, body_hash, tenant_id, user_id, route,
+       response_status, response_body_jsonb, expires_at)
+    VALUES (
+      ${row.scopeHash}, ${row.bodyHash}, ${row.tenantId}, ${row.userId}, ${row.route},
+      0, 'null'::jsonb, now() + interval '24 hours'
+    )
+    -- An EXPIRED row is nobody's claim any more, so take it over. Plain DO
+    -- NOTHING would leave a stale key permanently un-runnable.
+    ON CONFLICT (scope_hash) DO UPDATE
+      SET body_hash = EXCLUDED.body_hash,
+          response_status = 0,
+          response_body_jsonb = 'null'::jsonb,
+          expires_at = EXCLUDED.expires_at
+      WHERE shared_kernel.idempotency_keys.expires_at < now()
+  `);
+  return (res as { rowCount?: number }).rowCount !== 0;
 }

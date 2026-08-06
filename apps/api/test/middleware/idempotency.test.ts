@@ -62,6 +62,24 @@ function makeMockDeps(): IdempotencyDeps {
         expiresAt: row.expiresAt,
       };
     },
+    // Claims the key the way the real one does: first caller wins, and the row
+    // it leaves behind carries status 0 until the response replaces it.
+    reserveIdempotency: async (_tx: unknown, row: { scopeHash: string; bodyHash: string }) => {
+      const held = idempotencyStore.get(row.scopeHash);
+      // An expired claim is nobody's, so it can be taken over.
+      if (held && held.expiresAt >= new Date()) return false;
+      idempotencyStore.set(row.scopeHash, {
+        scopeHash: row.scopeHash,
+        bodyHash: row.bodyHash,
+        tenantId: "",
+        userId: "",
+        route: "",
+        responseStatus: 0,
+        responseBodyJsonb: null,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      });
+      return true;
+    },
     insertIdempotency: async (_tx, row) => {
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       idempotencyStore.set(row.scopeHash, {
@@ -438,5 +456,31 @@ describe("Idempotency — the context the real app actually provides", () => {
     // stored response, so no second transaction was written.
     expect(hits.count).toBe(1);
     expect(await second.json()).toEqual(await first.json());
+  });
+});
+
+// 260806: two duplicates arriving CONCURRENTLY both missed the lookup, both ran
+// the handler and both wrote — a service worker re-issuing a POST recorded one
+// transaction twice. The key is claimed before the handler now, so the loser
+// waits for the winner's response instead of repeating its work.
+describe("Idempotency — two duplicates racing each other", () => {
+  test("runs the handler once and answers both", async () => {
+    const { app, hits } = buildRealShapeApp("tenant-A", "user-A1");
+    const body = JSON.stringify({ amount: 18000, currency: "EUR" });
+    const send = () =>
+      app.request("/test/echo", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "Idempotency-Key": "raced-key",
+        },
+        body,
+      });
+
+    const [a, b] = await Promise.all([send(), send()]);
+
+    expect(hits.count).toBe(1);
+    expect(a.status).toBe(201);
+    expect(b.status).toBe(201);
   });
 });
