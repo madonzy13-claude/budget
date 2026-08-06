@@ -81,6 +81,33 @@ function makeMockDeps(): IdempotencyDeps {
 // ── Helper: build a test Hono app ─────────────────────────────────────────
 const echoSchema = z.object({ amount: z.number(), currency: z.string() });
 
+/**
+ * The context the REAL app produces (260806). tenantGuard sets `tenantIds` — an
+ * ARRAY, plural — and auth sets `session`; nothing anywhere sets the singular
+ * `tenantId`/`userId` the middleware was reading. So its own guard
+ * (`if (!tenantId || !userId) return next()`) short-circuited on every request
+ * and idempotency was never actually on: the shared_kernel.idempotency_keys
+ * table is empty in a live database, and a repeated POST writes a second
+ * financial row. The tests above kept passing because they seeded the shape the
+ * middleware wanted rather than the shape it gets.
+ */
+function buildRealShapeApp(tenantId: string, userId: string) {
+  const app = new Hono();
+  const hits = { count: 0 };
+  app.use(async (c, next) => {
+    c.set("tenantIds" as never, [tenantId] as never);
+    c.set("session" as never, { user: { id: userId } } as never);
+    await next();
+  });
+  app.use(createIdempotencyMiddleware(makeMockDeps()));
+  app.post("/test/echo", zValidator("json", echoSchema), (c) => {
+    hits.count += 1;
+    const body = c.req.valid("json");
+    return c.json({ ok: true, body }, 201);
+  });
+  return { app, hits };
+}
+
 function buildApp(tenantId: string, userId: string) {
   const app = new Hono();
 
@@ -385,5 +412,31 @@ describe("createIdempotencyMiddleware", () => {
 
     // No caching for GET — store should be empty
     expect(idempotencyStore.size).toBe(0);
+  });
+});
+
+describe("Idempotency — the context the real app actually provides", () => {
+  test("replays the first response instead of writing twice", async () => {
+    const { app, hits } = buildRealShapeApp("tenant-A", "user-A1");
+    const body = JSON.stringify({ amount: 18000, currency: "EUR" });
+    const send = () =>
+      app.request("/test/echo", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "Idempotency-Key": "same-key",
+        },
+        body,
+      });
+
+    const first = await send();
+    const second = await send();
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    // The point: the handler ran ONCE. The second request was answered from the
+    // stored response, so no second transaction was written.
+    expect(hits.count).toBe(1);
+    expect(await second.json()).toEqual(await first.json());
   });
 });

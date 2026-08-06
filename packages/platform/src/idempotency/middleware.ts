@@ -62,12 +62,26 @@ export function createIdempotencyMiddleware<
       return next();
     }
 
-    const tenantId = c.get("tenantId" as keyof E["Variables"]) as
-      | string
+    // The context the app ACTUALLY sets (260806): tenantGuard writes
+    // `tenantIds` — an ARRAY, plural — and auth writes `session`. Nothing
+    // anywhere sets the singular `tenantId`/`userId` this once read, so the
+    // guard below short-circuited on every request and idempotency was never
+    // on: shared_kernel.idempotency_keys is empty in a live database and a
+    // repeated POST writes a second financial row. The singular names are still
+    // accepted first, because that is what several tests and any future
+    // middleware that sets them would provide.
+    const tenantIds = c.get("tenantIds" as keyof E["Variables"]) as
+      | string[]
       | undefined;
-    const userId = c.get("userId" as keyof E["Variables"]) as
-      | string
+    const session = c.get("session" as keyof E["Variables"]) as
+      | { user?: { id?: string } }
       | undefined;
+    const tenantId =
+      (c.get("tenantId" as keyof E["Variables"]) as string | undefined) ??
+      tenantIds?.[0];
+    const userId =
+      (c.get("userId" as keyof E["Variables"]) as string | undefined) ??
+      session?.user?.id;
 
     // Pre-auth routes have no tenantId/userId — skip silently
     if (!tenantId || !userId) {

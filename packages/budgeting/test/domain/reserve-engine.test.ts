@@ -23,6 +23,9 @@ import {
 } from "../../src/domain/reserve-engine";
 
 const OPEN = "2026-06";
+/** A month that has already closed — its leftover accrued before any late
+ *  transaction arrived. */
+const CLOSED = "2026-05";
 const NAME: Record<"G" | "H", string> = { G: "Grocery", H: "Housing" };
 
 interface Row {
@@ -224,8 +227,8 @@ describe("reserveEngine — operations", () => {
   });
   const run = (events: ReserveEngineEvent[]) =>
     reserveEngine({ events, openMonth: OPEN, reservesEnabled: true });
-  const cell = (r: ReserveEngineResult, id: string) =>
-    r.cells.find((c) => c.categoryId === id && c.month === OPEN)!;
+  const cell = (r: ReserveEngineResult, id: string, month: string = OPEN) =>
+    r.cells.find((c) => c.categoryId === id && c.month === month)!;
 
   test("op1 — partial draw when Δ exceeds R (overspend remainder)", () => {
     // R=100, U=0; spend 250 over limit 100 → overage 150 → draw 100, R 0, U 100, overspent 50.
@@ -268,6 +271,53 @@ describe("reserveEngine — operations", () => {
     expect(r.states.get("c")!.reserveCents).toBe(12000n);
     expect(r.states.get("c")!.usedCents).toBe(8000n);
     expect(cell(r, "c").overspentCents).toBe(0n);
+  });
+
+  // 260806 user report: a transaction added to a PAST month came back entirely
+  // OVERSPENT — 450 against a 500 limit showed 450 over. A closed month must
+  // spend exactly like an open one: drain that month's limit first, then the
+  // reserve that was available to it, and only what is left over is overspent.
+  //
+  // What makes a closed month different is that its leftover was already
+  // accrued into R on the assumption nothing more would arrive. A late spend
+  // has to correct that accrual, not sit on top of it.
+  test("a spend added to a CLOSED month drains that month's limit first", () => {
+    // June closes with nothing spent → its whole 500 limit accrues. Then a 450
+    // spend arrives late: it fits inside June's own limit, so nothing is over
+    // and the accrual it consumed drops to the 50 that is genuinely left.
+    const r = run([
+      {
+        type: "setLimit",
+        categoryId: "c",
+        month: CLOSED,
+        normalCents: 50000n,
+        cushionCents: 50000n,
+      },
+      { type: "accrual", categoryId: "c", month: CLOSED },
+      { type: "spendDelta", categoryId: "c", month: CLOSED, deltaCents: 45000n },
+    ]);
+    expect(cell(r, "c", CLOSED).overspentCents).toBe(0n);
+    expect(cell(r, "c", CLOSED).overageCents).toBe(0n);
+    expect(r.states.get("c")!.reserveCents).toBe(5000n);
+  });
+
+  // …and a late spend that genuinely exceeds the closed month's limit draws the
+  // reserve it had, before anything counts as overspent.
+  test("a closed month's overspend draws its reserve before going over", () => {
+    const r = run([
+      {
+        type: "setLimit",
+        categoryId: "c",
+        month: CLOSED,
+        normalCents: 50000n,
+        cushionCents: 50000n,
+      },
+      { type: "accrual", categoryId: "c", month: CLOSED },
+      { type: "spendDelta", categoryId: "c", month: CLOSED, deltaCents: 60000n },
+    ]);
+    // 600 against a 500 limit → 100 over, covered by the 500 that had accrued.
+    expect(cell(r, "c", CLOSED).overageCents).toBe(10000n);
+    expect(cell(r, "c", CLOSED).overspentCents).toBe(0n);
   });
 
   // …and spending UNDER the limit must not touch the reserve at all.
