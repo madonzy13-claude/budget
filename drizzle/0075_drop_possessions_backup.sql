@@ -1,0 +1,21 @@
+-- Drop the possessions→wallets migration backup (260806).
+--
+-- 0072 moved every possession out of budgeting.investments and into
+-- budgeting.wallets, keeping a full copy in _possessions_to_wallets_backup as
+-- insurance. That move has since shipped and the possessions feature has been
+-- running off `wallets` for days, so the copy has done its job.
+--
+-- Keeping it is worse than losing it, for two reasons the tenant-leak gate is
+-- right to fail on:
+--
+--   * it carries tenant_id but has NO row-level security and NO policies, so
+--     app_role can read every household's possessions out of it — the one thing
+--     this schema's RLS exists to prevent;
+--   * account deletion does not cascade into it, so a household that asked to
+--     be forgotten would leave its possessions behind. The project promises
+--     GDPR right-to-delete.
+--
+-- The alternative — bolting FORCE RLS onto a backup nobody reads — would fix the
+-- first and not the second, and leave a duplicate of user data lying around for
+-- no one.
+DROP TABLE IF EXISTS budgeting._possessions_to_wallets_backup;

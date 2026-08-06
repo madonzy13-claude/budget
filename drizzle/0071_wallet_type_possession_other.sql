@@ -17,17 +17,24 @@
 -- added to an existing enum inside the transaction that added it, and the
 -- migrator runs every file in one transaction. A type created in the same
 -- transaction carries no such restriction.
-CREATE TYPE wallet_type_v2 AS ENUM (
+-- Every reference SCHEMA-QUALIFIED. The original type is budgeting.wallet_type
+-- (0012), and unqualified names resolve against whatever search_path the caller
+-- happens to carry: the dev migrator found it, a fresh CI database did not, and
+-- this file failed there with `type "wallet_type" does not exist` — taking the
+-- tenant-leak, compose-smoke and e2e jobs with it. Qualifying also keeps the new
+-- type in `budgeting` instead of quietly leaving it in `public`, which is where
+-- the unqualified CREATE had been putting it.
+CREATE TYPE budgeting.wallet_type_v2 AS ENUM (
   'SPENDINGS', 'CUSHION', 'RESERVE', 'POSSESSION', 'OTHER'
 );
 ALTER TABLE budgeting.wallets ALTER COLUMN wallet_type DROP DEFAULT;
 ALTER TABLE budgeting.wallets
-  ALTER COLUMN wallet_type TYPE wallet_type_v2
-  USING wallet_type::text::wallet_type_v2;
+  ALTER COLUMN wallet_type TYPE budgeting.wallet_type_v2
+  USING wallet_type::text::budgeting.wallet_type_v2;
 ALTER TABLE budgeting.wallets
-  ALTER COLUMN wallet_type SET DEFAULT 'SPENDINGS'::wallet_type_v2;
-DROP TYPE wallet_type;
-ALTER TYPE wallet_type_v2 RENAME TO wallet_type;
+  ALTER COLUMN wallet_type SET DEFAULT 'SPENDINGS'::budgeting.wallet_type_v2;
+DROP TYPE budgeting.wallet_type;
+ALTER TYPE budgeting.wallet_type_v2 RENAME TO wallet_type;
 
 -- The data move lives in 0072: these tables are FORCE RLS and the migrator
 -- role does not bypass it, so the move needs FORCE lifted for its duration.
