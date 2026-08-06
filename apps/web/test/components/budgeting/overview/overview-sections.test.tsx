@@ -7,7 +7,7 @@
  * exercises composition logic, not recharts rendering.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const { plannedMock, overspentMock, wealthMock } = vi.hoisted(() => ({
@@ -109,6 +109,7 @@ vi.mock("@/components/budgeting/charts/pie-chart", () => ({
 }));
 
 import { OverviewSections } from "@/components/budgeting/overview/overview-sections";
+import { WARMUP_WAVE_MS } from "@/hooks/use-staged-warmup";
 
 function renderSections(props: { amountPrivacyEnabled?: boolean } = {}) {
   return render(<OverviewSections budgetId="b1" {...props} />);
@@ -211,9 +212,10 @@ describe("OverviewSections", () => {
     expect(
       screen.queryByRole("button", { name: "sections.recurring" }),
     ).toBeNull();
-    // collapsed → no chart bodies, and the section hooks are disabled
+    // collapsed → no chart bodies. The DATA is another matter: since 260806 a
+    // collapsed section still warms in the background, so the reader never pays
+    // for opening one (see "warmed while still collapsed" below).
     expect(screen.queryByTestId("line-chart")).toBeNull();
-    expect(lastOpts(plannedMock).enabled).toBe(false);
   });
 
   // 260804: the recurring-by-month chart moved in under the planned pie, and
@@ -367,5 +369,55 @@ describe("charts that need a finished month", () => {
     await user.click(screen.getByText("sections.planned"));
     await user.click(screen.getByRole("button", { name: "3M" }));
     expect(screen.queryByTestId("overview-planned-needs-month")).toBeNull();
+  });
+});
+
+// 260806 (user request): a collapsed section used to fetch nothing, so opening
+// it cost a wait — and offline a section nobody had opened had nothing at all to
+// show. They warm in the background now, collapsed or not, one wave apart so the
+// burst stays off the first paint.
+describe("Overview sections — warmed while still collapsed", () => {
+  it("asks for a section's data before anyone opens it", async () => {
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        renderSections();
+      });
+      // Nothing is expanded, yet each driver is enabled as its wave lands.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(WARMUP_WAVE_MS * 4);
+      });
+      // The wealth section asks TWICE — the totals series and an
+      // investments-only one that stays off in capitalization view — so this
+      // looks for any enabled call rather than the last one.
+      const anyEnabled = (mock: ReturnType<typeof vi.fn>) =>
+        mock.mock.calls.some(
+          (c) => (c[1] as { enabled?: boolean } | undefined)?.enabled === true,
+        );
+      expect({
+        planned: lastOpts(plannedMock).enabled,
+        overspent: lastOpts(overspentMock).enabled,
+        wealth: anyEnabled(wealthMock),
+      }).toEqual({ planned: true, overspent: true, wealth: true });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // All at once is the burst that made the first pill tap janky (260804).
+  it("does not ask for all of them in the same breath", () => {
+    vi.useFakeTimers();
+    try {
+      renderSections();
+      // The first wave is up immediately; the heaviest one is still waiting.
+      expect(
+        wealthMock.mock.calls.some(
+          (c) => (c[1] as { enabled?: boolean } | undefined)?.enabled === true,
+        ),
+      ).toBe(false);
+      expect(lastOpts(plannedMock).enabled).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

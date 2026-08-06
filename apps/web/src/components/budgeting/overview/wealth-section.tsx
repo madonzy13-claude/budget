@@ -21,6 +21,7 @@ import {
   usePersistedSectionOpen,
   useBdpUiStore,
 } from "@/components/budgeting/bdp-ui-state";
+import { useStagedWarmup } from "@/hooks/use-staged-warmup";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { seriesGrowth } from "@/lib/series-growth";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
@@ -106,6 +107,9 @@ export function WealthSection({
   const tInvest = useTranslations("budget.investments");
   const locale = useLocale();
   const [open, toggleOpen] = usePersistedSectionOpen("wealth");
+  // Last wave: the wealth series is the heaviest query on the page, so it goes
+  // behind the others rather than in front of them (260806).
+  const warm = useStagedWarmup(3, { now: open });
   // View persists across pill navigation (the carousel unmounts this pane, so a
   // plain useState would reset to Capitalization on return). Backed by the shared
   // BdpUiStore ref like range / open-sections.
@@ -129,14 +133,14 @@ export function WealthSection({
     from: range.from,
     to: range.to,
     view: effectiveView,
-    enabled: open,
+    enabled: warm,
     net: false,
   });
   const exclQ = useOverviewWealth(budgetId, {
     from: range.from,
     to: range.to,
     view: "investments",
-    enabled: open && effectiveView === "investments",
+    enabled: warm && effectiveView === "investments",
     net: true,
   });
   const exclByLabel = new Map<string, number>();

@@ -30,6 +30,7 @@ import {
   usePersistedSectionOpen,
   useBdpUiStore,
 } from "@/components/budgeting/bdp-ui-state";
+import { useStagedWarmup } from "@/hooks/use-staged-warmup";
 import { CHART_THEME } from "@/components/budgeting/charts/chart-theme";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import {
@@ -215,6 +216,11 @@ export function PlannedSection({
   const t = useTranslations("bdp.tab.overview");
   const locale = useLocale();
   const [open, toggleOpen] = usePersistedSectionOpen("planned");
+  // Warm this section's data in the background whether or not it is open
+  // (260806): a collapsed section used to have nothing cached, so opening it
+  // cost a wait — and offline it had nothing to show at all. Waves keep the
+  // burst off the first paint; opening it skips the queue.
+  const warm = useStagedWarmup(1, { now: open });
   // Persist the selected category across pill navigation (the carousel unmounts
   // this pane, so a plain useState would reset to "All categories" on return).
   const store = useBdpUiStore();
@@ -279,7 +285,7 @@ export function PlannedSection({
   const fit = useReserveFit(budgetId, {
     from: range.from,
     to: range.to,
-    enabled: open,
+    enabled: warm,
   });
   const saveExclusions = useSaveReserveFitExclusions(budgetId);
   const oneOffCandidates: OneOffCandidate[] = (fit.data?.rows ?? []).flatMap(
@@ -304,7 +310,7 @@ export function PlannedSection({
     excludeCurrentMonth: canDropRunningMonth,
     // Wait for the member's stored pick: firing before it lands fetches the
     // unfiltered chart and then throws it away a moment later.
-    enabled: open && prefsLoaded,
+    enabled: warm && prefsLoaded,
   });
 
   // 260731: no needs/wants split → both series carry the same figure, and the

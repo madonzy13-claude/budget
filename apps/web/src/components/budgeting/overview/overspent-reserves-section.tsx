@@ -11,6 +11,7 @@
 import { useTranslations } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
+import { useStagedWarmup } from "@/hooks/use-staged-warmup";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { reserveBalanceSlices } from "@/lib/reserve-balance-slices";
 import { ChartNeedsCompletedMonth } from "./chart-needs-completed-month";
@@ -41,12 +42,15 @@ export function OverspentReservesSection({
 }) {
   const t = useTranslations("bdp.tab.overview");
   const [reservesOpen, toggleReserves] = usePersistedSectionOpen("reserves");
+  // Warmed in the background like the other sections (260806) — a wave behind
+  // Planned so the two do not compete for the wire.
+  const warm = useStagedWarmup(2, { now: reservesOpen });
 
   const categories = useCategories(budgetId).data ?? [];
   const { data, isPending, isError } = useOverviewOverspent(budgetId, {
     from: range.from,
     to: range.to,
-    enabled: reservesOpen,
+    enabled: warm,
   });
 
   // 260804: "is each reserve the right size?" — held against the deepest dip the
@@ -54,7 +58,7 @@ export function OverspentReservesSection({
   const fit = useReserveFit(budgetId, {
     from: range.from,
     to: range.to,
-    enabled: reservesOpen,
+    enabled: warm,
   });
   const saveExclusions = useSaveReserveFitExclusions(budgetId);
   // 260805: the fit chart says which buffers are the wrong size, so the move
