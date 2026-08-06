@@ -18,7 +18,14 @@ COPY packages/investments/package.json packages/investments/
 # re-resolves ^ranges, so a dependency published this morning ships in an
 # image built from unchanged source. next@16.3.0 landed exactly that way
 # and broke page-data collection under Bun (260804).
-RUN bun install --no-save --production
+# CI=false: bun turns --frozen-lockfile ON BY ITSELF when it thinks it is in
+# CI, and on GitHub Actions it did so inside the image build — every job failed
+# with "lockfile had changes, but lockfile is frozen" even with --no-save and no
+# frozen flag anywhere, while the identical build passed locally. The lockfile
+# is not the problem: a cold resolve in a clean container produces a file
+# byte-identical to the committed one. Saying so explicitly is what stops the
+# auto-detection.
+RUN CI=false bun install --no-save --production
 # bun --production keeps dev-only transitive deps in workspace mode (drizzle-
 # kit / vite / vitest / playwright drag in esbuild Go binaries that flag
 # CRITICAL stdlib CVEs). Strip them — they are never executed at runtime.

@@ -297,6 +297,11 @@ function avgCents(sum: bigint, count: number): bigint {
   return (sum * 2n + c) / (2n * c);
 }
 
+/** `asOf` as YYYY-MM-DD, for widening the planned window up to today. */
+function isoDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
 export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
   return async (
     input: GetOverviewPlannedInput,
@@ -310,10 +315,14 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
 
       const [planned, spend, windows, rules, excluded, posResult] =
         await Promise.all([
+          // Stretched to TODAY when the range ends earlier: "current limit"
+          // means the limit in force now, and a window that stops in the past
+          // has no row for the month we are actually in (user, 260806). Costs
+          // nothing on the presets, which all end today already.
           deps.repo.monthlyPlannedByCategory(
             input.budgetId,
             input.from,
-            input.to,
+            input.to >= isoDay(asOf) ? input.to : isoDay(asOf),
           ),
           deps.repo.monthlySpendByCategory(
             input.budgetId,
@@ -724,8 +733,20 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           const limits = months.map(
             (m) => plannedKey.get(`${w.category_id}|${m}`) ?? 0n,
           );
-          const current = limits[limits.length - 1] ?? 0n;
           if (limits.some((v) => v !== limits[0])) limitsMoved = true;
+          // "Current" is the limit in force TODAY — not the last month of the
+          // walk, and not the last month of the range. The walk drops the
+          // running month (it would drag the averages down), so reading it from
+          // there reported the last COMPLETED month's limit and a limit raised
+          // today never appeared; reading it from the range's end reported a
+          // limit from months ago whenever the range was a past window (user,
+          // 260806). The planned query is widened to today above so this row
+          // exists whatever the range is. A category archived before today has
+          // no current limit, so it keeps the last one it had.
+          const current =
+            plannedKey.get(`${w.category_id}|${runningMonth}`) ??
+            limits[limits.length - 1] ??
+            0n;
           for (const m of months) {
             const key = `${w.category_id}|${m}`;
             const spent = spendKey.get(key) ?? 0n;

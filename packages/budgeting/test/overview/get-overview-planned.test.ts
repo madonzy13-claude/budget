@@ -1657,6 +1657,141 @@ describe("getOverviewPlanned", () => {
     expect(withoutAugust.planned_avg_cents).toBe("10000");
   });
 
+  // 260806 device report: Housing's limit was raised to 1,000 today and the
+  // chart's "Current limit" still read 762. The running month is left OUT of the
+  // averages, and `current` was being taken from the last month of THAT walk —
+  // so it reported the last COMPLETED month's limit, which is not what "current"
+  // means to anyone. It has to be the limit in force now, whether or not this
+  // month counts toward the averages.
+  test("reports today's limit even when the running month is left out", async () => {
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory() {
+        return [
+          { category_id: "A", month: "2026-06", planned_cents: 70000n },
+          { category_id: "A", month: "2026-07", planned_cents: 76200n },
+          // Raised TODAY, in the month still running.
+          { category_id: "A", month: "2026-08", planned_cents: 100000n },
+        ];
+      },
+      async monthlySpendByCategory() {
+        return [
+          { category_id: "A", month: "2026-06", spent_cents: 12000n },
+          { category_id: "A", month: "2026-07", spent_cents: 12000n },
+          { category_id: "A", month: "2026-08", spent_cents: 600n },
+        ];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "A",
+            name: "Housing",
+            created_month: "2026-01",
+            archived_month: null,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    } as unknown as GetOverviewPlannedDeps["repo"];
+
+    const svc = getOverviewPlanned({
+      repo,
+      metaReader: {
+        async getBudgetMeta() {
+          return { default_currency: "USD" };
+        },
+      },
+      fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+    });
+    const res = await svc({
+      tenantId: "b1",
+      budgetId: "b1",
+      from: "2026-06-01",
+      to: "2026-08-02",
+      now: () => new Date("2026-08-02T00:00:00Z"),
+      excludeCurrentMonth: true,
+    });
+    if (res.isErr()) throw res.error;
+    const dto = res.value;
+
+    const a = dto.plannedAvgVsReal[0]!;
+    // The average is over the two finished months, as before…
+    expect(a.planned_avg_cents).toBe("73100");
+    // …and "current" is what it is set to NOW, not July's 762.
+    expect(a.planned_current_cents).toBe("100000");
+    expect(dto.limits_moved).toBe(true);
+  });
+
+  // …and "current" means the limit in force TODAY even when the range itself
+  // ends in the past (a custom window). Taking the range's last month would
+  // report a limit from months ago and call it current (user, 260806).
+  test("reports today's limit even when the range ends in the past", async () => {
+    const asked: { from: string; to: string }[] = [];
+    const repo: GetOverviewPlannedDeps["repo"] = {
+      async monthlyPlannedByCategory(
+        _b: string,
+        from: string,
+        to: string,
+      ) {
+        asked.push({ from, to });
+        // Honours the window it is asked for, like the real repo — so the
+        // August row only comes back if the service widened the query to today.
+        return [
+          { category_id: "A", month: "2026-01", planned_cents: 70000n },
+          { category_id: "A", month: "2026-02", planned_cents: 70000n },
+          { category_id: "A", month: "2026-08", planned_cents: 100000n },
+        ].filter((r) => r.month >= from.slice(0, 7) && r.month <= to.slice(0, 7));
+      },
+      async monthlySpendByCategory() {
+        return [{ category_id: "A", month: "2026-01", spent_cents: 12000n }];
+      },
+      async categoryWindows() {
+        return [
+          {
+            category_id: "A",
+            name: "Housing",
+            created_month: "2026-01",
+            archived_month: null,
+          },
+        ];
+      },
+      async dailySpend() {
+        return [];
+      },
+      async activeRecurringRules() {
+        return [];
+      },
+    } as unknown as GetOverviewPlannedDeps["repo"];
+
+    const res = await getOverviewPlanned({
+      repo,
+      metaReader: {
+        async getBudgetMeta() {
+          return { default_currency: "USD" };
+        },
+      },
+      fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+    })({
+      tenantId: "b1",
+      budgetId: "b1",
+      from: "2026-01-01",
+      to: "2026-02-28",
+      now: () => new Date("2026-08-02T00:00:00Z"),
+    });
+    if (res.isErr()) throw res.error;
+
+    const a = res.value.plannedAvgVsReal[0]!;
+    expect(a.planned_avg_cents).toBe("70000");
+    // Not January's or February's — what it is set to now.
+    expect(a.planned_current_cents).toBe("100000");
+    // …which required asking for today, not just the range.
+    expect(asked[0]!.to >= "2026-08").toBe(true);
+  });
+
   test("keeps the running month when it is all the range has", async () => {
     const repo: GetOverviewPlannedDeps["repo"] = {
       async monthlyPlannedByCategory() {

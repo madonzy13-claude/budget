@@ -32,7 +32,14 @@ COPY apps/migrator/package.json ./apps/migrator/
 # overrides instead, so the release that caused the incident cannot come back
 # whatever the resolver does. That is a stronger guarantee than a lockfile the
 # build could not read anyway.
-RUN bun install --no-save
+# CI=false: bun turns --frozen-lockfile ON BY ITSELF when it thinks it is in
+# CI, and on GitHub Actions it did so inside the image build — every job failed
+# with "lockfile had changes, but lockfile is frozen" even with --no-save and no
+# frozen flag anywhere, while the identical build passed locally. The lockfile
+# is not the problem: a cold resolve in a clean container produces a file
+# byte-identical to the committed one. Saying so explicitly is what stops the
+# auto-detection.
+RUN CI=false bun install --no-save
 
 # Stage 2: Build
 FROM installer AS builder
