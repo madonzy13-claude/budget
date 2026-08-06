@@ -16,6 +16,7 @@
 import { useEffect, useState } from "react";
 import { RangeSelector } from "./range-selector";
 import { useMemberUiPrefs } from "@/hooks/use-member-ui-prefs";
+import { useConnectivity } from "@/components/common/connectivity-provider";
 import {
   decodeRangePref,
   encodeRangePref,
@@ -58,13 +59,17 @@ export function OverviewSections({
   const [range, setRange] = useState<OverviewRange | null>(
     () => store?.overview.range ?? null,
   );
+  // Same trap as the all-budgets page (260806): offline, a query that has never
+  // run is PAUSED — never success, never error — so waiting on the stored pick
+  // waits forever and the whole tab stays blank over data we already hold.
+  const { degraded } = useConnectivity();
   useEffect(() => {
-    if (range !== null || !isLoaded) return;
+    if (range !== null || !(isLoaded || degraded)) return;
     setRange(
       decodeRangePref(prefs[RANGE_PREF_KEY], tz) ??
         makeRange(DEFAULT_RANGE_PRESET, tz),
     );
-  }, [range, isLoaded, prefs, tz]);
+  }, [range, isLoaded, prefs, tz, degraded]);
 
   const applyRange = (r: OverviewRange) => {
     if (store) store.overview.range = r;

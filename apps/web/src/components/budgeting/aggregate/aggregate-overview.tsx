@@ -40,6 +40,7 @@ import { RangeSelector } from "@/components/budgeting/overview/range-selector";
 import { StickOnScroll } from "@/components/common/stick-on-scroll";
 import { makeRange, todayInTz, type OverviewRange } from "@/lib/overview-range";
 import { useUserUiPrefs } from "@/hooks/use-user-ui-prefs";
+import { useConnectivity } from "@/components/common/connectivity-provider";
 import {
   decodeRangePref,
   encodeRangePref,
@@ -138,13 +139,18 @@ export function AggregateOverview() {
   // lands, so the selector never flashes its default over it.
   const userPrefs = useUserUiPrefs();
   const [range, setRange] = useState<OverviewRange | null>(null);
+  // Offline, a query that has never run is PAUSED — it never succeeds and never
+  // errors, so waiting on it waits forever. Stop waiting and take the default:
+  // a page drawn on the wrong range beats a skeleton over data we already hold
+  // (260806).
+  const { degraded } = useConnectivity();
   useEffect(() => {
-    if (range !== null || !userPrefs.isLoaded) return;
+    if (range !== null || !(userPrefs.isLoaded || degraded)) return;
     setRange(
       decodeRangePref(userPrefs.prefs[RANGE_PREF_KEY], tz) ??
         makeRange(AGGREGATE_DEFAULT_PRESET, tz),
     );
-  }, [range, userPrefs.isLoaded, userPrefs.prefs, tz]);
+  }, [range, userPrefs.isLoaded, userPrefs.prefs, tz, degraded]);
   const applyRange = (r: OverviewRange) => {
     setRange(r);
     void userPrefs.save(RANGE_PREF_KEY, encodeRangePref(r));

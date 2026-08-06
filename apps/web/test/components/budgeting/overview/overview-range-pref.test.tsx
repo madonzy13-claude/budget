@@ -30,6 +30,14 @@ vi.mock("@/hooks/use-member-ui-prefs", () => ({
     save,
   }),
 }));
+const link = { degraded: false };
+vi.mock("@/components/common/connectivity-provider", () => ({
+  useConnectivity: () => ({
+    status: link.degraded ? "offline" : "online",
+    degraded: link.degraded,
+    reason: link.degraded ? "offline" : "online",
+  }),
+}));
 vi.mock("@/components/common/user-timezone-provider", () => ({
   useUserTimezone: () => "Europe/Warsaw",
 }));
@@ -105,5 +113,18 @@ describe("Overview range — remembered per member", () => {
     prefs.current = { overviewRange: ["lastDecade"] };
     render(<OverviewSections budgetId="b1" />);
     await waitFor(() => expect(shownPreset()).toBe("thisMonth"));
+  });
+});
+
+// 260806: offline, a never-run query is PAUSED — never success, never error. The
+// tab waits for the stored range before drawing, so waiting on it waits forever
+// and the whole Overview stayed blank over data already in hand.
+describe("Overview range — offline with nothing stored", () => {
+  it("stops waiting and takes its default", () => {
+    loaded.current = false;
+    link.degraded = true;
+    render(<OverviewSections budgetId="b1" />);
+    expect(shownPreset()).toBe("thisMonth");
+    link.degraded = false;
   });
 });

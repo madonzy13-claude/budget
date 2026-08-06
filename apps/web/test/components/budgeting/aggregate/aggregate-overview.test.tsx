@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   render,
   screen,
@@ -85,6 +85,14 @@ vi.mock("@/hooks/use-user-ui-prefs", () => ({
     prefs: userPrefs.current,
     isLoaded: userPrefs.loaded,
     save: savePref,
+  }),
+}));
+const link = { degraded: false };
+vi.mock("@/components/common/connectivity-provider", () => ({
+  useConnectivity: () => ({
+    status: link.degraded ? "offline" : "online",
+    degraded: link.degraded,
+    reason: link.degraded ? "offline" : "online",
   }),
 }));
 vi.mock("@/components/common/user-timezone-provider", () => ({
@@ -269,5 +277,35 @@ describe("AggregateOverview — remembered range", () => {
     userPrefs.loaded = false;
     render(<AggregateOverview />);
     expect(screen.getByTestId("aggregate-loading")).toBeTruthy();
+  });
+});
+
+// 260806: offline, a query that has never run is PAUSED — it never succeeds and
+// never errors. The page waits for the stored range before drawing, so a member
+// whose picks were never cached sat on a skeleton forever with data right there
+// in hand. Offline it stops waiting and takes its default.
+describe("AggregateOverview — offline with no stored range", () => {
+  beforeEach(() => {
+    userPrefs.current = {};
+    userPrefs.loaded = false;
+    link.degraded = false;
+  });
+  afterEach(() => {
+    link.degraded = false;
+    userPrefs.loaded = true;
+  });
+
+  it("keeps waiting while the link is fine", () => {
+    render(<AggregateOverview />);
+    expect(screen.getByTestId("aggregate-loading")).toBeTruthy();
+  });
+
+  it("stops waiting once there is nothing to wait for", () => {
+    link.degraded = true;
+    render(<AggregateOverview />);
+    expect(screen.queryByTestId("aggregate-loading")).toBeNull();
+    expect(
+      screen.getByTestId("aggregate-range-value").textContent,
+    ).toBe("last6Months");
   });
 });
