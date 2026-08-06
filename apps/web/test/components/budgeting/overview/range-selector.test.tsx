@@ -128,7 +128,7 @@ describe("Range selector — locked while the link is down", () => {
     render(<RangeSelector value={august} onChange={vi.fn()} />);
     expect(screen.getByRole("button", { name: "3M" })).not.toBeDisabled();
     expect(screen.getByTestId("range-step-back")).not.toBeDisabled();
-    expect(screen.queryByTestId("range-locked")).toBeNull();
+    expect(screen.getByRole("button", { name: "1M" })).not.toBeDisabled();
   });
 
   it("locks every preset when the device is offline", () => {
@@ -153,11 +153,15 @@ describe("Range selector — locked while the link is down", () => {
     expect(screen.getByRole("button", { name: "3M" })).toBeDisabled();
   });
 
-  it("says why, rather than looking broken", () => {
+  // No sentence explaining the lock: the offline banner at the top of the page
+  // already says it, and saying it twice was noise (user, 260806). The dimmed,
+  // inert pills carry it on their own.
+  it("explains itself by looking inert, not with a second banner", () => {
     link.degraded = true;
     link.reason = "offline";
     render(<RangeSelector value={august} onChange={vi.fn()} />);
-    expect(screen.getByTestId("range-locked")).toBeTruthy();
+    expect(screen.queryByTestId("range-locked")).toBeNull();
+    expect(screen.getByRole("button", { name: "3M" })).toBeDisabled();
   });
 
   it("does not fire a change from a locked preset", () => {

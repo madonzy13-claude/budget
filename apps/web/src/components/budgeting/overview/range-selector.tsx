@@ -48,8 +48,10 @@ export function RangeSelector({
   // The persisted cache only ever holds the range that was last looked at, so
   // switching range with no way to fetch would answer with the numbers for a
   // DIFFERENT window — silently wrong, which is worse than not answering at all
-  // (user, 260806). The strip locks until the link is back, and says why.
-  const { degraded, reason } = useConnectivity();
+  // (user, 260806). The strip goes inert until the link is back. No sentence
+  // explaining it: the banner at the top of the page already says the app is
+  // offline, and a second line saying it again was just noise (user, 260806).
+  const { degraded } = useConnectivity();
   const locked = degraded;
   const isCustom = value.preset === "custom";
 
@@ -125,14 +127,6 @@ export function RangeSelector({
 
   return (
     <div className="flex flex-col gap-2">
-      {locked && (
-        <p
-          data-testid="range-locked"
-          className="text-center text-caption text-[var(--muted-foreground)]"
-        >
-          {t(reason === "server-down" ? "lockedServer" : "lockedOffline")}
-        </p>
-      )}
       {/* The arrows sit OUTSIDE the scroller: inside it they scrolled off the
           edge of a phone and the user never saw them (260802 report). */}
       <div className="flex items-center gap-1">

@@ -1419,9 +1419,7 @@
           "from": "From",
           "to": "To",
           "currentConfig": "current config",
-          "allTime": "all time",
-          "lockedOffline": "Ranges need a connection — showing the last one you loaded.",
-          "lockedServer": "Can't reach the server — showing the last range you loaded."
+          "allTime": "all time"
         },
         "total": "Total",
         "overspentByCategory": "Amount over budget, by category",

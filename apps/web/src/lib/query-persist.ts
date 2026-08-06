@@ -215,8 +215,44 @@ export function startPersisting(client: QueryClient): () => void {
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => void writeCache(client), 800); // debounce bursts
   });
+
+  // Write on the way OUT, without waiting for the debounce (260806 device
+  // report). The debounce alone is fine while the app is on screen and useless
+  // when it is not: iOS freezes a backgrounded PWA almost at once and kills it
+  // without warning, so a pending timer simply never runs. Open the app, close
+  // it again quickly, go offline, reopen — and everything fetched in that first
+  // visit was never on disk to restore, which is exactly what was reported.
+  //
+  // Both events, because neither is reliable alone: Safari does not always fire
+  // visibilitychange when it freezes a PWA, and pagehide does not fire on an
+  // app-switch that never unloads the page. writeCache is idempotent, so being
+  // called twice costs one extra IDB put.
+  const flush = () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = undefined;
+    }
+    void writeCache(client);
+  };
+  const onHidden = () => {
+    if (typeof document === "undefined" || document.visibilityState === "hidden")
+      flush();
+  };
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", onHidden);
+  }
+  if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", flush);
+  }
+
   return () => {
     if (timer) clearTimeout(timer);
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", onHidden);
+    }
+    if (typeof window !== "undefined") {
+      window.removeEventListener("pagehide", flush);
+    }
     unsub();
   };
 }

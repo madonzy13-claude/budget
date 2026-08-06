@@ -1442,9 +1442,7 @@
           "from": "Od",
           "to": "Do",
           "currentConfig": "aktualna konfiguracja",
-          "allTime": "cały okres",
-          "lockedOffline": "Zmiana zakresu wymaga połączenia — pokazujemy ostatnio wczytany.",
-          "lockedServer": "Brak połączenia z serwerem — pokazujemy ostatnio wczytany zakres."
+          "allTime": "cały okres"
         },
         "total": "Razem",
         "overspentByCategory": "Kwota przekroczenia wg kategorii",
