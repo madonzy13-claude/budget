@@ -253,6 +253,35 @@ describe("reserveEngine — operations", () => {
     expect(cell(r, "c").overspentCents).toBe(0n);
   });
 
+  // 260806: the E2E "Overspend draws the reserve down by the full overspend"
+  // went red — a 200 reserve overspent by 80 came back 0 instead of 120. Same
+  // shape as a device report where a category with a 500 limit and 450 of spend
+  // showed 450 OVERSPENT rather than none. Both say the engine is treating the
+  // whole spend as overage instead of netting it against the limit.
+  test("a reserve only pays for the part of the spend OVER the limit", () => {
+    // limit 100, reserve 200, spend 180 → overage 80, so R 200 → 120, U 80.
+    const r = run([
+      seedLimit("c", 10000n, 10000n),
+      { type: "adjust", categoryId: "c", deltaCents: 20000n, month: OPEN },
+      { type: "spendDelta", categoryId: "c", month: OPEN, deltaCents: 18000n },
+    ]);
+    expect(r.states.get("c")!.reserveCents).toBe(12000n);
+    expect(r.states.get("c")!.usedCents).toBe(8000n);
+    expect(cell(r, "c").overspentCents).toBe(0n);
+  });
+
+  // …and spending UNDER the limit must not touch the reserve at all.
+  test("a spend inside the limit leaves the reserve alone", () => {
+    // limit 500, spend 450 → no overage, so nothing is drawn and nothing is over.
+    const r = run([
+      seedLimit("c", 50000n, 50000n),
+      { type: "spendDelta", categoryId: "c", month: OPEN, deltaCents: 45000n },
+    ]);
+    expect(cell(r, "c").overageCents).toBe(0n);
+    expect(cell(r, "c").overspentCents).toBe(0n);
+    expect(r.states.get("c")!.usedCents).toBe(0n);
+  });
+
   test("op3 — raise covers outstanding overspent first, rest to available", () => {
     // overage 50 (limit 0, spend 50), no reserve → overspent 50. set reserve to 80:
     // d=80, cover min(80,50)=50 → U 50, R 30.

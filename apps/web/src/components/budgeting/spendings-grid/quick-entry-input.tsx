@@ -49,7 +49,7 @@ export function QuickEntryInput({
   // r40b: an edge-hop submits then moves focus, which fires onBlur synchronously
   // BEFORE the cleared value flushes — without this the blur would submit the
   // same (stale) value a second time and insert a duplicate row.
-  const justEdgeSubmittedRef = useRef(false);
+  const justSubmittedRef = useRef(false);
   // Lying-true case: an OfflineWriteError (timeout / dead link with onLine===true)
   // rolls the optimistic row back — we re-add it to the local queue so the entry
   // is never lost, exactly like the device-knows-offline path below.
@@ -91,6 +91,14 @@ export function QuickEntryInput({
     }
     // D-PH4-Q1: clear input first, then optimistic insert
     setValue("");
+    // …and tell the blur that follows that this entry is already saved. Clearing
+    // the field is not enough on its own: `value` is state, so a blur arriving
+    // before React re-renders still sees the OLD string and saves it a second
+    // time. Enter did exactly that — one 180 typed in the reserves E2E arrived
+    // as two, and the doubled overage swallowed the whole reserve (260806). The
+    // edge-hop paths had guarded against this for themselves; every save path
+    // goes through here, so this is where it belongs.
+    justSubmittedRef.current = true;
     // 260731-osq: device-knows-offline → queue it locally and DO NOT mutate, so
     // no doomed POST is issued. The entry renders as a pending row and flushes
     // when the connection returns. (navigator.onLine===false is the only
@@ -172,7 +180,6 @@ export function QuickEntryInput({
     if (e.metaKey || e.ctrlKey) {
       e.preventDefault();
       submit();
-      justEdgeSubmittedRef.current = true;
       const all = allQuickInputs();
       focusQuickInput(goRight ? all[all.length - 1] : all[0], !goRight);
       return;
@@ -188,7 +195,6 @@ export function QuickEntryInput({
     if (atEdge) {
       e.preventDefault();
       submit();
-      justEdgeSubmittedRef.current = true;
       focusAdjacentQuickInput(goRight ? 1 : -1);
     }
   }
@@ -201,10 +207,10 @@ export function QuickEntryInput({
       return;
     }
     setFocused(false);
-    // Skip the save the edge-hop already performed (its focus move fired this
-    // blur synchronously, before the cleared value flushed).
-    if (justEdgeSubmittedRef.current) {
-      justEdgeSubmittedRef.current = false;
+    // Skip the save a submit already performed — its focus move fires this blur
+    // before the cleared value has flushed.
+    if (justSubmittedRef.current) {
+      justSubmittedRef.current = false;
       return;
     }
     submit(true);
@@ -236,7 +242,14 @@ export function QuickEntryInput({
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => setFocused(true)}
+          onFocus={() => {
+            setFocused(true);
+            // A fresh visit to the field is a fresh entry: whatever the last
+            // save set the guard to has nothing to do with it. Without this,
+            // two entries committed by blur alone would see the second one
+            // silently dropped.
+            justSubmittedRef.current = false;
+          }}
           onBlur={handleBlur}
           placeholder={t("placeholder")}
           aria-label={t("addExpenseAria", { categoryName })}
