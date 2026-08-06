@@ -138,9 +138,18 @@ function stamp(): PendingBase {
 }
 
 export function addPendingSpending(
-  input: PendingSpendingInput,
+  input: PendingSpendingInput & { idempotencyKey?: string },
 ): PendingSpending {
-  const entry: PendingSpending = { ...input, ...stamp() };
+  // Inherit the key of the attempt that queued this, when there was one. The
+  // replay below already SENDS the stored key; minting a fresh one here is what
+  // stopped the server recognising the repeat — an aborted POST that had in
+  // fact been written came back as a second transaction (260806).
+  const { idempotencyKey, ...rest } = input;
+  const entry: PendingSpending = {
+    ...rest,
+    ...stamp(),
+    ...(idempotencyKey ? { idempotencyKey } : {}),
+  };
   write([...read(), entry]);
   return entry;
 }

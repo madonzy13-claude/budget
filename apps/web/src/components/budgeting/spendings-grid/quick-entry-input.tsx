@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { parseAmountAndNote } from "@/lib/decimal";
 import { useCreateTransaction } from "@/hooks/use-create-transaction";
 import { addPendingSpending } from "@/lib/pending-spendings";
+import { idempotencyKeyFor } from "@/lib/idempotency";
 import { MobileKeyboardToggle } from "./mobile-keyboard-toggle";
 
 export interface QuickEntryInputProps {
@@ -63,8 +64,11 @@ export function QuickEntryInput({
     amountCents: number,
     note: string | null,
     date: string,
+    /** The key the failed attempt used, so its replay is the SAME write. */
+    idempotencyKey?: string,
   ) {
     addPendingSpending({
+      ...(idempotencyKey ? { idempotencyKey } : {}),
       budgetId,
       month,
       categoryId,
