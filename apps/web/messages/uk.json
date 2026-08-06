@@ -1493,7 +1493,13 @@
           "basisAverage": "Середній",
           "basisCurrent": "Поточний",
           "avgLimit": "Середній ліміт",
-          "currentLimit": "Поточний ліміт"
+          "currentLimit": "Поточний ліміт",
+          "monthColumn": "міс.",
+          "spent": "Витрачено",
+          "byCategoryAverage": "Відхилення від середнього ліміту, за категоріями",
+          "byCategoryCurrent": "Відхилення від сьогоднішнього ліміту, за категоріями",
+          "differenceVsAverage": "Різниця відносно середнього ліміту",
+          "differenceVsCurrent": "Різниця відносно поточного ліміту"
         },
         "wealth": {
           "capitalization": "Капіталізація",

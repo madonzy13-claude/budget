@@ -57,7 +57,9 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
   }: {
     data: Record<string, unknown>[];
     valueKey: string;
-    tooltipExtra?: (row: Record<string, unknown>) => { value?: string }[];
+    tooltipExtra?: (
+      row: Record<string, unknown>,
+    ) => { label?: string; value?: string; value2?: string }[];
   }) => (
     <div
       data-testid="avg-chart"
@@ -67,6 +69,7 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
       data-tooltip={JSON.stringify(
         (tooltipExtra?.(data[0] ?? {}) ?? []).map((r) => r.value),
       )}
+      data-tooltip-rows={JSON.stringify(tooltipExtra?.(data[0] ?? {}) ?? [])}
     />
   ),
   varianceColor: () => "#fff",
@@ -165,5 +168,74 @@ describe("How far off plan — which limit it measures against", () => {
     };
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
     expect(chart().getAttribute("data-planned")).toBe("50000");
+  });
+});
+
+// 260806: the chart's own title has to say which limit it is judging against —
+// the switch above it is easy to miss, and "How far off plan" reads the same
+// whichever way it is set.
+describe("How far off plan — saying what you are looking at", () => {
+  const title = () => screen.getByTestId("overview-planned-title").textContent;
+
+  it("names the average limit while that is the baseline", () => {
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    expect(title()).toBe("planned.byCategoryAverage");
+  });
+
+  it("names today's limit once switched to it", async () => {
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisCurrent" }),
+    );
+    expect(title()).toBe("planned.byCategoryCurrent");
+  });
+
+  // With no switch on offer the average IS the plan, so the title still names it
+  // rather than going vague.
+  it("still names the baseline when no limit moved", () => {
+    dto.current = { ...base, limits_moved: false };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    expect(title()).toBe("planned.byCategoryAverage");
+  });
+});
+
+describe("How far off plan — the tooltip", () => {
+  const rows = () =>
+    JSON.parse(
+      screen.getByTestId("avg-chart").getAttribute("data-tooltip-rows")!,
+    ) as { label?: string; value?: string; value2?: string }[];
+
+  it("heads the first column with the month, not an abbreviation", () => {
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    expect(rows()[0]!.value).toBe("planned.monthColumn");
+    expect(rows()[0]!.value2).toBe("planned.totalColumn");
+  });
+
+  // The current limit is a rate, not something that accumulated over the range:
+  // there is no total to put beside it, and a repeat of the average's total
+  // would be a lie. A dash says "not applicable" without leaving a hole.
+  it("gives the current limit a dash where its total would be", () => {
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    const current = rows().find((r) => r.label === "planned.currentLimit")!;
+    expect(current.value).toContain("800");
+    expect(current.value2).toBe("—");
+  });
+
+  it("calls the money that was spent Spent", () => {
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    expect(rows().some((r) => r.label === "planned.spent")).toBe(true);
+    expect(rows().some((r) => r.label === "planned.real")).toBe(false);
+  });
+
+  it("says which limit the difference is measured against", async () => {
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    expect(rows().at(-1)!.label).toBe("planned.differenceVsAverage");
+
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisCurrent" }),
+    );
+    expect(rows().at(-1)!.label).toBe("planned.differenceVsCurrent");
   });
 });

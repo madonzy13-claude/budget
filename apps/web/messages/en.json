@@ -1470,7 +1470,13 @@
           "basisAverage": "Average",
           "basisCurrent": "Current",
           "avgLimit": "Average limit",
-          "currentLimit": "Current limit"
+          "currentLimit": "Current limit",
+          "monthColumn": "month",
+          "spent": "Spent",
+          "byCategoryAverage": "How far off the average limit, by category",
+          "byCategoryCurrent": "How far off today's limit, by category",
+          "differenceVsAverage": "Difference vs average limit",
+          "differenceVsCurrent": "Difference vs current limit"
         },
         "wealth": {
           "capitalization": "Capitalization",

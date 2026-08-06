@@ -86,9 +86,18 @@ function formatTs(ts: number, locale: string): string {
   return formatChartDate(iso, locale);
 }
 
-function ChartLabel({ children }: { children: React.ReactNode }) {
+function ChartLabel({
+  children,
+  testId,
+}: {
+  children: React.ReactNode;
+  testId?: string;
+}) {
   return (
-    <p className="text-caption text-center text-[var(--muted-foreground)]">
+    <p
+      data-testid={testId}
+      className="text-caption text-center text-[var(--muted-foreground)]"
+    >
       {children}
     </p>
   );
@@ -596,7 +605,16 @@ export function PlannedSection({
           ) : (
             data.plannedAvgVsReal.length > 0 && (
               <div className="flex flex-col gap-2">
-                <ChartLabel>{t("planned.avgByCategory")}</ChartLabel>
+                {/* The title says WHICH limit the bars are judged against
+                  (260806): the switch below it is easy to miss, and "How far
+                  off plan" reads identically whichever way it is set. */}
+                <ChartLabel testId="overview-planned-title">
+                  {t(
+                    basis === "current"
+                      ? "planned.byCategoryCurrent"
+                      : "planned.byCategoryAverage",
+                  )}
+                </ChartLabel>
                 {/* The percent/zł switch went (260805): a percentage of a limit
                   is a step away from the money, and the money is what you act
                   on. What the pill track carries instead is the BASELINE —
@@ -700,7 +718,10 @@ export function PlannedSection({
                       // over the window (260803 user request).
                       {
                         label: "",
-                        value: t("planned.avgColumn"),
+                        // "month" rather than "avg": the column IS a monthly
+                        // figure, and naming it after the arithmetic said less
+                        // (user, 260806).
+                        value: t("planned.monthColumn"),
                         value2: t("planned.totalColumn"),
                         head: true,
                       },
@@ -717,14 +738,23 @@ export function PlannedSection({
                       {
                         label: t("planned.currentLimit"),
                         value: fmtTooltip(Number(row.current)),
+                        // A rate, not something that accumulated over the
+                        // range: there is no total to put here, and repeating
+                        // the average's would be a lie. The dash says "not
+                        // applicable" without leaving a hole in the column.
+                        value2: "—",
                       },
                       {
-                        label: t("planned.real"),
+                        label: t("planned.spent"),
                         value: fmtTooltip(Number(row.real)),
                         value2: fmtTooltip(Number(row.realTotal)),
                       },
                       {
-                        label: t("planned.difference"),
+                        label: t(
+                          basis === "current"
+                            ? "planned.differenceVsCurrent"
+                            : "planned.differenceVsAverage",
+                        ),
                         // Amount AND percent on one line — the bar shows the
                         // percent, the tooltip should tie it back to real money.
                         // Percent first — it is what the bar length encodes; the

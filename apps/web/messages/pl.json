@@ -1493,7 +1493,13 @@
           "basisAverage": "Średni",
           "basisCurrent": "Bieżący",
           "avgLimit": "Średni limit",
-          "currentLimit": "Bieżący limit"
+          "currentLimit": "Bieżący limit",
+          "monthColumn": "mies.",
+          "spent": "Wydane",
+          "byCategoryAverage": "Odchylenie od średniego limitu, wg kategorii",
+          "byCategoryCurrent": "Odchylenie od dzisiejszego limitu, wg kategorii",
+          "differenceVsAverage": "Różnica wobec średniego limitu",
+          "differenceVsCurrent": "Różnica wobec bieżącego limitu"
         },
         "wealth": {
           "capitalization": "Kapitalizacja",
