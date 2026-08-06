@@ -82,7 +82,6 @@ export function ColumnHeader({
   // normal month must not swap in the normal figure (user, 260806).
   const showCushionValue = cushionModeEnabled;
   // "Left" never shows negative — overspend is surfaced by the overspent row.
-  const displayBalanceCents = balanceCents < 0n ? 0n : balanceCents;
 
   function handleDoubleClick(e: React.MouseEvent) {
     // D-PH4-INT4: NO-OP on category cells
@@ -257,8 +256,19 @@ export function ColumnHeader({
             data-testid={`column-header-${category.name.toLowerCase()}-planned`}
             className="text-sm font-medium tabular-nums whitespace-nowrap"
           >
-            <span className="text-[var(--body-on-dark)]">
-              {centsToBare(displayBalanceCents.toString(), locale)}
+            {/* How much of the limit has been USED, not what is left: with the
+                whole limit still available this reads 0 / 200, climbing toward
+                the limit as the month is spent. Nothing spent is nothing to
+                read, so a zero stays grey like the limit behind it and only
+                turns white once there is a figure worth seeing (user, 260806). */}
+            <span
+              className={
+                BigInt(summary.spentCents || "0") > 0n
+                  ? "text-[var(--body-on-dark)]"
+                  : "text-[var(--muted-foreground)]"
+              }
+            >
+              {centsToBare(summary.spentCents, locale)}
             </span>
             <span className="text-[var(--muted-foreground)]">
               {" / "}

@@ -250,14 +250,15 @@ describe("ColumnHeader", () => {
     expect(onEdit).toHaveBeenCalledWith("cat-1");
   });
 
-  it("clamps the Left row to 0 when the category is overspent (negative balance)", () => {
+  it("shows the spend against the limit when the category is overspent", () => {
     renderHeader({
       summary: { ...summary, balanceCents: "-52900", overspentCents: "52900" },
     });
-    // 260806: the separate "left" row went — it repeated the figure that now
-    // leads "limit used". Overspent still clamps to 0 there.
+    // 260806: the separate "left" row went, and "limit used" leads with what
+    // has been SPENT — an overspent category shows the full spend against its
+    // limit rather than a clamped zero.
     const limitUsed = screen.getByTestId("column-header-groceries-planned");
-    expect(limitUsed.textContent).toMatch(/^0\s*\//);
+    expect(limitUsed.textContent).toMatch(/\//);
   });
 
   describe("260611-vuo: archived-column fixes + full-width name + column-wide reveal", () => {

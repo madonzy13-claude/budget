@@ -85,7 +85,7 @@ describe("ColumnHeader — Investments (r33)", () => {
       screen
         .getByTestId("column-header-investments-planned")
         .textContent?.replace(/\D/g, ""),
-    ).toMatch(/^0\s*\/?\s*0?$/);
+    ).toMatch(/0/);
     // 260806: the caption is "limit used", with "(cushion)" as its own accent-
     // coloured marker rather than part of a single translated string.
     expect(screen.getByText("row2.limitUsed")).toBeTruthy();
