@@ -23,7 +23,11 @@ COPY apps/migrator/package.json ./apps/migrator/
 # re-resolves ^ranges, so a dependency published this morning ships in an
 # image built from unchanged source. next@16.3.0 landed exactly that way
 # and broke page-data collection under Bun (260804).
-RUN bun install --frozen-lockfile
+RUN cp bun.lock /tmp/bun.lock.orig && \
+    (bun install --frozen-lockfile || \
+     (echo '=== FROZEN INSTALL FAILED — what bun wanted to change: ==='; \
+      bun install >/dev/null 2>&1; \
+      diff /tmp/bun.lock.orig bun.lock | head -60; exit 1))
 
 # Stage 2: Build
 FROM installer AS builder
