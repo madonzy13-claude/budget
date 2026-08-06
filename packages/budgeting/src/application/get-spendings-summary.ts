@@ -231,7 +231,19 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           // shows 0 (you shouldn't invest when the budget is on the tighter
           // cushion). Outside cushion mode it shows the smart/manual planned.
           const cushion = isInvestment ? 0n : limits.cushion;
-          const active = meta.cushionModeEnabled ? cushion : planned;
+          // The VIEWED month's mode, not the budget's mode today (user report,
+          // 260806). A month that ran in cushion mode is judged against the
+          // cushion limit — the engine has always done that — but this column
+          // read `meta.cushionModeEnabled`, which is how the budget stands NOW.
+          // Look back at a cushion month from a normal one and it showed the
+          // normal limit beside an overspend measured against the cushion one:
+          // "planned 500" over "overspent 450" with a cushion limit of zero.
+          // No fallback between the two figures in either direction (user rule):
+          // the mode picks one, and that is the limit.
+          const monthCushion =
+            posResult.value.cushionByMonth?.get(input.month) ??
+            meta.cushionModeEnabled;
+          const active = monthCushion ? cushion : planned;
           const spent = perCatSpend.get(c.id) ?? 0n;
 
           // Engine cell for THIS month → used + overspent + the free reserve at the

@@ -94,6 +94,13 @@ export interface ReserveEngineResult {
   userDefinedCents: bigint;
   /** userDefined − internal. */
   surplusCents: bigint;
+  /** Which limit each month was judged against — true where the budget ran in
+   *  CUSHION mode. The engine has always resolved this per month; exposing it
+   *  lets a display read the same answer instead of asking the budget what mode
+   *  it is in TODAY, which is a different question for any past month and gave
+   *  a column showing the normal limit beside an overspend measured against the
+   *  cushion one (user report, 260806). */
+  cushionByMonth: Map<string, boolean>;
 }
 
 export interface ReserveEngineInput {
@@ -397,5 +404,6 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
     internalCents: internalOut,
     userDefinedCents: userDefined,
     surplusCents: userDefined - internalOut,
+    cushionByMonth: cushionOn,
   };
 }

@@ -273,6 +273,31 @@ describe("reserveEngine — operations", () => {
     expect(cell(r, "c").overspentCents).toBe(0n);
   });
 
+  // 260806 user report: a category showed "planned 500" while its spend of 450
+  // came back fully OVERSPENT. Both were right about different things — July ran
+  // in CUSHION mode with a cushion limit of 0, so the engine was correct, and
+  // the column rendered the NORMAL limit because it read the budget's mode as it
+  // stands TODAY rather than the mode that month actually ran under.
+  //
+  // The engine already resolves the right one per month; it just never said so.
+  // Exposing it lets the display read the same answer instead of guessing.
+  test("reports which limit each month was judged against", () => {
+    const r = run([
+      { type: "cushion", month: CLOSED, on: true },
+      { type: "cushion", month: OPEN, on: false },
+      {
+        type: "setLimit",
+        categoryId: "c",
+        month: CLOSED,
+        normalCents: 50000n,
+        cushionCents: 0n,
+      },
+      seedLimit("c", 50000n, 0n),
+    ]);
+    expect(r.cushionByMonth.get(CLOSED)).toBe(true);
+    expect(r.cushionByMonth.get(OPEN)).toBe(false);
+  });
+
   // 260806 user report: a transaction added to a PAST month came back entirely
   // OVERSPENT — 450 against a 500 limit showed 450 over. A closed month must
   // spend exactly like an open one: drain that month's limit first, then the
