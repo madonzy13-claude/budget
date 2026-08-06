@@ -22,17 +22,19 @@ import { Pool } from "pg";
 // worker_role, not app_role: the universe is a global catalog the worker owns and
 // app_role cannot even read. Under app_role every query here returns zero rows and
 // the whole file passes while proving nothing.
+//
+// Skips rather than throws when the URL is absent: apps/api/test/schema is swept by
+// the DB-free unit job, where a throw at import fails the whole job. The tenant-leak
+// job runs this file again with a migrated database and the env set.
 const DB_URL_RAW = process.env.DATABASE_URL_WORKER;
-if (!DB_URL_RAW)
-  throw new Error("DATABASE_URL_WORKER required for integration tests");
-const DB_URL = DB_URL_RAW.replace("@db:", "@localhost:");
+const DB_URL = DB_URL_RAW?.replace("@db:", "@localhost:");
 
 let pool: Pool;
 beforeAll(() => {
-  pool = new Pool({ connectionString: DB_URL });
+  if (DB_URL) pool = new Pool({ connectionString: DB_URL });
 });
 
-describe("Instrument universe — US-listed only", () => {
+describe.skipIf(!DB_URL)("Instrument universe — US-listed only", () => {
   it("stores no manual-priced equities or ETFs", async () => {
     const { rows } = await pool.query(
       `SELECT symbol, display_name, provider

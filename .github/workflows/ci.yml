@@ -176,6 +176,14 @@ jobs:
           DATABASE_URL_WORKER: postgresql://worker_role:worker_pwd@localhost:5432/budget
           DATABASE_URL_MIGRATOR: postgresql://migrator:migrator_pwd@localhost:5432/budget
         run: bun test tests/tenant-leak --timeout 30000
+      # Schema assertions that need a migrated database: 0076 purges the
+      # un-priceable equities/ETFs and adds the CHECK that keeps them out. Runs
+      # here rather than in the DB-free unit job, which skips the file.
+      - name: Run schema tests needing a migrated DB
+        env:
+          DATABASE_URL_APP: postgresql://app_role:app_pwd@localhost:5432/budget
+          DATABASE_URL_WORKER: postgresql://worker_role:worker_pwd@localhost:5432/budget
+        run: bun test apps/api/test/schema --timeout 30000
       - name: Diagnostic — db logs on failure
         if: failure()
         run: docker compose -f docker-compose.yml logs --no-color db 2>&1 | tail -80
