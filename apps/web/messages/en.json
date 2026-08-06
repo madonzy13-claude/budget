@@ -1891,7 +1891,8 @@
       "row2": {
         "planned": "planned",
         "cushion": "cushion",
-        "plannedCushion": "planned (cushion)"
+        "plannedCushion": "planned (cushion)",
+        "limitUsed": "limit used"
       },
       "row3": {
         "overspent": "overspent",

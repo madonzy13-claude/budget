@@ -77,6 +77,9 @@ export function ColumnHeader({
   // In cushion mode every category (incl. Investments, whose cushion is 0) shows
   // the cushion figure under a "planned (cushion)" label. Investments therefore
   // reads 0 in cushion mode — you don't invest on the tighter cushion budget.
+  // Already resolved for the VIEWED month by the grid: a month completed on the
+  // cushion keeps its cushion limit for good, so looking back at it from a
+  // normal month must not swap in the normal figure (user, 260806).
   const showCushionValue = cushionModeEnabled;
   // "Left" never shows negative — overspend is surfaced by the overspent row.
   const displayBalanceCents = balanceCents < 0n ? 0n : balanceCents;
@@ -238,45 +241,32 @@ export function ColumnHeader({
           className="flex flex-col px-2 py-1.5 border-b border-[var(--hairline-dark)]"
         >
           <span className="text-[10px] text-[var(--muted-foreground)]">
-            {/* In cushion mode the row reads "planned (cushion)"; Investments
-                shows 0 there (no cushion) — outside cushion mode, its smart limit. */}
-            {showCushionValue ? t("row2.plannedCushion") : t("row2.planned")}
+            {t("row2.limitUsed")}
+            {/* Cushion months are the ones people misread, so the marker earns
+                the accent colour rather than the same grey as the label it
+                qualifies (user, 260806). */}
+            {showCushionValue && (
+              <span className="text-[var(--primary)]"> (cushion)</span>
+            )}
           </span>
+          {/* left / limit, read the way "reserves used" already reads: what is
+              still yours in white, what it is measured against behind a grey
+              slash. The row below that used to repeat the left figure is gone —
+              it was the same number twice (user, 260806). */}
           <span
             data-testid={`column-header-${category.name.toLowerCase()}-planned`}
-            className="text-sm font-medium tabular-nums text-[var(--body-on-dark)]"
+            className="text-sm font-medium tabular-nums whitespace-nowrap"
           >
-            {centsToBare(
-              showCushionValue ? summary.cushionCents : summary.plannedCents,
-              locale,
-            )}
-          </span>
-        </div>
-
-        {/* Row 3: Overspent — tap toggles reveal (260611-vuo FEATURE3) */}
-        <div
-          onClick={toggleReveal}
-          onDoubleClick={handleDoubleClick}
-          className="flex flex-col px-2 py-1.5 border-b border-[var(--hairline-dark)]"
-        >
-          <span className="text-[10px] text-[var(--muted-foreground)]">
-            {isInvestment ? t("row3.overinvested") : t("row3.overspent")}
-          </span>
-          <span
-            data-testid={`column-header-${category.name.toLowerCase()}-${
-              isInvestment ? "overinvested" : "overspent"
-            }`}
-            className={cn(
-              "text-sm tabular-nums",
-              overspentCents > 0n
-                ? // Overinvesting is GOOD → green; overspending is bad → red.
-                  isInvestment
-                  ? "text-[var(--trading-up,#26a69a)]"
-                  : "text-[var(--destructive)]"
-                : "text-[var(--muted-foreground)]",
-            )}
-          >
-            {centsToBare(summary.overspentCents, locale)}
+            <span className="text-[var(--body-on-dark)]">
+              {centsToBare(displayBalanceCents.toString(), locale)}
+            </span>
+            <span className="text-[var(--muted-foreground)]">
+              {" / "}
+              {centsToBare(
+                showCushionValue ? summary.cushionCents : summary.plannedCents,
+                locale,
+              )}
+            </span>
           </span>
         </div>
 
@@ -335,27 +325,33 @@ export function ColumnHeader({
           </div>
         )}
 
-        {/* Row 5: Balance — tap toggles reveal (260611-vuo FEATURE3) */}
+        {/* Row 3: Overspent — tap toggles reveal (260611-vuo FEATURE3) */}
         <div
           onClick={toggleReveal}
           onDoubleClick={handleDoubleClick}
-          className="flex flex-col px-2 py-1.5"
+          className="flex flex-col px-2 py-1.5 border-b border-[var(--hairline-dark)]"
         >
           <span className="text-[10px] text-[var(--muted-foreground)]">
-            {t("row5.balance")}
+            {isInvestment ? t("row3.overinvested") : t("row3.overspent")}
           </span>
           <span
-            data-testid={`column-header-${category.name.toLowerCase()}-balance`}
+            data-testid={`column-header-${category.name.toLowerCase()}-${
+              isInvestment ? "overinvested" : "overspent"
+            }`}
             className={cn(
-              "text-sm font-semibold tabular-nums",
-              displayBalanceCents > 0n
-                ? "text-[var(--trading-up, #26a69a)]"
+              "text-sm tabular-nums",
+              overspentCents > 0n
+                ? // Overinvesting is GOOD → green; overspending is bad → red.
+                  isInvestment
+                  ? "text-[var(--trading-up,#26a69a)]"
+                  : "text-[var(--destructive)]"
                 : "text-[var(--muted-foreground)]",
             )}
           >
-            {centsToBare(displayBalanceCents.toString(), locale)}
+            {centsToBare(summary.overspentCents, locale)}
           </span>
         </div>
+
       </div>
     </div>
   );

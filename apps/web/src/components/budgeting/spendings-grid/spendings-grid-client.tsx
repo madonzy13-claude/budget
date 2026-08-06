@@ -1058,7 +1058,12 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
                         summaryByCatId.get(c.id) ?? defaultEmptySummary(c.id)
                       }
                       cushionModeEnabled={
-                        summary.data?.cushionModeEnabled ?? false
+                        // The VIEWED month's mode, falling back to the budget's
+                        // current flag for a payload cached before the field
+                        // existed (user, 260806).
+                        summary.data?.cushionModeForMonth ??
+                        summary.data?.cushionModeEnabled ??
+                        false
                       }
                       budgetCurrency={budgetCurrency}
                       transactions={transactionsByCatId.get(c.id) ?? []}

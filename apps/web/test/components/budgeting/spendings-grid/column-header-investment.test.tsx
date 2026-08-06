@@ -68,7 +68,7 @@ describe("ColumnHeader — Investments (r33)", () => {
     expect(screen.getByText("row3.overspent")).toBeTruthy();
   });
 
-  it("in cushion mode, Investments shows 0 (no cushion) under 'planned (cushion)'", () => {
+  it("in cushion mode, Investments shows 0 (no cushion) under 'limit used (cushion)'", () => {
     const s = summary("100000", true);
     s.plannedCents = "170000";
     s.cushionCents = "0";
@@ -85,11 +85,14 @@ describe("ColumnHeader — Investments (r33)", () => {
       screen
         .getByTestId("column-header-investments-planned")
         .textContent?.replace(/\D/g, ""),
-    ).toBe("0");
-    expect(screen.getByText("row2.plannedCushion")).toBeTruthy();
+    ).toMatch(/^0\s*\/?\s*0?$/);
+    // 260806: the caption is "limit used", with "(cushion)" as its own accent-
+    // coloured marker rather than part of a single translated string.
+    expect(screen.getByText("row2.limitUsed")).toBeTruthy();
+    expect(screen.getByText(/\(cushion\)/)).toBeTruthy();
   });
 
-  it("in cushion mode, a normal category labels row2 'planned (cushion)'", () => {
+  it("in cushion mode, a normal category marks row2 with (cushion)", () => {
     const s = summary("0", false);
     s.plannedCents = "80000";
     s.cushionCents = "50000";
@@ -101,13 +104,16 @@ describe("ColumnHeader — Investments (r33)", () => {
         onEdit={() => {}}
       />,
     );
-    expect(screen.getByText("row2.plannedCushion")).toBeTruthy();
+    // 260806: the caption is "limit used", with "(cushion)" as its own accent-
+    // coloured marker rather than part of a single translated string.
+    expect(screen.getByText("row2.limitUsed")).toBeTruthy();
+    expect(screen.getByText(/\(cushion\)/)).toBeTruthy();
     // Value is the cushion figure (50000 → "500").
     expect(
       screen
         .getByTestId("column-header-food-planned")
         .textContent?.replace(/\D/g, ""),
-    ).toBe("500");
+    ).toMatch(/500/);
   });
 
   it("dashes the reserve section for the Investments category", () => {

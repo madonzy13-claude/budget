@@ -56,7 +56,15 @@ export function QuickEntryInput({
   // is never lost, exactly like the device-knows-offline path below.
   const { mutate } = useCreateTransaction(budgetId, month, {
     onOfflineError: (input) =>
-      queueOffline(input.amountCents, input.note ?? null, input.date),
+      // Same input object the mutation used, so this recovers the very key that
+      // attempt sent rather than starting a new operation — the replay is then
+      // recognisably the SAME write (260806).
+      queueOffline(
+        input.amountCents,
+        input.note ?? null,
+        input.date,
+        idempotencyKeyFor(input),
+      ),
   });
 
   /** 260731-osq: keep the spending locally (persisted) + bottom toast. */

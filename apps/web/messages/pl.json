@@ -1914,7 +1914,8 @@
       "row2": {
         "planned": "plan",
         "cushion": "poduszka",
-        "plannedCushion": "plan (poduszka)"
+        "plannedCushion": "plan (poduszka)",
+        "limitUsed": "limit wykorzystany"
       },
       "row3": {
         "overspent": "przekroczenie",
