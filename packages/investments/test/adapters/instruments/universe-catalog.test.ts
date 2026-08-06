@@ -78,6 +78,22 @@ describe("classifyTdRow (stocks/ETF → provider + rank)", () => {
     expect(classifyTdRow({ symbol: "", name: "x" }, "equities")).toBeNull();
     expect(classifyTdRow({ symbol: "x", name: "" }, "equities")).toBeNull();
   });
+
+  // An older ingest stored non-US listings as `manual:<MIC>`, and those rows sat
+  // on the tickers their US namesakes needed — Warsaw's UBER kept NASDAQ's UBER
+  // out of the catalog entirely. Migration 0076 purged them and added a CHECK
+  // that refuses more. This test is the earlier warning: without it, a
+  // classifier that starts emitting manual rows again fails at the constraint
+  // and takes the whole nightly seed down with it.
+  it("never emits a manual provider, whatever the exchange", () => {
+    for (const mic of ["XWAR", "XLON", "XMIL", "XKRX", "XNAS"]) {
+      const r = classifyTdRow(
+        { symbol: "UBER", name: "Uber", mic_code: mic },
+        "equities",
+      );
+      if (r) expect(r.provider).not.toMatch(/^manual/);
+    }
+  });
 });
 
 describe("crypto ranking + classification", () => {

@@ -101,14 +101,9 @@ const DEFAULT_INVESTMENT_UNIVERSE: InstrumentUpsert[] = [
     assetClass: "etf",
     quoteCurrency: "USD",
   },
-  {
-    // Non-US ETF: no free server-side quote → user-priced (provider='manual').
-    symbol: "VWCE",
-    displayName: "Vanguard FTSE All-World ETF",
-    provider: "manual",
-    assetClass: "etf",
-    quoteCurrency: "EUR",
-  },
+  // VWCE (non-US ETF, user-priced) removed in 0076: we can only quote US
+  // listings, so the search filter hid it anyway and the CHECK added by that
+  // migration now rejects it outright — seeding it would fail the cold start.,
   {
     // CoinGecko ids are slugs ("bitcoin"), but users search by ticker ("BTC").
     // The local trigram search matches display_name, so carry the ticker there.
