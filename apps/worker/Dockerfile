@@ -1,7 +1,14 @@
 # Stage 1: install workspace dependencies
 FROM oven/bun:1.3.12-slim AS deps
 WORKDIR /app
-COPY package.json bun.lock ./
+# bun.lock is deliberately NOT copied here. With a lockfile present, a
+# --production install resolves a tree WITHOUT devDependencies, which bun
+# reports as "lockfile had changes, but lockfile is frozen" and fails — it
+# happened on every CI build of this branch and never locally. main has always
+# built these images without it. The web image, which is the one that actually
+# had a version-drift incident, keeps its lockfile; the hazard there (next) is
+# pinned exactly in package.json besides.
+COPY package.json ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY apps/worker/package.json apps/worker/
