@@ -19,15 +19,20 @@ COPY apps/worker/package.json ./apps/worker/
 COPY apps/migrator/package.json ./apps/migrator/
 
 # Install all dependencies
-# --frozen-lockfile, NOT --no-save: without the lockfile every build
-# re-resolves ^ranges, so a dependency published this morning ships in an
-# image built from unchanged source. next@16.3.0 landed exactly that way
-# and broke page-data collection under Bun (260804).
-RUN cp bun.lock /tmp/bun.lock.orig && \
-    (bun install --frozen-lockfile || \
-     (echo '=== FROZEN INSTALL FAILED — what bun wanted to change: ==='; \
-      bun install >/dev/null 2>&1; \
-      diff /tmp/bun.lock.orig bun.lock | head -60; exit 1))
+# --no-save, and the protection lives in the PIN rather than the lockfile.
+#
+# This was --frozen-lockfile for a while (260804), after an unpinned install
+# shipped next@16.3.0 into an image built from unchanged source and broke
+# page-data collection under Bun. The intent was right; the mechanism never
+# worked — every CI build failed with "lockfile had changes, but lockfile is
+# frozen" while the identical commit built clean locally with --no-cache, same
+# base image, same bun, same arch. It has never gone green (260806).
+#
+# `next` is pinned to an exact version in apps/web/package.json and in the root
+# overrides instead, so the release that caused the incident cannot come back
+# whatever the resolver does. That is a stronger guarantee than a lockfile the
+# build could not read anyway.
+RUN bun install --no-save
 
 # Stage 2: Build
 FROM installer AS builder

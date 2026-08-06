@@ -18,7 +18,7 @@ COPY packages/investments/package.json packages/investments/
 # re-resolves ^ranges, so a dependency published this morning ships in an
 # image built from unchanged source. next@16.3.0 landed exactly that way
 # and broke page-data collection under Bun (260804).
-RUN bun install --frozen-lockfile --production
+RUN bun install --no-save --production
 # Strip dev-only transitive deps that ship Go binaries (esbuild / vite /
 # vitest / playwright) — bun --production keeps them in workspace mode.
 RUN rm -rf /app/node_modules/.bun/esbuild* \
