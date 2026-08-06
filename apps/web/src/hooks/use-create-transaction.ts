@@ -19,7 +19,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { clientApiFetch } from "@/lib/budget-fetch";
-import { generateIdempotencyKey } from "@/lib/idempotency";
+import {
+  generateIdempotencyKey,
+  idempotencyKeyFor,
+} from "@/lib/idempotency";
 import { mapTxnRowToDTO } from "./use-transactions";
 
 /**
@@ -104,9 +107,13 @@ export function useCreateTransaction(
 
   return useMutation({
     mutationFn: async (input: CreateTransactionInput) => {
-      // Fresh Idempotency-Key per mutation — the server dedupes if a response is
-      // lost on a flaky link but the write actually landed.
-      const key = generateIdempotencyKey();
+      // One key per OPERATION, so every attempt at this create carries the same
+      // one and the server can recognise a repeat. A fresh key per attempt —
+      // which this used to mint, while claiming it let the server dedupe a lost
+      // response — guarantees the opposite: a trace caught an aborted POST that
+      // the server had in fact written, retried under a new key, recorded
+      // twice (260806).
+      const key = idempotencyKeyFor(input);
 
       // FAST-NEGATIVE: navigator.onLine===false is RELIABLE on iOS (only the
       // `true` value lies — it reports online on a dead link). When the device
