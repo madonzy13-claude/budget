@@ -1501,11 +1501,10 @@
           "monthColumn": "міс.",
           "spent": "Витрачено",
           "byCategoryAverage": "Відхилення від середнього ліміту, за категоріями",
-          "differenceVsAverage": "Різниця відносно середнього ліміту",
           "basisPast": "Минуле",
           "basisFuture": "Майбутнє",
           "byCategoryFuture": "Наскільки має змінитися ліміт, за категоріями",
-          "differenceVsFuture": "потрібна зміна"
+          "expectedSpend": "Очікувані витрати"
         },
         "wealth": {
           "capitalization": "Капіталізація",
@@ -1562,7 +1561,6 @@
           "held": "Утримується",
           "needed": "Потрібно",
           "short": "Бракує",
-          "trim": "Зайве",
           "oneOffsFor": "Великі витрати в «{name}»",
           "recurs": "повторюється {cadence}",
           "reviewOneOffs": "Переглянути великі витрати",
@@ -1593,7 +1591,8 @@
           "coveredOverspend": "{amount} з цього пішло на покриття перевитрат, тож резерву досі бракує.",
           "addToReserve": "Додати в резерв",
           "orSetLimit": "або встановіть ліміт",
-          "ahead": "З випередженням"
+          "withdraw": "Зняти з резерву",
+          "balanced": "Добре збалансовано"
         },
         "needsCompletedMonth": {
           "title": "Ще немає що оцінювати",

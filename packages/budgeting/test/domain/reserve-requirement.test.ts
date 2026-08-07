@@ -8,10 +8,7 @@
  * limit could come DOWN. Two numbers, two different worlds, in one tooltip.
  */
 import { describe, test, expect } from "bun:test";
-import {
-  reserveNeededToday,
-  reserveCeiling,
-} from "../../src/domain/reserve-requirement";
+import { reserveNeededToday } from "../../src/domain/reserve-requirement";
 import { smallestSufficientLimit } from "../../src/domain/suggest-limit";
 
 const zl = (n: number) => BigInt(Math.round(n * 100));
@@ -96,29 +93,6 @@ describe("reserveNeededToday", () => {
         limitCents: zl(900),
       }),
     ).toBe(zl(1200));
-  });
-});
-
-describe("reserveCeiling — the most it could ever be called on to hold", () => {
-  // Trimming has to be safe. `reserveNeededToday` is a floor for TODAY and
-  // rests on the accrual continuing; withdrawing down to it pulls out the money
-  // that assumption depends on, and the model cannot notice because it never
-  // reads what is held. Anything above the ceiling is genuinely spare.
-  test("is everything committed plus history's buffer, with no accrual", () => {
-    expect(reserveCeiling(travel)).toBe(zl(24888) + zl(3191));
-  });
-
-  test("is never below what is needed today, whatever the limit", () => {
-    for (const limit of [0, 500, 1399, 3233, 9000, 50000]) {
-      const needed = reserveNeededToday({ ...travel, limitCents: zl(limit) });
-      expect(reserveCeiling(travel) >= needed).toBe(true);
-    }
-  });
-
-  test("is zero when nothing is committed and history asked for nothing", () => {
-    expect(
-      reserveCeiling({ commitmentsByMonth: [0n, 0n], historicalNeedCents: 0n }),
-    ).toBe(0n);
   });
 });
 

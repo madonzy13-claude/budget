@@ -216,11 +216,14 @@ describe("How far off plan — which limit it measures against", () => {
     expect(screen.queryByTestId("overview-planned-basis")).toBeTruthy();
   });
 
-  it("shows BOTH limits in the tooltip, whichever is being measured against", () => {
+  it("shows the baseline it measures against, and not the other one", () => {
+    // Both were listed while the switch was average-vs-current; each side now
+    // has its own baseline and the other is a figure nobody reads (user,
+    // 260807).
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
     const values = JSON.parse(chart().getAttribute("data-tooltip")!) as string[];
     expect(values.join(" ")).toContain("500");
-    expect(values.join(" ")).toContain("800");
+    expect(values.join(" ")).not.toContain("800");
   });
 
   // A payload cached before the field existed must not read as a limit of zero.
@@ -273,14 +276,9 @@ describe("How far off plan — the tooltip", () => {
     expect(rows()[0]!.value2).toBe("planned.totalColumn");
   });
 
-  // The current limit is a rate, not something that accumulated over the range:
-  // there is no total to put beside it, and a repeat of the average's total
-  // would be a lie. A dash says "not applicable" without leaving a hole.
-  it("gives the current limit a dash where its total would be", () => {
+  it("no longer lists today's limit at all", () => {
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
-    const current = rows().find((r) => r.label === "planned.currentLimit")!;
-    expect(current.value).toContain("800");
-    expect(current.value2).toBe("—");
+    expect(rows().some((r) => r.label === "planned.currentLimit")).toBe(false);
   });
 
   it("calls the money that was spent Spent", () => {
@@ -289,14 +287,58 @@ describe("How far off plan — the tooltip", () => {
     expect(rows().some((r) => r.label === "planned.real")).toBe(false);
   });
 
-  it("says which limit the difference is measured against", async () => {
+  it("calls the difference just Difference, on either side", async () => {
+    // The baseline is named a line above; repeating it here said nothing.
     const user = userEvent.setup();
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
-    expect(rows().at(-1)!.label).toBe("planned.differenceVsAverage");
+    expect(rows().at(-1)!.label).toBe("planned.difference");
 
     await user.click(
       screen.getByRole("button", { name: "planned.basisFuture" }),
     );
-    expect(rows().at(-1)!.label).toBe("planned.differenceVsFuture");
+    expect(rows().at(-1)!.label).toBe("planned.difference");
+  });
+});
+
+describe("How far off plan — each basis shows only its own baseline", () => {
+  const rows = () =>
+    JSON.parse(
+      screen.getByTestId("avg-chart").getAttribute("data-tooltip-rows")!,
+    ) as { label?: string; value?: string; value2?: string }[];
+
+  it("PAST names the average limit and drops today's", () => {
+    // The bar is measured against the average, so today's limit is a figure
+    // nobody is reading — it was only ever there to justify the switch when the
+    // switch was average-vs-current (user, 260807).
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    const labels = rows().map((r) => r.label);
+    expect(labels).toContain("planned.avgLimit");
+    expect(labels).not.toContain("planned.currentLimit");
+  });
+
+  it("PAST calls the difference just that", () => {
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    expect(rows().at(-1)!.label).toBe("planned.difference");
+  });
+
+  it("FUTURE drops the average limit — it is not the baseline any more", async () => {
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    const labels = rows().map((r) => r.label);
+    expect(labels).not.toContain("planned.avgLimit");
+  });
+
+  it("FUTURE calls the spending what it is — what you are expected to spend", async () => {
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    const labels = rows().map((r) => r.label);
+    expect(labels).toContain("planned.expectedSpend");
+    expect(labels).not.toContain("planned.spent");
   });
 });

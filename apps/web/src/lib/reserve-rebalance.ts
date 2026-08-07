@@ -101,29 +101,3 @@ export function parseTargetCents(text: string): number | null {
 export function rebalanceRowPct(row: RebalanceRow): number {
   return fitPct(row.currentCents, row.targetCents);
 }
-
-/**
- * What the dialog may pre-fill as a reserve's target.
- *
- * `needed` changed meaning on 260807: it is what must be in the reserve TODAY,
- * and it explicitly nets out the accrual the limit will keep producing. That
- * makes it a FLOOR, not a target. Offering it as one would put a one-tap
- * withdrawal behind every healthy category — pulling out the money the accrual
- * assumption rests on, which the model cannot notice, because it never reads
- * what is held.
- *
- * So: top a short reserve UP to its floor, trim only what sits above the most
- * it could ever be called on to hold, and leave everything in between alone.
- * Money between the two is not idle — it is early.
- */
-export function rebalanceTarget(
-  heldCents: number,
-  neededCents: number,
-  ceilingCents: number,
-): number {
-  if (heldCents < neededCents) return neededCents;
-  // A ceiling below the floor would invert the rule; the floor always wins.
-  const ceiling = Math.max(ceilingCents, neededCents);
-  if (heldCents > ceiling) return ceiling;
-  return heldCents;
-}

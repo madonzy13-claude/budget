@@ -23,10 +23,7 @@
 import { ok, err, type Result } from "@budget/shared-kernel";
 import { reserveFit, type ReserveFitMonth } from "../domain/reserve-fit";
 import { smallestSufficientLimit } from "../domain/suggest-limit";
-import {
-  reserveNeededToday,
-  reserveCeiling,
-} from "../domain/reserve-requirement";
+import { reserveNeededToday } from "../domain/reserve-requirement";
 import { projectScheduledPayments } from "../domain/scheduled-payment-projection";
 import type { ReservePositionsResult } from "./get-reserve-positions";
 import type { OverviewPlannedRepo } from "./get-overview-planned";
@@ -120,10 +117,6 @@ export interface ReserveFitRowDTO {
   gap_cents: string;
   worst_month: string | null;
   worst_overage_cents: string;
-  /** The most this reserve could ever be called on to hold across the runway,
-   *  with no accrual counted. Money above it is genuinely spare; money between
-   *  `needed_cents` and this is on schedule, not idle (260807). */
-  ceiling_cents: string;
   /** The limit that would keep this category solvent across the whole runway,
    *  and what moving to it costs or frees each month. null = today's limit
    *  already is that limit, so there is nothing to say (260807). */
@@ -377,15 +370,6 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           historicalNeedCents: past.neededCents,
           limitCents: currentLimit,
         });
-        // …and the most it could ever be called on to hold, with no accrual
-        // counted at all. Only money above THIS is safe to take back: the
-        // requirement above rests on the accrual continuing, so withdrawing
-        // down to it would remove what that assumption depends on.
-        const ceilingCents = reserveCeiling({
-          commitmentsByMonth: forward,
-          historicalNeedCents: past.neededCents,
-        });
-
         // No current limit means nothing to suggest a change TO — the row is
         // already being judged on its own history (see currentLimit above).
         //
@@ -436,7 +420,6 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           name: w.name,
           held_cents: position.reserveCents.toString(),
           needed_cents: neededCents.toString(),
-          ceiling_cents: ceilingCents.toString(),
           gap_cents: (position.reserveCents - neededCents).toString(),
           worst_month: past.worstMonth,
           worst_overage_cents: past.worstOverageCents.toString(),

@@ -1501,11 +1501,10 @@
           "monthColumn": "mies.",
           "spent": "Wydane",
           "byCategoryAverage": "Odchylenie od średniego limitu, wg kategorii",
-          "differenceVsAverage": "Różnica wobec średniego limitu",
           "basisPast": "Przeszłość",
           "basisFuture": "Przyszłość",
           "byCategoryFuture": "O ile powinien zmienić się limit, wg kategorii",
-          "differenceVsFuture": "potrzebna zmiana"
+          "expectedSpend": "Oczekiwane wydatki"
         },
         "wealth": {
           "capitalization": "Kapitalizacja",
@@ -1562,7 +1561,6 @@
           "held": "Trzymane",
           "needed": "Potrzebne",
           "short": "Brakuje",
-          "trim": "Zbędne",
           "oneOffsFor": "Duże wydatki w {name}",
           "recurs": "powtarza się {cadence}",
           "reviewOneOffs": "Przejrzyj duże wydatki",
@@ -1593,7 +1591,8 @@
           "coveredOverspend": "{amount} z tego poszło na pokrycie przekroczeń, więc rezerwie nadal brakuje.",
           "addToReserve": "Dodaj do rezerwy",
           "orSetLimit": "albo ustaw limit na",
-          "ahead": "Z wyprzedzeniem"
+          "withdraw": "Wypłać z rezerwy",
+          "balanced": "Dobrze wyważone"
         },
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",

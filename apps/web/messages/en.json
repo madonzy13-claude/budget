@@ -1478,11 +1478,10 @@
           "monthColumn": "month",
           "spent": "Spent",
           "byCategoryAverage": "How far off the average limit, by category",
-          "differenceVsAverage": "Difference vs average limit",
           "basisPast": "Past",
           "basisFuture": "Future",
           "byCategoryFuture": "How much each limit should change, by category",
-          "differenceVsFuture": "change needed"
+          "expectedSpend": "Expected spend"
         },
         "wealth": {
           "capitalization": "Capitalization",
@@ -1539,7 +1538,6 @@
           "held": "Held",
           "needed": "Needed",
           "short": "Short by",
-          "trim": "Spare",
           "oneOffsFor": "Large spend in {name}",
           "recurs": "repeats {cadence}",
           "reviewOneOffs": "Review large spend",
@@ -1570,7 +1568,8 @@
           "coveredOverspend": "{amount} of that went to covering overspending, so the buffer is still short.",
           "addToReserve": "Add to reserve",
           "orSetLimit": "or set the limit to",
-          "ahead": "Ahead of schedule"
+          "withdraw": "Withdraw from reserve",
+          "balanced": "Well balanced"
         },
         "needsCompletedMonth": {
           "title": "Nothing to judge yet",

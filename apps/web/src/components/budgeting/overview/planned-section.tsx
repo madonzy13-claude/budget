@@ -780,36 +780,37 @@ export function PlannedSection({
                         value2: t("planned.totalColumn"),
                         head: true,
                       },
-                      // Both baselines, always — the difference below is
-                      // measured against whichever one the switch is on, and
-                      // seeing the other beside it is how you judge the choice
-                      // (260805). The total column belongs to the average,
-                      // which is the one that actually accumulated.
+                      // ONLY the baseline this reading is measured against
+                      // (user, 260807). Both were listed while the switch was
+                      // average-vs-current and the second justified the choice;
+                      // now each side has its own baseline and the other is a
+                      // figure nobody reads. The total column belongs to the
+                      // average, which is the one that actually accumulated.
+                      ...(basis === "future"
+                        ? []
+                        : [
+                            {
+                              label: t("planned.avgLimit"),
+                              value: fmtTooltip(Number(row.avg)),
+                              value2: fmtTooltip(Number(row.plannedTotal)),
+                            },
+                          ]),
                       {
-                        label: t("planned.avgLimit"),
-                        value: fmtTooltip(Number(row.avg)),
-                        value2: fmtTooltip(Number(row.plannedTotal)),
-                      },
-                      {
-                        label: t("planned.currentLimit"),
-                        value: fmtTooltip(Number(row.current)),
-                        // A rate, not something that accumulated over the
-                        // range: there is no total to put here, and repeating
-                        // the average's would be a lie. The dash says "not
-                        // applicable" without leaving a hole in the column.
-                        value2: "—",
-                      },
-                      {
-                        label: t("planned.spent"),
+                        // In the FUTURE reading this average is not what was
+                        // spent, it is what the category is expected to keep
+                        // spending — which is what the limit has to cover.
+                        label: t(
+                          basis === "future"
+                            ? "planned.expectedSpend"
+                            : "planned.spent",
+                        ),
                         value: fmtTooltip(Number(row.real)),
                         value2: fmtTooltip(Number(row.realTotal)),
                       },
                       {
-                        label: t(
-                          basis === "future"
-                            ? "planned.differenceVsFuture"
-                            : "planned.differenceVsAverage",
-                        ),
+                        // One baseline is listed above, so naming it again here
+                        // says nothing (user, 260807).
+                        label: t("planned.difference"),
                         // Amount AND percent on one line — the bar shows the
                         // percent, the tooltip should tie it back to real money.
                         // Percent first — it is what the bar length encodes; the

@@ -72,22 +72,3 @@ export function reserveNeededToday(input: ReserveRequirementInput): bigint {
   }
   return needed > 0n ? needed : 0n;
 }
-
-/**
- * The most this reserve could ever be called on to hold across the runway —
- * everything committed, plus history's own buffer, with NO accrual counted.
- *
- * It exists so that money can be trimmed safely. `reserveNeededToday` is a
- * floor for today and depends on the accrual continuing to flow; a rebalance
- * dialog that offered to withdraw everything above it would be pulling out the
- * money that assumption rests on, and the model could never notice, because it
- * does not read what is held. Anything above THIS is genuinely spare.
- */
-export function reserveCeiling(input: {
-  commitmentsByMonth: readonly bigint[];
-  historicalNeedCents: bigint;
-}): bigint {
-  const total = input.commitmentsByMonth.reduce((acc, c) => acc + c, 0n);
-  const ceiling = total + input.historicalNeedCents;
-  return ceiling > 0n ? ceiling : 0n;
-}

@@ -524,42 +524,56 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     expect(line.value2).toBe("(-926 zl)");
   });
 
-  it("calls money between the floor and the ceiling EARLY, not idle", () => {
-    // `needed` is what must be there today; the ceiling is the most it could
-    // ever be called on to hold. In between, the reserve is ahead of schedule —
-    // telling the household to take it back would pull out the money the
-    // accrual assumption rests on (audit, 260807).
+  it("says WITHDRAW for any reserve above what it needs", () => {
+    // "Ahead of schedule" and "spare" were two names for money the household
+    // can take out either way; the difference was about how much could go wrong
+    // afterwards, which is not a distinction anyone acted on (user, 260807).
+    // Three states now: add, withdraw, or leave it.
     renderWith(
       withSuggestion("sport", {
         held_cents: "150000",
         needed_cents: "50000",
-        ceiling_cents: "400000",
         gap_cents: "100000",
       }),
     );
-    const labels = tooltipFor("Sport").map((r) => r.label);
-    expect(labels).toContain("reserveFit.ahead");
-    expect(labels).not.toContain("reserveFit.trim");
-  });
-
-  it("only calls it a trim above the most it could ever need", () => {
-    renderWith(
-      withSuggestion("sport", {
-        held_cents: "500000",
-        needed_cents: "50000",
-        ceiling_cents: "400000",
-        gap_cents: "450000",
-      }),
-    );
     const row = tooltipFor("Sport").find(
-      (r) => r.label === "reserveFit.trim",
+      (r) => r.label === "reserveFit.withdraw",
     )!;
     expect(row).toBeDefined();
-    // What is spare is what sits above the CEILING, not above the floor.
     expect(row.value).toBe("1000 zl");
   });
 
-  it("still calls a genuine shortfall a shortfall", () => {
+  it("says a reserve on its number is well balanced, with no amount to act on", () => {
+    renderWith(
+      withSuggestion("sport", {
+        held_cents: "50000",
+        needed_cents: "50000",
+        gap_cents: "0",
+      }),
+    );
+    const row = tooltipFor("Sport").find(
+      (r) => r.label === "reserveFit.balanced",
+    )!;
+    expect(row).toBeDefined();
+    expect(row.value).toBe("");
+  });
+
+  it("ignores a difference too small to act on", () => {
+    renderWith(
+      withSuggestion("sport", {
+        held_cents: "50030",
+        needed_cents: "50000",
+        gap_cents: "30",
+      }),
+    );
+    const labels = tooltipFor("Sport").map((r) => r.label);
+    expect(labels).toContain("reserveFit.balanced");
+    expect(labels).not.toContain("reserveFit.withdraw");
+  });
+
+  it("offers the limit as the alternative to a withdrawal too", () => {
+    // Both actions get the same second route: move the money, or move the
+    // limit (user, 260807).
     renderWith(
       withSuggestion("sport", {
         suggested_limit_cents: "12000",
@@ -569,7 +583,8 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
       }),
     );
     const labels = tooltipFor("Sport").map((r) => r.label);
-    expect(labels).toContain("reserveFit.trim");
+    expect(labels).toContain("reserveFit.withdraw");
+    expect(labels).toContain("reserveFit.orSetLimit");
     expect(labels).not.toContain("reserveFit.addToReserve");
   });
 
