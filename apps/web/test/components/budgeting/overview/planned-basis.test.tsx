@@ -7,9 +7,11 @@
  * is the BASELINE — what the limit averaged across the range, or what it is set
  * to now.
  *
- * The two only differ when a limit MOVED inside the range, and that is exactly
- * when the switch appears. With a steady limit it would be two names for one
- * number.
+ * 260807: the two readings became PAST and FUTURE. Past is what the range
+ * actually ran on — the average limit. Future is the limit the reserve chart
+ * says this category will need, worked out from what it holds, what it has
+ * spent and what it has scheduled. The switch is always offered now: "what will
+ * I need" is a question with an answer whether or not a limit ever moved.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -43,8 +45,9 @@ vi.mock("@/components/budgeting/bdp-ui-state", () => ({
   usePersistedSectionOpen: () => [true, () => {}],
   useBdpUiStore: () => null,
 }));
+const fitDto: { current: unknown } = { current: undefined };
 vi.mock("@/hooks/use-reserve-fit", () => ({
-  useReserveFit: () => ({ data: undefined }),
+  useReserveFit: () => ({ data: fitDto.current }),
   useSaveReserveFitExclusions: () => ({ mutate: () => {} }),
 }));
 
@@ -129,28 +132,50 @@ describe("How far off plan — which limit it measures against", () => {
     expect(screen.queryByTestId("overview-planned-scale")).toBeNull();
   });
 
-  it("measures against the average limit by default", () => {
+  it("measures against the PAST — the average limit — by default", () => {
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
     // 600 spent against the 500 it averaged → +100 over.
     expect(chart().getAttribute("data-planned")).toBe("50000");
     expect(chart().getAttribute("data-gap")).toBe("10000");
   });
 
-  it("measures against the current limit once switched", async () => {
+  it("measures against the FUTURE limit the reserve chart works out", async () => {
+    // The whole point of the second reading (user, 260807): not the limit set
+    // today, but the one this category will need once its reserve, its history
+    // and its scheduled payments are all counted.
+    fitDto.current = {
+      rows: [{ category_id: "c1", suggested_limit_cents: "120000" }],
+    };
     const user = userEvent.setup();
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
-    await user.click(screen.getByRole("button", { name: "planned.basisCurrent" }));
-    // …and against the 800 it is set to now, the same spending is 200 UNDER.
-    expect(chart().getAttribute("data-planned")).toBe("80000");
-    expect(chart().getAttribute("data-gap")).toBe("-20000");
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    // 600 spent against the 1,200 it will need → 600 under.
+    expect(chart().getAttribute("data-planned")).toBe("120000");
+    expect(chart().getAttribute("data-gap")).toBe("-60000");
   });
 
-  // With a steady limit the two readings are the same number, so offering the
-  // choice would be noise.
-  it("offers no choice when no limit moved in the range", () => {
+  it("falls back to today's limit when the reserve chart suggests no change", async () => {
+    // A null suggestion means today's limit already IS the one to run — so the
+    // future reading is that limit, not an empty bar.
+    fitDto.current = {
+      rows: [{ category_id: "c1", suggested_limit_cents: null }],
+    };
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    expect(chart().getAttribute("data-planned")).toBe("80000");
+  });
+
+  // "What will I need" has an answer whether or not a limit ever moved, so the
+  // switch no longer hides itself.
+  it("offers the choice even when no limit moved in the range", () => {
     dto.current = { ...base, limits_moved: false };
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
-    expect(screen.queryByTestId("overview-planned-basis")).toBeNull();
+    expect(screen.queryByTestId("overview-planned-basis")).toBeTruthy();
   });
 
   it("shows BOTH limits in the tooltip, whichever is being measured against", () => {
@@ -182,17 +207,15 @@ describe("How far off plan — saying what you are looking at", () => {
     expect(title()).toBe("planned.byCategoryAverage");
   });
 
-  it("names today's limit once switched to it", async () => {
+  it("names the limit ahead once switched to the future", async () => {
     const user = userEvent.setup();
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
     await user.click(
-      screen.getByRole("button", { name: "planned.basisCurrent" }),
+      screen.getByRole("button", { name: "planned.basisFuture" }),
     );
-    expect(title()).toBe("planned.byCategoryCurrent");
+    expect(title()).toBe("planned.byCategoryFuture");
   });
 
-  // With no switch on offer the average IS the plan, so the title still names it
-  // rather than going vague.
   it("still names the baseline when no limit moved", () => {
     dto.current = { ...base, limits_moved: false };
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
@@ -234,8 +257,8 @@ describe("How far off plan — the tooltip", () => {
     expect(rows().at(-1)!.label).toBe("planned.differenceVsAverage");
 
     await user.click(
-      screen.getByRole("button", { name: "planned.basisCurrent" }),
+      screen.getByRole("button", { name: "planned.basisFuture" }),
     );
-    expect(rows().at(-1)!.label).toBe("planned.differenceVsCurrent");
+    expect(rows().at(-1)!.label).toBe("planned.differenceVsFuture");
   });
 });

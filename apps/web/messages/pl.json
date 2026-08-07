@@ -1496,16 +1496,16 @@
           "overPlan": "Ponad plan",
           "underPlan": "Poniżej planu",
           "basis": "Limit",
-          "basisAverage": "Średni",
-          "basisCurrent": "Bieżący",
           "avgLimit": "Średni limit",
           "currentLimit": "Bieżący limit",
           "monthColumn": "mies.",
           "spent": "Wydane",
           "byCategoryAverage": "Odchylenie od średniego limitu, wg kategorii",
-          "byCategoryCurrent": "Odchylenie od dzisiejszego limitu, wg kategorii",
           "differenceVsAverage": "Różnica wobec średniego limitu",
-          "differenceVsCurrent": "Różnica wobec bieżącego limitu"
+          "basisPast": "Przeszłość",
+          "basisFuture": "Przyszłość",
+          "byCategoryFuture": "Odchylenie od potrzebnego limitu, wg kategorii",
+          "differenceVsFuture": "wobec potrzebnego limitu"
         },
         "wealth": {
           "capitalization": "Kapitalizacja",
@@ -1591,10 +1591,8 @@
           "undoAria": "Cofnij zmianę w {name}",
           "nothingToMove": "Już we właściwej wysokości",
           "coveredOverspend": "{amount} z tego poszło na pokrycie przekroczeń, więc rezerwie nadal brakuje.",
-          "suggestRaise": "Albo podnieś limit do",
-          "suggestLower": "Można obniżyć limit do",
-          "suggestPerMonth": "{amount}/mies.",
-          "suggestMonths": "przez {months} mies."
+          "addToReserve": "Dodaj do rezerwy",
+          "orSetLimit": "Albo ustaw limit na"
         },
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",

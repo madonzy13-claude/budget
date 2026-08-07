@@ -272,10 +272,18 @@ export function PlannedSection({
   // default: it is what the range actually ran on, and "current" only means
   // something once a limit has moved. Persisted across pill navigation like the
   // rest of this section's UI state.
-  const [basis, setBasisState] = useState<"average" | "current">(
-    () => store?.overview.plannedBasis ?? "average",
+  // PAST or FUTURE (260807). Past is what the range actually ran on — the
+  // average limit. Future is the limit this category will NEED, the one the
+  // reserve chart works out from what it holds, what it has spent and what it
+  // has scheduled. The old pair was average/current; a stored "current" reads
+  // as the future, which is the closest thing it meant.
+  const [basis, setBasisState] = useState<"past" | "future">(() =>
+    store?.overview.plannedBasis === "current" ||
+    store?.overview.plannedBasis === "future"
+      ? "future"
+      : "past",
   );
-  const setBasis = (v: "average" | "current") => {
+  const setBasis = (v: "past" | "future") => {
     if (store) store.overview.plannedBasis = v;
     setBasisState(v);
   };
@@ -289,6 +297,14 @@ export function PlannedSection({
     enabled: warm,
   });
   const saveExclusions = useSaveReserveFitExclusions(budgetId);
+  /** categoryId → the limit the reserve chart says it will need. */
+  const suggestedLimits = new Map<string, number>(
+    (fit.data?.rows ?? []).flatMap((r) =>
+      r.suggested_limit_cents == null
+        ? []
+        : [[r.category_id, Number(r.suggested_limit_cents)] as const],
+    ),
+  );
   const oneOffCandidates: OneOffCandidate[] = (fit.data?.rows ?? []).flatMap(
     (r) =>
       (r.large_transactions ?? []).map((c) => ({
@@ -617,8 +633,8 @@ export function PlannedSection({
                   off plan" reads identically whichever way it is set. */}
                 <ChartLabel testId="overview-planned-title">
                   {t(
-                    basis === "current"
-                      ? "planned.byCategoryCurrent"
+                    basis === "future"
+                      ? "planned.byCategoryFuture"
                       : "planned.byCategoryAverage",
                   )}
                 </ChartLabel>
@@ -637,19 +653,19 @@ export function PlannedSection({
                   with it. A spacer opposite keeps the switch centred. */}
                 <div className="flex items-center justify-between">
                   <span aria-hidden className="size-9 shrink-0" />
-                  {data.limits_moved && (
-                    <SegmentedToggle
-                      className="text-caption"
-                      testId="overview-planned-basis"
-                      label={t("planned.basis")}
-                      value={basis}
-                      onChange={(v) => setBasis(v as "average" | "current")}
-                      options={[
-                        { value: "average", label: t("planned.basisAverage") },
-                        { value: "current", label: t("planned.basisCurrent") },
-                      ]}
-                    />
-                  )}
+                  {/* Always on offer now: "what will I need" has an answer
+                      whether or not a limit ever moved (user, 260807). */}
+                  <SegmentedToggle
+                    className="text-caption"
+                    testId="overview-planned-basis"
+                    label={t("planned.basis")}
+                    value={basis}
+                    onChange={(v) => setBasis(v as "past" | "future")}
+                    options={[
+                      { value: "past", label: t("planned.basisPast") },
+                      { value: "future", label: t("planned.basisFuture") },
+                    ]}
+                  />
                   <div data-testid="overview-planned-corner">
                     <ReserveFitOneOffs
                       candidates={oneOffCandidates}
@@ -672,7 +688,12 @@ export function PlannedSection({
                       // Whichever baseline is being read is the one the bar and
                       // its colour come from; the other rides along in the
                       // tooltip so the comparison is visible either way.
-                      const planned = basis === "current" ? current : avg;
+                      // The FUTURE limit is the one the reserve chart suggests
+                      // for this category; a null suggestion means today's limit
+                      // already IS that limit, so it stands in.
+                      const suggested = suggestedLimits.get(c.category_id);
+                      const planned =
+                        basis === "future" ? (suggested ?? current) : avg;
                       const pct =
                         planned > 0
                           ? ((real - planned) / planned) * 100
@@ -767,8 +788,8 @@ export function PlannedSection({
                       },
                       {
                         label: t(
-                          basis === "current"
-                            ? "planned.differenceVsCurrent"
+                          basis === "future"
+                            ? "planned.differenceVsFuture"
                             : "planned.differenceVsAverage",
                         ),
                         // Amount AND percent on one line — the bar shows the

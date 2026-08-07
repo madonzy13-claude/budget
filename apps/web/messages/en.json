@@ -1473,16 +1473,16 @@
           "overPlan": "Over plan",
           "underPlan": "Under plan",
           "basis": "Limit",
-          "basisAverage": "Average",
-          "basisCurrent": "Current",
           "avgLimit": "Average limit",
           "currentLimit": "Current limit",
           "monthColumn": "month",
           "spent": "Spent",
           "byCategoryAverage": "How far off the average limit, by category",
-          "byCategoryCurrent": "How far off today's limit, by category",
           "differenceVsAverage": "Difference vs average limit",
-          "differenceVsCurrent": "Difference vs current limit"
+          "basisPast": "Past",
+          "basisFuture": "Future",
+          "byCategoryFuture": "How far off the limit you'll need, by category",
+          "differenceVsFuture": "vs the limit you'll need"
         },
         "wealth": {
           "capitalization": "Capitalization",
@@ -1568,10 +1568,8 @@
           "undoAria": "Undo the move in {name}",
           "nothingToMove": "Already the right size",
           "coveredOverspend": "{amount} of that went to covering overspending, so the buffer is still short.",
-          "suggestRaise": "Or raise the limit to",
-          "suggestLower": "Could drop the limit to",
-          "suggestPerMonth": "{amount}/mo",
-          "suggestMonths": "over {months} mo"
+          "addToReserve": "Add to reserve",
+          "orSetLimit": "Or set the limit to"
         },
         "needsCompletedMonth": {
           "title": "Nothing to judge yet",

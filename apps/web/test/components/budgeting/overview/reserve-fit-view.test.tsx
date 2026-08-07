@@ -438,7 +438,7 @@ describe("ReserveFitView", () => {
   });
 });
 
-describe("ReserveFitView — the limit that would fund the buffer", () => {
+describe("ReserveFitView — two routes out of a short reserve", () => {
   /** The tooltip rows the chart would draw for `name`. */
   const tooltipFor = (name: string) => {
     const chart = screen.getByTestId("fit-chart");
@@ -471,64 +471,76 @@ describe("ReserveFitView — the limit that would fund the buffer", () => {
       />,
     );
 
-  it("offers the limit as an alternative to finding a lump sum", () => {
-    // The chart's only advice was "you are short X". For a category that cannot
-    // accrue at its current limit, topping up drains straight back out — the
-    // limit is the route that actually funds it (user, 260807).
-    renderWith(
-      withSuggestion("car", {
-        suggested_limit_cents: "23000",
-        suggested_delta_cents: "8000",
-        suggested_over_months: 2,
-        suggested_direction: "raise",
-      }),
-    );
-    const line = tooltipFor("Car").find((r) =>
-      r.label.startsWith("reserveFit.suggestRaise"),
-    );
-    expect(line).toBeDefined();
-    expect(line!.value).toContain("230 zl");
-    expect(line!.value).toContain("80 zl");
-    expect(line!.value).toContain("2");
+  const raised = () =>
+    withSuggestion("car", {
+      suggested_limit_cents: "230700",
+      suggested_delta_cents: "3700",
+      suggested_over_months: 12,
+      suggested_direction: "raise",
+    });
+
+  it("offers the limit as the OTHER way out, beside the top-up", () => {
+    // Two routes, said plainly: put the money in now, or run a limit that gets
+    // there by itself (user, 260807).
+    renderWith(raised());
+    const labels = tooltipFor("Car").map((r) => r.label);
+    expect(labels).toContain("reserveFit.addToReserve");
+    expect(labels).toContain("reserveFit.orSetLimit");
   });
 
-  it("names the runway it spreads the change across", () => {
-    // The point of the second cut (260807): the limit is not a lump sum by a
-    // deadline, it is a smaller change carried over as long as there is.
-    renderWith(
-      withSuggestion("car", {
-        suggested_limit_cents: "23000",
-        suggested_delta_cents: "8000",
-        suggested_over_months: 12,
-        suggested_direction: "raise",
-      }),
-    );
-    const line = tooltipFor("Car").find((r) =>
-      r.label.startsWith("reserveFit.suggestRaise"),
+  it("reads the limit as an amount and its change, nothing else", () => {
+    // "2,307 zl · (926 zl/mo) · over 12 mo" was three facts in one line and ran
+    // off the side of the phone. The runway is gone and the change is a plain
+    // parenthetical (user, 260807).
+    renderWith(raised());
+    const line = tooltipFor("Car").find(
+      (r) => r.label === "reserveFit.orSetLimit",
     )!;
-    expect(line.value).toContain("12");
+    expect(line.value).toBe("2307 zl (+37 zl)");
   });
 
-  it("runs the other way for a buffer holding more than it needs", () => {
+  it("never mentions the runway", () => {
+    renderWith(raised());
+    for (const row of tooltipFor("Car")) {
+      expect(row.value).not.toMatch(/mo\b/);
+      expect(row.label).not.toMatch(/month/i);
+    }
+  });
+
+  it("signs a drop as a drop", () => {
+    renderWith(
+      withSuggestion("car", {
+        suggested_limit_cents: "230700",
+        suggested_delta_cents: "-92600",
+        suggested_over_months: 12,
+        suggested_direction: "lower",
+      }),
+    );
+    const line = tooltipFor("Car").find(
+      (r) => r.label === "reserveFit.orSetLimit",
+    )!;
+    expect(line.value).toBe("2307 zl (-926 zl)");
+  });
+
+  it("calls it a trim when the buffer is holding too much", () => {
     renderWith(
       withSuggestion("sport", {
         suggested_limit_cents: "12000",
         suggested_delta_cents: "-4000",
-        suggested_over_months: 0,
+        suggested_over_months: 12,
         suggested_direction: "lower",
       }),
     );
-    const line = tooltipFor("Sport").find((r) =>
-      r.label.startsWith("reserveFit.suggestLower"),
-    );
-    expect(line).toBeDefined();
-    expect(line!.value).toContain("120 zl");
-    expect(line!.value).toContain("40 zl");
+    const labels = tooltipFor("Sport").map((r) => r.label);
+    expect(labels).toContain("reserveFit.trim");
+    expect(labels).not.toContain("reserveFit.addToReserve");
   });
 
-  it("stays quiet when today's limit is already the right one", () => {
+  it("stays quiet about the limit when today's is already right", () => {
     renderWith(DTO);
     const labels = tooltipFor("Car").map((r) => r.label);
-    expect(labels.some((l) => l.startsWith("reserveFit.suggest"))).toBe(false);
+    expect(labels).not.toContain("reserveFit.orSetLimit");
+    // …but still says what putting the money in would take.
+    expect(labels).toContain("reserveFit.addToReserve");
   });
 });

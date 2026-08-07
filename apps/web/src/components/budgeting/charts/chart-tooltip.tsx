@@ -154,6 +154,11 @@ export function ChartTooltipContent({
         fontSize: 12,
         padding: "6px 8px",
         minWidth: 140,
+        // A ceiling, or a long row simply makes a wide tooltip and the box runs
+        // off the right edge of a phone (user screenshot, 260807). The vw term
+        // keeps it inside the narrowest screen we ship to; the px term stops it
+        // sprawling on a desktop.
+        maxWidth: "min(280px, 76vw)",
         cursor: onDismiss ? "pointer" : undefined,
       }}
     >
@@ -370,7 +375,11 @@ export function ChartTooltipContent({
               }}
             />
           )}
-          <span style={{ color: CHART_THEME.axis }}>{row.label}</span>
+          {/* The label is what gives: it may wrap to a second line so the box
+              keeps its width. The value beside it never breaks mid-number. */}
+          <span style={{ color: CHART_THEME.axis, minWidth: 0 }}>
+            {row.label}
+          </span>
           {/* One column stays flush right, as it always was. Two columns line
               up in fixed widths so avg and total read down the tooltip. The
               TOTAL column is muted: it is context for the average the bar is
@@ -381,6 +390,7 @@ export function ChartTooltipContent({
               fontWeight: 600,
               minWidth: row.value2 != null ? 62 : undefined,
               textAlign: "right",
+              whiteSpace: "nowrap",
             }}
           >
             {row.value}

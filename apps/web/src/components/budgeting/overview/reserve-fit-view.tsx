@@ -164,42 +164,21 @@ export function ReserveFitView({
           colorKey="pct"
           tooltipExtra={(row) => {
             const gap = Number(row.gapCents);
-            // The limit route (260807). "Top up X now" is the only advice this
-            // chart gave, and for a category whose spend already outruns its
-            // limit the money drains straight back out — raising the limit
-            // funds the buffer from the plan instead, month by month. The
-            // mirror reads the other way: a buffer holding more than it needs
-            // can free the difference back into the plan.
+            // Two routes out of a short reserve, said plainly (user, 260807):
+            // put the money in now, or run a limit that gets there by itself.
+            // The runway used to ride along here too — three facts in one line,
+            // which ran off the side of a phone.
             const limit = row.suggestedLimitCents as number | null;
             const delta = row.suggestedDeltaCents as number | null;
-            const dir = row.suggestedDirection as "raise" | "lower" | null;
-            const overMonths = row.suggestedOverMonths as number | null;
             const suggestion =
-              limit == null || delta == null || dir == null
+              limit == null || delta == null
                 ? []
                 : [
                     {
-                      label: t(
-                        dir === "raise"
-                          ? "reserveFit.suggestRaise"
-                          : "reserveFit.suggestLower",
-                      ),
-                      value: [
-                        format(limit),
-                        `(${t("reserveFit.suggestPerMonth", {
-                          amount: format(Math.abs(delta)),
-                        })})`,
-                        // The runway it spreads across — the point of the
-                        // whole change (260807 r2).
-                        overMonths && overMonths > 0
-                          ? t("reserveFit.suggestMonths", {
-                              months: overMonths,
-                            })
-                          : "",
-                      ]
-                        .filter(Boolean)
-                        .join(" · "),
-                      section: true,
+                      label: t("reserveFit.orSetLimit"),
+                      value: `${format(limit)} (${delta < 0 ? "-" : "+"}${format(
+                        Math.abs(delta),
+                      )})`,
                     },
                   ];
             return [
@@ -212,7 +191,12 @@ export function ReserveFitView({
                 value: format(Number(row.neededCents)),
               },
               {
-                label: gap < 0 ? t("reserveFit.short") : t("reserveFit.trim"),
+                // Named as the ACTION it is, so it reads as a sibling of the
+                // limit route below rather than as a verdict.
+                label:
+                  gap < 0
+                    ? t("reserveFit.addToReserve")
+                    : t("reserveFit.trim"),
                 value: format(Math.abs(gap)),
                 section: true,
               },

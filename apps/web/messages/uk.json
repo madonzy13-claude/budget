@@ -1496,16 +1496,16 @@
           "overPlan": "Понад план",
           "underPlan": "Менше плану",
           "basis": "Ліміт",
-          "basisAverage": "Середній",
-          "basisCurrent": "Поточний",
           "avgLimit": "Середній ліміт",
           "currentLimit": "Поточний ліміт",
           "monthColumn": "міс.",
           "spent": "Витрачено",
           "byCategoryAverage": "Відхилення від середнього ліміту, за категоріями",
-          "byCategoryCurrent": "Відхилення від сьогоднішнього ліміту, за категоріями",
           "differenceVsAverage": "Різниця відносно середнього ліміту",
-          "differenceVsCurrent": "Різниця відносно поточного ліміту"
+          "basisPast": "Минуле",
+          "basisFuture": "Майбутнє",
+          "byCategoryFuture": "Відхилення від потрібного ліміту, за категоріями",
+          "differenceVsFuture": "щодо потрібного ліміту"
         },
         "wealth": {
           "capitalization": "Капіталізація",
@@ -1591,10 +1591,8 @@
           "undoAria": "Скасувати зміну в {name}",
           "nothingToMove": "Уже потрібного розміру",
           "coveredOverspend": "{amount} з цього пішло на покриття перевитрат, тож резерву досі бракує.",
-          "suggestRaise": "Або підніміть ліміт до",
-          "suggestLower": "Можна знизити ліміт до",
-          "suggestPerMonth": "{amount}/міс.",
-          "suggestMonths": "протягом {months} міс."
+          "addToReserve": "Додати в резерв",
+          "orSetLimit": "Або встановіть ліміт"
         },
         "needsCompletedMonth": {
           "title": "Ще немає що оцінювати",

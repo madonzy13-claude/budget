@@ -1126,3 +1126,38 @@ describe("Diverging chart — banded background", () => {
     expect(areas({ formatValue: (n: number) => String(n) })).toBe(0);
   });
 });
+
+describe("ChartTooltipContent — staying on the phone", () => {
+  // The reserve tooltip grew a long row and ran off the right edge of the
+  // screen: the box had a minWidth and no ceiling, so a wide row simply made a
+  // wide tooltip (user screenshot, 260807).
+  const render1 = (label: string) =>
+    render(
+      <ChartTooltipContent
+        active
+        label="Travel"
+        payload={[{ dataKey: "__pct", value: 1, payload: { name: "Travel" } }]}
+        hideSeriesRows
+        extra={() => [{ label, value: "12 345 zł (+926 zł)" }]}
+      />,
+    );
+
+  it("caps its own width so a long row cannot push it off screen", () => {
+    const { container } = render1("Or set the limit to");
+    const box = container.firstElementChild as HTMLElement;
+    expect(box.style.maxWidth).not.toBe("");
+  });
+
+  it("lets a long row wrap instead of widening the box", () => {
+    const { container } = render1(
+      "Or set the limit to something with a very long name indeed",
+    );
+    const row = container.querySelector(
+      '[data-testid="tooltip-extra-row"]',
+    ) as HTMLElement;
+    expect(row).toBeTruthy();
+    // The label may wrap; the value must not be broken mid-number.
+    const value = row.lastElementChild as HTMLElement;
+    expect(value.style.whiteSpace).toBe("nowrap");
+  });
+});
