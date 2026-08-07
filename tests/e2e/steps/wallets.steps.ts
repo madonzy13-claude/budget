@@ -235,21 +235,11 @@ When(/^I press "(.+?)" in the assets tab$/, async ({ page }, key: string) => {
 Then(
   /^the "(.+?)" wallet row is highlighted$/,
   async ({ page }, name: string) => {
-    // The roving highlight is expressed by FOCUS, not by markup: keyboard nav
-    // focuses a field inside the active row. There is no
-    // data-nav-highlighted attribute anywhere in the app — this step waited
-    // 5s for an element that is never rendered, and failed 3/3 locally once
-    // the E2E job could run at all. Assert what actually moves: the row that
-    // contains the focused element.
-    const row = page.locator('[data-testid="wallet-row"]', { hasText: name });
-    await expect(row.first()).toBeVisible({ timeout: 5000 });
-    await expect
-      .poll(
-        async () =>
-          row.first().evaluate((el) => el.contains(document.activeElement)),
-        { timeout: 5000 },
-      )
-      .toBe(true);
+    await expect(
+      page.locator('[data-testid="wallet-row"][data-nav-highlighted="true"]', {
+        hasText: name,
+      }),
+    ).toBeVisible({ timeout: 5000 });
   },
 );
 
