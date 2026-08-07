@@ -161,3 +161,70 @@ describe("smallestSufficientLimit — the edges", () => {
     expect(clothes.neededAt(s.limitCents) <= clothes.heldCents).toBe(true);
   });
 });
+
+describe("smallestSufficientLimit — it never suggests a limit you would overspend", () => {
+  // Found by running this against the live budget (260807): Subscriptions holds
+  // 1,811 against a need of 0, so the search happily proposed a limit of ZERO —
+  // arithmetically sufficient, and nonsense as advice. A limit below what a
+  // category actually spends is not a plan, it is a standing overspend, and it
+  // drains the very buffer it was asked to size.
+  const fat = {
+    neededAt: (limit: bigint) => {
+      // 11 months at a steady 69.
+      let running = 0n;
+      let trough = 0n;
+      for (let i = 0; i < 11; i++) {
+        running += limit - 69_00n;
+        if (running < trough) trough = running;
+      }
+      return -trough;
+    },
+    heldCents: 1811_00n,
+    meanSpendCents: 69_00n,
+    currentLimitCents: 234_00n,
+    horizonMonths: 12,
+  };
+
+  test("floors the suggestion at the category's own mean spend", () => {
+    const s = smallestSufficientLimit(fat)!;
+    expect(s.limitCents).toBe(fat.meanSpendCents);
+    expect(s.direction).toBe("lower");
+  });
+
+  test("still frees the difference, just not more than there is to free", () => {
+    const s = smallestSufficientLimit(fat)!;
+    expect(s.deltaCents).toBe(69_00n - 234_00n);
+  });
+
+  test("says nothing when the limit is already at the mean", () => {
+    expect(
+      smallestSufficientLimit({ ...fat, currentLimitCents: 69_00n }),
+    ).toBeNull();
+  });
+});
+
+describe("smallestSufficientLimit — a change too small to act on", () => {
+  // Live budget again (260807): Food & Home's mean spend sits a few groszy from
+  // its limit, so the search found a "better" limit 0.30 away. A tooltip saying
+  // "raise the limit to 110 zł (+0 zł/mo)" is noise dressed as advice.
+  const nearlyRight = {
+    neededAt: (limit: bigint) => (limit >= 110_30n ? 0n : 500n),
+    heldCents: 0n,
+    meanSpendCents: 110_30n,
+    currentLimitCents: 110_00n,
+    horizonMonths: 12,
+  };
+
+  test("says nothing when the move is under a whole unit", () => {
+    expect(smallestSufficientLimit(nearlyRight)).toBeNull();
+  });
+
+  test("still speaks when the move is a whole unit or more", () => {
+    const s = smallestSufficientLimit({
+      ...nearlyRight,
+      currentLimitCents: 109_00n,
+    });
+    expect(s).not.toBeNull();
+    expect(s!.deltaCents).toBe(130n);
+  });
+});

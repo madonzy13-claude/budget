@@ -872,13 +872,14 @@ describe("getReserveFit — the limit that would fund the buffer", () => {
   // spend is 26000 against a 20000 limit, so the category cannot accrue a cent
   // today and "top up 7000 now" would drain straight back out.
   //
-  // Walking the model: at 23500 the history troughs at exactly 5000, which is
-  // what is already held — so the buffer is sufficient the moment the limit
-  // moves, with nothing left to accrue.
+  // Walking the model, 23500 would already make the buffer sufficient — but it
+  // sits BELOW the 26000 mean, so the category would run a standing deficit and
+  // drain the buffer it just filled. The floor is the mean: at 26000 the history
+  // never troughs at all, so the 5000 held is already enough.
   test("suggests the smallest limit whose buffer is reachable", async () => {
     const food = await rowFor(CAT_FOOD);
-    expect(food?.suggested_limit_cents).toBe("23500");
-    expect(food?.suggested_delta_cents).toBe("3500");
+    expect(food?.suggested_limit_cents).toBe("26000");
+    expect(food?.suggested_delta_cents).toBe("6000");
     expect(food?.suggested_direction).toBe("raise");
     expect(food?.suggested_fill_months).toBe(0);
   });
@@ -893,7 +894,7 @@ describe("getReserveFit — the limit that would fund the buffer", () => {
         },
         async monthlyPlannedByCategory() {
           return planned.map((p) =>
-            p.category_id === CAT_SPORT ? { ...p, planned_cents: 23500n } : p,
+            p.category_id === CAT_SPORT ? { ...p, planned_cents: 26000n } : p,
           );
         },
         async monthlySpendByCategory() {

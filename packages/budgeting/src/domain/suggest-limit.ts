@@ -52,6 +52,9 @@ export interface LimitSuggestion {
   direction: "raise" | "lower";
 }
 
+/** One whole currency unit in cents — the smallest move worth suggesting. */
+const MINOR_UNIT = 100n;
+
 /** Ceiling division for positive bigints. */
 const ceilDiv = (a: bigint, b: bigint) => (a + b - 1n) / b;
 
@@ -83,7 +86,14 @@ export function smallestSufficientLimit(
     if (++guard > 60) return null;
   }
 
-  let lo = 0n;
+  // The floor is the category's own mean spend. Below it the search happily
+  // proposes a limit that is arithmetically "sufficient" only because a fat
+  // buffer absorbs the overage — on the live budget it offered Subscriptions a
+  // limit of ZERO against 69/month of real spending (260807). A limit under what
+  // a category actually spends is not a plan, it is a standing overspend, and it
+  // drains the very buffer it was asked to size.
+  let lo = meanSpendCents > 0n ? meanSpendCents : 0n;
+  if (hi < lo) hi = lo;
   while (lo < hi) {
     const mid = (lo + hi) / 2n;
     if (reachable(mid)) hi = mid;
@@ -91,13 +101,17 @@ export function smallestSufficientLimit(
   }
 
   const limitCents = lo;
-  if (limitCents === currentLimitCents) return null;
+  // Nothing to say unless the move is worth making. A category whose mean spend
+  // lands a few groszy from its limit produced "raise the limit to 110 zł
+  // (+0 zł/mo)" — noise dressed as advice (live budget, 260807).
+  const delta = limitCents - currentLimitCents;
+  if (delta > -MINOR_UNIT && delta < MINOR_UNIT) return null;
 
   const shortfall = neededAt(limitCents) - heldCents;
   const step = accrual(limitCents, meanSpendCents);
   return {
     limitCents,
-    deltaCents: limitCents - currentLimitCents,
+    deltaCents: delta,
     fillMonths:
       shortfall <= 0n || step === 0n ? 0 : Number(ceilDiv(shortfall, step)),
     direction: limitCents > currentLimitCents ? "raise" : "lower",
