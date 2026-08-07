@@ -253,7 +253,8 @@ export function createOverviewRepo(): OverviewPlannedRepo {
                  rr.yearly_month,
                  -- A one-time payment has no pattern to derive a month from:
                  -- its date IS the month it lands in (260807).
-                 rr.next_due_date::text AS next_due_date
+                 rr.next_due_date::text AS next_due_date,
+                 rr.end_date::text AS end_date
             FROM budgeting.scheduled_payments rr
             LEFT JOIN budgeting.categories c
               ON c.id = rr.category_id AND c.tenant_id = rr.tenant_id
@@ -269,6 +270,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
           cadence: r.cadence as Cadence,
           yearly_month: (r.yearly_month as number | null) ?? null,
           next_due_date: (r.next_due_date as string | null) ?? null,
+          end_date: (r.end_date as string | null) ?? null,
         }));
       });
     },

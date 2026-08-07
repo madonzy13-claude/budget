@@ -58,6 +58,10 @@ import { ChartNeedsCompletedMonth } from "./chart-needs-completed-month";
 import { rangeHasCompletedMonth } from "@/lib/range-completed-month";
 import { useCategories } from "@/hooks/use-budget-data";
 import { centsToRounded, roundsToZero } from "@/lib/cents-format";
+import {
+  scheduleMonthLabel,
+  scheduleMonthTick,
+} from "@/lib/schedule-month-label";
 import { chartCompactCents, withDayStartBaseline } from "@/lib/chart-format";
 import { formatChartDate, formatChartTimestamp } from "@/lib/chart-date-format";
 import { labelToTimestamp } from "@/lib/chart-timestamp";
@@ -245,15 +249,12 @@ export function PlannedSection({
   // Only offered when the range holds the running month AND something else.
   const userTz = useUserTimezone();
   const todayIso = todayInTz(userTz).toString();
-  // Month numbers → names for the scheduled chart, in the member's locale.
-  const monthName = (m: string | number) =>
-    new Intl.DateTimeFormat(locale, { month: "long" }).format(
-      new Date(2000, Number(m) - 1, 1),
-    );
+  // "YYYY-MM" → a name, in the member's locale. Both carry the year: the
+  // upcoming chart can span more than twelve months now, so a bare month name
+  // would put two different Septembers under the same word (260807).
+  const monthName = (m: string | number) => scheduleMonthLabel(String(m), locale);
   const shortMonthName = (m: string | number) =>
-    new Intl.DateTimeFormat(locale, { month: "short" }).format(
-      new Date(2000, Number(m) - 1, 1),
-    );
+    scheduleMonthTick(String(m), locale);
   const hasCompletedMonth = rangeHasCompletedMonth(
     range.from,
     range.to,
@@ -832,9 +833,11 @@ export function PlannedSection({
             // Same call as the metrics above: planned spend stays readable.
           />
 
-          {/* Scheduled payments, by month — current config, NOT range-scoped
-              (D-14). It lived in a section of its own until 260804; one chart
-              did not earn a collapsible, and it reads as part of the plan. */}
+          {/* UPCOMING scheduled payments, by month — today to the furthest
+              next-due, never range-scoped (D-14). Until 260807 it drew a
+              calendar year of RATES, a yearly renewal divided by twelve; the
+              household wanted what is actually coming, so each payment now sits
+              in the month it really falls in and the axis is real months. */}
           <div className="flex flex-col gap-2">
             <ChartLabel>{t("planned.scheduledPerMonth")}</ChartLabel>
             <OverviewAreaChart

@@ -1451,7 +1451,7 @@
           "totalSpent": "Total spent",
           "totalPlanned": "Total planned",
           "total": "Total",
-          "scheduledPerMonth": "Scheduled payments, by month",
+          "scheduledPerMonth": "Upcoming scheduled payments, by month",
           "scheduledSeries": "Scheduled payments",
           "timelineTitle": "How each month tracked against plan",
           "avgByCategory": "How far off plan, by category",

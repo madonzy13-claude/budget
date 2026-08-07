@@ -57,8 +57,10 @@ export interface OverviewPlannedDTO {
   /** True when ANY category's limit moved inside the range — the only case
    *  where average-vs-current is a real choice. Optional for cached payloads. */
   limits_moved?: boolean;
+  /** "Upcoming scheduled payments, by month": today → the furthest next-due.
+   *  `month` is a real calendar month ("2026-09"), not a slot 1..12 (260807). */
   scheduledPerMonth: {
-    month: number;
+    month: string;
     planned_cents: string;
     items: { name: string; amount_cents: string }[];
   }[];

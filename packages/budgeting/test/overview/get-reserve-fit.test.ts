@@ -824,3 +824,45 @@ describe("getReserveFit — a one-time payment ahead", () => {
     expect(food?.gap_cents).toBe("-295000");
   });
 });
+
+describe("getReserveFit — how far the forward walk looks", () => {
+  // It looked exactly twelve months, which was right when everything had a
+  // rhythm: a year catches every annual renewal once. A one-time payment can
+  // sit further out than that, and a buffer that never sees it is sized wrong
+  // (260807). The window now runs to the furthest thing scheduled.
+  const farSofa = () =>
+    deps({
+      activeScheduledPayments: async () => [
+        {
+          category_id: CAT_FOOD,
+          amount_cents: 300000n,
+          cadence: "ONCE" as const,
+          yearly_month: null,
+          next_due_date: "2027-11-20", // ~20 months out
+        },
+      ],
+    } as unknown as Partial<Parameters<typeof getReserveFit>[0]>);
+
+  test("reaches a one-time payment beyond a year", async () => {
+    const food = await rowFor(CAT_FOOD, farSofa());
+    expect(food?.needed_cents).toBe("300000");
+  });
+
+  test("still covers a year when nothing is scheduled further out", async () => {
+    // No regression for the ordinary case: a yearly renewal inside the next
+    // twelve months is still reserved for.
+    const d = deps({
+      activeScheduledPayments: async () => [
+        {
+          category_id: CAT_FOOD,
+          amount_cents: 250000n,
+          cadence: "YEARLY" as const,
+          yearly_month: 9,
+          next_due_date: "2026-09-12",
+        },
+      ],
+    } as unknown as Partial<Parameters<typeof getReserveFit>[0]>);
+    const food = await rowFor(CAT_FOOD, d);
+    expect(food?.needed_cents).toBe("250000");
+  });
+});

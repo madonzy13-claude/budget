@@ -230,8 +230,7 @@ describe("GET /budgets/:id/overview/planned", () => {
         planned_avg_cents: string;
         real_avg_cents: string;
       }[];
-      scheduledPerMonth: { month: number; planned_cents: string }[];
-      scheduledPerCategory: { category_id: string; planned_cents: string }[];
+      scheduledPerMonth: { month: string; planned_cents: string }[];
     };
     expect(body.currency).toBe("USD");
     expect(body.bucket).toBe("monthly");
@@ -271,14 +270,17 @@ describe("GET /budgets/:id/overview/planned", () => {
     )!;
     expect(food.planned_avg_cents).toBe("18333"); // (20000+20000+15000)/3
     expect(food.real_avg_cents).toBe("17667"); // (18000+21000+14000)/3
-    // scheduled MONTHLY 100.00 → 10000 in every month + per-category
+    // 260807: the series is UPCOMING months, keyed "YYYY-MM", running from this
+    // month to the furthest next-due — not a calendar year of slots 1..12. The
+    // per-CATEGORY cut went with the chart that used it (260804).
+    expect(body.scheduledPerMonth.length).toBeGreaterThan(0);
+    for (const m of body.scheduledPerMonth)
+      expect(m.month).toMatch(/^\d{4}-\d{2}$/);
+    // The seeded MONTHLY 100.00 shows as its own amount in the months it fires,
+    // never averaged away.
     expect(
-      body.scheduledPerMonth.find((m) => m.month === 1)!.planned_cents,
-    ).toBe("10000");
-    expect(
-      body.scheduledPerCategory.find((c) => c.category_id === fix.categoryId)!
-        .planned_cents,
-    ).toBe("10000");
+      body.scheduledPerMonth.some((m) => m.planned_cents === "10000"),
+    ).toBe(true);
   });
 
   it("daily bucket for a within-month range (D-20)", async () => {

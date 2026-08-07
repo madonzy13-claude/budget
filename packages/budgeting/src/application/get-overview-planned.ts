@@ -19,10 +19,11 @@ import {
   normalizeIncomesToMonthlyItems,
   type IncomeForNormalize,
 } from "./investment-smart-limit";
-import {
-  scheduledMonthlyNormalize,
-  type Cadence,
-} from "./scheduled-monthly-normalize";
+import { upcomingByMonth } from "../domain/upcoming-schedule";
+// The monthly-rate normalizer went with the old by-month chart (260807): the
+// upcoming series places each payment in its real month instead of averaging it.
+// Incomes and the smart investment limit still use it.
+import { type Cadence } from "./scheduled-monthly-normalize";
 
 export interface MonthlyPlannedRow {
   category_id: string;
@@ -64,6 +65,8 @@ export interface ActiveScheduledPayment {
   yearly_month: number | null;
   /** ISO date of the next (for ONCE, the only) occurrence. */
   next_due_date?: string | null;
+  /** Deadline, inclusive. null = runs forever. */
+  end_date?: string | null;
 }
 
 export interface OverviewPlannedRepo {
@@ -225,8 +228,12 @@ export interface OverviewPlannedDTO {
    *  the average-vs-current choice only then — with a steady limit the two
    *  figures are the same number and the switch is noise (260805). */
   limits_moved: boolean;
+  /** "Upcoming scheduled payments, by month": today → the furthest next-due
+   *  across every active payment (260807). Each entry is a REAL calendar month
+   *  ("YYYY-MM"), not a slot 1..12, and each payment sits in the month it
+   *  actually falls in rather than smeared into a monthly rate. */
   scheduledPerMonth: {
-    month: number;
+    month: string;
     planned_cents: string;
     /** the individual payments that make up this month's bar (tooltip list). */
     items: { name: string; amount_cents: string }[];
@@ -786,38 +793,21 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         ),
       );
 
-      const perMonth = new Array<bigint>(12).fill(0n);
-      // Per-month list of the individual payments behind each point — the
-      // "Scheduled payments, by month" tooltip names them.
-      const perMonthItems: Array<{ name: string; amount_cents: string }[]> =
-        Array.from({ length: 12 }, () => []);
-      rules.forEach((rule, i) => {
-        const amt = ruleAmounts[i]!;
-        // The rule's own name (its note), falling back to the category name.
-        const itemName = rule.rule_name || rule.name || "";
-        const addItem = (m: number, cents: bigint) =>
-          perMonthItems[m]!.push({
-            name: itemName,
-            amount_cents: cents.toString(),
-          });
-        // per-month distribution: where the rule actually fires.
-        if (rule.cadence === "YEARLY") {
-          const idx = (rule.yearly_month ?? 1) - 1;
-          perMonth[idx] = (perMonth[idx] ?? 0n) + amt; // full annual amount in its month
-          addItem(idx, amt);
-        } else if (rule.cadence === "MONTHLY") {
-          for (let m = 0; m < 12; m++) {
-            perMonth[m] = (perMonth[m] ?? 0n) + amt;
-            addItem(m, amt);
-          }
-        } else {
-          const monthly = scheduledMonthlyNormalize(amt, rule.cadence);
-          for (let m = 0; m < 12; m++) {
-            perMonth[m] = (perMonth[m] ?? 0n) + monthly;
-            addItem(m, monthly);
-          }
-        }
-      });
+      // What is coming, month by month, from today to the last thing on the
+      // calendar. The old version drew a calendar year of RATES — a yearly
+      // renewal divided by twelve — which erased the lump this chart exists to
+      // show (260807).
+      const upcoming = upcomingByMonth(
+        rules.map((rule, i) => ({
+          name: rule.rule_name || rule.name || "",
+          amount_cents: ruleAmounts[i]!,
+          cadence: rule.cadence,
+          yearly_month: rule.yearly_month,
+          next_due_date: rule.next_due_date ?? "",
+          end_date: rule.end_date ?? null,
+        })).filter((p) => p.next_due_date !== ""),
+        isoDay(asOf),
+      );
 
       return ok({
         currency: ccy,
@@ -826,10 +816,10 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         timeline,
         plannedAvgVsReal,
         limits_moved: limitsMoved,
-        scheduledPerMonth: perMonth.map((cents, i) => ({
-          month: i + 1,
-          planned_cents: cents.toString(),
-          items: perMonthItems[i]!,
+        scheduledPerMonth: upcoming.map((m) => ({
+          month: m.month,
+          planned_cents: m.cents.toString(),
+          items: m.items,
         })),
       });
     } catch (e) {

@@ -49,9 +49,18 @@ export interface ReserveFitExclusionsRepo {
   }): Promise<LargeTransactionRow[]>;
 }
 
-/** How far ahead the walk carries known commitments. A year catches every
- *  annual renewal exactly once — the charge a backwards-only chart is blind to. */
+/** The FLOOR on how far ahead the walk carries known commitments. A year
+ *  catches every annual renewal exactly once — the charge a backwards-only
+ *  chart is blind to. It stopped being a ceiling on 260807: a one-time payment
+ *  can sit two years out, and a buffer that never sees it is sized wrong. */
 export const FORWARD_MONTHS = 12;
+
+/** Whole months from `from` to `to` ('YYYY-MM'), never negative. */
+function monthsBetween(from: string, to: string): number {
+  const [fy, fm] = from.split("-").map(Number) as [number, number];
+  const [ty, tm] = to.split("-").map(Number) as [number, number];
+  return Math.max(0, (ty - fy) * 12 + (tm - fm));
+}
 
 export interface GetReserveFitDeps {
   overviewRepo: Pick<
@@ -190,10 +199,21 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       // old range still gets the real future rather than a replayed one.
       const nowMonth = (deps.now?.() ?? new Date()).toISOString().slice(0, 7);
       const lastMonth = to.slice(0, 7) > nowMonth ? to.slice(0, 7) : nowMonth;
+      // Far enough to reach the last thing scheduled, and never less than a
+      // year — so an ordinary yearly renewal is still caught when nothing sits
+      // further out (260807).
+      const forwardFrom = addMonths(lastMonth, 1);
+      const furthest = rules.reduce(
+        (far, r) =>
+          r.next_due_date && r.next_due_date.slice(0, 7) > far
+            ? r.next_due_date.slice(0, 7)
+            : far,
+        forwardFrom,
+      );
       const committed = projectScheduledPayments(
         rules,
-        addMonths(lastMonth, 1),
-        FORWARD_MONTHS,
+        forwardFrom,
+        Math.max(FORWARD_MONTHS, monthsBetween(forwardFrom, furthest) + 1),
       );
 
       const rows: ReserveFitRowDTO[] = [];
