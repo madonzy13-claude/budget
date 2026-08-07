@@ -114,6 +114,12 @@ export function ChartTooltipContent({
     extra && payload[0]?.payload ? extra(payload[0].payload) : [];
   const headRow = extraRows.find((r) => r.head);
   const bodyRows = extraRows.filter((r) => !r.head);
+  // The amount cells are a fixed width so an average and a range total line up
+  // DOWN the rows. With only one row carrying a second value there is nothing
+  // to line up with, and the fixed width just opens a gulf between the amount
+  // and the figure beside it (user screenshot, 260807).
+  const alignedColumns = bodyRows.filter((r) => r.value2 != null).length > 1;
+  const colWidth = alignedColumns ? 62 : undefined;
   const toCells = (r: string | string[] | undefined): string[] =>
     r == null ? [] : Array.isArray(r) ? r : [r];
   const marker = (color: string, dashed: boolean) => (
@@ -177,12 +183,16 @@ export function ChartTooltipContent({
           {headRow && (
             <>
               <span
-                style={{ marginLeft: "auto", minWidth: 62, textAlign: "right" }}
+                style={{
+                  marginLeft: "auto",
+                  minWidth: colWidth,
+                  textAlign: "right",
+                }}
               >
                 {headRow.value}
               </span>
               {headRow.value2 != null && (
-                <span style={{ minWidth: 62, textAlign: "right" }}>
+                <span style={{ minWidth: colWidth, textAlign: "right" }}>
                   {headRow.value2}
                 </span>
               )}
@@ -388,7 +398,7 @@ export function ChartTooltipContent({
             style={{
               marginLeft: "auto",
               fontWeight: 600,
-              minWidth: row.value2 != null ? 62 : undefined,
+              minWidth: row.value2 != null ? colWidth : undefined,
               textAlign: "right",
               whiteSpace: "nowrap",
             }}
@@ -400,7 +410,7 @@ export function ChartTooltipContent({
               style={{
                 fontWeight: 600,
                 color: CHART_THEME.axis,
-                minWidth: 62,
+                minWidth: colWidth,
                 textAlign: "right",
               }}
             >

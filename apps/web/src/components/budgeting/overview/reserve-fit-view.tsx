@@ -20,6 +20,7 @@ import {
   OverviewDivergingBarChart,
   reserveFitColor,
 } from "@/components/budgeting/charts/diverging-bar-chart";
+import { roundsToZero } from "@/lib/cents-format";
 import { reserveFitRows } from "@/lib/reserve-fit-rows";
 import { reserveTotals } from "@/lib/reserve-totals";
 import { ReserveLevelBar } from "./reserve-level-bar";
@@ -179,8 +180,21 @@ export function ReserveFitView({
             const delta = row.suggestedDeltaCents as number | null;
             const neededThere = row.suggestedNeededCents as number | null;
             const held = Number(row.heldCents);
+            // What could still come out AFTER the limit came down. Often
+            // nothing: a smaller limit accrues less, so the requirement rises
+            // to meet what is held and the cut alone spends the whole surplus.
+            const outThere =
+              neededThere == null ? null : Math.max(0, held - neededThere);
+            // …and then there is no second leg to combine, so the limit change
+            // and the withdrawal go back to being alternatives. "And withdraw
+            // 0 zł" is not an instruction, and it had displaced the withdrawal
+            // the bar itself was drawing (user, 260807).
             const combined =
-              gap > 0 && limit != null && delta != null && neededThere != null;
+              gap > 0 &&
+              limit != null &&
+              delta != null &&
+              outThere != null &&
+              !roundsToZero(outThere);
             const suggestion =
               limit == null || delta == null
                 ? []
@@ -198,7 +212,7 @@ export function ReserveFitView({
                         label: t("reserveFit.andWithdraw"),
                         // What can come out AT that limit — less than today's
                         // limit allows, and the amount that stays safe.
-                        value: format(Math.max(0, held - neededThere)),
+                        value: format(outThere!),
                       },
                     ]
                   : [
@@ -227,28 +241,32 @@ export function ReserveFitView({
               //
               // A difference under a whole unit is not an instruction, so it
               // reads as balanced rather than as a withdrawal of thirty groszy.
-              Math.abs(gap) < 100
-                ? {
-                    label: t("reserveFit.balanced"),
-                    value: "",
-                    section: true,
-                  }
-                : gap < 0
-                  ? {
-                      label: t("reserveFit.addToReserve"),
-                      value: format(-gap),
-                      section: true,
-                    }
-                  : combined
-                    ? // The recommendation below says what to withdraw, at the
-                      // limit it recommends; repeating today's figure here would
-                      // put two different withdrawals in one box.
-                      { label: "", value: "", head: true }
-                    : {
-                        label: t("reserveFit.withdraw"),
-                        value: format(gap),
-                        section: true,
-                      },
+              //
+              // A combined row is the exception: its recommendation already
+              // says what to withdraw, at the limit it recommends, and
+              // repeating today's figure here would put two different
+              // withdrawals in one box.
+              ...(combined
+                ? []
+                : [
+                    Math.abs(gap) < 100
+                      ? {
+                          label: t("reserveFit.balanced"),
+                          value: "",
+                          section: true,
+                        }
+                      : gap < 0
+                        ? {
+                            label: t("reserveFit.addToReserve"),
+                            value: format(-gap),
+                            section: true,
+                          }
+                        : {
+                            label: t("reserveFit.withdraw"),
+                            value: format(gap),
+                            section: true,
+                          },
+                  ]),
               ...suggestion,
             ];
           }}

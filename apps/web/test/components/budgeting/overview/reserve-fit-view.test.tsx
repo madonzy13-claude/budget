@@ -549,6 +549,31 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     expect(rows.some((r) => r.label === "reserveFit.withdraw")).toBe(false);
   });
 
+  it("does not offer a withdrawal of nothing", () => {
+    // Travel, live: the bar draws +1,237 of slack, and the suggested 103 off
+    // the limit absorbs every złoty of it — so the second leg came out as
+    // "and withdraw 0 zł", which is not an instruction, and it had taken the
+    // place of the withdrawal the bar was drawing (user, 260807). With only
+    // one leg left the two are plain alternatives again.
+    renderWith(
+      withSuggestion("car", {
+        held_cents: "1731500",
+        needed_cents: "1607800",
+        gap_cents: "123700",
+        suggested_limit_cents: "313000",
+        suggested_delta_cents: "-10300",
+        suggested_needed_cents: "1731500",
+        suggested_direction: "lower",
+      }),
+    );
+    const rows = tooltipFor("Car");
+    expect(rows.some((r) => r.label === "reserveFit.andWithdraw")).toBe(false);
+    const out = rows.find((r) => r.label === "reserveFit.withdraw")!;
+    expect(out.value).toBe("1237 zl");
+    const alt = rows.find((r) => r.label === "reserveFit.orSetLimit")!;
+    expect(alt.value).toBe("3130 zl");
+  });
+
   it("falls back to a plain withdrawal when no limit change is on offer", () => {
     renderWith(
       withSuggestion("sport", {

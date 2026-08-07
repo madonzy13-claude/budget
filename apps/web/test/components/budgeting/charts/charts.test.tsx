@@ -1161,3 +1161,42 @@ describe("ChartTooltipContent — staying on the phone", () => {
     expect(value.style.whiteSpace).toBe("nowrap");
   });
 });
+
+describe("ChartTooltipContent — fixed columns only when there is a column", () => {
+  // The amount cells are a fixed 62px so that an average and a range total line
+  // up DOWN the rows. When only one row carries a second value there is nothing
+  // to line up with, and the fixed width just opens a gulf between the amount
+  // and the figure beside it (user screenshot, 260807).
+  const rowsWith = (extra: { label: string; value: string; value2?: string }[]) =>
+    render(
+      <ChartTooltipContent
+        active
+        label="Car"
+        payload={[{ dataKey: "__pct", value: 1, payload: { name: "Car" } }]}
+        hideSeriesRows
+        extra={() => extra}
+      />,
+    );
+
+  /** How many amount cells are pinned to the fixed column width. */
+  const pinned = (container: HTMLElement) =>
+    [...container.querySelectorAll('[data-testid="tooltip-extra-row"] span')]
+      .map((s) => (s as HTMLElement).style.minWidth)
+      .filter((w) => w === "62px").length;
+
+  it("lets a lone pair hug the edge", () => {
+    const { container } = rowsWith([
+      { label: "Set the limit to", value: "747 zł", value2: "(-253 zł)" },
+      { label: "and withdraw", value: "2,123 zł" },
+    ]);
+    expect(pinned(container)).toBe(0);
+  });
+
+  it("keeps the columns fixed when two rows share them", () => {
+    const { container } = rowsWith([
+      { label: "Average limit", value: "500 zł", value2: "1,500 zł" },
+      { label: "Spent", value: "600 zł", value2: "1,800 zł" },
+    ]);
+    expect(pinned(container)).toBeGreaterThan(0);
+  });
+});
