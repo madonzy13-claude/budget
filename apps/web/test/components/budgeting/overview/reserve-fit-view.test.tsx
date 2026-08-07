@@ -37,12 +37,14 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
     valueKey,
     formatValue,
     onPlanBand,
+    tooltipExtra,
   }: {
     data: Record<string, unknown>[];
     categoryKey: string;
     valueKey: string;
     formatValue?: (n: number) => string;
     onPlanBand?: boolean;
+    tooltipExtra?: (row: Record<string, unknown>) => unknown;
   }) => (
     <div
       data-testid="fit-chart"
@@ -50,6 +52,9 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
       data-value-key={valueKey}
       data-money={String(typeof formatValue === "function")}
       data-band={String(onPlanBand)}
+      data-tooltips={JSON.stringify(
+        data.map((d) => tooltipExtra?.(d) ?? null),
+      )}
       data-samples={JSON.stringify({
         positive: formatValue?.(4600),
         negative: formatValue?.(-4600),
@@ -430,5 +435,98 @@ describe("ReserveFitView", () => {
     );
     expect(screen.queryByTestId("fit-chart")).toBeNull();
     expect(screen.getByTestId("reserve-fit-empty")).toBeTruthy();
+  });
+});
+
+describe("ReserveFitView — the limit that would fund the buffer", () => {
+  /** The tooltip rows the chart would draw for `name`. */
+  const tooltipFor = (name: string) => {
+    const chart = screen.getByTestId("fit-chart");
+    const rows = chart.getAttribute("data-rows")!.split(",");
+    const all = JSON.parse(chart.getAttribute("data-tooltips")!) as {
+      label: string;
+      value: string;
+    }[][];
+    return all[rows.indexOf(name)]!;
+  };
+
+  const withSuggestion = (
+    categoryId: string,
+    extra: Record<string, unknown>,
+  ) => ({
+    ...DTO,
+    rows: DTO.rows.map((r) =>
+      r.category_id === categoryId ? { ...r, ...extra } : r,
+    ),
+  });
+
+  const renderWith = (data: unknown) =>
+    render(
+      <ReserveFitView
+        data={data as never}
+        onSave={vi.fn()}
+        onRebalance={vi.fn(async () => 0)}
+        format={(c: number) => `${Math.round(c / 100)} zl`}
+        formatExact={(c: number) => `${(c / 100).toFixed(2)} zl`}
+      />,
+    );
+
+  it("offers the limit as an alternative to finding a lump sum", () => {
+    // The chart's only advice was "you are short X". For a category that cannot
+    // accrue at its current limit, topping up drains straight back out — the
+    // limit is the route that actually funds it (user, 260807).
+    renderWith(
+      withSuggestion("car", {
+        suggested_limit_cents: "23000",
+        suggested_delta_cents: "8000",
+        suggested_fill_months: 2,
+        suggested_direction: "raise",
+      }),
+    );
+    const line = tooltipFor("Car").find((r) =>
+      r.label.startsWith("reserveFit.suggestRaise"),
+    );
+    expect(line).toBeDefined();
+    expect(line!.value).toContain("230 zl");
+    expect(line!.value).toContain("80 zl");
+    expect(line!.value).toContain("2");
+  });
+
+  it("says so plainly when the limit covers it straight away", () => {
+    renderWith(
+      withSuggestion("car", {
+        suggested_limit_cents: "23000",
+        suggested_delta_cents: "8000",
+        suggested_fill_months: 0,
+        suggested_direction: "raise",
+      }),
+    );
+    const line = tooltipFor("Car").find((r) =>
+      r.label.startsWith("reserveFit.suggestRaise"),
+    )!;
+    expect(line.value).not.toContain("0 mo");
+  });
+
+  it("runs the other way for a buffer holding more than it needs", () => {
+    renderWith(
+      withSuggestion("sport", {
+        suggested_limit_cents: "12000",
+        suggested_delta_cents: "-4000",
+        suggested_fill_months: 0,
+        suggested_direction: "lower",
+      }),
+    );
+    const line = tooltipFor("Sport").find((r) =>
+      r.label.startsWith("reserveFit.suggestLower"),
+    );
+    expect(line).toBeDefined();
+    expect(line!.value).toContain("120 zl");
+    expect(line!.value).toContain("40 zl");
+  });
+
+  it("stays quiet when today's limit is already the right one", () => {
+    renderWith(DTO);
+    const labels = tooltipFor("Car").map((r) => r.label);
+    expect(labels.some((l) => l.startsWith("reserveFit.suggest"))).toBe(false);
   });
 });

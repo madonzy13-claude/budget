@@ -140,6 +140,12 @@ export function ReserveFitView({
             heldCents: r.heldCents,
             neededCents: r.neededCents,
             gapCents: r.gapCents,
+            // Carried so the tooltip can offer the limit route (260807); the
+            // bar itself is still drawn from pct/gapCents alone.
+            suggestedLimitCents: r.suggestedLimitCents,
+            suggestedDeltaCents: r.suggestedDeltaCents,
+            suggestedFillMonths: r.suggestedFillMonths,
+            suggestedDirection: r.suggestedDirection,
           }))}
           categoryKey="name"
           valueKey={scale === "amount" ? "gapCents" : "pct"}
@@ -158,6 +164,44 @@ export function ReserveFitView({
           colorKey="pct"
           tooltipExtra={(row) => {
             const gap = Number(row.gapCents);
+            // The limit route (260807). "Top up X now" is the only advice this
+            // chart gave, and for a category whose spend already outruns its
+            // limit the money drains straight back out — raising the limit
+            // funds the buffer from the plan instead, month by month. The
+            // mirror reads the other way: a buffer holding more than it needs
+            // can free the difference back into the plan.
+            const limit = row.suggestedLimitCents as number | null;
+            const delta = row.suggestedDeltaCents as number | null;
+            const dir = row.suggestedDirection as "raise" | "lower" | null;
+            const fillMonths = row.suggestedFillMonths as number | null;
+            const suggestion =
+              limit == null || delta == null || dir == null
+                ? []
+                : [
+                    {
+                      label: t(
+                        dir === "raise"
+                          ? "reserveFit.suggestRaise"
+                          : "reserveFit.suggestLower",
+                      ),
+                      value: [
+                        format(limit),
+                        `(${t("reserveFit.suggestPerMonth", {
+                          amount: format(Math.abs(delta)),
+                        })})`,
+                        // No "0 mo": a buffer that is covered the moment the
+                        // limit moves should say so by saying nothing.
+                        fillMonths && fillMonths > 0
+                          ? t("reserveFit.suggestMonths", {
+                              months: fillMonths,
+                            })
+                          : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" · "),
+                      section: true,
+                    },
+                  ];
             return [
               {
                 label: t("reserveFit.held"),
@@ -172,6 +216,7 @@ export function ReserveFitView({
                 value: format(Math.abs(gap)),
                 section: true,
               },
+              ...suggestion,
             ];
           }}
         />

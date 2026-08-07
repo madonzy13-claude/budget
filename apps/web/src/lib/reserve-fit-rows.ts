@@ -27,6 +27,12 @@ export interface SizedReserveRow {
   worstOverageCents: number;
   overageMonths: number;
   monthsCounted: number;
+  /** The limit that would fund this buffer from the plan, month by month, and
+   *  what it costs or frees. null = nothing worth saying (260807). */
+  suggestedLimitCents: number | null;
+  suggestedDeltaCents: number | null;
+  suggestedFillMonths: number | null;
+  suggestedDirection: "raise" | "lower" | null;
   candidates: ReserveFitRow["large_transactions"];
 }
 
@@ -62,6 +68,15 @@ function toSized(r: ReserveFitRow): SizedReserveRow {
     worstOverageCents: Number(r.worst_overage_cents),
     overageMonths: r.overage_months,
     monthsCounted: r.months_counted,
+    // A payload cached before the suggestion existed replays without these, and
+    // a missing one must read as "nothing to say" rather than as NaN in a
+    // sentence.
+    suggestedLimitCents:
+      r.suggested_limit_cents == null ? null : Number(r.suggested_limit_cents),
+    suggestedDeltaCents:
+      r.suggested_delta_cents == null ? null : Number(r.suggested_delta_cents),
+    suggestedFillMonths: r.suggested_fill_months ?? null,
+    suggestedDirection: r.suggested_direction ?? null,
     // A payload cached before the list existed replays without the field.
     candidates: r.large_transactions ?? [],
   };

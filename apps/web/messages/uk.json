@@ -1590,7 +1590,11 @@
           "rebalanceAria": "Збалансувати {name}",
           "undoAria": "Скасувати зміну в {name}",
           "nothingToMove": "Уже потрібного розміру",
-          "coveredOverspend": "{amount} з цього пішло на покриття перевитрат, тож резерву досі бракує."
+          "coveredOverspend": "{amount} з цього пішло на покриття перевитрат, тож резерву досі бракує.",
+          "suggestRaise": "Або підніміть ліміт до",
+          "suggestLower": "Можна знизити ліміт до",
+          "suggestPerMonth": "{amount}/міс.",
+          "suggestMonths": "{months} міс."
         },
         "needsCompletedMonth": {
           "title": "Ще немає що оцінювати",

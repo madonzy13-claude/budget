@@ -39,6 +39,13 @@ export interface ReserveFitRow {
   gap_cents: string;
   worst_month: string | null;
   worst_overage_cents: string;
+  /** The smallest limit whose buffer this category could actually reach, and
+   *  what moving to it costs or frees each month (260807). null = today's limit
+   *  already is that limit. */
+  suggested_limit_cents?: string | null;
+  suggested_delta_cents?: string | null;
+  suggested_fill_months?: number | null;
+  suggested_direction?: "raise" | "lower" | null;
   overage_months: number;
   months_counted: number;
   large_transactions: ReserveFitTransaction[];

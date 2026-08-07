@@ -1590,7 +1590,11 @@
           "rebalanceAria": "Zbilansuj {name}",
           "undoAria": "Cofnij zmianę w {name}",
           "nothingToMove": "Już we właściwej wysokości",
-          "coveredOverspend": "{amount} z tego poszło na pokrycie przekroczeń, więc rezerwie nadal brakuje."
+          "coveredOverspend": "{amount} z tego poszło na pokrycie przekroczeń, więc rezerwie nadal brakuje.",
+          "suggestRaise": "Albo podnieś limit do",
+          "suggestLower": "Można obniżyć limit do",
+          "suggestPerMonth": "{amount}/mies.",
+          "suggestMonths": "{months} mies."
         },
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",

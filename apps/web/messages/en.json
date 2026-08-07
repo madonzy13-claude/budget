@@ -1567,7 +1567,11 @@
           "rebalanceAria": "Rebalance {name}",
           "undoAria": "Undo the move in {name}",
           "nothingToMove": "Already the right size",
-          "coveredOverspend": "{amount} of that went to covering overspending, so the buffer is still short."
+          "coveredOverspend": "{amount} of that went to covering overspending, so the buffer is still short.",
+          "suggestRaise": "Or raise the limit to",
+          "suggestLower": "Could drop the limit to",
+          "suggestPerMonth": "{amount}/mo",
+          "suggestMonths": "{months} mo"
         },
         "needsCompletedMonth": {
           "title": "Nothing to judge yet",

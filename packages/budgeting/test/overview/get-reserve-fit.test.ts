@@ -866,3 +866,79 @@ describe("getReserveFit — how far the forward walk looks", () => {
     expect(food?.needed_cents).toBe("250000");
   });
 });
+
+describe("getReserveFit — the limit that would fund the buffer", () => {
+  // Food's two months: 20000 limit, 17000 then 35000 spent, 5000 held. Mean
+  // spend is 26000 against a 20000 limit, so the category cannot accrue a cent
+  // today and "top up 7000 now" would drain straight back out.
+  //
+  // Walking the model: at 23500 the history troughs at exactly 5000, which is
+  // what is already held — so the buffer is sufficient the moment the limit
+  // moves, with nothing left to accrue.
+  test("suggests the smallest limit whose buffer is reachable", async () => {
+    const food = await rowFor(CAT_FOOD);
+    expect(food?.suggested_limit_cents).toBe("23500");
+    expect(food?.suggested_delta_cents).toBe("3500");
+    expect(food?.suggested_direction).toBe("raise");
+    expect(food?.suggested_fill_months).toBe(0);
+  });
+
+  test("says nothing when today's limit is already the smallest sufficient one", async () => {
+    // Sport holds 460000 against a jump it can absorb — there is no better
+    // limit to name, and a suggestion that changes nothing is noise.
+    const d = deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return windows;
+        },
+        async monthlyPlannedByCategory() {
+          return planned.map((p) =>
+            p.category_id === CAT_SPORT ? { ...p, planned_cents: 23500n } : p,
+          );
+        },
+        async monthlySpendByCategory() {
+          return spend.map((s) =>
+            s.category_id === CAT_SPORT
+              ? { ...s, spent_cents: s.month === "2026-01" ? 17000n : 35000n }
+              : s,
+          );
+        },
+      },
+      reservePositions: async () =>
+        ok({
+          positions: new Map([
+            ...position(CAT_SPORT, 5000n),
+            ...position(CAT_FOOD, 5000n),
+          ]),
+          openMonth: "2026-03",
+          internalCents: 0n,
+          userDefinedCents: 0n,
+          surplusCents: 0n,
+          direction: "NONE" as const,
+        }) as unknown as Result<never, Error>,
+    } as unknown as Partial<Parameters<typeof getReserveFit>[0]>);
+    const sport = await rowFor(CAT_SPORT, d);
+    expect(sport?.suggested_limit_cents).toBeNull();
+  });
+
+  test("a lump ahead shortens the horizon, so it asks for more", async () => {
+    // The money is wanted by the renewal, not in a year's time — so the same
+    // gap has to close faster and the limit has to be higher (user, 260807).
+    const withLump = deps({
+      activeScheduledPayments: async () => [
+        {
+          category_id: CAT_FOOD,
+          amount_cents: 50000n,
+          cadence: "ONCE" as const,
+          yearly_month: null,
+          next_due_date: "2026-05-20",
+        },
+      ],
+    } as unknown as Partial<Parameters<typeof getReserveFit>[0]>);
+    const withLumpRow = await rowFor(CAT_FOOD, withLump);
+    const plain = await rowFor(CAT_FOOD);
+    expect(
+      BigInt(withLumpRow!.suggested_limit_cents!),
+    ).toBeGreaterThan(BigInt(plain!.suggested_limit_cents!));
+  });
+});

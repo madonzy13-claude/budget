@@ -161,3 +161,56 @@ describe("reserveFitRows", () => {
     expect(sized[0]?.candidates).toEqual([]);
   });
 });
+
+describe("reserveFitRows — the limit that would fund the buffer", () => {
+  const base = {
+    category_id: "c1",
+    name: "Clothes",
+    held_cents: "30000",
+    needed_cents: "98200",
+    gap_cents: "-68200",
+    worst_month: "2026-03",
+    worst_overage_cents: "156200",
+    overage_months: 3,
+    months_counted: 11,
+    large_transactions: [],
+  };
+
+  it("carries the suggestion through to the row", () => {
+    const [row] = reserveFitRows([
+      {
+        ...base,
+        suggested_limit_cents: "23000",
+        suggested_delta_cents: "8000",
+        suggested_fill_months: 2,
+        suggested_direction: "raise",
+      },
+    ] as never).sized;
+    expect(row!.suggestedLimitCents).toBe(23000);
+    expect(row!.suggestedDeltaCents).toBe(8000);
+    expect(row!.suggestedFillMonths).toBe(2);
+    expect(row!.suggestedDirection).toBe("raise");
+  });
+
+  it("has no suggestion when the server sent none", () => {
+    const [row] = reserveFitRows([
+      {
+        ...base,
+        suggested_limit_cents: null,
+        suggested_delta_cents: null,
+        suggested_fill_months: null,
+        suggested_direction: null,
+      },
+    ] as never).sized;
+    expect(row!.suggestedLimitCents).toBeNull();
+    expect(row!.suggestedDirection).toBeNull();
+  });
+
+  it("survives a payload cached before the field existed", () => {
+    // The offline cache replays yesterday's shape; a missing suggestion must
+    // read as "nothing to say", not as NaN in a sentence.
+    const [row] = reserveFitRows([base] as never).sized;
+    expect(row!.suggestedLimitCents).toBeNull();
+    expect(row!.suggestedDirection).toBeNull();
+  });
+});

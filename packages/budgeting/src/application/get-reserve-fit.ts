@@ -22,6 +22,7 @@
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
 import { reserveFit, type ReserveFitMonth } from "../domain/reserve-fit";
+import { smallestSufficientLimit } from "../domain/suggest-limit";
 import { projectScheduledPayments } from "../domain/scheduled-payment-projection";
 import type { ReservePositionsResult } from "./get-reserve-positions";
 import type { OverviewPlannedRepo } from "./get-overview-planned";
@@ -115,6 +116,13 @@ export interface ReserveFitRowDTO {
   gap_cents: string;
   worst_month: string | null;
   worst_overage_cents: string;
+  /** The smallest limit whose buffer this category could actually reach, and
+   *  what moving to it costs or frees each month. null = today's limit already
+   *  is that limit, so there is nothing to say (260807). */
+  suggested_limit_cents: string | null;
+  suggested_delta_cents: string | null;
+  suggested_fill_months: number | null;
+  suggested_direction: "raise" | "lower" | null;
   overage_months: number;
   months_counted: number;
   large_transactions: {
@@ -283,9 +291,8 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           ? (months.reduce((a, b) => (a.month > b.month ? a : b)).limitCents ??
             0n)
           : 0n;
-        const future: ReserveFitMonth[] = [
-          ...(committed.get(w.category_id) ?? []),
-        ].map(([month, c]) => {
+        const commitments = [...(committed.get(w.category_id) ?? [])];
+        const future: ReserveFitMonth[] = commitments.map(([month, c]) => {
           const routineExcess =
             c.routine > latestLimit ? c.routine - latestLimit : 0n;
           return {
@@ -315,6 +322,55 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           // when that is.
           monthsCounted: past.monthsCounted,
         };
+        // What the buffer would have to be if the limit were something else —
+        // the same dual walk, re-run. It is a SEARCH and not a formula because
+        // raising a limit does two things at once: it speeds up accrual and it
+        // shrinks the target, since fewer months go over (260807).
+        const neededAt = (limit: bigint): bigint => {
+          const p = reserveFit(
+            months.map((m) => ({ ...m, limitCents: limit })),
+          ).neededCents;
+          const a = reserveFit(
+            commitments.map(([month, c]) => ({
+              month,
+              limitCents: limit,
+              spentCents:
+                limit + c.onTop + (c.routine > limit ? c.routine - limit : 0n),
+            })),
+          ).neededCents;
+          return p >= a ? p : a;
+        };
+
+        // The buffer is wanted BY the next lump, not in a year's time (user
+        // decision, 260807): the first month ahead carrying an on-top charge is
+        // the deadline. A category with nothing scheduled gets a year.
+        const nextLump = commitments
+          .filter(([, c]) => c.onTop > 0n)
+          .map(([month]) => month)
+          .sort()[0];
+        const horizonMonths = nextLump
+          ? Math.max(0, monthsBetween(nowMonth, nextLump))
+          : FORWARD_MONTHS;
+
+        const meanSpend =
+          months.length > 0
+            ? months.reduce((acc, m) => acc + m.spentCents, 0n) /
+              BigInt(months.length)
+            : 0n;
+
+        // No current limit means nothing to suggest a change TO — the row is
+        // already being judged on its own history (see currentLimit above).
+        const suggestion =
+          currentLimit > 0n && months.length > 0
+            ? smallestSufficientLimit({
+                neededAt,
+                heldCents: position.reserveCents,
+                meanSpendCents: meanSpend,
+                currentLimitCents: currentLimit,
+                horizonMonths,
+              })
+            : null;
+
         // Nothing spent, nothing planned, nothing committed and nothing held:
         // an archived test category ("ымо", "імперія") that would otherwise sit
         // at 0% saying nothing (user, 260804). A dead category that still HOLDS
@@ -343,6 +399,10 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           gap_cents: (position.reserveCents - fit.neededCents).toString(),
           worst_month: fit.worstMonth,
           worst_overage_cents: fit.worstOverageCents.toString(),
+          suggested_limit_cents: suggestion?.limitCents.toString() ?? null,
+          suggested_delta_cents: suggestion?.deltaCents.toString() ?? null,
+          suggested_fill_months: suggestion?.fillMonths ?? null,
+          suggested_direction: suggestion?.direction ?? null,
           overage_months: fit.overageMonths,
           months_counted: fit.monthsCounted,
           large_transactions: large
