@@ -87,7 +87,32 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   // handles its own rest-on-row above).
   const highlightNewWallet = useCallback(
     (id: string) => {
-      pollForWalletRow(id, (row, root) => highlightNavItem(root, row));
+      pollForWalletRow(id, (row, root) => {
+        highlightNavItem(root, row);
+        // The highlight is an imperative DOM attribute, and the "add wallet"
+        // button that started this create takes the marker back once the
+        // create settles — the rest-highlight was landing and then being
+        // overwritten, so the saved row never stayed highlighted.
+        //
+        // Re-assert for a short window, yielding only to another WALLET ROW:
+        // that means the user roved on and taking it back would fight their
+        // arrow keys. A marker resting on the add button is the state this is
+        // here to correct, not a user decision to respect.
+        let tries = 0;
+        const reassert = () => {
+          const r = rootRef.current;
+          const held = r?.querySelector("[data-nav-highlighted]");
+          const heldByRow = held?.getAttribute("data-nav-type") === "wallet";
+          if (r && !heldByRow) {
+            const el = r.querySelector<HTMLElement>(`[data-wallet-id="${id}"]`);
+            if (el) highlightNavItem(r, el);
+          }
+          // ~2.5s: the add button can reclaim the marker well after the row
+          // mounts, and a 0.7s window let one run in three slip through.
+          if (tries++ < 150) requestAnimationFrame(reassert);
+        };
+        requestAnimationFrame(reassert);
+      });
     },
     [pollForWalletRow],
   );
