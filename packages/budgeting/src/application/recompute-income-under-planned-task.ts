@@ -41,7 +41,7 @@ import type { FxProvider } from "@budget/shared-kernel";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
 import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
-import { recurringMonthlyNormalize } from "./recurring-monthly-normalize";
+import { scheduledMonthlyNormalize } from "./scheduled-monthly-normalize";
 import type { TaskRepo, IncomeUnderPlannedPayload } from "../ports/task-repo";
 
 /** System user for own-tx recomputes (no human actor on the trigger path). */
@@ -144,7 +144,7 @@ export function upcomingIncomeItems(
     } else {
       // DAILY / WEEKLY — no fixed pay-day; treat as continuously upcoming.
       out.push({
-        amount_cents: recurringMonthlyNormalize(cents, r.cadence),
+        amount_cents: scheduledMonthlyNormalize(cents, r.cadence),
         currency: r.currency,
       });
     }

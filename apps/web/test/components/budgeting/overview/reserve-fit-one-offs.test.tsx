@@ -29,7 +29,7 @@ const CANDIDATES = [
     transaction_date: "2026-01-05",
     note: null,
     amount_cents: "70000",
-    recurring_cadence: null,
+    scheduled_cadence: null,
     excluded: false,
   },
   {
@@ -39,7 +39,7 @@ const CANDIDATES = [
     transaction_date: "2026-03-14",
     note: "Parachute jump",
     amount_cents: "480000",
-    recurring_cadence: null,
+    scheduled_cadence: null,
     excluded: false,
   },
   {
@@ -49,7 +49,7 @@ const CANDIDATES = [
     transaction_date: "2025-09-01",
     note: "Insurance",
     amount_cents: "500000",
-    recurring_cadence: "YEARLY",
+    scheduled_cadence: "YEARLY",
     excluded: false,
   },
   {
@@ -59,7 +59,7 @@ const CANDIDATES = [
     transaction_date: "2026-03-02",
     note: "Tyres",
     amount_cents: "90000",
-    recurring_cadence: null,
+    scheduled_cadence: null,
     excluded: true,
   },
 ];

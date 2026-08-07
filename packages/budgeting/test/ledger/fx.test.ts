@@ -23,7 +23,7 @@ function makeTx(
     "0.92500000", // fxRate
     fxAsOf, // fxAsOf
     null, // note
-    null, // recurringRuleId
+    null, // scheduledPaymentId
     new Date(), // confirmedAt
     kind, // kind
     new Date(), // createdAt

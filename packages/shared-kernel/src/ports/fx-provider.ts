@@ -12,7 +12,7 @@ export interface FxProvider {
  * Thrown when InMemoryFxProvider is asked for a cross-currency rate it was not
  * explicitly seeded with. Guards against the stub silently returning rate 1 and
  * leaking UNCONVERTED foreign-currency amounts into a write path (e.g. the
- * recurring draft engine). See scripts/backfill-recurring-draft-fx.ts (05-21):
+ * scheduled draft engine). See scripts/backfill-scheduled-draft-fx.ts (05-21):
  * the original `?? '1'` fallback produced rate-1 "3500 PLN as 3500 EUR" drafts.
  */
 export class InMemoryFxRateNotConfigured extends Error {

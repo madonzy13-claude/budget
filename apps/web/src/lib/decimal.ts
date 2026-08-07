@@ -23,7 +23,7 @@ export function parseDecimal(input: string): number | null {
 /**
  * The same typed amount as a canonical decimal STRING, or null when it is not a
  * positive amount. For the endpoints that take a decimal rather than cents — the
- * recurring-rule routes validate `^\d+(\.\d{1,4})?$`, so a comma keyboard
+ * scheduled-payment routes validate `^\d+(\.\d{1,4})?$`, so a comma keyboard
  * ("73,8", the Polish layout's decimal key) was rejected and the save failed with
  * a bare "Failed to create rule" (user report, 260803).
  *

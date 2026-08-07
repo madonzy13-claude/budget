@@ -1,7 +1,7 @@
 /**
  * expense-ledger-draft-port-repo.ts — Drizzle adapter for ExpenseLedgerDraftPortRepo port.
  *
- * Phase 4 dismiss/confirm surface for recurring drafts.
+ * Phase 4 dismiss/confirm surface for scheduled drafts.
  * Each write: withTenantTx → SELECT (guard) → UPDATE → writeAudit → writeOutbox.
  * Tenant isolation: WHERE tenant_id = $tenantId on every row lookup (T-04-02-03, T-04-02-04).
  *
@@ -56,7 +56,7 @@ export class DrizzleExpenseLedgerDraftPortRepo implements ExpenseLedgerDraftPort
       // SAME tx. Previously dismiss-draft.ts opened a SEPARATE withTenantTx
       // ("A2 fallback") — a dismiss that committed while the resolve raced
       // left the task PENDING for one poll cycle. Mirrors the in-tx resolve
-      // skip-recurring-draft.ts already does. Idempotent (status='PENDING').
+      // skip-scheduled-draft.ts already does. Idempotent (status='PENDING').
       await drizzleTx.execute(sql`
         UPDATE budgeting.tasks
            SET status = 'RESOLVED', resolved_at = now()
@@ -80,7 +80,7 @@ export class DrizzleExpenseLedgerDraftPortRepo implements ExpenseLedgerDraftPort
         tenantId: tid,
         aggregateType: "expense_ledger_draft",
         aggregateId: draftId,
-        eventType: "budgeting.recurring_draft.dismissed",
+        eventType: "budgeting.scheduled_draft.dismissed",
         payload: { draftId, actorUserId },
       });
 
@@ -151,7 +151,7 @@ export class DrizzleExpenseLedgerDraftPortRepo implements ExpenseLedgerDraftPort
         tenantId: tid,
         aggregateType: "expense_ledger_draft",
         aggregateId: draftId,
-        eventType: "budgeting.recurring_draft.confirmed",
+        eventType: "budgeting.scheduled_draft.confirmed",
         payload: { draftId, actorUserId },
       });
 

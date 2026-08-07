@@ -209,7 +209,7 @@
       "cushion": "Poduszka",
       "reserves": "Rezerwy",
       "investments": "Inwestycje",
-      "recurring": "Płatności cykliczne",
+      "scheduled": "Zaplanowane płatności",
       "income": "Dochód",
       "members": "Członkowie",
       "danger": "Strefa niebezpieczna"
@@ -235,7 +235,7 @@
         "reserveWallet": "Dodaj portfel rezerw",
         "investmentsEnabled": "Włącz Inwestycje",
         "investment": "Dodaj inwestycję",
-        "recurring": "Dodaj wydatek cykliczny",
+        "scheduled": "Dodaj zaplanowaną płatność",
         "income": "Dodaj dochód",
         "category": "Utwórz kategorię"
       }
@@ -270,10 +270,10 @@
       "previewMet": "Masz {actual} z {required} — cel osiągnięty",
       "previewError": "Nie udało się załadować podsumowania poduszki."
     },
-    "recurring": {
-      "add_rule": "Dodaj regułę",
-      "add_rule_title": "Dodaj regułę cykliczną",
-      "edit_rule_title": "Edytuj regułę cykliczną"
+    "scheduled": {
+      "add_rule": "Dodaj płatność",
+      "add_rule_title": "Dodaj zaplanowaną płatność",
+      "edit_rule_title": "Edytuj zaplanowaną płatność"
     },
     "members": {
       "empty": "Brak innych członków.",
@@ -337,7 +337,7 @@
         },
         "CONFIRM_DRAFT": {
           "label": "Szkic wymaga potwierdzenia",
-          "description": "Gdy cykliczny szkic oczekuje na potwierdzenie"
+          "description": "Gdy szkic zaplanowanej płatności oczekuje na potwierdzenie"
         },
         "CUSHION_BELOW_TARGET": {
           "label": "Poduszka poniżej celu",
@@ -836,7 +836,7 @@
     "budget": "Budżet",
     "wallets": "Portfele",
     "transactions": "Transakcje",
-    "recurring": "Płatności cykliczne",
+    "scheduled": "Zaplanowane płatności",
     "budgetSwitcher": {
       "trigger": {
         "aria": "Przełącz budżet"
@@ -1161,15 +1161,15 @@
         "delete": "Nie udało się usunąć dochodu"
       }
     },
-    "recurring": {
-      "title": "Płatności cykliczne",
-      "addRuleButton": "Dodaj płatność cykliczną",
+    "scheduled": {
+      "title": "Zaplanowane płatności",
+      "addRuleButton": "Dodaj zaplanowaną płatność",
       "rule": {
-        "title": "Nowa reguła cykliczna",
-        "editTitle": "Edytuj regułę cykliczną",
+        "title": "Nowa zaplanowana płatność",
+        "editTitle": "Edytuj zaplanowaną płatność",
         "nameLabel": "Nazwa",
         "namePlaceholder": "np. Czynsz",
-        "saveButton": "Zapisz regułę",
+        "saveButton": "Zapisz płatność",
         "cancelButton": "Anuluj",
         "amountLabel": "Kwota",
         "currencyLabel": "Waluta",
@@ -1221,8 +1221,8 @@
         "categoryPlaceholder": "Wybierz kategorię…"
       },
       "list": {
-        "title": "Płatności cykliczne",
-        "empty": "Brak reguł cyklicznych.",
+        "title": "Zaplanowane płatności",
+        "empty": "Brak zaplanowanych płatności.",
         "untitled": "Bez nazwy",
         "monthlyOnDay": "Miesięcznie · {day}",
         "weeklyOnDow": "Tygodniowo · {weekday}",
@@ -1233,7 +1233,7 @@
         "archiveButton": "Archiwizuj"
       },
       "drafts": {
-        "inboxTitle": "Oczekujące cykliczne",
+        "inboxTitle": "Oczekujące płatności",
         "empty": "Brak oczekujących szkiców.",
         "confirmButton": "Potwierdź transakcję",
         "editConfirmButton": "Edytuj i potwierdź",
@@ -1242,12 +1242,12 @@
         "navBadgeLabel": "{count} spóźnionych"
       },
       "errors": {
-        "create": "Nie udało się utworzyć reguły",
-        "update": "Nie udało się zaktualizować reguły",
-        "delete": "Nie udało się usunąć reguły"
+        "create": "Nie udało się utworzyć płatności",
+        "update": "Nie udało się zaktualizować płatności",
+        "delete": "Nie udało się usunąć płatności"
       },
       "delete": {
-        "title": "Usunąć regułę cykliczną?",
+        "title": "Usunąć zaplanowaną płatność?",
         "body": "Spowoduje to zatrzymanie przyszłych szkiców. Zatwierdzone transakcje z przeszłości pozostają.",
         "confirm": "Usuń",
         "cancel": "Anuluj"
@@ -1471,8 +1471,8 @@
           "totalSpent": "Łącznie wydane",
           "totalPlanned": "Łącznie zaplanowane",
           "total": "Razem",
-          "recurringPerMonth": "Płatności cykliczne, wg miesiąca",
-          "recurringSeries": "Płatności cykliczne",
+          "scheduledPerMonth": "Zaplanowane płatności, wg miesiąca",
+          "scheduledSeries": "Zaplanowane płatności",
           "timelineTitle": "Jak każdy miesiąc wypadł względem planu",
           "avgByCategory": "Odchylenie od planu, wg kategorii",
           "avgPie": "Planowane wydatki wg kategorii",
@@ -1542,14 +1542,14 @@
           "allFine": "Wszystko wygląda dobrze",
           "mightRunShort": "Pieniędzy może zabraknąć już {date}",
           "shortBy": "brakuje {amount}",
-          "empty": "Dodaj dochód lub reguły cykliczne, aby zobaczyć prognozę",
+          "empty": "Dodaj dochód lub zaplanowane płatności, aby zobaczyć prognozę",
           "available": "Dostępne",
           "reserveShrinking": "Kurczy się rezerwa",
           "reserveCovering": "Rezerwa pokrywa",
           "reserveUsed": "Użyto rezerwy",
           "cantCover": "Nie starcza na",
           "income": "Dochód",
-          "bill": "Płatności cykliczne"
+          "bill": "Zaplanowane płatności"
         },
         "reserveFit": {
           "title": "Czy każda rezerwa ma właściwą wielkość?",
@@ -1570,7 +1570,7 @@
           "countedAria": "Licz {amount} do rezerw",
           "heldTotal": "Trzymane",
           "neededTotal": "Potrzebne",
-          "unassigned": "Nie liczone — brak kategorii: {list}. Przypisz ją w Ustawienia → Cykliczne, a wpłyną na rezerwę.",
+          "unassigned": "Nie liczone — brak kategorii: {list}. Przypisz ją w Ustawienia → Zaplanowane płatności, a wpłyną na rezerwę.",
           "aboveTarget": "ponad potrzebę",
           "belowTarget": "poniżej potrzeby",
           "onTarget": "Dokładnie tyle, ile trzeba",
@@ -1719,7 +1719,7 @@
       "settings": {
         "label": "Ustawienia",
         "title": "Ustawienia",
-        "placeholder": "Tożsamość budżetu, przełącznik poduszki, reguły cykliczne i członkowie pojawią się w fazie 6."
+        "placeholder": "Tożsamość budżetu, przełącznik poduszki, zaplanowane płatności i członkowie pojawią się w fazie 6."
       }
     },
     "pillSlider": {
@@ -1768,7 +1768,7 @@
       "more": "Więcej",
       "detail": {
         "RESERVE_TOPUP": "Twoje portfele rezerwowe mają o {amount} mniej niż suma przypisana do rezerw kategorii. Masz dwie opcje: uzupełnij portfel rezerwowy (dodaj środki) do wysokości sumy kategorii, albo zmniejsz niektóre rezerwy kategorii, żeby ich suma odpowiadała saldu portfeli.",
-        "CONFIRM_DRAFT": "Reguła cykliczna utworzyła nowy szkic transakcji dla {ruleName} ({amount}). Otwórz zakładkę Wydatki, sprawdź wiersz szkicu i potwierdź go lub odrzuć. Potwierdzenie zapisuje transakcję w księdze; odrzucenie pomija ją bez wpływu na kolejne wystąpienia.",
+        "CONFIRM_DRAFT": "Zaplanowana płatność utworzyła nowy szkic transakcji dla {ruleName} ({amount}). Otwórz zakładkę Wydatki, sprawdź wiersz szkicu i potwierdź go lub odrzuć. Potwierdzenie zapisuje transakcję w księdze; odrzucenie pomija ją bez wpływu na kolejne wystąpienia.",
         "CUSHION_BELOW_TARGET": "Twoja poduszka finansowa jest poniżej celu ustawionego w Ustawieniach (miesiące × średnie wydatki). Brakuje {shortfall}. Masz trzy opcje: przelej środki do portfela typu Poduszka, obniż liczbę miesięcy w Ustawienia → Poduszka (mniejszy zapas = mniejsza wymagana poduszka), albo zmniejsz limity niektórych kategorii, żeby spadły średnie miesięczne wydatki.",
         "INCOME_UNDER_PLANNED": "Przy obecnym planie pieniądze spadną do {low} przed kolejnym wpływem — brakuje {shortfall}. Otwórz zakładkę Wydatki i obniż limity kategorii albo przesuń płatność, aż prognoza utrzyma się powyżej zera.",
         "RESERVE_TOPUP_withdraw": "Twoje portfele rezerwowe mają o {amount} więcej niż suma przypisana do rezerw kategorii. Masz dwie opcje: wypłać nadwyżkę z portfela rezerwowego, albo rozdziel ją między rezerwy kategorii (zwiększ jedną lub więcej kwot kategorii, żeby sumowały się do sumy portfeli)."
@@ -1905,7 +1905,7 @@
       },
       "dismissDraft": {
         "title": "Pominąć {ruleName} w {month}?",
-        "body": "Reguła cykliczna nadal będzie działać. Wersja robocza na kolejny miesiąc pojawi się zgodnie z harmonogramem.",
+        "body": "Zaplanowana płatność nadal będzie działać. Wersja robocza na kolejny miesiąc pojawi się zgodnie z harmonogramem.",
         "cta": "Pomiń ten miesiąc",
         "cancel": "Anuluj"
       }

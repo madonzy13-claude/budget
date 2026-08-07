@@ -2,7 +2,7 @@
  * permanently-delete-category.ts — Application use case: hard-delete a category.
  *
  * Irreversible: removes the category AND all its data (transactions, drafts,
- * limits, reserve adjustments, share overrides, recurring rules, projections).
+ * limits, reserve adjustments, share overrides, scheduled rules, projections).
  * The UI only offers this for an already-archived ("keep history") category,
  * behind an explicit confirm. Guards on existence (cross-tenant → not_found).
  */

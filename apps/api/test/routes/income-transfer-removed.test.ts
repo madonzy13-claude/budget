@@ -2,7 +2,7 @@
  * income-transfer-removed.test.ts — Verifies that old v1.0 routes return 404.
  * RED: Written before route cleanup in Task 3.
  *
- * TXN-08: GET /history, POST /correct, POST /income, POST /transfer, GET /recurring-drafts
+ * TXN-08: GET /history, POST /correct, POST /income, POST /transfer, GET /scheduled-drafts
  * all must return 404 after Phase 2 route restructure.
  */
 import { describe, it, expect } from "bun:test";
@@ -78,9 +78,9 @@ describe("Removed v1.0 routes return 404", () => {
     expect(res.status).toBe(404);
   });
 
-  it("GET /budgets/:id/recurring-drafts → 404 (folded into ?confirmed=false)", async () => {
+  it("GET /budgets/:id/scheduled-drafts → 404 (folded into ?confirmed=false)", async () => {
     const app = await buildTransactionsRouteApp(fakeUserId, fakeBudgetId);
-    const res = await app.request(`/budgets/${fakeBudgetId}/recurring-drafts`);
+    const res = await app.request(`/budgets/${fakeBudgetId}/scheduled-drafts`);
     expect(res.status).toBe(404);
   });
 });

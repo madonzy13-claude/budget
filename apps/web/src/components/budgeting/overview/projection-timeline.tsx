@@ -3,7 +3,7 @@
  * projection-timeline.tsx — Overview cash-flow projection banner. A fluent
  * colour-flowing line (green→yellow→red) from today → end of next month: a single
  * horizontal CSS gradient whose stops are the per-day zone colours (no discrete
- * segments). Income (▲) and recurring-bill (●) markers sit on the timeline. A
+ * segments). Income (▲) and scheduled-bill (●) markers sit on the timeline. A
  * scrubber (pointer hover + touch finger-slide) shows a tooltip ABOVE the line so
  * the finger never covers it. The danger-date summary is a caption under the line;
  * the header is a single-line title.
@@ -124,7 +124,7 @@ export function ProjectionTimeline({
           style={{ background: gradient }}
         />
 
-        {/* Recurring-bill markers (money OUT): red ▼ above the line, pointing at
+        {/* Scheduled-bill markers (money OUT): red ▼ above the line, pointing at
             it. Inline-styled colour so a Tailwind arbitrary-value ambiguity can't
             drop it. */}
         {data.bill_points.map((b, i) => {

@@ -3,15 +3,15 @@
 /**
  * income-list.tsx — list of a budget's incomes (r32).
  * Name + short-currency amount + cadence label + edit/delete, mirroring
- * recurring-rules-list. Reuses the shared amount formatters.
+ * scheduled-payments-list. Reuses the shared amount formatters.
  */
 import { useTranslations, useLocale } from "next-intl";
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { moneyForList } from "@/components/budgeting/recurring-rules-list";
+import { moneyForList } from "@/components/budgeting/scheduled-payments-list";
 
 // Re-exported so income-form can prefill amounts with the same formatting.
-export { formatAmountForList } from "@/components/budgeting/recurring-rules-list";
+export { formatAmountForList } from "@/components/budgeting/scheduled-payments-list";
 
 export type IncomeCadenceLite = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 

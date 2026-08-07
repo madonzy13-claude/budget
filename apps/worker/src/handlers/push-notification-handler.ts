@@ -60,7 +60,7 @@ const BODIES: Record<string, Record<LocaleKey, string>> = {
     uk: "Один із ваших резервів закінчується — торкніться, щоб поповнити.",
   },
   CONFIRM_DRAFT: {
-    en: "A recurring expense is waiting — confirm or skip it.",
+    en: "A scheduled expense is waiting — confirm or skip it.",
     pl: "Cykliczny wydatek czeka — potwierdź lub pomiń.",
     uk: "Регулярна витрата очікує — підтвердіть або пропустіть.",
   },

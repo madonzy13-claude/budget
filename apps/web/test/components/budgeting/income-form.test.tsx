@@ -105,7 +105,7 @@ describe("IncomeForm", () => {
   it("sends a COMMA amount as the dot decimal the API accepts", async () => {
     // /incomes validates `^\d+(\.\d{1,4})?$`, so a comma keyboard ("73,8" —
     // the Polish layout's decimal key) was rejected and the save failed. Same
-    // bug the user hit on the recurring-rule form (260803).
+    // bug the user hit on the scheduled-payment form (260803).
     wrap(
       <IncomeForm
         open

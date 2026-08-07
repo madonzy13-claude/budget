@@ -29,7 +29,7 @@ export default defineConfig({
     "../../packages/budgeting/src/adapters/persistence/budget-mode-history-schema.ts",
     "../../packages/platform/src/idempotency/schema.ts",
     "../../packages/budgeting/src/adapters/persistence/spending-projection-schema.ts",
-    "../../packages/budgeting/src/adapters/persistence/recurring-rules-schema.ts",
+    "../../packages/budgeting/src/adapters/persistence/scheduled-payments-schema.ts",
     "../../packages/budgeting/src/adapters/persistence/tasks-schema.ts",
   ],
   dbCredentials: { url },

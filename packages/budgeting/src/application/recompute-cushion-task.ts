@@ -29,7 +29,7 @@
  */
 import { computeCushionSummary } from "./get-cushion-summary";
 import type { TaskRepo, CushionBelowTargetPayload } from "../ports/task-repo";
-import type { FxProviderLike } from "./recurring-engine-fx";
+import type { FxProviderLike } from "./scheduled-payment-engine-fx";
 
 /**
  * Minimal tx shape — matches the port's TenantTx so callers can pass their

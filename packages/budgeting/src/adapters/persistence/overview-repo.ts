@@ -21,9 +21,9 @@ import type {
   MonthlySpendRow,
   CategoryWindow,
   DailySpendRow,
-  ActiveRecurringRule,
+  ActiveScheduledPayment,
 } from "../../application/get-overview-planned";
-import type { Cadence } from "../../application/recurring-monthly-normalize";
+import type { Cadence } from "../../application/scheduled-monthly-normalize";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -241,7 +241,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
       });
     },
 
-    async activeRecurringRules(budgetId): Promise<ActiveRecurringRule[]> {
+    async activeScheduledPayments(budgetId): Promise<ActiveScheduledPayment[]> {
       return read(budgetId, async (tx) => {
         const res = await tx.execute(sql`
           SELECT rr.category_id::text AS category_id,
@@ -251,7 +251,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
                  rr.currency,
                  rr.cadence,
                  rr.yearly_month
-            FROM budgeting.recurring_rules rr
+            FROM budgeting.scheduled_payments rr
             LEFT JOIN budgeting.categories c
               ON c.id = rr.category_id AND c.tenant_id = rr.tenant_id
            WHERE rr.tenant_id = ${budgetId}::uuid

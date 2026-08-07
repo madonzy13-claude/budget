@@ -11,7 +11,7 @@
  *   - the LIST under it is where the member overrules that history. Every large
  *     spend is counted by default, so an untouched chart can only ask you to
  *     hold too much; unticking one says "that won't happen again". A spend that
- *     came from a recurring rule carries its cadence, because rare-and-certain
+ *     came from a scheduled rule carries its cadence, because rare-and-certain
  *     (September insurance) is exactly what must NOT be unticked.
  */
 import type * as React from "react";
@@ -177,13 +177,13 @@ export function ReserveFitView({
         />
       )}
 
-      {(data.unassigned_recurring ?? []).length > 0 && (
+      {(data.unassigned_scheduled ?? []).length > 0 && (
         <p
           data-testid="reserve-fit-unassigned"
           className="text-caption text-center text-[var(--muted-foreground)]"
         >
           {t("reserveFit.unassigned", {
-            list: (data.unassigned_recurring ?? [])
+            list: (data.unassigned_scheduled ?? [])
               .map((r) => `${r.name} ${format(Number(r.amount_cents))}`)
               .join(", "),
           })}

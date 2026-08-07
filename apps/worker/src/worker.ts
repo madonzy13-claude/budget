@@ -9,7 +9,7 @@ import { sql } from "drizzle-orm";
 import { handleOutboxTick } from "./handlers/outbox-dispatch";
 import { registerFxDailyFetch } from "./handlers/fx-daily-fetch";
 import { registerIdempotencyCleanup } from "./handlers/idempotency-cleanup";
-import { registerRecurringEngine } from "./handlers/recurring-engine";
+import { registerScheduledEngine } from "./handlers/scheduled-payment-engine";
 import { registerBudgetingReconciliation } from "./handlers/budgeting-reconciliation";
 import type { BudgetingReconciliationSweepDeps } from "./handlers/budgeting-reconciliation";
 import { registerPushNotificationHandler } from "./handlers/push-notification-handler";
@@ -216,12 +216,12 @@ async function main() {
     boss as unknown as Parameters<typeof registerIdempotencyCleanup>[0],
   );
 
-  // Recurring engine — daily 06:00 UTC, scans active rules and generates PENDING drafts (Plan 02-08)
+  // Scheduled engine — daily 06:00 UTC, scans active rules and generates PENDING drafts (Plan 02-08)
   // T-02-WORKER-FX: pass FxProvider so cross-currency rules use real FX rates with bounds check.
   await boss.createQueue("recurring-engine");
   await boss.schedule("recurring-engine", "0 6 * * *"); // UTC, 5-placeholder format (Pitfall 9)
-  registerRecurringEngine(
-    boss as unknown as Parameters<typeof registerRecurringEngine>[0],
+  registerScheduledEngine(
+    boss as unknown as Parameters<typeof registerScheduledEngine>[0],
     fxProvider,
   );
 
@@ -474,7 +474,7 @@ async function main() {
   });
 
   console.log(
-    `[worker] booted; outbox-dispatch polling=5s schedule=*/1m; fx-daily-fetch schedule=0 17 * * * Europe/Berlin; recurring-engine schedule=0 6 * * * UTC; budgeting-reconciliation schedule=0 * * * * UTC; instrument-price-scan schedule=${PRICE_SCAN_CRON} UTC; instruments-daily-seed schedule=0 18 * * * Europe/Berlin; investment-snapshot-daily schedule=30 17 * * * Europe/Berlin`,
+    `[worker] booted; outbox-dispatch polling=5s schedule=*/1m; fx-daily-fetch schedule=0 17 * * * Europe/Berlin; scheduled-payment-engine schedule=0 6 * * * UTC; budgeting-reconciliation schedule=0 * * * * UTC; instrument-price-scan schedule=${PRICE_SCAN_CRON} UTC; instruments-daily-seed schedule=0 18 * * * Europe/Berlin; investment-snapshot-daily schedule=30 17 * * * Europe/Berlin`,
   );
 
   process.on("SIGTERM", async () => {

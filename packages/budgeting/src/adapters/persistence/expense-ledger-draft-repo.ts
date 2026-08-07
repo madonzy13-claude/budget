@@ -1,18 +1,18 @@
 /**
- * expense-ledger-draft-repo.ts — RecurringDraftRepo adapter backed by expense_ledger.
+ * expense-ledger-draft-repo.ts — ScheduledDraftRepo adapter backed by expense_ledger.
  *
  * v1.1 (Phase 2, Plan 02-02):
- *   recurring_drafts table is DROPPED. Drafts are expense_ledger rows with confirmed_at IS NULL.
- *   UNIQUE index: (recurring_rule_id, transaction_date) WHERE recurring_rule_id IS NOT NULL AND deleted_at IS NULL.
+ *   scheduled_drafts table is DROPPED. Drafts are expense_ledger rows with confirmed_at IS NULL.
+ *   UNIQUE index: (scheduled_payment_id, transaction_date) WHERE scheduled_payment_id IS NOT NULL AND deleted_at IS NULL.
  */
 import { sql } from "drizzle-orm";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import type {
-  RecurringDraftRepo,
-  RecurringDraftRow,
+  ScheduledDraftRepo,
+  ScheduledDraftRow,
   DraftEdits,
-} from "../../ports/recurring-draft-repo";
+} from "../../ports/scheduled-draft-repo";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -20,7 +20,7 @@ type DrizzleTx = {
   execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
 };
 
-function rowToDraftRow(row: Record<string, unknown>): RecurringDraftRow {
+function rowToDraftRow(row: Record<string, unknown>): ScheduledDraftRow {
   const dateVal = (row.transaction_date ?? row.date) as string | Date;
   const dueDate =
     dateVal instanceof Date
@@ -29,7 +29,7 @@ function rowToDraftRow(row: Record<string, unknown>): RecurringDraftRow {
   return {
     id: row.id as string,
     tenantId: row.tenant_id as string,
-    ruleId: row.recurring_rule_id as string,
+    ruleId: row.scheduled_payment_id as string,
     dueDate,
     amountOriginalCents: String(row.amount_original_cents),
     currency: row.currency_original as string,
@@ -41,11 +41,11 @@ function rowToDraftRow(row: Record<string, unknown>): RecurringDraftRow {
   };
 }
 
-export class ExpenseLedgerDraftRepo implements RecurringDraftRepo {
+export class ExpenseLedgerDraftRepo implements ScheduledDraftRepo {
   async findById(
     tenantId: string,
     draftId: string,
-  ): Promise<RecurringDraftRow | null> {
+  ): Promise<ScheduledDraftRow | null> {
     const r = await withTenantTx(
       TenantId(tenantId),
       UserId(SYSTEM_USER_ID),
@@ -55,7 +55,7 @@ export class ExpenseLedgerDraftRepo implements RecurringDraftRepo {
         SELECT * FROM budgeting.expense_ledger
          WHERE id = ${draftId}::uuid
            AND tenant_id = ${tenantId}::uuid
-           AND recurring_rule_id IS NOT NULL
+           AND scheduled_payment_id IS NOT NULL
            AND confirmed_at IS NULL
            AND deleted_at IS NULL
       `);
@@ -66,7 +66,7 @@ export class ExpenseLedgerDraftRepo implements RecurringDraftRepo {
     return r.value;
   }
 
-  async listPending(tenantId: string): Promise<RecurringDraftRow[]> {
+  async listPending(tenantId: string): Promise<ScheduledDraftRow[]> {
     const r = await withTenantTx(
       TenantId(tenantId),
       UserId(SYSTEM_USER_ID),
@@ -75,7 +75,7 @@ export class ExpenseLedgerDraftRepo implements RecurringDraftRepo {
         const result = await drizzleTx.execute(sql`
         SELECT * FROM budgeting.expense_ledger
          WHERE tenant_id = ${tenantId}::uuid
-           AND recurring_rule_id IS NOT NULL
+           AND scheduled_payment_id IS NOT NULL
            AND confirmed_at IS NULL
            AND deleted_at IS NULL
          ORDER BY transaction_date ASC
@@ -147,7 +147,7 @@ export class ExpenseLedgerDraftRepo implements RecurringDraftRepo {
              ${categoryClause}
              ${noteClause}
              updated_at = now()
-       WHERE recurring_rule_id = ${ruleId}::uuid
+       WHERE scheduled_payment_id = ${ruleId}::uuid
          AND confirmed_at IS NULL
          AND deleted_at IS NULL
          AND transaction_date >= CURRENT_DATE
@@ -165,7 +165,7 @@ export class ExpenseLedgerDraftRepo implements RecurringDraftRepo {
       UPDATE budgeting.expense_ledger
          SET deleted_at = now(),
              updated_at = now()
-       WHERE recurring_rule_id = ${ruleId}::uuid
+       WHERE scheduled_payment_id = ${ruleId}::uuid
          AND confirmed_at IS NULL
          AND deleted_at IS NULL
          AND transaction_date >= CURRENT_DATE

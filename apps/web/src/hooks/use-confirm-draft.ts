@@ -1,8 +1,8 @@
 "use client";
 /**
- * use-confirm-draft.ts — Mutation to confirm a pending recurring draft.
+ * use-confirm-draft.ts — Mutation to confirm a pending scheduled draft.
  *
- * POST /budgets/:budgetId/recurring-rules/drafts/:draftId/confirm
+ * POST /budgets/:budgetId/scheduled-payments/drafts/:draftId/confirm
  * On success: invalidates ["drafts", ...] + ["transactions", ...] + ["spendings-summary", ...]
  * Server moves the row from draft (confirmed_at=NULL) → confirmed.
  *
@@ -28,7 +28,7 @@ export function useConfirmDraft(budgetId: string, month: string) {
   return useMutation({
     mutationFn: async (input: ConfirmDraftInput) => {
       const res = await clientApiWrite(
-        `/budgets/${budgetId}/recurring-rules/drafts/${input.draftId}/confirm`,
+        `/budgets/${budgetId}/scheduled-payments/drafts/${input.draftId}/confirm`,
         {
           method: "POST",
           headers: {

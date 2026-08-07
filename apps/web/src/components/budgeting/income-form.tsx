@@ -3,7 +3,7 @@
 /**
  * income-form.tsx — Right-side slider to create/edit an Income (r32).
  *
- * Mirrors recurring-rule-form's chrome + cadence picker, minus the
+ * Mirrors scheduled-payment-form's chrome + cadence picker, minus the
  * category/note/first-due machinery, plus a required Name field. Both create
  * and edit POST/PATCH the FULL record (name + amount + currency + discriminated
  * cadence) so the frequency can be changed on edit.
@@ -34,7 +34,7 @@ import {
   formatAmountForList,
   type IncomeCadenceLite,
 } from "@/components/budgeting/income-list";
-import { WEEKDAY_ORDER } from "@/components/budgeting/recurring-rule-form";
+import { WEEKDAY_ORDER } from "@/components/budgeting/scheduled-payment-form";
 import { uuidv4 } from "@/lib/uuid";
 import { toDecimalString } from "@/lib/decimal";
 import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
@@ -114,7 +114,7 @@ export function IncomeForm({
     try {
       // The API takes a decimal STRING and accepts a dot only, so a comma
       // keyboard ("73,8" — the Polish layout's decimal key) was rejected and the
-      // save failed. Same bug as the recurring-rule form (260803 user report).
+      // save failed. Same bug as the scheduled-payment form (260803 user report).
       const amountValue = toDecimalString(amount);
       if (amountValue === null) {
         toast.error(t("form.errorAmount"));

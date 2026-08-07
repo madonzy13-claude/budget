@@ -19,7 +19,7 @@ export interface TransactionRow {
   fxRate: string; // decimal string
   fxAsOf: string; // 'YYYY-MM-DD'
   note: string | null;
-  recurringRuleId: string | null;
+  scheduledPaymentId: string | null;
   confirmedAt: Date | null; // NULL = draft per D-PH2-08
   kind: "SPENDING" | "INCOME";
   createdAt: Date;
@@ -51,7 +51,7 @@ export interface TransactionRepo {
         | "fxAsOf"
         | "note"
         | "kind"
-        | "recurringRuleId"
+        | "scheduledPaymentId"
         | "confirmedAt"
       >
     >,

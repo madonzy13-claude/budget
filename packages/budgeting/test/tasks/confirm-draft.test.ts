@@ -4,11 +4,11 @@
  * Phase 7 Plan 04 (Wave 2 GREEN of Wave 0 scaffold).
  *
  * Nyquist 6-case coverage per 07-VALIDATION.md § "Minimum Test Cases per Kind":
- *   1. emits on fresh draft INSERT (recurring-engine handler)
+ *   1. emits on fresh draft INSERT (scheduled-payment-engine handler)
  *   2. does NOT emit on conflict (draft already existed for that rule+date)
- *   3. resolves on confirmRecurringDraft
+ *   3. resolves on confirmScheduledDraft
  *   4. resolves on dismissDraft
- *   5. resolves on skipRecurringDraft
+ *   5. resolves on skipScheduledDraft
  *   6. dedup: two rapid confirms do not throw (idempotent resolve)
  *
  * Tests use real Postgres (DATABASE_URL_APP) per CLAUDE.md rule 3 (no DB
@@ -42,20 +42,20 @@ if (process.env.DATABASE_URL_WORKER) {
 const { resetPools } = await import("@budget/platform");
 const { createTaskRepo } =
   await import("@budget/budgeting/src/adapters/persistence/task-repo");
-const { confirmRecurringDraft } =
-  await import("@budget/budgeting/src/application/confirm-recurring-draft");
+const { confirmScheduledDraft } =
+  await import("@budget/budgeting/src/application/confirm-scheduled-draft");
 const { dismissDraft } =
   await import("@budget/budgeting/src/application/dismiss-draft");
-const { skipRecurringDraft } =
-  await import("@budget/budgeting/src/application/skip-recurring-draft");
+const { skipScheduledDraft } =
+  await import("@budget/budgeting/src/application/skip-scheduled-draft");
 const { DrizzleExpenseLedgerDraftPortRepo } =
   await import("@budget/budgeting/src/adapters/persistence/expense-ledger-draft-port-repo");
-// Relative cross-app import: the recurring-engine handler lives in apps/worker
+// Relative cross-app import: the scheduled-payment-engine handler lives in apps/worker
 // and is the system-under-test for cases 1 & 2 (emit-on-fresh-INSERT path).
 // Acceptable for an integration test that explicitly exercises the engine
 // + adapter wiring per VALIDATION.md case 1.
-const { runRecurringEngine } =
-  await import("../../../../apps/worker/src/handlers/recurring-engine");
+const { runScheduledEngine } =
+  await import("../../../../apps/worker/src/handlers/scheduled-payment-engine");
 resetPools();
 
 /* -------------------------------------------------------------------------- */
@@ -79,7 +79,7 @@ interface SeededRule {
 }
 
 /**
- * Seed a fresh budget + user + recurring rule, due TODAY. v1.1 invariant
+ * Seed a fresh budget + user + scheduled rule, due TODAY. v1.1 invariant
  * budgetId === tenantId so the engine's loop will pick up the rule.
  */
 async function seedBudgetWithRule(opts?: {
@@ -99,7 +99,7 @@ async function seedBudgetWithRule(opts?: {
   const currency = opts?.currency ?? "EUR";
   // numeric(19,4) on the rule.amount column — convert cents → major units.
   const amountMajor = (Number(amountCents) / 100).toFixed(4);
-  const noteAsRuleName = opts?.ruleNote ?? "Test Recurring Rule";
+  const noteAsRuleName = opts?.ruleNote ?? "Test Scheduled Rule";
 
   try {
     await client.query("BEGIN");
@@ -136,9 +136,9 @@ async function seedBudgetWithRule(opts?: {
       [categoryId, budgetId, userId],
     );
 
-    // Single recurring rule, due TODAY, mapped to the seeded category.
+    // Single scheduled rule, due TODAY, mapped to the seeded category.
     await client.query(
-      `INSERT INTO budgeting.recurring_rules
+      `INSERT INTO budgeting.scheduled_payments
          (id, tenant_id, category_id, amount, currency, cadence, cadence_anchor, weekly_dow,
           note, active, next_due_date, actor_user_id, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, 'MONTHLY', 15, NULL, $6, true, $7::date, $8, now(), now())`,
@@ -195,7 +195,7 @@ async function seedDraftRowDirect(
          (id, tenant_id, budget_id, category_id, transaction_date,
           amount_original_cents, currency_original,
           amount_converted_cents, fx_rate, fx_as_of,
-          note, recurring_rule_id, confirmed_at, kind, created_at, updated_at)
+          note, scheduled_payment_id, confirmed_at, kind, created_at, updated_at)
        VALUES ($1, $2, $2, $3, $4::date,
                $5::bigint, $6,
                $5::bigint, '1'::numeric, $4::date,
@@ -371,10 +371,10 @@ async function readTaskStatus(
 /* The 6 Nyquist test cases.                                                  */
 /* -------------------------------------------------------------------------- */
 describe("CONFIRM_DRAFT generator", () => {
-  it("emits on fresh draft INSERT (recurring-engine handler)", async () => {
+  it("emits on fresh draft INSERT (scheduled-payment-engine handler)", async () => {
     const seeded = await seedBudgetWithRule({});
 
-    const r = await runRecurringEngine({ todayOverride: seeded.dueDate });
+    const r = await runScheduledEngine({ todayOverride: seeded.dueDate });
     expect(r.isOk()).toBe(true);
 
     expect(await countPendingConfirmDraftTasks(seeded.budgetId)).toBe(1);
@@ -398,14 +398,14 @@ describe("CONFIRM_DRAFT generator", () => {
 
     expect(await countPendingConfirmDraftTasks(seeded.budgetId)).toBe(0);
 
-    const r = await runRecurringEngine({ todayOverride: seeded.dueDate });
+    const r = await runScheduledEngine({ todayOverride: seeded.dueDate });
     expect(r.isOk()).toBe(true);
 
     // Engine saw 0 rows from RETURNING → did NOT emit. No task created.
     expect(await countPendingConfirmDraftTasks(seeded.budgetId)).toBe(0);
   });
 
-  it("resolves on confirmRecurringDraft", async () => {
+  it("resolves on confirmScheduledDraft", async () => {
     const seeded = await seedBudgetWithRule({});
     const { draftId } = await seedDraftRowDirect(seeded);
     const { taskId } = await seedPendingConfirmDraftTask(seeded, draftId);
@@ -413,7 +413,7 @@ describe("CONFIRM_DRAFT generator", () => {
     expect(await countPendingConfirmDraftTasks(seeded.budgetId)).toBe(1);
 
     const taskRepo = createTaskRepo();
-    const confirm = confirmRecurringDraft({ taskRepo });
+    const confirm = confirmScheduledDraft({ taskRepo });
     const r = await confirm({
       tenantId: seeded.budgetId,
       draftId,
@@ -451,7 +451,7 @@ describe("CONFIRM_DRAFT generator", () => {
     expect(await countPendingConfirmDraftTasks(seeded.budgetId)).toBe(0);
   });
 
-  it("resolves on skipRecurringDraft", async () => {
+  it("resolves on skipScheduledDraft", async () => {
     const seeded = await seedBudgetWithRule({});
     const { draftId } = await seedDraftRowDirect(seeded);
     const { taskId } = await seedPendingConfirmDraftTask(seeded, draftId);
@@ -459,7 +459,7 @@ describe("CONFIRM_DRAFT generator", () => {
     expect(await countPendingConfirmDraftTasks(seeded.budgetId)).toBe(1);
 
     const taskRepo = createTaskRepo();
-    const skip = skipRecurringDraft({ taskRepo });
+    const skip = skipScheduledDraft({ taskRepo });
     const r = await skip({
       tenantId: seeded.budgetId,
       draftId,
@@ -479,7 +479,7 @@ describe("CONFIRM_DRAFT generator", () => {
     const { taskId } = await seedPendingConfirmDraftTask(seeded, draftId);
 
     const taskRepo = createTaskRepo();
-    const confirm = confirmRecurringDraft({ taskRepo });
+    const confirm = confirmScheduledDraft({ taskRepo });
 
     // First confirm: should succeed and resolve the task.
     const r1 = await confirm({

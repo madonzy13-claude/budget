@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./src/handlers/recurring-engine": "./src/handlers/recurring-engine.ts",
+    "./src/handlers/scheduled-payment-engine": "./src/handlers/scheduled-payment-engine.ts",
     "./src/handlers/budgeting-reconciliation": "./src/handlers/budgeting-reconciliation.ts"
   },
   "scripts": {

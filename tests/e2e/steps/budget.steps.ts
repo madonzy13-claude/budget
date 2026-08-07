@@ -8,7 +8,7 @@ import { test } from "../fixtures/index.js";
 import { WalletsPage } from "../pages/WalletsPage.js";
 import { BudgetPage } from "../pages/BudgetPage.js";
 import { TransactionsPage } from "../pages/TransactionsPage.js";
-import { RecurringPage } from "../pages/RecurringPage.js";
+import { ScheduledPage } from "../pages/ScheduledPage.js";
 import { createFreshUser } from "../fixtures/freshUser.js";
 
 const { Given, When, Then } = createBdd(test);
@@ -534,17 +534,17 @@ Then(
   },
 );
 
-// ── Plan 02-08: Recurring rules + drafts steps ────────────────────────────
+// ── Plan 02-08: Scheduled rules + drafts steps ────────────────────────────
 
-let recurringPage: RecurringPage;
+let scheduledPage: ScheduledPage;
 
-When("I open the Recurring page", async ({ page }) => {
-  recurringPage = new RecurringPage(page);
-  await recurringPage.goto("en");
+When("I open the Scheduled page", async ({ page }) => {
+  scheduledPage = new ScheduledPage(page);
+  await scheduledPage.goto("en");
 });
 
 When(
-  "I fill the recurring rule form with amount {string}, currency {string}, cadence {string}, anchorDay {string}, firstDueDate {string}, note {string}",
+  "I fill the scheduled rule form with amount {string}, currency {string}, cadence {string}, anchorDay {string}, firstDueDate {string}, note {string}",
   async (
     { page },
     amount: string,
@@ -554,7 +554,7 @@ When(
     firstDueDate: string,
     note: string,
   ) => {
-    const rp = recurringPage ?? new RecurringPage(page);
+    const rp = scheduledPage ?? new ScheduledPage(page);
     // Locate one account id for the rule (Account input takes UUID per current form).
     const accountsRes = await page.request.get("/api/wallets");
     const accountsData = accountsRes.ok()
@@ -573,12 +573,12 @@ When(
   },
 );
 
-// v1.1 categorical-only variant (TXN-02): recurring rules are bound to a
+// v1.1 categorical-only variant (TXN-02): scheduled rules are bound to a
 // category, not a wallet. Driving the form via the same Page-Object helper, we
 // still need an accountId for back-compat with older API shapes; the category
 // is selected on top of the existing form fields.
 When(
-  "I fill the recurring rule form with category {string}, amount {string}, currency {string}, cadence {string}, anchorDay {string}, firstDueDate {string}, note {string}",
+  "I fill the scheduled rule form with category {string}, amount {string}, currency {string}, cadence {string}, anchorDay {string}, firstDueDate {string}, note {string}",
   async (
     { page },
     categoryName: string,
@@ -589,8 +589,8 @@ When(
     firstDueDate: string,
     note: string,
   ) => {
-    const rp = recurringPage ?? new RecurringPage(page);
-    // The RecurringPage helper does not yet expose a category picker; the
+    const rp = scheduledPage ?? new ScheduledPage(page);
+    // The ScheduledPage helper does not yet expose a category picker; the
     // form's category select lives next to the amount field. Best-effort: pick
     // the option by visible text after opening the picker. If the helper
     // method exists, prefer it.
@@ -622,30 +622,30 @@ When(
           .first()
           .click({ timeout: 1500 });
       } catch {
-        // TODO(phase-05-debt): no category picker in current RecurringForm —
+        // TODO(phase-05-debt): no category picker in current ScheduledForm —
         // categorical-only rule creation will be wired in a later phase.
       }
     }
   },
 );
 
-When("I save the recurring rule", async ({ page }) => {
-  const rp = recurringPage ?? new RecurringPage(page);
+When("I save the scheduled rule", async ({ page }) => {
+  const rp = scheduledPage ?? new ScheduledPage(page);
   await rp.saveRule();
 });
 
 Then(
-  "I see a recurring rule in the list with amount {string}",
+  "I see a scheduled rule in the list with amount {string}",
   async ({ page }, amount: string) => {
-    const rp = recurringPage ?? new RecurringPage(page);
+    const rp = scheduledPage ?? new ScheduledPage(page);
     await rp.expectRuleInList(amount);
   },
 );
 
 Then(
-  "the recurring rule shows the cadence label {string}",
+  "the scheduled rule shows the cadence label {string}",
   async ({ page }, label: string) => {
-    const rp = recurringPage ?? new RecurringPage(page);
+    const rp = scheduledPage ?? new ScheduledPage(page);
     await rp.expectCadenceLabel(label);
   },
 );
@@ -691,7 +691,7 @@ async function seedMonthlyRule(
       ] as string | undefined);
     if (!budgetId) {
       throw new Error(
-        "No active budget; categorical-only recurring rules require the workspace bootstrap step.",
+        "No active budget; categorical-only scheduled rules require the workspace bootstrap step.",
       );
     }
     const catsRes = await page.request.get(
@@ -716,10 +716,10 @@ async function seedMonthlyRule(
   }
 
   // Prefer the budget-scoped route when we have a budgetId (categorical
-  // rules); fall back to the legacy non-scoped /api/recurring-rules path.
+  // rules); fall back to the legacy non-scoped /api/scheduled-payments path.
   const path = budgetId
-    ? `/api/budgets/${budgetId}/recurring-rules`
-    : "/api/recurring-rules";
+    ? `/api/budgets/${budgetId}/scheduled-payments`
+    : "/api/scheduled-payments";
   const res = await page.request.post(path, {
     headers: {
       "Idempotency-Key": crypto.randomUUID(),
@@ -756,7 +756,7 @@ async function seedMonthlyRule(
 }
 
 Given(
-  "I have a monthly recurring rule {string} of {int} USD anchored to day {int}",
+  "I have a monthly scheduled rule {string} of {int} USD anchored to day {int}",
   async (
     { page, scenarioCtx },
     note: string,
@@ -775,7 +775,7 @@ Given(
 
 // v1.1 categorical-only variant — rules are bound to a category (TXN-02).
 Given(
-  "I have a monthly recurring rule {string} of {int} USD anchored to day {int} in category {string}",
+  "I have a monthly scheduled rule {string} of {int} USD anchored to day {int} in category {string}",
   async (
     { page, scenarioCtx },
     note: string,
@@ -798,20 +798,20 @@ Given(
   "the engine has generated a PENDING draft for {string} at {int} USD",
   async ({ page }, note: string, amount: number) => {
     // Locate the rule by note via API listing
-    const rulesRes = await page.request.get("/api/recurring-rules");
+    const rulesRes = await page.request.get("/api/scheduled-payments");
     expect(rulesRes.ok()).toBeTruthy();
     const rulesData = (await rulesRes.json()) as {
       rules: Array<{ id: string; note: string | null }>;
     };
     const rule = rulesData.rules.find((r) => r.note === note);
     if (!rule) {
-      throw new Error(`Recurring rule with note ${note} not found`);
+      throw new Error(`Scheduled rule with note ${note} not found`);
     }
     // Test endpoint to seed a PENDING draft directly (bypasses cron timing).
     // Falls back to invoking the engine handler via worker-test endpoint if exposed.
     const today = new Date().toISOString().slice(0, 10);
     const res = await page.request.post(
-      `/api/recurring-rules/${rule.id}/_seed-draft`,
+      `/api/scheduled-payments/${rule.id}/_seed-draft`,
       {
         headers: { "Idempotency-Key": crypto.randomUUID() },
         data: { dueDate: today, amount: String(amount), currency: "USD" },
@@ -821,7 +821,7 @@ Given(
     // assertion gracefully and the engine cron is the canonical path.
     if (!res.ok()) {
       console.warn(
-        `[recurring e2e] seed-draft endpoint not available (${res.status()}); ` +
+        `[scheduled e2e] seed-draft endpoint not available (${res.status()}); ` +
           `the engine cron is the canonical path — local run may not show draft.`,
       );
     }
@@ -831,20 +831,20 @@ Given(
 Then(
   "I see a pending draft with amount {string}",
   async ({ page }, amount: string) => {
-    const rp = recurringPage ?? new RecurringPage(page);
+    const rp = scheduledPage ?? new ScheduledPage(page);
     await rp.expectPendingDraft(amount);
   },
 );
 
 When("I confirm the pending draft", async ({ page }) => {
-  const rp = recurringPage ?? new RecurringPage(page);
+  const rp = scheduledPage ?? new ScheduledPage(page);
   await rp.confirmFirstDraft();
 });
 
 When(
-  "I open the edit form for the recurring rule {string}",
+  "I open the edit form for the scheduled rule {string}",
   async ({ page }, noteOrAmount: string) => {
-    const rp = recurringPage ?? new RecurringPage(page);
+    const rp = scheduledPage ?? new ScheduledPage(page);
     await rp.openEditForRule(noteOrAmount);
   },
 );
@@ -858,9 +858,9 @@ Then("the {string} checkbox is checked", async ({ page }, label: string) => {
 });
 
 When(
-  "I change the recurring rule amount to {string}",
+  "I change the scheduled rule amount to {string}",
   async ({ page }, amount: string) => {
-    const rp = recurringPage ?? new RecurringPage(page);
+    const rp = scheduledPage ?? new ScheduledPage(page);
     await rp.fillEditAmount(amount);
   },
 );

@@ -2,7 +2,7 @@
  * incomes-schema.ts — Drizzle schema for budgeting.incomes (r32).
  *
  * A per-budget list of expected incomes (config only for now; consumption TBD).
- * Mirrors recurring_rules' cadence model (name + amount + currency + frequency)
+ * Mirrors scheduled_payments' cadence model (name + amount + currency + frequency)
  * minus the scheduling/draft machinery (no category, note, or next_due_date).
  * RLS via pgPolicy; FORCE RLS + grants live in migration 0051 / post-migration.
  */

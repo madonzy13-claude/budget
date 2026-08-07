@@ -57,7 +57,7 @@ export interface OverviewPlannedDTO {
   /** True when ANY category's limit moved inside the range — the only case
    *  where average-vs-current is a real choice. Optional for cached payloads. */
   limits_moved?: boolean;
-  recurringPerMonth: {
+  scheduledPerMonth: {
     month: number;
     planned_cents: string;
     items: { name: string; amount_cents: string }[];

@@ -91,7 +91,7 @@ export interface GetOverviewCardsDeps {
     budgetId: string;
     month: string;
   }) => Promise<Result<SpendingsSummaryLike, Error>>;
-  /** r36: per-category upcoming outflows (drafts + projected recurring), budget
+  /** r36: per-category upcoming outflows (drafts + projected scheduled), budget
    *  ccy cents. Keyed by categoryId; NONE_CATEGORY_KEY holds uncategorised items. */
   upcomingByCategory: (input: {
     tenantId: string;
@@ -279,8 +279,8 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
       // Available-to-spend breakdown (item 1). Spent this month + "upcoming" (what
       // you still expect to pay). Per category (r36, user's "max per category"
       // rule): the LARGER of its leftover budget (activeBudget − spent, ≥0) or its
-      // upcoming outflows (unconfirmed drafts + projected recurring this month) —
-      // so a recurring bill already inside a category's leftover isn't double
+      // upcoming outflows (unconfirmed drafts + projected scheduled this month) —
+      // so a scheduled bill already inside a category's leftover isn't double
       // counted. Netting was per-SUM before, so overspend in one category wiped out
       // another's leftover → 0 even with money still to spend. wallet cash =
       // availableToSpend. "good" = wallets cover what's left.
@@ -303,7 +303,7 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
         const catUpcoming = upcoming.get(c.categoryId) ?? 0n;
         leftToSpend += leftoverPos > catUpcoming ? leftoverPos : catUpcoming;
       }
-      // Uncategorised upcoming (drafts/recurring with no category) has no budget to
+      // Uncategorised upcoming (drafts/scheduled with no category) has no budget to
       // max against — add it directly.
       leftToSpend += upcoming.get(NONE_CATEGORY_KEY) ?? 0n;
 

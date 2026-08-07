@@ -1,5 +1,5 @@
 /**
- * list-pending-drafts.ts — List pending recurring drafts for a tenant.
+ * list-pending-drafts.ts — List pending scheduled drafts for a tenant.
  *
  * v1.1 (Phase 2, Plan 02-02):
  *   Drafts are expense_ledger rows with confirmed_at IS NULL.
@@ -35,12 +35,12 @@ export function listPendingDrafts(_deps: Record<string, unknown> = {}) {
       const { sql } = await import("drizzle-orm");
 
       const result = await drizzleTx.execute(sql`
-        SELECT id, tenant_id, recurring_rule_id, transaction_date,
+        SELECT id, tenant_id, scheduled_payment_id, transaction_date,
                amount_original_cents, currency_original, category_id,
                note, kind, created_at
           FROM budgeting.expense_ledger
          WHERE tenant_id = ${input.tenantId}::uuid
-           AND recurring_rule_id IS NOT NULL
+           AND scheduled_payment_id IS NOT NULL
            AND confirmed_at IS NULL
            AND deleted_at IS NULL
          ORDER BY transaction_date ASC
@@ -52,7 +52,7 @@ export function listPendingDrafts(_deps: Record<string, unknown> = {}) {
         return {
           id: row.id as string,
           tenantId: row.tenant_id as string,
-          ruleId: row.recurring_rule_id as string,
+          ruleId: row.scheduled_payment_id as string,
           dueDate,
           amountOriginalCents: String(row.amount_original_cents),
           currency: row.currency_original as string,

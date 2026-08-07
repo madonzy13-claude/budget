@@ -81,7 +81,7 @@ export class SpendingsPo {
     await context.setOffline(false);
   }
 
-  /** Draft row for a recurring rule by rule name (lower-cased testid). */
+  /** Draft row for a scheduled rule by rule name (lower-cased testid). */
   draftRow(ruleName: string): Locator {
     return this.page.getByTestId(`draft-row-${ruleName.toLowerCase()}`);
   }

@@ -533,6 +533,13 @@
       "when": 1782739201003,
       "tag": "0076_purge_manual_equities",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1782739201004,
+      "tag": "0077_scheduled_payments_rename",
+      "breakpoints": true
     }
   ]
 }

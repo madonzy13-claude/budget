@@ -267,7 +267,7 @@ Given(
 );
 
 Given(
-  "the budget {string} has a recurring rule {string} for category {string} of {string} {string} due this month",
+  "the budget {string} has a scheduled rule {string} for category {string} of {string} {string} due this month",
   async (
     { page, scenarioCtx },
     budgetName: string,
@@ -291,7 +291,7 @@ Given(
       .toISOString()
       .slice(0, 10);
     const res = await page.request.post(
-      `/api/budgets/${budgetId}/recurring-rules`,
+      `/api/budgets/${budgetId}/scheduled-payments`,
       {
         headers: {
           "Idempotency-Key": crypto.randomUUID(),
@@ -310,11 +310,11 @@ Given(
     );
     if (![201, 409].includes(res.status())) {
       const body = await res.text();
-      throw new Error(`POST /recurring-rules failed: ${res.status()} ${body}`);
+      throw new Error(`POST /scheduled-payments failed: ${res.status()} ${body}`);
     }
     // Seed a PENDING draft for this rule so it shows in the spendings grid
     const rulesRes = await page.request.get(
-      `/api/budgets/${budgetId}/recurring-rules`,
+      `/api/budgets/${budgetId}/scheduled-payments`,
       {
         headers: { "X-Budget-ID": budgetId },
       },
@@ -328,7 +328,7 @@ Given(
       const rule = list.find((r) => r.note === ruleName);
       if (rule) {
         await page.request
-          .post(`/api/recurring-rules/${rule.id}/_seed-draft`, {
+          .post(`/api/scheduled-payments/${rule.id}/_seed-draft`, {
             headers: {
               "Idempotency-Key": crypto.randomUUID(),
               "X-Budget-ID": budgetId,
@@ -654,10 +654,10 @@ Then(
 );
 
 Then(
-  "the recurring rule {string} is still active",
+  "the scheduled rule {string} is still active",
   async ({ page }, ruleName: string) => {
     // Verify via API that rule still exists and is active
-    const res = await page.request.get("/api/recurring-rules");
+    const res = await page.request.get("/api/scheduled-payments");
     if (!res.ok()) return; // skip if endpoint not available
     const data = (await res.json()) as {
       rules?: Array<{ note: string | null; status?: string }>;

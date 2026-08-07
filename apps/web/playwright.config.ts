@@ -47,7 +47,7 @@ export default defineConfig({
   //
   // On CI, allow 3 retries: the box is contended (fresh-user scenarios against a
   // just-built stack) and a few scenarios have documented cold-cache/cover-dialog/
-  // RSC-stream timing flakes (reserves golden timeline, recurring-draft confirm).
+  // RSC-stream timing flakes (reserves golden timeline, scheduled-draft confirm).
   // A retried test must still pass — this absorbs non-determinism, not real bugs.
   retries: process.env["CI"] ? 3 : 1,
   // Playwright's 30s default is tight for this suite: EVERY scenario signs up a
@@ -59,7 +59,7 @@ export default defineConfig({
   timeout: 60_000,
   // Scenarios tagged @ci-only are confirmed load-dependent flakes — they pass
   // reliably against a warm local stack but flake on a cold, contended CI runner
-  // (verified: recurring-draft confirm passed 6/6 locally). They still RUN in CI
+  // (verified: scheduled-draft confirm passed 6/6 locally). They still RUN in CI
   // (the faithful environment, with retries absorbing the non-determinism) but
   // are skipped in local runs so they don't produce false failures during local
   // iteration. This never hides a real bug — the product path is exercised in CI.

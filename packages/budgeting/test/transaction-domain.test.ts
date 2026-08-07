@@ -4,7 +4,7 @@
  *
  * TXN-07: kind ∈ ('SPENDING', 'INCOME') only — no TRANSFER, no EXPENSE.
  * D-PH2-08: confirmedAt = null means draft; confirmedAt = Date means confirmed.
- * New fields: recurringRuleId, confirmedAt, budgetId.
+ * New fields: scheduledPaymentId, confirmedAt, budgetId.
  * Removed fields: accountId, transferGroupId, correctsId, hasCorrections.
  */
 import { describe, test, expect } from "bun:test";
@@ -20,7 +20,7 @@ function makeTx(overrides: Partial<{
   fxAsOf: string;
   date: string;
   confirmedAt: Date | null;
-  recurringRuleId: string | null;
+  scheduledPaymentId: string | null;
   note: string | null;
 }> = {}): Transaction {
   return new Transaction(
@@ -35,7 +35,7 @@ function makeTx(overrides: Partial<{
     overrides.fxRate ?? "0.84",
     overrides.fxAsOf ?? "2026-05-11",
     overrides.note ?? null,
-    overrides.recurringRuleId ?? null,
+    overrides.scheduledPaymentId ?? null,
     overrides.confirmedAt !== undefined ? overrides.confirmedAt : new Date(),
     overrides.kind ?? "SPENDING",
     new Date(), // createdAt
@@ -81,16 +81,16 @@ describe("Transaction v1.1 domain entity", () => {
     });
   });
 
-  describe("recurringRuleId", () => {
-    test("recurringRuleId can be null (manual entry)", () => {
-      const tx = makeTx({ recurringRuleId: null });
-      expect(tx.recurringRuleId).toBeNull();
+  describe("scheduledPaymentId", () => {
+    test("scheduledPaymentId can be null (manual entry)", () => {
+      const tx = makeTx({ scheduledPaymentId: null });
+      expect(tx.scheduledPaymentId).toBeNull();
     });
 
-    test("recurringRuleId can be a UUID (from recurring rule)", () => {
+    test("scheduledPaymentId can be a UUID (from scheduled rule)", () => {
       const ruleId = crypto.randomUUID();
-      const tx = makeTx({ recurringRuleId: ruleId });
-      expect(tx.recurringRuleId).toBe(ruleId);
+      const tx = makeTx({ scheduledPaymentId: ruleId });
+      expect(tx.scheduledPaymentId).toBe(ruleId);
     });
   });
 

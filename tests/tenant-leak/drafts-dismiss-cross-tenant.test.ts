@@ -1,7 +1,7 @@
 /**
  * drafts-dismiss-cross-tenant.test.ts — Tenant-leak gate stub (Phase 4, Plan 04-01).
  *
- * Guards POST /budgets/:budgetId/recurring-rules/drafts/:draftId/dismiss (Plan 04-02).
+ * Guards POST /budgets/:budgetId/scheduled-payments/drafts/:draftId/dismiss (Plan 04-02).
  *
  * Full tenant-isolation test ships in Plan 04-02 once the route +
  * dismiss application service exist.

@@ -53,7 +53,7 @@ describe("permanentlyDeleteCategory", () => {
 
 /* -------------------------------------------------------------------------- */
 /* 260612-kxd T3-A — integration (real Postgres, CLAUDE.md rule 3):           */
-/* hard-deleting a category with an open recurring draft must RESOLVE the     */
+/* hard-deleting a category with an open scheduled draft must RESOLVE the     */
 /* draft's PENDING CONFIRM_DRAFT task in the SAME transaction. Today          */
 /* category-repo.hardDelete purges expense_ledger but never touches           */
 /* budgeting.tasks → the "Maczfit" orphan banner task. RED until fixed.       */

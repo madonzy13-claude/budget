@@ -2,7 +2,7 @@
  * reserve-fit-repo.test.ts — the one-off list against real Postgres.
  *
  * Covers what only a database can tell us: the shortlist really is the biggest
- * spends per category, a recurring charge carries its cadence (so the member can
+ * spends per category, a scheduled charge carries its cadence (so the member can
  * see it WILL come round again), the un-tick round-trips, and the annotation is
  * scoped to the budget rather than leaking across tenants.
  *
@@ -60,7 +60,7 @@ beforeAll(async () => {
       INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id)
       VALUES (${CAT}::uuid, ${TENANT}::uuid, 'Car', now(), ${USER}::uuid)`);
     await tx.execute(sql`
-      INSERT INTO budgeting.recurring_rules
+      INSERT INTO budgeting.scheduled_payments
         (id, tenant_id, category_id, amount, currency, cadence, cadence_anchor,
          active, next_due_date, created_at, actor_user_id, yearly_month)
       VALUES (${RULE}::uuid, ${TENANT}::uuid, ${CAT}::uuid, 5000, 'PLN', 'YEARLY', 1,
@@ -76,7 +76,7 @@ beforeAll(async () => {
         INSERT INTO budgeting.expense_ledger
           (id, tenant_id, budget_id, category_id, kind, transaction_date, note,
            amount_original_cents, amount_converted_cents, currency_original,
-           fx_rate, fx_as_of, confirmed_at, created_at, recurring_rule_id)
+           fx_rate, fx_as_of, confirmed_at, created_at, scheduled_payment_id)
         VALUES (${id}::uuid, ${TENANT}::uuid, ${TENANT}::uuid, ${CAT}::uuid, 'SPENDING',
                 ${date}::date, ${note}, ${cents}, ${cents}, 'PLN', 1, ${date}::date,
                 now(), now(), ${ruleId}::uuid)`);
@@ -99,7 +99,7 @@ afterAll(async () => {
     sql`DELETE FROM budgeting.expense_ledger WHERE tenant_id = ${TENANT}::uuid`,
   );
   await db.execute(
-    sql`DELETE FROM budgeting.recurring_rules WHERE tenant_id = ${TENANT}::uuid`,
+    sql`DELETE FROM budgeting.scheduled_payments WHERE tenant_id = ${TENANT}::uuid`,
   );
   await db.execute(
     sql`DELETE FROM budgeting.categories WHERE tenant_id = ${TENANT}::uuid`,
@@ -130,13 +130,13 @@ describe("reserve-fit exclusions repo", () => {
     expect(rows[1]?.note).toBe("Parachute jump");
   });
 
-  test("a recurring charge carries its cadence as evidence it will repeat", async () => {
+  test("a scheduled charge carries its cadence as evidence it will repeat", async () => {
     const rows = await list();
     expect(
-      rows.find((r) => r.ledger_id === TX_INSURANCE)?.recurring_cadence,
+      rows.find((r) => r.ledger_id === TX_INSURANCE)?.scheduled_cadence,
     ).toBe("YEARLY");
     expect(
-      rows.find((r) => r.ledger_id === TX_JUMP)?.recurring_cadence,
+      rows.find((r) => r.ledger_id === TX_JUMP)?.scheduled_cadence,
     ).toBeNull();
   });
 

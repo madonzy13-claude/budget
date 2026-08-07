@@ -50,7 +50,7 @@ export interface OneOffCandidate {
   transaction_date: string;
   note: string | null;
   amount_cents: string;
-  recurring_cadence: string | null;
+  scheduled_cadence: string | null;
   excluded: boolean;
 }
 
@@ -109,14 +109,14 @@ export function ReserveFitOneOffs({
           <span className="truncate text-caption text-[var(--muted-foreground)]">
             {c.note ? `${c.note} · ` : ""}
             {c.category_name} · {formatShortDate(c.transaction_date, locale)}
-            {c.recurring_cadence && (
+            {c.scheduled_cadence && (
               <>
                 {" · "}
                 <span
                   data-testid={`reserve-fit-recurs-${c.ledger_id}`}
                   className="text-[var(--primary)]"
                 >
-                  {t("reserveFit.recurs", { cadence: c.recurring_cadence })}
+                  {t("reserveFit.recurs", { cadence: c.scheduled_cadence })}
                 </span>
               </>
             )}

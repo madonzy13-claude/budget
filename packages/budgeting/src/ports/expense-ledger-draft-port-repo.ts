@@ -1,6 +1,6 @@
 /**
  * expense-ledger-draft-port-repo.ts — Port interface for dismiss/confirm draft operations.
- * Separates Phase 4 draft-management surface from the original RecurringDraftRepo.
+ * Separates Phase 4 draft-management surface from the original ScheduledDraftRepo.
  * Implemented by DrizzleExpenseLedgerDraftPortRepo in adapters/persistence/.
  */
 

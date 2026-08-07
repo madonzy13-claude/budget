@@ -103,7 +103,7 @@ const base = {
     { label: "2026-01", planned_cents: "50000", real_cents: "60000" },
   ],
   plannedAvgVsReal: [row],
-  recurringPerMonth: [],
+  scheduledPerMonth: [],
   rangeTotals: {
     planned_cents: "150000",
     spent_cents: "180000",

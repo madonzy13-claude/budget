@@ -586,7 +586,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
 
   /** SETT-08: hard-delete — removes the budget row.
    *
-   * Several child tables (budget_members, recurring_rules, etc.) reference
+   * Several child tables (budget_members, scheduled_payments, etc.) reference
    * tenancy.budgets without ON DELETE CASCADE, so a direct DELETE on the
    * parent throws FK violation. We DELETE the known budget-scoped children
    * first, in the same tx, so the parent DELETE is unblocked.

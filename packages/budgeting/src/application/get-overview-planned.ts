@@ -3,11 +3,11 @@
  *
  * Multi-month Planned-vs-Real timeline (D-12), adaptive monthly/daily bucket
  * (D-20), planned-avg-vs-real-avg over ONLY the months a category was active
- * (D-13), and the two current-config recurring charts (D-14).
+ * (D-13), and the two current-config scheduled charts (D-14).
  *
  * Timeline planned/real are already in default_currency (limits are stored in the
  * budget currency; the ledger stores amount_converted_cents) — no FX on that path,
- * matching get-spendings-summary. Recurring amounts ARE FX-converted (rules carry
+ * matching get-spendings-summary. Scheduled amounts ARE FX-converted (rules carry
  * their own currency). Cents are bigint internally; the DTO stringifies at the
  * service boundary (matching get-spendings-summary / get-cushion-summary).
  */
@@ -20,9 +20,9 @@ import {
   type IncomeForNormalize,
 } from "./investment-smart-limit";
 import {
-  recurringMonthlyNormalize,
+  scheduledMonthlyNormalize,
   type Cadence,
-} from "./recurring-monthly-normalize";
+} from "./scheduled-monthly-normalize";
 
 export interface MonthlyPlannedRow {
   category_id: string;
@@ -52,7 +52,7 @@ export interface DailySpendRow {
   day: string; // YYYY-MM-DD
   spent_cents: bigint;
 }
-export interface ActiveRecurringRule {
+export interface ActiveScheduledPayment {
   category_id: string | null;
   /** category name (for the per-category chart). */
   name: string | null;
@@ -83,7 +83,7 @@ export interface OverviewPlannedRepo {
     /** Empty or absent → every category the timeline counts (260802). */
     categoryIds?: string[],
   ): Promise<DailySpendRow[]>;
-  activeRecurringRules(budgetId: string): Promise<ActiveRecurringRule[]>;
+  activeScheduledPayments(budgetId: string): Promise<ActiveScheduledPayment[]>;
 }
 
 export interface GetOverviewPlannedDeps {
@@ -223,7 +223,7 @@ export interface OverviewPlannedDTO {
    *  the average-vs-current choice only then — with a steady limit the two
    *  figures are the same number and the switch is noise (260805). */
   limits_moved: boolean;
-  recurringPerMonth: {
+  scheduledPerMonth: {
     month: number;
     planned_cents: string;
     /** the individual payments that make up this month's bar (tooltip list). */
@@ -330,7 +330,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
             input.to,
           ),
           deps.repo.categoryWindows(input.budgetId),
-          deps.repo.activeRecurringRules(input.budgetId),
+          deps.repo.activeScheduledPayments(input.budgetId),
           deps.excludedSpend?.({
             budgetId: input.budgetId,
             from: input.from,
@@ -771,7 +771,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         })
         .filter((x): x is NonNullable<typeof x> => x !== null);
 
-      // ---- recurring charts (current config, FX→default_ccy) ----
+      // ---- scheduled charts (current config, FX→default_ccy) ----
       // Convert each rule's amount to default_ccy once.
       const ruleAmounts = await Promise.all(
         rules.map((rule) =>
@@ -786,7 +786,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
 
       const perMonth = new Array<bigint>(12).fill(0n);
       // Per-month list of the individual payments behind each point — the
-      // "Recurring payments, by month" tooltip names them.
+      // "Scheduled payments, by month" tooltip names them.
       const perMonthItems: Array<{ name: string; amount_cents: string }[]> =
         Array.from({ length: 12 }, () => []);
       rules.forEach((rule, i) => {
@@ -809,7 +809,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
             addItem(m, amt);
           }
         } else {
-          const monthly = recurringMonthlyNormalize(amt, rule.cadence);
+          const monthly = scheduledMonthlyNormalize(amt, rule.cadence);
           for (let m = 0; m < 12; m++) {
             perMonth[m] = (perMonth[m] ?? 0n) + monthly;
             addItem(m, monthly);
@@ -824,7 +824,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         timeline,
         plannedAvgVsReal,
         limits_moved: limitsMoved,
-        recurringPerMonth: perMonth.map((cents, i) => ({
+        scheduledPerMonth: perMonth.map((cents, i) => ({
           month: i + 1,
           planned_cents: cents.toString(),
           items: perMonthItems[i]!,

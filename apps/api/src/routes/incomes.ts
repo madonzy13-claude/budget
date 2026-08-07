@@ -6,7 +6,7 @@
  * PATCH  /incomes/:id     — full update of the editable fields
  * DELETE /incomes/:id     — soft-delete (active = false)
  *
- * Config only for now (no engine/consumption). Cadence mirrors recurring rules
+ * Config only for now (no engine/consumption). Cadence mirrors scheduled rules
  * (DAILY/WEEKLY/MONTHLY/YEARLY + anchors) via a discriminated union. Mounted
  * under /budgets/:budgetId/incomes and the legacy root /incomes.
  */

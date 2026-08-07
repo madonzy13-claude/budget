@@ -27,7 +27,7 @@ import { BudgetIdentitySection } from "@/components/settings/budget-identity-sec
 import { CushionSection } from "@/components/settings/cushion-section";
 import { InvestmentsSection } from "@/components/settings/investments-section";
 import { ReservesSection } from "@/components/settings/reserves-section";
-import { RecurringSection } from "@/components/settings/recurring-section";
+import { ScheduledSection } from "@/components/settings/scheduled-payments-section";
 import { IncomeSection } from "@/components/settings/income-section";
 import { MembersSection } from "@/components/settings/members-section";
 import { DangerZoneSection } from "@/components/settings/danger-zone-section";
@@ -93,10 +93,10 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
   const isPwa = useIsStandalone();
   const investmentsQ = useInvestments(budget.id);
   const categoriesQ = useCategories(budget.id);
-  const recurringQ = useQuery({
-    queryKey: ["recurring-rules", budget.id],
+  const scheduledQ = useQuery({
+    queryKey: ["scheduled-payments", budget.id],
     queryFn: async () => {
-      const res = await fetch(`/api/budgets/${budget.id}/recurring-rules`, {
+      const res = await fetch(`/api/budgets/${budget.id}/scheduled-payments`, {
         credentials: "include",
         headers: { "X-Budget-ID": budget.id },
       });
@@ -129,7 +129,7 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
   const hasCategory = (categoriesQ.data ?? []).some(
     (c) => !(c as { isInvestment?: boolean }).isInvestment,
   );
-  const hasRecurring = (recurringQ.data ?? false) as boolean;
+  const hasScheduled = (scheduledQ.data ?? false) as boolean;
   const hasIncome = (incomeQ.data ?? false) as boolean;
 
   // r34 flicker fix: only trust `progress.percent` once every count it reads has
@@ -141,7 +141,7 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
     !walletsQ.isLoading &&
     !investmentsQ.isLoading &&
     !categoriesQ.isLoading &&
-    !recurringQ.isLoading &&
+    !scheduledQ.isLoading &&
     !incomeQ.isLoading;
 
   const progress = computeSettingsProgress({
@@ -152,7 +152,7 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
     hasReserveWallet,
     investmentsEnabled: budget.investmentsEnabled ?? false,
     hasInvestment,
-    hasRecurring,
+    hasScheduled,
     hasIncome,
     hasCategory,
   });
@@ -259,14 +259,14 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
           </AccordionContent>
         </AccordionItem>
 
-        {/* 4. Recurring Rules */}
-        <AccordionItem value="recurring-rules">
+        {/* 4. Scheduled Rules */}
+        <AccordionItem value="scheduled-payments">
           <AccordionTrigger className="px-6">
-            {t("sections.recurring")}
+            {t("sections.scheduled")}
           </AccordionTrigger>
           <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
             <OwnerGate isOwner={isOwner}>
-              <RecurringSection
+              <ScheduledSection
                 budgetId={budget.id}
                 defaultCurrency={budget.defaultCurrency}
               />

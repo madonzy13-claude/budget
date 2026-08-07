@@ -209,7 +209,7 @@
       "cushion": "Cushion",
       "reserves": "Reserves",
       "investments": "Investments",
-      "recurring": "Recurring payments",
+      "scheduled": "Scheduled payments",
       "income": "Income",
       "members": "Members",
       "danger": "Danger Zone"
@@ -235,7 +235,7 @@
         "reserveWallet": "Add a reserve wallet",
         "investmentsEnabled": "Turn on Investments",
         "investment": "Add an investment",
-        "recurring": "Add a recurring payment",
+        "scheduled": "Add a scheduled payment",
         "income": "Add an income",
         "category": "Create a category"
       }
@@ -270,10 +270,10 @@
       "previewMet": "Have {actual} of {required} — target met",
       "previewError": "Could not load cushion summary."
     },
-    "recurring": {
-      "add_rule": "Add rule",
-      "add_rule_title": "Add recurring rule",
-      "edit_rule_title": "Edit recurring rule"
+    "scheduled": {
+      "add_rule": "Add payment",
+      "add_rule_title": "Add scheduled payment",
+      "edit_rule_title": "Edit scheduled payment"
     },
     "members": {
       "empty": "No other members yet.",
@@ -310,7 +310,7 @@
         },
         "CONFIRM_DRAFT": {
           "label": "Draft needs confirming",
-          "description": "When a recurring draft awaits confirmation"
+          "description": "When a scheduled payment's draft awaits confirmation"
         },
         "CUSHION_BELOW_TARGET": {
           "label": "Cushion below target",
@@ -836,7 +836,7 @@
     "budget": "Budget",
     "wallets": "Wallets",
     "transactions": "Transactions",
-    "recurring": "Recurring payments",
+    "scheduled": "Scheduled payments",
     "budgetSwitcher": {
       "trigger": {
         "aria": "Switch budget"
@@ -1138,15 +1138,15 @@
         "delete": "Failed to delete income"
       }
     },
-    "recurring": {
-      "title": "Recurring payments",
-      "addRuleButton": "Add recurring payment",
+    "scheduled": {
+      "title": "Scheduled payments",
+      "addRuleButton": "Add scheduled payment",
       "rule": {
-        "title": "New recurring rule",
-        "editTitle": "Edit recurring rule",
+        "title": "New scheduled payment",
+        "editTitle": "Edit scheduled payment",
         "nameLabel": "Name",
         "namePlaceholder": "e.g. Rent",
-        "saveButton": "Save rule",
+        "saveButton": "Save payment",
         "cancelButton": "Cancel",
         "amountLabel": "Amount",
         "currencyLabel": "Currency",
@@ -1198,8 +1198,8 @@
         "categoryPlaceholder": "Select category…"
       },
       "list": {
-        "title": "Recurring payments",
-        "empty": "No recurring expenses yet.",
+        "title": "Scheduled payments",
+        "empty": "No scheduled payments yet.",
         "untitled": "Untitled",
         "monthlyOnDay": "Monthly · {day}",
         "weeklyOnDow": "Weekly · {weekday}",
@@ -1210,7 +1210,7 @@
         "archiveButton": "Archive"
       },
       "drafts": {
-        "inboxTitle": "Pending recurring",
+        "inboxTitle": "Pending payments",
         "empty": "No pending drafts.",
         "confirmButton": "Confirm transaction",
         "editConfirmButton": "Edit & confirm",
@@ -1219,12 +1219,12 @@
         "navBadgeLabel": "{count} overdue"
       },
       "errors": {
-        "create": "Failed to create rule",
-        "update": "Failed to update rule",
-        "delete": "Failed to delete rule"
+        "create": "Failed to create scheduled payment",
+        "update": "Failed to update scheduled payment",
+        "delete": "Failed to delete scheduled payment"
       },
       "delete": {
-        "title": "Delete recurring rule?",
+        "title": "Delete scheduled payment?",
         "body": "This stops future drafts. Past confirmed transactions are kept.",
         "confirm": "Delete",
         "cancel": "Cancel"
@@ -1448,8 +1448,8 @@
           "totalSpent": "Total spent",
           "totalPlanned": "Total planned",
           "total": "Total",
-          "recurringPerMonth": "Recurring payments, by month",
-          "recurringSeries": "Recurring payments",
+          "scheduledPerMonth": "Scheduled payments, by month",
+          "scheduledSeries": "Scheduled payments",
           "timelineTitle": "How each month tracked against plan",
           "avgByCategory": "How far off plan, by category",
           "avgPie": "Planned spendings, by category",
@@ -1519,14 +1519,14 @@
           "allFine": "Everything looks fine",
           "mightRunShort": "Money may run short as early as {date}",
           "shortBy": "short {amount}",
-          "empty": "Add income or recurring rules to see your forecast",
+          "empty": "Add income or scheduled payments to see your forecast",
           "available": "Available",
           "reserveShrinking": "Reserve shrinking",
           "reserveCovering": "Reserve covering",
           "reserveUsed": "Reserve used",
           "cantCover": "Can't cover",
           "income": "Income",
-          "bill": "Recurring payments"
+          "bill": "Scheduled payments"
         },
         "reserveFit": {
           "title": "Is each reserve the right size?",
@@ -1547,7 +1547,7 @@
           "countedAria": "Count {amount} toward reserves",
           "heldTotal": "Held",
           "neededTotal": "Needed",
-          "unassigned": "Not counted — no category: {list}. Give them one in Settings → Recurring and they will size their reserve.",
+          "unassigned": "Not counted — no category: {list}. Give them one in Settings → Scheduled payments and they will size their reserve.",
           "aboveTarget": "more than needed",
           "belowTarget": "less than needed",
           "onTarget": "Exactly what is needed",
@@ -1696,7 +1696,7 @@
       "settings": {
         "label": "Settings",
         "title": "Settings",
-        "placeholder": "Budget identity, cushion toggle, recurring rules, and members land in Phase 6."
+        "placeholder": "Budget identity, cushion toggle, scheduled payments, and members land in Phase 6."
       }
     },
     "pillSlider": {
@@ -1745,7 +1745,7 @@
       "more": "More",
       "detail": {
         "RESERVE_TOPUP": "Your reserve wallets hold {amount} less than the sum allocated across reserve categories. You have two options: top up a reserve wallet (move money in) to match the category sum, or reduce some category reserve amounts so the sum drops back to the wallet balance.",
-        "CONFIRM_DRAFT": "A recurring rule has produced a new draft transaction for {ruleName} ({amount}). Open the Spendings tab, review the draft row, and confirm or dismiss it. Confirming records the transaction in your ledger; dismissing skips it without affecting future occurrences.",
+        "CONFIRM_DRAFT": "A scheduled payment has produced a new draft transaction for {ruleName} ({amount}). Open the Spendings tab, review the draft row, and confirm or dismiss it. Confirming records the transaction in your ledger; dismissing skips it without affecting future occurrences.",
         "CUSHION_BELOW_TARGET": "Your cushion savings are below the target you set in Settings (months × average monthly spend). The shortfall is {shortfall}. You have three options: transfer money into a cushion-type wallet to cover the gap, lower the cushion target months in Settings → Cushion (smaller runway = smaller required cushion), or reduce some category limits so the average monthly spend drops.",
         "INCOME_UNDER_PLANNED": "Following your current plan, your money dips to {low} before your next income lands — {shortfall} short. Open the Spendings tab and lower some category limits, or move a payment, until the forecast stays above zero.",
         "RESERVE_TOPUP_withdraw": "Your reserve wallets hold {amount} more than the sum allocated across reserve categories. You have two options: withdraw the surplus from a reserve wallet, or redistribute the extra into category reserves (increase one or more category amounts so they add up to the wallet sum)."
@@ -1882,7 +1882,7 @@
       },
       "dismissDraft": {
         "title": "Skip {ruleName} for {month}?",
-        "body": "The recurring rule will keep running. Next month's draft will appear as scheduled.",
+        "body": "The scheduled payment will keep running. Next month's draft will appear on time.",
         "cta": "Skip this month",
         "cancel": "Cancel"
       }

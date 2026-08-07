@@ -1,10 +1,10 @@
 "use client";
 /**
  * overview-sections.tsx — owns the shared Overview range + the four collapsible
- * sections (Planned · Recurring payments · Reserves · Financial Wealth).
+ * sections (Planned · Scheduled payments · Reserves · Financial Wealth).
  *
  * 260803: Overspent lost its own collapsible and reads inside Planned, and the
- * two recurring charts left Planned for a section of their own.
+ * two scheduled charts left Planned for a section of their own.
  *
  * The range sits IN-FLOW between the cash-flow projection and the Planned section
  * and pins to the top via StickOnScroll (fixed-when-scrolled-past, drops back to

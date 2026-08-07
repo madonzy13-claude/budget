@@ -1,6 +1,6 @@
 "use client";
 /**
- * draft-row.tsx — Pending recurring draft row.
+ * draft-row.tsx — Pending scheduled draft row.
  *
  * D-PH4-R1: background --surface-elevated-dark + 3px dashed --primary left border.
  * D-PH4-R2: Tap reveals [Confirm][Edit][Dismiss] on touch. Double-click = edit-and-promote.
@@ -63,7 +63,7 @@ export function DraftRow({
   const committedRef = useRef(false);
 
   const formattedAmount = centsToBare(draft.amountConvertedCents, locale);
-  // A recurring rule's note usually defaults to its name, so the row would render
+  // A scheduled rule's note usually defaults to its name, so the row would render
   // the same label twice (e.g. "T-Mobile  T-Mobile"). Only show the note when it
   // adds something beyond the rule name.
   const noteDiffers =

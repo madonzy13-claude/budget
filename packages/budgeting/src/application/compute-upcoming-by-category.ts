@@ -4,13 +4,13 @@
  *
  * For each category returns the sum, in the budget's default currency, of:
  *   - unconfirmed SPENDING drafts dated in the current month (expense_ledger,
- *     confirmed_at NULL) — recurring-generated (due ≤ today) OR manual, and
- *   - projected recurring occurrences with today < due ≤ month-end that are NOT
+ *     confirmed_at NULL) — scheduled-generated (due ≤ today) OR manual, and
+ *   - projected scheduled occurrences with today < due ≤ month-end that are NOT
  *     yet drafts (the engine only materialises drafts for due ≤ today, so these
  *     two sets are DISJOINT — no double counting).
  *
  * The Overview card then takes, per category, max(remainingBudget, upcoming) so a
- * recurring bill that already fits inside a category's leftover budget is not
+ * scheduled bill that already fits inside a category's leftover budget is not
  * counted twice (user's chosen "max per category" rule).
  *
  * Uncategorised items (category_id NULL) are bucketed under NONE_CATEGORY_KEY —
@@ -23,7 +23,7 @@ import { TenantId, UserId } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
 import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
 import { nextOccurrence, type Cadence } from "../domain/cadence";
-import { isRuleExhausted } from "../domain/recurring-end-date";
+import { isRuleExhausted } from "../domain/scheduled-payment-end-date";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -84,7 +84,7 @@ export function computeUpcomingByCategory(deps: ComputeUpcomingByCategoryDeps) {
                  yearly_month,
                  next_due_date::text AS next_due,
                  end_date::text AS end_date
-            FROM budgeting.recurring_rules
+            FROM budgeting.scheduled_payments
            WHERE tenant_id = ${input.tenantId}::uuid
              AND active = true
         `);

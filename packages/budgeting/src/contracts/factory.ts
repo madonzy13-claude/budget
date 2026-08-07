@@ -11,7 +11,7 @@ import { DrizzleShareOverrideRepo } from "../adapters/persistence/share-override
 import { DrizzleBudgetModeRepo } from "../adapters/persistence/budget-mode-repo";
 import { DrizzleTransactionRepo } from "../adapters/persistence/transaction-repo";
 import { DrizzleSpendingProjectionRepo } from "../adapters/persistence/spending-projection-repo";
-import { DrizzleRecurringRuleRepo } from "../adapters/persistence/recurring-rule-repo";
+import { DrizzleScheduledPaymentRepo } from "../adapters/persistence/scheduled-payment-repo";
 import { ExpenseLedgerDraftRepo } from "../adapters/persistence/expense-ledger-draft-repo";
 import { createWallet } from "../application/create-wallet";
 import { archiveWallet } from "../application/archive-wallet";
@@ -41,12 +41,12 @@ import { createTransaction } from "../application/create-transaction";
 import { getLatestTransactions } from "../application/get-latest-transactions";
 import { listSupportedCurrencies } from "../application/list-supported-currencies";
 import { editTransaction } from "../application/edit-transaction";
-import { createRecurringRule } from "../application/create-recurring-rule";
-import { updateRecurringRule } from "../application/update-recurring-rule";
-import { deleteRecurringRule } from "../application/delete-recurring-rule";
-import { confirmRecurringDraft } from "../application/confirm-recurring-draft";
-import { editAndConfirmRecurringDraft } from "../application/edit-and-confirm-recurring-draft";
-import { skipRecurringDraft } from "../application/skip-recurring-draft";
+import { createScheduledPayment } from "../application/create-scheduled-payment";
+import { updateScheduledPayment } from "../application/update-scheduled-payment";
+import { deleteScheduledPayment } from "../application/delete-scheduled-payment";
+import { confirmScheduledDraft } from "../application/confirm-scheduled-draft";
+import { editAndConfirmScheduledDraft } from "../application/edit-and-confirm-scheduled-draft";
+import { skipScheduledDraft } from "../application/skip-scheduled-draft";
 import { createTaskRepo } from "../adapters/persistence/task-repo";
 import { listPendingDrafts } from "../application/list-pending-drafts";
 import { searchTransactions } from "../application/search-transactions";
@@ -107,16 +107,16 @@ export interface BudgetingModule {
   listSupportedCurrencies: typeof listSupportedCurrencies;
   /** Exposed for plan 02-08 createInTx cross-plan contract */
   transactionRepo: DrizzleTransactionRepo;
-  // Plan 02-08 / 02-02: recurring rules + drafts (drafts now in expense_ledger)
-  createRecurringRule: ReturnType<typeof createRecurringRule>;
-  updateRecurringRule: ReturnType<typeof updateRecurringRule>;
-  deleteRecurringRule: ReturnType<typeof deleteRecurringRule>;
-  confirmRecurringDraft: ReturnType<typeof confirmRecurringDraft>;
-  editAndConfirmRecurringDraft: ReturnType<typeof editAndConfirmRecurringDraft>;
-  skipRecurringDraft: ReturnType<typeof skipRecurringDraft>;
+  // Plan 02-08 / 02-02: scheduled rules + drafts (drafts now in expense_ledger)
+  createScheduledPayment: ReturnType<typeof createScheduledPayment>;
+  updateScheduledPayment: ReturnType<typeof updateScheduledPayment>;
+  deleteScheduledPayment: ReturnType<typeof deleteScheduledPayment>;
+  confirmScheduledDraft: ReturnType<typeof confirmScheduledDraft>;
+  editAndConfirmScheduledDraft: ReturnType<typeof editAndConfirmScheduledDraft>;
+  skipScheduledDraft: ReturnType<typeof skipScheduledDraft>;
   listPendingDrafts: ReturnType<typeof listPendingDrafts>;
-  recurringRuleRepo: DrizzleRecurringRuleRepo;
-  recurringDraftRepo: ExpenseLedgerDraftRepo;
+  scheduledPaymentRepo: DrizzleScheduledPaymentRepo;
+  scheduledDraftRepo: ExpenseLedgerDraftRepo;
   // Plan 02-09: search + bulk re-categorize + projection durability
   searchTransactions: ReturnType<typeof searchTransactions>;
   bulkRecategorize: ReturnType<typeof bulkRecategorize>;
@@ -183,8 +183,8 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
   const budgetModeRepo = new DrizzleBudgetModeRepo();
   const projectionRepo = new DrizzleSpendingProjectionRepo();
   const transactionRepo = new DrizzleTransactionRepo(repo, projectionRepo);
-  const recurringRuleRepo = new DrizzleRecurringRuleRepo();
-  const recurringDraftRepo = new ExpenseLedgerDraftRepo();
+  const scheduledPaymentRepo = new DrizzleScheduledPaymentRepo();
+  const scheduledDraftRepo = new ExpenseLedgerDraftRepo();
   const fxProvider = new FrankfurterFxProvider(deps.fxCache);
   // Plan 05-03: new repos
   const adjustmentsRepo = new DrizzleCategoryReserveAdjustmentsRepo();
@@ -358,37 +358,37 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     // Plan 02-08 / 02-02
     // Phase 7 UAT-9 fix: taskRepo injected so inline catch-up drafts emit
     // CONFIRM_DRAFT immediately (no 18h wait for the 0 6 * * * cron).
-    createRecurringRule: createRecurringRule({
-      ruleRepo: recurringRuleRepo,
+    createScheduledPayment: createScheduledPayment({
+      ruleRepo: scheduledPaymentRepo,
       fxProvider,
       taskRepo: createTaskRepo(),
     }),
-    updateRecurringRule: updateRecurringRule({
-      ruleRepo: recurringRuleRepo,
-      draftRepo: recurringDraftRepo,
+    updateScheduledPayment: updateScheduledPayment({
+      ruleRepo: scheduledPaymentRepo,
+      draftRepo: scheduledDraftRepo,
     }),
-    deleteRecurringRule: deleteRecurringRule({ ruleRepo: recurringRuleRepo }),
+    deleteScheduledPayment: deleteScheduledPayment({ ruleRepo: scheduledPaymentRepo }),
     // Phase 7 (D-PH7-09 / D-PH7-10): taskRepo injected so confirm + skip
     // auto-resolve the matching PENDING CONFIRM_DRAFT task in the same tx.
-    // 05-17: confirming (or edit-and-confirming) a recurring draft flips
+    // 05-17: confirming (or edit-and-confirming) a scheduled draft flips
     // confirmed_at → the row becomes counted spend → may draw reserve, so
     // recompute RESERVE_TOPUP. Best-effort own-tx after the confirm commits.
-    confirmRecurringDraft: confirmRecurringDraft({
+    confirmScheduledDraft: confirmScheduledDraft({
       taskRepo: createTaskRepo(),
       reservePositions,
       budgetCurrencyOf: getWorkspaceDefaultCurrency,
       isReservesEnabled,
     }),
-    editAndConfirmRecurringDraft: editAndConfirmRecurringDraft({
+    editAndConfirmScheduledDraft: editAndConfirmScheduledDraft({
       taskRepo: createTaskRepo(),
       reservePositions,
       budgetCurrencyOf: getWorkspaceDefaultCurrency,
       isReservesEnabled,
     }),
-    skipRecurringDraft: skipRecurringDraft({ taskRepo: createTaskRepo() }),
+    skipScheduledDraft: skipScheduledDraft({ taskRepo: createTaskRepo() }),
     listPendingDrafts: listPendingDrafts(),
-    recurringRuleRepo,
-    recurringDraftRepo,
+    scheduledPaymentRepo,
+    scheduledDraftRepo,
     // Plan 02-09
     searchTransactions: searchTransactions(),
     bulkRecategorize: bulkRecategorize({ transactionRepo }),

@@ -221,8 +221,8 @@ export async function signUpViaHttp(
   return { userId, setCookieHeaders };
 }
 
-/** Create a recurring rule via the API — materialises a pending draft for the current month. */
-export async function createRecurringRuleViaHttp(
+/** Create a scheduled rule via the API — materialises a pending draft for the current month. */
+export async function createScheduledPaymentViaHttp(
   baseUrl: string,
   cookieHeader: string,
   budgetId: string,
@@ -236,7 +236,7 @@ export async function createRecurringRuleViaHttp(
   },
 ): Promise<string> {
   const res = await fetch(
-    `${baseUrl}/api/budgets/${budgetId}/recurring-rules`,
+    `${baseUrl}/api/budgets/${budgetId}/scheduled-payments`,
     {
       method: "POST",
       headers: {
@@ -258,7 +258,7 @@ export async function createRecurringRuleViaHttp(
   );
   if (!res.ok) {
     const body = await res.text().catch(() => "<unreadable>");
-    throw new Error(`createRecurringRule failed (${res.status}): ${body}`);
+    throw new Error(`createScheduledPayment failed (${res.status}): ${body}`);
   }
   const body = (await res.json()) as { id: string };
   return body.id;

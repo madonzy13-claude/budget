@@ -50,7 +50,7 @@ interface CurrencyPickerProps {
    *     state must look like static text.
    *   `field` — full form-field chrome: h-10, border, padded bg, chevron
    *     hint via the native `appearance: revert` (system-native arrow).
-   *     Used by the transaction + recurring sliders so the picker
+   *     Used by the transaction + scheduled sliders so the picker
    *     reads as an input alongside the Amount field, on every device
    *     including iPhone (UAT-Phase6-Test7 retest #6).
    */

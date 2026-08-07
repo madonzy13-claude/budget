@@ -7,7 +7,7 @@
  * planned-avg-vs-real bar (Y=category) and the planned-share pie. Under the
  * timeline's picker sit the range's figures — the spend broken into limit /
  * reserve / overspend, and spent against planned (260803). The
- * recurring charts moved out to their own section. A category selector
+ * scheduled charts moved out to their own section. A category selector
  * (default = All categories) re-scopes the timeline. Charts via the 11-02 wrappers
  * only; string cents → Number here (recharts needs Numbers).
  */
@@ -245,7 +245,7 @@ export function PlannedSection({
   // Only offered when the range holds the running month AND something else.
   const userTz = useUserTimezone();
   const todayIso = todayInTz(userTz).toString();
-  // Month numbers → names for the recurring chart, in the member's locale.
+  // Month numbers → names for the scheduled chart, in the member's locale.
   const monthName = (m: string | number) =>
     new Intl.DateTimeFormat(locale, { month: "long" }).format(
       new Date(2000, Number(m) - 1, 1),
@@ -832,13 +832,13 @@ export function PlannedSection({
             // Same call as the metrics above: planned spend stays readable.
           />
 
-          {/* Recurring payments, by month — current config, NOT range-scoped
+          {/* Scheduled payments, by month — current config, NOT range-scoped
               (D-14). It lived in a section of its own until 260804; one chart
               did not earn a collapsible, and it reads as part of the plan. */}
           <div className="flex flex-col gap-2">
-            <ChartLabel>{t("planned.recurringPerMonth")}</ChartLabel>
+            <ChartLabel>{t("planned.scheduledPerMonth")}</ChartLabel>
             <OverviewAreaChart
-              data={data.recurringPerMonth.map((m) => ({
+              data={data.scheduledPerMonth.map((m) => ({
                 month: String(m.month),
                 planned: Number(m.planned_cents),
                 items: m.items,
@@ -846,7 +846,7 @@ export function PlannedSection({
               xKey="month"
               // The tooltip repeats the series name under the month it already
               // names, so it drops the ", by month" the chart title needs.
-              series={[{ key: "planned", label: t("planned.recurringSeries") }]}
+              series={[{ key: "planned", label: t("planned.scheduledSeries") }]}
               formatY={fmtY}
               formatTooltip={fmtTooltip}
               xTickFormat={shortMonthName}

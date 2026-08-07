@@ -24,9 +24,9 @@ export interface ReserveFitTransaction {
   transaction_date: string;
   note: string | null;
   amount_cents: string;
-  /** 'YEARLY' etc. when the spend came from a recurring rule — evidence it will
+  /** 'YEARLY' etc. when the spend came from a scheduled rule — evidence it will
    *  come round again, so it should probably stay counted. */
-  recurring_cadence: string | null;
+  scheduled_cadence: string | null;
   excluded: boolean;
 }
 
@@ -47,10 +47,10 @@ export interface ReserveFitRow {
 export interface ReserveFitDTO {
   currency: string;
   rows: ReserveFitRow[];
-  /** Active recurring rules with no category — real commitments that belong to
+  /** Active scheduled rules with no category — real commitments that belong to
    *  no buffer, so they size nothing. Optional: a payload cached before the
    *  field existed replays without it. */
-  unassigned_recurring?: { name: string; amount_cents: string }[];
+  unassigned_scheduled?: { name: string; amount_cents: string }[];
 }
 
 export function reserveFitQueryKey(budgetId: string, from: string, to: string) {

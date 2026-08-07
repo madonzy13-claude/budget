@@ -170,7 +170,7 @@ const snakeCaseServerRow = {
   fx_rate: "1.00000000",
   fx_as_of: "2026-05-13",
   note: null,
-  recurring_rule_id: null,
+  scheduled_payment_id: null,
   confirmed_at: "2026-05-13T10:00:00Z",
   kind: "SPENDING",
   created_at: "2026-05-13T10:00:00Z",

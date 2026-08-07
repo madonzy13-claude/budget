@@ -18,7 +18,7 @@ import {
   recomputeReserveTopupTask,
   type RecomputeReserveTopupTaskDeps,
 } from "./recompute-reserve-topup-task";
-import type { FxProviderLike } from "./recurring-engine-fx";
+import type { FxProviderLike } from "./scheduled-payment-engine-fx";
 
 export interface SetCategoryLimitDeps {
   limitRepo: CategoryLimitRepo;

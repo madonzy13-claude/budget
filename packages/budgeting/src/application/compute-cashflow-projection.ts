@@ -1,6 +1,6 @@
 /**
  * compute-cashflow-projection.ts — impure loader for the Overview projection
- * timeline. Reads wallets / incomes / recurring rules / category budgets / month
+ * timeline. Reads wallets / incomes / scheduled rules / category budgets / month
  * spend via raw SQL over withTenantTx, pulls per-category reserve from the injected
  * reservePositions seam, FX-converts every amount to the budget currency, enumerates
  * dated income + bill events across the window, then hands a fully-materialised
@@ -52,7 +52,7 @@ export const MAX_PROJECTION_STEPS = 400;
 
 /**
  * Occurrence ISO dates strictly after `afterExclusive`, up to and including `end`,
- * following `spec` from `seed`. `seed` may be in the past (a recurring rule's
+ * following `spec` from `seed`. `seed` may be in the past (a scheduled rule's
  * nextDueDate) — the loop advances until it clears `afterExclusive`.
  */
 export function enumerateOccurrences(
@@ -176,7 +176,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
                  (amount * 100)::bigint::text AS amount_cents, currency,
                  cadence, cadence_anchor, weekly_dow, yearly_month,
                  next_due_date::text AS next_due, end_date::text AS end_date
-            FROM budgeting.recurring_rules
+            FROM budgeting.scheduled_payments
            WHERE tenant_id = ${input.tenantId}::uuid AND active = true`);
 
         return {
@@ -270,7 +270,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       }
     }
 
-    // Recurring bills (seeded from nextDueDate), amount FX'd once each.
+    // Scheduled bills (seeded from nextDueDate), amount FX'd once each.
     const bills: CashflowEvent[] = [];
     for (const raw of L.ruleRows) {
       const r = raw as CadenceRow & {

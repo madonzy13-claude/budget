@@ -35,7 +35,7 @@ export interface PendingSpendingInput {
   note: string | null;
 }
 
-/** A recurring draft the user confirmed while the write could not land. */
+/** A scheduled draft the user confirmed while the write could not land. */
 export interface PendingDraftConfirmInput {
   budgetId: string;
   month: string;
@@ -205,7 +205,7 @@ export async function flushPendingSpendings(): Promise<{
       // as a new transaction would double-count the draft.
       const [path, body] = isDraftConfirm(entry)
         ? [
-            `/budgets/${entry.budgetId}/recurring-rules/drafts/${entry.draftId}/confirm`,
+            `/budgets/${entry.budgetId}/scheduled-payments/drafts/${entry.draftId}/confirm`,
             entry.amountOverrideCents !== null
               ? { amount_override_cents: entry.amountOverrideCents }
               : {},

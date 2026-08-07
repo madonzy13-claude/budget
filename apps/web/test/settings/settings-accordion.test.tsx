@@ -115,7 +115,7 @@ describe("SettingsAccordion — 5-section collapsible render (SETT-01)", () => {
     render(<SettingsAccordion budget={sharedBudget} />);
     expect(screen.getByText("sections.identity")).toBeInTheDocument();
     expect(screen.getByText("sections.cushion")).toBeInTheDocument();
-    expect(screen.getByText("sections.recurring")).toBeInTheDocument();
+    expect(screen.getByText("sections.scheduled")).toBeInTheDocument();
     expect(screen.getByText("sections.members")).toBeInTheDocument();
     expect(screen.getByText("sections.danger")).toBeInTheDocument();
   });
@@ -124,7 +124,7 @@ describe("SettingsAccordion — 5-section collapsible render (SETT-01)", () => {
     render(<SettingsAccordion budget={privateBudget} />);
     expect(screen.getByText("sections.identity")).toBeInTheDocument();
     expect(screen.getByText("sections.cushion")).toBeInTheDocument();
-    expect(screen.getByText("sections.recurring")).toBeInTheDocument();
+    expect(screen.getByText("sections.scheduled")).toBeInTheDocument();
     // Members section is now shown regardless of former private/shared kind.
     expect(screen.getByText("sections.members")).toBeInTheDocument();
     expect(screen.getByText("sections.danger")).toBeInTheDocument();

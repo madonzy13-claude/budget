@@ -1,7 +1,7 @@
 /**
- * dismiss-draft.ts — Per-occurrence dismiss of a recurring draft.
+ * dismiss-draft.ts — Per-occurrence dismiss of a scheduled draft.
  * RECR-06, D-PH4-R3: sets dismissed_at = now() on this occurrence only.
- * The recurring_rule keeps running; next month's draft will materialize.
+ * The scheduled_rule keeps running; next month's draft will materialize.
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
 import type { ExpenseLedgerDraftPortRepo } from "../ports/expense-ledger-draft-port-repo";

@@ -87,7 +87,7 @@ const largeTxns = [
     transaction_date: "2026-02-14",
     note: "Parachute jump",
     amount_cents: 480000n,
-    recurring_cadence: null,
+    scheduled_cadence: null,
     excluded: false,
   },
   {
@@ -96,7 +96,7 @@ const largeTxns = [
     transaction_date: "2026-02-03",
     note: "Big shop",
     amount_cents: 18000n,
-    recurring_cadence: null,
+    scheduled_cadence: null,
     excluded: false,
   },
 ];
@@ -119,7 +119,7 @@ function deps(over: Partial<Parameters<typeof getReserveFit>[0]> = {}) {
         return largeTxns;
       },
     },
-    activeRecurringRules: async () => [],
+    activeScheduledPayments: async () => [],
     // After the range: both months are closed, so the walk counts both. Tests
     // that care about the running month set their own `now`.
     now: () => new Date("2026-03-05T12:00:00Z"),
@@ -217,7 +217,7 @@ describe("getReserveFit", () => {
         transaction_date: "2026-02-14",
         note: "Parachute jump",
         amount_cents: "480000",
-        recurring_cadence: null,
+        scheduled_cadence: null,
         excluded: false,
       },
     ]);
@@ -237,7 +237,7 @@ describe("getReserveFit", () => {
               transaction_date: "2026-01-09",
               note: "Coffee",
               amount_cents: 3000n,
-              recurring_cadence: null,
+              scheduled_cadence: null,
               excluded: false,
             },
           ];
@@ -252,10 +252,10 @@ describe("getReserveFit", () => {
 
   // A charge you KNOW is coming has to be reserved for, even when the range
   // never covered one (user, 260804). The walk gains a forward leg built from
-  // the active recurring rules.
+  // the active scheduled rules.
   test("sizes for a yearly charge that has not happened yet", async () => {
     const d = deps({
-      activeRecurringRules: async () => [
+      activeScheduledPayments: async () => [
         {
           category_id: CAT_FOOD,
           name: "Food",
@@ -276,7 +276,7 @@ describe("getReserveFit", () => {
 
   test("a monthly rule inside its own limit does not deepen the trough", async () => {
     const d = deps({
-      activeRecurringRules: async () => [
+      activeScheduledPayments: async () => [
         {
           category_id: CAT_FOOD,
           name: "Food",
@@ -484,7 +484,7 @@ describe("getReserveFit", () => {
           ];
         },
       },
-      activeRecurringRules: async () => [
+      activeScheduledPayments: async () => [
         {
           category_id: CAT_FOOD,
           name: "Food",
@@ -505,7 +505,7 @@ describe("getReserveFit", () => {
     const d = deps({
       // History alone demands 12,000 (Feb's overage after January's surplus);
       // the future asks for only 5,000 − 20,000 < 0, i.e. nothing.
-      activeRecurringRules: async () => [
+      activeScheduledPayments: async () => [
         {
           category_id: CAT_FOOD,
           name: "Food",
@@ -521,7 +521,7 @@ describe("getReserveFit", () => {
 
   test("names the commitments it cannot attribute to any category", async () => {
     const d = deps({
-      activeRecurringRules: async () => [
+      activeScheduledPayments: async () => [
         {
           category_id: null,
           name: null,
@@ -536,14 +536,14 @@ describe("getReserveFit", () => {
     const dto = (await getReserveFit(d)(input))._unsafeUnwrap();
     // It cannot size any category's buffer, but the member needs to know it is
     // uncounted — one click in Settings fixes it.
-    expect(dto.unassigned_recurring).toEqual([
+    expect(dto.unassigned_scheduled).toEqual([
       { name: "Car Insurance", amount_cents: "250000" },
     ]);
   });
 
   test("has nothing to warn about when every rule has a category", async () => {
     const dto = (await getReserveFit(deps())(input))._unsafeUnwrap();
-    expect(dto.unassigned_recurring).toEqual([]);
+    expect(dto.unassigned_scheduled).toEqual([]);
   });
 
   // The same rule appears twice over a long window: the charge it already made
@@ -582,7 +582,7 @@ describe("getReserveFit", () => {
         },
       },
       // …and the same rule fires again next February.
-      activeRecurringRules: async () => [
+      activeScheduledPayments: async () => [
         {
           category_id: CAT,
           name: "Food",
@@ -607,7 +607,7 @@ describe("getReserveFit", () => {
   // is the thing the member said they would be caught by (user, 260804).
   test("a yearly charge sits on top of the month's plan", async () => {
     const d = deps({
-      activeRecurringRules: async () => [
+      activeScheduledPayments: async () => [
         {
           category_id: CAT_FOOD,
           name: "Food",
@@ -626,7 +626,7 @@ describe("getReserveFit", () => {
   // grow the "needed" figure every month, forever.
   test("a monthly rule stays inside the plan it was budgeted in", async () => {
     const d = deps({
-      activeRecurringRules: async () => [
+      activeScheduledPayments: async () => [
         {
           category_id: CAT_FOOD,
           name: "Food",
@@ -644,7 +644,7 @@ describe("getReserveFit", () => {
 
   test("a monthly rule bigger than the whole limit still counts its excess", async () => {
     const d = deps({
-      activeRecurringRules: async () => [
+      activeScheduledPayments: async () => [
         {
           category_id: CAT_FOOD,
           name: "Food",

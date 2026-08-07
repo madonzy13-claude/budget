@@ -151,10 +151,10 @@ export function usePrefetchBudgetTabs(budgetId: string) {
         fn: () => get(`/budgets/${budgetId}/cushion-summary`, (j) => j),
       },
       {
-        key: ["recurring-rules", budgetId],
+        key: ["scheduled-payments", budgetId],
         fn: () =>
           get(
-            `/budgets/${budgetId}/recurring-rules`,
+            `/budgets/${budgetId}/scheduled-payments`,
             (j) => (j as { rules?: unknown[] }).rules ?? [],
           ),
       },
@@ -174,7 +174,7 @@ export function usePrefetchBudgetTabs(budgetId: string) {
         fn: () => get(`/budgets/${budgetId}/investment-category`, (j) => j),
       },
       {
-        // settings recurring-section reads ["categories-lite"]. Same data + shape
+        // settings scheduled-payments-section reads ["categories-lite"]. Same data + shape
         // as the priority ["budget", id, "categories"] fetch — REUSE that cached
         // value (it has resolved by the time this idle tier runs) instead of
         // hitting /categories a second time. Falls back to a fetch only if the

@@ -1,7 +1,7 @@
 /**
  * income-repo.ts — Drizzle adapter for budgeting.incomes (r32).
  *
- * Thin CRUD for the Income settings config. Mirrors recurring-rule-repo's
+ * Thin CRUD for the Income settings config. Mirrors scheduled-payment-repo's
  * tenant-scoped raw-SQL pattern (all queries inside withTenantTx → RLS GUC).
  * Soft-delete (active=false) so a future consumer can reference historical rows.
  */

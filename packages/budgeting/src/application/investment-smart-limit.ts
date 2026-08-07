@@ -10,9 +10,9 @@
  * decimalToCents parses them exactly (no float) with round-half-up to the cent.
  */
 import {
-  recurringMonthlyNormalize,
+  scheduledMonthlyNormalize,
   type Cadence,
-} from "./recurring-monthly-normalize";
+} from "./scheduled-monthly-normalize";
 
 /** Exact decimal-string → integer cents, round-half-up. No float (money path). */
 export function decimalToCents(amount: string): bigint {
@@ -50,7 +50,7 @@ export function normalizeIncomesToMonthlyItems(
   incomes: IncomeForNormalize[],
 ): { amount_cents: bigint; currency: string }[] {
   return incomes.map((i) => ({
-    amount_cents: recurringMonthlyNormalize(decimalToCents(i.amount), i.cadence),
+    amount_cents: scheduledMonthlyNormalize(decimalToCents(i.amount), i.cadence),
     currency: i.currency,
   }));
 }

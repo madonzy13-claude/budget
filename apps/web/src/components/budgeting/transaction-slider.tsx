@@ -563,7 +563,7 @@ export function TransactionSlider({
 
               <SheetFooter className="mt-auto pt-4 flex gap-3">
                 {/* h-14 (UAT-Phase6-Test7 retest #2) — bumped from
-                    h-12 in lockstep with the recurring slider so both
+                    h-12 in lockstep with the scheduled slider so both
                     sliders feel identical on mobile. */}
                 {mode === "edit" && (
                   <Button

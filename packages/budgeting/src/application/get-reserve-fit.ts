@@ -22,7 +22,7 @@
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
 import { reserveFit, type ReserveFitMonth } from "../domain/reserve-fit";
-import { projectRecurring } from "../domain/recurring-projection";
+import { projectScheduledPayments } from "../domain/scheduled-payment-projection";
 import type { ReservePositionsResult } from "./get-reserve-positions";
 import type { OverviewPlannedRepo } from "./get-overview-planned";
 
@@ -33,10 +33,10 @@ export interface LargeTransactionRow {
   transaction_date: string; // YYYY-MM-DD
   note: string | null;
   amount_cents: bigint;
-  /** The rule's cadence when this spend came from a recurring rule — evidence
+  /** The rule's cadence when this spend came from a scheduled rule — evidence
    *  that it WILL come round again (yearly insurance), so the member does not
    *  have to remember. null = one-off as far as the app knows. */
-  recurring_cadence: string | null;
+  scheduled_cadence: string | null;
   /** Already un-ticked for this budget. */
   excluded: boolean;
 }
@@ -58,8 +58,8 @@ export interface GetReserveFitDeps {
     OverviewPlannedRepo,
     "categoryWindows" | "monthlyPlannedByCategory" | "monthlySpendByCategory"
   >;
-  /** Active recurring rules — the spend each category is already committed to. */
-  activeRecurringRules: (budgetId: string) => Promise<
+  /** Active scheduled rules — the spend each category is already committed to. */
+  activeScheduledPayments: (budgetId: string) => Promise<
     {
       category_id: string | null;
       amount_cents: bigint;
@@ -67,7 +67,7 @@ export interface GetReserveFitDeps {
       yearly_month: number | null;
       /** The rule's own note, and the category it points at. Both optional:
        *  a rule with NO category has no category name, which is exactly the
-       *  case `unassigned_recurring` reports. The repo has always selected
+       *  case `unassigned_scheduled` reports. The repo has always selected
        *  them (overview-repo `rr.note AS rule_name`, `c.name AS name`); this
        *  type simply never said so, and the read below did not compile. */
       rule_name?: string | null;
@@ -110,7 +110,7 @@ export interface ReserveFitRowDTO {
     transaction_date: string;
     note: string | null;
     amount_cents: string;
-    recurring_cadence: string | null;
+    scheduled_cadence: string | null;
     excluded: boolean;
   }[];
 }
@@ -118,11 +118,11 @@ export interface ReserveFitRowDTO {
 export interface ReserveFitDTO {
   currency: string;
   rows: ReserveFitRowDTO[];
-  /** Active recurring rules with NO category. They are real commitments but
+  /** Active scheduled rules with NO category. They are real commitments but
    *  belong to no buffer, so they can size nothing — the chart names them so the
    *  member can assign one rather than wonder why a charge is uncounted
    *  (user report, 260804: a 2,500 September car insurance sat uncategorised). */
-  unassigned_recurring: { name: string; amount_cents: string }[];
+  unassigned_scheduled: { name: string; amount_cents: string }[];
 }
 
 /** 'YYYY-MM' + n months. */
@@ -145,7 +145,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           deps.overviewRepo.monthlyPlannedByCategory(budgetId, from, to),
           deps.overviewRepo.monthlySpendByCategory(budgetId, from, to),
           deps.exclusionsRepo.largeTransactions({ budgetId, from, to }),
-          deps.activeRecurringRules(budgetId),
+          deps.activeScheduledPayments(budgetId),
           deps.reservePositions({
             tenantId: input.tenantId,
             budgetId,
@@ -187,7 +187,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       // old range still gets the real future rather than a replayed one.
       const nowMonth = (deps.now?.() ?? new Date()).toISOString().slice(0, 7);
       const lastMonth = to.slice(0, 7) > nowMonth ? to.slice(0, 7) : nowMonth;
-      const committed = projectRecurring(
+      const committed = projectScheduledPayments(
         rules,
         addMonths(lastMonth, 1),
         FORWARD_MONTHS,
@@ -334,7 +334,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
               transaction_date: t.transaction_date,
               note: t.note,
               amount_cents: t.amount_cents.toString(),
-              recurring_cadence: t.recurring_cadence,
+              scheduled_cadence: t.scheduled_cadence,
               excluded: t.excluded,
             })),
         });
@@ -346,7 +346,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       return ok({
         currency: meta?.default_currency ?? "EUR",
         rows,
-        unassigned_recurring: rules
+        unassigned_scheduled: rules
           .filter((r) => !r.category_id && r.amount_cents > 0n)
           .map((r) => ({
             name: r.rule_name ?? r.name ?? "",

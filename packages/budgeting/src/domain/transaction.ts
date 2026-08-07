@@ -6,7 +6,7 @@
  *   - kind: narrowed from v1.0 (3 values) → "SPENDING"|"INCOME" only
  *   - amount fields: bigint-as-string per CLAUDE.md "Money at adapter boundary"
  *   - removed: accountId, transferGroupId, correctsId, hasCorrections, fxProvider
- *   - added: budgetId, recurringRuleId, confirmedAt, deletedAt, updatedAt
+ *   - added: budgetId, scheduledPaymentId, confirmedAt, deletedAt, updatedAt
  */
 
 export type TransactionKind = "SPENDING" | "INCOME";
@@ -31,8 +31,8 @@ export class Transaction {
     readonly fxAsOf: string,
     /** Optional freetext note */
     readonly note: string | null,
-    /** ID of the recurring rule that spawned this transaction (null = manual) */
-    readonly recurringRuleId: string | null,
+    /** ID of the scheduled rule that spawned this transaction (null = manual) */
+    readonly scheduledPaymentId: string | null,
     /** NULL = draft; Date = confirmed (quick-entry sets confirmed_at = now()) */
     readonly confirmedAt: Date | null,
     readonly kind: TransactionKind,

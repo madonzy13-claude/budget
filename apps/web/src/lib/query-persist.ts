@@ -50,7 +50,7 @@ export function isRestoreComplete(): boolean {
 /** Persist only budget-scoped queries — never auth or unrelated keys.
  *
  * 260617: the SETTINGS-tab drivers (budget-members, cushion-summary,
- * recurring-rules, categories-lite) were MISSING here, so they were never
+ * scheduled-payments, categories-lite) were MISSING here, so they were never
  * written to IndexedDB → after ANY reload offline they vanished and the Settings
  * tab rendered empty / black ("cache disappears after reload" device report).
  * They are per-budget read data (tenant-scoped server-side by RLS), safe to
@@ -80,7 +80,7 @@ function shouldPersist(queryKey: readonly unknown[]): boolean {
     // Settings-tab drivers (offline-complete Settings).
     k0 === "budget-members" ||
     k0 === "cushion-summary" ||
-    k0 === "recurring-rules" ||
+    k0 === "scheduled-payments" ||
     k0 === "incomes" ||
     k0 === "investment-category" ||
     k0 === "categories-lite" ||
