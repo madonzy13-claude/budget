@@ -253,7 +253,10 @@ export function IncomeForm({
 
             <div>
               <Label>{t("form.cadenceLabel")}</Label>
-              <div className="flex gap-2 pt-1">
+              {/* Four choices do not fit one row on a phone — "Yearly" ran off
+                  the edge (user screenshot, 260807). Two columns fit; it opens
+                  out to a single row once there is width. */}
+              <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-4">
                 {(["ONCE", "WEEKLY", "MONTHLY", "YEARLY"] as const).map((cad) => (
                   <Button
                     key={cad}
@@ -261,7 +264,7 @@ export function IncomeForm({
                     data-testid={`income-cadence-${cad}`}
                     variant={cadence === cad ? "primary" : "outline"}
                     onClick={() => setCadence(cad)}
-                    className="flex-1"
+                    className="w-full"
                   >
                     {t(`form.${cad.toLowerCase()}`)}
                   </Button>

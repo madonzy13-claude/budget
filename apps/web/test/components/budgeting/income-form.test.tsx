@@ -256,3 +256,25 @@ describe("IncomeForm — an income that arrives once", () => {
     expect(body.weekly_dow).toBeUndefined();
   });
 });
+
+describe("IncomeForm — the frequency row on a phone", () => {
+  it("lays the four choices out in a grid, not one clipped row", () => {
+    // Four buttons in a single flex row ran "Yearly" off the right edge of a
+    // phone (user screenshot, 260807). A 2×2 grid fits; it opens out to a
+    // single row once there is width for it.
+    wrap(
+      <IncomeForm
+        open
+        onOpenChange={() => {}}
+        mode="create"
+        budgetId="b1"
+        defaultCurrency="USD"
+        fetchImpl={fetchMock as unknown as typeof fetch}
+      />,
+    );
+    const row = screen.getByTestId("income-cadence-ONCE").parentElement!;
+    expect(row.className).toContain("grid");
+    expect(row.className).toContain("grid-cols-2");
+    expect(row.className).not.toMatch(/\bflex\b/);
+  });
+});

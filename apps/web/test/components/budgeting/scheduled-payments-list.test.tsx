@@ -148,3 +148,38 @@ describe("ScheduledPaymentsList — a payment that is over", () => {
     expect(screen.queryByLabelText("delete.title")).toBeTruthy();
   });
 });
+
+describe("ScheduledPaymentsList — only a one-time payment can look retired", () => {
+  const yearly = {
+    id: "y1",
+    tenantId: "t1",
+    categoryId: null,
+    amount: "129",
+    currency: "PLN",
+    kind: "SPENDING",
+    cadence: "YEARLY" as const,
+    cadenceAnchor: 31,
+    weeklyDow: null,
+    yearlyMonth: 7,
+    note: "Internet Jastarnia",
+    nextDueDate: "2027-07-31",
+    active: false,
+  };
+
+  it("never dims a rhythm, whatever its active flag says", () => {
+    // An inactive rhythm is a DELETED payment, not a retired one, and dimming
+    // it in the list was how years of old deletions came back looking alive
+    // (user screenshot, 260807).
+    const { container } = render(<ScheduledPaymentsList rules={[yearly]} />);
+    expect(container.querySelector('[data-retired="true"]')).toBeNull();
+  });
+
+  it("keeps a rhythm editable even with a confirmed draft behind it", () => {
+    render(
+      <ScheduledPaymentsList
+        rules={[{ ...yearly, active: true, hasConfirmedDraft: true }]}
+      />,
+    );
+    expect(screen.queryByLabelText("list.editButton")).toBeTruthy();
+  });
+});

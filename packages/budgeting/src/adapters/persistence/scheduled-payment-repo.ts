@@ -113,12 +113,22 @@ export class DrizzleScheduledPaymentRepo implements ScheduledPaymentRepo {
       UserId("00000000-0000-0000-0000-000000000001"),
       async (tx) => {
         const drizzleTx = tx as DrizzleTx;
-        // Inactive rows are INCLUDED: a one-time payment that has happened is
-        // over, not gone, and the household still wants to see it (disabled, at
-        // the bottom). Deleted rows are not — that was a person's decision.
+        // An inactive ONE-TIME payment is INCLUDED: it has happened, which is
+        // over rather than gone, and the household still wants to see it
+        // (disabled, at the bottom).
+        //
+        // An inactive RHYTHM is not. "Inactive" is the only mark every payment
+        // deleted before deleted_at existed (mig 0079) carries, so treating it
+        // as retirement resurrected years of deletions into the list (user
+        // screenshot, 260807). A one-time payment is the only kind that retires
+        // itself, so it is the only kind whose inactivity means something else.
+        //
+        // has_confirmed_draft is likewise a ONE-TIME question: confirming one
+        // occurrence of a yearly payment says nothing about the next, and the
+        // edit button it hides must stay for every rhythm.
         const result = await drizzleTx.execute(sql`
         SELECT sp.*,
-               EXISTS (
+               sp.cadence = 'ONCE' AND EXISTS (
                  SELECT 1 FROM budgeting.expense_ledger el
                   WHERE el.scheduled_payment_id = sp.id
                     AND el.confirmed_at IS NOT NULL
@@ -127,6 +137,7 @@ export class DrizzleScheduledPaymentRepo implements ScheduledPaymentRepo {
           FROM budgeting.scheduled_payments sp
          WHERE sp.tenant_id = ${tenantId}::uuid
            AND sp.deleted_at IS NULL
+           AND (sp.active = true OR sp.cadence = 'ONCE')
          ORDER BY sp.created_at ASC
       `);
         return result.rows.map(rowToRuleRow);

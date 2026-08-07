@@ -136,9 +136,14 @@ export function ScheduledPaymentsList({
                     day: rule.cadenceAnchor ?? 1,
                   })
                 : t("list.daily");
-        // Over, not gone: it keeps its place in the list at the bottom and
-        // reads as spent rather than as something still coming (user, 260807).
-        const retired = rule.active === false;
+        // Over, not gone: a one-time payment keeps its place at the bottom and
+        // reads as spent rather than as something still coming.
+        //
+        // ONLY a one-time payment. An inactive RHYTHM is a payment somebody
+        // deleted — "inactive" is the only mark deletions carried before
+        // deleted_at existed — and dimming those brought years of them back
+        // looking alive (user screenshot, 260807).
+        const retired = rule.active === false && rule.cadence === "ONCE";
         return (
           <li
             key={rule.id}
@@ -164,10 +169,12 @@ export function ScheduledPaymentsList({
               </p>
             </div>
             <div className="flex shrink-0 gap-1">
-              {/* Editing a payment whose draft is already confirmed would be
-                  editing history — the money has moved. Removing it is still
-                  offered (user, 260807). */}
-              {!rule.hasConfirmedDraft && (
+              {/* Editing a ONE-TIME payment whose draft is already confirmed
+                  would be editing history — the money has moved, and it has no
+                  next occurrence to change. A rhythm always keeps its edit:
+                  confirming this July says nothing about next July (user,
+                  260807). Removing it is offered either way. */}
+              {!(rule.hasConfirmedDraft && rule.cadence === "ONCE") && (
                 <Button
                   size="icon"
                   variant="ghost"

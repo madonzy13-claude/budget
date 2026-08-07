@@ -507,12 +507,14 @@ export function ScheduledPaymentForm({
                     rules are expenses. */}
               <div>
                 <Label>{t("rule.cadenceLabel")}</Label>
-                <div className="flex flex-wrap gap-2 pt-1">
+                {/* Two columns on a phone: four choices in one row clipped the
+                    last one (user screenshot, 260807). */}
+                <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-4">
                   <Button
                     type="button"
                     variant={cadence === "ONCE" ? "primary" : "outline"}
                     onClick={() => setCadence("ONCE")}
-                    className="flex-1"
+                    className="w-full"
                   >
                     {t("rule.once")}
                   </Button>
@@ -520,7 +522,7 @@ export function ScheduledPaymentForm({
                     type="button"
                     variant={cadence === "WEEKLY" ? "primary" : "outline"}
                     onClick={() => setCadence("WEEKLY")}
-                    className="flex-1"
+                    className="w-full"
                   >
                     {t("rule.weekly")}
                   </Button>
@@ -528,7 +530,7 @@ export function ScheduledPaymentForm({
                     type="button"
                     variant={cadence === "MONTHLY" ? "primary" : "outline"}
                     onClick={() => setCadence("MONTHLY")}
-                    className="flex-1"
+                    className="w-full"
                   >
                     {t("rule.monthly")}
                   </Button>
@@ -536,7 +538,7 @@ export function ScheduledPaymentForm({
                     type="button"
                     variant={cadence === "YEARLY" ? "primary" : "outline"}
                     onClick={() => setCadence("YEARLY")}
-                    className="flex-1"
+                    className="w-full"
                   >
                     {t("rule.yearly")}
                   </Button>

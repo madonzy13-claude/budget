@@ -841,3 +841,101 @@ describe("/scheduled-payments — moving a one-time payment", () => {
     expect(row.end_date).toBeNull();
   });
 });
+
+describe("/scheduled-payments — what 'not running' means for a rhythm", () => {
+  async function create(body: Record<string, unknown>) {
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request("/scheduled-payments", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify(body),
+    });
+    return (await res.json()) as { ruleId: string };
+  }
+
+  async function withDb<T>(fn: (c: any) => Promise<T>): Promise<T> {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
+    const c = await pool.connect();
+    try {
+      await c.query(
+        `SELECT set_config('app.tenant_ids', '{"${testTenantId}"}', false)`,
+      );
+      return await fn(c);
+    } finally {
+      c.release();
+      await pool.end();
+    }
+  }
+
+  const listed = async (id: string) => {
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request("/scheduled-payments");
+    const body = (await res.json()) as {
+      rules: { id: string; hasConfirmedDraft: boolean }[];
+    };
+    return body.rules.find((r) => r.id === id);
+  };
+
+  it("an inactive RHYTHM stays hidden — it was deleted, not retired", async () => {
+    // Every payment deleted before deleted_at existed (mig 0079) is an inactive
+    // row with a NULL deleted_at. Treating "inactive" as "retired" resurrected
+    // them into the list, dimmed (user screenshot, 260807). Only a one-time
+    // payment earns its place there: it is the only kind that retires itself.
+    const { ruleId } = await create({
+      amount: "129.00",
+      currency: "USD",
+      cadence: "YEARLY",
+      yearly_month: 7,
+      cadence_anchor: 31,
+      first_due_date: "2027-07-31",
+      note: "Internet",
+    });
+    await withDb((c) =>
+      c.query(
+        `UPDATE budgeting.scheduled_payments SET active = false WHERE id = $1`,
+        [ruleId],
+      ),
+    );
+    expect(await listed(ruleId)).toBeUndefined();
+  });
+
+  it("a retired ONE-TIME payment is still listed", async () => {
+    const { ruleId } = await create({
+      amount: "129.00",
+      currency: "USD",
+      cadence: "ONCE",
+      first_due_date: "2026-02-02",
+    });
+    expect(await listed(ruleId)).toBeDefined();
+  });
+
+  it("a RHYTHM keeps its edit button after a draft is confirmed", async () => {
+    // Confirming one occurrence of a yearly payment says nothing about the
+    // next one. The lock is for a ONE-TIME payment, whose only occurrence has
+    // already happened (user, 260807).
+    const { ruleId } = await create({
+      amount: "129.00",
+      currency: "USD",
+      cadence: "YEARLY",
+      yearly_month: 7,
+      cadence_anchor: 31,
+      first_due_date: "2027-07-31",
+      note: "Internet again",
+    });
+    await withDb((c) =>
+      c.query(
+        `INSERT INTO budgeting.expense_ledger
+           (id, tenant_id, budget_id, transaction_date, amount_original_cents,
+            currency_original, amount_converted_cents, fx_rate, fx_as_of,
+            scheduled_payment_id, confirmed_at, kind, created_at, updated_at)
+         VALUES (gen_random_uuid(), $1, $1, DATE '2026-07-31', 12900, 'USD',
+                 12900, 1, DATE '2026-07-31', $2, now(), 'SPENDING', now(), now())`,
+        [testTenantId, ruleId],
+      ),
+    );
+    expect((await listed(ruleId))!.hasConfirmedDraft).toBe(false);
+  });
+});
