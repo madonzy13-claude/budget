@@ -29,6 +29,7 @@ import {
   type OneOffCandidate,
 } from "./reserve-fit-one-offs";
 import { ReserveRebalance } from "./reserve-rebalance";
+import { rebalanceTarget } from "@/lib/reserve-rebalance";
 
 /** Wraps a money formatter so a signed gap reads as one. Uses the same U+2212
  *  minus the percent labels use. */
@@ -117,7 +118,15 @@ export function ReserveFitView({
               categoryId: r.categoryId,
               name: r.name,
               heldCents: r.heldCents,
-              neededCents: r.neededCents,
+              // NOT `needed`. That is a floor for today which nets out the
+              // accrual still to come, so offering it as a target would put a
+              // one-tap withdrawal behind every healthy category (audit,
+              // 260807). Top up to the floor, trim only above the ceiling.
+              neededCents: rebalanceTarget(
+                r.heldCents,
+                r.neededCents,
+                r.ceilingCents,
+              ),
             }))}
             onRebalance={onRebalance}
             format={formatExact}
@@ -140,6 +149,7 @@ export function ReserveFitView({
             heldCents: r.heldCents,
             neededCents: r.neededCents,
             gapCents: r.gapCents,
+            ceilingCents: r.ceilingCents,
             // Carried so the tooltip can offer the limit route (260807); the
             // bar itself is still drawn from pct/gapCents alone.
             suggestedLimitCents: r.suggestedLimitCents,
@@ -194,16 +204,31 @@ export function ReserveFitView({
                 label: t("reserveFit.needed"),
                 value: format(Number(row.neededCents)),
               },
-              {
-                // Named as the ACTION it is, so it reads as a sibling of the
-                // limit route below rather than as a verdict.
-                label:
-                  gap < 0
-                    ? t("reserveFit.addToReserve")
-                    : t("reserveFit.trim"),
-                value: format(Math.abs(gap)),
-                section: true,
-              },
+              // Three states, not two (260807). Below the floor there is money
+              // to find; above the CEILING — the most this reserve could ever be
+              // called on to hold — there is money genuinely spare. In between
+              // it is neither: the reserve is ahead of schedule, and telling the
+              // household to take that back would pull out the money the accrual
+              // assumption rests on.
+              gap < 0
+                ? {
+                    label: t("reserveFit.addToReserve"),
+                    value: format(-gap),
+                    section: true,
+                  }
+                : Number(row.heldCents) > Number(row.ceilingCents)
+                  ? {
+                      label: t("reserveFit.trim"),
+                      value: format(
+                        Number(row.heldCents) - Number(row.ceilingCents),
+                      ),
+                      section: true,
+                    }
+                  : {
+                      label: t("reserveFit.ahead"),
+                      value: format(gap),
+                      section: true,
+                    },
               ...suggestion,
             ];
           }}

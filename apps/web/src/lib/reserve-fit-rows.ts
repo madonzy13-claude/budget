@@ -22,6 +22,9 @@ export interface SizedReserveRow {
   heldCents: number;
   neededCents: number;
   gapCents: number;
+  /** The most it could ever be called on to hold. Falls back to `needed` when a
+   *  cached payload predates the field, which keeps trimming conservative. */
+  ceilingCents: number;
   short: boolean;
   worstMonth: string | null;
   worstOverageCents: number;
@@ -55,6 +58,8 @@ function toSized(r: ReserveFitRow): SizedReserveRow {
   const held = Number(r.held_cents);
   const needed = Number(r.needed_cents);
   const gap = Number(r.gap_cents);
+  const ceiling =
+    r.ceiling_cents == null ? needed : Number(r.ceiling_cents);
   const pct = fitPct(held, needed);
   return {
     categoryId: r.category_id,
@@ -63,6 +68,7 @@ function toSized(r: ReserveFitRow): SizedReserveRow {
     heldCents: held,
     neededCents: needed,
     gapCents: gap,
+    ceilingCents: ceiling,
     short: gap < 0,
     worstMonth: r.worst_month,
     worstOverageCents: Number(r.worst_overage_cents),

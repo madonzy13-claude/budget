@@ -274,8 +274,25 @@ describe("getReserveFit", () => {
     expect(Number(food?.needed_cents)).toBeGreaterThan(260000);
   });
 
-  test("a monthly rule inside its own limit does not deepen the trough", async () => {
+  test("a monthly rule inside its own limit needs no buffer at all", async () => {
+    // The limit was set for it: 5,000 a month of rule against a 20,000 limit
+    // and 5,000 of ordinary habit leaves 15,000 a month spare, so the rule
+    // funds itself and history has no trough to carry.
     const d = deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return windows;
+        },
+        async monthlyPlannedByCategory() {
+          return planned;
+        },
+        async monthlySpendByCategory() {
+          return [
+            { category_id: CAT_FOOD, month: "2026-01", spent_cents: 5000n },
+            { category_id: CAT_FOOD, month: "2026-02", spent_cents: 5000n },
+          ];
+        },
+      },
       activeScheduledPayments: async () => [
         {
           category_id: CAT_FOOD,
@@ -287,10 +304,7 @@ describe("getReserveFit", () => {
         },
       ],
     } as never);
-    const food = await rowFor(CAT_FOOD, d);
-    // 5000 a month against a 20000 limit leaves the buffer refilling, so the
-    // deepest point is still February's.
-    expect(food?.needed_cents).toBe("12000");
+    expect((await rowFor(CAT_FOOD, d))?.needed_cents).toBe("0");
   });
 
   // "ымо", "імперія" — archived test categories with no spend, no limit and no
@@ -496,15 +510,20 @@ describe("getReserveFit", () => {
       ],
     } as never);
     const food = await rowFor(CAT_FOOD, d);
-    // September asks 50,000 ON TOP of an ordinary month, so all of it must be
-    // there — the 20,000 limit is already spoken for by that month's own spend.
-    expect(food?.needed_cents).toBe("50000");
+    // September asks 50,000 on top of an ordinary month. But this limit DOES
+    // accrue — 20,000 against 17,000 of ordinary spend is 3,000 a month — and
+    // September is six months out, so 18,000 of it funds itself. The rest has
+    // to be there. The user's original complaint is still answered: the number
+    // is not zero.
+    expect(food?.needed_cents).toBe("32000");
   });
 
-  test("the harder of past and future is what has to be held", async () => {
+  // 260807: the two legs ADD now, because they no longer overlap. History is
+  // ORDINARY spend only — the scheduled half is split out at source — so the
+  // buffer has to carry the habit AND the schedule, not whichever is worse.
+  test("history and the schedule are added, because they are now disjoint", async () => {
     const d = deps({
-      // History alone demands 12,000 (Feb's overage after January's surplus);
-      // the future asks for only 5,000 − 20,000 < 0, i.e. nothing.
+      // History's ordinary trough is 12,000; the September charge is 5,000 more.
       activeScheduledPayments: async () => [
         {
           category_id: CAT_FOOD,
@@ -516,7 +535,7 @@ describe("getReserveFit", () => {
         },
       ],
     } as never);
-    expect((await rowFor(CAT_FOOD, d))?.needed_cents).toBe("12000");
+    expect((await rowFor(CAT_FOOD, d))?.needed_cents).toBe("17000");
   });
 
   test("names the commitments it cannot attribute to any category", async () => {
@@ -549,7 +568,9 @@ describe("getReserveFit", () => {
   // The same rule appears twice over a long window: the charge it already made
   // sits in the range's spend, and its NEXT occurrence sits in the forward year.
   // Those are two separate events a year apart, and the buffer only ever has to
-  // cover one of them — so the two walks are compared, never added.
+  // cover one of them. The old code compared two walks to avoid the double
+  // count; the split does it properly — the past charge is taken OUT of what
+  // this category costs by habit, so the future one can simply be added.
   test("counts a yearly charge once, not once per walk", async () => {
     const CAT = CAT_FOOD;
     const d = deps({
@@ -574,14 +595,26 @@ describe("getReserveFit", () => {
           ];
         },
         async monthlySpendByCategory() {
-          // February already carried the 50,000 charge: 30,000 over its limit.
+          // February already carried the 50,000 charge — and the ledger knows
+          // it came from the rule, so it is NOT part of what this category
+          // costs by habit.
           return [
-            { category_id: CAT, month: "2026-01", spent_cents: 20000n },
-            { category_id: CAT, month: "2026-02", spent_cents: 50000n },
+            {
+              category_id: CAT,
+              month: "2026-01",
+              spent_cents: 20000n,
+              scheduled_cents: 0n,
+            },
+            {
+              category_id: CAT,
+              month: "2026-02",
+              spent_cents: 50000n,
+              scheduled_cents: 50000n,
+            },
           ];
         },
       },
-      // …and the same rule fires again next February.
+      // …and the same rule fires again in April.
       activeScheduledPayments: async () => [
         {
           category_id: CAT,
@@ -589,7 +622,7 @@ describe("getReserveFit", () => {
           amount_cents: 50000n,
           currency: "PLN",
           cadence: "YEARLY",
-          yearly_month: 2,
+          yearly_month: 4,
         },
       ],
     } as never);
@@ -597,7 +630,11 @@ describe("getReserveFit", () => {
     // History asked 30,000 (the charge less the limit it consumed); next
     // February asks 50,000 on top of an ordinary month. The harder of the two
     // stands — NOT the 80,000 the two would make if they were added.
-    expect(row?.needed_cents).toBe("50000");
+    // The April charge, less the one month of accrual before it: 10,000 a
+    // month spare against 10,000 of ordinary habit. Leaving February's charge
+    // inside the history instead would have said 80,000 — the same policy
+    // provisioned twice.
+    expect(row?.needed_cents).toBe("40000");
   });
 
   // A yearly charge lands ON TOP of the month's plan, not inside it: the limit
@@ -618,13 +655,18 @@ describe("getReserveFit", () => {
         },
       ],
     } as never);
-    // The whole 50,000, not 50,000 − the 20,000 limit.
-    expect((await rowFor(CAT_FOOD, d))?.needed_cents).toBe("50000");
+    // The whole 50,000, not 50,000 − the 20,000 limit — plus the 12,000 the
+    // ordinary history asks for. This category spends 26,000 against a 20,000
+    // limit, so it accrues nothing and every złoty has to be sitting there.
+    expect((await rowFor(CAT_FOOD, d))?.needed_cents).toBe("62000");
   });
 
-  // A monthly rule is what the limit was set for. Treating it as extra would
-  // grow the "needed" figure every month, forever.
-  test("a monthly rule stays inside the plan it was budgeted in", async () => {
+  // A monthly rule still has to be paid out of the limit — but ORDINARY spend
+  // is now measured with the rule's own charges taken out, so the limit has to
+  // cover both and the rule is counted once. Here the limit covers neither:
+  // 26,000 of habit against a 20,000 limit accrues nothing, so a year of the
+  // rule lands on the reserve alongside history's own 12,000.
+  test("a monthly rule is funded by the limit, or by the reserve", async () => {
     const d = deps({
       activeScheduledPayments: async () => [
         {
@@ -637,9 +679,7 @@ describe("getReserveFit", () => {
         },
       ],
     } as never);
-    // History alone still decides: February's 15,000 overage less January's
-    // 3,000 surplus.
-    expect((await rowFor(CAT_FOOD, d))?.needed_cents).toBe("12000");
+    expect((await rowFor(CAT_FOOD, d))?.needed_cents).toBe("72000");
   });
 
   test("a monthly rule bigger than the whole limit still counts its excess", async () => {
@@ -815,13 +855,13 @@ describe("getReserveFit — a one-time payment ahead", () => {
     // History alone asks for 12000. The sofa is 300000 landing on an ordinary
     // month, and the harder of the two walks is what must be held.
     const food = await rowFor(CAT_FOOD, sofaDeps());
-    expect(food?.needed_cents).toBe("300000");
+    expect(food?.needed_cents).toBe("312000");
   });
 
   test("held is unchanged — this moves the target, not the money", async () => {
     const food = await rowFor(CAT_FOOD, sofaDeps());
     expect(food?.held_cents).toBe("5000");
-    expect(food?.gap_cents).toBe("-295000");
+    expect(food?.gap_cents).toBe("-307000");
   });
 });
 
@@ -845,7 +885,10 @@ describe("getReserveFit — how far the forward walk looks", () => {
 
   test("reaches a one-time payment beyond a year", async () => {
     const food = await rowFor(CAT_FOOD, farSofa());
-    expect(food?.needed_cents).toBe("300000");
+    // The sofa, plus the 12,000 history asks for on its own account. This
+    // category spends 26,000 against a 20,000 limit, so it accrues nothing and
+    // both have to be sitting there.
+    expect(food?.needed_cents).toBe("312000");
   });
 
   test("still covers a year when nothing is scheduled further out", async () => {
@@ -863,7 +906,8 @@ describe("getReserveFit — how far the forward walk looks", () => {
       ],
     } as unknown as Partial<Parameters<typeof getReserveFit>[0]>);
     const food = await rowFor(CAT_FOOD, d);
-    expect(food?.needed_cents).toBe("250000");
+    // The renewal plus history's own 12,000 — this category accrues nothing.
+    expect(food?.needed_cents).toBe("262000");
   });
 });
 

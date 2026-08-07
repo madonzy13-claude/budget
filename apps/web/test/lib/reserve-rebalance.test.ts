@@ -13,6 +13,7 @@ import {
   rebalanceButton,
   sortRebalanceRows,
   parseTargetCents,
+  rebalanceTarget,
   type RebalanceRow,
 } from "@/lib/reserve-rebalance";
 
@@ -185,5 +186,38 @@ describe("sortRebalanceRows", () => {
       "b",
       "a",
     ]);
+  });
+});
+
+describe("rebalanceTarget — what the dialog is allowed to move a reserve to", () => {
+  // `needed` changed meaning on 260807: it is now what must be there TODAY,
+  // and it explicitly nets out the accrual the limit will keep producing. It is
+  // a FLOOR, not a target. Pre-filling it as the target would offer a one-tap
+  // withdrawal of everything above it — pulling out the very money the accrual
+  // assumption rests on, which the model cannot notice because it never reads
+  // what is held (audit, 260807).
+  it("tops a short reserve up to what it needs today", () => {
+    expect(rebalanceTarget(3000, 8000, 20000)).toBe(8000);
+  });
+
+  it("leaves a reserve that is merely AHEAD of schedule alone", () => {
+    // Between the floor and the ceiling the money is not idle, it is early.
+    expect(rebalanceTarget(15000, 8000, 20000)).toBe(15000);
+  });
+
+  it("trims only what is above the most it could ever need", () => {
+    expect(rebalanceTarget(26000, 8000, 20000)).toBe(20000);
+  });
+
+  it("never proposes a withdrawal on the strength of today's floor alone", () => {
+    // The specific bad case: needed 0 because the limit funds everything, a
+    // large reserve, and a real ceiling behind it.
+    expect(rebalanceTarget(17315, 0, 28079)).toBe(17315);
+  });
+
+  it("a ceiling below the floor cannot invert the rule", () => {
+    // Defensive: whatever the inputs, the answer stays between them.
+    const t = rebalanceTarget(10000, 9000, 5000);
+    expect(t).toBeGreaterThanOrEqual(Math.min(9000, 10000));
   });
 });

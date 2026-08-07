@@ -524,7 +524,42 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     expect(line.value2).toBe("(-926 zl)");
   });
 
-  it("calls it a trim when the buffer is holding too much", () => {
+  it("calls money between the floor and the ceiling EARLY, not idle", () => {
+    // `needed` is what must be there today; the ceiling is the most it could
+    // ever be called on to hold. In between, the reserve is ahead of schedule —
+    // telling the household to take it back would pull out the money the
+    // accrual assumption rests on (audit, 260807).
+    renderWith(
+      withSuggestion("sport", {
+        held_cents: "150000",
+        needed_cents: "50000",
+        ceiling_cents: "400000",
+        gap_cents: "100000",
+      }),
+    );
+    const labels = tooltipFor("Sport").map((r) => r.label);
+    expect(labels).toContain("reserveFit.ahead");
+    expect(labels).not.toContain("reserveFit.trim");
+  });
+
+  it("only calls it a trim above the most it could ever need", () => {
+    renderWith(
+      withSuggestion("sport", {
+        held_cents: "500000",
+        needed_cents: "50000",
+        ceiling_cents: "400000",
+        gap_cents: "450000",
+      }),
+    );
+    const row = tooltipFor("Sport").find(
+      (r) => r.label === "reserveFit.trim",
+    )!;
+    expect(row).toBeDefined();
+    // What is spare is what sits above the CEILING, not above the floor.
+    expect(row.value).toBe("1000 zl");
+  });
+
+  it("still calls a genuine shortfall a shortfall", () => {
     renderWith(
       withSuggestion("sport", {
         suggested_limit_cents: "12000",

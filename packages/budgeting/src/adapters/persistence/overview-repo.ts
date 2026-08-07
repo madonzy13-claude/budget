@@ -55,7 +55,14 @@ export function createOverviewRepo(): OverviewPlannedRepo {
         const res = await tx.execute(sql`
           SELECT category_id::text AS category_id,
                  to_char(transaction_date, 'YYYY-MM') AS month,
-                 COALESCE(SUM(amount_converted_cents), 0)::text AS spent_cents
+                 COALESCE(SUM(amount_converted_cents), 0)::text AS spent_cents,
+                 -- The half that came from a SCHEDULED payment. The schedule
+                 -- already projects these forward on their own, so sizing must
+                 -- be able to leave them out of "what habit costs" rather than
+                 -- charge the same camping trip twice (260807).
+                 COALESCE(SUM(amount_converted_cents)
+                            FILTER (WHERE scheduled_payment_id IS NOT NULL), 0)::text
+                   AS scheduled_cents
             FROM budgeting.expense_ledger
            WHERE budget_id = ${budgetId}::uuid
              AND tenant_id = ${budgetId}::uuid
@@ -71,6 +78,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
           category_id: r.category_id as string,
           month: r.month as string,
           spent_cents: BigInt(r.spent_cents as string),
+          scheduled_cents: BigInt(r.scheduled_cents as string),
         }));
       });
     },
@@ -221,7 +229,14 @@ export function createOverviewRepo(): OverviewPlannedRepo {
           : sql``;
         const res = await tx.execute(sql`
           SELECT to_char(transaction_date, 'YYYY-MM-DD') AS day,
-                 COALESCE(SUM(amount_converted_cents), 0)::text AS spent_cents
+                 COALESCE(SUM(amount_converted_cents), 0)::text AS spent_cents,
+                 -- The half that came from a SCHEDULED payment. The schedule
+                 -- already projects these forward on their own, so sizing must
+                 -- be able to leave them out of "what habit costs" rather than
+                 -- charge the same camping trip twice (260807).
+                 COALESCE(SUM(amount_converted_cents)
+                            FILTER (WHERE scheduled_payment_id IS NOT NULL), 0)::text
+                   AS scheduled_cents
             FROM budgeting.expense_ledger
            WHERE budget_id = ${budgetId}::uuid
              AND tenant_id = ${budgetId}::uuid
@@ -237,6 +252,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
         return res.rows.map((r) => ({
           day: r.day as string,
           spent_cents: BigInt(r.spent_cents as string),
+          scheduled_cents: BigInt(r.scheduled_cents as string),
         }));
       });
     },

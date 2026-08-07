@@ -23,6 +23,10 @@
 import { ok, err, type Result } from "@budget/shared-kernel";
 import { reserveFit, type ReserveFitMonth } from "../domain/reserve-fit";
 import { smallestSufficientLimit } from "../domain/suggest-limit";
+import {
+  reserveNeededToday,
+  reserveCeiling,
+} from "../domain/reserve-requirement";
 import { projectScheduledPayments } from "../domain/scheduled-payment-projection";
 import type { ReservePositionsResult } from "./get-reserve-positions";
 import type { OverviewPlannedRepo } from "./get-overview-planned";
@@ -116,6 +120,10 @@ export interface ReserveFitRowDTO {
   gap_cents: string;
   worst_month: string | null;
   worst_overage_cents: string;
+  /** The most this reserve could ever be called on to hold across the runway,
+   *  with no accrual counted. Money above it is genuinely spare; money between
+   *  `needed_cents` and this is on schedule, not idle (260807). */
+  ceiling_cents: string;
   /** The limit that would keep this category solvent across the whole runway,
    *  and what moving to it costs or frees each month. null = today's limit
    *  already is that limit, so there is nothing to say (260807). */
@@ -189,8 +197,20 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       for (const p of planned)
         limitByCell.set(`${p.category_id}|${p.month}`, p.planned_cents);
       const spendByCell = new Map<string, bigint>();
-      for (const s of spend)
+      const scheduledByCell = new Map<string, bigint>();
+      for (const s of spend) {
         spendByCell.set(`${s.category_id}|${s.month}`, s.spent_cents);
+        // The half that came from a scheduled payment. The schedule projects
+        // those forward on their own, so history must not charge them again —
+        // an insurance category was told to hold 11,000 for a policy that was
+        // counted once through its own past and once through its own future
+        // (audit, 260807). A payload cached before the column existed replays
+        // without it and simply reads as "none of it was scheduled".
+        scheduledByCell.set(
+          `${s.category_id}|${s.month}`,
+          s.scheduled_cents ?? 0n,
+        );
+      }
 
       // Every month a category has either a limit or spend in — a month with
       // neither says nothing about the buffer.
@@ -271,8 +291,14 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           closed.length > 0 ? closed : all
         ).map((month) => {
           const key = `${w.category_id}|${month}`;
+          // ORDINARY spend: the month's total, less the one-offs the household
+          // un-ticked, less what a scheduled payment took. What is left is what
+          // this category costs by habit, and it is the only part history can
+          // tell us that the schedule cannot.
           const spent =
-            (spendByCell.get(key) ?? 0n) - (excludedByCell.get(key) ?? 0n);
+            (spendByCell.get(key) ?? 0n) -
+            (excludedByCell.get(key) ?? 0n) -
+            (scheduledByCell.get(key) ?? 0n);
           return {
             month,
             limitCents:
@@ -306,26 +332,15 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           };
         });
 
-        // Two walks, not one. Running them as a single line let months of past
-        // underspend pay for a charge that has not happened yet — but that
-        // surplus IS the reserve already held, which is the other side of this
-        // comparison, so counting it here answered "you need nothing" to a
-        // category with a 2,500 renewal coming (user report, 260804). The buffer
-        // has to survive the worst past run AND the coming year's known lumps,
-        // so the harder of the two is what must be held.
+        // History's own contribution: the deepest trough of (limit − ORDINARY
+        // spend). It is what irregular habit has cost before, and nothing else
+        // — the scheduled half was taken out at source, so this can be added to
+        // the commitments below without charging anything twice.
         const past = reserveFit(months);
-        const ahead = reserveFit(future);
-        const fit = {
-          ...(past.neededCents >= ahead.neededCents ? past : ahead),
-          neededCents:
-            past.neededCents >= ahead.neededCents
-              ? past.neededCents
-              : ahead.neededCents,
-          // The audit trail stays on the months that actually happened when
-          // history is the binding constraint, and moves to the charge ahead
-          // when that is.
-          monthsCounted: past.monthsCounted,
-        };
+        // Kept for the audit trail only (worst month, overage months). What must
+        // be HELD is worked out below, counting accrual.
+        void future;
+
         // The limit that would keep this category solvent, spread across the
         // whole runway (260807 r2). The first cut aimed at the NEXT lump, and a
         // 129 zł internet bill next month made it demand a year of commitments
@@ -339,31 +354,37 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           const c = byMonth.get(m);
           return c ? c.routine + c.onTop + c.oneTime : 0n;
         });
-        /** The RHYTHMS only — see the netting below. */
-        const recurringAhead = forwardWindow.map((m) => {
-          const c = byMonth.get(m);
-          return c ? c.routine + c.onTop : 0n;
-        });
-
-        // Ordinary spending, NET of those commitments. The mean already carries
-        // last year's camping trip; charging the coming one on top of it would
-        // provision the same journey twice.
-        const meanSpend =
+        // Ordinary spending, straight from the months above — they already hold
+        // the ordinary half only. The old code subtracted a forward RATE from a
+        // historical mean and hoped the two cancelled; they did not when a rule
+        // was new, when the windows were different lengths, or when the range
+        // happened to contain the lump (audit, 260807).
+        const baselineSpend =
           months.length > 0
             ? months.reduce((acc, m) => acc + m.spentCents, 0n) /
               BigInt(months.length)
             : 0n;
-        // Only the RHYTHMS come out of the mean. A one-time payment has never
-        // fired, so it is not in the history — netting it out would subtract
-        // spending that never happened, and it took Travel's ordinary spend
-        // from ~1,400 a month down to 149 (260807).
-        const meanCommitment =
-          recurringAhead.length > 0
-            ? recurringAhead.reduce((acc, c) => acc + c, 0n) /
-              BigInt(recurringAhead.length)
-            : 0n;
-        const baselineSpend =
-          meanSpend > meanCommitment ? meanSpend - meanCommitment : 0n;
+        // What must be in this reserve TODAY. The old answer assumed the
+        // household would never save another złoty — the forward walk started
+        // at zero — so it came out as the sum of the whole runway's lumps, and
+        // a category whose own limit comfortably funds its future still read as
+        // short (user, 260807). Counting the accrual the current limit already
+        // produces makes this and the suggestion below one function: the
+        // suggested limit is exactly the limit at which this equals `held`.
+        const neededCents = reserveNeededToday({
+          baselineSpendCents: baselineSpend,
+          commitmentsByMonth: forward,
+          historicalNeedCents: past.neededCents,
+          limitCents: currentLimit,
+        });
+        // …and the most it could ever be called on to hold, with no accrual
+        // counted at all. Only money above THIS is safe to take back: the
+        // requirement above rests on the accrual continuing, so withdrawing
+        // down to it would remove what that assumption depends on.
+        const ceilingCents = reserveCeiling({
+          commitmentsByMonth: forward,
+          historicalNeedCents: past.neededCents,
+        });
 
         // No current limit means nothing to suggest a change TO — the row is
         // already being judged on its own history (see currentLimit above).
@@ -414,16 +435,17 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           category_id: w.category_id,
           name: w.name,
           held_cents: position.reserveCents.toString(),
-          needed_cents: fit.neededCents.toString(),
-          gap_cents: (position.reserveCents - fit.neededCents).toString(),
-          worst_month: fit.worstMonth,
-          worst_overage_cents: fit.worstOverageCents.toString(),
+          needed_cents: neededCents.toString(),
+          ceiling_cents: ceilingCents.toString(),
+          gap_cents: (position.reserveCents - neededCents).toString(),
+          worst_month: past.worstMonth,
+          worst_overage_cents: past.worstOverageCents.toString(),
           suggested_limit_cents: suggestion?.limitCents.toString() ?? null,
           suggested_delta_cents: suggestion?.deltaCents.toString() ?? null,
           suggested_over_months: suggestion?.overMonths ?? null,
           suggested_direction: suggestion?.direction ?? null,
-          overage_months: fit.overageMonths,
-          months_counted: fit.monthsCounted,
+          overage_months: past.overageMonths,
+          months_counted: past.monthsCounted,
           large_transactions: large
             .filter(
               (t) =>

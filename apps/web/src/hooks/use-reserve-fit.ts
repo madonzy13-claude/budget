@@ -39,6 +39,10 @@ export interface ReserveFitRow {
   gap_cents: string;
   worst_month: string | null;
   worst_overage_cents: string;
+  /** The most this reserve could ever be called on to hold across the runway.
+   *  Money above it is genuinely spare; money between `needed_cents` and this
+   *  is early, not idle (260807). Absent on a payload cached before it. */
+  ceiling_cents?: string | null;
   /** The limit that would keep this category solvent across the whole runway,
    *  and what moving to it costs or frees each month (260807). null = today's
    *  limit already is that limit. */
@@ -61,7 +65,7 @@ export interface ReserveFitDTO {
 }
 
 export function reserveFitQueryKey(budgetId: string, from: string, to: string) {
-  return ["budget", budgetId, "overview", "reserve-fit", from, to] as const;
+  return ["budget", budgetId, "overview", "reserve-fit-v2", from, to] as const;
 }
 
 export function useReserveFit(

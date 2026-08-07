@@ -37,6 +37,11 @@ export interface MonthlySpendRow {
   category_id: string;
   month: string; // YYYY-MM
   spent_cents: bigint;
+  /** The part of `spent_cents` that came from a scheduled payment. The
+   *  schedule projects those forward on their own, so reserve sizing takes
+   *  them out of "what habit costs" (260807). Optional: a cached payload
+   *  written before the column existed replays without it. */
+  scheduled_cents?: bigint;
 }
 export interface CategoryWindow {
   category_id: string;

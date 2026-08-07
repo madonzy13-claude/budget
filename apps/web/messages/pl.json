@@ -1562,7 +1562,7 @@
           "held": "Trzymane",
           "needed": "Potrzebne",
           "short": "Brakuje",
-          "trim": "Do uwolnienia",
+          "trim": "Zbędne",
           "oneOffsFor": "Duże wydatki w {name}",
           "recurs": "powtarza się {cadence}",
           "reviewOneOffs": "Przejrzyj duże wydatki",
@@ -1577,11 +1577,11 @@
           "heldTotal": "Trzymane",
           "neededTotal": "Potrzebne",
           "unassigned": "Nie liczone — brak kategorii: {list}. Przypisz ją w Ustawienia → Zaplanowane płatności, a wpłyną na rezerwę.",
-          "aboveTarget": "ponad potrzebę",
+          "aboveTarget": "z wyprzedzeniem",
           "belowTarget": "poniżej potrzeby",
           "onTarget": "Dokładnie tyle, ile trzeba",
           "rebalanceTitle": "Zbilansuj rezerwy",
-          "rebalanceExplainer": "Uzupełnij te, którym brakuje, i odbierz to, co nie jest potrzebne. Jeśli liczba wyliczona z historii Ci nie odpowiada, najpierw zmień cel.",
+          "rebalanceExplainer": "Uzupełnij te, którym brakuje, i odbierz tylko to, czego rezerwa nigdy nie będzie potrzebować. Jeśli liczba wyliczona z historii Ci nie odpowiada, najpierw zmień cel.",
           "openRebalance": "Zbilansuj rezerwy",
           "rebalanceAction": "Zbilansuj",
           "undoAction": "Cofnij",
@@ -1592,7 +1592,8 @@
           "nothingToMove": "Już we właściwej wysokości",
           "coveredOverspend": "{amount} z tego poszło na pokrycie przekroczeń, więc rezerwie nadal brakuje.",
           "addToReserve": "Dodaj do rezerwy",
-          "orSetLimit": "albo ustaw limit na"
+          "orSetLimit": "albo ustaw limit na",
+          "ahead": "Z wyprzedzeniem"
         },
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",
