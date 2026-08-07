@@ -144,7 +144,7 @@ export function ReserveFitView({
             // bar itself is still drawn from pct/gapCents alone.
             suggestedLimitCents: r.suggestedLimitCents,
             suggestedDeltaCents: r.suggestedDeltaCents,
-            suggestedFillMonths: r.suggestedFillMonths,
+            suggestedOverMonths: r.suggestedOverMonths,
             suggestedDirection: r.suggestedDirection,
           }))}
           categoryKey="name"
@@ -173,7 +173,7 @@ export function ReserveFitView({
             const limit = row.suggestedLimitCents as number | null;
             const delta = row.suggestedDeltaCents as number | null;
             const dir = row.suggestedDirection as "raise" | "lower" | null;
-            const fillMonths = row.suggestedFillMonths as number | null;
+            const overMonths = row.suggestedOverMonths as number | null;
             const suggestion =
               limit == null || delta == null || dir == null
                 ? []
@@ -189,11 +189,11 @@ export function ReserveFitView({
                         `(${t("reserveFit.suggestPerMonth", {
                           amount: format(Math.abs(delta)),
                         })})`,
-                        // No "0 mo": a buffer that is covered the moment the
-                        // limit moves should say so by saying nothing.
-                        fillMonths && fillMonths > 0
+                        // The runway it spreads across — the point of the
+                        // whole change (260807 r2).
+                        overMonths && overMonths > 0
                           ? t("reserveFit.suggestMonths", {
-                              months: fillMonths,
+                              months: overMonths,
                             })
                           : "",
                       ]

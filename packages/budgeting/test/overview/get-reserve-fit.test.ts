@@ -872,16 +872,16 @@ describe("getReserveFit — the limit that would fund the buffer", () => {
   // spend is 26000 against a 20000 limit, so the category cannot accrue a cent
   // today and "top up 7000 now" would drain straight back out.
   //
-  // Walking the model, 23500 would already make the buffer sufficient — but it
-  // sits BELOW the 26000 mean, so the category would run a standing deficit and
-  // drain the buffer it just filled. The floor is the mean: at 26000 the history
-  // never troughs at all, so the 5000 held is already enough.
-  test("suggests the smallest limit whose buffer is reachable", async () => {
+  // Ordinary spending is 26000 a month and nothing is scheduled, so the limit
+  // starts there — a limit under what a category spends is a standing
+  // overspend. On top of it, history's 12000 trough less the 5000 held is 7000
+  // to find, spread across the twelve-month runway: 584 a month.
+  test("spreads what history asks for across the whole runway", async () => {
     const food = await rowFor(CAT_FOOD);
-    expect(food?.suggested_limit_cents).toBe("26000");
-    expect(food?.suggested_delta_cents).toBe("6000");
+    expect(food?.suggested_limit_cents).toBe("26584");
+    expect(food?.suggested_delta_cents).toBe("6584");
     expect(food?.suggested_direction).toBe("raise");
-    expect(food?.suggested_fill_months).toBe(0);
+    expect(food?.suggested_over_months).toBe(12);
   });
 
   test("says nothing when today's limit is already the smallest sufficient one", async () => {
@@ -922,9 +922,10 @@ describe("getReserveFit — the limit that would fund the buffer", () => {
     expect(sport?.suggested_limit_cents).toBeNull();
   });
 
-  test("a lump ahead shortens the horizon, so it asks for more", async () => {
-    // The money is wanted by the renewal, not in a year's time — so the same
-    // gap has to close faster and the limit has to be higher (user, 260807).
+  test("a lump ahead has to be funded before it lands, so it asks for more", async () => {
+    // 50000 due in three months has only three months of runway behind it,
+    // which is a harder ask per month than the same sum a year out — the
+    // tightest month sets the limit (user, 260807).
     const withLump = deps({
       activeScheduledPayments: async () => [
         {

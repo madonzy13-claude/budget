@@ -1571,7 +1571,7 @@
           "suggestRaise": "Or raise the limit to",
           "suggestLower": "Could drop the limit to",
           "suggestPerMonth": "{amount}/mo",
-          "suggestMonths": "{months} mo"
+          "suggestMonths": "over {months} mo"
         },
         "needsCompletedMonth": {
           "title": "Nothing to judge yet",

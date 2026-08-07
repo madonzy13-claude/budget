@@ -1594,7 +1594,7 @@
           "suggestRaise": "Або підніміть ліміт до",
           "suggestLower": "Можна знизити ліміт до",
           "suggestPerMonth": "{amount}/міс.",
-          "suggestMonths": "{months} міс."
+          "suggestMonths": "протягом {months} міс."
         },
         "needsCompletedMonth": {
           "title": "Ще немає що оцінювати",

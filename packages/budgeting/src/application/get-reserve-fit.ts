@@ -116,12 +116,12 @@ export interface ReserveFitRowDTO {
   gap_cents: string;
   worst_month: string | null;
   worst_overage_cents: string;
-  /** The smallest limit whose buffer this category could actually reach, and
-   *  what moving to it costs or frees each month. null = today's limit already
-   *  is that limit, so there is nothing to say (260807). */
+  /** The limit that would keep this category solvent across the whole runway,
+   *  and what moving to it costs or frees each month. null = today's limit
+   *  already is that limit, so there is nothing to say (260807). */
   suggested_limit_cents: string | null;
   suggested_delta_cents: string | null;
-  suggested_fill_months: number | null;
+  suggested_over_months: number | null;
   suggested_direction: "raise" | "lower" | null;
   overage_months: number;
   months_counted: number;
@@ -218,10 +218,14 @@ export function getReserveFit(deps: GetReserveFitDeps) {
             : far,
         forwardFrom,
       );
-      const committed = projectScheduledPayments(
-        rules,
-        forwardFrom,
-        Math.max(FORWARD_MONTHS, monthsBetween(forwardFrom, furthest) + 1),
+      const windowMonths = Math.max(
+        FORWARD_MONTHS,
+        monthsBetween(forwardFrom, furthest) + 1,
+      );
+      const committed = projectScheduledPayments(rules, forwardFrom, windowMonths);
+      /** Every month of the runway in order — the ones with nothing due too. */
+      const forwardWindow = Array.from({ length: windowMonths }, (_, i) =>
+        addMonths(forwardFrom, i),
       );
 
       const rows: ReserveFitRowDTO[] = [];
@@ -322,52 +326,47 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           // when that is.
           monthsCounted: past.monthsCounted,
         };
-        // What the buffer would have to be if the limit were something else —
-        // the same dual walk, re-run. It is a SEARCH and not a formula because
-        // raising a limit does two things at once: it speeds up accrual and it
-        // shrinks the target, since fewer months go over (260807).
-        const neededAt = (limit: bigint): bigint => {
-          const p = reserveFit(
-            months.map((m) => ({ ...m, limitCents: limit })),
-          ).neededCents;
-          const a = reserveFit(
-            commitments.map(([month, c]) => ({
-              month,
-              limitCents: limit,
-              spentCents:
-                limit + c.onTop + (c.routine > limit ? c.routine - limit : 0n),
-            })),
-          ).neededCents;
-          return p >= a ? p : a;
-        };
+        // The limit that would keep this category solvent, spread across the
+        // whole runway (260807 r2). The first cut aimed at the NEXT lump, and a
+        // 129 zł internet bill next month made it demand a year of commitments
+        // at once; the household asked for the opposite — extend it as far as
+        // possible and stay solvent the whole way.
+        // DENSE over the whole runway, not just the months carrying a charge:
+        // a category with nothing scheduled still has a year to fund its buffer
+        // over, and an array of its commitment months alone would give it none.
+        const byMonth = new Map(commitments);
+        const forward = forwardWindow.map((m) => {
+          const c = byMonth.get(m);
+          return c ? c.routine + c.onTop : 0n;
+        });
 
-        // The buffer is wanted BY the next lump, not in a year's time (user
-        // decision, 260807): the first month ahead carrying an on-top charge is
-        // the deadline. A category with nothing scheduled gets a year.
-        const nextLump = commitments
-          .filter(([, c]) => c.onTop > 0n)
-          .map(([month]) => month)
-          .sort()[0];
-        const horizonMonths = nextLump
-          ? Math.max(0, monthsBetween(nowMonth, nextLump))
-          : FORWARD_MONTHS;
-
+        // Ordinary spending, NET of those commitments. The mean already carries
+        // last year's camping trip; charging the coming one on top of it would
+        // provision the same journey twice.
         const meanSpend =
           months.length > 0
             ? months.reduce((acc, m) => acc + m.spentCents, 0n) /
               BigInt(months.length)
             : 0n;
+        const meanCommitment =
+          forward.length > 0
+            ? forward.reduce((acc, c) => acc + c, 0n) / BigInt(forward.length)
+            : 0n;
+        const baselineSpend =
+          meanSpend > meanCommitment ? meanSpend - meanCommitment : 0n;
 
         // No current limit means nothing to suggest a change TO — the row is
         // already being judged on its own history (see currentLimit above).
         const suggestion =
           currentLimit > 0n && months.length > 0
             ? smallestSufficientLimit({
-                neededAt,
                 heldCents: position.reserveCents,
-                meanSpendCents: meanSpend,
+                baselineSpendCents: baselineSpend,
+                commitmentsByMonth: forward,
+                // What irregular ORDINARY spending has cost before, wanted by
+                // the end of the runway.
+                historicalNeedCents: past.neededCents,
                 currentLimitCents: currentLimit,
-                horizonMonths,
               })
             : null;
 
@@ -401,7 +400,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           worst_overage_cents: fit.worstOverageCents.toString(),
           suggested_limit_cents: suggestion?.limitCents.toString() ?? null,
           suggested_delta_cents: suggestion?.deltaCents.toString() ?? null,
-          suggested_fill_months: suggestion?.fillMonths ?? null,
+          suggested_over_months: suggestion?.overMonths ?? null,
           suggested_direction: suggestion?.direction ?? null,
           overage_months: fit.overageMonths,
           months_counted: fit.monthsCounted,

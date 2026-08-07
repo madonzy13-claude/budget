@@ -479,7 +479,7 @@ describe("ReserveFitView — the limit that would fund the buffer", () => {
       withSuggestion("car", {
         suggested_limit_cents: "23000",
         suggested_delta_cents: "8000",
-        suggested_fill_months: 2,
+        suggested_over_months: 2,
         suggested_direction: "raise",
       }),
     );
@@ -492,19 +492,21 @@ describe("ReserveFitView — the limit that would fund the buffer", () => {
     expect(line!.value).toContain("2");
   });
 
-  it("says so plainly when the limit covers it straight away", () => {
+  it("names the runway it spreads the change across", () => {
+    // The point of the second cut (260807): the limit is not a lump sum by a
+    // deadline, it is a smaller change carried over as long as there is.
     renderWith(
       withSuggestion("car", {
         suggested_limit_cents: "23000",
         suggested_delta_cents: "8000",
-        suggested_fill_months: 0,
+        suggested_over_months: 12,
         suggested_direction: "raise",
       }),
     );
     const line = tooltipFor("Car").find((r) =>
       r.label.startsWith("reserveFit.suggestRaise"),
     )!;
-    expect(line.value).not.toContain("0 mo");
+    expect(line.value).toContain("12");
   });
 
   it("runs the other way for a buffer holding more than it needs", () => {
@@ -512,7 +514,7 @@ describe("ReserveFitView — the limit that would fund the buffer", () => {
       withSuggestion("sport", {
         suggested_limit_cents: "12000",
         suggested_delta_cents: "-4000",
-        suggested_fill_months: 0,
+        suggested_over_months: 0,
         suggested_direction: "lower",
       }),
     );

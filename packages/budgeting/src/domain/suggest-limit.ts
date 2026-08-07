@@ -1,119 +1,117 @@
 /**
- * suggest-limit.ts — the limit that funds a buffer month by month (260807).
+ * suggest-limit.ts — the limit that keeps a category solvent (260807, r2).
  *
  * The reserve chart's only advice was "top up X now", and for a category whose
- * mean spend already exceeds its limit that advice is wrong: the money drains
- * straight back out. The household asked for the alternative — a LIMIT. Raise it
- * and the buffer fills from the plan, no lump sum required, because the reserve
- * accrues `left = limit − spent` at every month close.
+ * spending already outruns its limit that money drains straight back out. The
+ * alternative the household asked for is a LIMIT: raise it and the buffer funds
+ * itself from the plan, because the reserve accrues `limit − spent` every month.
  *
- * WHY THIS IS A SEARCH AND NOT A FORMULA. Raising a limit does two things at
- * once: it speeds up accrual, and it SHRINKS THE TARGET, because fewer months go
- * over and the trough gets shallower. The obvious `mean + gap/N` ignores the
- * second and overshoots — on the live Clothes category it says 269 where the
- * model says 230. So the search calls the real walk at candidate limits.
+ * WHAT THE FIRST CUT GOT WRONG. It asked "what limit reaches the buffer by the
+ * next lump", and the next lump is often trivial and imminent — Travel's next
+ * charge is a 129 zł internet bill this month, behind which sit 4,500 of camping
+ * and a 15,000 trip to Japan. Treating that bill as the deadline for everything
+ * demanded a limit of 9,936, payable at once. The household's correction: spread
+ * it across the whole runway and stay solvent the WHOLE way (260807).
  *
- * ONE SEARCH, BOTH DIRECTIONS. What it looks for is the SMALLEST limit whose
- * buffer the household can actually reach inside the horizon. Above today's
- * limit that reads "raise it and you are covered by <month>"; below it reads
- * "you could lower it and free the difference"; equal means there is nothing to
- * say. Both are the same question asked once.
+ * So this is a cash-flow question, not a target-by-a-date one. Start from the
+ * reserve actually held; each month the limit leaves `limit − ordinary spend`
+ * behind and that month's known commitments come out; the balance may never go
+ * below zero. The smallest limit for which that holds at EVERY month has a
+ * closed form:
  *
- * Pure: integer cents, an injected `neededAt`, no clock and no IO.
+ *     limit = ordinary spend + max over m of ⌈(commitments through m − held) / m⌉
+ *
+ * — the tightest month wins, and it is rarely the biggest bill. Camping's 4,500
+ * with two months of runway is harder than Japan's 15,000 with twelve.
+ *
+ * ONE ANSWER, BOTH DIRECTIONS. Above today's limit it reads "raise it"; below,
+ * "you could drop it and free the difference"; equal says nothing at all.
+ *
+ * Pure: integer cents, no clock, no IO.
  */
 
 export interface LimitSuggestionInput {
-  /**
-   * What the buffer would have to be if the limit were `limitCents` — the same
-   * dual walk the chart already runs, injected so this stays pure. MUST be
-   * non-increasing in its argument (a bigger limit never needs a bigger buffer),
-   * which is what makes the search below a binary one.
-   */
-  neededAt: (limitCents: bigint) => bigint;
-  /** What the category holds today. Raising a limit does not change it. */
+  /** What the category holds today — the balance the walk starts from. */
   heldCents: bigint;
-  /** Mean monthly spend over the same history, net of excluded one-offs. */
-  meanSpendCents: bigint;
-  currentLimitCents: bigint;
   /**
-   * How long the buffer has to get there — months until the category's next
-   * known lump, because that is when the money is actually wanted. Zero means
-   * the buffer has to be sufficient outright.
+   * Ordinary monthly spending, NET of the scheduled payments charged below.
+   * Netting matters: a category's mean already contains last year's camping
+   * trip, and charging the coming one on top of it would provision twice.
    */
-  horizonMonths: number;
+  baselineSpendCents: bigint;
+  /** Known commitments per forward month; index 0 is the first month ahead. */
+  commitmentsByMonth: readonly bigint[];
+  /**
+   * The buffer history asks for, on top of the commitments, by the END of the
+   * runway — what irregular ORDINARY spending has cost before.
+   */
+  historicalNeedCents: bigint;
+  currentLimitCents: bigint;
 }
 
 export interface LimitSuggestion {
   limitCents: bigint;
   /** Signed, against today's limit: positive raises, negative frees. */
   deltaCents: bigint;
-  /** Whole months until the gap closes at the suggested limit. 0 = already. */
-  fillMonths: number;
+  /** How many months the plan spreads across. */
+  overMonths: number;
   direction: "raise" | "lower";
 }
 
 /** One whole currency unit in cents — the smallest move worth suggesting. */
 const MINOR_UNIT = 100n;
 
-/** Ceiling division for positive bigints. */
-const ceilDiv = (a: bigint, b: bigint) => (a + b - 1n) / b;
-
-/** How much the buffer grows each month at `limit` — never below zero. */
-const accrual = (limit: bigint, meanSpend: bigint) =>
-  limit > meanSpend ? limit - meanSpend : 0n;
+/** Ceiling division that behaves for negative numerators too. */
+function ceilDiv(a: bigint, b: bigint): bigint {
+  const q = a / b;
+  return a % b > 0n ? q + 1n : q;
+}
 
 export function smallestSufficientLimit(
   input: LimitSuggestionInput,
 ): LimitSuggestion | null {
-  const { neededAt, heldCents, meanSpendCents, currentLimitCents } = input;
-  const horizon = BigInt(Math.max(0, Math.trunc(input.horizonMonths)));
+  const {
+    heldCents,
+    baselineSpendCents,
+    commitmentsByMonth,
+    historicalNeedCents,
+    currentLimitCents,
+  } = input;
 
-  /** Can a buffer at `limit` be reached inside the horizon? */
-  const reachable = (limit: bigint): boolean =>
-    neededAt(limit) - heldCents <= accrual(limit, meanSpendCents) * horizon;
+  const overMonths = commitmentsByMonth.length;
+  // No runway is no plan: nothing to spread anything across, and a suggestion
+  // built on zero months would divide by it.
+  if (overMonths === 0) return null;
 
-  // Monotone: neededAt only falls as the limit rises and the accrual term only
-  // rises, so once reachable it stays reachable — which is what lets a binary
-  // search find the smallest one.
-  let hi = currentLimitCents > 0n ? currentLimitCents : 100_00n;
-  let guard = 0;
-  while (!reachable(hi)) {
-    hi *= 2n;
-    // A category can be unaffordable — the household asked to see the number
-    // anyway (260807) — but it cannot be infinite. Doubling ~60 times passes
-    // any real budget by an enormous margin; the cap only stops a broken
-    // `neededAt` from spinning here forever.
-    if (++guard > 60) return null;
+  // The tightest month, per month of runway. Everything owed by month m has to
+  // be covered by what is held plus m months of accrual, so each m sets a floor
+  // under the accrual and the largest floor wins.
+  let owed = 0n;
+  let accrualNeeded = 0n;
+  for (let i = 0; i < overMonths; i++) {
+    owed += commitmentsByMonth[i]!;
+    // History's buffer is wanted by the END of the runway, not along the way.
+    const dueByThen = i === overMonths - 1 ? owed + historicalNeedCents : owed;
+    const perMonth = ceilDiv(dueByThen - heldCents, BigInt(i + 1));
+    if (perMonth > accrualNeeded) accrualNeeded = perMonth;
   }
 
-  // The floor is the category's own mean spend. Below it the search happily
-  // proposes a limit that is arithmetically "sufficient" only because a fat
-  // buffer absorbs the overage — on the live budget it offered Subscriptions a
-  // limit of ZERO against 69/month of real spending (260807). A limit under what
-  // a category actually spends is not a plan, it is a standing overspend, and it
-  // drains the very buffer it was asked to size.
-  let lo = meanSpendCents > 0n ? meanSpendCents : 0n;
-  if (hi < lo) hi = lo;
-  while (lo < hi) {
-    const mid = (lo + hi) / 2n;
-    if (reachable(mid)) hi = mid;
-    else lo = mid + 1n;
-  }
+  // Never below what the category actually spends. A limit under ordinary
+  // spending is not a plan, it is a standing overspend, and it drains the very
+  // buffer it was asked to size.
+  const limitCents =
+    baselineSpendCents + (accrualNeeded > 0n ? accrualNeeded : 0n);
 
-  const limitCents = lo;
-  // Nothing to say unless the move is worth making. A category whose mean spend
+  // Nothing to say unless the move is worth making: a category whose spending
   // lands a few groszy from its limit produced "raise the limit to 110 zł
-  // (+0 zł/mo)" — noise dressed as advice (live budget, 260807).
-  const delta = limitCents - currentLimitCents;
-  if (delta > -MINOR_UNIT && delta < MINOR_UNIT) return null;
+  // (+0 zł/mo)" — noise dressed as advice.
+  const deltaCents = limitCents - currentLimitCents;
+  if (deltaCents > -MINOR_UNIT && deltaCents < MINOR_UNIT) return null;
 
-  const shortfall = neededAt(limitCents) - heldCents;
-  const step = accrual(limitCents, meanSpendCents);
   return {
     limitCents,
-    deltaCents: delta,
-    fillMonths:
-      shortfall <= 0n || step === 0n ? 0 : Number(ceilDiv(shortfall, step)),
-    direction: limitCents > currentLimitCents ? "raise" : "lower",
+    deltaCents,
+    overMonths,
+    direction: deltaCents > 0n ? "raise" : "lower",
   };
 }

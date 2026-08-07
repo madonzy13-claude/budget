@@ -182,13 +182,13 @@ describe("reserveFitRows — the limit that would fund the buffer", () => {
         ...base,
         suggested_limit_cents: "23000",
         suggested_delta_cents: "8000",
-        suggested_fill_months: 2,
+        suggested_over_months: 2,
         suggested_direction: "raise",
       },
     ] as never).sized;
     expect(row!.suggestedLimitCents).toBe(23000);
     expect(row!.suggestedDeltaCents).toBe(8000);
-    expect(row!.suggestedFillMonths).toBe(2);
+    expect(row!.suggestedOverMonths).toBe(2);
     expect(row!.suggestedDirection).toBe("raise");
   });
 
@@ -198,7 +198,7 @@ describe("reserveFitRows — the limit that would fund the buffer", () => {
         ...base,
         suggested_limit_cents: null,
         suggested_delta_cents: null,
-        suggested_fill_months: null,
+        suggested_over_months: null,
         suggested_direction: null,
       },
     ] as never).sized;

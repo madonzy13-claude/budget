@@ -1594,7 +1594,7 @@
           "suggestRaise": "Albo podnieś limit do",
           "suggestLower": "Można obniżyć limit do",
           "suggestPerMonth": "{amount}/mies.",
-          "suggestMonths": "{months} mies."
+          "suggestMonths": "przez {months} mies."
         },
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",
