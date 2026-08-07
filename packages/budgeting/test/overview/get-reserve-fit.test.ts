@@ -695,3 +695,100 @@ describe("getReserveFit", () => {
     expect(dto.rows[0]?.months_counted).toBe(2);
   });
 });
+
+describe("getReserveFit — the limit it judges history against", () => {
+  // A buffer is held for what comes NEXT, and what comes next is metered by the
+  // limit in force today. Judging history against the limits that have since
+  // been retired quoted a buffer for a budget nobody runs any more: Food & Home
+  // sat at 50/month all year, spent like 110, and the chart asked for 662 —
+  // against the 110 the household had already moved to, the same months ask for
+  // nothing (user, 260807).
+  const raisedToday = [
+    ...planned,
+    {
+      category_id: CAT_FOOD,
+      month: "2026-03",
+      planned_cents: 40000n,
+      needs_cents: 40000n,
+    },
+  ];
+
+  const raisedDeps = () =>
+    deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return windows;
+        },
+        async monthlyPlannedByCategory() {
+          return raisedToday;
+        },
+        async monthlySpendByCategory() {
+          return spend;
+        },
+      },
+    } as unknown as Partial<Parameters<typeof getReserveFit>[0]>);
+
+  test("walks the past at TODAY's limit, not the one each month had", async () => {
+    // Same two months (17000 then 35000). At the old 20000 they trough at
+    // −12000; at today's 40000 neither month goes over at all.
+    const food = await rowFor(CAT_FOOD, raisedDeps());
+    expect(food?.needed_cents).toBe("0");
+    expect(food?.held_cents).toBe("5000");
+    expect(food?.gap_cents).toBe("5000");
+  });
+
+  test("a raised limit unmakes the overage months it was raised past", async () => {
+    const food = await rowFor(CAT_FOOD, raisedDeps());
+    expect(food?.overage_months).toBe(0);
+    expect(food?.worst_month).toBeNull();
+    expect(food?.worst_overage_cents).toBe("0");
+  });
+
+  test("still counts the months, so thin history stays visible", async () => {
+    const food = await rowFor(CAT_FOOD, raisedDeps());
+    expect(food?.months_counted).toBe(2);
+  });
+});
+
+describe("getReserveFit — a range that ends before today", () => {
+  // A past window has no running month to read a current limit from, so the
+  // latest limit the range itself saw stands in. Still ONE limit for the whole
+  // walk: mixing a month's own retired limit with a later one is the thing this
+  // is trying to stop.
+  const climbing = [
+    {
+      category_id: CAT_FOOD,
+      month: "2026-01",
+      planned_cents: 10000n,
+      needs_cents: 10000n,
+    },
+    {
+      category_id: CAT_FOOD,
+      month: "2026-02",
+      planned_cents: 30000n,
+      needs_cents: 30000n,
+    },
+  ];
+
+  test("falls back to the last limit the range saw, for every month", async () => {
+    const d = deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return windows;
+        },
+        async monthlyPlannedByCategory() {
+          return climbing;
+        },
+        async monthlySpendByCategory() {
+          return spend;
+        },
+      },
+    } as unknown as Partial<Parameters<typeof getReserveFit>[0]>);
+    // At 30000 throughout: Jan banks 13000, Feb goes 5000 over → never troughs.
+    // Per-month (10000 then 30000) it would have troughed at 7000 in January.
+    const food = await rowFor(CAT_FOOD, d);
+    expect(food?.needed_cents).toBe("0");
+    expect(food?.overage_months).toBe(1);
+    expect(food?.worst_month).toBe("2026-02");
+  });
+});

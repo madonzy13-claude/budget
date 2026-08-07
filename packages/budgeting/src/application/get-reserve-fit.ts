@@ -207,6 +207,26 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           continue;
 
         const all = [...(monthsByCat.get(w.category_id) ?? [])];
+        // The buffer is held for what comes NEXT, so every month is judged
+        // against the limit in force TODAY — not the one it happened to have.
+        // Reading history at its own retired limits quoted a buffer for a budget
+        // nobody runs any more: a category left at 50/month all year while it
+        // actually ran at ~110 was asked to hold 662, and against the 110 the
+        // household had already moved to, the same months ask for nothing
+        // (user, 260807). Same definition of "current" as the planned chart's
+        // basis switch — the limit in the RUNNING month, not the last month of
+        // the range, so a past window still reports today's limit.
+        // A category with no current limit (archived, or never given one) keeps
+        // its own history: there is nothing current to judge it against, and
+        // treating that as a limit of zero would turn all its spend into overage.
+        const currentLimit =
+          limitByCell.get(`${w.category_id}|${nowMonth}`) ??
+          [...all]
+            .sort()
+            .map((m) => limitByCell.get(`${w.category_id}|${m}`))
+            .filter((v): v is bigint => v !== undefined)
+            .pop() ??
+          0n;
         // Half a month of spend against a whole month of limit fakes a surplus
         // that refills the walk, so the month still running is left out — unless
         // it is the only month there is, when a weak signal beats none at all
@@ -220,7 +240,8 @@ export function getReserveFit(deps: GetReserveFitDeps) {
             (spendByCell.get(key) ?? 0n) - (excludedByCell.get(key) ?? 0n);
           return {
             month,
-            limitCents: limitByCell.get(key) ?? 0n,
+            limitCents:
+              currentLimit > 0n ? currentLimit : (limitByCell.get(key) ?? 0n),
             // An excluded transaction can outrun the month's other spend only if
             // something was refunded; floor it rather than credit the walk.
             spentCents: spent > 0n ? spent : 0n,
