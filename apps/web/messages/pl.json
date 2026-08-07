@@ -1504,8 +1504,8 @@
           "differenceVsAverage": "Różnica wobec średniego limitu",
           "basisPast": "Przeszłość",
           "basisFuture": "Przyszłość",
-          "byCategoryFuture": "Odchylenie od potrzebnego limitu, wg kategorii",
-          "differenceVsFuture": "wobec potrzebnego limitu"
+          "byCategoryFuture": "O ile powinien zmienić się limit, wg kategorii",
+          "differenceVsFuture": "potrzebna zmiana"
         },
         "wealth": {
           "capitalization": "Kapitalizacja",
@@ -1592,7 +1592,7 @@
           "nothingToMove": "Już we właściwej wysokości",
           "coveredOverspend": "{amount} z tego poszło na pokrycie przekroczeń, więc rezerwie nadal brakuje.",
           "addToReserve": "Dodaj do rezerwy",
-          "orSetLimit": "Albo ustaw limit na"
+          "orSetLimit": "albo ustaw limit na"
         },
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",

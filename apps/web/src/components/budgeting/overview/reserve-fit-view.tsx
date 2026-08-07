@@ -176,7 +176,11 @@ export function ReserveFitView({
                 : [
                     {
                       label: t("reserveFit.orSetLimit"),
-                      value: `${format(limit)} (${delta < 0 ? "-" : "+"}${format(
+                      value: format(limit),
+                      // The change rides in the tooltip's second column, which
+                      // renders muted — the limit is the number to act on, the
+                      // delta is context (user, 260807).
+                      value2: `(${delta < 0 ? "-" : "+"}${format(
                         Math.abs(delta),
                       )})`,
                     },

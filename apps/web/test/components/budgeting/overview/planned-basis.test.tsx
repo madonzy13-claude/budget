@@ -67,12 +67,15 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
     <div
       data-testid="avg-chart"
       data-value-key={valueKey}
+      data-rows={data.map((d) => String(d.name)).join(",")}
       data-planned={String(data[0]?.planned)}
       data-gap={String(data[0]?.gap)}
       data-tooltip={JSON.stringify(
-        (tooltipExtra?.(data[0] ?? {}) ?? []).map((r) => r.value),
+        (data[0] ? (tooltipExtra?.(data[0]) ?? []) : []).map((r) => r.value),
       )}
-      data-tooltip-rows={JSON.stringify(tooltipExtra?.(data[0] ?? {}) ?? [])}
+      data-tooltip-rows={JSON.stringify(
+        data[0] ? (tooltipExtra?.(data[0]) ?? []) : [],
+      )}
     />
   ),
   varianceColor: () => "#fff",
@@ -121,6 +124,17 @@ const RANGE = { preset: "last3Months", from: "2025-11-01", to: "2026-01-31" };
 
 beforeEach(() => {
   dto.current = { ...base };
+  // The reserve chart's answer is per-test; leaking one test's empty rows into
+  // the next filtered every category out of the Future view.
+  fitDto.current = {
+    rows: [
+      {
+        category_id: "c1",
+        suggested_limit_cents: "120000",
+        suggested_delta_cents: "40000",
+      },
+    ],
+  };
 });
 
 const chart = () => screen.getByTestId("avg-chart");
@@ -139,35 +153,59 @@ describe("How far off plan — which limit it measures against", () => {
     expect(chart().getAttribute("data-gap")).toBe("10000");
   });
 
-  it("measures against the FUTURE limit the reserve chart works out", async () => {
-    // The whole point of the second reading (user, 260807): not the limit set
-    // today, but the one this category will need once its reserve, its history
-    // and its scheduled payments are all counted.
+  it("draws the CHANGE each limit needs, not spending against it", async () => {
+    // Measuring spending against the suggested limit cancelled itself out: the
+    // limit is built FROM that same mean spend, so the bar reduced to an
+    // arithmetic residue and nine categories in ten drew exactly zero (audit,
+    // 260807). The change is the thing the household actually makes.
     fitDto.current = {
-      rows: [{ category_id: "c1", suggested_limit_cents: "120000" }],
+      rows: [
+        {
+          category_id: "c1",
+          suggested_limit_cents: "120000",
+          suggested_delta_cents: "40000",
+        },
+      ],
     };
     const user = userEvent.setup();
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
     await user.click(
       screen.getByRole("button", { name: "planned.basisFuture" }),
     );
-    // 600 spent against the 1,200 it will need → 600 under.
-    expect(chart().getAttribute("data-planned")).toBe("120000");
-    expect(chart().getAttribute("data-gap")).toBe("-60000");
+    // Today 800, needed 1,200 → raise it by 400.
+    expect(chart().getAttribute("data-gap")).toBe("40000");
   });
 
-  it("falls back to today's limit when the reserve chart suggests no change", async () => {
-    // A null suggestion means today's limit already IS the one to run — so the
-    // future reading is that limit, not an empty bar.
+  it("draws nothing to change when the reserve chart suggests nothing", async () => {
     fitDto.current = {
-      rows: [{ category_id: "c1", suggested_limit_cents: null }],
+      rows: [
+        {
+          category_id: "c1",
+          suggested_limit_cents: null,
+          suggested_delta_cents: null,
+        },
+      ],
     };
     const user = userEvent.setup();
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
     await user.click(
       screen.getByRole("button", { name: "planned.basisFuture" }),
     );
-    expect(chart().getAttribute("data-planned")).toBe("80000");
+    expect(chart().getAttribute("data-gap")).toBe("0");
+  });
+
+  it("leaves out a category the reserve engine never examined", async () => {
+    // Reserve-EXCLUDED categories have no fit row at all. Drawing them at zero
+    // reads as "this limit is right" for a category nothing was worked out for;
+    // before this they silently fell back to a different formula entirely and
+    // produced the only large bars on the chart (audit, 260807).
+    fitDto.current = { rows: [] };
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    expect(chart().getAttribute("data-rows")).toBe("");
   });
 
   // "What will I need" has an answer whether or not a limit ever moved, so the

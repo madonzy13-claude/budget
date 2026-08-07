@@ -944,3 +944,47 @@ describe("getReserveFit — the limit that would fund the buffer", () => {
     ).toBeGreaterThan(BigInt(plain!.suggested_limit_cents!));
   });
 });
+
+describe("getReserveFit — never advise off a half-finished month", () => {
+  // The default Overview range is THIS MONTH, and with no closed month the walk
+  // falls back to the running one: a weak signal beats none for SIZING. For a
+  // SUGGESTION it is not weak, it is wrong — on the 7th a 3,000/month category
+  // reads as spending 700, and the advice becomes "cut the limit to 700 and
+  // free 2,300", every month, on the screen people open first (audit, 260807).
+  const runningMonthOnly = () =>
+    deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return windows;
+        },
+        async monthlyPlannedByCategory() {
+          return [
+            {
+              category_id: CAT_FOOD,
+              month: "2026-03",
+              planned_cents: 300000n,
+              needs_cents: 300000n,
+            },
+          ];
+        },
+        async monthlySpendByCategory() {
+          // Seven days in: a fraction of what the month will really cost.
+          return [
+            { category_id: CAT_FOOD, month: "2026-03", spent_cents: 70000n },
+          ];
+        },
+      },
+    } as unknown as Partial<Parameters<typeof getReserveFit>[0]>);
+
+  test("offers no limit suggestion when every month is still running", async () => {
+    const food = await rowFor(CAT_FOOD, runningMonthOnly());
+    expect(food?.suggested_limit_cents).toBeNull();
+    expect(food?.suggested_direction).toBeNull();
+  });
+
+  test("still sizes the reserve from it — that part was only ever a weak signal", async () => {
+    const food = await rowFor(CAT_FOOD, runningMonthOnly());
+    expect(food).toBeDefined();
+    expect(food?.months_counted).toBe(1);
+  });
+});

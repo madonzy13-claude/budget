@@ -297,12 +297,16 @@ export function PlannedSection({
     enabled: warm,
   });
   const saveExclusions = useSaveReserveFitExclusions(budgetId);
-  /** categoryId → the limit the reserve chart says it will need. */
-  const suggestedLimits = new Map<string, number>(
-    (fit.data?.rows ?? []).flatMap((r) =>
-      r.suggested_limit_cents == null
-        ? []
-        : [[r.category_id, Number(r.suggested_limit_cents)] as const],
+  /** categoryId → how much its limit should CHANGE, per the reserve chart.
+   *  Absent when the engine never examined the category (reserve-excluded);
+   *  0 when it examined it and found nothing to change. */
+  const limitChanges = new Map<string, number>(
+    (fit.data?.rows ?? []).map(
+      (r) =>
+        [r.category_id, Number(r.suggested_delta_cents ?? 0)] as [
+          string,
+          number,
+        ],
     ),
   );
   const oneOffCandidates: OneOffCandidate[] = (fit.data?.rows ?? []).flatMap(
@@ -688,21 +692,29 @@ export function PlannedSection({
                       // Whichever baseline is being read is the one the bar and
                       // its colour come from; the other rides along in the
                       // tooltip so the comparison is visible either way.
-                      // The FUTURE limit is the one the reserve chart suggests
-                      // for this category; a null suggestion means today's limit
-                      // already IS that limit, so it stands in.
-                      const suggested = suggestedLimits.get(c.category_id);
-                      const planned =
-                        basis === "future" ? (suggested ?? current) : avg;
+                      // FUTURE draws the CHANGE the limit needs, not spending
+                      // measured against it. Measuring spending against the
+                      // suggested limit cancels itself out — the limit is built
+                      // FROM that same mean spend, so the bar reduced to an
+                      // arithmetic residue and most categories drew exactly zero
+                      // (audit, 260807). The change is what the household acts
+                      // on, and it is the same number the reserve tooltip shows.
+                      const change = limitChanges.get(c.category_id);
+                      const planned = basis === "future" ? current : avg;
+                      const gap =
+                        basis === "future" ? (change ?? 0) : real - planned;
+                      // Colour follows the bar: as a share of today's limit for
+                      // the change, and of the baseline for the past reading.
+                      const pctBase = basis === "future" ? current : planned;
                       const pct =
-                        planned > 0
-                          ? ((real - planned) / planned) * 100
-                          : real > 0
+                        pctBase > 0
+                          ? (gap / pctBase) * 100
+                          : gap > 0
                             ? 100
                             : 0;
-                      const gap = real - planned;
                       return {
                         name: c.name,
+                        categoryId: c.category_id,
                         real,
                         planned,
                         avg,
@@ -722,6 +734,12 @@ export function PlannedSection({
                     })
                     // Ordered the way the chart is being READ (260804) — always
                     // money now that the percent axis has gone.
+                    // A category the reserve engine never examined has no
+                    // change to show; drawing it at zero would read as "this
+                    // limit is right" for one nothing was worked out for.
+                    .filter(
+                      (c) => basis !== "future" || limitChanges.has(c.categoryId),
+                    )
                     .sort((a, b) => b.gap - a.gap)}
                   categoryKey="name"
                   valueKey="gap"

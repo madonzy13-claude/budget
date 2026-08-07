@@ -1504,8 +1504,8 @@
           "differenceVsAverage": "Різниця відносно середнього ліміту",
           "basisPast": "Минуле",
           "basisFuture": "Майбутнє",
-          "byCategoryFuture": "Відхилення від потрібного ліміту, за категоріями",
-          "differenceVsFuture": "щодо потрібного ліміту"
+          "byCategoryFuture": "Наскільки має змінитися ліміт, за категоріями",
+          "differenceVsFuture": "потрібна зміна"
         },
         "wealth": {
           "capitalization": "Капіталізація",
@@ -1592,7 +1592,7 @@
           "nothingToMove": "Уже потрібного розміру",
           "coveredOverspend": "{amount} з цього пішло на покриття перевитрат, тож резерву досі бракує.",
           "addToReserve": "Додати в резерв",
-          "orSetLimit": "Або встановіть ліміт"
+          "orSetLimit": "або встановіть ліміт"
         },
         "needsCompletedMonth": {
           "title": "Ще немає що оцінювати",

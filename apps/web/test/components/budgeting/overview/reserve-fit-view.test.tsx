@@ -488,15 +488,16 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     expect(labels).toContain("reserveFit.orSetLimit");
   });
 
-  it("reads the limit as an amount and its change, nothing else", () => {
+  it("reads the limit as an amount, with its change in a quieter column", () => {
     // "2,307 zl · (926 zl/mo) · over 12 mo" was three facts in one line and ran
-    // off the side of the phone. The runway is gone and the change is a plain
-    // parenthetical (user, 260807).
+    // off the side of the phone. The runway is gone; the change rides in the
+    // second column, which the tooltip renders muted (user, 260807).
     renderWith(raised());
     const line = tooltipFor("Car").find(
       (r) => r.label === "reserveFit.orSetLimit",
-    )!;
-    expect(line.value).toBe("2307 zl (+37 zl)");
+    )! as { value: string; value2?: string };
+    expect(line.value).toBe("2307 zl");
+    expect(line.value2).toBe("(+37 zl)");
   });
 
   it("never mentions the runway", () => {
@@ -518,8 +519,9 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     );
     const line = tooltipFor("Car").find(
       (r) => r.label === "reserveFit.orSetLimit",
-    )!;
-    expect(line.value).toBe("2307 zl (-926 zl)");
+    )! as { value: string; value2?: string };
+    expect(line.value).toBe("2307 zl");
+    expect(line.value2).toBe("(-926 zl)");
   });
 
   it("calls it a trim when the buffer is holding too much", () => {

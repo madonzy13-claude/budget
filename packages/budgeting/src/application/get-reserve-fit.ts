@@ -367,8 +367,18 @@ export function getReserveFit(deps: GetReserveFitDeps) {
 
         // No current limit means nothing to suggest a change TO — the row is
         // already being judged on its own history (see currentLimit above).
+        //
+        // And never off a HALF-FINISHED month. When the range is the running
+        // month alone (the default view is "this month"), the walk falls back to
+        // it rather than to nothing — a weak signal beats none for SIZING. But
+        // a baseline taken from a part-month is not weak, it is wrong: on the
+        // 7th it reads a 3,000/month category as spending 700, and the advice
+        // becomes "cut this limit to 700 and free 2,300", every month, on the
+        // default screen. The trough walk keeps its fallback; the suggestion
+        // does not get one.
+        const hasClosedMonth = all.some((m) => m !== nowMonth);
         const suggestion =
-          currentLimit > 0n && months.length > 0
+          currentLimit > 0n && months.length > 0 && hasClosedMonth
             ? smallestSufficientLimit({
                 heldCents: position.reserveCents,
                 baselineSpendCents: baselineSpend,
