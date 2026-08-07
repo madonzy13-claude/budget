@@ -1504,7 +1504,8 @@
           "basisPast": "Przeszłość",
           "basisFuture": "Przyszłość",
           "byCategoryFuture": "O ile powinien zmienić się limit, wg kategorii",
-          "expectedSpend": "Oczekiwane wydatki"
+          "expectedSpend": "Oczekiwane wydatki",
+          "futureLimit": "Potrzebny limit"
         },
         "wealth": {
           "capitalization": "Kapitalizacja",

@@ -321,7 +321,10 @@ describe("How far off plan — each basis shows only its own baseline", () => {
     expect(rows().at(-1)!.label).toBe("planned.difference");
   });
 
-  it("FUTURE drops the average limit — it is not the baseline any more", async () => {
+  it("FUTURE drops the average limit but keeps the limits that matter", async () => {
+    // The average is history; the future reading is about today's limit and the
+    // one it should become. Dropping every limit left the reader with a change
+    // and nothing to relate it to (user, 260807).
     const user = userEvent.setup();
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
     await user.click(
@@ -329,6 +332,47 @@ describe("How far off plan — each basis shows only its own baseline", () => {
     );
     const labels = rows().map((r) => r.label);
     expect(labels).not.toContain("planned.avgLimit");
+    expect(labels).toContain("planned.currentLimit");
+    expect(labels).toContain("planned.futureLimit");
+  });
+
+  it("FUTURE shows the limits themselves, today's and the one to move to", async () => {
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    const r = rows();
+    expect(r.find((x) => x.label === "planned.currentLimit")!.value).toContain(
+      "800",
+    );
+    // Formatted, so the separator is part of it.
+    expect(r.find((x) => x.label === "planned.futureLimit")!.value).toContain(
+      "1,200",
+    );
+  });
+
+  it("FUTURE carries no range total — none of these accumulated", async () => {
+    // A limit and an expected monthly spend are RATES. The total column belongs
+    // to the past reading, where the money actually piled up (user, 260807).
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    for (const r of rows()) expect(r.value2).toBeUndefined();
+  });
+
+  it("FUTURE's difference is the same number the bar draws", async () => {
+    // The bar is the limit CHANGE; the tooltip was still computing spend minus
+    // limit, so the two disagreed on the same row.
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    expect(chart().getAttribute("data-gap")).toBe("40000");
+    expect(rows().at(-1)!.value).toContain("400");
   });
 
   it("FUTURE calls the spending what it is — what you are expected to spend", async () => {

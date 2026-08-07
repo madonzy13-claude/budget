@@ -715,6 +715,10 @@ export function PlannedSection({
                       return {
                         name: c.name,
                         categoryId: c.category_id,
+                        // The limit this category should move TO — today's plus
+                        // the change. Named so the future tooltip can show what
+                        // the bar is asking for, not just how far it is.
+                        futureLimit: current + (change ?? 0),
                         real,
                         planned,
                         avg,
@@ -763,7 +767,19 @@ export function PlannedSection({
                   // percent with sub-unit gaps zeroed — see the map above.
                   colorKey="colorPct"
                   tooltipExtra={(row) => {
-                    const diff = Number(row.real) - Number(row.planned);
+                    // The difference IS the bar. In the future reading the bar
+                    // is the limit change, and the tooltip was still computing
+                    // spend minus limit — two numbers for one row (user,
+                    // 260807).
+                    const diff =
+                      basis === "future"
+                        ? Number(row.gap)
+                        : Number(row.real) - Number(row.planned);
+                    // A limit and an expected monthly spend are RATES: the
+                    // total column belongs to the past reading, where the money
+                    // actually accumulated.
+                    const total = (v: string) =>
+                      basis === "future" ? undefined : v;
                     const pct = Number(row.pct);
                     const sign = diff > 0 ? "+" : diff < 0 ? "−" : "";
                     const pctSign = pct > 0 ? "+" : pct < 0 ? "−" : "";
@@ -777,7 +793,7 @@ export function PlannedSection({
                         // figure, and naming it after the arithmetic said less
                         // (user, 260806).
                         value: t("planned.monthColumn"),
-                        value2: t("planned.totalColumn"),
+                        value2: total(t("planned.totalColumn")),
                         head: true,
                       },
                       // ONLY the baseline this reading is measured against
@@ -787,7 +803,20 @@ export function PlannedSection({
                       // figure nobody reads. The total column belongs to the
                       // average, which is the one that actually accumulated.
                       ...(basis === "future"
-                        ? []
+                        ? // The average is history. What the future reading is
+                          // about is today's limit and the one it should
+                          // become — dropping every limit left a change with
+                          // nothing to relate it to (user, 260807).
+                          [
+                            {
+                              label: t("planned.currentLimit"),
+                              value: fmtTooltip(Number(row.current)),
+                            },
+                            {
+                              label: t("planned.futureLimit"),
+                              value: fmtTooltip(Number(row.futureLimit)),
+                            },
+                          ]
                         : [
                             {
                               label: t("planned.avgLimit"),
@@ -805,7 +834,7 @@ export function PlannedSection({
                             : "planned.spent",
                         ),
                         value: fmtTooltip(Number(row.real)),
-                        value2: fmtTooltip(Number(row.realTotal)),
+                        value2: total(fmtTooltip(Number(row.realTotal))),
                       },
                       {
                         // One baseline is listed above, so naming it again here
