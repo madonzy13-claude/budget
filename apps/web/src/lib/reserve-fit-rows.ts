@@ -31,6 +31,8 @@ export interface SizedReserveRow {
    *  and what it costs or frees each month. null = nothing worth saying. */
   suggestedLimitCents: number | null;
   suggestedDeltaCents: number | null;
+  /** What it would need at that limit; null when there is no suggestion. */
+  suggestedNeededCents: number | null;
   suggestedOverMonths: number | null;
   suggestedDirection: "raise" | "lower" | null;
   candidates: ReserveFitRow["large_transactions"];
@@ -75,6 +77,10 @@ function toSized(r: ReserveFitRow): SizedReserveRow {
       r.suggested_limit_cents == null ? null : Number(r.suggested_limit_cents),
     suggestedDeltaCents:
       r.suggested_delta_cents == null ? null : Number(r.suggested_delta_cents),
+    suggestedNeededCents:
+      r.suggested_needed_cents == null
+        ? null
+        : Number(r.suggested_needed_cents),
     suggestedOverMonths: r.suggested_over_months ?? null,
     suggestedDirection: r.suggested_direction ?? null,
     // A payload cached before the list existed replays without the field.

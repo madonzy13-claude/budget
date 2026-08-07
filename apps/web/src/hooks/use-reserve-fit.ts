@@ -43,6 +43,10 @@ export interface ReserveFitRow {
    *  and what moving to it costs or frees each month (260807). null = today's
    *  limit already is that limit. */
   suggested_limit_cents?: string | null;
+  /** What the reserve would need AT the suggested limit — higher than
+   *  `needed_cents` when the limit comes down, because a lower limit accrues
+   *  less. The pair is what makes "lower it AND withdraw" safe (260807). */
+  suggested_needed_cents?: string | null;
   suggested_delta_cents?: string | null;
   suggested_over_months?: number | null;
   suggested_direction?: "raise" | "lower" | null;

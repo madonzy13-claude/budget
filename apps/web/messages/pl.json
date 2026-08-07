@@ -1593,7 +1593,9 @@
           "addToReserve": "Dodaj do rezerwy",
           "orSetLimit": "albo ustaw limit na",
           "withdraw": "Wypłać z rezerwy",
-          "balanced": "Dobrze wyważone"
+          "balanced": "Dobrze wyważone",
+          "setLimitTo": "Ustaw limit na",
+          "andWithdraw": "i wypłać"
         },
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",

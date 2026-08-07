@@ -1593,7 +1593,9 @@
           "addToReserve": "Додати в резерв",
           "orSetLimit": "або встановіть ліміт",
           "withdraw": "Зняти з резерву",
-          "balanced": "Добре збалансовано"
+          "balanced": "Добре збалансовано",
+          "setLimitTo": "Встановіть ліміт",
+          "andWithdraw": "і зніміть"
         },
         "needsCompletedMonth": {
           "title": "Ще немає що оцінювати",

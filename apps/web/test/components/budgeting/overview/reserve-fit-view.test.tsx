@@ -524,6 +524,49 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     expect(line.value2).toBe("(-926 zl)");
   });
 
+  it("gives a surplus row ONE recommendation: lower the limit AND withdraw", () => {
+    // The two interact. Lowering the limit stops the reserve topping itself up,
+    // so what it needs rises — withdrawing the full surplus as well leaves the
+    // household short. One safe end-state instead of two options that cannot
+    // both be taken (user, 260807).
+    renderWith(
+      withSuggestion("sport", {
+        held_cents: "428300",
+        needed_cents: "89400",
+        gap_cents: "338900",
+        suggested_limit_cents: "193400",
+        suggested_delta_cents: "-1600",
+        suggested_needed_cents: "109100",
+        suggested_direction: "lower",
+      }),
+    );
+    const rows = tooltipFor("Sport");
+    const limit = rows.find((r) => r.label === "reserveFit.setLimitTo")!;
+    expect(limit.value).toBe("1934 zl");
+    const out = rows.find((r) => r.label === "reserveFit.andWithdraw")!;
+    // 4,283 − 1,091 at the lower limit, NOT the 3,389 today's limit allows.
+    expect(out.value).toBe("3192 zl");
+    expect(rows.some((r) => r.label === "reserveFit.withdraw")).toBe(false);
+  });
+
+  it("falls back to a plain withdrawal when no limit change is on offer", () => {
+    renderWith(
+      withSuggestion("sport", {
+        held_cents: "150000",
+        needed_cents: "50000",
+        gap_cents: "100000",
+        suggested_limit_cents: null,
+        suggested_delta_cents: null,
+        suggested_needed_cents: null,
+        suggested_direction: null,
+      }),
+    );
+    const row = tooltipFor("Sport").find(
+      (r) => r.label === "reserveFit.withdraw",
+    )!;
+    expect(row.value).toBe("1000 zl");
+  });
+
   it("says WITHDRAW for any reserve above what it needs", () => {
     // "Ahead of schedule" and "spare" were two names for money the household
     // can take out either way; the difference was about how much could go wrong
@@ -569,23 +612,6 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     const labels = tooltipFor("Sport").map((r) => r.label);
     expect(labels).toContain("reserveFit.balanced");
     expect(labels).not.toContain("reserveFit.withdraw");
-  });
-
-  it("offers the limit as the alternative to a withdrawal too", () => {
-    // Both actions get the same second route: move the money, or move the
-    // limit (user, 260807).
-    renderWith(
-      withSuggestion("sport", {
-        suggested_limit_cents: "12000",
-        suggested_delta_cents: "-4000",
-        suggested_over_months: 12,
-        suggested_direction: "lower",
-      }),
-    );
-    const labels = tooltipFor("Sport").map((r) => r.label);
-    expect(labels).toContain("reserveFit.withdraw");
-    expect(labels).toContain("reserveFit.orSetLimit");
-    expect(labels).not.toContain("reserveFit.addToReserve");
   });
 
   it("stays quiet about the limit when today's is already right", () => {

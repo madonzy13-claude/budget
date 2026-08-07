@@ -121,6 +121,10 @@ export interface ReserveFitRowDTO {
    *  and what moving to it costs or frees each month. null = today's limit
    *  already is that limit, so there is nothing to say (260807). */
   suggested_limit_cents: string | null;
+  /** What this reserve would need at that limit — always at least
+   *  `needed_cents` when the limit comes down, because a lower limit accrues
+   *  less. The pair is what makes "lower it AND withdraw" safe. */
+  suggested_needed_cents: string | null;
   suggested_delta_cents: string | null;
   suggested_over_months: number | null;
   suggested_direction: "raise" | "lower" | null;
@@ -424,6 +428,20 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           worst_month: past.worstMonth,
           worst_overage_cents: past.worstOverageCents.toString(),
           suggested_limit_cents: suggestion?.limitCents.toString() ?? null,
+          // What the reserve would need AT that limit. Lowering a limit stops
+          // the reserve topping itself up, so the requirement RISES — reporting
+          // only the figure at today's limit invited the household to withdraw
+          // the surplus AND lower the limit, which leaves them short (user,
+          // 260807).
+          suggested_needed_cents:
+            suggestion == null
+              ? null
+              : reserveNeededToday({
+                  baselineSpendCents: baselineSpend,
+                  commitmentsByMonth: forward,
+                  historicalNeedCents: past.neededCents,
+                  limitCents: suggestion.limitCents,
+                }).toString(),
           suggested_delta_cents: suggestion?.deltaCents.toString() ?? null,
           suggested_over_months: suggestion?.overMonths ?? null,
           suggested_direction: suggestion?.direction ?? null,

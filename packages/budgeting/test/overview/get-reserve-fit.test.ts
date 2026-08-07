@@ -1032,3 +1032,85 @@ describe("getReserveFit — never advise off a half-finished month", () => {
     expect(food?.months_counted).toBe(1);
   });
 });
+
+describe("getReserveFit — what a surplus row would need at the suggested limit", () => {
+  // Lowering a limit stops the reserve topping itself up, so what it NEEDS
+  // rises. Food & Home: 4,283 held, 894 needed at today's 1,950 — but at the
+  // suggested 1,934 it needs 1,091, so the money that can actually come out is
+  // 3,192, not 3,389. Reporting only the figure at today's limit invited the
+  // household to do both and end up short (user, 260807).
+  test("reports the requirement at the suggested limit, not only at today's", async () => {
+    const food = await rowFor(CAT_FOOD);
+    if (food?.suggested_limit_cents == null) return; // covered elsewhere
+    expect(food.suggested_needed_cents).not.toBeNull();
+  });
+
+  test("that requirement is never below the one at today's limit when the limit drops", async () => {
+    // A lower limit accrues less, so it can only ever need MORE.
+    const d = deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return windows;
+        },
+        async monthlyPlannedByCategory() {
+          return planned;
+        },
+        async monthlySpendByCategory() {
+          return [
+            { category_id: CAT_FOOD, month: "2026-01", spent_cents: 5000n },
+            { category_id: CAT_FOOD, month: "2026-02", spent_cents: 5000n },
+          ];
+        },
+      },
+      reservePositions: async () =>
+        ok({
+          positions: new Map([...position(CAT_FOOD, 900000n)]),
+          openMonth: "2026-03",
+          internalCents: 0n,
+          userDefinedCents: 0n,
+          surplusCents: 0n,
+          direction: "NONE" as const,
+        }) as unknown as Result<never, Error>,
+    } as unknown as Partial<Parameters<typeof getReserveFit>[0]>);
+    const food = await rowFor(CAT_FOOD, d);
+    expect(food?.suggested_direction).toBe("lower");
+    expect(Number(food!.suggested_needed_cents)).toBeGreaterThanOrEqual(
+      Number(food!.needed_cents),
+    );
+  });
+
+  test("and what could come out at that limit is never more than at today's", async () => {
+    // The whole point: the combined move frees LESS than the withdrawal alone,
+    // and it is the one that stays safe.
+    const d = deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return windows;
+        },
+        async monthlyPlannedByCategory() {
+          return planned;
+        },
+        async monthlySpendByCategory() {
+          return [
+            { category_id: CAT_FOOD, month: "2026-01", spent_cents: 5000n },
+            { category_id: CAT_FOOD, month: "2026-02", spent_cents: 5000n },
+          ];
+        },
+      },
+      reservePositions: async () =>
+        ok({
+          positions: new Map([...position(CAT_FOOD, 900000n)]),
+          openMonth: "2026-03",
+          internalCents: 0n,
+          userDefinedCents: 0n,
+          surplusCents: 0n,
+          direction: "NONE" as const,
+        }) as unknown as Result<never, Error>,
+    } as unknown as Partial<Parameters<typeof getReserveFit>[0]>);
+    const food = await rowFor(CAT_FOOD, d);
+    const held = Number(food!.held_cents);
+    expect(held - Number(food!.suggested_needed_cents)).toBeLessThanOrEqual(
+      held - Number(food!.needed_cents),
+    );
+  });
+});

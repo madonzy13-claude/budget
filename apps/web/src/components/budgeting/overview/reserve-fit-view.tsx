@@ -148,6 +148,7 @@ export function ReserveFitView({
             // bar itself is still drawn from pct/gapCents alone.
             suggestedLimitCents: r.suggestedLimitCents,
             suggestedDeltaCents: r.suggestedDeltaCents,
+            suggestedNeededCents: r.suggestedNeededCents,
             suggestedOverMonths: r.suggestedOverMonths,
             suggestedDirection: r.suggestedDirection,
           }))}
@@ -168,27 +169,47 @@ export function ReserveFitView({
           colorKey="pct"
           tooltipExtra={(row) => {
             const gap = Number(row.gapCents);
-            // Two routes out of a short reserve, said plainly (user, 260807):
-            // put the money in now, or run a limit that gets there by itself.
-            // The runway used to ride along here too — three facts in one line,
-            // which ran off the side of a phone.
+            // A SHORT row has two genuine alternatives: put the money in, or
+            // raise the limit so it fills itself. A SURPLUS row does not — the
+            // two interact, because lowering a limit stops the reserve topping
+            // itself up and so RAISES what it needs. Taking the full surplus out
+            // AND lowering the limit leaves the household short, so a surplus
+            // row gets ONE safe end-state instead (user, 260807).
             const limit = row.suggestedLimitCents as number | null;
             const delta = row.suggestedDeltaCents as number | null;
+            const neededThere = row.suggestedNeededCents as number | null;
+            const held = Number(row.heldCents);
+            const combined =
+              gap > 0 && limit != null && delta != null && neededThere != null;
             const suggestion =
               limit == null || delta == null
                 ? []
-                : [
-                    {
-                      label: t("reserveFit.orSetLimit"),
-                      value: format(limit),
-                      // The change rides in the tooltip's second column, which
-                      // renders muted — the limit is the number to act on, the
-                      // delta is context (user, 260807).
-                      value2: `(${delta < 0 ? "-" : "+"}${format(
-                        Math.abs(delta),
-                      )})`,
-                    },
-                  ];
+                : combined
+                  ? [
+                      {
+                        label: t("reserveFit.setLimitTo"),
+                        value: format(limit),
+                        value2: `(${delta < 0 ? "-" : "+"}${format(
+                          Math.abs(delta),
+                        )})`,
+                        section: true,
+                      },
+                      {
+                        label: t("reserveFit.andWithdraw"),
+                        // What can come out AT that limit — less than today's
+                        // limit allows, and the amount that stays safe.
+                        value: format(Math.max(0, held - neededThere)),
+                      },
+                    ]
+                  : [
+                      {
+                        label: t("reserveFit.orSetLimit"),
+                        value: format(limit),
+                        value2: `(${delta < 0 ? "-" : "+"}${format(
+                          Math.abs(delta),
+                        )})`,
+                      },
+                    ];
             return [
               {
                 label: t("reserveFit.held"),
@@ -218,11 +239,16 @@ export function ReserveFitView({
                       value: format(-gap),
                       section: true,
                     }
-                  : {
-                      label: t("reserveFit.withdraw"),
-                      value: format(gap),
-                      section: true,
-                    },
+                  : combined
+                    ? // The recommendation below says what to withdraw, at the
+                      // limit it recommends; repeating today's figure here would
+                      // put two different withdrawals in one box.
+                      { label: "", value: "", head: true }
+                    : {
+                        label: t("reserveFit.withdraw"),
+                        value: format(gap),
+                        section: true,
+                      },
               ...suggestion,
             ];
           }}
