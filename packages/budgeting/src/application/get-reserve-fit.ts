@@ -63,8 +63,11 @@ export interface GetReserveFitDeps {
     {
       category_id: string | null;
       amount_cents: bigint;
-      cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+      cadence: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
       yearly_month: number | null;
+      /** ONCE has no rhythm to derive a month from — its date is the month it
+       *  lands in, so the forward walk needs it to reserve for it at all. */
+      next_due_date?: string | null;
       /** The rule's own note, and the category it points at. Both optional:
        *  a rule with NO category has no category name, which is exactly the
        *  case `unassigned_scheduled` reports. The repo has always selected

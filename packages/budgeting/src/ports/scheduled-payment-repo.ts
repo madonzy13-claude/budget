@@ -17,7 +17,7 @@ export interface ScheduledPaymentEdits {
   // Cadence fields — editing the "day" (cadenceAnchor) and the other
   // cadence discriminators must persist AND recompute next_due_date so the
   // rule fires on the new schedule. Mirror the insert path above.
-  cadence?: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  cadence?: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   cadenceAnchor?: number | null;
   weeklyDow?: number | null;
   yearlyMonth?: number | null;
@@ -31,7 +31,7 @@ export interface ScheduledPaymentRow {
   categoryId: string | null;
   amount: string;
   currency: string;
-  cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  cadence: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   cadenceAnchor: number | null;
   weeklyDow: number | null;
   yearlyMonth: number | null;
@@ -50,7 +50,7 @@ export interface ScheduledPaymentRepo {
     categoryId: string | null;
     amount: string;
     currency: string;
-    cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+    cadence: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
     cadenceAnchor: number | null;
     weeklyDow: number | null;
     yearlyMonth: number | null;

@@ -1218,7 +1218,9 @@
         "noteLabel": "Notatka (opcjonalnie)",
         "applyToFutureLabel": "Zastosuj również do przyszłych wystąpień",
         "applyToFutureHelp": "Edytuje nadchodzące oczekujące szkice, aby odzwierciedlały nową kwotę/kategorię. Potwierdzone w przeszłości transakcje nigdy nie są zmieniane.",
-        "categoryPlaceholder": "Wybierz kategorię…"
+        "categoryPlaceholder": "Wybierz kategorię…",
+        "once": "Jednorazowo",
+        "dateLabel": "Data"
       },
       "list": {
         "title": "Zaplanowane płatności",
@@ -1230,7 +1232,8 @@
         "daily": "Codziennie",
         "nextDueLabel": "Następnie: {date}",
         "editButton": "Edytuj",
-        "archiveButton": "Archiwizuj"
+        "archiveButton": "Archiwizuj",
+        "once": "Jednorazowo"
       },
       "drafts": {
         "inboxTitle": "Oczekujące płatności",

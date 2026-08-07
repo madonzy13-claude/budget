@@ -54,7 +54,9 @@ export const scheduledPayments = budgeting.table(
   (t) => [
     check(
       "scheduled_payments_cadence_chk",
-      sql`${t.cadence} IN ('DAILY','WEEKLY','MONTHLY','YEARLY')`,
+      // ONCE (mig 0078) is a payment that happens on one date and never again —
+      // the three checks below already tolerate its NULL anchor/weekday/month.
+      sql`${t.cadence} IN ('ONCE','DAILY','WEEKLY','MONTHLY','YEARLY')`,
     ),
     check(
       "scheduled_payments_weekly_dow_chk",

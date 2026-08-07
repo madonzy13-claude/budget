@@ -25,7 +25,12 @@ import {
   WEEKS_PER_MONTH,
 } from "../application/scheduled-monthly-normalize";
 
-export type ProjectableCadence = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+export type ProjectableCadence =
+  | "ONCE"
+  | "DAILY"
+  | "WEEKLY"
+  | "MONTHLY"
+  | "YEARLY";
 
 export interface ProjectableRule {
   category_id: string | null;
@@ -33,6 +38,9 @@ export interface ProjectableRule {
   cadence: ProjectableCadence;
   /** 1=Jan … 12=Dec. Required for YEARLY; anything else is not projectable. */
   yearly_month: number | null;
+  /** ISO date. Required for ONCE — a one-time payment IS its date, and there is
+   *  no pattern to derive one from. Ignored for every other cadence. */
+  next_due_date?: string | null;
 }
 
 /** 'YYYY-MM' + n months. */
@@ -86,6 +94,17 @@ export function projectScheduledPayments(
     if (!rule.category_id) continue;
     const amount = rule.amount_cents;
     if (amount <= 0n) continue;
+
+    // A one-time payment is rare AND known — the same shape as a yearly
+    // renewal, which is why it goes on TOP: November still has its ordinary
+    // groceries underneath the sofa it is buying.
+    if (rule.cadence === "ONCE") {
+      const month = rule.next_due_date?.slice(0, 7);
+      // No date, nothing to place: better absent than guessed into a month.
+      if (!month) continue;
+      if (window.includes(month)) add(rule.category_id, month, amount, "onTop");
+      continue;
+    }
 
     if (rule.cadence === "YEARLY") {
       // Without a named month there is nothing to place it in, and guessing

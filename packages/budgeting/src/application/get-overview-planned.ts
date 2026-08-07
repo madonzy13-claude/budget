@@ -62,6 +62,8 @@ export interface ActiveScheduledPayment {
   currency: string;
   cadence: Cadence;
   yearly_month: number | null;
+  /** ISO date of the next (for ONCE, the only) occurrence. */
+  next_due_date?: string | null;
 }
 
 export interface OverviewPlannedRepo {

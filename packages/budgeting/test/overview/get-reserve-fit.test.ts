@@ -792,3 +792,35 @@ describe("getReserveFit — a range that ends before today", () => {
     expect(food?.worst_month).toBe("2026-02");
   });
 });
+
+describe("getReserveFit — a one-time payment ahead", () => {
+  // The household's own words (260807): one-time payments must be included in
+  // the reserve sizing. A sofa bought in three months is the same problem a
+  // yearly renewal is — money that has to be there before the month arrives —
+  // so it sizes the buffer even though history has never seen it.
+  const sofaDeps = () =>
+    deps({
+      activeScheduledPayments: async () => [
+        {
+          category_id: CAT_FOOD,
+          amount_cents: 300000n,
+          cadence: "ONCE" as const,
+          yearly_month: null,
+          next_due_date: "2026-06-20",
+        },
+      ],
+    } as unknown as Partial<Parameters<typeof getReserveFit>[0]>);
+
+  test("sizes the buffer for a payment history has never seen", async () => {
+    // History alone asks for 12000. The sofa is 300000 landing on an ordinary
+    // month, and the harder of the two walks is what must be held.
+    const food = await rowFor(CAT_FOOD, sofaDeps());
+    expect(food?.needed_cents).toBe("300000");
+  });
+
+  test("held is unchanged — this moves the target, not the money", async () => {
+    const food = await rowFor(CAT_FOOD, sofaDeps());
+    expect(food?.held_cents).toBe("5000");
+    expect(food?.gap_cents).toBe("-295000");
+  });
+});

@@ -511,3 +511,140 @@ describe("/scheduled-payments", () => {
     expect(yearlyRules.length).toBeGreaterThan(0);
   });
 });
+
+describe("/scheduled-payments — a payment that happens ONCE", () => {
+  /** Read a payment row straight from the database. */
+  async function row(id: string) {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
+    try {
+      const c = await pool.connect();
+      try {
+        // session-scoped, not transaction-local: these helpers open a bare
+        // connection with no BEGIN, and a transaction-local setting would
+        // expire before the next statement — leaving RLS to hide the row.
+        await c.query(`SELECT set_config('app.tenant_ids', '{"${testTenantId}"}', false)`);
+        const r = await c.query(
+          `SELECT cadence, active, next_due_date::text, end_date::text
+             FROM budgeting.scheduled_payments WHERE id = $1`,
+          [id],
+        );
+        return r.rows[0] as {
+          cadence: string;
+          active: boolean;
+          next_due_date: string;
+          end_date: string | null;
+        };
+      } finally {
+        c.release();
+      }
+    } finally {
+      await pool.end();
+    }
+  }
+
+  async function draftCount(id: string) {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
+    try {
+      const c = await pool.connect();
+      try {
+        // session-scoped, not transaction-local: these helpers open a bare
+        // connection with no BEGIN, and a transaction-local setting would
+        // expire before the next statement — leaving RLS to hide the row.
+        await c.query(`SELECT set_config('app.tenant_ids', '{"${testTenantId}"}', false)`);
+        const r = await c.query(
+          `SELECT count(*)::int AS n FROM budgeting.expense_ledger
+            WHERE scheduled_payment_id = $1 AND deleted_at IS NULL`,
+          [id],
+        );
+        return (r.rows[0] as { n: number }).n;
+      } finally {
+        c.release();
+      }
+    } finally {
+      await pool.end();
+    }
+  }
+
+  async function create(body: Record<string, unknown>) {
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request("/scheduled-payments", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify(body),
+    });
+    return res;
+  }
+
+  it("POST with cadence ONCE and no anchor → 201", async () => {
+    const res = await create({
+      amount: "250.00",
+      currency: "USD",
+      cadence: "ONCE",
+      first_due_date: "2027-03-09",
+      note: "New sofa",
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it("a one-time payment's deadline IS its date", async () => {
+    // This is the whole model: end_date = the date, so the engine's existing
+    // exhaustion path retires it. Nothing else in the engine has to learn
+    // about ONCE.
+    const res = await create({
+      amount: "250.00",
+      currency: "USD",
+      cadence: "ONCE",
+      first_due_date: "2027-03-09",
+    });
+    const { ruleId } = (await res.json()) as { ruleId: string };
+    const r = await row(ruleId);
+    expect(r.cadence).toBe("ONCE");
+    expect(r.next_due_date).toBe("2027-03-09");
+    expect(r.end_date).toBe("2027-03-09");
+  });
+
+  it("an end_date sent by a client is overridden, not honoured", async () => {
+    // The form hides the field for one-time payments, so anything arriving
+    // here is a stale client. Silently correcting it beats a 422 nobody can
+    // act on — the date is the deadline by definition.
+    const res = await create({
+      amount: "40.00",
+      currency: "USD",
+      cadence: "ONCE",
+      first_due_date: "2027-03-09",
+      end_date: "2030-01-01",
+    });
+    const { ruleId } = (await res.json()) as { ruleId: string };
+    expect((await row(ruleId)).end_date).toBe("2027-03-09");
+  });
+
+  it("dated in the past: one draft, then the payment retires itself", async () => {
+    const res = await create({
+      amount: "99.00",
+      currency: "USD",
+      cadence: "ONCE",
+      first_due_date: "2026-01-15",
+    });
+    expect(res.status).toBe(201);
+    const { ruleId } = (await res.json()) as { ruleId: string };
+    expect(await draftCount(ruleId)).toBe(1);
+    // A rhythm would have back-filled every month since January. This one owes
+    // exactly one payment and is then done.
+    expect((await row(ruleId)).active).toBe(false);
+  });
+
+  it("dated in the future: nothing drafted yet, still live", async () => {
+    const res = await create({
+      amount: "99.00",
+      currency: "USD",
+      cadence: "ONCE",
+      first_due_date: "2027-03-09",
+    });
+    const { ruleId } = (await res.json()) as { ruleId: string };
+    expect(await draftCount(ruleId)).toBe(0);
+    expect((await row(ruleId)).active).toBe(true);
+  });
+});

@@ -1,6 +1,12 @@
 import { Temporal } from "temporal-polyfill";
 
-export type Cadence = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+/**
+ * ONCE is not a rhythm — it is a payment that happens on one date and never
+ * again (user, 260807). It is modelled as a payment whose DEADLINE is its own
+ * date, which is why it needs no anchor, weekday or month: everything after
+ * that date is handled by the end-date machinery the engine already has.
+ */
+export type Cadence = "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 
 export interface CadenceSpec {
   cadence: Cadence;
@@ -17,7 +23,12 @@ export function nextOccurrence(
   spec: CadenceSpec,
   prev: Temporal.PlainDate,
 ): Temporal.PlainDate {
-  if (spec.cadence === "DAILY") {
+  // ONCE has no second occurrence. It still has to return a DATE, because both
+  // generation loops ask for one to decide whether to continue — and the day
+  // after is the smallest step that lands past the payment's own deadline, so
+  // the loop stops and isRuleExhausted deactivates the row. The returned date is
+  // never itself drafted.
+  if (spec.cadence === "ONCE" || spec.cadence === "DAILY") {
     return prev.add({ days: 1 });
   }
   if (spec.cadence === "MONTHLY") {

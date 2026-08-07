@@ -1043,9 +1043,17 @@ describe("Diverging chart — how the two callers ask for it", () => {
     // Relative to the vitest root (apps/web), which is where the suite runs.
     readFileSync(`src/components/budgeting/overview/${f}`, "utf8");
 
-  it("colours both from the percent, whatever the axis reads in", () => {
+  it("colours both from a PERCENT field, never from the money axis", () => {
+    // Both must name a percent-valued key. planned-section moved to `colorPct`
+    // on 260807 — the same percent with sub-unit gaps zeroed, so a category a
+    // few groszy over stops drawing a red bar labelled "+0 zł". What must never
+    // appear here is the money key (`gap`), which is what broke this before:
+    // cents fed to a band function turned +5% into red the moment the axis
+    // flipped to zł.
+    expect(src("planned-section.tsx")).toContain('colorKey="colorPct"');
+    expect(src("reserve-fit-view.tsx")).toContain('colorKey="pct"');
     for (const f of ["planned-section.tsx", "reserve-fit-view.tsx"])
-      expect(src(f)).toContain('colorKey="pct"');
+      expect(src(f)).not.toContain('colorKey="gap"');
   });
 });
 

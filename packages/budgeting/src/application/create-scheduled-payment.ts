@@ -22,7 +22,7 @@ export interface CreateScheduledPaymentInput {
   categoryId?: string | null;
   amount: string;
   currency: string;
-  cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  cadence: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   cadenceAnchor?: number | null;
   weeklyDow?: number | null;
   yearlyMonth?: number | null;
@@ -67,6 +67,15 @@ export function createScheduledPayment(deps: {
     // handles back-fill safely (it skips already-confirmed periods).
     void Temporal.PlainDate.from(input.firstDueDate); // shape validation only
 
+    // A one-time payment IS its deadline (260807). Deriving end_date here rather
+    // than asking the client for it keeps the model in one place: the catch-up
+    // loop below and the nightly engine both already stop at end_date and retire
+    // the row afterwards, so ONCE needs no branch in either. An end_date sent by
+    // a stale client is overridden — the form does not offer the field, and the
+    // date is the deadline by definition.
+    const endDate =
+      input.cadence === "ONCE" ? input.firstDueDate : (input.endDate ?? null);
+
     // sql imported at module scope below — using a hoisted dynamic import
     // keeps Drizzle as a transitive dep only, no bundle penalty in unused
     // contexts (matches the existing pattern in this file).
@@ -89,7 +98,7 @@ export function createScheduledPayment(deps: {
            ${input.amount}::numeric, ${input.currency}, ${input.cadence},
            ${input.cadenceAnchor ?? null}, ${input.weeklyDow ?? null}, ${input.yearlyMonth ?? null},
            ${input.note ?? null}, true,
-           ${input.firstDueDate}::date, ${input.endDate ?? null}::date, ${input.actorUserId}::uuid)
+           ${input.firstDueDate}::date, ${endDate}::date, ${input.actorUserId}::uuid)
         RETURNING id
       `);
         const ruleId = (result.rows[0] as Record<string, unknown>).id as string;
@@ -145,7 +154,7 @@ export function createScheduledPayment(deps: {
         // with a past end_date only back-fills up to that date.
         while (
           Temporal.PlainDate.compare(dueDate, today) <= 0 &&
-          !isRuleExhausted(dueDate.toString(), input.endDate ?? null)
+          !isRuleExhausted(dueDate.toString(), endDate)
         ) {
           const dueStr = dueDate.toString();
           const fxComputed = await computeScheduledFx({
@@ -228,7 +237,7 @@ export function createScheduledPayment(deps: {
 
         // If the next occurrence has passed end_date, the rule is exhausted —
         // deactivate it so the nightly engine never scans it again.
-        if (isRuleExhausted(dueDate.toString(), input.endDate ?? null)) {
+        if (isRuleExhausted(dueDate.toString(), endDate)) {
           await drizzleTx2.execute(sql`
             UPDATE budgeting.scheduled_payments
                SET active = false, updated_at = now()

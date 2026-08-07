@@ -25,6 +25,9 @@ import { serverError } from "../middleware/server-error";
 
 // Re-export discriminated union from contracts for route use
 const cadenceSpecSchema = z.discriminatedUnion("cadence", [
+  // ONCE carries no sub-field at all: a payment that happens on one date has no
+  // pattern to describe, and its deadline is that date (set service-side).
+  z.object({ cadence: z.literal("ONCE") }),
   z.object({ cadence: z.literal("DAILY") }),
   z.object({
     cadence: z.literal("WEEKLY"),
@@ -79,7 +82,7 @@ const updateRuleEditsSchema = z
     active: z.boolean().optional(),
     // Cadence edits (camelCase, matching categoryId). The application layer
     // merges these over the existing row + recomputes next_due_date.
-    cadence: z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"]).optional(),
+    cadence: z.enum(["ONCE", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"]).optional(),
     cadenceAnchor: z.number().int().min(1).max(31).nullable().optional(),
     weeklyDow: z.number().int().min(0).max(6).nullable().optional(),
     yearlyMonth: z.number().int().min(1).max(12).nullable().optional(),
@@ -143,7 +146,7 @@ export function createScheduledPaymentsRoute(deps: BootedDeps) {
       categoryId: (data as any).category_id ?? null,
       amount: data.amount,
       currency: data.currency,
-      cadence: data.cadence as "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY",
+      cadence: data.cadence as "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY",
       cadenceAnchor: (data as any).cadence_anchor ?? null,
       weeklyDow: (data as any).weekly_dow ?? null,
       yearlyMonth: (data as any).yearly_month ?? null,

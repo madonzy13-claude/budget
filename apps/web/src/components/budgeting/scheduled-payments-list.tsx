@@ -26,11 +26,10 @@ export interface ScheduledPaymentListItem {
   currency: string;
   categoryId: string | null;
   kind: string;
-  // Backend v1.1 (Plan 02-02): DAILY|WEEKLY|MONTHLY|YEARLY. The list
-  // accepts the wider union so YEARLY rules in the DB render correctly;
-  // the create-form only offers WEEKLY/MONTHLY/YEARLY in the picker
-  // (DAILY is a backend-only escape hatch we don't expose in the UI).
-  cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  // Backend: ONCE|DAILY|WEEKLY|MONTHLY|YEARLY. The list accepts the whole
+  // union so every row in the DB renders; the create-form offers ONCE and the
+  // three rhythms (DAILY is a backend-only escape hatch we don't expose).
+  cadence: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   cadenceAnchor: number | null;
   weeklyDow: number | null;
   yearlyMonth: number | null;
@@ -109,7 +108,11 @@ export function ScheduledPaymentsList({
     <ul className="divide-y divide-[var(--border)] rounded-xl bg-[var(--surface-card-dark)]">
       {sortRulesByUpcoming(rules).map((rule) => {
         const cadenceLabel =
-          rule.cadence === "MONTHLY"
+          // A one-time payment has no rhythm to describe — the date IS the
+          // description, so it reads as the word plus the day (260807).
+          rule.cadence === "ONCE"
+            ? t("list.once")
+            : rule.cadence === "MONTHLY"
             ? t("list.monthlyOnDay", { day: rule.cadenceAnchor ?? 1 })
             : rule.cadence === "WEEKLY"
               ? t("list.weeklyOnDow", {

@@ -319,13 +319,24 @@ export type CreateTransactionInput = z.infer<typeof createTransactionSchema>;
 // Scheduled rules schemas (EXPN-08, plan 02-08)
 // ---------------------------------------------------------------------------
 
-export const cadenceSchema = z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"]);
+// ONCE (260807) is a payment that happens on one date and never again. It is
+// first in the list because it is the simplest thing the household can mean.
+export const cadenceSchema = z.enum([
+  "ONCE",
+  "DAILY",
+  "WEEKLY",
+  "MONTHLY",
+  "YEARLY",
+]);
 
 /**
  * Discriminated union for cadence + required selectors (RECR-01 / D-PH2-03).
  * Enforces per-cadence required fields at Zod level; DB CHECK mirrors this.
  */
 export const cadenceSpecSchema = z.discriminatedUnion("cadence", [
+  // No selector at all: a one-time payment has no pattern to describe, and its
+  // deadline is its own date (derived service-side).
+  z.object({ cadence: z.literal("ONCE") }),
   z.object({ cadence: z.literal("DAILY") }),
   z.object({
     cadence: z.literal("WEEKLY"),

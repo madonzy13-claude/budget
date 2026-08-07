@@ -1195,7 +1195,9 @@
         "noteLabel": "Note (optional)",
         "applyToFutureLabel": "Also apply to future occurrences",
         "applyToFutureHelp": "Edits the upcoming pending drafts so they reflect the new amount/category. Past confirmed transactions are never changed.",
-        "categoryPlaceholder": "Select category…"
+        "categoryPlaceholder": "Select category…",
+        "once": "One time",
+        "dateLabel": "Date"
       },
       "list": {
         "title": "Scheduled payments",
@@ -1207,7 +1209,8 @@
         "daily": "Daily",
         "nextDueLabel": "Next: {date}",
         "editButton": "Edit",
-        "archiveButton": "Archive"
+        "archiveButton": "Archive",
+        "once": "One time"
       },
       "drafts": {
         "inboxTitle": "Pending payments",

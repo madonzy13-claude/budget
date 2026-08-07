@@ -138,3 +138,41 @@ describe("projectScheduledPayments", () => {
     expect(projectScheduledPayments([yearly(500000, 9)], "2026-04", 0).size).toBe(0);
   });
 });
+
+describe("a one-time payment", () => {
+  const sofa = {
+    category_id: "cat-home",
+    amount_cents: 250_00n,
+    cadence: "ONCE" as const,
+    yearly_month: null,
+    next_due_date: "2026-11-04",
+  };
+
+  test("lands in its own month, on top of the plan", () => {
+    // Rare AND known, exactly like a yearly renewal: November still has its
+    // ordinary groceries under the sofa, so the whole charge is on top.
+    const out = projectScheduledPayments([sofa], "2026-09", 6);
+    const byMonth = out.get("cat-home")!;
+    expect(byMonth.get("2026-11")).toEqual({ routine: 0n, onTop: 250_00n });
+  });
+
+  test("touches no other month", () => {
+    const out = projectScheduledPayments([sofa], "2026-09", 6);
+    const byMonth = out.get("cat-home")!;
+    expect([...byMonth.keys()]).toEqual(["2026-11"]);
+  });
+
+  test("falls outside a window that does not reach it", () => {
+    const out = projectScheduledPayments([sofa], "2026-09", 2); // Sep, Oct
+    expect(out.has("cat-home")).toBe(false);
+  });
+
+  test("is ignored when it has no date to place it in", () => {
+    const out = projectScheduledPayments(
+      [{ ...sofa, next_due_date: null }],
+      "2026-09",
+      6,
+    );
+    expect(out.has("cat-home")).toBe(false);
+  });
+});

@@ -34,7 +34,7 @@ type TxLike = {
 type CadenceRow = {
   amount_cents: string;
   currency: string;
-  cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  cadence: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   cadence_anchor: number | null;
   weekly_dow: number | null;
   yearly_month: number | null;
@@ -323,7 +323,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
  */
 export function incomeSeedDate(
   r: {
-    cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+    cadence: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
     cadence_anchor: number | null;
     yearly_month: number | null;
   },

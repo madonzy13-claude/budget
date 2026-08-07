@@ -91,3 +91,59 @@ describe("Scheduled rule form — amount", () => {
     expect(writeMock).not.toHaveBeenCalled();
   });
 });
+
+describe("Scheduled payment form — a payment that happens once", () => {
+  it("offers 'one time' alongside the rhythms", () => {
+    renderForm();
+    expect(screen.getByRole("button", { name: "rule.once" })).toBeTruthy();
+  });
+
+  it("hides the last-date field once it is picked", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    // A one-time payment's deadline IS its date, so asking for a second one
+    // would be asking the same question twice (user, 260807).
+    expect(screen.queryByLabelText("rule.lastDueLabel")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "rule.once" }));
+    expect(screen.queryByLabelText("rule.lastDueLabel")).toBeNull();
+  });
+
+  it("hides the day / weekday / month selectors too", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.click(screen.getByRole("button", { name: "rule.once" }));
+    expect(screen.queryByLabelText("rule.anchorDayLabel")).toBeNull();
+    expect(screen.queryByLabelText("rule.weekdayLabel")).toBeNull();
+    expect(screen.queryByLabelText("rule.yearlyMonthLabel")).toBeNull();
+  });
+
+  it("still asks WHEN — the date is the whole payment", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.click(screen.getByRole("button", { name: "rule.once" }));
+    expect(screen.queryByLabelText("rule.dateLabel")).toBeTruthy();
+  });
+
+  it("sends cadence ONCE with no selector and no end date", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByLabelText("rule.amountLabel"), "250");
+    await user.click(screen.getByRole("button", { name: "rule.once" }));
+    fireEvent.submit(document.querySelector("form")!);
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    const body = sentBody()!;
+    expect(body.cadence).toBe("ONCE");
+    expect(body.cadence_anchor).toBeUndefined();
+    expect(body.weekly_dow).toBeUndefined();
+    expect(body.yearly_month).toBeUndefined();
+    expect(body.end_date ?? null).toBeNull();
+  });
+
+  it("going back to a rhythm brings the last-date field back", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.click(screen.getByRole("button", { name: "rule.once" }));
+    await user.click(screen.getByRole("button", { name: "rule.monthly" }));
+    expect(screen.queryByLabelText("rule.lastDueLabel")).toBeTruthy();
+  });
+});

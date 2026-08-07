@@ -27,7 +27,7 @@ function rowToRuleRow(row: Record<string, unknown>): ScheduledPaymentRow {
     categoryId: (row.category_id as string | null) ?? null,
     amount: String(row.amount),
     currency: row.currency as string,
-    cadence: row.cadence as "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY",
+    cadence: row.cadence as "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY",
     cadenceAnchor: row.cadence_anchor as number | null,
     weeklyDow: row.weekly_dow as number | null,
     yearlyMonth: row.yearly_month as number | null,
@@ -46,7 +46,7 @@ export class DrizzleScheduledPaymentRepo implements ScheduledPaymentRepo {
     categoryId: string | null;
     amount: string;
     currency: string;
-    cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+    cadence: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
     cadenceAnchor: number | null;
     weeklyDow: number | null;
     yearlyMonth: number | null;

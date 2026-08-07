@@ -57,7 +57,10 @@ import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 
 export type RuleMode = "create" | "edit";
 
-export type RuleCadence = "WEEKLY" | "MONTHLY" | "YEARLY";
+/** ONCE is not a rhythm — it is a payment on one date (260807). It carries no
+ *  selector, and its deadline is that date, so the "last date" field goes away
+ *  with it rather than asking the same question twice. */
+export type RuleCadence = "ONCE" | "WEEKLY" | "MONTHLY" | "YEARLY";
 
 export interface ScheduledPaymentFormValues {
   ruleId?: string;
@@ -68,7 +71,7 @@ export interface ScheduledPaymentFormValues {
   // pulled from the API can be handed straight to `initialValues` without
   // a narrowing cast. The form's local state coerces DAILY → MONTHLY in
   // the UI because DAILY isn't a user-selectable option here.
-  cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  cadence: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   cadenceAnchor: number | null;
   weeklyDow: number | null;
   yearlyMonth: number | null;
@@ -160,6 +163,7 @@ export function ScheduledPaymentForm({
   // to MONTHLY so the picker has a defined value; the PATCH body never
   // sends cadence (edits-only schema), so the row keeps its DB value.
   const initialCadence: RuleCadence =
+    initialValues?.cadence === "ONCE" ||
     initialValues?.cadence === "WEEKLY" ||
     initialValues?.cadence === "MONTHLY" ||
     initialValues?.cadence === "YEARLY"
@@ -192,7 +196,11 @@ export function ScheduledPaymentForm({
   const [firstDueDate, setFirstDueDate] = useState(
     () =>
       initialValues?.firstDueDate ??
-      nextDueDate(
+      // A one-time payment has no rhythm to follow, so there is no "nearest
+      // matching date" to compute — today stands in until the household picks.
+      (initialCadence === "ONCE"
+        ? todayIso()
+        : nextDueDate(
         initialCadence,
         {
           weeklyDow: initialValues?.weeklyDow ?? WEEKDAY_ORDER[0]!,
@@ -200,10 +208,13 @@ export function ScheduledPaymentForm({
           yearlyMonth: initialValues?.yearlyMonth ?? 1,
         },
         todayIso(),
-      ),
+      )),
   );
   useEffect(() => {
     if (firstDueTouched.current) return;
+    // Nothing to follow for a one-time payment — leave the date alone rather
+    // than snapping it back on every re-render.
+    if (cadence === "ONCE") return;
     const dom = parseInt(cadenceAnchorRaw, 10);
     setFirstDueDate(
       nextDueDate(
@@ -271,7 +282,9 @@ export function ScheduledPaymentForm({
         // Plain object first, then spread the cadence discriminator into
         // a single payload to keep the union typesafe across branches.
         const cadencePart: Record<string, unknown> =
-          cadence === "WEEKLY"
+          cadence === "ONCE"
+            ? { cadence: "ONCE" }
+            : cadence === "WEEKLY"
             ? { cadence: "WEEKLY", weekly_dow: weeklyDow }
             : cadence === "MONTHLY"
               ? { cadence: "MONTHLY", cadence_anchor: cadenceAnchor }
@@ -489,7 +502,15 @@ export function ScheduledPaymentForm({
                     rules are expenses. */}
               <div>
                 <Label>{t("rule.cadenceLabel")}</Label>
-                <div className="flex gap-2 pt-1">
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant={cadence === "ONCE" ? "primary" : "outline"}
+                    onClick={() => setCadence("ONCE")}
+                    className="flex-1"
+                  >
+                    {t("rule.once")}
+                  </Button>
                   <Button
                     type="button"
                     variant={cadence === "WEEKLY" ? "primary" : "outline"}
@@ -611,7 +632,9 @@ export function ScheduledPaymentForm({
                   native input is the actual click target so mobile
                   (iOS/Android) opens the calendar reliably. */}
               <div>
-                <Label htmlFor="rr-firstdue">{t("rule.firstDueLabel")}</Label>
+                <Label htmlFor="rr-firstdue">
+                  {t(cadence === "ONCE" ? "rule.dateLabel" : "rule.firstDueLabel")}
+                </Label>
                 <DateInput
                   id="rr-firstdue"
                   value={firstDueDate}
@@ -626,6 +649,10 @@ export function ScheduledPaymentForm({
               {/* Optional "last date": empty = no deadline; when set, drafts
                   generate only up to and including it. `min` = first due so the
                   native picker won't offer earlier days (submit also guards). */}
+              {/* A one-time payment's deadline IS its date — the service
+                  derives end_date from it, so offering the field would ask the
+                  same question twice (user, 260807). */}
+              {cadence !== "ONCE" && (
               <div>
                 <Label htmlFor="rr-lastdue">{t("rule.lastDueLabel")}</Label>
                 <DateInput
@@ -636,6 +663,7 @@ export function ScheduledPaymentForm({
                   onChange={(v) => setLastDate(v)}
                 />
               </div>
+              )}
             </>
 
             {/* `Also apply to future occurrences` checkbox removed per
