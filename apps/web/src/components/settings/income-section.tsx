@@ -164,6 +164,7 @@ export function IncomeSection({
                 cadenceAnchor: editIncome.cadenceAnchor,
                 weeklyDow: editIncome.weeklyDow,
                 yearlyMonth: editIncome.yearlyMonth ?? null,
+                onceDate: editIncome.onceDate ?? null,
               }
             : undefined
         }

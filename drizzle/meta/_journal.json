@@ -554,6 +554,13 @@
       "when": 1782739201006,
       "tag": "0079_scheduled_payment_deleted_at",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1782739201007,
+      "tag": "0080_income_once",
+      "breakpoints": true
     }
   ]
 }

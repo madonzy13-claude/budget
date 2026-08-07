@@ -412,7 +412,11 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         if (deps.incomeRepo) {
           const incomes = await deps.incomeRepo.listActive(input.tenantId);
           monthlyIncome = await sumWalletsToCurrency(
-            normalizeIncomesToMonthlyItems(incomes),
+            // The month decides whether a ONE-TIME income counts: it is income
+            // in the month it arrives and in no other (260807). "Current" here
+            // matches the comment above — today's monthly income, applied
+            // across the range.
+            normalizeIncomesToMonthlyItems(incomes, isoDay(asOf).slice(0, 7)),
             ccy,
             deps.fxProvider,
             asOf,

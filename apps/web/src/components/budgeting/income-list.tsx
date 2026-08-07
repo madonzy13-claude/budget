@@ -8,12 +8,18 @@
 import { useTranslations, useLocale } from "next-intl";
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatShortDate } from "@/lib/format-date";
 import { moneyForList } from "@/components/budgeting/scheduled-payments-list";
 
 // Re-exported so income-form can prefill amounts with the same formatting.
 export { formatAmountForList } from "@/components/budgeting/scheduled-payments-list";
 
-export type IncomeCadenceLite = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+export type IncomeCadenceLite =
+  | "ONCE"
+  | "DAILY"
+  | "WEEKLY"
+  | "MONTHLY"
+  | "YEARLY";
 
 export interface IncomeListItem {
   id: string;
@@ -24,6 +30,8 @@ export interface IncomeListItem {
   cadenceAnchor: number | null;
   weeklyDow: number | null;
   yearlyMonth: number | null;
+  /** The day a ONE-TIME income arrives; null for the rhythms. */
+  onceDate?: string | null;
 }
 
 export interface IncomeListProps {
@@ -50,7 +58,12 @@ export function IncomeList({ incomes, onEdit, onArchive }: IncomeListProps) {
     <ul className="divide-y divide-[var(--border)] rounded-xl bg-[var(--surface-card-dark)]">
       {incomes.map((income) => {
         const cadenceLabel =
-          income.cadence === "MONTHLY"
+          // A one-time income has no rhythm — the date is the description.
+          income.cadence === "ONCE"
+            ? t("list.once", {
+                date: formatShortDate(income.onceDate ?? "", locale),
+              })
+            : income.cadence === "MONTHLY"
             ? t("list.monthlyOnDay", { day: income.cadenceAnchor ?? 1 })
             : income.cadence === "WEEKLY"
               ? t("list.weeklyOnDow", {

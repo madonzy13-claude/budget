@@ -15,7 +15,19 @@ import { z } from "zod";
 import { DrizzleIncomeRepo } from "@budget/budgeting/src/adapters/persistence/income-repo";
 import type { IncomeCadence } from "@budget/budgeting/src/adapters/persistence/income-repo";
 
+/** Today in UTC, as the API sees it. */
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
 const cadenceSpecSchema = z.discriminatedUnion("cadence", [
+  // ONCE carries a DATE instead of an anchor, and it may not be in the past:
+  // income that has already arrived is a transaction, not a plan (260807).
+  z.object({
+    cadence: z.literal("ONCE"),
+    once_date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .refine((d) => d >= todayISO(), "once_date must not be in the past"),
+  }),
   z.object({ cadence: z.literal("DAILY") }),
   z.object({
     cadence: z.literal("WEEKLY"),
@@ -48,6 +60,7 @@ type IncomeInput = z.infer<typeof baseFieldsSchema> & {
   weekly_dow?: number;
   cadence_anchor?: number;
   yearly_month?: number;
+  once_date?: string;
 };
 
 /** Derive the (nullable) anchor columns from the discriminated cadence. */
@@ -59,6 +72,9 @@ function anchors(d: IncomeInput) {
         : null,
     weeklyDow: d.cadence === "WEEKLY" ? (d.weekly_dow ?? null) : null,
     yearlyMonth: d.cadence === "YEARLY" ? (d.yearly_month ?? null) : null,
+    // Null for every rhythm: a date on a monthly income would be a second,
+    // contradictory answer to "when" (the DB CHECK says the same).
+    onceDate: d.cadence === "ONCE" ? (d.once_date ?? null) : null,
   };
 }
 
@@ -71,6 +87,18 @@ interface IncomeDto {
   cadenceAnchor: number | null;
   weeklyDow: number | null;
   yearlyMonth: number | null;
+  /** The day a ONE-TIME income arrives; null for the rhythms. */
+  onceDate: string | null;
+}
+
+/**
+ * A date belongs to a ONE-TIME income and to nothing else. Zod strips the key
+ * off a rhythm rather than complaining, so the contradiction is caught here —
+ * silently dropping it would tell a client its date was accepted (260807).
+ */
+function dateOnARhythm(body: unknown): boolean {
+  const b = body as { cadence?: unknown; once_date?: unknown };
+  return b?.once_date != null && b?.cadence !== "ONCE";
 }
 
 export function createIncomesRoute(deps?: {
@@ -102,6 +130,8 @@ export function createIncomesRoute(deps?: {
   app.post("/", async (c) => {
     const body = await c.req.json().catch(() => null);
     if (!body) return c.json({ error: "Invalid JSON" }, 422);
+    if (dateOnARhythm(body))
+      return c.json({ error: "once_date_on_recurring_income" }, 400);
     const parsed = incomeSchema.safeParse(body);
     if (!parsed.success) {
       return c.json(
@@ -153,6 +183,7 @@ export function createIncomesRoute(deps?: {
         cadenceAnchor: r.cadenceAnchor,
         weeklyDow: r.weeklyDow,
         yearlyMonth: r.yearlyMonth,
+        onceDate: r.onceDate,
       }));
       return c.json({ incomes }, 200);
     } catch (e) {
@@ -167,6 +198,8 @@ export function createIncomesRoute(deps?: {
     if (!/^[0-9a-f-]{36}$/.test(id)) return c.json({ error: "bad id" }, 400);
     const body = await c.req.json().catch(() => null);
     if (!body) return c.json({ error: "Invalid JSON" }, 422);
+    if (dateOnARhythm(body))
+      return c.json({ error: "once_date_on_recurring_income" }, 400);
     const parsed = incomeSchema.safeParse(body);
     if (!parsed.success) {
       return c.json(

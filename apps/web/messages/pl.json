@@ -1139,7 +1139,9 @@
           "12": "Grudzień"
         },
         "saveButton": "Zapisz dochód",
-        "errorAmount": "Podaj kwotę, np. 73,80"
+        "errorAmount": "Podaj kwotę, np. 73,80",
+        "once": "Jednorazowo",
+        "dateLabel": "Data"
       },
       "list": {
         "empty": "Brak dochodów.",
@@ -1147,7 +1149,8 @@
         "weeklyOnDow": "Tygodniowo · {weekday}",
         "yearlyOn": "Rocznie · {month} {day}",
         "daily": "Codziennie",
-        "editButton": "Edytuj"
+        "editButton": "Edytuj",
+        "once": "Jednorazowo · {date}"
       },
       "delete": {
         "title": "Usunąć dochód?",

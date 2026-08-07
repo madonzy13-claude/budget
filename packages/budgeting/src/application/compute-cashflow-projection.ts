@@ -73,6 +73,10 @@ export function enumerateOccurrences(
     if (Temporal.PlainDate.compare(cur, opts.afterExclusive) > 0) {
       out.push(cur.toString());
     }
+    // ONCE happens once. Its "next occurrence" is the following day — the step
+    // the generation loop uses to clear its own deadline — so walking it here
+    // would draw a single sofa as a daily payment (260807).
+    if (spec.cadence === "ONCE") break;
     cur = nextOccurrence(spec, cur);
   }
   return out;
@@ -167,9 +171,12 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
 
         const incomes = await tx.execute(sql`
           SELECT name, (amount * 100)::bigint::text AS amount_cents, currency,
-                 cadence, cadence_anchor, weekly_dow, yearly_month
+                 cadence, cadence_anchor, weekly_dow, yearly_month,
+                 once_date::text AS once_date
             FROM budgeting.incomes
-           WHERE tenant_id = ${input.tenantId}::uuid AND active = true`);
+           WHERE tenant_id = ${input.tenantId}::uuid AND active = true
+             -- Gone the day after it arrives, like every other read (260807).
+             AND (cadence <> 'ONCE' OR once_date >= CURRENT_DATE)`);
 
         const rules = await tx.execute(sql`
           SELECT category_id::text AS category_id, note,
@@ -326,9 +333,16 @@ export function incomeSeedDate(
     cadence: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
     cadence_anchor: number | null;
     yearly_month: number | null;
+    once_date?: string | null;
   },
   today: Temporal.PlainDate,
 ): Temporal.PlainDate {
+  // A one-time income has no anchor to derive a day from — its date IS the
+  // occurrence. Without one there is nothing to place, so it seeds at today and
+  // the enumeration drops it.
+  if (r.cadence === "ONCE") {
+    return r.once_date ? Temporal.PlainDate.from(r.once_date) : today;
+  }
   if (r.cadence === "MONTHLY") {
     return today.with({
       day: Math.min(r.cadence_anchor ?? today.day, today.daysInMonth),

@@ -1116,7 +1116,9 @@
           "12": "December"
         },
         "saveButton": "Save income",
-        "errorAmount": "Enter an amount like 73.80"
+        "errorAmount": "Enter an amount like 73.80",
+        "once": "One time",
+        "dateLabel": "Date"
       },
       "list": {
         "empty": "No incomes yet.",
@@ -1124,7 +1126,8 @@
         "weeklyOnDow": "Weekly · {weekday}",
         "yearlyOn": "Yearly · {month} {day}",
         "daily": "Daily",
-        "editButton": "Edit"
+        "editButton": "Edit",
+        "once": "One time · {date}"
       },
       "delete": {
         "title": "Delete income?",

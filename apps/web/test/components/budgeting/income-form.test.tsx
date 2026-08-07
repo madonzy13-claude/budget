@@ -186,3 +186,73 @@ describe("IncomeForm", () => {
     });
   });
 });
+
+describe("IncomeForm — an income that arrives once", () => {
+  const renderOnce = () =>
+    wrap(
+      <IncomeForm
+        open
+        onOpenChange={() => {}}
+        mode="create"
+        budgetId="b1"
+        defaultCurrency="USD"
+        fetchImpl={fetchMock as unknown as typeof fetch}
+      />,
+    );
+
+  it("offers it alongside the rhythms", () => {
+    renderOnce();
+    expect(screen.getByTestId("income-cadence-ONCE")).toBeTruthy();
+  });
+
+  it("asks WHEN, and only then", () => {
+    // A bonus has no pay-day pattern; the date is the whole answer.
+    renderOnce();
+    expect(document.getElementById("income-once-date")).toBeNull();
+    fireEvent.click(screen.getByTestId("income-cadence-ONCE"));
+    expect(document.getElementById("income-once-date")).toBeTruthy();
+  });
+
+  it("hides the day / weekday / month selectors", () => {
+    renderOnce();
+    fireEvent.click(screen.getByTestId("income-cadence-ONCE"));
+    expect(document.getElementById("income-anchor")).toBeNull();
+    expect(document.getElementById("income-dow")).toBeNull();
+  });
+
+  it("refuses to offer a date in the past", () => {
+    // Income that already arrived is a transaction, not a plan — the native
+    // picker should not even present those days (user, 260807).
+    renderOnce();
+    fireEvent.click(screen.getByTestId("income-cadence-ONCE"));
+    const input = document.getElementById("income-once-date") as HTMLInputElement;
+    const today = new Date().toISOString().slice(0, 10);
+    expect(input.getAttribute("min")).toBe(today);
+  });
+
+  it("sends ONCE with its date and no anchor", async () => {
+    renderOnce();
+    fireEvent.change(document.getElementById("income-name") as HTMLElement, {
+      target: { value: "Bonus" },
+    });
+    fireEvent.change(document.getElementById("income-amount") as HTMLElement, {
+      target: { value: "9000" },
+    });
+    fireEvent.click(screen.getByTestId("income-cadence-ONCE"));
+    fireEvent.change(
+      document.getElementById("income-once-date") as HTMLElement,
+      { target: { value: "2027-03-09" } },
+    );
+    fireEvent.click(screen.getByTestId("income-save"));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = bodyOf(fetchMock.mock.calls.length - 1);
+    expect(body).toMatchObject({
+      name: "Bonus",
+      cadence: "ONCE",
+      once_date: "2027-03-09",
+    });
+    expect(body.cadence_anchor).toBeUndefined();
+    expect(body.weekly_dow).toBeUndefined();
+  });
+});

@@ -202,7 +202,12 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           let monthlyIncome = 0n;
           if (deps.incomeRepo && deps.fxProvider) {
             const incomes = await deps.incomeRepo.listActive(input.tenantId);
-            const items = normalizeIncomesToMonthlyItems(incomes);
+            // The month being summarised is the month a ONE-TIME income is
+            // judged against: it counts here only if it arrives in it (260807).
+            const items = normalizeIncomesToMonthlyItems(
+              incomes,
+              ym.toString(),
+            );
             const asOf = (deps.now ?? (() => new Date()))();
             monthlyIncome = await sumWalletsToCurrency(
               items,

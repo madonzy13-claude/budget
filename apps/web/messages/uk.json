@@ -1139,7 +1139,9 @@
           "12": "Грудень"
         },
         "saveButton": "Зберегти дохід",
-        "errorAmount": "Вкажіть суму, напр. 73,80"
+        "errorAmount": "Вкажіть суму, напр. 73,80",
+        "once": "Одноразово",
+        "dateLabel": "Дата"
       },
       "list": {
         "empty": "Ще немає доходів.",
@@ -1147,7 +1149,8 @@
         "weeklyOnDow": "Щотижня · {weekday}",
         "yearlyOn": "Щороку · {month} {day}",
         "daily": "Щодня",
-        "editButton": "Редагувати"
+        "editButton": "Редагувати",
+        "once": "Одноразово · {date}"
       },
       "delete": {
         "title": "Видалити дохід?",
