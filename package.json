@@ -34,7 +34,7 @@
     "drizzle-orm": "^0.45.2",
     "eslint": "^10.8.0",
     "husky": "^9.1.7",
-    "lint-staged": "^15.5.2",
+    "lint-staged": "^17.3.0",
     "pg": "^8.22.0",
     "playwright-bdd": "^8.5.1",
     "prettier": "^3.9.6",
