@@ -9,10 +9,13 @@ const KEYS = [
   "offline.indicator.tooltip",
   "offline.indicator.tooltipUnknown",
   "offline.indicator.ariaLabel",
-  "grid.offlineDialog.title",
-  "grid.offlineDialog.body",
-  "grid.offlineDialog.ok",
+  // 260731-osq: the offline-add DIALOG is gone — an offline add is queued and
+  // announced by a bottom toast, and its row carries a retry marker.
+  "grid.txn.pending.queued",
+  "grid.txn.pending.badge",
 ];
+
+const REMOVED_KEYS = ["grid.offlineDialog"];
 
 function get(obj: unknown, path: string): unknown {
   return path.split(".").reduce<unknown>((acc, k) => {
@@ -33,6 +36,11 @@ describe("Offline UX i18n keys", () => {
     for (const k of KEYS) {
       it(`${locale} has ${k}`, () => {
         expect(typeof get(dict, k)).toBe("string");
+      });
+    }
+    for (const k of REMOVED_KEYS) {
+      it(`${locale} no longer carries ${k}`, () => {
+        expect(get(dict, k)).toBeUndefined();
       });
     }
   }

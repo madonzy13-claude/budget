@@ -6,13 +6,17 @@
  * Inline edit: single click on the amount while the row is revealed. On touch
  * the first tap reveals, a second tap on the amount edits.
  *
- * Robust-minimal offline (260614-q1v): the offline write queue + per-row
- * pending/unsent marker were removed. Offline writes roll back with a toast
- * instead of leaving a hanging row, so there is no in-flight row state here.
+ * Offline (260731-osq): a spending typed offline is QUEUED locally
+ * (lib/pending-spendings) and rendered here as a `pending` row — retry marker,
+ * no editing (there is nothing on the server yet), and a delete that just drops
+ * the local entry, so it works with no connection. While the connection is
+ * degraded, SAVED rows hide both write chips (the grid is read-only).
  */
 import { useState, useRef, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, RotateCw } from "lucide-react";
+import { useConnectivity } from "@/components/common/connectivity-provider";
+import { removePendingSpending } from "@/lib/pending-spendings";
 import { useDeleteTransaction } from "@/hooks/use-delete-transaction";
 import { useUpdateTransaction } from "@/hooks/use-update-transaction";
 import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
@@ -45,6 +49,8 @@ export interface TransactionRowProps {
     note?: string | null;
     /** ISO instant the transaction was created (for the hover tooltip). */
     createdAt?: string;
+    /** 260731-osq: queued offline, not on the server yet (id is `pending-…`). */
+    pending?: boolean;
   };
   budgetId: string;
   month: string;
@@ -86,6 +92,15 @@ export function TransactionRow({
 
   const deleteMutation = useDeleteTransaction(budgetId, month);
   const updateMutation = useUpdateTransaction(budgetId, month);
+
+  // 260731-osq. `degraded` = offline OR server-unreachable: either way a write
+  // cannot land, so the pen is hidden on every row and the trash on SAVED rows.
+  // A pending row is local-only — its delete stays live (it just drops the
+  // queued entry) and it can never be edited (nothing exists server-side yet).
+  const { degraded } = useConnectivity();
+  const pending = !!txn.pending;
+  const canEdit = !readOnly && !pending && !degraded;
+  const canDelete = pending || (!readOnly && !degraded);
 
   // r40b: keyboard-focused rows reveal their action chips too (icons must show
   // when a row is highlighted via arrow navigation, not only on hover/tap).
@@ -246,6 +261,7 @@ export function TransactionRow({
   }
 
   function startEditing() {
+    if (!canEdit) return;
     setEditValue(seedEditValue());
     setEditKeyboardMode("numeric");
     setEditing(true);
@@ -305,7 +321,8 @@ export function TransactionRow({
   const cellRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = cellRef.current;
-    if (!el || readOnly) return; // archived column → no double-tap edit
+    // archived / pending / degraded → no double-tap edit
+    if (!el || !canEdit) return;
     const startEditingNow = () => {
       setEditValue(seedEditValue());
       setEditKeyboardMode("numeric");
@@ -329,7 +346,7 @@ export function TransactionRow({
     };
     el.addEventListener("touchstart", handler, { passive: false });
     return () => el.removeEventListener("touchstart", handler);
-  }, [txn.amountConvertedCents, readOnly]);
+  }, [txn.amountConvertedCents, canEdit]);
 
   function commitEdit() {
     // 260722-d: an ABC/123 switch blurs then refocuses in the same gesture —
@@ -456,12 +473,14 @@ export function TransactionRow({
         if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
           // r40b: Cmd/Ctrl+Enter opens the FULL editor (same as the pen chip),
           // distinct from a plain Enter which starts the inline amount edit.
+          if (!canEdit) return;
           e.preventDefault();
           onEdit(txn.id);
         } else if (e.key === "Enter") {
           e.preventDefault();
           startEditing();
         } else if (e.key === "Backspace" || e.key === "Delete") {
+          if (!canDelete) return;
           e.preventDefault();
           setDeleteOpen(true);
         }
@@ -530,6 +549,15 @@ export function TransactionRow({
         ) : (
           <span className="flex min-w-0 flex-1 items-baseline gap-2 text-sm text-[var(--body-on-dark)]">
             <span className="shrink-0">{formattedAmount}</span>
+            {/* 260731-osq: queued-offline marker — this row saves itself once
+                the connection is back. */}
+            {pending ? (
+              <RotateCw
+                data-testid="txn-row-pending"
+                aria-label={t("pending.badge")}
+                className="h-3 w-3 shrink-0 self-center text-[var(--muted-foreground)]"
+              />
+            ) : null}
             {/* Inline note only while the row is RESTING — keeps it compact.
                 An ACTIVE row shows the fuller meta line (date · note) below. */}
             {txn.note && !showChips ? (
@@ -548,45 +576,49 @@ export function TransactionRow({
           MIDDLE of the whole two-line row, not just the amount line. */}
       {showChips && (
         <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1">
-          <button
-            type="button"
-            data-testid="txn-action-edit"
-            aria-label={t("action.delete")}
-            // 260723-10: keep focus on the row so the chip doesn't unmount
-            // mid-click (focus leaving the row hides the chips) — otherwise the
-            // tap falls through to the amount cell and reopens the inline editor.
-            onMouseDown={(e) => e.preventDefault()}
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(txn.id);
-              setRevealed(false);
-            }}
-            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded hover:bg-[var(--surface-card-dark)]"
-          >
-            <Pencil
-              className="h-4 w-4 text-[var(--body-on-dark)]"
-              aria-hidden="true"
-            />
-          </button>
-          <button
-            type="button"
-            data-testid="txn-action-delete"
-            aria-label={t("action.delete")}
-            onMouseDown={(e) => e.preventDefault()}
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={(e) => {
-              e.stopPropagation();
-              setDeleteOpen(true);
-              setRevealed(false);
-            }}
-            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded hover:bg-[var(--surface-card-dark)]"
-          >
-            <Trash2
-              className="h-4 w-4 text-[var(--destructive)]"
-              aria-hidden="true"
-            />
-          </button>
+          {canEdit && (
+            <button
+              type="button"
+              data-testid="txn-action-edit"
+              aria-label={t("action.delete")}
+              // 260723-10: keep focus on the row so the chip doesn't unmount
+              // mid-click (focus leaving the row hides the chips) — otherwise the
+              // tap falls through to the amount cell and reopens the inline editor.
+              onMouseDown={(e) => e.preventDefault()}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(txn.id);
+                setRevealed(false);
+              }}
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded hover:bg-[var(--surface-card-dark)]"
+            >
+              <Pencil
+                className="h-4 w-4 text-[var(--body-on-dark)]"
+                aria-hidden="true"
+              />
+            </button>
+          )}
+          {canDelete && (
+            <button
+              type="button"
+              data-testid="txn-action-delete"
+              aria-label={t("action.delete")}
+              onMouseDown={(e) => e.preventDefault()}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeleteOpen(true);
+                setRevealed(false);
+              }}
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded hover:bg-[var(--surface-card-dark)]"
+            >
+              <Trash2
+                className="h-4 w-4 text-[var(--destructive)]"
+                aria-hidden="true"
+              />
+            </button>
+          )}
         </div>
       )}
 
@@ -625,7 +657,13 @@ export function TransactionRow({
               data-testid="txn-row-delete-confirm"
               onClick={() => {
                 focusAfterDelete();
-                deleteMutation.mutate(txn.id);
+                // A pending row lives only in localStorage — dropping the queued
+                // entry IS the delete, and it works with no connection.
+                if (pending) {
+                  removePendingSpending(txn.id);
+                } else {
+                  deleteMutation.mutate(txn.id);
+                }
                 setDeleteOpen(false);
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"

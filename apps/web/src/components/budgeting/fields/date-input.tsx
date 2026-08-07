@@ -1,7 +1,9 @@
 "use client";
 
 import { useLocale } from "next-intl";
+import { CalendarDays } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 interface DateInputProps {
   value: string; // ISO YYYY-MM-DD
@@ -13,6 +15,10 @@ interface DateInputProps {
   id?: string;
   /** Optional placeholder text shown when `value` is empty. */
   placeholder?: string;
+  /** Extra classes for the underlying input (size / shape overrides). */
+  className?: string;
+  /** Render a leading calendar glyph and indent the value to clear it. */
+  withIcon?: boolean;
 }
 
 /**
@@ -53,6 +59,8 @@ export function DateInput({
   value,
   onChange,
   placeholder,
+  className,
+  withIcon = false,
   ...rest
 }: DateInputProps) {
   const locale = useLocale();
@@ -63,12 +71,25 @@ export function DateInput({
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-10 text-transparent caret-transparent"
+        className={cn(
+          "h-10 text-transparent caret-transparent",
+          withIcon && "pl-9",
+          className,
+        )}
         {...rest}
       />
+      {withIcon && (
+        <CalendarDays
+          aria-hidden="true"
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]"
+        />
+      )}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 flex items-center whitespace-nowrap px-3 text-base sm:text-sm text-[var(--body-on-dark)]"
+        className={cn(
+          "pointer-events-none absolute inset-0 flex items-center whitespace-nowrap text-base sm:text-sm text-[var(--body-on-dark)]",
+          withIcon ? "pl-9 pr-3" : "px-3",
+        )}
       >
         {display ||
           (placeholder ? (

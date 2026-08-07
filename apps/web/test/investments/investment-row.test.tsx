@@ -10,7 +10,7 @@
  * - NO inline <input> on the row (sheet-only editing, INV-06)
  */
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { InvestmentRow } from "../../src/components/budgeting/wallets-tab/investment-row";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 
@@ -189,10 +189,127 @@ describe("InvestmentRow", () => {
     expect(screen.queryByText("Bitcoin (BTC)")).toBeNull();
   });
 
-  it("has NO inline input (sheet-only editing, INV-06)", () => {
-    render(<InvestmentRow holding={holding()} />);
+  it("tracked holding: amount is NOT inline-editable (value = qty × market price)", () => {
+    render(<InvestmentRow holding={holding()} onValueChange={vi.fn()} />);
     const row = screen.getByTestId("holding-row-AAPL");
     expect(row.querySelectorAll("input")).toHaveLength(0);
+    expect(screen.queryByTestId("holding-amount-h1")).toBeNull();
+  });
+
+  // 260731: manual-value rows (cash / broker / savings — quantity is 1) edit
+  // their value inline like every other wallet row: click → input → Enter/blur.
+  describe("inline value edit (manual-value holdings)", () => {
+    const cash = () =>
+      holding({
+        name: "Wallet",
+        holdingType: "cash_fx",
+        uiType: "cash",
+        instrumentId: null,
+        quantity: "1",
+        buyPriceCents: "50000",
+        currentPriceCents: "50000",
+        valueCents: "50000",
+        valueInBudgetCents: "50000",
+        profitLossPct: null,
+        profitLossCents: null,
+      });
+
+    it("click on the amount opens an input seeded with the current value", () => {
+      render(<InvestmentRow holding={cash()} onValueChange={vi.fn()} />);
+      fireEvent.click(screen.getByTestId("holding-amount-h1"));
+      const input = screen
+        .getByTestId("holding-row-Wallet")
+        .querySelector("input");
+      expect(input).not.toBeNull();
+      expect((input as HTMLInputElement).value).toBe("500");
+    });
+
+    it("Enter saves the typed value", async () => {
+      const onValueChange = vi.fn().mockResolvedValue(undefined);
+      render(<InvestmentRow holding={cash()} onValueChange={onValueChange} />);
+      fireEvent.click(screen.getByTestId("holding-amount-h1"));
+      const input = screen
+        .getByTestId("holding-row-Wallet")
+        .querySelector("input") as HTMLInputElement;
+      fireEvent.change(input, { target: { value: "725.50" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await waitFor(() => expect(onValueChange).toHaveBeenCalledWith("725.50"));
+    });
+
+    it("blur saves the typed value too", async () => {
+      const onValueChange = vi.fn().mockResolvedValue(undefined);
+      render(<InvestmentRow holding={cash()} onValueChange={onValueChange} />);
+      fireEvent.click(screen.getByTestId("holding-amount-h1"));
+      const input = screen
+        .getByTestId("holding-row-Wallet")
+        .querySelector("input") as HTMLInputElement;
+      fireEvent.change(input, { target: { value: "610" } });
+      // Real blur: focus actually leaves the editor (the cell defers its commit
+      // a frame and re-checks document.activeElement, so a synthetic blur event
+      // with focus still inside would legitimately not commit).
+      input.blur();
+      await waitFor(() => expect(onValueChange).toHaveBeenCalledWith("610"));
+    });
+
+    it("does not open the edit sheet when the amount is clicked", () => {
+      const onEdit = vi.fn();
+      render(
+        <InvestmentRow
+          holding={cash()}
+          onEdit={onEdit}
+          onValueChange={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByTestId("holding-amount-h1"));
+      expect(onEdit).not.toHaveBeenCalled();
+    });
+
+    it("savings + broker rows are inline-editable as well", () => {
+      const { rerender } = render(
+        <InvestmentRow
+          holding={holding({
+            name: "Fund",
+            holdingType: "savings",
+            uiType: "savings",
+            quantity: "1",
+          })}
+          onValueChange={vi.fn()}
+        />,
+      );
+      expect(screen.getByTestId("holding-amount-h1")).toBeInTheDocument();
+      rerender(
+        <InvestmentRow
+          holding={holding({
+            name: "IBKR",
+            holdingType: "broker",
+            uiType: "broker",
+            quantity: "1",
+          })}
+          onValueChange={vi.fn()}
+        />,
+      );
+      expect(screen.getByTestId("holding-amount-h1")).toBeInTheDocument();
+    });
+
+    it("a deposit keeps its computed value (no inline editor)", () => {
+      render(
+        <InvestmentRow
+          holding={holding({
+            name: "Term deposit",
+            holdingType: "deposit",
+            uiType: "deposit",
+            quantity: "1",
+          })}
+          onValueChange={vi.fn()}
+        />,
+      );
+      expect(screen.queryByTestId("holding-amount-h1")).toBeNull();
+    });
+
+    it("stays read-only when no onValueChange handler is wired", () => {
+      render(<InvestmentRow holding={cash()} />);
+      expect(screen.queryByTestId("holding-amount-h1")).toBeNull();
+    });
   });
 
   it("colors a gain with --trading-up", () => {

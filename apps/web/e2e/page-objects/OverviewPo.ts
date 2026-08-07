@@ -71,9 +71,25 @@ export class OverviewPo {
     await this.sectionBody(slug).waitFor({ state: "visible" });
   }
 
-  /** Planned-section category <select> (default "All categories"). */
+  /** Planned-section category picker (default "All categories").
+   *  `.first()`: the section grew a second picker when the by-category chart
+   *  got its own (260804), and both carry the same testid. */
   categorySelect() {
-    return this.page.getByTestId("overview-planned-category");
+    return this.page.getByTestId("overview-planned-category").first();
+  }
+
+  /** An option inside the OPEN category picker popover. */
+  categoryOption(name: string) {
+    return this.page.getByRole("option", { name, exact: true });
+  }
+
+  /** Narrow the picker to ONE category: clear the default "everything", tick
+   *  the one wanted, then close — closing is what commits the draft. */
+  async pickOnlyCategory(name: string) {
+    await this.categorySelect().click();
+    await this.page.getByTestId("category-clear-all").click();
+    await this.categoryOption(name).click();
+    await this.page.keyboard.press("Escape");
   }
 
   /** A wealth view toggle button by its visible label (Capitalization / Investments). */
@@ -87,5 +103,42 @@ export class OverviewPo {
   /** The investments-view pie region (renders the pie or the calm empty-pie copy). */
   pieRegion() {
     return this.page.getByTestId("overview-wealth-pie");
+  }
+
+  // ── Reserve fit → rebalance dialog (260805) ───────────────────────────────
+
+  /** The icon in the fit chart's LEFT corner that opens the rebalance dialog. */
+  rebalanceTrigger() {
+    return this.page.getByTestId("reserve-rebalance-open");
+  }
+
+  rebalanceDialog() {
+    return this.page.getByTestId("reserve-rebalance-dialog");
+  }
+
+  /** A dialog row, addressed by the category NAME shown on it. */
+  rebalanceRow(categoryName: string) {
+    return this.rebalanceDialog()
+      .getByRole("listitem")
+      .filter({ hasText: categoryName });
+  }
+
+  /** That row's one button — Rebalance or Undo, carrying data-kind. */
+  rebalanceAction(categoryName: string) {
+    return this.rebalanceRow(categoryName).getByRole("button");
+  }
+
+  /** That row's editable target field. */
+  rebalanceTarget(categoryName: string) {
+    return this.rebalanceRow(categoryName).getByRole("textbox");
+  }
+
+  /** The reserves this dialog lists, top to bottom — the queue's order. */
+  async rebalanceOrder(): Promise<string[]> {
+    return await this.rebalanceDialog()
+      .getByRole("listitem")
+      .evaluateAll((els) =>
+        els.map((el) => el.getAttribute("data-category") ?? ""),
+      );
   }
 }

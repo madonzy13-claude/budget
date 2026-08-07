@@ -356,7 +356,10 @@ export function ReservesTableRow({
           // which collided whenever the user typed the same digits as the cents
           // value (e.g. "8" with balance 800 → typing "800" matched draft →
           // InlineEditCell short-circuited as no-op and never fired onSave).
-          <div className="w-[88px] text-right tabular-nums sm:w-[140px]">
+          // 88px could not hold "1,483.11" — the editor scrolled and the
+          // leading digits vanished off the left, so the member was typing
+          // against a number they could not see (user screenshot, 260806).
+          <div className="w-[124px] text-right tabular-nums sm:w-[140px]">
             <InlineEditCell
               // value is the editor source — keep it a clean separator-free
               // decimal so the edit round-trip + no-op compare stay locale-
@@ -382,7 +385,9 @@ export function ReservesTableRow({
                     if (e.key === "Enter")
                       (e.target as HTMLInputElement).blur();
                   }}
-                  className="h-9 pl-7 text-right"
+                  // No pl-7: that inset was reserved for a currency symbol this
+                  // editor does not render, and it was costing a digit.
+                  className="h-9 px-2 text-right"
                 />
               )}
               onSave={async (v) => {

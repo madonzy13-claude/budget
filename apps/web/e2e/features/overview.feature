@@ -32,7 +32,11 @@ Feature: Budget Overview tab
     Then the "3M" overview range is active
 
   Scenario: Selecting a category re-scopes the Planned section
+    # TWO categories on purpose: the picker treats "all of them ticked" as
+    # "everything", so narrowing to the only category there is would still read
+    # as "All categories" — and prove nothing.
     Given the budget has a category "Food" with a monthly limit of 50000 cents
+    And the budget has a category "Travel" with a monthly limit of 30000 cents
     When I open the BDP for "My E2E Budget"
     And I click the "Overview" tab pill
     And I expand the "planned" overview section

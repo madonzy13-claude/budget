@@ -13,5 +13,11 @@ export interface UserRepo {
   /** Seed display_currency only if still unset (NULL) — never clobbers a choice. */
   setDisplayCurrencyIfUnset(id: UserId, currency: string): Promise<void>;
   getActiveWorkspaceIds(id: UserId): Promise<string[]>;
+  /** UI picks that follow the PERSON but belong to no single budget (0074). */
+  getUserUiPrefs(id: UserId): Promise<Record<string, string[]>>;
+  mergeUserUiPrefs(
+    id: UserId,
+    patch: Record<string, string[]>,
+  ): Promise<Record<string, string[]>>;
   setActiveWorkspaceIds(id: UserId, ids: string[]): Promise<void>;
 }

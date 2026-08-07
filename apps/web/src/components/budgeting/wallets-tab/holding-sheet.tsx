@@ -653,7 +653,7 @@ export function HoldingSheet({
         // would steal clicks meant for the Type trigger (re-click reopened the
         // dropdown instead of closing it). Forcing the content interactive keeps
         // the trigger clickable so it toggles closed normally.
-        className="!pointer-events-auto flex w-full flex-col bg-[var(--canvas-dark)] sm:max-w-[480px]"
+        className="!pointer-events-auto flex w-full flex-col overflow-y-auto bg-[var(--canvas-dark)] sm:max-w-[480px]"
         // Close ONLY via the explicit X / Cancel / Discard buttons. The discard
         // AlertDialog portals OUTSIDE this content, so any click on it counts as
         // "interact outside"; letting that close the sheet re-ran attemptClose →
@@ -668,7 +668,7 @@ export function HoldingSheet({
           </SheetTitle>
         </SheetHeader>
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-1 pb-4">
+        <div className="space-y-4 px-1 pb-4">
           {/* 1. Type — always first; drives the rest of the form. */}
           <Field label={t("field.type")}>
             <Select
@@ -1268,7 +1268,9 @@ function HoldingPreviewBlock({
     if (preview.buyTotal != null)
       rows.push({
         key: "dep",
-        label: t(uiType === "savings" ? "preview.starting" : "preview.deposited"),
+        label: t(
+          uiType === "savings" ? "preview.starting" : "preview.deposited",
+        ),
         value: money(preview.buyTotal),
       });
     rows.push({

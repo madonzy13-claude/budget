@@ -26,6 +26,15 @@ import {
   Heart,
   ShoppingCart,
   Circle,
+  Laptop,
+  Gem,
+  Wrench,
+  Dumbbell,
+  Sofa,
+  Palette,
+  Watch,
+  Bike,
+  Ship,
 } from "lucide-react";
 import {
   Popover,
@@ -73,6 +82,19 @@ const ICONS: IconOption[] = [
   { name: "plane", Icon: Plane },
   { name: "heart", Icon: Heart },
   { name: "shopping-cart", Icon: ShoppingCart },
+  // Possessions became wallets on 260803 and brought their own icon keys with
+  // them — these names are what the old possession picker stored, so keep them
+  // spelled exactly that way or migrated rows lose their icon.
+  { name: "electronics", Icon: Laptop },
+  { name: "jewelry", Icon: Gem },
+  { name: "tools", Icon: Wrench },
+  { name: "sport", Icon: Dumbbell },
+  { name: "cash", Icon: Banknote },
+  { name: "furniture", Icon: Sofa },
+  { name: "art", Icon: Palette },
+  { name: "watch", Icon: Watch },
+  { name: "bike", Icon: Bike },
+  { name: "boat", Icon: Ship },
 ];
 
 export function iconByName(name: string | null | undefined) {
@@ -140,7 +162,9 @@ export function WalletCustomizer({
     )
       return;
     e.preventDefault();
-    focusPos(nextCustomizerFocus(posRef.current, key as GridNavKey, sectionSizes));
+    focusPos(
+      nextCustomizerFocus(posRef.current, key as GridNavKey, sectionSizes),
+    );
   };
   // On open, land on the currently-selected swatch/icon (else the first item).
   const onOpenAutoFocus = (e: Event) => {
@@ -196,39 +220,39 @@ export function WalletCustomizer({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {showColor && (
-        <div className="space-y-1.5">
-          <div className="text-caption uppercase tracking-wide text-[var(--muted-foreground)]">
-            {t("color")}
-          </div>
-          <div className="grid grid-cols-8 gap-1">
-            {PALETTE.map((c, i) => (
+          <div className="space-y-1.5">
+            <div className="text-caption uppercase tracking-wide text-[var(--muted-foreground)]">
+              {t("color")}
+            </div>
+            <div className="grid grid-cols-8 gap-1">
+              {PALETTE.map((c, i) => (
+                <button
+                  key={c.value}
+                  ref={registerBtn(colorSec, i)}
+                  type="button"
+                  aria-label={t("colorAria", { name: t(`palette.${c.key}`) })}
+                  onClick={() => onChange({ color: c.value })}
+                  className={cn(
+                    "size-6 rounded-full border-2 transition-transform hover:scale-110",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-1",
+                    color === c.value
+                      ? "border-[var(--on-dark)]"
+                      : "border-transparent",
+                  )}
+                  style={{ backgroundColor: c.value }}
+                />
+              ))}
+            </div>
+            {color && (
               <button
-                key={c.value}
-                ref={registerBtn(colorSec, i)}
                 type="button"
-                aria-label={t("colorAria", { name: t(`palette.${c.key}`) })}
-                onClick={() => onChange({ color: c.value })}
-                className={cn(
-                  "size-6 rounded-full border-2 transition-transform hover:scale-110",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-1",
-                  color === c.value
-                    ? "border-[var(--on-dark)]"
-                    : "border-transparent",
-                )}
-                style={{ backgroundColor: c.value }}
-              />
-            ))}
+                onClick={() => onChange({ color: null })}
+                className="text-xs text-[var(--muted-foreground)] underline-offset-2 hover:underline"
+              >
+                {t("clearColor")}
+              </button>
+            )}
           </div>
-          {color && (
-            <button
-              type="button"
-              onClick={() => onChange({ color: null })}
-              className="text-xs text-[var(--muted-foreground)] underline-offset-2 hover:underline"
-            >
-              {t("clearColor")}
-            </button>
-          )}
-        </div>
         )}
 
         <div className="space-y-1.5">

@@ -25,6 +25,9 @@ export function listCategories(deps: ListCategoriesDeps) {
           createdAt: c.createdAt.toISOString(),
           colorKey: c.colorKey ?? null,
           cushionMode: c.cushionMode ?? null,
+          // r33's smart Investments category. The planned chart hides investing
+          // from its picker and needs to know which one that is (260802).
+          isInvestment: c.isInvestment ?? false,
         })),
       );
     } catch (e) {

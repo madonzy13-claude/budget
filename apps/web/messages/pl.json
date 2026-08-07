@@ -344,8 +344,8 @@
           "description": "Gdy saldo poduszki jest poniżej wyznaczonego celu"
         },
         "INCOME_UNDER_PLANNED": {
-          "label": "Wydatki ponad dostępne środki",
-          "description": "Gdy zaplanowane wydatki przekraczają dochód i dostępne środki w portfelach"
+          "label": "Zabraknie pieniędzy",
+          "description": "Gdy prognoza pokazuje, że pieniądze skończą się przed kolejnym wpływem"
         },
         "TASK_COMPLETED": {
           "label": "Zadanie ukończone",
@@ -693,7 +693,8 @@
         "dragAria": "Przeciągnij, aby zmienić kolejność {name}.",
         "qty": "Ilość: {qty}",
         "started": "Początek: {amount}",
-        "share": "Udział: {pct}"
+        "share": "Udział: {pct}",
+        "amountAria": "Edytuj wartość {name}"
       },
       "rowExpandAria": "Rozwiń szczegóły {name}.",
       "plAria": "{value} zysk/strata",
@@ -777,7 +778,7 @@
       "RESERVE_TOPUP": "Uzupełnij rezerwę",
       "CUSHION_BELOW_TARGET": "Poduszka poniżej celu",
       "CONFIRM_DRAFT": "Potwierdź wydatek",
-      "INCOME_UNDER_PLANNED": "Przejrzyj wydatki"
+      "INCOME_UNDER_PLANNED": "Zabraknie pieniędzy"
     },
     "attention_title": "Wymaga uwagi",
     "flow_title": "W tym miesiącu",
@@ -1137,7 +1138,8 @@
           "11": "Listopad",
           "12": "Grudzień"
         },
-        "saveButton": "Zapisz dochód"
+        "saveButton": "Zapisz dochód",
+        "errorAmount": "Podaj kwotę, np. 73,80"
       },
       "list": {
         "empty": "Brak dochodów.",
@@ -1212,6 +1214,7 @@
         "lastDueLabel": "Data końcowa (opcjonalnie)",
         "lastDuePlaceholder": "Bez daty końcowej",
         "errorLastBeforeFirst": "Data końcowa nie może być wcześniejsza niż pierwsza data",
+        "errorAmount": "Podaj kwotę, np. 73,80",
         "noteLabel": "Notatka (opcjonalnie)",
         "applyToFutureLabel": "Zastosuj również do przyszłych wystąpień",
         "applyToFutureHelp": "Edytuje nadchodzące oczekujące szkice, aby odzwierciedlały nową kwotę/kategorię. Potwierdzone w przeszłości transakcje nigdy nie są zmieniane.",
@@ -1406,7 +1409,7 @@
           "reservesOk": "Rezerwy zgodne z wymaganą kwotą",
           "reservesShort": "Rezerwy poniżej wymaganej kwoty",
           "reservesSurplus": "Więcej rezerw niż potrzeba",
-          "reservesOkNote": "Potrzeba <amt>{amount}</amt>",
+          "reservesOkNote": "Wszystkie rezerwy są na miejscu",
           "reservesShortNote": "Za mało. Brakuje <amt>{amount}</amt>",
           "reservesSurplusNote": "Za dużo. Nadwyżka <amt>{amount}</amt>",
           "capitalization": "Kapitalizacja",
@@ -1427,6 +1430,8 @@
           "realMonths": "realne miesiące"
         },
         "range": {
+          "previous": "Poprzedni okres",
+          "next": "Następny okres",
           "month": "Miesiąc",
           "1m": "1M",
           "3m": "3M",
@@ -1443,7 +1448,7 @@
         "overspentByCategory": "Kwota przekroczenia wg kategorii",
         "reservesByCategory": "Saldo rezerw wg kategorii",
         "sections": {
-          "planned": "Zaplanowane",
+          "planned": "Plan wydatków",
           "overspent": "Przekroczenia",
           "reserves": "Rezerwy",
           "wealth": "Majątek finansowy"
@@ -1451,16 +1456,50 @@
         "planned": {
           "category": "Kategoria",
           "allCategories": "Wszystkie kategorie",
+          "selectAll": "Zaznacz wszystkie",
+          "clearAll": "Wyczyść",
+          "categoriesPicked": "{count} kategorii",
           "real": "Rzeczywiste",
+          "avgColumn": "śr.",
+          "totalColumn": "razem",
           "planned": "Zaplanowane",
           "needs": "Potrzeby",
           "wants": "Zachcianki",
-          "recurringPerMonth": "Płatności cykliczne wg miesięcy",
-          "recurringPerCategory": "Płatności cykliczne wg kategorii",
-          "timelineTitle": "Plan a rzeczywiste wydatki w czasie",
-          "avgByCategory": "Przekroczenie / oszczędność wg kategorii",
+          "fromPlan": "Wydane z planu",
+          "fromReserve": "Użyte rezerwy",
+          "overspent": "Przekroczenie",
+          "totalSpent": "Łącznie wydane",
+          "totalPlanned": "Łącznie zaplanowane",
+          "total": "Razem",
+          "recurringPerMonth": "Płatności cykliczne, wg miesiąca",
+          "recurringSeries": "Płatności cykliczne",
+          "timelineTitle": "Jak każdy miesiąc wypadł względem planu",
+          "avgByCategory": "Odchylenie od planu, wg kategorii",
           "avgPie": "Planowane wydatki wg kategorii",
-          "difference": "Różnica"
+          "difference": "Różnica",
+          "ring": {
+            "needs": "Potrzeby",
+            "wants": "Zachcianki",
+            "investments": "Inwestycje"
+          },
+          "scale": "Skala",
+          "scalePct": "%",
+          "scaleAmount": "zł",
+          "ongoingExcluded": "Trwający miesiąc nie wchodzi do średnich.",
+          "perMonth": "miesięcznie",
+          "overPlan": "Ponad plan",
+          "underPlan": "Poniżej planu",
+          "basis": "Limit",
+          "basisAverage": "Średni",
+          "basisCurrent": "Bieżący",
+          "avgLimit": "Średni limit",
+          "currentLimit": "Bieżący limit",
+          "monthColumn": "mies.",
+          "spent": "Wydane",
+          "byCategoryAverage": "Odchylenie od średniego limitu, wg kategorii",
+          "byCategoryCurrent": "Odchylenie od dzisiejszego limitu, wg kategorii",
+          "differenceVsAverage": "Różnica wobec średniego limitu",
+          "differenceVsCurrent": "Różnica wobec bieżącego limitu"
         },
         "wealth": {
           "capitalization": "Kapitalizacja",
@@ -1477,7 +1516,7 @@
           "avgForRange": "Śr. zmiana ({range})",
           "growSince": "{preset, select, thisMonth {od początku miesiąca} last3Months {za ostatnie 3 miesiące} last6Months {za ostatnie 6 miesięcy} last12Months {za ostatnie 12 miesięcy} all {cały czas} other {w wybranym zakresie}}",
           "byType": "Inwestycje wg typu aktywów",
-          "byBucket": "Podział kapitału",
+          "byBucket": "Z czego składa się Twój majątek",
           "capInvestments": "Inwestycje",
           "capSpendings": "Wydatki",
           "capReserves": "Rezerwy",
@@ -1487,14 +1526,16 @@
           "contributions": "Wpłaty",
           "profit": "Zysk",
           "total": "Razem",
-          "pl": "Zysk/strata"
+          "pl": "Zysk/strata",
+          "capOther": "Inne"
         },
         "empty": {
           "overspent": "Brak przekroczeń w tym zakresie.",
           "reserves": "Brak rezerw.",
           "wealth": "Historia majątku zaczyna się gromadzić — wróć wkrótce.",
           "pie": "Brak inwestycji.",
-          "planned": "Brak aktywności w tym zakresie."
+          "planned": "Brak aktywności w tym zakresie.",
+          "reserveFit": "Brak rezerw do oceny."
         },
         "projection": {
           "title": "Prognoza pieniędzy do końca przyszłego miesiąca",
@@ -1509,6 +1550,45 @@
           "cantCover": "Nie starcza na",
           "income": "Dochód",
           "bill": "Płatności cykliczne"
+        },
+        "reserveFit": {
+          "title": "Czy każda rezerwa ma właściwą wielkość?",
+          "held": "Trzymane",
+          "needed": "Potrzebne",
+          "short": "Brakuje",
+          "trim": "Do uwolnienia",
+          "oneOffsFor": "Duże wydatki w {name}",
+          "recurs": "powtarza się {cadence}",
+          "reviewOneOffs": "Przejrzyj duże wydatki",
+          "excludedCount": "Pominięto {count} jako jednorazowe",
+          "oneOffsTitle": "Które wydatki się nie powtórzą?",
+          "oneOffsExplainer": "Liczone wydatki wyznaczają wielkość rezerw. Pomiń to, co było jednorazowe — coroczna opłata powinna zostać liczona.",
+          "filterByCategory": "Filtruj po kategorii",
+          "allCategories": "Wszystkie kategorie",
+          "excludedSection": "Pominięte",
+          "countedSection": "Liczone",
+          "countedAria": "Licz {amount} do rezerw",
+          "heldTotal": "Trzymane",
+          "neededTotal": "Potrzebne",
+          "unassigned": "Nie liczone — brak kategorii: {list}. Przypisz ją w Ustawienia → Cykliczne, a wpłyną na rezerwę.",
+          "aboveTarget": "ponad potrzebę",
+          "belowTarget": "poniżej potrzeby",
+          "onTarget": "Dokładnie tyle, ile trzeba",
+          "rebalanceTitle": "Zbilansuj rezerwy",
+          "rebalanceExplainer": "Uzupełnij te, którym brakuje, i odbierz to, co nie jest potrzebne. Jeśli liczba wyliczona z historii Ci nie odpowiada, najpierw zmień cel.",
+          "openRebalance": "Zbilansuj rezerwy",
+          "rebalanceAction": "Zbilansuj",
+          "undoAction": "Cofnij",
+          "targetLabel": "Cel",
+          "targetAria": "Docelowa rezerwa dla {name}",
+          "rebalanceAria": "Zbilansuj {name}",
+          "undoAria": "Cofnij zmianę w {name}",
+          "nothingToMove": "Już we właściwej wysokości",
+          "coveredOverspend": "{amount} z tego poszło na pokrycie przekroczeń, więc rezerwie nadal brakuje."
+        },
+        "needsCompletedMonth": {
+          "title": "Nie ma jeszcze czego oceniać",
+          "body": "Ten wykres porównuje pełne miesiące z ich budżetem, a trwający miesiąc jeszcze nim nie jest. Wybierz zakres obejmujący zakończony miesiąc."
         }
       },
       "spendings": {
@@ -1566,7 +1646,9 @@
         "section": {
           "spendings": "Portfele wydatków",
           "cushion": "Portfele poduszki",
-          "reserve": "Portfele rezerw"
+          "reserve": "Portfele rezerw",
+          "possession": "Posiadane rzeczy",
+          "other": "Inne"
         },
         "sectionLabel": {
           "spendings": "Wydatki",
@@ -1576,7 +1658,9 @@
         "add": {
           "spendings": "Dodaj portfel wydatków",
           "cushion": "Dodaj portfel poduszki",
-          "reserve": "Dodaj portfel rezerwy"
+          "reserve": "Dodaj portfel rezerwy",
+          "possession": "Dodaj rzecz",
+          "other": "Dodaj aktywo"
         },
         "row": {
           "namePlaceholder": "Nazwa portfela",
@@ -1658,7 +1742,7 @@
         "RESERVE_TOPUP": "Uzupełnij rezerwę o {amount}",
         "CONFIRM_DRAFT": "{hasCategory, select, yes {Potwierdź {amount} — {category}} other {Potwierdź {amount}}}",
         "CUSHION_BELOW_TARGET": "Brakuje {shortfall} do celu poduszki",
-        "INCOME_UNDER_PLANNED": "Zaplanowane wydatki przewyższają Twoje środki o {shortfall}",
+        "INCOME_UNDER_PLANNED": "Zabraknie {shortfall} przed kolejnym wpływem",
         "RESERVE_TOPUP_withdraw": "Rezerwa ma {amount} nadwyżki"
       },
       "kind": {
@@ -1686,7 +1770,7 @@
         "RESERVE_TOPUP": "Twoje portfele rezerwowe mają o {amount} mniej niż suma przypisana do rezerw kategorii. Masz dwie opcje: uzupełnij portfel rezerwowy (dodaj środki) do wysokości sumy kategorii, albo zmniejsz niektóre rezerwy kategorii, żeby ich suma odpowiadała saldu portfeli.",
         "CONFIRM_DRAFT": "Reguła cykliczna utworzyła nowy szkic transakcji dla {ruleName} ({amount}). Otwórz zakładkę Wydatki, sprawdź wiersz szkicu i potwierdź go lub odrzuć. Potwierdzenie zapisuje transakcję w księdze; odrzucenie pomija ją bez wpływu na kolejne wystąpienia.",
         "CUSHION_BELOW_TARGET": "Twoja poduszka finansowa jest poniżej celu ustawionego w Ustawieniach (miesiące × średnie wydatki). Brakuje {shortfall}. Masz trzy opcje: przelej środki do portfela typu Poduszka, obniż liczbę miesięcy w Ustawienia → Poduszka (mniejszy zapas = mniejsza wymagana poduszka), albo zmniejsz limity niektórych kategorii, żeby spadły średnie miesięczne wydatki.",
-        "INCOME_UNDER_PLANNED": "Twoje łączne zaplanowane wydatki to {planned}, ale masz dostępne tylko {available} — to Twój dochód plus salda portfeli, i brakuje {shortfall}. Otwórz zakładkę Wydatki i zmniejsz limity niektórych kategorii (lub ręczną kwotę Inwestycji), aż plan zmieści się w tym, co masz.",
+        "INCOME_UNDER_PLANNED": "Przy obecnym planie pieniądze spadną do {low} przed kolejnym wpływem — brakuje {shortfall}. Otwórz zakładkę Wydatki i obniż limity kategorii albo przesuń płatność, aż prognoza utrzyma się powyżej zera.",
         "RESERVE_TOPUP_withdraw": "Twoje portfele rezerwowe mają o {amount} więcej niż suma przypisana do rezerw kategorii. Masz dwie opcje: wypłać nadwyżkę z portfela rezerwowego, albo rozdziel ją między rezerwy kategorii (zwiększ jedną lub więcej kwot kategorii, żeby sumowały się do sumy portfeli)."
       }
     }
@@ -1746,11 +1830,6 @@
       }
     },
     "expensesTitle": "Wydatki",
-    "offlineDialog": {
-      "title": "Nie można dodać w trybie offline",
-      "body": "Jesteś offline, więc tego wydatku nie można teraz zapisać. Połącz się z internetem i spróbuj ponownie.",
-      "ok": "Rozumiem"
-    },
     "deleteCategory": {
       "title": "Usunąć kategorię na stałe?",
       "body": "Spowoduje to trwałe usunięcie kategorii {name} oraz wszystkich jej transakcji, limitów i historii. Tej operacji nie można cofnąć.",
@@ -1778,6 +1857,11 @@
       "write": {
         "offline": "Jesteś offline — nie można teraz dodać. Spróbuj ponownie po ponownym połączeniu.",
         "failed": "Nie udało się dodać transakcji. Spróbuj ponownie."
+      },
+      "pending": {
+        "queued": "Zapisano na tym urządzeniu — prześlemy, gdy wrócisz online.",
+        "badge": "Czeka na połączenie — zapisze się automatycznie",
+        "waiting": "Czeka na synchronizację"
       }
     },
     "lastAdded": "Ostatni wydatek dodano {when}",
@@ -1830,7 +1914,8 @@
       "row2": {
         "planned": "plan",
         "cushion": "poduszka",
-        "plannedCushion": "plan (poduszka)"
+        "plannedCushion": "plan (poduszka)",
+        "limitUsed": "limit wykorzystany"
       },
       "row3": {
         "overspent": "przekroczenie",

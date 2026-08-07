@@ -101,12 +101,11 @@ function buildTitleParams(
     }
     case "CUSHION_BELOW_TARGET":
       return { shortfall: fmt(payload.shortfall_cents) };
+    // 260731: projection-based — the same figures as the Overview Surplus card.
     case "INCOME_UNDER_PLANNED":
       return {
         shortfall: fmt(payload.shortfall_cents),
-        income: fmt(payload.income_cents),
-        available: fmt(payload.available_cents),
-        planned: fmt(payload.planned_cents),
+        low: fmt(payload.projected_low_cents),
       };
   }
 }

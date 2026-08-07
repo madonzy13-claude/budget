@@ -361,7 +361,11 @@ export class DrizzleTransactionRepo implements TransactionRepo {
           execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
         };
         const result = await drizzleTx.execute(
-          sql`SELECT max(created_at) AS latest
+          // max(confirmed_at), NOT max(created_at): a recurring draft is created
+          // by the worker (created_at = generation time) and confirmed later, so
+          // created_at would report a moment from the row's unconfirmed-draft era.
+          // For manually added spendings the two are the same instant.
+          sql`SELECT max(confirmed_at) AS latest
             FROM budgeting.expense_ledger
             WHERE tenant_id = ${tenantId}::uuid
               AND budget_id = ${budgetId}::uuid

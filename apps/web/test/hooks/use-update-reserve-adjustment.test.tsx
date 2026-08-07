@@ -351,6 +351,46 @@ describe("useUpdateReserveAdjustment", () => {
     );
   });
 
+  // The rebalance dialog moves several reserves in a row, and each row already
+  // says what happened to it — its figure follows the move and its button turns
+  // into Undo. A toast per press would just stack up over that (260805).
+  it("holds the success toast back when the caller asked for silence", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ reserveCents: "30100", deltaCents: "100" }),
+    });
+
+    const { result } = renderHook(
+      () => useUpdateReserveAdjustment(BUDGET_ID, { silent: true }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      result.current.mutate({ categoryId: "cat-A", expectedCents: 30100 });
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("still says so when a silent adjust fails", async () => {
+    mockFetch.mockResolvedValue({ ok: false, text: async () => "boom" });
+
+    const { result } = renderHook(
+      () => useUpdateReserveAdjustment(BUDGET_ID, { silent: true }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      result.current.mutate({ categoryId: "cat-A", expectedCents: 30100 });
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    expect(mockToastError).toHaveBeenCalledWith(
+      "bdp.tab.reserves.toast.saveFailed",
+    );
+  });
+
   // ── Cover reveal: adjust consumed reserve to cover this month's overspend ──
 
   const coverSummary: ReservesSummaryDto = {
@@ -474,6 +514,11 @@ describe("useUpdateReserveAdjustment", () => {
 
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ["spendings-summary", BUDGET_ID] }),
+    );
+    // …and the Overview, which draws held reserves in its cards and in the fit
+    // chart the rebalance dialog is launched from (260805).
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["budget", BUDGET_ID, "overview"] }),
     );
   });
 

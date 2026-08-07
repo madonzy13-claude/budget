@@ -124,6 +124,22 @@ async function createFixture(): Promise<Fixture> {
        VALUES ($1, $2, $3, $4, 'USD', 5000, 5000, 1, '2026-02-15'::date, '2026-02-15'::date, 'SPENDING', NULL, now(), now())`,
       [crypto.randomUUID(), budgetId, budgetId, categoryId],
     );
+    // An INVESTMENT category with spend in the same days. It counts like any
+    // other category now (260803 user request): both the monthly and the daily
+    // line carry it, and it appears in the by-category chart.
+    const investId = crypto.randomUUID();
+    await c.query(
+      `INSERT INTO budgeting.categories (id, tenant_id, name, is_investment, created_at, actor_user_id)
+       VALUES ($1, $2, 'Investing', true, '2025-12-01T00:00:00Z', $3)`,
+      [investId, budgetId, userId],
+    );
+    await c.query(
+      `INSERT INTO budgeting.expense_ledger
+         (id, tenant_id, budget_id, category_id, currency_original, amount_original_cents,
+          amount_converted_cents, fx_rate, fx_as_of, transaction_date, kind, confirmed_at, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'USD', 99000, 99000, 1, '2026-01-12'::date, '2026-01-12'::date, 'SPENDING', now(), now(), now())`,
+      [crypto.randomUUID(), budgetId, budgetId, investId],
+    );
     // Active MONTHLY recurring rule: 100.00 USD on Food.
     await c.query(
       `INSERT INTO budgeting.recurring_rules
@@ -201,7 +217,14 @@ describe("GET /budgets/:id/overview/planned", () => {
     const body = (await res.json()) as {
       currency: string;
       bucket: string;
-      timeline: { label: string; planned_cents: string; real_cents: string }[];
+      timeline: {
+        label: string;
+        planned_cents: string;
+        real_cents: string;
+        within_limit_cents: string;
+        reserve_used_cents: string;
+        overspent_cents: string;
+      }[];
       plannedAvgVsReal: {
         category_id: string;
         planned_avg_cents: string;
@@ -223,9 +246,23 @@ describe("GET /budgets/:id/overview/planned", () => {
       "20000",
       "15000",
     ]);
-    // real: confirmed only — the Feb pending 5000 is excluded
+    // Every point carries the month's spend split — limit, reserve, overspend —
+    // which is what sets the line's colour proportions.
+    for (const p of body.timeline) {
+      expect(BigInt(p.within_limit_cents)).toBeLessThanOrEqual(
+        BigInt(p.real_cents),
+      );
+      expect(
+        BigInt(p.within_limit_cents) +
+          BigInt(p.reserve_used_cents) +
+          BigInt(p.overspent_cents),
+      ).toBe(BigInt(p.real_cents));
+    }
+    // real: confirmed only — the Feb pending 5000 is excluded. January also
+    // carries the 990.00 invested on the 12th: investing counts like any other
+    // outgoing now (260803 user request).
     expect(body.timeline.map((p) => p.real_cents)).toEqual([
-      "18000",
+      "117000",
       "21000",
       "14000",
     ]);
@@ -258,8 +295,75 @@ describe("GET /budgets/:id/overview/planned", () => {
       timeline: { label: string; real_cents: string }[];
     };
     expect(body.bucket).toBe("daily");
-    // one confirmed tx on 2026-01-10 → cumulative 18000
-    expect(body.timeline.at(-1)!.real_cents).toBe("18000");
+    // Food's 180.00 on the 10th plus the 990.00 invested on the 12th.
+    expect(body.timeline.at(-1)!.real_cents).toBe("117000");
+  });
+
+  it("a mid-month limit change shows the LATEST limit for that month", async () => {
+    // 260801 user report: 6M+ month ticks must carry the month's latest value.
+    // The query resolved the limit at the month START, so a limit raised on the
+    // 20th still drew the old figure for the whole month.
+    const f = await createFixture();
+    await withTenant(f.budgetId, f.userId, async (c) => {
+      await c.query(
+        `UPDATE budgeting.category_limits
+            SET effective_to = '2026-01-20'
+          WHERE tenant_id = $1 AND category_id = $2`,
+        [f.budgetId, f.categoryId],
+      );
+      await c.query(
+        `INSERT INTO budgeting.category_limits
+           (id, tenant_id, category_id, normal_amount, normal_currency,
+            cushion_amount, cushion_currency, effective_from, actor_user_id, created_at)
+         VALUES ($1, $2, $3, 55000, 'USD', 15000, 'USD', '2026-01-20', $4, now())`,
+        [crypto.randomUUID(), f.budgetId, f.categoryId, f.userId],
+      );
+    });
+    const app = await buildApp({
+      userId: f.userId,
+      allowedTenantIds: [f.budgetId],
+    });
+    const res = await app.request(
+      `/budgets/${f.budgetId}/overview/planned?from=2026-01-01&to=2026-03-31`,
+    );
+    const body = (await res.json()) as {
+      timeline: { label: string; planned_cents: string }[];
+    };
+    const jan = body.timeline.find((p) => p.label === "2026-01")!;
+    expect(jan.planned_cents).toBe("55000");
+  });
+
+  it("honours an INCLUSIVE effective_to (last day of the month)", async () => {
+    // 260801: reconstructed limits (e.g. the House backfill) close a period on the
+    // month's LAST DAY, while the app's own SCD-2 split closes it on the NEXT
+    // period's first day. A month-end lookup with a strict `>` dropped every
+    // inclusive row — the category vanished from the planned line entirely.
+    const f = await createFixture();
+    await withTenant(f.budgetId, f.userId, async (c) => {
+      await c.query(
+        `UPDATE budgeting.category_limits
+            SET effective_from = '2026-01-01', effective_to = '2026-01-31'
+          WHERE tenant_id = $1 AND category_id = $2`,
+        [f.budgetId, f.categoryId],
+      );
+    });
+    const app = await buildApp({
+      userId: f.userId,
+      allowedTenantIds: [f.budgetId],
+    });
+    const res = await app.request(
+      `/budgets/${f.budgetId}/overview/planned?from=2026-01-01&to=2026-03-31`,
+    );
+    const body = (await res.json()) as {
+      timeline: { label: string; planned_cents: string }[];
+    };
+    const jan = body.timeline.find((p) => p.label === "2026-01")!;
+    expect(jan.planned_cents).toBe("20000");
+    // …and the period really ends there: February has no limit in force, so its
+    // point is present (every month in range is) but planned drops to zero.
+    expect(
+      body.timeline.find((p) => p.label === "2026-02")!.planned_cents,
+    ).toBe("0");
   });
 
   it("rejects an inverted range with 400 (T-11-03)", async () => {
@@ -282,5 +386,57 @@ describe("GET /budgets/:id/overview/planned", () => {
       `/budgets/${fix.budgetId}/overview/planned?from=2026-01-01&to=2026-03-31`,
     );
     expect(res.status).toBe(404);
+  });
+
+  it("counts investment spend in the DAILY line, like any other category", async () => {
+    const app = await buildApp({
+      userId: fix.userId,
+      allowedTenantIds: [fix.budgetId],
+    });
+    // A single month → daily bucket.
+    const res = await app.request(
+      `/budgets/${fix.budgetId}/overview/planned?from=2026-01-01&to=2026-01-31`,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      bucket: string;
+      timeline: {
+        real_cents: string;
+        within_limit_cents: string;
+        reserve_used_cents: string;
+        overspent_cents: string;
+      }[];
+    };
+    expect(body.bucket).toBe("daily");
+    const last = body.timeline[body.timeline.length - 1]!;
+    // Food's 180.00 PLUS the 990.00 invested — the household's whole outgoing.
+    expect(last.real_cents).toBe("117000");
+    // …so the split still accounts for every cent the line draws.
+    expect(
+      BigInt(last.within_limit_cents) +
+        BigInt(last.reserve_used_cents) +
+        BigInt(last.overspent_cents),
+    ).toBe(BigInt(last.real_cents));
+  });
+
+  it("lists the Investments category in the by-category chart", async () => {
+    // It used to be dropped from plannedAvgVsReal, which feeds BOTH "How far off
+    // plan, by category" and the "Planned spendings, by category" pie (260803
+    // user request).
+    const app = await buildApp({
+      userId: fix.userId,
+      allowedTenantIds: [fix.budgetId],
+    });
+    const res = await app.request(
+      `/budgets/${fix.budgetId}/overview/planned?from=2026-01-01&to=2026-03-31`,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      plannedAvgVsReal: { name: string; real_avg_cents: string }[];
+    };
+    const row = body.plannedAvgVsReal.find((r) => r.name === "Investing");
+    expect(row).toBeTruthy();
+    // 990.00 invested once over the three months it was active.
+    expect(BigInt(row!.real_avg_cents)).toBeGreaterThan(0n);
   });
 });

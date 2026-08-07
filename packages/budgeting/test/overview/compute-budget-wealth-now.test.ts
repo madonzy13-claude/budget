@@ -30,7 +30,6 @@ function deps(
   investmentValueCents: bigint,
   rates: Record<string, string> = {},
   investmentCostBasisCents: bigint = 0n,
-  possessionsValueCents: bigint = 0n,
 ): ComputeBudgetWealthNowDeps {
   return {
     walletRepo: {
@@ -44,9 +43,6 @@ function deps(
       },
       async investmentCostBasisCents() {
         return investmentCostBasisCents;
-      },
-      async possessionsValueCents() {
-        return possessionsValueCents;
       },
     },
     fxProvider: fxProvider(rates) as ComputeBudgetWealthNowDeps["fxProvider"],
@@ -100,16 +96,64 @@ describe("computeBudgetWealthNow", () => {
     expect(out.capitalization_cents).toBe(20000n);
   });
 
-  test("possessions add to capitalization and are exposed as a subtotal (out of investment_value)", async () => {
+  test("possessions are a subtotal of net worth, never of investments", async () => {
     const wallets: WalletWithType[] = [
       { amount_cents: 10000n, currency: "USD", wallet_type: "SPENDINGS" },
+      { amount_cents: 50000n, currency: "USD", wallet_type: "POSSESSION" },
     ];
-    // wallets 10000 + investments 20000 + possessions 50000 = 80000 net worth.
-    const out = await computeBudgetWealthNow(
-      deps(wallets, 20000n, {}, 0n, 50000n),
-    )(input);
+    // wallets 60000 (the possession among them) + investments 20000 = 80000.
+    const out = await computeBudgetWealthNow(deps(wallets, 20000n))(input);
     expect(out.investment_value_cents).toBe(20000n); // possessions NOT here
     expect(out.possessions_value_cents).toBe(50000n);
     expect(out.capitalization_cents).toBe(80000n); // but ARE in net worth
+  });
+});
+
+describe("possessions are wallets now (260803)", () => {
+  // They used to be holdings with holding_type 'possession'. They are a wallet
+  // type, so they arrive in the SAME list as every other wallet — which means
+  // capitalization must not add them a second time.
+  const wallets: WalletWithType[] = [
+    { amount_cents: 100000n, currency: "USD", wallet_type: "SPENDINGS" },
+    { amount_cents: 50000n, currency: "USD", wallet_type: "RESERVE" },
+    { amount_cents: 400000n, currency: "USD", wallet_type: "POSSESSION" },
+    { amount_cents: 25000n, currency: "USD", wallet_type: "OTHER" },
+  ];
+
+  test("counts every wallet once toward capitalization", async () => {
+    const out = await computeBudgetWealthNow(deps(wallets, 200000n))(input);
+    // 1000 + 500 + 4000 + 250 = 5750 in wallets, plus 2000 of investments.
+    expect(out.capitalization_cents).toBe(575000n + 200000n);
+  });
+
+  test("reports the POSSESSION wallets as the possessions figure", async () => {
+    // The retirement pot subtracts this: a house is not liquid drawdown.
+    const out = await computeBudgetWealthNow(deps(wallets, 0n))(input);
+    expect(out.possessions_value_cents).toBe(400000n);
+  });
+
+  test("leaves OTHER in the pot — it is spendable, just unassigned", async () => {
+    const out = await computeBudgetWealthNow(deps(wallets, 0n))(input);
+    const pot = out.capitalization_cents - out.possessions_value_cents;
+    // 1000 + 500 + 250 = 1750: everything but the possession.
+    expect(pot).toBe(175000n);
+  });
+
+  // The "where your money is" pie slices capitalization by wallet kind, so an
+  // OTHER wallet needs its own subtotal or its money vanishes from the chart.
+  test("reports the OTHER wallets as their own figure", async () => {
+    const out = await computeBudgetWealthNow(deps(wallets, 0n))(input);
+    expect(out.other_value_cents).toBe(25000n);
+  });
+
+  test("reads zero possessions when the budget has none", async () => {
+    const out = await computeBudgetWealthNow(
+      deps(
+        [{ amount_cents: 1000n, currency: "USD", wallet_type: "SPENDINGS" }],
+        0n,
+      ),
+    )(input);
+    expect(out.possessions_value_cents).toBe(0n);
+    expect(out.other_value_cents).toBe(0n);
   });
 });

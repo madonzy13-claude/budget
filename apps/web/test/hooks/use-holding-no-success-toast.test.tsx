@@ -10,12 +10,21 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const successToast = vi.fn();
 const errorToast = vi.fn();
 vi.mock("sonner", () => ({
-  toast: { success: (...a: unknown[]) => successToast(...a), error: (...a: unknown[]) => errorToast(...a) },
+  toast: {
+    success: (...a: unknown[]) => successToast(...a),
+    error: (...a: unknown[]) => errorToast(...a),
+  },
 }));
 vi.mock("next-intl", () => ({ useTranslations: () => (k: string) => k }));
-vi.mock("../../src/lib/idempotency", () => ({ generateIdempotencyKey: () => "k" }));
-vi.mock("../../src/lib/query-persist", () => ({ persistNow: vi.fn().mockResolvedValue(undefined) }));
-vi.mock("../../src/hooks/use-offline-write-toast", () => ({ useOfflineWriteToast: () => vi.fn() }));
+vi.mock("../../src/lib/idempotency", () => ({
+  generateIdempotencyKey: () => "k",
+}));
+vi.mock("../../src/lib/query-persist", () => ({
+  persistNow: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("../../src/hooks/use-offline-write-toast", () => ({
+  useOfflineWriteToast: () => vi.fn(),
+}));
 const writeMock = vi.fn();
 vi.mock("../../src/lib/offline-write", () => ({
   clientApiWrite: (...a: unknown[]) => writeMock(...a),
@@ -27,7 +36,10 @@ import { useUpdateHolding } from "../../src/hooks/use-update-holding";
 
 function wrapper() {
   const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
   });
   return ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={qc}>{children}</QueryClientProvider>
@@ -39,11 +51,17 @@ describe("holding save shows no success toast", () => {
     successToast.mockClear();
     errorToast.mockClear();
     writeMock.mockReset();
-    writeMock.mockResolvedValue({ ok: true, json: async () => ({ id: "h1" }), text: async () => "" });
+    writeMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: "h1" }),
+      text: async () => "",
+    });
   });
 
   it("create: on success does NOT toast.success", async () => {
-    const { result } = renderHook(() => useCreateHolding("b1"), { wrapper: wrapper() });
+    const { result } = renderHook(() => useCreateHolding("b1"), {
+      wrapper: wrapper(),
+    });
     result.current.mutate({ name: "Car", holdingType: "possession" });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(successToast).not.toHaveBeenCalled();
@@ -51,7 +69,9 @@ describe("holding save shows no success toast", () => {
   });
 
   it("update: on success does NOT toast.success", async () => {
-    const { result } = renderHook(() => useUpdateHolding("b1"), { wrapper: wrapper() });
+    const { result } = renderHook(() => useUpdateHolding("b1"), {
+      wrapper: wrapper(),
+    });
     result.current.mutate({ holdingId: "h1", name: "Home" });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(successToast).not.toHaveBeenCalled();

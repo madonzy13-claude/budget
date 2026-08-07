@@ -21,6 +21,28 @@ export function parseDecimal(input: string): number | null {
 }
 
 /**
+ * The same typed amount as a canonical decimal STRING, or null when it is not a
+ * positive amount. For the endpoints that take a decimal rather than cents — the
+ * recurring-rule routes validate `^\d+(\.\d{1,4})?$`, so a comma keyboard
+ * ("73,8", the Polish layout's decimal key) was rejected and the save failed with
+ * a bare "Failed to create rule" (user report, 260803).
+ *
+ * Four decimals, not two: that is what those endpoints store.
+ */
+export function toDecimalString(input: string): string | null {
+  const cleaned = input
+    .replace(/\s/g, "")
+    .replace(/[^\d.,-]/g, "")
+    .replace(/,/g, ".");
+  // Two separators is not a number anyone meant. parseDecimal collapses them
+  // ("1,2,3" → 1.23); on a money field that is a silent wrong amount, so this
+  // refuses instead and the caller can say so.
+  if ((cleaned.match(/\./g) ?? []).length > 1) return null;
+  if (!/^\d+(\.\d{1,4})?$/.test(cleaned)) return null;
+  return parseFloat(cleaned) > 0 ? cleaned : null;
+}
+
+/**
  * Split a quick-entry string into an amount (cents) and an optional note
  * (260722-note). "11.45" / "11,45" → { cents: 1145, note: null }. The FIRST
  * whitespace ends the amount — everything after it becomes the note:

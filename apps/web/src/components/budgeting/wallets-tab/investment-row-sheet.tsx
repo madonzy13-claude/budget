@@ -32,6 +32,8 @@ interface InvestmentRowSheetProps {
   maxAmountChars?: number;
   onEdit: (holding: HoldingDto) => void;
   onArchive: (holdingId: string) => void;
+  /** Save an inline-edited value (manual-value holdings only — see InvestmentRow). */
+  onValueChange?: (amount: string) => Promise<void> | void;
 }
 
 // Two rounded action buttons (w-14=56) + the gap between them (gap-3=12) + an
@@ -45,6 +47,7 @@ export function InvestmentRowSheet({
   maxAmountChars,
   onEdit,
   onArchive,
+  onValueChange,
 }: InvestmentRowSheetProps) {
   const t = useTranslations("budget.investments");
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -278,6 +281,7 @@ export function InvestmentRowSheet({
           }
           onEdit={() => onEdit(holding)}
           onDelete={() => setConfirmOpen(true)}
+          onValueChange={onValueChange}
         />
       </div>
 

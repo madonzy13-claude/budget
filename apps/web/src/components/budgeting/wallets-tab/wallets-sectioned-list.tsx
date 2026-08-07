@@ -43,7 +43,6 @@ import { useArchiveWallet } from "@/hooks/use-archive-wallet";
 import { useReorderWallets } from "@/hooks/use-reorder-wallets";
 import { WalletSection, type DraftState } from "./wallet-section";
 import { InvestmentsSection } from "./investments-section";
-import { PossessionsSection } from "./possessions-section";
 // UAT-PH5-T3-28: import the ghost preview's helpers statically. Inline
 // `require()` worked on dev but blew up on iOS Safari with a
 // client-side exception when the row's DragOverlay first rendered.
@@ -88,7 +87,32 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   // handles its own rest-on-row above).
   const highlightNewWallet = useCallback(
     (id: string) => {
-      pollForWalletRow(id, (row, root) => highlightNavItem(root, row));
+      pollForWalletRow(id, (row, root) => {
+        highlightNavItem(root, row);
+        // The highlight is an imperative DOM attribute, and the "add wallet"
+        // button that started this create takes the marker back once the
+        // create settles — the rest-highlight was landing and then being
+        // overwritten, so the saved row never stayed highlighted.
+        //
+        // Re-assert for a short window, yielding only to another WALLET ROW:
+        // that means the user roved on and taking it back would fight their
+        // arrow keys. A marker resting on the add button is the state this is
+        // here to correct, not a user decision to respect.
+        let tries = 0;
+        const reassert = () => {
+          const r = rootRef.current;
+          const held = r?.querySelector("[data-nav-highlighted]");
+          const heldByRow = held?.getAttribute("data-nav-type") === "wallet";
+          if (r && !heldByRow) {
+            const el = r.querySelector<HTMLElement>(`[data-wallet-id="${id}"]`);
+            if (el) highlightNavItem(r, el);
+          }
+          // ~2.5s: the add button can reclaim the marker well after the row
+          // mounts, and a 0.7s window let one run in three slip through.
+          if (tries++ < 150) requestAnimationFrame(reassert);
+        };
+        requestAnimationFrame(reassert);
+      });
     },
     [pollForWalletRow],
   );
@@ -125,14 +149,15 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   // raw enum "CUSHION".
   const tSection = useTranslations("bdp.tab.wallets.section");
   const tUnavailable = useTranslations("offline.unavailable");
+  const SECTION_KEY: Record<WalletDto["walletType"], string> = {
+    SPENDINGS: "spendings",
+    CUSHION: "cushion",
+    RESERVE: "reserve",
+    POSSESSION: "possession",
+    OTHER: "other",
+  };
   const sectionLabelFor = (kind: WalletDto["walletType"]) =>
-    tSection(
-      kind === "SPENDINGS"
-        ? "spendings"
-        : kind === "CUSHION"
-          ? "cushion"
-          : "reserve",
-    );
+    tSection(SECTION_KEY[kind]);
   // Client-data (260615-e8s round 8): the page no longer bakes the wallet list
   // into its HTML. useWallets fetches it client-side (online → API + cache to
   // IDB; offline → IDB), so the document stays light and the data is cached as
@@ -306,6 +331,12 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
     SPENDINGS: wallets.filter((w) => w.walletType === "SPENDINGS").sort(bySort),
     CUSHION: wallets.filter((w) => w.walletType === "CUSHION").sort(bySort),
     RESERVE: wallets.filter((w) => w.walletType === "RESERVE").sort(bySort),
+    // 260803: possessions used to be holdings; they are wallets now, so they
+    // sort and drag with the rest. OTHER is for assets that belong to nothing.
+    POSSESSION: wallets
+      .filter((w) => w.walletType === "POSSESSION")
+      .sort(bySort),
+    OTHER: wallets.filter((w) => w.walletType === "OTHER").sort(bySort),
   };
 
   // ── W-4 staged-add handlers ───────────────────────────────────────────────
@@ -430,6 +461,34 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   // First paint with no cached data and the fetch in flight → skeleton (mirrors
   // loading.tsx geometry). Offline with no cache → the query errors → show an
   // in-content "not available offline" note (keeps header + pills mounted).
+  // One section renderer, two lists: the spending pools above investments
+  // and the asset sections below it (260803).
+  const renderSection = (type: WalletType) => (
+    <WalletSection
+      key={type}
+      type={type}
+      budgetCurrency={budgetCurrency}
+      wallets={grouped[type]}
+      draft={drafts[type] ?? null}
+      // UAT-PH5-T3-22 / T3-23: highlight only on cross-section drags.
+      // Within the same section reordering is shown by neighbour rows
+      // sliding aside — the blue ring would be visual noise.
+      isDropEligible={
+        overSection === type &&
+        activeDragId !== null &&
+        activeDragged != null &&
+        activeDragged.walletType !== type
+      }
+      onUpdate={async (id, patch) => {
+        await updateMut.mutateAsync({ walletId: id, ...patch });
+      }}
+      onArchive={handleArchive}
+      onAdd={handleAdd(type)}
+      onCommitDraft={handleCommitDraft(type)}
+      onDiscardDraft={handleDiscardDraft(type)}
+    />
+  );
+
   if (walletsQuery.isPending) {
     // delayed only while the one-shot IDB restore is still bridging; once it's
     // done, a pending query = network wait (>200ms), so render immediately
@@ -489,31 +548,7 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
             ...(cushionEnabled ? (["CUSHION"] as const) : []),
             ...(reservesEnabled ? (["RESERVE"] as const) : []),
           ] as const
-        ).map((type) => (
-          <WalletSection
-            key={type}
-            type={type}
-            budgetCurrency={budgetCurrency}
-            wallets={grouped[type]}
-            draft={drafts[type] ?? null}
-            // UAT-PH5-T3-22 / T3-23: highlight only on cross-section drags.
-            // Within the same section reordering is shown by neighbour rows
-            // sliding aside — the blue ring would be visual noise.
-            isDropEligible={
-              overSection === type &&
-              activeDragId !== null &&
-              activeDragged != null &&
-              activeDragged.walletType !== type
-            }
-            onUpdate={async (id, patch) => {
-              await updateMut.mutateAsync({ walletId: id, ...patch });
-            }}
-            onArchive={handleArchive}
-            onAdd={handleAdd(type)}
-            onCommitDraft={handleCommitDraft(type)}
-            onDiscardDraft={handleDiscardDraft(type)}
-          />
-        ))}
+        ).map(renderSection)}
         {/* Phase 9 (INV-01/02): Investments renders LAST when its flag is on —
             mirrors the reservesEnabled/cushionEnabled section gates above. */}
         {investmentsEnabled && (
@@ -522,12 +557,10 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
             budgetCurrency={budgetCurrency}
           />
         )}
-        {/* Possessions (house/car/…): always on, renders after investments. Part
-            of capitalization but excluded from the retirement runway. */}
-        <PossessionsSection
-          budgetId={budgetId}
-          budgetCurrency={budgetCurrency}
-        />
+        {/* Possessions and Other sit BELOW investments (user, 260803): they are
+            assets you own, not pools you spend from. Always on — neither hangs
+            off a feature flag. */}
+        {(["POSSESSION", "OTHER"] as const).map(renderSection)}
       </div>
       {/* UAT-PH5-T3-18: pointer-pinned preview so a cross-section drag never
           loses the dragged row visually as the pointer crosses a context

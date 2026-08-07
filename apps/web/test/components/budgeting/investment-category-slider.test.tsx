@@ -112,8 +112,8 @@ describe("InvestmentCategorySlider", () => {
       true,
     );
     // limit-mode body carries mode=manual.
-    const modeCall = writeMock.mock.calls.find(
-      (c) => (c[0] as string).endsWith("/limit-mode"),
+    const modeCall = writeMock.mock.calls.find((c) =>
+      (c[0] as string).endsWith("/limit-mode"),
     )!;
     expect(JSON.parse((modeCall[1] as { body: string }).body).mode).toBe(
       "manual",

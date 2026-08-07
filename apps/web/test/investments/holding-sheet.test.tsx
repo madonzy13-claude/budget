@@ -686,7 +686,9 @@ describe("HoldingSheet — type-first", () => {
         })}
       />,
     );
-    const amount = screen.getByTestId("holding-sheet-amount") as HTMLInputElement;
+    const amount = screen.getByTestId(
+      "holding-sheet-amount",
+    ) as HTMLInputElement;
     expect(amount.getAttribute("placeholder") ?? "").toBe("");
   });
 

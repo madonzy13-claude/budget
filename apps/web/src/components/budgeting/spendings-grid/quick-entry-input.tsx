@@ -14,6 +14,8 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { parseAmountAndNote } from "@/lib/decimal";
 import { useCreateTransaction } from "@/hooks/use-create-transaction";
+import { addPendingSpending } from "@/lib/pending-spendings";
+import { idempotencyKeyFor } from "@/lib/idempotency";
 import { MobileKeyboardToggle } from "./mobile-keyboard-toggle";
 
 export interface QuickEntryInputProps {
@@ -23,15 +25,6 @@ export interface QuickEntryInputProps {
   month: string; // YYYY-MM viewed
   budgetCurrency: string;
   resolvedDate: string; // ISO YYYY-MM-DD — passed in, computed by parent
-  /**
-   * 260615-bse: invoked when an add is attempted while offline — the grid hosts
-   * a single shared dialog and opens it here. Two paths converge on this:
-   *  1. device-knows-offline (navigator.onLine===false) → short-circuit BEFORE
-   *     mutate so NO optimistic row is inserted (no add-then-remove flicker);
-   *  2. lying-true (onLine reports true on a dead link) → wired as the hook's
-   *     onOfflineError so the same dialog opens after the optimistic rollback.
-   */
-  onOfflineAttempt: () => void;
 }
 
 export function QuickEntryInput({
@@ -41,10 +34,10 @@ export function QuickEntryInput({
   month,
   budgetCurrency,
   resolvedDate,
-  onOfflineAttempt,
 }: QuickEntryInputProps) {
   const t = useTranslations("grid.quickEntry");
   const tError = useTranslations("grid.error");
+  const tTxn = useTranslations("grid.txn");
   const [value, setValue] = useState("");
   // 260722-d: numeric keyboard by default; the ABC/123 button flips it to text
   // so a note can be typed after the amount + a space.
@@ -57,12 +50,46 @@ export function QuickEntryInput({
   // r40b: an edge-hop submits then moves focus, which fires onBlur synchronously
   // BEFORE the cleared value flushes — without this the blur would submit the
   // same (stale) value a second time and insert a duplicate row.
-  const justEdgeSubmittedRef = useRef(false);
+  const justSubmittedRef = useRef(false);
   // Lying-true case: an OfflineWriteError (timeout / dead link with onLine===true)
-  // opens the SAME dialog as the pre-insert path after rolling back.
+  // rolls the optimistic row back — we re-add it to the local queue so the entry
+  // is never lost, exactly like the device-knows-offline path below.
   const { mutate } = useCreateTransaction(budgetId, month, {
-    onOfflineError: onOfflineAttempt,
+    onOfflineError: (input) =>
+      // Same input object the mutation used, so this recovers the very key that
+      // attempt sent rather than starting a new operation — the replay is then
+      // recognisably the SAME write (260806).
+      queueOffline(
+        input.amountCents,
+        input.note ?? null,
+        input.date,
+        idempotencyKeyFor(input),
+      ),
   });
+
+  /** 260731-osq: keep the spending locally (persisted) + bottom toast. */
+  function queueOffline(
+    amountCents: number,
+    note: string | null,
+    date: string,
+    /** The key the failed attempt used, so its replay is the SAME write. */
+    idempotencyKey?: string,
+  ) {
+    addPendingSpending({
+      ...(idempotencyKey ? { idempotencyKey } : {}),
+      budgetId,
+      month,
+      categoryId,
+      // Stored so an offline cold start (no cached category list) can still
+      // label the queued row.
+      categoryName,
+      amountCents,
+      currency: budgetCurrency,
+      date,
+      note,
+    });
+    toast.success(tTxn("pending.queued"));
+  }
 
   // silent = blur path: don't toast on an invalid value, just leave it.
   function submit(silent = false) {
@@ -76,12 +103,21 @@ export function QuickEntryInput({
     }
     // D-PH4-Q1: clear input first, then optimistic insert
     setValue("");
-    // 260615-bse: device-knows-offline → pop the dialog and DO NOT mutate, so
-    // onMutate never runs → no optimistic row → no add-then-remove flicker.
-    // (navigator.onLine===false is the only reliable signal on iOS; the `true`
-    // value lies on a dead link — that case is caught by onOfflineError above.)
+    // …and tell the blur that follows that this entry is already saved. Clearing
+    // the field is not enough on its own: `value` is state, so a blur arriving
+    // before React re-renders still sees the OLD string and saves it a second
+    // time. Enter did exactly that — one 180 typed in the reserves E2E arrived
+    // as two, and the doubled overage swallowed the whole reserve (260806). The
+    // edge-hop paths had guarded against this for themselves; every save path
+    // goes through here, so this is where it belongs.
+    justSubmittedRef.current = true;
+    // 260731-osq: device-knows-offline → queue it locally and DO NOT mutate, so
+    // no doomed POST is issued. The entry renders as a pending row and flushes
+    // when the connection returns. (navigator.onLine===false is the only
+    // reliable signal on iOS; the `true` value lies on a dead link — that case
+    // is caught by onOfflineError above and queued the same way.)
     if (navigator.onLine === false) {
-      onOfflineAttempt();
+      queueOffline(parsed.cents, parsed.note, resolvedDate);
       return;
     }
     mutate({
@@ -156,7 +192,6 @@ export function QuickEntryInput({
     if (e.metaKey || e.ctrlKey) {
       e.preventDefault();
       submit();
-      justEdgeSubmittedRef.current = true;
       const all = allQuickInputs();
       focusQuickInput(goRight ? all[all.length - 1] : all[0], !goRight);
       return;
@@ -172,7 +207,6 @@ export function QuickEntryInput({
     if (atEdge) {
       e.preventDefault();
       submit();
-      justEdgeSubmittedRef.current = true;
       focusAdjacentQuickInput(goRight ? 1 : -1);
     }
   }
@@ -185,10 +219,10 @@ export function QuickEntryInput({
       return;
     }
     setFocused(false);
-    // Skip the save the edge-hop already performed (its focus move fired this
-    // blur synchronously, before the cleared value flushed).
-    if (justEdgeSubmittedRef.current) {
-      justEdgeSubmittedRef.current = false;
+    // Skip the save a submit already performed — its focus move fires this blur
+    // before the cleared value has flushed.
+    if (justSubmittedRef.current) {
+      justSubmittedRef.current = false;
       return;
     }
     submit(true);
@@ -220,7 +254,14 @@ export function QuickEntryInput({
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => setFocused(true)}
+          onFocus={() => {
+            setFocused(true);
+            // A fresh visit to the field is a fresh entry: whatever the last
+            // save set the guard to has nothing to do with it. Without this,
+            // two entries committed by blur alone would see the second one
+            // silently dropped.
+            justSubmittedRef.current = false;
+          }}
           onBlur={handleBlur}
           placeholder={t("placeholder")}
           aria-label={t("addExpenseAria", { categoryName })}

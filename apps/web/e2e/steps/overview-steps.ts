@@ -154,17 +154,16 @@ Then(
 When(
   "I select the category {string} in the Planned section",
   async ({ page }, name: string) => {
-    await new OverviewPo(page).categorySelect().selectOption({ label: name });
+    await new OverviewPo(page).pickOnlyCategory(name);
   },
 );
 
 Then(
   "the Planned category selector shows {string}",
   async ({ page }, name: string) => {
-    const select = new OverviewPo(page).categorySelect();
-    const value = await select.inputValue();
-    const label = await select.locator(`option[value="${value}"]`).innerText();
-    expect(label.trim()).toBe(name);
+    // The picker is a popover trigger now, not a <select> — its own label is
+    // what the member reads, so that is what this asserts.
+    await expect(new OverviewPo(page).categorySelect()).toHaveText(name);
   },
 );
 

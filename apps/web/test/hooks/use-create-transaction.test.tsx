@@ -142,6 +142,9 @@ vi.mock("../../src/lib/budget-fetch", () => ({
 
 vi.mock("../../src/lib/idempotency", () => ({
   generateIdempotencyKey: () => "test-idem-key",
+  // One key per OPERATION (260806): every attempt at one create carries the
+  // same one, so a retry is recognisable as the same write.
+  idempotencyKeyFor: () => "test-idem-key",
 }));
 
 // The hook now reads grid.txn.write.* and toasts on error (robust-minimal

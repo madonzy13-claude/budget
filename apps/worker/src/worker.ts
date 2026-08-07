@@ -17,6 +17,7 @@ import {
   getSubscriptionsForBudget,
   deleteSubscription,
 } from "@budget/platform";
+import { computeCashflowProjection } from "@budget/budgeting/src/application/compute-cashflow-projection";
 import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
 import { DrizzleFxRateCacheRepo } from "@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo";
 import { createTaskRepo } from "@budget/budgeting/src/adapters/persistence/task-repo";
@@ -100,14 +101,9 @@ const DEFAULT_INVESTMENT_UNIVERSE: InstrumentUpsert[] = [
     assetClass: "etf",
     quoteCurrency: "USD",
   },
-  {
-    // Non-US ETF: no free server-side quote → user-priced (provider='manual').
-    symbol: "VWCE",
-    displayName: "Vanguard FTSE All-World ETF",
-    provider: "manual",
-    assetClass: "etf",
-    quoteCurrency: "EUR",
-  },
+  // VWCE (non-US ETF, user-priced) removed in 0076: we can only quote US
+  // listings, so the search filter hid it anyway and the CHECK added by that
+  // migration now rejects it outright — seeding it would fail the cold start.,
   {
     // CoinGecko ids are slugs ("bitcoin"), but users search by ticker ("BTC").
     // The local trigram search matches display_name, so carry the ticker there.
@@ -275,6 +271,16 @@ async function main() {
     cushion: {
       taskRepo,
       fxProvider,
+    },
+    // 260731: the projected-shortfall sweep mirrors the Overview Surplus card, so
+    // it needs the cash-flow projection (not just fx).
+    incomeUnderPlanned: {
+      taskRepo,
+      fxProvider,
+      getProjection: computeCashflowProjection({
+        fxProvider,
+        reservePositions,
+      }),
     },
   };
   await boss.createQueue("budgeting-reconciliation");
@@ -446,23 +452,6 @@ async function main() {
         return r.value.holdings
           .filter((h) => h.holdingType !== "possession")
           .reduce((s, h) => s + BigInt(h.costInBudgetCents), 0n);
-      },
-      // Possessions: in capitalization (net worth) but out of investment value.
-      possessionsValueCents: async (input: {
-        tenantId: string;
-        budgetId: string;
-        defaultCurrency: string;
-      }): Promise<bigint> => {
-        const r = await investments.listHoldings({
-          tenantId: input.tenantId,
-          budgetId: input.budgetId,
-          actorUserId: WEALTH_SYSTEM_USER,
-          budgetCurrency: input.defaultCurrency,
-        });
-        if (r.isErr()) throw r.error;
-        return r.value.holdings
-          .filter((h) => h.holdingType === "possession")
-          .reduce((s, h) => s + BigInt(h.valueInBudgetCents), 0n);
       },
     },
     fxProvider,

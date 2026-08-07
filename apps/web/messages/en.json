@@ -317,8 +317,8 @@
           "description": "When the cushion balance falls short of the goal"
         },
         "INCOME_UNDER_PLANNED": {
-          "label": "Planned over available money",
-          "description": "When your planned spending exceeds your income plus available wallet funds"
+          "label": "Cash runs short",
+          "description": "When the forecast says your money runs out before your next income"
         },
         "TASK_COMPLETED": {
           "label": "Task completed",
@@ -693,7 +693,8 @@
         "dragAria": "Drag to reorder {name}.",
         "qty": "Qty: {qty}",
         "started": "Started: {amount}",
-        "share": "Share: {pct}"
+        "share": "Share: {pct}",
+        "amountAria": "Edit value of {name}"
       },
       "rowExpandAria": "Expand {name} details.",
       "plAria": "{value} profit/loss",
@@ -777,7 +778,7 @@
       "RESERVE_TOPUP": "Top up reserve",
       "CUSHION_BELOW_TARGET": "Cushion below target",
       "CONFIRM_DRAFT": "Confirm spending",
-      "INCOME_UNDER_PLANNED": "Review spendings"
+      "INCOME_UNDER_PLANNED": "Cash runs short"
     },
     "attention_title": "Needs attention",
     "flow_title": "This month",
@@ -1114,7 +1115,8 @@
           "11": "November",
           "12": "December"
         },
-        "saveButton": "Save income"
+        "saveButton": "Save income",
+        "errorAmount": "Enter an amount like 73.80"
       },
       "list": {
         "empty": "No incomes yet.",
@@ -1189,6 +1191,7 @@
         "lastDueLabel": "Last date (optional)",
         "lastDuePlaceholder": "No end date",
         "errorLastBeforeFirst": "Last date can't be before the first due date",
+        "errorAmount": "Enter an amount like 73.80",
         "noteLabel": "Note (optional)",
         "applyToFutureLabel": "Also apply to future occurrences",
         "applyToFutureHelp": "Edits the upcoming pending drafts so they reflect the new amount/category. Past confirmed transactions are never changed.",
@@ -1383,7 +1386,7 @@
           "reservesOk": "Reserves match the required amount",
           "reservesShort": "Reserves below the required amount",
           "reservesSurplus": "More reserves than needed",
-          "reservesOkNote": "Needed <amt>{amount}</amt>",
+          "reservesOkNote": "All reserves are in place",
           "reservesShortNote": "Not enough. <amt>{amount}</amt> is missing",
           "reservesSurplusNote": "Too much. <amt>{amount}</amt> extra",
           "capitalization": "Capitalization",
@@ -1404,6 +1407,8 @@
           "realMonths": "real months"
         },
         "range": {
+          "previous": "Previous period",
+          "next": "Next period",
           "month": "Month",
           "1m": "1M",
           "3m": "3M",
@@ -1420,7 +1425,7 @@
         "overspentByCategory": "Amount over budget, by category",
         "reservesByCategory": "Reserve balance, by category",
         "sections": {
-          "planned": "Planned",
+          "planned": "Spendings plan",
           "overspent": "Overspent",
           "reserves": "Reserves",
           "wealth": "Financial Wealth"
@@ -1428,16 +1433,50 @@
         "planned": {
           "category": "Category",
           "allCategories": "All categories",
+          "selectAll": "Select all",
+          "clearAll": "Clear",
+          "categoriesPicked": "{count} categories",
           "real": "Actual",
+          "avgColumn": "avg",
+          "totalColumn": "total",
           "planned": "Planned",
           "needs": "Needs",
           "wants": "Wants",
-          "recurringPerMonth": "Recurring bills, by month",
-          "recurringPerCategory": "Recurring bills, by category",
-          "timelineTitle": "Planned vs actual spending, over time",
-          "avgByCategory": "Over / under budget, by category",
+          "fromPlan": "Planned spent",
+          "fromReserve": "Used reserves",
+          "overspent": "Overspent",
+          "totalSpent": "Total spent",
+          "totalPlanned": "Total planned",
+          "total": "Total",
+          "recurringPerMonth": "Recurring payments, by month",
+          "recurringSeries": "Recurring payments",
+          "timelineTitle": "How each month tracked against plan",
+          "avgByCategory": "How far off plan, by category",
           "avgPie": "Planned spendings, by category",
-          "difference": "Difference"
+          "difference": "Difference",
+          "ring": {
+            "needs": "Needs",
+            "wants": "Wants",
+            "investments": "Investments"
+          },
+          "scale": "Scale",
+          "scalePct": "%",
+          "scaleAmount": "zł",
+          "ongoingExcluded": "The month still running is left out of the averages.",
+          "perMonth": "per month",
+          "overPlan": "Over plan",
+          "underPlan": "Under plan",
+          "basis": "Limit",
+          "basisAverage": "Average",
+          "basisCurrent": "Current",
+          "avgLimit": "Average limit",
+          "currentLimit": "Current limit",
+          "monthColumn": "month",
+          "spent": "Spent",
+          "byCategoryAverage": "How far off the average limit, by category",
+          "byCategoryCurrent": "How far off today's limit, by category",
+          "differenceVsAverage": "Difference vs average limit",
+          "differenceVsCurrent": "Difference vs current limit"
         },
         "wealth": {
           "capitalization": "Capitalization",
@@ -1454,7 +1493,7 @@
           "avgForRange": "Avg change ({range})",
           "growSince": "{preset, select, thisMonth {since month start} last3Months {over the last 3 months} last6Months {over the last 6 months} last12Months {over the last 12 months} all {all time} other {over the selected range}}",
           "byType": "Investments by asset type",
-          "byBucket": "Where your money is",
+          "byBucket": "What your wealth is made of",
           "capInvestments": "Investments",
           "capSpendings": "Spendings",
           "capReserves": "Reserves",
@@ -1464,14 +1503,16 @@
           "contributions": "Contributions",
           "profit": "Profit",
           "total": "Total",
-          "pl": "P/L"
+          "pl": "P/L",
+          "capOther": "Other"
         },
         "empty": {
           "overspent": "No overspending in this range.",
           "reserves": "No reserves yet.",
           "wealth": "Wealth history starts collecting now — check back soon.",
           "pie": "No investments yet.",
-          "planned": "No activity in this range."
+          "planned": "No activity in this range.",
+          "reserveFit": "No reserves to size yet."
         },
         "projection": {
           "title": "Money forecast to the end of next month",
@@ -1486,6 +1527,45 @@
           "cantCover": "Can't cover",
           "income": "Income",
           "bill": "Recurring payments"
+        },
+        "reserveFit": {
+          "title": "Is each reserve the right size?",
+          "held": "Held",
+          "needed": "Needed",
+          "short": "Short by",
+          "trim": "Trimmable",
+          "oneOffsFor": "Large spend in {name}",
+          "recurs": "repeats {cadence}",
+          "reviewOneOffs": "Review large spend",
+          "excludedCount": "{count} set aside as one-offs",
+          "oneOffsTitle": "Which spend won't happen again?",
+          "oneOffsExplainer": "Counted spend sizes the reserves. Set aside anything that was a one-off — a yearly charge should stay counted.",
+          "filterByCategory": "Filter by category",
+          "allCategories": "All categories",
+          "excludedSection": "Set aside",
+          "countedSection": "Counted",
+          "countedAria": "Count {amount} toward reserves",
+          "heldTotal": "Held",
+          "neededTotal": "Needed",
+          "unassigned": "Not counted — no category: {list}. Give them one in Settings → Recurring and they will size their reserve.",
+          "aboveTarget": "more than needed",
+          "belowTarget": "less than needed",
+          "onTarget": "Exactly what is needed",
+          "rebalanceTitle": "Rebalance reserves",
+          "rebalanceExplainer": "Top up what is short, take back what is not needed. Change a target first if the number the history came up with is not the one you want.",
+          "openRebalance": "Rebalance reserves",
+          "rebalanceAction": "Rebalance",
+          "undoAction": "Undo",
+          "targetLabel": "Target",
+          "targetAria": "Target reserve for {name}",
+          "rebalanceAria": "Rebalance {name}",
+          "undoAria": "Undo the move in {name}",
+          "nothingToMove": "Already the right size",
+          "coveredOverspend": "{amount} of that went to covering overspending, so the buffer is still short."
+        },
+        "needsCompletedMonth": {
+          "title": "Nothing to judge yet",
+          "body": "This chart compares whole months against their budget, and the month still running is not one yet. Pick a range that includes a finished month."
         }
       },
       "spendings": {
@@ -1543,7 +1623,9 @@
         "section": {
           "spendings": "Spendings wallets",
           "cushion": "Cushion wallets",
-          "reserve": "Reserve wallets"
+          "reserve": "Reserve wallets",
+          "possession": "Possessions",
+          "other": "Other"
         },
         "sectionLabel": {
           "spendings": "Spendings",
@@ -1553,7 +1635,9 @@
         "add": {
           "spendings": "Add spendings wallet",
           "cushion": "Add cushion wallet",
-          "reserve": "Add reserve wallet"
+          "reserve": "Add reserve wallet",
+          "possession": "Add possession",
+          "other": "Add asset"
         },
         "row": {
           "namePlaceholder": "Wallet name",
@@ -1635,7 +1719,7 @@
         "RESERVE_TOPUP": "Top up reserve by {amount}",
         "CONFIRM_DRAFT": "{hasCategory, select, yes {Confirm {amount} — {category}} other {Confirm {amount}}}",
         "CUSHION_BELOW_TARGET": "Cushion short by {shortfall}",
-        "INCOME_UNDER_PLANNED": "Planned spending exceeds your funds by {shortfall}",
+        "INCOME_UNDER_PLANNED": "You run {shortfall} short before your next income",
         "RESERVE_TOPUP_withdraw": "Reserve has {amount} extra"
       },
       "kind": {
@@ -1663,7 +1747,7 @@
         "RESERVE_TOPUP": "Your reserve wallets hold {amount} less than the sum allocated across reserve categories. You have two options: top up a reserve wallet (move money in) to match the category sum, or reduce some category reserve amounts so the sum drops back to the wallet balance.",
         "CONFIRM_DRAFT": "A recurring rule has produced a new draft transaction for {ruleName} ({amount}). Open the Spendings tab, review the draft row, and confirm or dismiss it. Confirming records the transaction in your ledger; dismissing skips it without affecting future occurrences.",
         "CUSHION_BELOW_TARGET": "Your cushion savings are below the target you set in Settings (months × average monthly spend). The shortfall is {shortfall}. You have three options: transfer money into a cushion-type wallet to cover the gap, lower the cushion target months in Settings → Cushion (smaller runway = smaller required cushion), or reduce some category limits so the average monthly spend drops.",
-        "INCOME_UNDER_PLANNED": "Your total planned spending is {planned}, but you only have {available} available — that's your income plus your wallet balances, and it's {shortfall} short. Open the Spendings tab and lower some category limits (or a manual Investments amount) until your plan fits what you have.",
+        "INCOME_UNDER_PLANNED": "Following your current plan, your money dips to {low} before your next income lands — {shortfall} short. Open the Spendings tab and lower some category limits, or move a payment, until the forecast stays above zero.",
         "RESERVE_TOPUP_withdraw": "Your reserve wallets hold {amount} more than the sum allocated across reserve categories. You have two options: withdraw the surplus from a reserve wallet, or redistribute the extra into category reserves (increase one or more category amounts so they add up to the wallet sum)."
       }
     }
@@ -1723,11 +1807,6 @@
       }
     },
     "expensesTitle": "Expenses",
-    "offlineDialog": {
-      "title": "Can't add while offline",
-      "body": "You're offline, so this expense can't be saved right now. Reconnect to the internet and try again.",
-      "ok": "Got it"
-    },
     "deleteCategory": {
       "title": "Delete category permanently?",
       "body": "This permanently deletes {name} and all of its transactions, limits and history. This cannot be undone.",
@@ -1755,6 +1834,11 @@
       "write": {
         "offline": "You're offline — can't add right now. Try again when you reconnect.",
         "failed": "Couldn't add the transaction. Please try again."
+      },
+      "pending": {
+        "queued": "Saved on this device — it'll sync when you're back online.",
+        "badge": "Waiting for connection — saves automatically",
+        "waiting": "Waiting to sync"
       }
     },
     "lastAdded": "Last spending added {when}",
@@ -1807,7 +1891,8 @@
       "row2": {
         "planned": "planned",
         "cushion": "cushion",
-        "plannedCushion": "planned (cushion)"
+        "plannedCushion": "planned (cushion)",
+        "limitUsed": "limit used"
       },
       "row3": {
         "overspent": "overspent",

@@ -49,6 +49,125 @@ function shellDoc(): Response {
   );
 }
 
+// 260806 (user request): "all pages render from cache instantly, no matter if
+// the internet is good, bad, or off — and update in the background."
+//
+// The old strategy raced the network against a 3s timer BEFORE looking in the
+// cache, and the skip-the-wait fast path only fired when navigator.onLine was
+// false. So a genuinely offline device was FAST and a barely-connected one
+// blanked for three seconds — exactly backwards, and the case the user hit.
+//
+// A visited route is now served from cache immediately whatever the network is
+// doing, and the network copy is written behind it for next time.
+describe("SW navigation strategy — cached routes paint immediately", () => {
+  /** A fetch that never settles, like a dead-slow link. */
+  const neverSettles = () => new Promise<Response>(() => {});
+
+  test("serves the cached document without waiting for a slow network", async () => {
+    const fetchFn = vi.fn(neverSettles);
+    const matchCache = vi.fn().mockResolvedValue(cachedPage("/en/budgets/1"));
+    const cachePut = vi.fn().mockResolvedValue(undefined);
+    const matchShell = vi.fn();
+
+    const started = Date.now();
+    const res = await handleNavigationRequest(
+      navRequest("/en/budgets/1"),
+      fetchFn,
+      matchCache,
+      cachePut,
+      matchShell,
+      // ONLINE — this is the slow-link case, not the offline one.
+      false,
+    );
+
+    expect(await res.text()).toContain("cached-page");
+    // …and it did not wait for the network to decide. Timing IS the assertion
+    // here: the old strategy also returned this page, three seconds later.
+    expect(Date.now() - started).toBeLessThan(250);
+    expect(fetchFn).toHaveBeenCalled();
+  });
+
+  test("still refreshes the cache in the background after serving it", async () => {
+    const fresh = new Response("<html>fresh</html>", { status: 200 });
+    const fetchFn = vi.fn().mockResolvedValue(fresh);
+    const matchCache = vi.fn().mockResolvedValue(cachedPage("/en/budgets/1"));
+    const cachePut = vi.fn().mockResolvedValue(undefined);
+
+    const res = await handleNavigationRequest(
+      navRequest("/en/budgets/1"),
+      fetchFn,
+      matchCache,
+      cachePut,
+      vi.fn(),
+      false,
+    );
+
+    expect(await res.text()).toContain("cached-page");
+    // The revalidation is fire-and-forget, so give it a turn to land.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(cachePut).toHaveBeenCalled();
+  });
+
+  test("a background refresh that fails leaves the served page alone", async () => {
+    const fetchFn = vi.fn().mockRejectedValue(new Error("offline"));
+    const matchCache = vi.fn().mockResolvedValue(cachedPage("/en/budgets/1"));
+    const cachePut = vi.fn().mockResolvedValue(undefined);
+
+    const res = await handleNavigationRequest(
+      navRequest("/en/budgets/1"),
+      fetchFn,
+      matchCache,
+      cachePut,
+      vi.fn(),
+      false,
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("cached-page");
+    await new Promise((r) => setTimeout(r, 0));
+    // Nothing was written — a failed refresh must not evict a good page.
+    expect(cachePut).not.toHaveBeenCalled();
+  });
+
+  test("a background refresh that 404s does not replace the cached page", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(new Response("nope", { status: 404 }));
+    const matchCache = vi.fn().mockResolvedValue(cachedPage("/en/budgets/1"));
+    const cachePut = vi.fn().mockResolvedValue(undefined);
+
+    await handleNavigationRequest(
+      navRequest("/en/budgets/1"),
+      fetchFn,
+      matchCache,
+      cachePut,
+      vi.fn(),
+      false,
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(cachePut).not.toHaveBeenCalled();
+  });
+
+  // A route nobody has visited has nothing to paint, so it must still wait for
+  // the real thing rather than dropping straight to the offline shell.
+  test("an unvisited route still goes to the network", async () => {
+    const fresh = new Response("<html>first visit</html>", { status: 200 });
+    const fetchFn = vi.fn().mockResolvedValue(fresh);
+    const matchCache = vi.fn().mockResolvedValue(undefined);
+    const cachePut = vi.fn().mockResolvedValue(undefined);
+
+    const res = await handleNavigationRequest(
+      navRequest("/en/brand-new"),
+      fetchFn,
+      matchCache,
+      cachePut,
+      vi.fn(),
+      false,
+    );
+
+    expect(await res.text()).toContain("first visit");
+    expect(cachePut).toHaveBeenCalled();
+  });
+});
+
 describe("SW navigation strategy (network-first-with-write → cached doc → app-shell)", () => {
   test("network ok 2xx → returns the live response AND writes it to the nav cache", async () => {
     const ok = new Response("<html>real page</html>", { status: 200 });
@@ -71,7 +190,8 @@ describe("SW navigation strategy (network-first-with-write → cached doc → ap
     expect(cachePut).toHaveBeenCalledTimes(1);
     const [putReq] = cachePut.mock.calls[0] as [Request, Response];
     expect(putReq).toBe(req);
-    expect(matchCache).not.toHaveBeenCalled();
+    // matchCache IS consulted first now (cache-first, 260806) — it simply misses
+    // here, which is what sends this request to the network.
     expect(matchShell).not.toHaveBeenCalled();
   });
 
@@ -95,7 +215,6 @@ describe("SW navigation strategy (network-first-with-write → cached doc → ap
 
     expect(res.status).toBe(307);
     expect(cachePut).not.toHaveBeenCalled();
-    expect(matchCache).not.toHaveBeenCalled();
     expect(matchShell).not.toHaveBeenCalled();
   });
 
@@ -154,7 +273,6 @@ describe("SW navigation strategy (network-first-with-write → cached doc → ap
       matchCache,
       cachePut,
       matchShell,
-      3_000,
       true, // isOffline
     );
 
@@ -176,7 +294,6 @@ describe("SW navigation strategy (network-first-with-write → cached doc → ap
       matchCache,
       cachePut,
       matchShell,
-      3_000,
       true, // isOffline
     );
 

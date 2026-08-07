@@ -152,7 +152,11 @@ async function seedTransaction(
   }
 }
 
-/** Like seedTransaction but with an explicit created_at; returns the row id. */
+/**
+ * Like seedTransaction but with an explicit created_at; returns the row id.
+ * A manually added spending is confirmed at the moment it's created, so
+ * confirmed_at mirrors created_at here (drafts get seedDraftAt instead).
+ */
 async function seedTransactionAt(
   budgetId: string,
   userId: string,
@@ -160,6 +164,30 @@ async function seedTransactionAt(
   amountCents: number,
   date: string,
   createdAt: string,
+): Promise<string> {
+  return seedDraftAt(
+    budgetId,
+    userId,
+    categoryId,
+    amountCents,
+    date,
+    createdAt,
+    createdAt,
+  );
+}
+
+/**
+ * Seeds a recurring-style row where created_at (worker draft generation) and
+ * confirmed_at (user confirmation, null while pending) differ.
+ */
+async function seedDraftAt(
+  budgetId: string,
+  userId: string,
+  categoryId: string,
+  amountCents: number,
+  date: string,
+  createdAt: string,
+  confirmedAt: string | null,
 ): Promise<string> {
   const pool = new Pool({ connectionString: DB_URL });
   const client = await pool.connect();
@@ -175,9 +203,9 @@ async function seedTransactionAt(
       `INSERT INTO budgeting.expense_ledger
          (tenant_id, budget_id, category_id, amount_original_cents, currency_original,
           amount_converted_cents, fx_rate, fx_as_of, transaction_date, kind, confirmed_at, created_at)
-       VALUES ($1, $1, $2, $3, 'EUR', $3, 1.0, $4::date, $4::date, 'SPENDING', now(), $5::timestamptz)
+       VALUES ($1, $1, $2, $3, 'EUR', $3, 1.0, $4::date, $4::date, 'SPENDING', $6::timestamptz, $5::timestamptz)
        RETURNING id`,
-      [budgetId, categoryId, amountCents, date, createdAt],
+      [budgetId, categoryId, amountCents, date, createdAt, confirmedAt],
     );
     await client.query("COMMIT");
     return r.rows[0]!.id;
@@ -437,6 +465,54 @@ describe("GET /budgets/:budgetId/spendings-summary", () => {
     body = (await res.json()) as any;
     expect(new Date(body.lastSpendingAddedAt).toISOString()).toBe(
       "2026-05-10T08:00:00.000Z",
+    );
+  });
+
+  // A recurring draft is an expense_ledger row the WORKER created (created_at =
+  // generation time, e.g. 06:00) and the user confirmed later. The footer must
+  // never surface a timestamp from the row's draft era: pending drafts don't
+  // count at all, and a confirmed one counts from its confirmation.
+  it("ignores unconfirmed drafts and dates confirmed drafts by their confirmation", async () => {
+    const f = await createFixture();
+    const catId = await seedCategory(f.budgetId, f.userId, "DRAFT");
+    const app = await buildApp(f.userId, f.budgetId);
+
+    // A plain manual spending, then a draft confirmed two days after the worker
+    // generated it, then a still-pending draft with the newest created_at.
+    await seedTransactionAt(
+      f.budgetId,
+      f.userId,
+      catId,
+      1000,
+      "2026-05-02",
+      "2026-05-02T08:00:00Z",
+    );
+    await seedDraftAt(
+      f.budgetId,
+      f.userId,
+      catId,
+      2000,
+      "2026-05-01",
+      "2026-05-01T06:00:00Z",
+      "2026-05-03T17:00:00Z",
+    );
+    await seedDraftAt(
+      f.budgetId,
+      f.userId,
+      catId,
+      3000,
+      "2026-05-20",
+      "2026-05-20T06:00:00Z",
+      null,
+    );
+
+    const res = await app.request(
+      `/budgets/${f.budgetId}/spendings-summary?month=2026-05`,
+    );
+    const body = (await res.json()) as any;
+    // NOT 2026-05-20 (pending draft) and NOT 2026-05-01T06:00 (draft creation).
+    expect(new Date(body.lastSpendingAddedAt).toISOString()).toBe(
+      "2026-05-03T17:00:00.000Z",
     );
   });
 

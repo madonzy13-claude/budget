@@ -1,60 +1,83 @@
 /**
  * income-under-planned.test.ts — pure decision + upcoming-income projection for the
- * INCOME_UNDER_PLANNED task (r33 → r36). Fires when AVAILABLE money (upcoming income
- * + spendings [+ cushion in cushion mode] wallets) is strictly below total planned.
- * NO income gate. RESERVE wallets are not counted. Wallet assembly is DB-backed
- * (computeIncomeVsPlanned); here we assert the pure threshold + the upcoming-income
- * date rule.
+ * INCOME_UNDER_PLANNED task.
+ *
+ * 260731 (user decision): the rule now reads the CASH-FLOW PROJECTION — exactly the
+ * math behind the Overview "Surplus / Deficit" figure — instead of comparing a
+ * static Σ planned against Σ available. It fires when the projection says you go
+ * under before your next income (or on any red day in the window).
  */
 import { describe, test, expect } from "bun:test";
 import { Temporal } from "temporal-polyfill";
 import {
-  decideIncomeUnderPlanned,
+  decideProjectedShortfall,
   upcomingIncomeItems,
 } from "@budget/budgeting/src/application/recompute-income-under-planned-task";
 
-describe("Income under planned decision", () => {
-  test("available < planned → emit with shortfall = planned − available", () => {
-    const d = decideIncomeUnderPlanned({
-      availableCents: 300000n,
-      plannedCents: 500000n,
+describe("Projected-shortfall decision (same source as the Surplus card)", () => {
+  test("cash dips below zero before the next income → emit with that shortfall", () => {
+    const d = decideProjectedShortfall({
+      surplusDeficitCents: -20000n,
+      good: true,
+      worstShortfallCents: 0n,
     });
     expect(d.emit).toBe(true);
-    expect(d.shortfallCents).toBe(200000n);
+    expect(d.shortfallCents).toBe(20000n);
   });
 
-  test("no income configured, wallets alone fall short → still emit (no gate)", () => {
-    const d = decideIncomeUnderPlanned({
-      availableCents: 5000n, // only wallet money, no income
-      plannedCents: 500000n,
-    });
-    expect(d.emit).toBe(true);
-    expect(d.shortfallCents).toBe(495000n);
-  });
-
-  test("available == planned → no emit", () => {
-    const d = decideIncomeUnderPlanned({
-      availableCents: 500000n,
-      plannedCents: 500000n,
+  test("surplus before the next income and no red day → no emit", () => {
+    const d = decideProjectedShortfall({
+      surplusDeficitCents: 45000n,
+      good: true,
+      worstShortfallCents: 0n,
     });
     expect(d.emit).toBe(false);
     expect(d.shortfallCents).toBe(0n);
   });
 
-  test("available > planned → no emit", () => {
-    const d = decideIncomeUnderPlanned({
-      availableCents: 800000n,
-      plannedCents: 500000n,
+  test("exactly zero before the next income → no emit (not short yet)", () => {
+    const d = decideProjectedShortfall({
+      surplusDeficitCents: 0n,
+      good: true,
+      worstShortfallCents: 0n,
     });
     expect(d.emit).toBe(false);
   });
 
-  test("planned zero → no emit", () => {
-    const d = decideIncomeUnderPlanned({
-      availableCents: 0n,
-      plannedCents: 0n,
+  test("a SURPLUS never nags, even if a later day in the window dips", () => {
+    const d = decideProjectedShortfall({
+      surplusDeficitCents: 45000n,
+      good: false,
+      worstShortfallCents: 70000n,
     });
     expect(d.emit).toBe(false);
+    expect(d.shortfallCents).toBe(0n);
+  });
+
+  test("reports the DEEPEST shortfall when both signals fire", () => {
+    const d = decideProjectedShortfall({
+      surplusDeficitCents: -20000n,
+      good: false,
+      worstShortfallCents: 90000n,
+    });
+    expect(d.shortfallCents).toBe(90000n);
+  });
+
+  test("no upcoming income: emits only when the projection actually goes red", () => {
+    expect(
+      decideProjectedShortfall({
+        surplusDeficitCents: null,
+        good: null,
+        worstShortfallCents: 0n,
+      }).emit,
+    ).toBe(false);
+    const short = decideProjectedShortfall({
+      surplusDeficitCents: null,
+      good: null,
+      worstShortfallCents: 15000n,
+    });
+    expect(short.emit).toBe(true);
+    expect(short.shortfallCents).toBe(15000n);
   });
 });
 

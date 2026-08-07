@@ -5,7 +5,15 @@
 import { z } from "zod";
 
 // Wallet schemas (renamed from Account in Plan 01-02, v1.1 schema)
-export const walletTypeSchema = z.enum(["SPENDINGS", "CUSHION", "RESERVE"]);
+export const walletTypeSchema = z.enum([
+  "SPENDINGS",
+  "CUSHION",
+  "RESERVE",
+  // 260803: a house/car (net worth, not drawdown income) and an asset that
+  // belongs to nothing in particular.
+  "POSSESSION",
+  "OTHER",
+]);
 
 // UAT-PH5-T3-1x: per-wallet color + icon. Optional on create; can be patched
 // later via updateWalletSchema. Color is a hex string ("#RRGGBB") or a known
@@ -136,6 +144,9 @@ export interface CategoryDto {
   colorKey: string | null;
   // mig 0059: persisted cushion mode (null = inferred from amounts on reopen).
   cushionMode?: string | null;
+  // r33: THE smart Investments category. Investing is not spending, so charts
+  // that measure spending leave it out (260802).
+  isInvestment?: boolean;
 }
 
 // ---------------------------------------------------------------------------

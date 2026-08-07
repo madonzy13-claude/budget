@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { DraftRow } from "../../../src/components/budgeting/spendings-grid/draft-row";
+import { addPendingDraftConfirm } from "../../../src/lib/pending-spendings";
 import { TestQueryProvider } from "../../setup/query-client";
 
 const mockConfirmMutate = vi.fn();
@@ -211,5 +212,47 @@ describe("DraftRow", () => {
     expect(mockConfirmMutate).toHaveBeenCalledWith(
       expect.objectContaining({ draftId: "draft-1", amountOverride: 5500 }),
     );
+  });
+
+  // 260731-osq round 2: a confirm that failed offline is queued — the row says
+  // so and offers no further actions until it lands.
+  describe("queued confirm (offline)", () => {
+    beforeEach(() => localStorage.clear());
+
+    it("shows the retry marker once its confirm is queued", () => {
+      addPendingDraftConfirm({
+        budgetId: "budget-1",
+        month: "2026-05",
+        draftId: "draft-1",
+        amountOverrideCents: null,
+      });
+      renderDraftRow();
+      expect(screen.getByTestId("draft-row-pending")).toBeTruthy();
+    });
+
+    it("hides the confirm / edit / dismiss chips while queued", () => {
+      addPendingDraftConfirm({
+        budgetId: "budget-1",
+        month: "2026-05",
+        draftId: "draft-1",
+        amountOverrideCents: null,
+      });
+      renderDraftRow();
+      expect(screen.queryByTestId("draft-action-confirm")).toBeNull();
+      expect(screen.queryByTestId("draft-action-edit")).toBeNull();
+      expect(screen.queryByTestId("draft-action-dismiss")).toBeNull();
+    });
+
+    it("is unaffected by a queued confirm for a DIFFERENT draft", () => {
+      addPendingDraftConfirm({
+        budgetId: "budget-1",
+        month: "2026-05",
+        draftId: "draft-other",
+        amountOverrideCents: null,
+      });
+      renderDraftRow();
+      expect(screen.queryByTestId("draft-row-pending")).toBeNull();
+      expect(screen.getByTestId("draft-action-confirm")).toBeTruthy();
+    });
   });
 });

@@ -31,7 +31,8 @@ export const SUPPORTED_LOCALES = ["en", "pl", "uk"] as const;
  * Navigation strategy: network-first WITH WRITE, fall back to the cached real
  * document, then to the precached app-shell.
  *
- * Try the network with a timeout.
+ * A route we already hold is served from cache at once (see below); otherwise
+ * we go to the network.
  *   - A real 2xx is cached (cachePut) before returning so the route replays
  *     offline. 3xx/4xx pass through uncached (auth redirects, 404s stay correct).
  *   - A 5xx (server up but erroring) or a thrown fetch (offline / DNS / connect-
@@ -45,59 +46,61 @@ export async function handleNavigationRequest(
   matchCache: (req: Request) => Promise<Response | undefined>,
   cachePut: (req: Request, res: Response) => Promise<void> | void,
   matchShell: () => Promise<Response | undefined>,
-  timeoutMs = 3_000,
   isOffline = false,
 ): Promise<Response> {
-  // Offline fast-path (quick-260616-spa). When the device reports offline the
-  // network fetch only HANGS until the abort timeout fires — so every cached-
-  // page navigation waited the full timeout (the user-reported ~5-6s lag)
-  // BEFORE checking the cache, even though the real document was sitting there.
-  // Serve the cached document immediately instead — that is the entire point of
-  // the nav cache. navigator.onLine can lie TRUE on iOS (then isOffline is
-  // false and we take the timeout-bounded network path below), but it never
-  // lies FALSE, so reading the cache first when it reports offline is a strict
-  // win with no freshness cost (offline = nothing fresher to fetch anyway). On
-  // a cache MISS we fall through to the network/shell path below.
-  if (isOffline) {
-    const cached = await matchCache(request);
-    if (cached) return cached;
+  // CACHE-FIRST for a route we already hold (260806 user request: "all pages
+  // render from cache instantly, no matter if the internet is good, bad or
+  // off"). The old strategy raced the network against a timeout BEFORE looking
+  // in the cache, and skipped that wait only when navigator.onLine was false —
+  // so a genuinely offline device was fast and a barely-connected one blanked
+  // for the full three seconds. Exactly backwards, and the case the user hit.
+  //
+  // Serving the stored document costs nothing we would otherwise have: the nav
+  // doc is a DATA-FREE client shell (SPA/SWR refactor), so it carries no stale
+  // numbers — React Query fills the rows from its own persisted cache and
+  // revalidates. What we give up is a fresh SHELL on the first paint, which
+  // arrives a moment later anyway via the background refresh below and is
+  // picked up on the next load.
+  const cachedFirst = await matchCache(request);
+  if (cachedFirst) {
+    // Revalidate behind the paint. Deliberately NOT awaited: the whole point is
+    // that the response is already on its way back to the browser. Skipped when
+    // the device reports offline — navigator.onLine can lie TRUE but never
+    // FALSE, so there is genuinely nothing to fetch.
+    if (isOffline) return cachedFirst;
+    void (async () => {
+      try {
+        const fresh = await fetchFn(request);
+        // Only a real 2xx replaces it. A 4xx/5xx or a thrown fetch must never
+        // evict a good page — that would turn one bad moment into a route that
+        // no longer works offline.
+        if (fresh.status >= 200 && fresh.status < 300) {
+          await cachePut(request, fresh.clone());
+        }
+      } catch {
+        /* offline / slow / DNS — keep what we have */
+      }
+    })();
+    return cachedFirst;
   }
 
+  // No cached copy — this route has never been visited, so there is nothing to
+  // paint and we must go to the network. Offline that fetch rejects at once and
+  // we fall through to the app-shell below.
   // Kick off the REAL network navigation. CRITICAL (260625): do NOT abort it on
   // the timeout. A healthy ONLINE navigation that merely needs longer than
   // `timeoutMs` — e.g. the browser's per-host connection pool is briefly
-  // saturated by a burst of background data prefetches (the BDP past-month
-  // spendings-summary prefetch fires ~14 requests at once) — must NEVER be
-  // killed and shown the offline app-shell while the device is online. The old
-  // code aborted the fetch at 3s → the abort threw → "unreachable" → the
-  // precached offline-shell was served for a perfectly reachable route. That
-  // produced a spurious "This page isn't available offline" page under load (a
-  // real user-facing bug AND the reserves-golden walk's wallet-row flake: the
-  // /wallets nav doc returned 200 at ~3010ms, just past the 3s timeout). The
-  // timeout now only RACES a cached fallback; the network request itself runs to
-  // completion and its result is always honored.
+  // saturated by a burst of background data prefetches — must NEVER be killed
+  // and shown the offline app-shell while the device is online.
   const network: Promise<{ res: Response } | { err: unknown }> = fetchFn(
     request,
   ).then(
     (res) => ({ res }),
     (err) => ({ err }),
   );
-  const timeout: Promise<"timeout"> = new Promise((resolve) =>
-    setTimeout(() => resolve("timeout"), timeoutMs),
-  );
 
-  // If the network is slower than the timeout, serve a cached document for this
-  // route WHEN ONE EXISTS (the nav doc is a data-free client shell, so a cache
-  // hit paints fast and carries no stale data — RQ rehydrates the rows). With NO
-  // cache we keep waiting for the real network response below rather than falsely
-  // declaring the app offline while it is online.
-  const raced = await Promise.race([network, timeout]);
-  if (raced === "timeout") {
-    const cached = await matchCache(request);
-    if (cached) return cached;
-  }
+  const settled = await network;
 
-  const settled = raced === "timeout" ? await network : raced;
 
   if ("res" in settled) {
     const res = settled.res;

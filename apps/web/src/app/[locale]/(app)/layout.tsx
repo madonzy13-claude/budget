@@ -21,6 +21,7 @@ import { NavCacheWarmer } from "@/components/common/nav-cache-warmer";
 import { OfflineNavGuard } from "@/components/common/offline-nav-guard";
 import { OfflineReadOnly } from "@/components/common/offline-read-only";
 import { ServerDownSeed } from "@/components/common/connectivity-provider";
+import { PendingSpendingsFlusher } from "@/components/common/pending-spendings-flusher";
 
 // The (app) shell is per-user: getServerSession + the onboarding guard read
 // `cookies()`/`headers()`, which ALREADY forces this layout to render per-request
@@ -283,6 +284,9 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
               is down so the banner + read-only show immediately (instead of
               waiting for the first client query to fail). */}
             {degradedServerDown && <ServerDownSeed />}
+            {/* Retries spendings that were typed offline (localStorage queue) —
+              on app open and whenever the connection returns. */}
+            <PendingSpendingsFlusher />
             {/* padding-top = the top safe-area inset: with viewport-fit=cover the
               page extends under the status bar in standalone mode — the header
               absorbs the inset so the nav stays below the clock/notch. iOS reports

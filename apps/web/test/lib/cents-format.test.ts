@@ -26,7 +26,9 @@ describe("narrow currency sign position", () => {
     expect(norm(centsToDisplayCompact("91693700", "USD", "en", true))).toBe(
       "$916,937",
     );
-    expect(norm(centsToDisplayCompact("70000", "EUR", "en", true))).toBe("€700");
+    expect(norm(centsToDisplayCompact("70000", "EUR", "en", true))).toBe(
+      "€700",
+    );
   });
 
   it("does not reposition the ISO-code fallback (narrow=false)", () => {

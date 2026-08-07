@@ -30,6 +30,8 @@ export function ChartTooltipContent({
   summary,
   suppressedLabel,
   onDismiss,
+  hideSeriesRows = false,
+  omitKeys,
 }: {
   active?: boolean;
   payload?: TooltipEntry[];
@@ -47,9 +49,20 @@ export function ChartTooltipContent({
   ) => string | undefined;
   /** Extra summary rows (flex, below a hairline) — for callers not using the grid
    *  `summary` below. */
-  extra?: (
-    row: Record<string, unknown>,
-  ) => Array<{ label: string; value: string; color?: string }>;
+  extra?: (row: Record<string, unknown>) => Array<{
+    label: string;
+    value: string;
+    color?: string;
+    /** A SECOND right-aligned column — "How far off plan, by category" shows the
+     *  range average and the range total side by side (260803 user request). */
+    value2?: string;
+    /** Names the two columns — rendered on the TITLE line, not as a row of its
+     *  own (260803: a full row for two words wasted the width). */
+    head?: boolean;
+    /** Opens a section of its own: a rule above it, so a conclusion (the
+     *  difference) reads apart from the figures it came from. */
+    section?: boolean;
+  }>;
   /** Per-series-row SUFFIX cell(s) after the value (e.g. a % change, or a
    *  [%, amount] pair). Return a string for ONE extra column, or an array for
    *  several — each element is its own right-aligned, column-aligned cell. */
@@ -59,16 +72,35 @@ export function ChartTooltipContent({
   ) => string | string[] | undefined;
   /** A grid-aligned summary row (e.g. Total) below a hairline — its value +
    *  suffix cells line up with the series columns above. Only rendered in grid
-   *  mode (i.e. alongside rowSuffix). */
-  summary?: (
-    row: Record<string, unknown>,
-  ) => { label: string; value: string; suffix?: string[] } | null;
+   *  mode (i.e. alongside rowSuffix). `plain` drops the hairline, so the row
+   *  closes the series list instead of opening a section of its own. */
+  summary?: (row: Record<string, unknown>) => {
+    label: string;
+    value: string;
+    suffix?: string[];
+    plain?: boolean;
+  } | null;
   /** The x-label the user tapped to DISMISS — this tooltip hides for it (r28 item 3). */
   suppressedLabel?: string | null;
   /** Tapping the tooltip calls this with its x-label to dismiss it. */
   onDismiss?: (label: string | number | undefined) => void;
+  /** Skip the automatic per-payload series rows and render ONLY `extra` — for
+   *  charts whose bar dataKey is an internal (e.g. the diverging chart's clamped
+   *  percent), where that row would show a meaningless name + value. */
+  hideSeriesRows?: boolean;
+  /** dataKeys to leave out of the series rows — for overlay series that merely
+   *  re-colour a stretch of a line the tooltip already lists once. */
+  omitKeys?: string[];
 }) {
   if (!active || !payload || payload.length === 0) return null;
+  // Silence is decided by CONTENT, not by a flag: a point stays quiet only when
+  // there is genuinely nothing to read (every series null there — the tail that
+  // carries a plan past the last reading). Keying it off the geometry flags left
+  // steps the pointer could land on that answered nothing, which reads as a
+  // broken chart (user reports, 260801 and 260802).
+  if (payload.every((p) => p.value === null || p.value === undefined)) {
+    return null;
+  }
   // Tapped-to-dismiss: hide this tooltip while the same point stays active.
   if (
     suppressedLabel != null &&
@@ -77,6 +109,11 @@ export function ChartTooltipContent({
   )
     return null;
   const shownLabel = label != null && labelFormat ? labelFormat(label) : label;
+  // The column names ride the title line; everything else is a row.
+  const extraRows =
+    extra && payload[0]?.payload ? extra(payload[0].payload) : [];
+  const headRow = extraRows.find((r) => r.head);
+  const bodyRows = extraRows.filter((r) => !r.head);
   const toCells = (r: string | string[] | undefined): string[] =>
     r == null ? [] : Array.isArray(r) ? r : [r];
   const marker = (color: string, dashed: boolean) => (
@@ -91,7 +128,24 @@ export function ChartTooltipContent({
   );
   return (
     <div
-      onClick={onDismiss ? () => onDismiss(label) : undefined}
+      // Everything stops here. The tooltip sits INSIDE the chart, so without
+      // this a tap on it reached the chart underneath and selected whatever the
+      // tooltip was covering — the dismissal and the re-selection cancelled out
+      // and it looked as though the tooltip were not there at all (user, 260805).
+      // The synthesised mouse sequence that follows a touch has to be stopped
+      // too, not just the click.
+      onClick={
+        onDismiss
+          ? (e) => {
+              e.stopPropagation();
+              onDismiss(label);
+            }
+          : undefined
+      }
+      onMouseMove={onDismiss ? (e) => e.stopPropagation() : undefined}
+      onMouseDown={onDismiss ? (e) => e.stopPropagation() : undefined}
+      onTouchStart={onDismiss ? (e) => e.stopPropagation() : undefined}
+      onTouchMove={onDismiss ? (e) => e.stopPropagation() : undefined}
       style={{
         background: CHART_THEME.tooltipBg,
         border: `1px solid ${CHART_THEME.tooltipBorder}`,
@@ -103,31 +157,71 @@ export function ChartTooltipContent({
         cursor: onDismiss ? "pointer" : undefined,
       }}
     >
-      {shownLabel != null && (
-        <div style={{ color: CHART_THEME.axis, marginBottom: 4 }}>
-          {shownLabel}
+      {(shownLabel != null || headRow) && (
+        <div
+          data-testid="tooltip-title"
+          style={{
+            color: CHART_THEME.axis,
+            marginBottom: 4,
+            display: "flex",
+            alignItems: "baseline",
+            gap: 8,
+          }}
+        >
+          <span>{shownLabel}</span>
+          {headRow && (
+            <>
+              <span
+                style={{ marginLeft: "auto", minWidth: 62, textAlign: "right" }}
+              >
+                {headRow.value}
+              </span>
+              {headRow.value2 != null && (
+                <span style={{ minWidth: 62, textAlign: "right" }}>
+                  {headRow.value2}
+                </span>
+              )}
+            </>
+          )}
         </div>
       )}
       {(() => {
-        const rows = payload.map((p) => {
-          const s = series?.find((x) => x.key === p.dataKey);
-          // Per-point color wins (up/down or category colorKey) so the marker matches
-          // the rendered bar; else the series color, else the recharts payload color.
-          const color =
-            (colorForRow && p.payload
-              ? colorForRow(p.payload, p.dataKey)
-              : undefined) ??
-            s?.color ??
-            p.color ??
-            CHART_THEME.accent;
-          return {
-            color,
-            dashed: s?.dashed ?? false,
-            name: p.name,
-            value: formatY ? formatY(Number(p.value)) : String(p.value),
-            cells: p.payload ? toCells(rowSuffix?.(p.payload, p.dataKey)) : [],
-          };
-        });
+        const rows = hideSeriesRows
+          ? []
+          : payload
+              // A split series (e.g. the actual-spend line cut into its in-plan
+              // and over-plan halves) is null wherever the other half owns the
+              // line — those points are not a "0", they are simply absent.
+              .filter((p) => p.value !== null && p.value !== undefined)
+              .filter((p) => !omitKeys?.includes(String(p.dataKey)))
+              // A band that is 0 has nothing to say: a plan with no wants only
+              // needs its needs row (260802 user request).
+              .filter(
+                (p) =>
+                  !series?.find((x) => x.key === p.dataKey)?.hideWhenZero ||
+                  Number(p.value) !== 0,
+              )
+              .map((p) => {
+                const s = series?.find((x) => x.key === p.dataKey);
+                // Per-point color wins (up/down or category colorKey) so the marker matches
+                // the rendered bar; else the series color, else the recharts payload color.
+                const color =
+                  (colorForRow && p.payload
+                    ? colorForRow(p.payload, p.dataKey)
+                    : undefined) ??
+                  s?.color ??
+                  p.color ??
+                  CHART_THEME.accent;
+                return {
+                  color,
+                  dashed: s?.dashed ?? false,
+                  name: p.name,
+                  value: formatY ? formatY(Number(p.value)) : String(p.value),
+                  cells: p.payload
+                    ? toCells(rowSuffix?.(p.payload, p.dataKey))
+                    : [],
+                };
+              });
         const summaryRow =
           summary && payload[0]?.payload ? summary(payload[0].payload) : null;
 
@@ -211,9 +305,11 @@ export function ChartTooltipContent({
                   style={{
                     gridColumn: "1 / -1",
                     height: 0,
-                    borderTop: `1px solid ${CHART_THEME.tooltipBorder}`,
-                    marginTop: 3,
-                    marginBottom: 2,
+                    borderTop: summaryRow.plain
+                      ? undefined
+                      : `1px solid ${CHART_THEME.tooltipBorder}`,
+                    marginTop: summaryRow.plain ? 0 : 3,
+                    marginBottom: summaryRow.plain ? 0 : 2,
                   }}
                 />
                 <span aria-hidden />
@@ -244,39 +340,65 @@ export function ChartTooltipContent({
       })()}
       {/* Extra summary rows (flex) — for callers still using `extra` (not the grid
           `summary`), separated by a hairline from the series rows above. */}
-      {extra && payload[0]?.payload
-        ? extra(payload[0].payload).map((row, i) => (
-            <div
-              key={`extra-${i}`}
+      {bodyRows.map((row, i) => (
+        <div
+          key={`extra-${i}`}
+          data-testid="tooltip-extra-row"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: CHART_THEME.text,
+            padding: "1px 0",
+            marginTop: i === 0 || row.section ? 4 : 0,
+            borderTop:
+              i === 0 || row.section
+                ? `1px solid ${CHART_THEME.tooltipBorder}`
+                : undefined,
+            paddingTop: i === 0 || row.section ? 5 : 1,
+          }}
+        >
+          {/* A colourless row (e.g. Total) still holds the marker column,
+              so its label lines up with the parts above it. */}
+          {(row.color || bodyRows.some((r) => r.color)) && (
+            <span
+              aria-hidden
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                color: CHART_THEME.text,
-                padding: "1px 0",
-                marginTop: i === 0 ? 4 : 0,
-                borderTop:
-                  i === 0 ? `1px solid ${CHART_THEME.tooltipBorder}` : undefined,
-                paddingTop: i === 0 ? 5 : 1,
+                width: 18,
+                flexShrink: 0,
+                borderTop: row.color ? `3px solid ${row.color}` : undefined,
+              }}
+            />
+          )}
+          <span style={{ color: CHART_THEME.axis }}>{row.label}</span>
+          {/* One column stays flush right, as it always was. Two columns line
+              up in fixed widths so avg and total read down the tooltip. The
+              TOTAL column is muted: it is context for the average the bar is
+              drawn from (260803). */}
+          <span
+            style={{
+              marginLeft: "auto",
+              fontWeight: 600,
+              minWidth: row.value2 != null ? 62 : undefined,
+              textAlign: "right",
+            }}
+          >
+            {row.value}
+          </span>
+          {row.value2 != null && (
+            <span
+              style={{
+                fontWeight: 600,
+                color: CHART_THEME.axis,
+                minWidth: 62,
+                textAlign: "right",
               }}
             >
-              {row.color && (
-                <span
-                  aria-hidden
-                  style={{
-                    width: 18,
-                    flexShrink: 0,
-                    borderTop: `3px solid ${row.color}`,
-                  }}
-                />
-              )}
-              <span style={{ color: CHART_THEME.axis }}>{row.label}</span>
-              <span style={{ marginLeft: "auto", fontWeight: 600 }}>
-                {row.value}
-              </span>
-            </div>
-          ))
-        : null}
+              {row.value2}
+            </span>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

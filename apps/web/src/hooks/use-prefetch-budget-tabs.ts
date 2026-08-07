@@ -127,6 +127,21 @@ export function usePrefetchBudgetTabs(budgetId: string) {
     // populate the persisted cache so Settings renders instantly/offline once warm.
     const deferredJobs: Job[] = [
       {
+        // The all-budgets page belongs to no single budget, so nothing else
+        // warms it: open a budget, lose the network, tap through to the
+        // switcher and the aggregate view had never been fetched (user,
+        // 260806). Deferred, because it is not on the critical path of the
+        // budget the member is actually looking at.
+        key: ["budgets", "aggregate"],
+        fn: async () => {
+          const res = await clientApiFetch("/budgets/aggregate", {
+            signal: AbortSignal.timeout(8000),
+          });
+          if (!res.ok) throw new Error("prefetch_failed:/budgets/aggregate");
+          return res.json();
+        },
+      },
+      {
         // members-section reads data.members → cache the WHOLE object.
         key: ["budget-members", budgetId],
         fn: () => get(`/budgets/${budgetId}/members`, (j) => j),

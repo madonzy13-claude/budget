@@ -214,3 +214,74 @@ describe("PUT /settings/theme", () => {
     expect(res.status).toBe(400);
   });
 });
+
+// 0074: UI picks that follow the PERSON but belong to no single budget — the
+// all-budgets range selector, so far. Budget-scoped picks live on the member
+// row instead (0070 / /budgets/:id/ui-prefs).
+describe("/settings/ui-prefs", () => {
+  function prefsDeps(store: Record<string, string[]> = {}) {
+    return buildDeps({
+      userRepo: {
+        async updateLocale() {},
+        async updateDisplayCurrency() {},
+        async updateTimezone() {},
+        async updateTheme() {},
+        async getUserUiPrefs() {
+          return store;
+        },
+        async mergeUserUiPrefs(_id: string, patch: Record<string, string[]>) {
+          Object.assign(store, patch);
+          return store;
+        },
+      },
+    });
+  }
+
+  test("refuses to read anyone's preferences without a session", async () => {
+    const res = await buildApp(prefsDeps()).request("/settings/ui-prefs");
+    expect(res.status).toBe(401);
+  });
+
+  test("refuses to write without a session", async () => {
+    const res = await buildApp(prefsDeps()).request("/settings/ui-prefs", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prefs: { overviewRange: ["last3Months"] } }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  test("gives back the caller's own stored picks", async () => {
+    const res = await buildApp(
+      prefsDeps({ overviewRange: ["last3Months"] }),
+    ).request("/settings/ui-prefs", { headers: { "X-Test-Auth": "true" } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      prefs: { overviewRange: ["last3Months"] },
+    });
+  });
+
+  test("merges a patch rather than replacing the bag", async () => {
+    const store = { somethingElse: ["kept"] };
+    const app = buildApp(prefsDeps(store));
+    const res = await app.request("/settings/ui-prefs", {
+      method: "PUT",
+      headers: { "content-type": "application/json", "X-Test-Auth": "true" },
+      body: JSON.stringify({ prefs: { overviewRange: ["last6Months"] } }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      prefs: { somethingElse: ["kept"], overviewRange: ["last6Months"] },
+    });
+  });
+
+  test("refuses a body that is not a bag of string lists", async () => {
+    const app = buildApp(prefsDeps());
+    const res = await app.request("/settings/ui-prefs", {
+      method: "PUT",
+      headers: { "content-type": "application/json", "X-Test-Auth": "true" },
+      body: JSON.stringify({ prefs: { overviewRange: "last6Months" } }),
+    });
+    expect(res.status).toBe(400);
+  });
+});

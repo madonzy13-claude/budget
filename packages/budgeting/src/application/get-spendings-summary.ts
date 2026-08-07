@@ -103,6 +103,9 @@ export interface SpendingsSummaryDTO {
   budgetCurrency: string;
   budgetTz: string; // IANA timezone — resolves D-PH4-Q5 RSC timezone gap
   cushionModeEnabled: boolean;
+  /** The mode the VIEWED month ran under. Optional so a cached payload from
+   *  before this existed still parses; callers fall back to the flag above. */
+  cushionModeForMonth?: boolean;
   /** r40: newest created_at over confirmed, non-deleted spendings (ISO) —
    *  the "last spending added" footer. Budget-wide, NOT month-scoped; null
    *  when the budget has no confirmed spendings. */
@@ -174,6 +177,12 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
       // tab). No reserve_actual fallback, no funded/available concept.
       if (posResult.isErr()) return err(posResult.error);
       const positions = posResult.value.positions;
+      // Resolved ONCE for the viewed month: the engine already worked out which
+      // limit each month was judged against, so the column can read the same
+      // answer instead of asking the budget what mode it is in now.
+      const monthCushionMode =
+        posResult.value.cushionByMonth?.get(input.month) ??
+        meta.cushionModeEnabled;
 
       // r33: resolve the smart Investments category's planned BEFORE the sync map.
       // SMART = monthly income (FX→budget ccy) − Σ planned of every OTHER active
@@ -231,7 +240,16 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           // shows 0 (you shouldn't invest when the budget is on the tighter
           // cushion). Outside cushion mode it shows the smart/manual planned.
           const cushion = isInvestment ? 0n : limits.cushion;
-          const active = meta.cushionModeEnabled ? cushion : planned;
+          // The VIEWED month's mode, not the budget's mode today (user report,
+          // 260806). A month that ran in cushion mode is judged against the
+          // cushion limit — the engine has always done that — but this column
+          // read `meta.cushionModeEnabled`, which is how the budget stands NOW.
+          // Look back at a cushion month from a normal one and it showed the
+          // normal limit beside an overspend measured against the cushion one:
+          // "planned 500" over "overspent 450" with a cushion limit of zero.
+          // No fallback between the two figures in either direction (user rule):
+          // the mode picks one, and that is the limit.
+          const active = monthCushionMode ? cushion : planned;
           const spent = perCatSpend.get(c.id) ?? 0n;
 
           // Engine cell for THIS month → used + overspent + the free reserve at the
@@ -302,6 +320,11 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
         budgetCurrency: meta.currency,
         budgetTz: meta.timezone,
         cushionModeEnabled: meta.cushionModeEnabled,
+        // The mode the VIEWED month actually ran under. `cushionModeEnabled`
+        // above is how the budget stands TODAY, which is a different question
+        // for any past month — a month completed on the cushion keeps its
+        // cushion limit for good (user, 260806).
+        cushionModeForMonth: monthCushionMode,
         lastSpendingAddedAt,
         categories: dtoCategories,
       });

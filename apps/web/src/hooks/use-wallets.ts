@@ -17,7 +17,7 @@ import { clientApiFetch } from "@/lib/budget-fetch";
 export interface WalletDto {
   id: string;
   name: string;
-  walletType: "SPENDINGS" | "CUSHION" | "RESERVE";
+  walletType: "SPENDINGS" | "CUSHION" | "RESERVE" | "POSSESSION" | "OTHER";
   currency: string;
   currentBalanceCents: string;
   /**

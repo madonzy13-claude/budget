@@ -10,8 +10,9 @@
  */
 import { useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { Pencil, Check, Trash2 } from "lucide-react";
+import { Pencil, Check, Trash2, RotateCw } from "lucide-react";
 import { useRevealActions } from "./reveal-actions";
+import { usePendingDraftConfirm } from "@/hooks/use-pending-spendings";
 import { useConfirmDraft } from "@/hooks/use-confirm-draft";
 import { useDismissDraft } from "@/hooks/use-dismiss-draft";
 import { centsToBare } from "@/lib/cents-format";
@@ -45,8 +46,12 @@ export function DraftRow({
   readOnly = false,
 }: DraftRowProps) {
   const t = useTranslations("grid.draft");
+  const tPending = useTranslations("grid.txn.pending");
   const locale = useLocale();
   const { revealed, setRevealed, ref } = useRevealActions();
+  // 260731-osq round 2: this draft's confirm failed offline and is queued — the
+  // row waits for the flusher, so it offers no further actions meanwhile.
+  const confirmQueued = usePendingDraftConfirm(draft.id);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
 
@@ -151,6 +156,13 @@ export function DraftRow({
         ) : (
           <span className="flex min-w-0 items-baseline gap-2 text-sm text-[var(--muted-foreground)]">
             <span className="shrink-0">{formattedAmount}</span>
+            {confirmQueued ? (
+              <RotateCw
+                data-testid="draft-row-pending"
+                aria-label={tPending("badge")}
+                className="h-3 w-3 shrink-0 self-center text-[var(--muted-foreground)]"
+              />
+            ) : null}
             {/* note + ruleName hide once the action chips show (tap-revealed OR
                 desktop hover) so all three chips fit without clipping. The note is
                 skipped when it merely repeats the rule name (no duplicate label). */}
@@ -179,7 +191,7 @@ export function DraftRow({
       {/* Action chips — icon-only so all three fit inside the narrow column.
           Hidden until tap-reveal (touch) or hover (desktop, sm:group-hover).
           Archived (readOnly) columns never reveal them. */}
-      {!editing && !readOnly && (
+      {!editing && !readOnly && !confirmQueued && (
         <div
           className={cn(
             "shrink-0 items-center gap-0.5",

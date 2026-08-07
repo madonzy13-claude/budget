@@ -61,7 +61,11 @@ const SECTION_KEY_MAP = {
   SPENDINGS: "spendings",
   CUSHION: "cushion",
   RESERVE: "reserve",
-} as const satisfies Record<WalletType, "spendings" | "cushion" | "reserve">;
+  // 260803: possessions became a wallet type, and OTHER holds assets that
+  // belong to nothing in particular.
+  POSSESSION: "possession",
+  OTHER: "other",
+} as const satisfies Record<WalletType, string>;
 
 export function WalletSection({
   type,

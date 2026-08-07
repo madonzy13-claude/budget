@@ -197,7 +197,8 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
                 ? cell.getAttribute("data-nav-field")
                 : null;
             idx = f ? (NAV_FIELDS as readonly string[]).indexOf(f) : -1;
-            if (idx < 0) idx = (NAV_FIELDS as readonly string[]).indexOf("amount");
+            if (idx < 0)
+              idx = (NAV_FIELDS as readonly string[]).indexOf("amount");
           }
           activateField(cur, idx);
           clearField(); // editor's own focus shows the field — drop the ring
@@ -252,6 +253,7 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
     // and the keyboard share one highlight; an arrow press after a hover steps
     // from the hovered row. Mouse only (touch/pen "hover" on tap is ignored), and
     // never while a field editor / dropdown / dialog owns focus.
+    let lastPt: { x: number; y: number } | null = null;
     const onPointerOver = (e: PointerEvent) => {
       const root = rootRef.current;
       if (!root || !wide()) return;
@@ -269,6 +271,16 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
       );
       if (!item || !root.contains(item)) return;
       if (item.hasAttribute("data-nav-highlighted")) return; // already there
+      // A layout shift under a STATIONARY cursor fires pointerover without the
+      // user moving the mouse. After clicking "add wallet" the pointer stays
+      // parked on that button, so the row mounting beneath it re-fired this
+      // handler and the button stole the highlight from the wallet just saved
+      // — the rest-highlight looked broken and the desktop-nav e2e failed on
+      // its first assertion. Hover is only intent when the pointer moved.
+      const moved =
+        lastPt === null || lastPt.x !== e.clientX || lastPt.y !== e.clientY;
+      lastPt = { x: e.clientX, y: e.clientY };
+      if (!moved) return;
       highlightNavItem(root, item);
       fieldIdx.current = null;
     };

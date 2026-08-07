@@ -87,4 +87,21 @@ export interface BudgetRepo {
     userId: string,
     settings: { included: boolean; sharePct?: number },
   ): Promise<void>;
+  /**
+   * One member's own UI preferences for this budget — currently which
+   * categories they picked for each Overview chart. Kept on the MEMBER row so
+   * the choice follows the person across devices instead of sitting in one
+   * browser's localStorage (user report, 260802), and never leaks between
+   * members: both calls bind `userId` as the target row.
+   */
+  getMemberUiPrefs(
+    budgetId: string,
+    userId: string,
+  ): Promise<Record<string, string[]>>;
+  /** MERGE a patch in, so one chart's pick never clears another's. */
+  mergeMemberUiPrefs(
+    budgetId: string,
+    userId: string,
+    patch: Record<string, string[]>,
+  ): Promise<Record<string, string[]>>;
 }

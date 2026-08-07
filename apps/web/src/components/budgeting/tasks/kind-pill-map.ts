@@ -14,7 +14,9 @@ export const KIND_TO_PILL = {
   RESERVE_TOPUP: "reserves",
   CUSHION_BELOW_TARGET: "wallets",
   CONFIRM_DRAFT: "spendings",
-  INCOME_UNDER_PLANNED: "spendings",
+  // 260731: the fix is about money/wallets (the Surplus forecast), not about
+  // a single month's spendings list — badge it on the Assets pill.
+  INCOME_UNDER_PLANNED: "wallets",
 } as const satisfies Record<TaskKind, Pill>;
 
 export function pillFor(kind: TaskKind): Pill {

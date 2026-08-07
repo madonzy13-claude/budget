@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Context, Next } from "hono";
 import { withTenantTx } from "../db/tx";
+import { reserveIdempotency } from "./repo";
 import { lookupIdempotency, insertIdempotency } from "./repo";
 import { TenantId, UserId } from "@budget/shared-kernel";
 
@@ -22,7 +23,13 @@ export interface IdempotencyDeps {
   withTenantTx: typeof withTenantTx;
   lookupIdempotency: typeof lookupIdempotency;
   insertIdempotency: typeof insertIdempotency;
+  /** Optional so wiring that predates the claim still runs unchanged. */
+  reserveIdempotency?: typeof reserveIdempotency;
 }
+
+/** How long a loser waits for the winner's response before giving up. */
+const IN_FLIGHT_POLLS = 20;
+const IN_FLIGHT_POLL_MS = 100;
 
 /**
  * createIdempotencyMiddleware — factory that returns a Hono MiddlewareHandler.
@@ -49,6 +56,9 @@ export function createIdempotencyMiddleware<
   const wtx = deps?.withTenantTx ?? withTenantTx;
   const lookup = deps?.lookupIdempotency ?? lookupIdempotency;
   const insert = deps?.insertIdempotency ?? insertIdempotency;
+  // Optional so existing wiring and tests that predate the claim still run —
+  // without it the middleware behaves exactly as it did before.
+  const reserve = deps?.reserveIdempotency ?? reserveIdempotency;
 
   return async (c: Context<E>, next: Next): Promise<void | Response> => {
     // Skip non-mutating methods
@@ -62,12 +72,26 @@ export function createIdempotencyMiddleware<
       return next();
     }
 
-    const tenantId = c.get("tenantId" as keyof E["Variables"]) as
-      | string
+    // The context the app ACTUALLY sets (260806): tenantGuard writes
+    // `tenantIds` — an ARRAY, plural — and auth writes `session`. Nothing
+    // anywhere sets the singular `tenantId`/`userId` this once read, so the
+    // guard below short-circuited on every request and idempotency was never
+    // on: shared_kernel.idempotency_keys is empty in a live database and a
+    // repeated POST writes a second financial row. The singular names are still
+    // accepted first, because that is what several tests and any future
+    // middleware that sets them would provide.
+    const tenantIds = c.get("tenantIds" as keyof E["Variables"]) as
+      | string[]
       | undefined;
-    const userId = c.get("userId" as keyof E["Variables"]) as
-      | string
+    const session = c.get("session" as keyof E["Variables"]) as
+      | { user?: { id?: string } }
       | undefined;
+    const tenantId =
+      (c.get("tenantId" as keyof E["Variables"]) as string | undefined) ??
+      tenantIds?.[0];
+    const userId =
+      (c.get("userId" as keyof E["Variables"]) as string | undefined) ??
+      session?.user?.id;
 
     // Pre-auth routes have no tenantId/userId — skip silently
     if (!tenantId || !userId) {
@@ -132,6 +156,38 @@ export function createIdempotencyMiddleware<
         decision.body as Record<string, unknown>,
         decision.status as 200,
       );
+    }
+
+    // Claim the key BEFORE running the handler. Lookup-then-insert around it is
+    // not enough: two concurrent duplicates both miss the lookup, both execute,
+    // and both write — which is how a service worker re-issuing a POST recorded
+    // one transaction twice (260806). Whoever loses the claim waits for the
+    // winner's response instead of repeating its work.
+    if (reserve) {
+      const claim = await wtx(TenantId(tenantId), UserId(userId), (tx) =>
+        reserve(tx, { scopeHash, bodyHash, tenantId, userId, route }),
+      );
+      if (claim.isOk() && claim.value === false) {
+        // Someone else is running it. Poll briefly for their stored response —
+        // the reservation row carries status 0 until it lands.
+        for (let i = 0; i < IN_FLIGHT_POLLS; i++) {
+          await new Promise((r) => setTimeout(r, IN_FLIGHT_POLL_MS));
+          const again = await wtx(TenantId(tenantId), UserId(userId), (tx) =>
+            lookup(tx, scopeHash),
+          );
+          const row = again.isOk() ? again.value : null;
+          if (row && row.responseStatus > 0) {
+            return c.json(
+              row.responseBodyJsonb as Record<string, unknown>,
+              row.responseStatus as 200,
+            );
+          }
+        }
+        // The winner never finished in time. Falling through would run the
+        // handler a second time, which is the very thing this prevents, so say
+        // so instead and let the caller retry with the same key.
+        return c.json({ error: "idempotency_in_flight" }, 409);
+      }
     }
 
     // Fresh request — body stream still unconsumed; hand control to downstream

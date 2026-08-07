@@ -519,9 +519,7 @@ function PersistedRow({
       return;
     }
     if (field === "currency") {
-      cell
-        .querySelector<HTMLElement>('button,[role="combobox"]')
-        ?.focus();
+      cell.querySelector<HTMLElement>('button,[role="combobox"]')?.focus();
       requestAnimationFrame(() => setCurrencyOpen(true));
       return;
     }
@@ -819,7 +817,9 @@ function PersistedRow({
                   if (v !== e.target.value) e.target.value = v;
                   onChange(v);
                 }}
-                className="h-9 text-right"
+                // 260731: compact editor — a full-width input made the row
+                // amount column swell across the row while editing.
+                className="ml-auto h-9 w-[10ch] max-w-full px-2 text-right"
               />
             )}
             onSave={(v) => onUpdate({ amount: sanitizeAmount(v) })}

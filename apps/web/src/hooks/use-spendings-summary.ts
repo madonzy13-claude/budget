@@ -16,6 +16,10 @@ export interface SpendingsSummaryDTO {
   /** Budget default currency — server-supplied on the summary response. */
   budgetCurrency: string;
   cushionModeEnabled: boolean;
+  /** The mode the VIEWED month ran under — a month completed on the cushion
+   *  keeps its cushion limit for good. Optional: a payload cached before this
+   *  existed replays without it and falls back to the flag above. */
+  cushionModeForMonth?: boolean;
   /** r40: newest created_at over confirmed, non-deleted spendings (ISO) —
    *  budget-wide; null when the budget has no confirmed spendings. */
   lastSpendingAddedAt: string | null;

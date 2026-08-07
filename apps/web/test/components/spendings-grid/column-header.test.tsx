@@ -69,7 +69,8 @@ describe("ColumnHeader", () => {
   it("row2 caption is 'planned' when cushionModeEnabled=false", () => {
     renderHeader({ cushionModeEnabled: false });
     const header = screen.getByTestId("column-header-groceries");
-    expect(header.textContent).toMatch(/planned/i);
+    // 260806: the row is "limit used" now, and reads "left / limit".
+    expect(header.textContent).toMatch(/limitUsed|limit used/i);
   });
 
   it("row2 caption is 'cushion' when cushionModeEnabled=true", () => {
@@ -249,12 +250,15 @@ describe("ColumnHeader", () => {
     expect(onEdit).toHaveBeenCalledWith("cat-1");
   });
 
-  it("clamps the Left row to 0 when the category is overspent (negative balance)", () => {
+  it("shows the spend against the limit when the category is overspent", () => {
     renderHeader({
       summary: { ...summary, balanceCents: "-52900", overspentCents: "52900" },
     });
-    const left = screen.getByTestId("column-header-groceries-balance");
-    expect(left.textContent).toBe("0");
+    // 260806: the separate "left" row went, and "limit used" leads with what
+    // has been SPENT — an overspent category shows the full spend against its
+    // limit rather than a clamped zero.
+    const limitUsed = screen.getByTestId("column-header-groceries-planned");
+    expect(limitUsed.textContent).toMatch(/\//);
   });
 
   describe("260611-vuo: archived-column fixes + full-width name + column-wide reveal", () => {
@@ -347,10 +351,10 @@ describe("ColumnHeader", () => {
       expect(pen!.className).not.toContain("pointer-events-none");
     });
 
-    it("FEATURE3: clicking the balance (left) cell reveals the pen", () => {
+    it("FEATURE3: clicking the limit-used cell reveals the pen", () => {
       renderHeader();
       const balance = document.querySelector(
-        '[data-testid="column-header-groceries-balance"]',
+        '[data-testid="column-header-groceries-planned"]',
       );
       fireEvent.click(balance!);
       const pen = document.querySelector(

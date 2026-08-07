@@ -73,6 +73,10 @@ export interface ReservePositionsResult {
   userDefinedCents: bigint;
   /** userDefined − internal. */
   surplusCents: bigint;
+  /** Which limit each month was judged against — true where the budget ran in
+   *  CUSHION mode that month. Optional so older callers/mocks still satisfy
+   *  the type. */
+  cushionByMonth?: Map<string, boolean>;
   /** surplus<0 → TOPUP (internal>wallet), surplus>0 → WITHDRAW, 0 → NONE.
    *  Matches the recompute-reserve-topup-task sign convention. */
   direction: "TOPUP" | "WITHDRAW" | "NONE";
@@ -314,6 +318,10 @@ export function getReservePositions(deps: GetReservePositionsDeps) {
         userDefinedCents: engine.userDefinedCents,
         surplusCents,
         direction,
+        // Which limit each month was judged against, so a display can ask the
+        // same question the engine answered instead of reading the budget's
+        // mode as it stands today (260806).
+        cushionByMonth: engine.cushionByMonth,
       });
     } catch (e) {
       return err(e as Error);

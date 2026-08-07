@@ -148,6 +148,16 @@
     --chart-bar-2: #14b8a6;
     --chart-bar-3: #a855f7; /* purple — distinct 3rd/4th pie slice */
     --chart-bar-4: #ec4899; /* rose — 5th pie slice (possessions); reads on both themes */
+    --chart-bar-5: #f5a524; /* amber — kept for other charts */
+    /* 260801: the planned bands are pure background — NEEDS a neutral grey, WANTS
+       a warm grey one shade up, so the tri-colour actual line carries the meaning
+       on top of them. */
+    --chart-plan-needs: #6b7280;
+    --chart-plan-wants: #7c6f64;
+    /* 260803: the planned-spend pie's outer ring adds a third — investing, which
+       is neither a need nor a want. A muted teal, same weight as the other two so
+       the ring stays background to the category slices inside it. */
+    --chart-plan-invest: #5f8a86;
 
     /* Canvas + surface */
     --canvas-dark: #0b0e11;

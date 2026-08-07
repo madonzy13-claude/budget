@@ -12,8 +12,8 @@ vi.mock("next-intl", () => ({
   useFormatter: () => ({
     relativeTime: (_date: Date, _now: Date) => "2 hours ago",
   }),
-  useTranslations: (_ns: string) =>
-    (key: string, params?: Record<string, unknown>) => {
+  useTranslations:
+    (_ns: string) => (key: string, params?: Record<string, unknown>) => {
       // key "freshnessBadge" with { age: "2 hours ago" } → "rate 2 hours ago"
       if (key === "freshnessBadge" && params?.age) {
         return `rate ${params.age}`;

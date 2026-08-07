@@ -10,7 +10,10 @@ import type { CategoryLimitRepo } from "../ports/category-limit-repo";
 import type { CategoryLimitDto, SetCategoryLimitInput } from "../contracts/api";
 import type { TaskRepo, TenantTx } from "../ports/task-repo";
 import { recomputeCushionTask } from "./recompute-cushion-task";
-import { recomputeIncomeUnderPlannedTask } from "./recompute-income-under-planned-task";
+import {
+  recomputeIncomeUnderPlannedTask,
+  type RecomputeIncomeUnderPlannedDeps,
+} from "./recompute-income-under-planned-task";
 import {
   recomputeReserveTopupTask,
   type RecomputeReserveTopupTaskDeps,
@@ -27,6 +30,9 @@ export interface SetCategoryLimitDeps {
    *  callers keep compiling. */
   taskRepo?: TaskRepo;
   fxProvider?: FxProviderLike;
+  /** 260731: cash-flow projection used by the shortfall task (same source as the
+   *  Overview Surplus card). Omitted → that recompute is skipped. */
+  getProjection?: RecomputeIncomeUnderPlannedDeps["getProjection"];
   /** 05-17: a category limit change shifts effLimit → overage → reserve draw →
    *  internal (ΣR) → surplus, so refresh RESERVE_TOPUP alongside the cushion
    *  recompute. Optional + gated; best-effort own-tx (sweep is the backstop). */
@@ -108,6 +114,7 @@ export function setCategoryLimit(deps: SetCategoryLimitDeps) {
     if (deps.taskRepo && deps.fxProvider) {
       const taskRepo = deps.taskRepo;
       const fxProvider = deps.fxProvider;
+      const getProjection = deps.getProjection;
       const recomputeR = await withTenantTx(
         TenantId(input.tenantId),
         UserId(input.actorUserId),
@@ -126,20 +133,23 @@ export function setCategoryLimit(deps: SetCategoryLimitDeps) {
         );
       }
 
-      // r33: INCOME_UNDER_PLANNED recompute. A planned (normal_amount) change
-      // moves the income-vs-planned gap. Idempotent, best-effort own-tx.
-      const incomeR = await withTenantTx(
-        TenantId(input.tenantId),
-        UserId(input.actorUserId),
-        async (tx) => {
-          await recomputeIncomeUnderPlannedTask(
-            tx as unknown as TenantTx,
-            { tenantId: input.tenantId, budgetId: input.tenantId },
-            { taskRepo, fxProvider },
-          );
-        },
-      );
-      if (incomeR.isErr()) {
+      // 260731: projected-shortfall recompute. A planned (normal_amount) change
+      // moves the daily burn the projection spreads, so the Surplus figure — and
+      // this task — can flip. Idempotent, best-effort own-tx.
+      const incomeR = getProjection
+        ? await withTenantTx(
+            TenantId(input.tenantId),
+            UserId(input.actorUserId),
+            async (tx) => {
+              await recomputeIncomeUnderPlannedTask(
+                tx as unknown as TenantTx,
+                { tenantId: input.tenantId, budgetId: input.tenantId },
+                { taskRepo, fxProvider, getProjection },
+              );
+            },
+          )
+        : null;
+      if (incomeR?.isErr()) {
         console.error(
           "[set-category-limit] income-under-planned recompute failed:",
           incomeR.error,

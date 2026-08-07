@@ -1,128 +1,121 @@
 "use client";
 /**
- * overspent-reserves-section.tsx — Overview "Overspent" + "Reserves" sections (11-09, SC5).
+ * overspent-reserves-section.tsx — Overview "Reserves" section (11-09, SC5).
  *
- * Two independent collapsibles backed by the single /overview/overspent-reserves
- * endpoint (fetched lazily once either is open). Overspent is range-scoped (total
- * figure red when > 0 + by-category bar); Reserves is NOT range-scoped ("current").
- * By-category bars use each category's colorKey. Charts via 11-02 wrappers; string
- * cents → Number here.
+ * Backed by /overview/overspent-reserves, fetched lazily once the section is
+ * open. Reserves is NOT range-scoped ("current"). The Overspent half moved into
+ * the Planned section (260803 request, see overspent-body.tsx) — it reads there
+ * as the other half of "how did the plan go" — and shares this same payload.
+ * By-category bars use each category's colorKey.
  */
 import { useTranslations } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
-import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
+import { useStagedWarmup } from "@/hooks/use-staged-warmup";
+import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
+import { reserveBalanceSlices } from "@/lib/reserve-balance-slices";
+import { ChartNeedsCompletedMonth } from "./chart-needs-completed-month";
+import { rangeHasCompletedMonth } from "@/lib/range-completed-month";
+import { todayInTz } from "@/lib/overview-range";
+import { useUserTimezone } from "@/components/common/user-timezone-provider";
+import { assignSliceColors } from "@/lib/slice-colors";
 import { useOverviewOverspent } from "@/hooks/use-overview-overspent";
+import {
+  useReserveFit,
+  useSaveReserveFitExclusions,
+} from "@/hooks/use-reserve-fit";
+import { useUpdateReserveAdjustment } from "@/hooks/use-update-reserve-adjustment";
+import { ReserveFitView } from "./reserve-fit-view";
 import { useCategories } from "@/hooks/use-budget-data";
-import { centsToRounded } from "@/lib/cents-format";
-import { chartCompactCents } from "@/lib/chart-format";
+import { centsToRounded, centsToDisplayCompact } from "@/lib/cents-format";
 import { hexForColorKey } from "@/lib/category-colors";
-import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 import type { OverviewRange } from "@/lib/overview-range";
 
 export function OverspentReservesSection({
   budgetId,
   range,
   reservesEnabled = true,
-  amountPrivacyEnabled = true,
 }: {
   budgetId: string;
   range: OverviewRange;
   reservesEnabled?: boolean;
-  amountPrivacyEnabled?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
-  const [overspentOpen, toggleOverspent] = usePersistedSectionOpen("overspent");
   const [reservesOpen, toggleReserves] = usePersistedSectionOpen("reserves");
+  // Warmed in the background like the other sections (260806) — a wave behind
+  // Planned so the two do not compete for the wire.
+  const warm = useStagedWarmup(2, { now: reservesOpen });
 
   const categories = useCategories(budgetId).data ?? [];
   const { data, isPending, isError } = useOverviewOverspent(budgetId, {
     from: range.from,
     to: range.to,
-    enabled: overspentOpen || reservesOpen,
+    enabled: warm,
   });
 
+  // 260804: "is each reserve the right size?" — held against the deepest dip the
+  // category's own history ever ran, with the member's one-off calls applied.
+  const fit = useReserveFit(budgetId, {
+    from: range.from,
+    to: range.to,
+    enabled: warm,
+  });
+  const saveExclusions = useSaveReserveFitExclusions(budgetId);
+  // 260805: the fit chart says which buffers are the wrong size, so the move
+  // that fixes them belongs here rather than a trip to the Reserves tab. The
+  // SAME adjust the Reserves tab posts — one way to set a reserve, and it
+  // refreshes the Overview itself — with its toast held back, because the
+  // dialog's own rows report each move.
+  const adjustReserve = useUpdateReserveAdjustment(budgetId, { silent: true });
+  const onRebalance = async (categoryId: string, targetCents: number) => {
+    const res = await adjustReserve.mutateAsync({
+      categoryId,
+      expectedCents: targetCents,
+    });
+    // What the engine SETTLED on, which is below the target when the raise
+    // covered this month's overspend.
+    return Number(res?.reserveCents ?? targetCents);
+  };
+  // Always money (user, 260805): the action here is "move 2,900 zł", and a
+  // percentage of a buffer is a step away from that. The percent view went with
+  // the switch — nobody was reaching for it, and its absence buys the header
+  // back for the two dialogs.
+  const hasCompletedMonth = rangeHasCompletedMonth(
+    range.from,
+    range.to,
+    todayInTz(useUserTimezone()).toString(),
+  );
+
   const ccy = data?.currency ?? "USD";
-  // Chart AXIS: bare + compact, no currency (r24 5/7). TOOLTIP: full $ (r25 #2).
-  const fmtY = chartCompactCents;
   const fmtTooltip = (n: number) =>
     centsToRounded(BigInt(Math.round(n)), ccy, "en", true);
-  // Per-category bars use each category's colorKey; the FALLBACK (no colorKey)
-  // alternates blue/teal per chart so neither is yellow and adjacent charts differ
-  // (r25 item 2). overspent → teal, reserves → blue.
-  const colorOf = (id: string, fallback: string): string =>
-    hexForColorKey(
-      categories.find((c) => c.id === id)?.colorKey as string | undefined,
-    ) ?? fallback;
+  // Keeps the cents where there are any. The rebalance dialog needs them: its
+  // target field is editable to the cent, so rounding what the reserve holds
+  // beside it invents a difference (user screenshot, 260805).
+  const fmtExact = (n: number) =>
+    centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en", true);
   const BAR_BLUE = "var(--chart-bar-1)";
-  const BAR_TEAL = "var(--chart-bar-2)";
 
-  const loading = isPending && (overspentOpen || reservesOpen);
+  const balanceSlices = reserveBalanceSlices(data?.reserves_by_category ?? []);
+  // One colour per slice, exactly as the planned-spend pie does it: a category
+  // with a colorKey keeps it, the rest take distinct palette colours instead of
+  // every slice landing on the same blue (user, 260804).
+  const balanceColorByName = assignSliceColors(
+    balanceSlices.map((r) => r.name),
+    (name) =>
+      hexForColorKey(
+        (categories.find(
+          (c) =>
+            c.id === balanceSlices.find((s) => s.name === name)?.category_id,
+        )?.colorKey as string | null) ?? null,
+      ),
+  );
+
+  const loading = isPending && reservesOpen;
   const failed = isError || !data;
 
   return (
     <>
-      <OverviewSection
-        testId="overview-section-overspent"
-        title={t("sections.overspent")}
-        open={overspentOpen}
-        onToggle={toggleOverspent}
-      >
-        {loading ? (
-          <div className="h-60 animate-pulse rounded-[var(--radius-xl)] bg-[var(--surface-elevated-dark)]" />
-        ) : failed || data.overspent_by_category.length === 0 ? (
-          <p className="text-num-sm text-[var(--muted-foreground)]">
-            {t("empty.overspent")}
-          </p>
-        ) : (
-          <>
-            {/* Total as a Financial-Wealth-style metric — caption label above,
-                num-md value below, centered (round 18 item 4). */}
-            <div className="flex flex-wrap items-start justify-center gap-6">
-              <div className="flex flex-col gap-0.5">
-                <p className="text-caption text-[var(--muted-foreground)]">
-                  {t("total")}
-                </p>
-                <span className="num text-num-md text-[var(--trading-down)]">
-                  {amountPrivacyEnabled ? (
-                    <SlotAmount
-                      value={centsToRounded(
-                        data.overspent_total_cents,
-                        ccy,
-                        "en",
-                        true,
-                      )}
-                    />
-                  ) : (
-                    centsToRounded(data.overspent_total_cents, ccy, "en", true)
-                  )}
-                </span>
-              </div>
-            </div>
-            <p className="text-caption text-[var(--muted-foreground)]">
-              {t("overspentByCategory")}
-            </p>
-            <OverviewBarChart
-              layout="vertical"
-              data={data.overspent_by_category
-                .map((c) => ({
-                  name: c.name,
-                  category_id: c.category_id,
-                  overspent: Number(c.overspent_cents),
-                }))
-                // Most overspent first (recharts vertical renders it at the top).
-                .sort((a, b) => b.overspent - a.overspent)}
-              xKey="name"
-              series={[{ key: "overspent", label: t("sections.overspent") }]}
-              colorByPoint={(row) => colorOf(String(row.category_id), BAR_TEAL)}
-              formatValue={fmtY}
-              formatTooltip={fmtTooltip}
-              maskAmounts={amountPrivacyEnabled}
-            />
-          </>
-        )}
-      </OverviewSection>
-
       {/* Reserves collapsible — hidden entirely when the reserves feature flag
           is off (mirrors the hidden Reserves pill + the dropped reserves card).
           When ON, every category is shown even at a zero reserve so the family
@@ -135,35 +128,52 @@ export function OverspentReservesSection({
           open={reservesOpen}
           onToggle={toggleReserves}
         >
+          {!hasCompletedMonth ? (
+            /* Same rule as the planned chart: the walk leaves the month still
+               running out, so a range holding nothing else has no history to
+               size a buffer from (user, 260804). */
+            <ChartNeedsCompletedMonth
+              title={t("reserveFit.title")}
+              testId="reserve-fit-needs-month"
+            />
+          ) : (
+            fit.data && (
+              <div className="flex flex-col gap-2">
+                <p className="text-center text-caption text-[var(--muted-foreground)]">
+                  {t("reserveFit.title")}
+                </p>
+                <ReserveFitView
+                  data={fit.data}
+                  format={fmtTooltip}
+                  formatExact={fmtExact}
+                  onSave={(delta) => saveExclusions.mutate(delta)}
+                  onRebalance={onRebalance}
+                  scale="amount"
+                />
+              </div>
+            )
+          )}
           {loading ? (
             <div className="h-60 animate-pulse rounded-[var(--radius-xl)] bg-[var(--surface-elevated-dark)]" />
-          ) : failed || data.reserves_by_category.length === 0 ? (
+          ) : failed || balanceSlices.length === 0 ? (
             <p className="text-num-sm text-[var(--muted-foreground)]">
               {t("empty.reserves")}
             </p>
           ) : (
-            <div className="flex flex-col gap-2">
-              <p className="text-caption text-[var(--muted-foreground)]">
+            <div className="mt-4 flex flex-col gap-2">
+              <p className="text-center text-caption text-[var(--muted-foreground)]">
                 {t("reservesByCategory")}
               </p>
-              <OverviewBarChart
-                layout="vertical"
-                data={data.reserves_by_category
-                  .map((r) => ({
-                    name: r.name,
-                    category_id: r.category_id,
-                    reserve: Number(r.reserve_cents),
-                  }))
-                  // Highest reserve first (recharts vertical renders it at the top).
-                  .sort((a, b) => b.reserve - a.reserve)}
-                xKey="name"
-                series={[{ key: "reserve", label: t("sections.reserves") }]}
-                colorByPoint={(row) =>
-                  colorOf(String(row.category_id), BAR_BLUE)
-                }
-                formatValue={fmtY}
-                formatTooltip={fmtTooltip}
-                maskAmounts={amountPrivacyEnabled}
+              {/* A pie, not bars (user, 260804): the question here is how the
+                  reserve is SPLIT, and a category holding nothing has no share
+                  to show — those are dropped rather than drawn as a zero. */}
+              <OverviewPieChart
+                data={balanceSlices}
+                nameKey="name"
+                valueKey="reserve"
+                colorFor={(name) => balanceColorByName.get(name) ?? BAR_BLUE}
+                formatValue={fmtTooltip}
+                allLabel={t("range.all")}
               />
             </div>
           )}

@@ -55,9 +55,60 @@ export function useViewportFillHeight(
       return v;
     }
 
+    /**
+     * Page zoom scales every px length the element carries, while a rect and
+     * visualViewport keep reporting SCREEN pixels. Dividing by the ratio between
+     * the two puts our numbers back in the element's own space — without it a
+     * zoomed Overview sized its box zoom× too tall and left a black band of
+     * empty document below the shell (user report, 260802). Unzoomed = 1.
+     */
+    function zoomFactor(node: HTMLElement): number {
+      const w = node.getBoundingClientRect().width;
+      const local = node.offsetWidth;
+      return w > 0 && local > 0 ? w / local : 1;
+    }
+
+    /**
+     * The element's top with every scroller between it and the viewport wound
+     * back to zero. A rect's `top` is viewport-RELATIVE, so once the page under
+     * the box scrolls it reads smaller — and a box sized "viewport minus my top"
+     * GREW, which made the document taller, which allowed more scroll: a runaway
+     * that left a black band of bare document below the shell, worse the further
+     * you zoomed (user report, 260802). Summing the ancestors' scrollTop undoes
+     * exactly that, and leaves an unscrolled page reading the same as before.
+     */
+    function unscrolledTop(node: HTMLElement): number {
+      let top = node.getBoundingClientRect().top;
+      for (let n = node.parentElement; n; n = n.parentElement) {
+        top += n.scrollTop;
+      }
+      return top;
+    }
+
+    /** True from the moment the app comes back until iOS stops lying (below). */
+    let settling = false;
+
     function update() {
       if (!el || isKeyboardEditing()) return;
-      const top = Math.max(0, Math.round(el.getBoundingClientRect().top));
+      // Coming back from the background, iOS keeps reporting the viewport short
+      // by the keyboard of the app you just left — for a few hundred ms AFTER
+      // this one is visible again. Every measurement in that window is a lie, so
+      // none of them are written: the box simply keeps the height it had while
+      // away, which is what it should be anyway. Doing nothing is the only
+      // option that cannot go wrong in either direction — writing the short
+      // reading flashes a black band under the shell, and refusing to shrink
+      // instead pins the box too TALL, which lets the document scroll past the
+      // shell into the same black (three rounds of this, 260805).
+      if (settling) return;
+      // A viewport measured while the app is in the BACKGROUND is a reading for
+      // a window nobody is looking at. Leave the app with another one's keyboard
+      // up and iOS hands the PWA a visualViewport still short by that keyboard;
+      // sizing the box to it left a black band of bare canvas exactly where the
+      // keyboard had been, and it stayed until something else resized (user
+      // report, 260805). Coming back to the front re-measures — see below.
+      if (typeof document !== "undefined" && document.hidden) return;
+      const zoom = zoomFactor(el);
+      const top = Math.max(0, Math.round(unscrolledTop(el) / zoom));
       if (fitVisible) {
         // Track the CURRENTLY-VISIBLE viewport so the box always fills exactly from
         // its top to the visible bottom — no under-bar spill (would give the
@@ -65,11 +116,26 @@ export function useViewportFillHeight(
         // ANY scroll (incl. this inner box), which grows visualViewport.height and
         // fires vv resize → we recompute. A static unit can't do this: svh gaps when
         // the bar collapses, lvh spills when it's shown. Fallback to 100svh (no vv).
-        const vvh = window.visualViewport?.height;
+        // Both readings are SCREEN pixels, so the subtraction happens there and
+        // the result is converted into the element's own space — a px length it
+        // carries is multiplied by the zoom on the way back out. Getting this
+        // wrong sized the box zoom× too tall and left a black band of bare
+        // document under the shell (user report, 260802).
+        //
+        // visualViewport is the VISIBLE window onto the layout viewport, and
+        // pinch/page-scale zoom shrinks it while the layout viewport — the frame
+        // this box is laid out in — stays put. Multiplying by the page scale
+        // reads it back in layout pixels. Without it a page scaled 1.595× sized
+        // the box 209px inside a 516px-tall layout viewport and left 193px of
+        // bare canvas beneath it, more the further the user zoomed (their own
+        // console numbers, 260802). Unpinched the scale is 1, so the iOS
+        // bar-collapse tracking below is untouched.
+        const vv = window.visualViewport;
+        const vvh = vv ? vv.height * (vv.scale || 1) : window.innerHeight;
         el.style.setProperty(
           "--grid-max-h",
-          vvh && vvh > 0
-            ? `max(160px, ${Math.round(vvh) - top}px)`
+          vvh > 0
+            ? `max(160px, ${Math.round(vvh / zoom - top)}px)`
             : `max(160px, calc(100svh - ${top}px))`,
         );
         return;
@@ -101,12 +167,40 @@ export function useViewportFillHeight(
     vv?.addEventListener("scroll", update, { passive: true });
     const onFocusOut = () => requestAnimationFrame(update);
     el.addEventListener("focusout", onFocusOut);
+
+    // Coming back to the front: hold everything still until the keyboard's
+    // dismissal animation is over, then take whatever the viewport says — in
+    // either direction, so a device rotated while the app was away is picked up
+    // too. The second pass covers iOS not always sending a resize when it
+    // finally lets that space go.
+    let timers: ReturnType<typeof setTimeout>[] = [];
+    const onVisible = () => {
+      if (document.hidden) return;
+      // Flick between apps a few times and each resume would otherwise leave
+      // its own timers behind.
+      timers.forEach(clearTimeout);
+      timers = [];
+      settling = true;
+      timers.push(
+        setTimeout(() => {
+          settling = false;
+          update();
+        }, 450),
+        setTimeout(update, 900),
+      );
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", onVisible);
+
     return () => {
       ro.disconnect();
       window.removeEventListener("resize", update);
       vv?.removeEventListener("resize", update);
       vv?.removeEventListener("scroll", update);
       el.removeEventListener("focusout", onFocusOut);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onVisible);
+      timers.forEach(clearTimeout);
     };
   }, [ref, fitVisible]);
 }

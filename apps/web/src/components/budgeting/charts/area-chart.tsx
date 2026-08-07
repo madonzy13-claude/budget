@@ -5,6 +5,7 @@
  * Client component (ResponsiveContainer → ResizeObserver). Data-agnostic: takes
  * already-shaped data + series descriptors; 11-09 wires the data.
  */
+import { useId } from "react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -23,8 +24,29 @@ import {
 } from "./chart-theme";
 import { ChartTooltipContent } from "./chart-tooltip";
 import { useDismissTooltip } from "./use-dismiss-tooltip";
+import { monthFirstTicks, thinTimeTicks } from "@/lib/chart-ticks";
 import { useSlotReveal } from "@/components/budgeting/overview/slot-amount";
 import { cn } from "@/lib/utils";
+
+/** recharts' own active-dot look, so a per-point renderer matches the default. */
+function DefaultActiveDot(props: {
+  cx?: number;
+  cy?: number;
+  fill?: string;
+  stroke?: string;
+}) {
+  if (props.cx == null || props.cy == null) return <g />;
+  return (
+    <circle
+      cx={props.cx}
+      cy={props.cy}
+      r={4}
+      fill={props.fill ?? props.stroke ?? CHART_THEME.accent}
+      stroke="#fff"
+      strokeWidth={2}
+    />
+  );
+}
 
 /** A fixed 3-dot mask — hides the amount entirely (magnitude, K/M suffix, and
  *  all) with a constant width regardless of the real number. */
@@ -43,6 +65,11 @@ export function OverviewAreaChart({
   rowSuffix,
   summary,
   maskAmounts = false,
+  tooltipOmitKeys,
+  tooltipColorForRow,
+  overlay,
+  xNumeric = false,
+  xTickPerMonth = false,
 }: {
   data: Array<Record<string, unknown>>;
   xKey: string;
@@ -72,9 +99,31 @@ export function OverviewAreaChart({
   /** Privacy: when true, blur the Y-axis amounts + mask the tooltip amount until
    *  the shared SlotAmount reveal is toggled on (amounts only — dates stay). */
   maskAmounts?: boolean;
+  /** dataKeys that are VISUAL overlays only (e.g. a re-coloured stretch of an
+   *  existing line) — they must not add a duplicate tooltip row. */
+  tooltipOmitKeys?: string[];
+  /** Per-point colour for a tooltip row (e.g. the actual row turning red once
+   *  the point is past the plan). */
+  tooltipColorForRow?: (
+    row: Record<string, unknown>,
+    dataKey?: string | number,
+  ) => string | undefined;
+  /** Extra recharts children (e.g. a <Customized> overlay) drawn LAST, on top of
+   *  the series — used by the planned chart to stroke the actual line per zone. */
+  overlay?: React.ReactNode;
+  /**
+   * 260801: treat `xKey` as a NUMBER (epoch ms) instead of a category, so points
+   * are spaced by real elapsed time. A category axis gave the one-day step into a
+   * running month the same width as the thirty days before it.
+   */
+  xNumeric?: boolean;
+  /** One tick per calendar month — for an axis that names months, not days. */
+  xTickPerMonth?: boolean;
 }) {
   const { chartProps, tooltipProps, contentExtra, hideCursor } =
     useDismissTooltip();
+  // Unique per chart instance — several charts can live on one page.
+  const gradIdBase = useId().replace(/:/g, "");
   const { revealed } = useSlotReveal();
   const hidden = maskAmounts && !revealed;
   // When hidden, both the Y-axis ticks and the tooltip value become "•••" (the
@@ -96,12 +145,40 @@ export function OverviewAreaChart({
         />
         <XAxis
           dataKey={xKey}
+          {...(xNumeric
+            ? {
+                type: "number" as const,
+                domain: ["dataMin", "dataMax"] as [string, string],
+                // Ticks ON the data points — a plain numeric axis would invent
+                // round-number dates nothing sits on. Rows flagged `reset` are
+                // geometry (a drop back to zero), not readings, so they get no
+                // tick; the rest are thinned by TIME because recharts drew a
+                // daily range's every point and the labels overlapped.
+                ticks: thinTimeTicks(
+                  (() => {
+                    const vals = data
+                      .filter((d) => !d.reset)
+                      .map((d) => Number(d[xKey]));
+                    return xTickPerMonth ? monthFirstTicks(vals) : vals;
+                  })(),
+                ),
+                interval: "preserveStartEnd" as const,
+                // recharts drops ticks that would land within this many pixels
+                // of their neighbour — its own width-aware pass on top of the
+                // time thinning above, which cannot know the rendered width.
+                minTickGap: 16,
+              }
+            : {})}
           {...chartAxis}
           {...(xTickFormat ? { tickFormatter: xTickFormat } : {})}
         />
         <YAxis
           tickFormatter={yFmt}
           width={48}
+          // 260801: a series sitting at 0 is drawn ON the baseline, so half its
+          // 2px stroke painted BELOW the axis. 2px of bottom padding lifts the
+          // zero line just clear of it without shifting the readable scale.
+          padding={{ bottom: 2 }}
           {...chartAxis}
           tick={leftAlignedYTick(48)}
         />
@@ -112,6 +189,8 @@ export function OverviewAreaChart({
             <ChartTooltipContent
               formatY={tooltipFmt}
               series={series}
+              omitKeys={tooltipOmitKeys}
+              colorForRow={tooltipColorForRow}
               labelFormat={labelFormat ?? xTickFormat}
               extra={tooltipExtra}
               rowSuffix={rowSuffix}
@@ -120,26 +199,76 @@ export function OverviewAreaChart({
             />
           }
         />
+        {/* Hard-stop stroke gradients (one per series that asks for it). */}
+        {series.some((s) => s.strokeGradientStops?.length) && (
+          <defs>
+            {series
+              .filter((s) => s.strokeGradientStops?.length)
+              .map((s) => (
+                <linearGradient
+                  key={s.key}
+                  id={`${gradIdBase}-${s.key}`}
+                  x1="0"
+                  y1="0"
+                  x2="1"
+                  y2="0"
+                >
+                  {s.strokeGradientStops!.map((stop, i) => (
+                    <stop
+                      key={i}
+                      offset={`${Math.round(stop.offset * 10000) / 100}%`}
+                      stopColor={stop.color}
+                    />
+                  ))}
+                </linearGradient>
+              ))}
+          </defs>
+        )}
         {series.map((s) => {
           const color = s.color ?? CHART_THEME.accent;
+          const stroke = s.strokeGradientStops?.length
+            ? `url(#${gradIdBase}-${s.key})`
+            : color;
           return (
             <Area
               key={s.key}
-              type="monotone"
+              zIndex={s.zIndex}
+              type={s.curve ?? "monotone"}
               dataKey={s.key}
               name={s.label}
               stackId={s.stack}
-              stroke={color}
+              stroke={stroke}
               fill={color}
               fillOpacity={s.fillOpacity ?? 0.15}
+              strokeOpacity={s.strokeOpacity ?? 1}
               strokeWidth={2}
               strokeDasharray={s.dashed ? "4 4" : undefined}
               dot={false}
-              activeDot={hideCursor ? false : undefined}
+              // A dot only where the tooltip has something to say — a point you
+              // can hit but not read is a dead target (260801 user report).
+              activeDot={
+                hideCursor || s.noActiveDot
+                  ? false
+                  : (props: {
+                      cx?: number;
+                      cy?: number;
+                      fill?: string;
+                      stroke?: string;
+                      payload?: Record<string, unknown>;
+                    }) =>
+                      // Matches the tooltip: a dot only where there is something
+                      // to read. A dot with no tooltip behind it is a dead target.
+                      props.payload?.[s.key] == null ? (
+                        <g />
+                      ) : (
+                        <DefaultActiveDot {...props} />
+                      )
+              }
               isAnimationActive={false}
             />
           );
         })}
+        {overlay}
       </AreaChart>
     </ResponsiveContainer>
   );

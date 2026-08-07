@@ -9,7 +9,7 @@ FROM oven/bun:1.3.12-slim AS installer
 WORKDIR /app
 
 # Copy workspace manifests first (cache layer)
-COPY package.json ./
+COPY package.json bun.lock ./
 COPY tsconfig.base.json ./
 COPY apps/web/package.json ./apps/web/
 COPY packages/ ./packages/
@@ -19,7 +19,27 @@ COPY apps/worker/package.json ./apps/worker/
 COPY apps/migrator/package.json ./apps/migrator/
 
 # Install all dependencies
-RUN bun install --no-save
+# --no-save, and the protection lives in the PIN rather than the lockfile.
+#
+# This was --frozen-lockfile for a while (260804), after an unpinned install
+# shipped next@16.3.0 into an image built from unchanged source and broke
+# page-data collection under Bun. The intent was right; the mechanism never
+# worked — every CI build failed with "lockfile had changes, but lockfile is
+# frozen" while the identical commit built clean locally with --no-cache, same
+# base image, same bun, same arch. It has never gone green (260806).
+#
+# `next` is pinned to an exact version in apps/web/package.json and in the root
+# overrides instead, so the release that caused the incident cannot come back
+# whatever the resolver does. That is a stronger guarantee than a lockfile the
+# build could not read anyway.
+# CI=false: bun turns --frozen-lockfile ON BY ITSELF when it thinks it is in
+# CI, and on GitHub Actions it did so inside the image build — every job failed
+# with "lockfile had changes, but lockfile is frozen" even with --no-save and no
+# frozen flag anywhere, while the identical build passed locally. The lockfile
+# is not the problem: a cold resolve in a clean container produces a file
+# byte-identical to the committed one. Saying so explicitly is what stops the
+# auto-detection.
+RUN CI=false bun install --no-save
 
 # Stage 2: Build
 FROM installer AS builder

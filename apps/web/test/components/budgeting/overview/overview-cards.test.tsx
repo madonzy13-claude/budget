@@ -29,7 +29,7 @@ vi.mock("next-intl", () => {
       "cards.unitD": "d",
       "cards.overspentMotivation": "Good job — keep it up!",
       "cards.reservesNeeded": "Needed",
-      "cards.reservesOkNote": "Needed {amount}",
+      "cards.reservesOkNote": "All reserves are in place",
       "cards.reservesShortNote": "Not enough. {amount} is missing",
       "cards.reservesSurplusNote": "Too much. {amount} extra",
       "cards.cushionSaved": "Saved",
@@ -156,7 +156,8 @@ describe("OverviewCards", () => {
     expect(screen.getByText("$800")).toBeTruthy(); // spent this month
     expect(screen.getByText("$400")).toBeTruthy(); // projected surplus (was "Upcoming")
     expect(screen.getByText("$3,500")).toBeTruthy(); // available reserves
-    expect(screen.getByText("Needed $3,000")).toBeTruthy(); // reserves needed note
+    // 260804: a card that is in order says so instead of restating the target.
+    expect(screen.getByText("All reserves are in place")).toBeTruthy();
     expect(screen.getByText("incl. investments $12,400")).toBeTruthy();
   });
 
@@ -254,6 +255,28 @@ describe("OverviewCards", () => {
       expect(screen.getByTestId(testid)).toBeTruthy();
       unmount();
     }
+  });
+
+  // Nothing to do = say so. Repeating the required amount under a green tick
+  // read like a bill still to pay (user, 260804).
+  it("reserves ok note reassures instead of restating the required amount", () => {
+    mockUse.mockReturnValue({
+      data: {
+        ...DTO,
+        available_reserves_cents: "2893364",
+        reserves: {
+          ...DTO.reserves,
+          status: "ok",
+          required_cents: "2893364",
+        },
+      },
+      isError: false,
+      isPending: false,
+    });
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+    const card = screen.getByTestId("overview-card-available-reserves");
+    expect(card.textContent).toContain("All reserves are in place");
+    expect(card.textContent).not.toContain("Needed");
   });
 
   it("reserves short note shows the MISSING amount with cents", () => {

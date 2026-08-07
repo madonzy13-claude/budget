@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgPolicy, uuid, timestamp } from "drizzle-orm/pg-core";
+import { pgPolicy, uuid, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { identity, appRole, workerRole } from "@budget/platform";
 
 /** D-07: persisted multi-select active workspaces filter. */
@@ -11,6 +11,14 @@ export const userPreferences = identity.table(
       .array()
       .notNull()
       .default(sql`'{}'::uuid[]`),
+    /** 0074: UI picks that belong to the PERSON but to no single budget — the
+     *  all-budgets page's range selector, so far. Budget-scoped picks live on
+     *  the member row instead (0070). Free-form so the next one needs no
+     *  migration. */
+    uiPrefs: jsonb("ui_prefs")
+      .$type<Record<string, string[]>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

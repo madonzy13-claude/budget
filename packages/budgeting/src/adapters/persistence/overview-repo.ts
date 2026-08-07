@@ -83,7 +83,13 @@ export function createOverviewRepo(): OverviewPlannedRepo {
       return read(budgetId, async (tx) => {
         const res = await tx.execute(sql`
           WITH months AS (
+            -- 260801: month_end is what the LIMIT + MODE lookups resolve at, so a
+            -- month tick carries the LATEST value in force during that month. The
+            -- old month_start lookup ignored a limit raised mid-month and drew the
+            -- superseded figure for the whole month (user report, 6M+).
             SELECT date_trunc('month', gs)::date AS month_start,
+                   (date_trunc('month', gs) + interval '1 month'
+                      - interval '1 day')::date AS month_end,
                    to_char(date_trunc('month', gs), 'YYYY-MM') AS month
               FROM generate_series(
                      date_trunc('month', ${from}::date),
@@ -97,8 +103,8 @@ export function createOverviewRepo(): OverviewPlannedRepo {
                      SELECT bmh.mode
                        FROM budgeting.budget_mode_history bmh
                       WHERE bmh.tenant_id = ${budgetId}::uuid
-                        AND bmh.effective_from <= m.month_start
-                        AND (bmh.effective_to IS NULL OR bmh.effective_to > m.month_start)
+                        AND bmh.effective_from <= m.month_end
+                        AND (bmh.effective_to IS NULL OR bmh.effective_to >= m.month_start)
                       ORDER BY bmh.effective_from DESC
                       LIMIT 1
                    ), 'NORMAL') AS mode
@@ -110,7 +116,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
           -- a planned row when a limit was actually effective then. Archived gate
           -- stays (drop the category for months at/after it's archived).
           cat_month AS (
-            SELECT c.id AS category_id, c.cushion_mode, m.month, m.month_start
+            SELECT c.id AS category_id, c.cushion_mode, m.month, m.month_start, m.month_end
               FROM budgeting.categories c
               CROSS JOIN months m
              WHERE c.tenant_id = ${budgetId}::uuid
@@ -120,11 +126,20 @@ export function createOverviewRepo(): OverviewPlannedRepo {
                  cm.month AS month,
                  (CASE WHEN ma.mode = 'CUSHION' THEN cl.cushion_amount
                        ELSE cl.normal_amount END)::text AS planned_cents,
-                 -- needs = the essential portion; wants = planned − needs. For a
-                 -- cushioned category that's the cushion (capped at planned). For a
-                 -- NON-cushioned category (mode 'none') the cushion is 0 but the
-                 -- planned is still its needs budget (not "wants") → needs = planned.
-                 (CASE WHEN cm.cushion_mode = 'none'
+                 -- needs = the essential portion; wants = planned − needs.
+                 -- The slider writes the split the user typed onto the limit row
+                 -- (needs_amount), so PREFER it — inferring needs from the cushion
+                 -- ignored the edit entirely and the charts kept the old split
+                 -- (user report, 260803). Capped at planned, because a cushion
+                 -- month can be smaller than the normal-month needs figure.
+                 -- Rows written before the split columns existed have NULL there:
+                 -- fall back to the cushion, except for a NON-cushioned category
+                 -- (mode 'none') whose whole plan is needs, not wants.
+                 (CASE WHEN cl.needs_amount IS NOT NULL
+                       THEN LEAST(cl.needs_amount,
+                                  CASE WHEN ma.mode = 'CUSHION' THEN cl.cushion_amount
+                                       ELSE cl.normal_amount END)
+                       WHEN cm.cushion_mode = 'none'
                        THEN CASE WHEN ma.mode = 'CUSHION' THEN cl.cushion_amount
                                  ELSE cl.normal_amount END
                        ELSE LEAST(cl.cushion_amount,
@@ -134,12 +149,19 @@ export function createOverviewRepo(): OverviewPlannedRepo {
             FROM cat_month cm
             JOIN mode_at ma ON ma.month_start = cm.month_start
             JOIN LATERAL (
-              SELECT cl.normal_amount, cl.cushion_amount
+              SELECT cl.normal_amount, cl.cushion_amount, cl.needs_amount
                 FROM budgeting.category_limits cl
                WHERE cl.tenant_id = ${budgetId}::uuid
                  AND cl.category_id = cm.category_id
-                 AND cl.effective_from <= cm.month_start
-                 AND (cl.effective_to IS NULL OR cl.effective_to > cm.month_start)
+                 -- Overlap, not a point-in-time probe: SCD-2 rows written by the
+                 -- app close a period on the NEXT period's first day, while
+                 -- reconstructed rows (the House backfill) close it on this
+                 -- month's LAST day. A strict > month_end dropped every
+                 -- inclusive row and the category vanished from the plan (260801).
+                 -- ORDER BY effective_from DESC then yields the month's LATEST
+                 -- limit either way.
+                 AND cl.effective_from <= cm.month_end
+                 AND (cl.effective_to IS NULL OR cl.effective_to >= cm.month_start)
                ORDER BY cl.effective_from DESC
                LIMIT 1
             ) cl ON true
@@ -161,7 +183,8 @@ export function createOverviewRepo(): OverviewPlannedRepo {
                  to_char(created_at, 'YYYY-MM') AS created_month,
                  CASE WHEN archived_from IS NOT NULL
                       THEN to_char(archived_from, 'YYYY-MM') ELSE NULL END AS archived_month,
-                 COALESCE(is_investment, false) AS is_investment
+                 COALESCE(is_investment, false) AS is_investment,
+                 investment_limit_mode
             FROM budgeting.categories
            WHERE tenant_id = ${budgetId}::uuid
         `);
@@ -171,14 +194,30 @@ export function createOverviewRepo(): OverviewPlannedRepo {
           created_month: r.created_month as string,
           archived_month: (r.archived_month as string | null) ?? null,
           is_investment: (r.is_investment as boolean | null) ?? false,
+          investment_limit_mode:
+            (r.investment_limit_mode as string | null) ?? null,
         }));
       });
     },
 
-    async dailySpend(budgetId, from, to, categoryId): Promise<DailySpendRow[]> {
+    async dailySpend(
+      budgetId,
+      from,
+      to,
+      categoryIds,
+    ): Promise<DailySpendRow[]> {
       return read(budgetId, async (tx) => {
-        const catFilter = categoryId
-          ? sql`AND category_id = ${categoryId}::uuid`
+        // Every category counts, investments included (260803 user request):
+        // the line is the household's whole outgoing, and the Investments plan
+        // is resolved alongside it so the two stay comparable. Narrow it only
+        // when the picker names categories.
+        // sql`= ANY(${array})` sends the ids as separate parameters and Postgres
+        // sees a malformed array literal — build the IN list explicitly.
+        const catFilter = categoryIds?.length
+          ? sql`AND category_id IN (${sql.join(
+              categoryIds.map((id) => sql`${id}::uuid`),
+              sql`, `,
+            )})`
           : sql``;
         const res = await tx.execute(sql`
           SELECT to_char(transaction_date, 'YYYY-MM-DD') AS day,

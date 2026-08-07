@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   render,
   screen,
@@ -73,6 +73,28 @@ vi.mock("next-intl", () => ({
     v?.pct ? `your ${v.pct}%` : k,
   useLocale: () => "en",
 }));
+// 260805: the range now comes from the user's stored picks, so the page waits
+// for them before it draws anything.
+const userPrefs: { current: Record<string, string[]>; loaded: boolean } = {
+  current: {},
+  loaded: true,
+};
+const savePref = vi.fn();
+vi.mock("@/hooks/use-user-ui-prefs", () => ({
+  useUserUiPrefs: () => ({
+    prefs: userPrefs.current,
+    isLoaded: userPrefs.loaded,
+    save: savePref,
+  }),
+}));
+const link = { degraded: false };
+vi.mock("@/components/common/connectivity-provider", () => ({
+  useConnectivity: () => ({
+    status: link.degraded ? "offline" : "online",
+    degraded: link.degraded,
+    reason: link.degraded ? "offline" : "online",
+  }),
+}));
 vi.mock("@/components/common/user-timezone-provider", () => ({
   useUserTimezone: () => "UTC",
 }));
@@ -91,7 +113,11 @@ vi.mock("@/components/budgeting/charts/area-chart", () => ({
   OverviewAreaChart: () => <div data-testid="area-chart" />,
 }));
 vi.mock("@/components/budgeting/overview/range-selector", () => ({
-  RangeSelector: () => <div data-testid="range-selector" />,
+  RangeSelector: ({ value }: { value: { preset: string } }) => (
+    <div data-testid="range-selector">
+      <span data-testid="aggregate-range-value">{value.preset}</span>
+    </div>
+  ),
 }));
 vi.mock("@/components/budgeting/aggregate/aggregate-budgets-tasks", () => ({
   AggregateBudgetsTasks: () => <div data-testid="budgets-tasks" />,
@@ -148,9 +174,9 @@ describe("AggregateOverview", () => {
       budgets: [makeBudget({ ...base, possessions_cents: "0" })],
     };
     const { unmount } = render(<AggregateOverview />);
-    const runwayNoPoss = screen
-      .getByTestId("aggregate-hero-runway")
-      .textContent;
+    const runwayNoPoss = screen.getByTestId(
+      "aggregate-hero-runway",
+    ).textContent;
     unmount();
 
     // possessions == net worth → the liquid pot is 0 → runway collapses to the
@@ -160,9 +186,9 @@ describe("AggregateOverview", () => {
       budgets: [makeBudget({ ...base, possessions_cents: "1000000" })],
     };
     render(<AggregateOverview />);
-    const runwayWithPoss = screen
-      .getByTestId("aggregate-hero-runway")
-      .textContent;
+    const runwayWithPoss = screen.getByTestId(
+      "aggregate-hero-runway",
+    ).textContent;
     expect(runwayWithPoss).not.toBe(runwayNoPoss);
   });
 
@@ -218,5 +244,68 @@ describe("AggregateOverview", () => {
     const hero = screen.getByTestId("aggregate-hero");
     reveal(hero);
     await waitFor(() => expect(hero.textContent).toMatch(/6,?600/));
+  });
+});
+
+// 260805: the range belongs to the PERSON, not the device — this page is scoped
+// to no single budget, so it stores on the user row rather than a member row.
+describe("AggregateOverview — remembered range", () => {
+  beforeEach(() => {
+    userPrefs.current = {};
+    userPrefs.loaded = true;
+    savePref.mockClear();
+  });
+
+  it("opens on the stored range", () => {
+    userPrefs.current = { overviewRange: ["last12Months"] };
+    render(<AggregateOverview />);
+    expect(
+      screen.getByTestId("aggregate-range-value").textContent,
+    ).toBe("last12Months");
+  });
+
+  it("opens on six months when nothing is stored", () => {
+    render(<AggregateOverview />);
+    expect(
+      screen.getByTestId("aggregate-range-value").textContent,
+    ).toBe("last6Months");
+  });
+
+  // Drawing before the stored pick lands would fetch a trend for the default
+  // range and then throw it away.
+  it("draws nothing until the stored pick has landed", () => {
+    userPrefs.loaded = false;
+    render(<AggregateOverview />);
+    expect(screen.getByTestId("aggregate-loading")).toBeTruthy();
+  });
+});
+
+// 260806: offline, a query that has never run is PAUSED — it never succeeds and
+// never errors. The page waits for the stored range before drawing, so a member
+// whose picks were never cached sat on a skeleton forever with data right there
+// in hand. Offline it stops waiting and takes its default.
+describe("AggregateOverview — offline with no stored range", () => {
+  beforeEach(() => {
+    userPrefs.current = {};
+    userPrefs.loaded = false;
+    link.degraded = false;
+  });
+  afterEach(() => {
+    link.degraded = false;
+    userPrefs.loaded = true;
+  });
+
+  it("keeps waiting while the link is fine", () => {
+    render(<AggregateOverview />);
+    expect(screen.getByTestId("aggregate-loading")).toBeTruthy();
+  });
+
+  it("stops waiting once there is nothing to wait for", () => {
+    link.degraded = true;
+    render(<AggregateOverview />);
+    expect(screen.queryByTestId("aggregate-loading")).toBeNull();
+    expect(
+      screen.getByTestId("aggregate-range-value").textContent,
+    ).toBe("last6Months");
   });
 });

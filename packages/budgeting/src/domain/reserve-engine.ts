@@ -94,6 +94,13 @@ export interface ReserveEngineResult {
   userDefinedCents: bigint;
   /** userDefined − internal. */
   surplusCents: bigint;
+  /** Which limit each month was judged against — true where the budget ran in
+   *  CUSHION mode. The engine has always resolved this per month; exposing it
+   *  lets a display read the same answer instead of asking the budget what mode
+   *  it is in TODAY, which is a different question for any past month and gave
+   *  a column showing the normal limit beside an overspend measured against the
+   *  cushion one (user report, 260806). */
+  cushionByMonth: Map<string, boolean>;
 }
 
 export interface ReserveEngineInput {
@@ -214,6 +221,27 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
       c.R += remaining;
     }
     c.overageApplied.set(month, newOver);
+
+    // A CLOSED month has already accrued its leftover into R, on the assumption
+    // nothing more would land in it. A transaction added to that month later —
+    // a receipt entered days after the fact — makes that accrual wrong: it was
+    // computed against a smaller spend. Re-settle it, moving R by the
+    // difference, so the past month spends exactly like an open one (limit
+    // first, then the reserve it had) instead of leaving the reserve inflated
+    // by money that has since been spent (user report, 260806).
+    //
+    // Only months that HAVE accrued are touched: the open month has not, and
+    // must not, or its leftover would be double-counted before it closes.
+    const priorAccrual = c.accrued.get(month);
+    if (priorAccrual !== undefined) {
+      const freshAccrual = max0(
+        effLimit(c, month) - (c.spent.get(month) ?? 0n),
+      );
+      if (freshAccrual !== priorAccrual) {
+        c.accrued.set(month, freshAccrual);
+        c.R += freshAccrual - priorAccrual;
+      }
+    }
   };
 
   // Track R at each month's END. Events are folded month-ASCENDING, so whenever the
@@ -376,5 +404,6 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
     internalCents: internalOut,
     userDefinedCents: userDefined,
     surplusCents: userDefined - internalOut,
+    cushionByMonth: cushionOn,
   };
 }

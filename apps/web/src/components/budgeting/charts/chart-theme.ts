@@ -65,7 +65,11 @@ export const chartTooltip = {
   },
   labelStyle: { color: CHART_THEME.axis },
   itemStyle: { color: CHART_THEME.text },
-  cursor: { stroke: CHART_THEME.grid, strokeWidth: 1 },
+  // The hover cursor is the READING the user asked for, so it out-reads the
+  // structure behind it — the month-reset vertical on the planned timeline, which
+  // sits on the quiet hairline. These two were the wrong way round: the reset
+  // shouted and the cursor barely showed (user report, 260802).
+  cursor: { stroke: CHART_THEME.axis, strokeWidth: 1 },
 } as const;
 
 export interface ChartSeries {
@@ -80,4 +84,23 @@ export interface ChartSeries {
   stack?: string;
   /** fill opacity override (e.g. a heavier fill for a stacked band). */
   fillOpacity?: number;
+  /** Soften a band so it reads as background (260731): 1 = full-strength line. */
+  strokeOpacity?: number;
+  /** Hard-stop stroke gradient along X (260731): colours ONE line by where it
+   *  crosses another (see lib/actual-over-plan) — recharts has no per-segment
+   *  styling, and an SVG gradient cuts at the exact crossing, not at a point. */
+  strokeGradientStops?: Array<{ offset: number; color: string }>;
+  /** Curve interpolation for this series. "linear" keeps the drawn line exactly
+   *  on the straight segments the crossing maths assumes (see
+   *  lib/actual-over-plan); the default monotone spline bows off them. */
+  curve?: "monotone" | "linear";
+  /** Background bands take no hover dot: two dots at one x, only one of which
+   *  the tooltip explains, read as a stray point (260801 user report). */
+  noActiveDot?: boolean;
+  /** Paint layer. recharts gives an Area 100 and the grid −100, so a band meant
+   *  to sit UNDER everything — the plan bands — asks for less than that. */
+  zIndex?: number;
+  /** Leave this row out of the tooltip when its value is 0 — a plan with no
+   *  wants has nothing to say about wants (260802 user request). */
+  hideWhenZero?: boolean;
 }

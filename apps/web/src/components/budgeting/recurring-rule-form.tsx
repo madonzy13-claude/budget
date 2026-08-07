@@ -15,10 +15,10 @@
  *     grid (Test 6 / Test 7 UAT feedback).
  *
  * The form owns its own `<Sheet>` — callers just pass `open` +
- * `onOpenChange`. This keeps the api identical to before so the two
- * existing call sites (settings/recurring-section.tsx,
- * recurring/recurring-page-client.tsx) don't need to wrap the form
- * in an outer Sheet themselves.
+ * `onOpenChange`, so the call site (settings/recurring-section.tsx) does not
+ * wrap it in an outer Sheet. The second call site, the legacy /recurring page,
+ * was deleted on 260804: it mounted this form with NO budget context, which
+ * disables the "category required" guard below.
  *
  * Modes:
  *   - create → POST /recurring-rules
@@ -51,6 +51,7 @@ import { CurrencyPicker } from "@/components/common/currency-picker";
 import { DateInput } from "@/components/budgeting/fields/date-input";
 import { formatAmountForList } from "@/components/budgeting/recurring-rules-list";
 import { uuidv4 } from "@/lib/uuid";
+import { toDecimalString } from "@/lib/decimal";
 import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
 import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 
@@ -249,6 +250,15 @@ export function RecurringRuleForm({
       const cadenceAnchor = Number.isFinite(parsedAnchor)
         ? Math.max(1, Math.min(31, parsedAnchor))
         : 1;
+      // The API takes a decimal STRING and accepts a dot only, so a comma
+      // keyboard ("73,8" — the Polish layout's decimal key) was rejected and the
+      // save died on a bare "Failed to create rule" (user report, 260803). Say
+      // what is wrong rather than spending a round trip to find out.
+      const amountValue = toDecimalString(amount);
+      if (amountValue === null) {
+        toast.error(t("rule.errorAmount"));
+        return;
+      }
       // "Last date" is optional; when set it cannot precede the first due date.
       // ISO YYYY-MM-DD strings compare chronologically.
       const endDate = lastDate || null;
@@ -284,7 +294,7 @@ export function RecurringRuleForm({
             ...(budgetId ? { "X-Budget-ID": budgetId } : {}),
           },
           body: JSON.stringify({
-            amount,
+            amount: amountValue,
             currency,
             category_id: categoryId,
             note: note || null,
@@ -336,7 +346,7 @@ export function RecurringRuleForm({
           },
           body: JSON.stringify({
             edits: {
-              amount,
+              amount: amountValue,
               currency,
               categoryId,
               note: note || null,
@@ -380,7 +390,7 @@ export function RecurringRuleForm({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-md flex flex-col p-0"
+        className="w-full sm:max-w-md flex flex-col p-0 overflow-y-auto"
         // iOS standalone PWA: Radix auto-focuses the first field on open →
         // the soft keyboard pans the layout viewport up (no browser chrome to
         // absorb it), shifting the whole sheet up and hiding the title/X.
@@ -395,8 +405,8 @@ export function RecurringRuleForm({
           </SheetTitle>
         </SheetHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-1 flex-col min-h-0">
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col">
+          <div className="px-6 py-4 space-y-4">
             {/* Name — first + mandatory. Stored in the `note` column (it already
                 serves as the rule's label / task ruleName), so no schema change. */}
             <div>

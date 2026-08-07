@@ -248,8 +248,10 @@ export function OverviewCards({
   const sdRaw = spendHealth?.surplus_deficit_cents ?? null;
   const surplusDeficit = sdRaw !== null ? BigInt(sdRaw) : null;
   const isDeficit = surplusDeficit !== null && surplusDeficit < 0n;
-  // Reserves-note amount (short → missing, surplus → extra, ok → needed). Lifted
-  // out so it feeds BOTH the rendered text and the privacy mask length.
+  // Reserves-note amount (short → missing, surplus → extra). The OK note names
+  // no figure at all since 260804 — nothing is owed, so restating the target
+  // read like a bill still to pay. Lifted out so it feeds BOTH the rendered text
+  // and the privacy mask length.
   const reservesNoteAmount = centsToDisplayCompact(
     data.reserves.status === "surplus"
       ? (
@@ -558,7 +560,8 @@ export function OverviewCards({
                     : "cards.reservesOkNote",
                 {
                   // short → how much is MISSING, surplus → how much is EXTRA (both
-                  // with cents, matching the spendings tab); ok → the needed amount.
+                  // with cents, matching the spendings tab); the ok note is a
+                  // plain reassurance and ignores this.
                   amount: reservesNoteAmount,
                   amt: (chunks) => (
                     <Redactable

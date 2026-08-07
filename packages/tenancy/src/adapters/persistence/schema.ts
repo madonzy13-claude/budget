@@ -8,6 +8,7 @@ import {
   integer,
   numeric,
   timestamp,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { tenancy, appRole, workerRole } from "@budget/platform";
 
@@ -88,12 +89,22 @@ export const budgetMembers = tenancy.table(
     // (migration 0064).
     // numeric(5,2): decimals allowed (e.g. 33.50%). Read via raw SQL + Number()
     // in workspace-repo, so the string-vs-number mode here doesn't matter.
-    ownershipSharePct: numeric("ownership_share_pct", { precision: 5, scale: 2 })
+    ownershipSharePct: numeric("ownership_share_pct", {
+      precision: 5,
+      scale: 2,
+    })
       .notNull()
       .default("100"),
     includeInAggregation: boolean("include_in_aggregation")
       .notNull()
       .default(true),
+    // This member's own Overview chart picks (migration 0070). On the MEMBER
+    // row so the choice follows the person across devices rather than living in
+    // one browser's localStorage (user report, 260802).
+    uiPrefs: jsonb("ui_prefs")
+      .$type<Record<string, string[]>>()
+      .notNull()
+      .default({}),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

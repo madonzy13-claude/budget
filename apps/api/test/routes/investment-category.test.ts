@@ -80,9 +80,18 @@ async function addIncome(fix: Fixture): Promise<void> {
 }
 
 async function buildApp(fix: Fixture) {
-  const { createInvestmentCategoryRoute } = await import(
-    "../../src/routes/investment-category"
-  );
+  const { createInvestmentCategoryRoute } =
+    await import("../../src/routes/investment-category");
+  const { createCategoriesRoute } = await import("../../src/routes/categories");
+  const { listCategories } =
+    await import("@budget/budgeting/src/application/list-categories");
+  const { DrizzleCategoryRepo } =
+    await import("@budget/budgeting/src/adapters/persistence/category-repo");
+  const deps = {
+    budgeting: {
+      listCategories: listCategories({ repo: new DrizzleCategoryRepo() }),
+    },
+  } as unknown as import("../../src/boot").BootedDeps;
   const app = new Hono();
   app.use("*", async (c: any, next: any) => {
     c.set("session", { user: { id: fix.userId } });
@@ -94,6 +103,7 @@ async function buildApp(fix: Fixture) {
     "/budgets/:budgetId/investment-category",
     createInvestmentCategoryRoute(),
   );
+  app.route("/budgets/:budgetId/categories", createCategoriesRoute(deps));
   return app;
 }
 
@@ -207,5 +217,20 @@ describe("/budgets/:budgetId/investment-category (r33)", () => {
       await app.request(base(), { method: "POST" })
     ).json()) as any;
     expect(re.category.id).toBe(before.category.id);
+  });
+
+  it("tells the LIST which category is the investment one", async () => {
+    // The planned chart hides investing from its category picker, and needs the
+    // flag on the list to know which one that is (user report, 260802).
+    await app.request(base(), { method: "POST" });
+    const res = await app.request(`/budgets/${fix.budgetId}/categories`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      categories: { name: string; isInvestment?: boolean }[];
+    };
+    const investments = body.categories.find((c) => c.name === "Investments");
+    expect(investments?.isInvestment).toBe(true);
+    for (const c of body.categories)
+      if (c.name !== "Investments") expect(c.isInvestment).toBe(false);
   });
 });
