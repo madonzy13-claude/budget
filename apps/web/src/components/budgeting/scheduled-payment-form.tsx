@@ -341,7 +341,12 @@ export function ScheduledPaymentForm({
         // `categoryId`). The backend persists these AND recomputes
         // next_due_date so a changed day fires on the new schedule.
         const editCadencePart: Record<string, unknown> =
-          cadence === "WEEKLY"
+          // A one-time payment has no pattern for the backend to recompute
+          // from, so the date rides along explicitly — and the service moves
+          // the deadline with it.
+          cadence === "ONCE"
+            ? { cadence: "ONCE", nextDueDate: firstDueDate }
+            : cadence === "WEEKLY"
             ? { cadence: "WEEKLY", weeklyDow }
             : cadence === "MONTHLY"
               ? { cadence: "MONTHLY", cadenceAnchor }

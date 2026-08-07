@@ -13,7 +13,7 @@ export interface DeleteScheduledPaymentInput {
 export function deleteScheduledPayment(deps: { ruleRepo: ScheduledPaymentRepo }) {
   return async (input: DeleteScheduledPaymentInput): Promise<Result<void, Error>> => {
     const { ok } = await import("@budget/shared-kernel");
-    await deps.ruleRepo.deactivate(input.tenantId, input.ruleId, input.actorUserId);
+    await deps.ruleRepo.softDelete(input.tenantId, input.ruleId, input.actorUserId);
     return ok(undefined);
   };
 }

@@ -78,8 +78,24 @@ export function updateScheduledPayment(deps: {
           input.edits.cadence !== undefined ||
           input.edits.cadenceAnchor !== undefined ||
           input.edits.weeklyDow !== undefined ||
-          input.edits.yearlyMonth !== undefined;
-        if (cadenceChanged) {
+          input.edits.yearlyMonth !== undefined ||
+          input.edits.nextDueDate !== undefined;
+        const mergedCadence = (input.edits.cadence ??
+          before.cadence) as Cadence;
+        if (cadenceChanged && mergedCadence === "ONCE") {
+          // A one-time payment has no pattern to recompute from, and its
+          // DEADLINE is its date — so both move together or the payment ends up
+          // either never firing or never retiring (260807). The household's
+          // pick wins; falling back to the stored date keeps an amount-only
+          // edit from silently rescheduling it.
+          const when =
+            input.edits.nextDueDate ?? (before.next_due_date as string);
+          const date = String(when).slice(0, 10);
+          await deps.ruleRepo.advanceNextDueDate(tx, input.ruleId, date);
+          await deps.ruleRepo.update(tx, input.ruleId, input.tenantId, {
+            endDate: date,
+          });
+        } else if (cadenceChanged) {
           const merged = {
             cadence: (input.edits.cadence ?? before.cadence) as Cadence,
             anchorDay:

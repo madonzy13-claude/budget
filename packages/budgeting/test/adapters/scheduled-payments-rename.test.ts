@@ -120,6 +120,11 @@ describe("scheduled_payments — the table", () => {
       )
     ).rows as { indexname: string }[];
     expect(rows.map((r) => r.indexname)).toEqual([
+      // Added by 0079, not by the rename: the list reads "everything not
+      // deleted" on every Settings open. Named for the new vocabulary from the
+      // start, which is the point of asserting the whole set rather than a
+      // subset — a stray recurring_* name would fail here.
+      "scheduled_payments_live_idx",
       "scheduled_payments_next_due_idx",
       "scheduled_payments_pkey",
     ]);

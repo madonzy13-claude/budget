@@ -147,3 +147,36 @@ describe("Scheduled payment form — a payment that happens once", () => {
     expect(screen.queryByLabelText("rule.lastDueLabel")).toBeTruthy();
   });
 });
+
+describe("Scheduled payment form — editing a one-time payment", () => {
+  it("sends the date, since there is no pattern to recompute it from", async () => {
+    render(
+      <ScheduledPaymentForm
+        open
+        onOpenChange={vi.fn()}
+        mode="edit"
+        budgetId="b1"
+        categories={CATEGORIES}
+        defaultCurrency="PLN"
+        onSaved={vi.fn()}
+        initialValues={{
+          ruleId: "r1",
+          categoryId: null,
+          amount: "250",
+          currency: "PLN",
+          cadence: "ONCE",
+          cadenceAnchor: null,
+          weeklyDow: null,
+          yearlyMonth: null,
+          note: "New sofa",
+          firstDueDate: "2027-05-05",
+        }}
+      />,
+    );
+    fireEvent.submit(document.querySelector("form")!);
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    const edits = (sentBody()!.edits ?? {}) as Record<string, unknown>;
+    expect(edits.cadence).toBe("ONCE");
+    expect(edits.nextDueDate).toBe("2027-05-05");
+  });
+});

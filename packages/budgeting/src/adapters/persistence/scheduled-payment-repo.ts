@@ -37,6 +37,14 @@ function rowToRuleRow(row: Record<string, unknown>): ScheduledPaymentRow {
     endDate: (row.end_date as string | null) ?? null,
     createdAt: new Date(row.created_at as string),
     actorUserId: row.actor_user_id as string,
+    deletedAt: row.deleted_at ? new Date(row.deleted_at as string) : null,
+    // Only listVisible computes this; findById leaves it undefined rather than
+    // claiming false, which would read as "nothing confirmed" and unlock an
+    // edit that should not be offered.
+    hasConfirmedDraft:
+      row.has_confirmed_draft === undefined
+        ? undefined
+        : Boolean(row.has_confirmed_draft),
   };
 }
 
@@ -99,16 +107,27 @@ export class DrizzleScheduledPaymentRepo implements ScheduledPaymentRepo {
     return r.value;
   }
 
-  async listActive(tenantId: string): Promise<ScheduledPaymentRow[]> {
+  async listVisible(tenantId: string): Promise<ScheduledPaymentRow[]> {
     const r = await withTenantTx(
       TenantId(tenantId),
       UserId("00000000-0000-0000-0000-000000000001"),
       async (tx) => {
         const drizzleTx = tx as DrizzleTx;
+        // Inactive rows are INCLUDED: a one-time payment that has happened is
+        // over, not gone, and the household still wants to see it (disabled, at
+        // the bottom). Deleted rows are not — that was a person's decision.
         const result = await drizzleTx.execute(sql`
-        SELECT * FROM budgeting.scheduled_payments
-         WHERE tenant_id = ${tenantId}::uuid AND active = true
-         ORDER BY created_at ASC
+        SELECT sp.*,
+               EXISTS (
+                 SELECT 1 FROM budgeting.expense_ledger el
+                  WHERE el.scheduled_payment_id = sp.id
+                    AND el.confirmed_at IS NOT NULL
+                    AND el.deleted_at IS NULL
+               ) AS has_confirmed_draft
+          FROM budgeting.scheduled_payments sp
+         WHERE sp.tenant_id = ${tenantId}::uuid
+           AND sp.deleted_at IS NULL
+         ORDER BY sp.created_at ASC
       `);
         return result.rows.map(rowToRuleRow);
       },
@@ -198,7 +217,7 @@ export class DrizzleScheduledPaymentRepo implements ScheduledPaymentRepo {
     `);
   }
 
-  async deactivate(
+  async softDelete(
     tenantId: string,
     ruleId: string,
     actorUserId: string,
@@ -213,7 +232,7 @@ export class DrizzleScheduledPaymentRepo implements ScheduledPaymentRepo {
       `);
         await drizzleTx.execute(sql`
         UPDATE budgeting.scheduled_payments
-           SET active = false, updated_at = now()
+           SET active = false, deleted_at = now(), updated_at = now()
          WHERE id = ${ruleId}::uuid AND tenant_id = ${tenantId}::uuid
       `);
         await writeAudit(tx, {

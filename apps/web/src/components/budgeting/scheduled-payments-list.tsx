@@ -30,6 +30,9 @@ export interface ScheduledPaymentListItem {
   // union so every row in the DB renders; the create-form offers ONCE and the
   // three rhythms (DAILY is a backend-only escape hatch we don't expose).
   cadence: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  /** True once one of its drafts has been confirmed — the money moved, so the
+   *  payment can be removed but no longer edited. */
+  hasConfirmedDraft?: boolean;
   cadenceAnchor: number | null;
   weeklyDow: number | null;
   yearlyMonth: number | null;
@@ -80,10 +83,19 @@ export function moneyForList(
 }
 
 /** Upcoming-first: soonest nextDueDate at the top (YYYY-MM-DD sorts lexically). */
-export function sortRulesByUpcoming<T extends { nextDueDate: string }>(
-  rules: T[],
-): T[] {
-  return [...rules].sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate));
+export function sortRulesByUpcoming<
+  T extends { nextDueDate: string; active?: boolean },
+>(rules: T[]): T[] {
+  // Retired payments sink, whatever their date: a one-time payment that has
+  // happened is over, not gone, and burying it keeps the list about what is
+  // still coming (user, 260807). A row with no flag at all is treated as
+  // running — the offline cache holds rows written before the flag existed, and
+  // guessing "retired" would hide a live payment.
+  const retired = (r: T) => (r.active === false ? 1 : 0);
+  return [...rules].sort(
+    (a, b) =>
+      retired(a) - retired(b) || a.nextDueDate.localeCompare(b.nextDueDate),
+  );
 }
 
 export function ScheduledPaymentsList({
@@ -124,10 +136,16 @@ export function ScheduledPaymentsList({
                     day: rule.cadenceAnchor ?? 1,
                   })
                 : t("list.daily");
+        // Over, not gone: it keeps its place in the list at the bottom and
+        // reads as spent rather than as something still coming (user, 260807).
+        const retired = rule.active === false;
         return (
           <li
             key={rule.id}
-            className="flex items-center justify-between px-4 py-3"
+            data-retired={retired ? "true" : undefined}
+            className={`flex items-center justify-between px-4 py-3${
+              retired ? " opacity-50" : ""
+            }`}
           >
             <div className="space-y-0.5 min-w-0">
               <p className="text-sm font-medium text-[var(--body-on-dark)] truncate">
@@ -146,16 +164,21 @@ export function ScheduledPaymentsList({
               </p>
             </div>
             <div className="flex shrink-0 gap-1">
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => onEdit?.(rule.id)}
-                aria-label={t("list.editButton")}
-                title={t("list.editButton")}
-                className="h-9 w-9 text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]"
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
+              {/* Editing a payment whose draft is already confirmed would be
+                  editing history — the money has moved. Removing it is still
+                  offered (user, 260807). */}
+              {!rule.hasConfirmedDraft && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => onEdit?.(rule.id)}
+                  aria-label={t("list.editButton")}
+                  title={t("list.editButton")}
+                  className="h-9 w-9 text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              )}
               <Button
                 size="icon"
                 variant="ghost"

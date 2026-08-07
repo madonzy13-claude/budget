@@ -43,6 +43,11 @@ export const scheduledPayments = budgeting.table(
     // Optional "last date" — NULL = no deadline. Drafts generate up to and
     // including this date, then the engine deactivates the rule (mig 0069).
     endDate: date("end_date"),
+    // Deletion is something a PERSON did; active=false is also what a payment
+    // does to itself when it reaches its deadline. The list needs to tell them
+    // apart — a retired one-time payment stays visible, a deleted one does not
+    // (mig 0079).
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

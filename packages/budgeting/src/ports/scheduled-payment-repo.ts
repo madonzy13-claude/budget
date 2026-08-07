@@ -23,6 +23,8 @@ export interface ScheduledPaymentEdits {
   yearlyMonth?: number | null;
   /** Optional "last date" (ISO YYYY-MM-DD). null clears the deadline. */
   endDate?: string | null;
+  /** The date of a ONE-TIME payment — it has no pattern to derive one from. */
+  nextDueDate?: string;
 }
 
 export interface ScheduledPaymentRow {
@@ -41,6 +43,12 @@ export interface ScheduledPaymentRow {
   endDate: string | null; // ISO date YYYY-MM-DD or null (no deadline)
   createdAt: Date;
   actorUserId: string;
+  /** Set when a person deleted it. active=false alone only means "not running",
+   *  which is also true of a payment that has simply happened. */
+  deletedAt?: Date | null;
+  /** True when at least one of its drafts has been confirmed — money moved, so
+   *  a one-time payment can no longer be edited, only removed. */
+  hasConfirmedDraft?: boolean;
 }
 
 export interface ScheduledPaymentRepo {
@@ -62,8 +70,9 @@ export interface ScheduledPaymentRepo {
   /** Find by id (RLS-scoped). Returns null if not found. */
   findById(tenantId: string, ruleId: string): Promise<ScheduledPaymentRow | null>;
 
-  /** List active rules for tenant. */
-  listActive(tenantId: string): Promise<ScheduledPaymentRow[]>;
+  /** Everything the household should still SEE: active payments and ones that
+   *  have run their course, but never the ones they deleted. */
+  listVisible(tenantId: string): Promise<ScheduledPaymentRow[]>;
 
   /**
    * Update mutable fields of a rule.
@@ -84,7 +93,7 @@ export interface ScheduledPaymentRepo {
   ): Promise<void>;
 
   /** Soft-delete (set active=false). */
-  deactivate(
+  softDelete(
     tenantId: string,
     ruleId: string,
     actorUserId: string,

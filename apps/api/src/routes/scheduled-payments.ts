@@ -86,6 +86,13 @@ const updateRuleEditsSchema = z
     cadenceAnchor: z.number().int().min(1).max(31).nullable().optional(),
     weeklyDow: z.number().int().min(0).max(6).nullable().optional(),
     yearlyMonth: z.number().int().min(1).max(12).nullable().optional(),
+    // The date of a ONE-TIME payment. Every other cadence derives its next
+    // date from its own pattern; a one-time payment has no pattern, so the
+    // household's pick is the only source (260807).
+    nextDueDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
     // "Last date": ISO date or null (clears the deadline).
     endDate: z
       .string()
@@ -169,7 +176,7 @@ export function createScheduledPaymentsRoute(deps: BootedDeps) {
   // GET /scheduled-payments?active=true
   app.get("/", async (c) => {
     const tenantId = pickTenant(c);
-    const rules = await deps.budgeting.scheduledPaymentRepo.listActive(tenantId);
+    const rules = await deps.budgeting.scheduledPaymentRepo.listVisible(tenantId);
     return c.json({
       rules: rules.map((rule) => ({
         id: rule.id,
@@ -185,6 +192,9 @@ export function createScheduledPaymentsRoute(deps: BootedDeps) {
         active: rule.active,
         nextDueDate: rule.nextDueDate,
         endDate: rule.endDate,
+        // Money has moved: a one-time payment can no longer be edited, only
+        // removed (user, 260807).
+        hasConfirmedDraft: rule.hasConfirmedDraft ?? false,
         createdAt:
           rule.createdAt instanceof Date
             ? rule.createdAt.toISOString()

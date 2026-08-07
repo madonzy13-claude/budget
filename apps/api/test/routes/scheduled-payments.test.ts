@@ -648,3 +648,196 @@ describe("/scheduled-payments — a payment that happens ONCE", () => {
     expect((await row(ruleId)).active).toBe(true);
   });
 });
+
+describe("/scheduled-payments — retired is not deleted", () => {
+  /**
+   * Two rows can both be "not running": one the household deleted, one that
+   * simply happened and is over. Until 260807 both were just active=false, so
+   * the list could not show the second without resurrecting the first.
+   */
+  async function create(body: Record<string, unknown>) {
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request("/scheduled-payments", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify(body),
+    });
+    return (await res.json()) as { ruleId: string };
+  }
+
+  async function list() {
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request("/scheduled-payments");
+    return (await res.json()) as {
+      rules: {
+        id: string;
+        active: boolean;
+        cadence: string;
+        hasConfirmedDraft?: boolean;
+      }[];
+    };
+  }
+
+  it("a payment that has already happened stays in the list, retired", async () => {
+    // It reads as disabled at the bottom rather than vanishing — the household
+    // still wants to see what it scheduled (user, 260807).
+    const { ruleId } = await create({
+      amount: "12.00",
+      currency: "USD",
+      cadence: "ONCE",
+      first_due_date: "2026-01-15",
+    });
+    const row = (await list()).rules.find((r) => r.id === ruleId);
+    expect(row).toBeDefined();
+    expect(row!.active).toBe(false);
+  });
+
+  it("a deleted payment is gone from the list for good", async () => {
+    const { ruleId } = await create({
+      amount: "12.00",
+      currency: "USD",
+      cadence: "MONTHLY",
+      cadence_anchor: 4,
+      first_due_date: "2027-04-04",
+    });
+    expect((await list()).rules.some((r) => r.id === ruleId)).toBe(true);
+
+    const app = await buildApp(testUserId, testTenantId);
+    const del = await app.request(`/scheduled-payments/${ruleId}`, {
+      method: "DELETE",
+    });
+    expect(del.status).toBe(204);
+    expect((await list()).rules.some((r) => r.id === ruleId)).toBe(false);
+  });
+
+  it("each row says whether its draft has been confirmed", async () => {
+    // A one-time payment whose money has actually moved cannot be edited —
+    // only removed — so the list has to know (user, 260807).
+    const { ruleId } = await create({
+      amount: "12.00",
+      currency: "USD",
+      cadence: "ONCE",
+      first_due_date: "2026-01-16",
+    });
+    const before = (await list()).rules.find((r) => r.id === ruleId);
+    expect(before!.hasConfirmedDraft).toBe(false);
+
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
+    try {
+      const c = await pool.connect();
+      try {
+        await c.query(
+          `SELECT set_config('app.tenant_ids', '{"${testTenantId}"}', false)`,
+        );
+        await c.query(
+          `UPDATE budgeting.expense_ledger SET confirmed_at = now()
+            WHERE scheduled_payment_id = $1`,
+          [ruleId],
+        );
+      } finally {
+        c.release();
+      }
+    } finally {
+      await pool.end();
+    }
+    const after = (await list()).rules.find((r) => r.id === ruleId);
+    expect(after!.hasConfirmedDraft).toBe(true);
+  });
+});
+
+describe("/scheduled-payments — moving a one-time payment", () => {
+  async function create(body: Record<string, unknown>) {
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request("/scheduled-payments", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify(body),
+    });
+    return (await res.json()) as { ruleId: string };
+  }
+
+  async function rowOf(id: string) {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
+    try {
+      const c = await pool.connect();
+      try {
+        await c.query(
+          `SELECT set_config('app.tenant_ids', '{"${testTenantId}"}', false)`,
+        );
+        const r = await c.query(
+          `SELECT next_due_date::text, end_date::text, active
+             FROM budgeting.scheduled_payments WHERE id = $1`,
+          [id],
+        );
+        return r.rows[0] as {
+          next_due_date: string;
+          end_date: string | null;
+          active: boolean;
+        };
+      } finally {
+        c.release();
+      }
+    } finally {
+      await pool.end();
+    }
+  }
+
+  it("changing its date moves the deadline with it", async () => {
+    // The deadline IS the date, so a move that only updated one of them would
+    // leave a payment that either never fires or never retires.
+    const { ruleId } = await create({
+      amount: "80.00",
+      currency: "USD",
+      cadence: "ONCE",
+      first_due_date: "2027-05-05",
+    });
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request(`/scheduled-payments/${ruleId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        edits: { cadence: "ONCE", nextDueDate: "2027-08-20" },
+        applyToFuture: true,
+      }),
+    });
+    expect(res.status).toBe(200);
+    const row = await rowOf(ruleId);
+    expect(row.next_due_date).toBe("2027-08-20");
+    expect(row.end_date).toBe("2027-08-20");
+  });
+
+  it("a rhythm still recomputes its own next date, untouched by this", async () => {
+    const { ruleId } = await create({
+      amount: "80.00",
+      currency: "USD",
+      cadence: "MONTHLY",
+      cadence_anchor: 3,
+      first_due_date: "2027-05-03",
+    });
+    const app = await buildApp(testUserId, testTenantId);
+    await app.request(`/scheduled-payments/${ruleId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        edits: { cadence: "MONTHLY", cadenceAnchor: 21 },
+        applyToFuture: true,
+      }),
+    });
+    const row = await rowOf(ruleId);
+    expect(row.next_due_date.endsWith("-21")).toBe(true);
+    // A rhythm has no implied deadline — nothing to move.
+    expect(row.end_date).toBeNull();
+  });
+});
