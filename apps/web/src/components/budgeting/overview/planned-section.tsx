@@ -57,7 +57,7 @@ import { signedMoney } from "./reserve-fit-view";
 import { ChartNeedsCompletedMonth } from "./chart-needs-completed-month";
 import { rangeHasCompletedMonth } from "@/lib/range-completed-month";
 import { useCategories } from "@/hooks/use-budget-data";
-import { centsToRounded } from "@/lib/cents-format";
+import { centsToRounded, roundsToZero } from "@/lib/cents-format";
 import { chartCompactCents, withDayStartBaseline } from "@/lib/chart-format";
 import { formatChartDate, formatChartTimestamp } from "@/lib/chart-date-format";
 import { labelToTimestamp } from "@/lib/chart-timestamp";
@@ -678,6 +678,7 @@ export function PlannedSection({
                           : real > 0
                             ? 100
                             : 0;
+                      const gap = real - planned;
                       return {
                         name: c.name,
                         real,
@@ -685,7 +686,14 @@ export function PlannedSection({
                         avg,
                         current,
                         pct,
-                        gap: real - planned,
+                        // The bar is coloured by the number its LABEL shows, not
+                        // by the one behind it: a category 31 gr over drew a red
+                        // bar reading "+0 zł", a screen arguing with itself
+                        // (user, 260807). Too small to print is too small to
+                        // band, so it takes the even-grey. The tooltip still
+                        // carries the real percent.
+                        colorPct: roundsToZero(gap) ? 0 : pct,
+                        gap,
                         realTotal: Number(c.real_total_cents),
                         plannedTotal: Number(c.planned_total_cents),
                       };
@@ -711,8 +719,9 @@ export function PlannedSection({
                   // Band by the PERCENT even when the axis is drawn in zł:
                   // cents are not a percentage, and feeding them to a band
                   // function turned +5% green into red the moment the scale was
-                  // flipped (user screenshots, 260805).
-                  colorKey="pct"
+                  // flipped (user screenshots, 260805). `colorPct` is that
+                  // percent with sub-unit gaps zeroed — see the map above.
+                  colorKey="colorPct"
                   tooltipExtra={(row) => {
                     const diff = Number(row.real) - Number(row.planned);
                     const pct = Number(row.pct);

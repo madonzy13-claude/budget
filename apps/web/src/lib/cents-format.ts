@@ -152,6 +152,24 @@ export function centsToBare(cents: string | bigint, locale = "en"): string {
  * component) so every currency formatter stays in this one file — see
  * money-format-guard.test.ts.
  */
+/**
+ * True when `centsToRounded` would print this as a plain zero.
+ *
+ * A whole-unit label and a sign-keyed colour disagree about small numbers: a
+ * category 31 gr over its limit drew a RED bar reading "+0 zł" (user, 260807).
+ * Anything the label cannot show is not worth colouring, so callers ask this
+ * first. It mirrors the rounding below — half a unit up — and must move with it.
+ */
+export function roundsToZero(cents: number | bigint): boolean {
+  const abs =
+    typeof cents === "bigint"
+      ? cents < 0n
+        ? -cents
+        : cents
+      : BigInt(Math.abs(Math.round(cents)));
+  return abs < 50n;
+}
+
 export function centsToRounded(
   cents: string | bigint,
   currency: string,
