@@ -30,7 +30,11 @@ describe("projectScheduledPayments", () => {
   test("puts a yearly charge in its own month, not spread over the year", () => {
     const byCat = projectScheduledPayments([yearly(500000, 9)], "2026-04", 12);
     const car = byCat.get("car")!;
-    expect(car.get("2026-09")).toEqual({ routine: 0n, onTop: 500000n });
+    expect(car.get("2026-09")).toEqual({
+      routine: 0n,
+      onTop: 500000n,
+      oneTime: 0n,
+    });
     expect(car.get("2026-08")).toBeUndefined();
   });
 
@@ -55,7 +59,11 @@ describe("projectScheduledPayments", () => {
       "2026-04",
       2,
     ).get("phone")!;
-    expect(phone.get("2026-04")).toEqual({ routine: 5000n, onTop: 0n });
+    expect(phone.get("2026-04")).toEqual({
+      routine: 5000n,
+      onTop: 0n,
+      oneTime: 0n,
+    });
   });
 
   test("catches a yearly charge that falls in the NEXT calendar year", () => {
@@ -149,11 +157,16 @@ describe("a one-time payment", () => {
   };
 
   test("lands in its own month, on top of the plan", () => {
-    // Rare AND known, exactly like a yearly renewal: November still has its
-    // ordinary groceries under the sofa, so the whole charge is on top.
+    // Rare AND known, like a yearly renewal: November still has its ordinary
+    // groceries under the sofa, so the whole charge is on top of the plan. It
+    // sits in its own bucket because, unlike a renewal, it has never fired.
     const out = projectScheduledPayments([sofa], "2026-09", 6);
     const byMonth = out.get("cat-home")!;
-    expect(byMonth.get("2026-11")).toEqual({ routine: 0n, onTop: 250_00n });
+    expect(byMonth.get("2026-11")).toEqual({
+      routine: 0n,
+      onTop: 0n,
+      oneTime: 250_00n,
+    });
   });
 
   test("touches no other month", () => {
@@ -174,5 +187,52 @@ describe("a one-time payment", () => {
       6,
     );
     expect(out.has("cat-home")).toBe(false);
+  });
+});
+
+describe("one-time payments are counted apart from the rhythms", () => {
+  // A rhythm has fired before, so its amount is already inside a category's
+  // historical mean and can be netted out of "ordinary spending". A ONE-TIME
+  // payment has by definition never happened — netting it out would subtract
+  // spending that never occurred, which is how Travel's ordinary spend came out
+  // at 149 a month instead of ~1,400 (260807).
+  const sofa = {
+    category_id: "cat-home",
+    amount_cents: 250_00n,
+    cadence: "ONCE" as const,
+    yearly_month: null,
+    next_due_date: "2026-11-04",
+  };
+  const insurance = {
+    category_id: "cat-home",
+    amount_cents: 900_00n,
+    cadence: "YEARLY" as const,
+    yearly_month: 11,
+    next_due_date: "2026-11-12",
+  };
+
+  test("a one-time payment lands in its own bucket", () => {
+    const m = projectScheduledPayments([sofa], "2026-09", 6)
+      .get("cat-home")!
+      .get("2026-11")!;
+    expect(m.oneTime).toBe(250_00n);
+    expect(m.onTop).toBe(0n);
+  });
+
+  test("a yearly renewal stays on top, where it was", () => {
+    const m = projectScheduledPayments([insurance], "2026-09", 6)
+      .get("cat-home")!
+      .get("2026-11")!;
+    expect(m.onTop).toBe(900_00n);
+    expect(m.oneTime).toBe(0n);
+  });
+
+  test("both land in the same month without erasing each other", () => {
+    const m = projectScheduledPayments([sofa, insurance], "2026-09", 6)
+      .get("cat-home")!
+      .get("2026-11")!;
+    expect(m.onTop).toBe(900_00n);
+    expect(m.oneTime).toBe(250_00n);
+    expect(m.routine).toBe(0n);
   });
 });

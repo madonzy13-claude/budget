@@ -302,7 +302,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           return {
             month,
             limitCents: latestLimit,
-            spentCents: latestLimit + c.onTop + routineExcess,
+            spentCents: latestLimit + c.onTop + c.oneTime + routineExcess,
           };
         });
 
@@ -337,6 +337,11 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         const byMonth = new Map(commitments);
         const forward = forwardWindow.map((m) => {
           const c = byMonth.get(m);
+          return c ? c.routine + c.onTop + c.oneTime : 0n;
+        });
+        /** The RHYTHMS only — see the netting below. */
+        const recurringAhead = forwardWindow.map((m) => {
+          const c = byMonth.get(m);
           return c ? c.routine + c.onTop : 0n;
         });
 
@@ -348,9 +353,14 @@ export function getReserveFit(deps: GetReserveFitDeps) {
             ? months.reduce((acc, m) => acc + m.spentCents, 0n) /
               BigInt(months.length)
             : 0n;
+        // Only the RHYTHMS come out of the mean. A one-time payment has never
+        // fired, so it is not in the history — netting it out would subtract
+        // spending that never happened, and it took Travel's ordinary spend
+        // from ~1,400 a month down to 149 (260807).
         const meanCommitment =
-          forward.length > 0
-            ? forward.reduce((acc, c) => acc + c, 0n) / BigInt(forward.length)
+          recurringAhead.length > 0
+            ? recurringAhead.reduce((acc, c) => acc + c, 0n) /
+              BigInt(recurringAhead.length)
             : 0n;
         const baselineSpend =
           meanSpend > meanCommitment ? meanSpend - meanCommitment : 0n;

@@ -54,8 +54,14 @@ function addMonths(month: string, n: number): string {
 export interface MonthCommitment {
   /** Fires every month or oftener — inside the limit. */
   routine: bigint;
-  /** Fires rarely — on top of the limit. */
+  /** Fires rarely but REPEATEDLY — on top of the limit, and already inside the
+   *  category's historical mean, because it has fired before. */
   onTop: bigint;
+  /** Happens exactly once and has never happened before, so it is on top of the
+   *  limit AND absent from the history (260807). Kept apart from `onTop` so a
+   *  caller netting commitments out of a mean does not subtract spending that
+   *  never occurred. */
+  oneTime: bigint;
 }
 
 /**
@@ -84,7 +90,7 @@ export function projectScheduledPayments(
     kind: keyof MonthCommitment,
   ) => {
     const byMonth = out.get(categoryId) ?? new Map<string, MonthCommitment>();
-    const cur = byMonth.get(month) ?? { routine: 0n, onTop: 0n };
+    const cur = byMonth.get(month) ?? { routine: 0n, onTop: 0n, oneTime: 0n };
     byMonth.set(month, { ...cur, [kind]: cur[kind] + cents });
     out.set(categoryId, byMonth);
   };
@@ -102,7 +108,8 @@ export function projectScheduledPayments(
       const month = rule.next_due_date?.slice(0, 7);
       // No date, nothing to place: better absent than guessed into a month.
       if (!month) continue;
-      if (window.includes(month)) add(rule.category_id, month, amount, "onTop");
+      if (window.includes(month))
+        add(rule.category_id, month, amount, "oneTime");
       continue;
     }
 
