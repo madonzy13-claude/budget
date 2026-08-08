@@ -32,6 +32,15 @@ vi.mock("@/hooks/use-overview-wealth", () => ({
 }));
 // The reserves section grew a reserve-fit block (260804); this suite exercises
 // composition, not that block's own data.
+// The Planned section's limit dialog reads the current needs/wants split and
+// writes a new one — neither is what this file is about, and both want a
+// QueryClient.
+vi.mock("@/hooks/use-spendings-summary", () => ({
+  useSpendingsSummary: () => ({ data: undefined }),
+}));
+vi.mock("@/hooks/use-set-category-limit", () => ({
+  useSetCategoryLimit: () => ({ mutateAsync: async () => {} }),
+}));
 vi.mock("@/hooks/use-reserve-fit", () => ({
   useReserveFit: () => ({ data: undefined, isPending: false, isError: false }),
   useSaveReserveFitExclusions: () => ({ mutate: () => {} }),

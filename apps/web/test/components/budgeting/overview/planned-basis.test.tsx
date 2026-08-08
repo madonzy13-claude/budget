@@ -45,6 +45,15 @@ vi.mock("@/components/budgeting/bdp-ui-state", () => ({
   usePersistedSectionOpen: () => [true, () => {}],
   useBdpUiStore: () => null,
 }));
+// The limit dialog reads the current needs/wants split and writes a new one;
+// neither belongs to what this file is about, and both pull in a QueryClient.
+const summaryDto: { current: unknown } = { current: undefined };
+vi.mock("@/hooks/use-spendings-summary", () => ({
+  useSpendingsSummary: () => ({ data: summaryDto.current }),
+}));
+vi.mock("@/hooks/use-set-category-limit", () => ({
+  useSetCategoryLimit: () => ({ mutateAsync: async () => {} }),
+}));
 const fitDto: { current: unknown } = { current: undefined };
 vi.mock("@/hooks/use-reserve-fit", () => ({
   useReserveFit: () => ({ data: fitDto.current }),

@@ -54,10 +54,17 @@ import {
   type OneOffCandidate,
 } from "./reserve-fit-one-offs";
 import { signedMoney } from "./reserve-fit-view";
+import { LimitRebalance, type LimitCandidate } from "./limit-rebalance";
+import { useSpendingsSummary } from "@/hooks/use-spendings-summary";
+import { useSetCategoryLimit } from "@/hooks/use-set-category-limit";
 import { ChartNeedsCompletedMonth } from "./chart-needs-completed-month";
 import { rangeHasCompletedMonth } from "@/lib/range-completed-month";
 import { useCategories } from "@/hooks/use-budget-data";
-import { centsToRounded, roundsToZero } from "@/lib/cents-format";
+import {
+  centsToDisplayCompact,
+  centsToRounded,
+  roundsToZero,
+} from "@/lib/cents-format";
 import {
   scheduleMonthLabel,
   scheduleMonthTick,
@@ -318,6 +325,43 @@ export function PlannedSection({
       })),
   );
 
+  // Acting on the Future reading writes a needs/wants SPLIT, so the dialog
+  // needs what each limit is split into TODAY — which is what the spendings
+  // grid already reads for the current month.
+  const month = todayIso.slice(0, 7);
+  const summary = useSpendingsSummary(budgetId, month);
+  const setLimit = useSetCategoryLimit(budgetId, month);
+  const splitById = new Map(
+    (summary.data?.categories ?? []).map((c) => [
+      c.categoryId,
+      {
+        needsCents: Number(c.needsCents ?? c.plannedCents),
+        wantsCents: Number(c.wantsCents ?? 0),
+        cushionCents: Number(c.cushionCents ?? 0),
+      },
+    ]),
+  );
+  // Only categories the walk actually wants moved, and only once their current
+  // split is known — a row proposing a change from an unknown starting point
+  // would be proposing it from zero.
+  const limitCandidates: LimitCandidate[] = (fit.data?.rows ?? []).flatMap(
+    (r) => {
+      const split = splitById.get(r.category_id);
+      const suggested = Number(r.suggested_limit_cents ?? 0);
+      if (!split || !r.suggested_limit_cents) return [];
+      if (Math.round(Number(r.suggested_delta_cents ?? 0)) === 0) return [];
+      return [
+        {
+          categoryId: r.category_id,
+          name: r.name,
+          needsCents: split.needsCents,
+          wantsCents: split.wantsCents,
+          suggestedLimitCents: suggested,
+        },
+      ];
+    },
+  );
+
   // Every category the budget has, investments included (260803 user request):
   // the picker offers exactly what the charts count, and both start ticked.
   const categories = useCategories(budgetId).data ?? [];
@@ -395,6 +439,11 @@ export function PlannedSection({
   const fmtY = chartCompactCents;
   const fmtTooltip = (n: number) =>
     centsToRounded(BigInt(Math.round(n)), ccy, "en", true);
+  // To the cent: the limit dialog puts an editable "894.44" beside what the
+  // limit is now, and a rounded figure next to it reads as a mismatch that is
+  // not there (the lesson from the reserve dialog, 260805).
+  const fmtExact = (n: number) =>
+    centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en", true);
 
   return (
     <OverviewSection
@@ -656,7 +705,29 @@ export function PlannedSection({
                   collapsed to nothing and took the one-offs button's hit area
                   with it. A spacer opposite keeps the switch centred. */}
                 <div className="flex items-center justify-between">
-                  <span aria-hidden className="size-9 shrink-0" />
+                  {/* Mirrors the reserves block: the thing that WRITES on the
+                      left, the thing that reshapes the history on the right,
+                      and the switch centred between them. Only the Future
+                      reading has limits to write (user, 260808); the spacer
+                      holds the switch centred when it is absent. */}
+                  {basis === "future" && limitCandidates.length > 0 ? (
+                    <div data-testid="overview-planned-corner-left">
+                      <LimitRebalance
+                        rows={limitCandidates}
+                        onApply={(categoryId, split) =>
+                          setLimit.mutateAsync({
+                            categoryId,
+                            ...split,
+                            cushionCents:
+                              splitById.get(categoryId)?.cushionCents ?? 0,
+                          })
+                        }
+                        format={fmtExact}
+                      />
+                    </div>
+                  ) : (
+                    <span aria-hidden className="size-9 shrink-0" />
+                  )}
                   {/* Always on offer now: "what will I need" has an answer
                       whether or not a limit ever moved (user, 260807). */}
                   <SegmentedToggle
