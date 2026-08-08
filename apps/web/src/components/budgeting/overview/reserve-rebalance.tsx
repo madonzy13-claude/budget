@@ -181,7 +181,6 @@ export function ReserveRebalance({
     const band = rebalanceBand(row.currentCents, row.targetCents);
     const color = reserveFitColor(rebalanceRowPct(row));
     const { kind, disabled } = rebalanceButton(row);
-    const move = row.targetCents - row.currentCents;
     return (
       <li
         key={row.categoryId}
@@ -194,43 +193,13 @@ export function ReserveRebalance({
         style={{ borderLeftColor: color }}
         className="flex flex-col gap-1.5 rounded-[var(--radius-md)] border-l-2 bg-[var(--surface-card-dark)] px-3 py-2.5"
       >
-        {/* The name shares its line with the BUTTON rather than with the
-            numbers: "Zbilansuj" and "Збалансувати" are half again as wide as
-            "Rebalance", and on a 390px phone that verb needs a line where it
-            cannot crush the target field. */}
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-num-sm">{row.name}</span>
-          <Button
-            type="button"
-            size="sm"
-            // Both states are BUTTONS. Undo was a ghost, which on a dark card
-            // is bare text and read as a link — it undoes a money move and has
-            // to look as pressable as what it replaced (user, 260805).
-            variant={kind === "undo" ? "outline" : "secondary"}
-            data-testid={`reserve-rebalance-action-${row.categoryId}`}
-            data-kind={kind}
-            disabled={disabled || busy === row.categoryId}
-            title={disabled ? t("reserveFit.nothingToMove") : undefined}
-            aria-label={t(
-              kind === "undo"
-                ? "reserveFit.undoAria"
-                : "reserveFit.rebalanceAria",
-              { name: row.name },
-            )}
-            onClick={() => void run(row)}
-            className="h-7 shrink-0 px-2.5 text-caption"
-          >
-            {t(
-              kind === "undo"
-                ? "reserveFit.undoAction"
-                : "reserveFit.rebalanceAction",
-            )}
-          </Button>
-        </div>
-        {/* Both lines run edge to edge: the figure starts under the name and
-            the move ends under the button, so the card reads as two lines of
-            one block rather than two rows that happen to be near each other
-            (user, 260805). */}
+        {/* The name has the top line to itself; the controls have the one
+            below. */}
+        <span className="truncate text-num-sm">{row.name}</span>
+        {/* What it holds, what it should hold, and the button that moves it —
+            one line, left to right, ending at the card's right edge (user,
+            260808). The move figure that used to close this line is gone: it
+            restated the difference between the two figures beside it. */}
         <div className="flex items-center gap-2">
           <span
             data-testid={`reserve-rebalance-current-${row.categoryId}`}
@@ -258,23 +227,37 @@ export function ReserveRebalance({
               if (cents !== null)
                 setTargets((g) => ({ ...g, [row.categoryId]: cents }));
             }}
-            className="h-8 w-[6.5rem] shrink-0 text-right text-num-sm"
+            className="h-8 w-[6.5rem] min-w-0 flex-1 text-right text-num-sm"
           />
-          {/* The MOVE, not the gap: what the button would do to this reserve.
-              So it reads + when money goes IN and − when it comes back out —
-              the opposite sign to the chart's bar, which measures how far the
-              buffer is from where it should be (user, 260805). The colour is
-              the row's own, so sign and colour cannot disagree: adding is red
-              because the buffer is short, taking back is amber. Pushed to the
-              row's right edge, under the button that would carry it out. */}
-          <span
-            data-testid={`reserve-rebalance-move-${row.categoryId}`}
-            className="num ml-auto shrink-0 truncate text-num-sm"
-            style={{ color }}
+          <Button
+            type="button"
+            size="sm"
+            // Both states are BUTTONS. Undo was a ghost, which on a dark card
+            // is bare text and read as a link — it undoes a money move and has
+            // to look as pressable as what it replaced (user, 260805).
+            variant={kind === "undo" ? "outline" : "secondary"}
+            data-testid={`reserve-rebalance-action-${row.categoryId}`}
+            data-kind={kind}
+            disabled={disabled || busy === row.categoryId}
+            title={disabled ? t("reserveFit.nothingToMove") : undefined}
+            aria-label={t(
+              kind === "undo"
+                ? "reserveFit.undoAria"
+                : "reserveFit.rebalanceAria",
+              { name: row.name },
+            )}
+            onClick={() => void run(row)}
+            // "Zbilansuj" and "Збалансувати" are half again as wide as
+            // "Rebalance", so the button keeps its width and the field beside
+            // it gives instead (min-w-0 flex-1 above).
+            className="h-8 shrink-0 px-2.5 text-caption"
           >
-            {move > 0 ? "+" : move < 0 ? "−" : ""}
-            {format(Math.abs(move))}
-          </span>
+            {t(
+              kind === "undo"
+                ? "reserveFit.undoAction"
+                : "reserveFit.rebalanceAction",
+            )}
+          </Button>
         </div>
         {covered[row.categoryId] !== undefined && (
           <p

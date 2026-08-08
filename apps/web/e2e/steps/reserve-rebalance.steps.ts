@@ -228,16 +228,6 @@ Then(
   },
 );
 
-Then(
-  /^the rebalance figure for "(.+?)" reads "(.)"$/,
-  async ({ page }, name: string, sign: string) => {
-    const row = new OverviewPo(page).rebalanceRow(name);
-    const text = await row
-      .locator('[data-testid^="reserve-rebalance-move-"]')
-      .innerText();
-    expect(text.startsWith(sign)).toBe(true);
-  },
-);
 
 Then(
   /^the reserve ledger for "(.+?)" holds a delta of (-?\d+) cents$/,

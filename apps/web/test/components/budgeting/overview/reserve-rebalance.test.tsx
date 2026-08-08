@@ -120,41 +120,30 @@ describe("ReserveRebalance", () => {
     expect(target("car").value).toBe("5000");
   });
 
-  // The figure on the right is the MOVE, not the gap: what pressing the button
-  // would do to the reserve. So it is positive when money goes IN, whichever
-  // way the chart's own bar points (user, 260805).
-  it("reads the money going in as a plus", async () => {
-    await open();
-    // Car holds 1,000 and needs 5,000 — the press puts 4,000 in.
-    expect(screen.getByTestId("reserve-rebalance-move-car").textContent).toBe(
-      "+4000.00 zl",
-    );
+  // The move figure is GONE (user screenshot, 260808). It restated what the
+  // two figures already beside it say — a reserve holding 4,283 with a target
+  // of 894 is plainly giving 3,389 back — and it was the loudest thing on a
+  // card whose actual subject is the target you can edit.
+  it("does not restate the move as a third figure", () => {
+    return open().then(() => {
+      expect(screen.queryByTestId("reserve-rebalance-move-car")).toBeNull();
+      expect(screen.queryByTestId("reserve-rebalance-move-sport")).toBeNull();
+    });
   });
 
-  it("reads the money coming out as a minus", async () => {
+  // …and with that gone the button drops onto the line it acts on, so the row
+  // is a name over its controls rather than a button floating above a hole.
+  it("puts the button on the line with the target it changes", async () => {
     await open();
-    // Sport holds 4,600 and needs none — the press takes all of it back.
-    expect(screen.getByTestId("reserve-rebalance-move-sport").textContent).toBe(
-      "−4600.00 zl",
-    );
-  });
-
-  it("leaves a settled reserve's figure unsigned", async () => {
-    await open();
-    expect(screen.getByTestId("reserve-rebalance-move-food").textContent).toBe(
-      "0.00 zl",
-    );
-  });
-
-  // Adding is red and taking back is amber — the row's own band colour, so the
-  // sign and the colour cannot tell different stories.
-  it("keeps the move in the row's own colour", async () => {
-    await open();
-    const move = (id: string) =>
-      screen.getByTestId(`reserve-rebalance-move-${id}`).style.color;
-    expect(move("car")).toBe(reserveFitColor(-80));
-    expect(move("sport")).toBe(reserveFitColor(100));
-    expect(move("car")).not.toBe(move("sport"));
+    const controls = screen
+      .getByTestId("reserve-rebalance-target-car")
+      .closest("div")!;
+    expect(
+      controls.contains(screen.getByTestId("reserve-rebalance-action-car")),
+    ).toBe(true);
+    expect(
+      controls.contains(screen.getByTestId("reserve-rebalance-current-car")),
+    ).toBe(true);
   });
 
   // "If current and Target value are same, but it wasn't rebalanced — just make
