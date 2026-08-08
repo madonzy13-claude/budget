@@ -446,6 +446,8 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     const all = JSON.parse(chart.getAttribute("data-tooltips")!) as {
       label: string;
       value: string;
+      value2?: string;
+      conj?: string;
     }[][];
     return all[rows.indexOf(name)]!;
   };
@@ -485,7 +487,7 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     renderWith(raised());
     const labels = tooltipFor("Car").map((r) => r.label);
     expect(labels).toContain("reserveFit.addToReserve");
-    expect(labels).toContain("reserveFit.orSetLimit");
+    expect(labels).toContain("reserveFit.setLimit");
   });
 
   it("reads the limit as an amount, with its change in a quieter column", () => {
@@ -494,7 +496,7 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     // second column, which the tooltip renders muted (user, 260807).
     renderWith(raised());
     const line = tooltipFor("Car").find(
-      (r) => r.label === "reserveFit.orSetLimit",
+      (r) => r.label === "reserveFit.setLimit",
     )! as { value: string; value2?: string };
     expect(line.value).toBe("2307 zl");
     expect(line.value2).toBe("(+37 zl)");
@@ -518,7 +520,7 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
       }),
     );
     const line = tooltipFor("Car").find(
-      (r) => r.label === "reserveFit.orSetLimit",
+      (r) => r.label === "reserveFit.setLimit",
     )! as { value: string; value2?: string };
     expect(line.value).toBe("2307 zl");
     expect(line.value2).toBe("(-926 zl)");
@@ -540,13 +542,19 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
         suggested_direction: "lower",
       }),
     );
+    // The withdrawal leads, because that is the figure the bar draws; the limit
+    // change follows it as the second half of the same instruction (user,
+    // 260808).
     const rows = tooltipFor("Sport");
-    const limit = rows.find((r) => r.label === "reserveFit.setLimitTo")!;
-    expect(limit.value).toBe("1934 zl");
-    const out = rows.find((r) => r.label === "reserveFit.andWithdraw")!;
+    const out = rows[2]!;
+    expect(out.label).toBe("reserveFit.withdraw");
     // 4,283 − 1,091 at the lower limit, NOT the 3,389 today's limit allows.
     expect(out.value).toBe("3192 zl");
-    expect(rows.some((r) => r.label === "reserveFit.withdraw")).toBe(false);
+    const limit = rows[3]!;
+    expect(limit.conj).toBe("reserveFit.and");
+    expect(limit.label).toBe("reserveFit.setLimit");
+    expect(limit.value).toBe("1934 zl");
+    expect(limit.value2).toBe("(-16 zl)");
   });
 
   it("does not offer a withdrawal of nothing", () => {
@@ -567,11 +575,13 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
       }),
     );
     const rows = tooltipFor("Car");
-    expect(rows.some((r) => r.label === "reserveFit.andWithdraw")).toBe(false);
     const out = rows.find((r) => r.label === "reserveFit.withdraw")!;
     expect(out.value).toBe("1237 zl");
-    const alt = rows.find((r) => r.label === "reserveFit.orSetLimit")!;
+    const alt = rows.find((r) => r.label === "reserveFit.setLimit")!;
+    expect(alt.conj).toBe("reserveFit.or");
     expect(alt.value).toBe("3130 zl");
+    // …and only ONE of the two is on offer, so neither is worded as a pair.
+    expect(rows.filter((r) => r.conj === "reserveFit.and")).toEqual([]);
   });
 
   it("falls back to a plain withdrawal when no limit change is on offer", () => {
@@ -642,7 +652,7 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
   it("stays quiet about the limit when today's is already right", () => {
     renderWith(DTO);
     const labels = tooltipFor("Car").map((r) => r.label);
-    expect(labels).not.toContain("reserveFit.orSetLimit");
+    expect(labels).not.toContain("reserveFit.setLimit");
     // …but still says what putting the money in would take.
     expect(labels).toContain("reserveFit.addToReserve");
   });

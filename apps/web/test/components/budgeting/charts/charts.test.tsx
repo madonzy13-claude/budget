@@ -1162,6 +1162,48 @@ describe("ChartTooltipContent — staying on the phone", () => {
   });
 });
 
+describe("ChartTooltipContent — the conjunction that joins two rows", () => {
+  it("sets the and/or apart from the label it leads", () => {
+    // Two rows that are halves of one instruction, so the word joining them
+    // carries the accent rather than sitting grey inside the sentence (user,
+    // 260808).
+    const { container } = render(
+      <ChartTooltipContent
+        active
+        label="Sport"
+        payload={[{ dataKey: "__pct", value: 1, payload: { name: "Sport" } }]}
+        hideSeriesRows
+        extra={() => [
+          { label: "Withdraw from reserve", value: "3,192 zl" },
+          { conj: "and", label: "set the limit to", value: "1,934 zl" },
+        ]}
+      />,
+    );
+    const second = container.querySelectorAll(
+      '[data-testid="tooltip-extra-row"]',
+    )[1]!;
+    const conj = second.querySelector('[data-testid="tooltip-conj"]')!;
+    expect(conj.textContent).toBe("and");
+    expect((conj as HTMLElement).style.fontWeight).toBe("600");
+    expect((conj as HTMLElement).style.color).toContain("chart-accent");
+    // …and the label it leads is still its own, unaccented run of text.
+    expect(second.textContent).toContain("set the limit to");
+  });
+
+  it("leaves a row without one alone", () => {
+    const { container } = render(
+      <ChartTooltipContent
+        active
+        label="Sport"
+        payload={[{ dataKey: "__pct", value: 1, payload: { name: "Sport" } }]}
+        hideSeriesRows
+        extra={() => [{ label: "Held", value: "4,283 zl" }]}
+      />,
+    );
+    expect(container.querySelector('[data-testid="tooltip-conj"]')).toBeNull();
+  });
+});
+
 describe("ChartTooltipContent — fixed columns only when there is a column", () => {
   // The amount cells are a fixed 62px so that an average and a range total line
   // up DOWN the rows. When only one row carries a second value there is nothing

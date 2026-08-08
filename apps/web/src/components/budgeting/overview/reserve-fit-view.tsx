@@ -195,35 +195,6 @@ export function ReserveFitView({
               delta != null &&
               outThere != null &&
               !roundsToZero(outThere);
-            const suggestion =
-              limit == null || delta == null
-                ? []
-                : combined
-                  ? [
-                      {
-                        label: t("reserveFit.setLimitTo"),
-                        value: format(limit),
-                        value2: `(${delta < 0 ? "-" : "+"}${format(
-                          Math.abs(delta),
-                        )})`,
-                        section: true,
-                      },
-                      {
-                        label: t("reserveFit.andWithdraw"),
-                        // What can come out AT that limit — less than today's
-                        // limit allows, and the amount that stays safe.
-                        value: format(outThere!),
-                      },
-                    ]
-                  : [
-                      {
-                        label: t("reserveFit.orSetLimit"),
-                        value: format(limit),
-                        value2: `(${delta < 0 ? "-" : "+"}${format(
-                          Math.abs(delta),
-                        )})`,
-                      },
-                    ];
             return [
               {
                 label: t("reserveFit.held"),
@@ -234,40 +205,47 @@ export function ReserveFitView({
                 value: format(Number(row.neededCents)),
               },
               // Three states, and every one of them is either an action or an
-              // explicit "nothing to do" (user, 260807). "Ahead of schedule" and
-              // "spare" were two names for money the household can take out
-              // either way — the difference was only how much could go wrong
-              // afterwards, which nobody acted on differently.
+              // explicit "nothing to do" (user, 260807). "Ahead of schedule"
+              // and "spare" were two names for money the household can take
+              // out either way — the difference was only how much could go
+              // wrong afterwards, which nobody acted on differently.
               //
               // A difference under a whole unit is not an instruction, so it
               // reads as balanced rather than as a withdrawal of thirty groszy.
-              //
-              // A combined row is the exception: its recommendation already
-              // says what to withdraw, at the limit it recommends, and
-              // repeating today's figure here would put two different
-              // withdrawals in one box.
-              ...(combined
+              Math.abs(gap) < 100
+                ? {
+                    label: t("reserveFit.balanced"),
+                    value: "",
+                    section: true,
+                  }
+                : gap < 0
+                  ? {
+                      label: t("reserveFit.addToReserve"),
+                      value: format(-gap),
+                      section: true,
+                    }
+                  : {
+                      label: t("reserveFit.withdraw"),
+                      // On a combined row this is what stays safe AT the lower
+                      // limit, which is less than today's limit allows.
+                      value: format(combined ? outThere! : gap),
+                      section: true,
+                    },
+              // The action always leads, and the limit follows it — joined by
+              // "and" when both halves are meant together, "or" when they are
+              // two ways to the same place (user, 260808).
+              ...(limit == null || delta == null
                 ? []
                 : [
-                    Math.abs(gap) < 100
-                      ? {
-                          label: t("reserveFit.balanced"),
-                          value: "",
-                          section: true,
-                        }
-                      : gap < 0
-                        ? {
-                            label: t("reserveFit.addToReserve"),
-                            value: format(-gap),
-                            section: true,
-                          }
-                        : {
-                            label: t("reserveFit.withdraw"),
-                            value: format(gap),
-                            section: true,
-                          },
+                    {
+                      conj: combined ? t("reserveFit.and") : t("reserveFit.or"),
+                      label: t("reserveFit.setLimit"),
+                      value: format(limit),
+                      value2: `(${delta < 0 ? "-" : "+"}${format(
+                        Math.abs(delta),
+                      )})`,
+                    },
                   ]),
-              ...suggestion,
             ];
           }}
         />

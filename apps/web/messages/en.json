@@ -1568,11 +1568,11 @@
           "nothingToMove": "Already the right size",
           "coveredOverspend": "{amount} of that went to covering overspending, so the buffer is still short.",
           "addToReserve": "Add to reserve",
-          "orSetLimit": "or set the limit to",
           "withdraw": "Withdraw from reserve",
           "balanced": "Well balanced",
-          "setLimitTo": "Set the limit to",
-          "andWithdraw": "and withdraw"
+          "and": "and",
+          "or": "or",
+          "setLimit": "set the limit to"
         },
         "needsCompletedMonth": {
           "title": "Nothing to judge yet",

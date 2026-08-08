@@ -1591,11 +1591,11 @@
           "nothingToMove": "Już we właściwej wysokości",
           "coveredOverspend": "{amount} z tego poszło na pokrycie przekroczeń, więc rezerwie nadal brakuje.",
           "addToReserve": "Dodaj do rezerwy",
-          "orSetLimit": "albo ustaw limit na",
           "withdraw": "Wypłać z rezerwy",
           "balanced": "Dobrze wyważone",
-          "setLimitTo": "Ustaw limit na",
-          "andWithdraw": "i wypłać"
+          "and": "i",
+          "or": "albo",
+          "setLimit": "ustaw limit na"
         },
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",

@@ -1591,11 +1591,11 @@
           "nothingToMove": "Уже потрібного розміру",
           "coveredOverspend": "{amount} з цього пішло на покриття перевитрат, тож резерву досі бракує.",
           "addToReserve": "Додати в резерв",
-          "orSetLimit": "або встановіть ліміт",
           "withdraw": "Зняти з резерву",
           "balanced": "Добре збалансовано",
-          "setLimitTo": "Встановіть ліміт",
-          "andWithdraw": "і зніміть"
+          "and": "і",
+          "or": "або",
+          "setLimit": "встановіть ліміт"
         },
         "needsCompletedMonth": {
           "title": "Ще немає що оцінювати",

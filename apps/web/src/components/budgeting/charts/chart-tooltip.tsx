@@ -51,6 +51,9 @@ export function ChartTooltipContent({
    *  `summary` below. */
   extra?: (row: Record<string, unknown>) => Array<{
     label: string;
+    /** A leading "and"/"or", set in the accent so two rows read as the two
+     *  halves of ONE instruction rather than two separate lines (260808). */
+    conj?: string;
     value: string;
     color?: string;
     /** A SECOND right-aligned column — "How far off plan, by category" shows the
@@ -388,6 +391,16 @@ export function ChartTooltipContent({
           {/* The label is what gives: it may wrap to a second line so the box
               keeps its width. The value beside it never breaks mid-number. */}
           <span style={{ color: CHART_THEME.axis, minWidth: 0 }}>
+            {row.conj && (
+              <>
+                <span
+                  data-testid="tooltip-conj"
+                  style={{ fontWeight: 600, color: CHART_THEME.accent }}
+                >
+                  {row.conj}
+                </span>{" "}
+              </>
+            )}
             {row.label}
           </span>
           {/* One column stays flush right, as it always was. Two columns line
