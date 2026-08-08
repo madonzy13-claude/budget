@@ -12,6 +12,8 @@
  * only honest guess, and the member edits from there.
  */
 
+import { fitPct } from "./reserve-fit-rows";
+
 export interface LimitSplit {
   needsCents: number;
   wantsCents: number;
@@ -75,4 +77,18 @@ export function limitRebalanceButton(row: LimitRow): LimitRebalanceButton {
  *  change first — the same ordering the reserve dialog uses. */
 export function sortLimitRows<T extends LimitRow>(rows: readonly T[]): T[] {
   return [...rows].sort((a, b) => limitMoveSize(b) - limitMoveSize(a));
+}
+
+/**
+ * The row's colour, from the same function the reserve rows use so the two
+ * dialogs cannot disagree about what red means: a limit that has to RISE is
+ * under-budgeted, which is the shortfall colour, and one that can come down is
+ * slack, which is amber. Today's total stands in for "held", the proposal for
+ * "needed" (user, 260808).
+ */
+export function limitRowPct(row: LimitRow): number {
+  return fitPct(
+    row.needsCents + row.wantsCents,
+    row.targetNeedsCents + row.targetWantsCents,
+  );
 }

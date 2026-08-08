@@ -63,27 +63,20 @@ export function rebalanceButton(row: RebalanceRow): RebalanceButton {
   return { kind: "rebalance", disabled: true };
 }
 
-const BAND_RANK: Record<RebalanceBand, number> = {
-  short: 0,
-  surplus: 1,
-  even: 2,
-};
-
+/**
+ * Biggest difference first, whichever way it points (user, 260808).
+ *
+ * This supersedes the short-then-fat-then-settled banding of 260805: a buffer
+ * 80,000 over is a bigger thing to deal with than one 1,000 under, and putting
+ * every shortfall above every surplus buried it. Settled rows still land last
+ * without being special-cased — their move is nothing. The limit dialog sorts
+ * by the same rule, so the two read alike.
+ */
 export function sortRebalanceRows<
   T extends { currentCents: number; targetCents: number },
 >(rows: readonly T[]): T[] {
-  return [...rows].sort((a, b) => {
-    const band =
-      BAND_RANK[rebalanceBand(a.currentCents, a.targetCents)] -
-      BAND_RANK[rebalanceBand(b.currentCents, b.targetCents)];
-    if (band !== 0) return band;
-    // Inside a band, the bigger move first: a buffer 8,000 short is the one to
-    // deal with before one that is 1,000 short.
-    return (
-      Math.abs(b.targetCents - b.currentCents) -
-      Math.abs(a.targetCents - a.currentCents)
-    );
-  });
+  const move = (r: T) => Math.abs(r.targetCents - r.currentCents);
+  return [...rows].sort((a, b) => move(b) - move(a));
 }
 
 /**

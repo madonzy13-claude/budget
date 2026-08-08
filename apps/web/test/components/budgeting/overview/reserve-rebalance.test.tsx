@@ -92,9 +92,12 @@ describe("ReserveRebalance", () => {
   });
 
   // Red, then yellow, then grey (user, 260805).
-  it("queues the short reserves first, then the fat, then the settled", async () => {
+  // Biggest move first, whichever way it points (user, 260808) — Sport's 4,600
+  // coming back out is a bigger thing to deal with than Car's 4,000 going in.
+  // Supersedes the short-then-fat banding of 260805.
+  it("queues the biggest move first and the settled last", async () => {
     await open();
-    expect(order()).toEqual(["car", "sport", "newborn", "food"]);
+    expect(order()).toEqual(["sport", "car", "newborn", "food"]);
   });
 
   it("paints each row the colour its bar has", async () => {
@@ -150,6 +153,17 @@ describe("ReserveRebalance", () => {
     ).toBe(false);
     // ml-auto is what pushes it to the edge the button sits on.
     expect(field.className).toContain("ml-auto");
+  });
+
+  // The move is the thing to press, so it looks like it (user, 260808). A grey
+  // chip beside a grey figure read as a label.
+  it("gives the move a real call to action, and the reversal a quieter one", async () => {
+    const { user } = await open();
+    expect(action("car").className).toContain("bg-[var(--primary)]");
+    await user.click(action("car"));
+    await waitFor(() => expect(action("car").dataset["kind"]).toBe("undo"));
+    expect(action("car").className).not.toContain("bg-[var(--primary)]");
+    expect(action("car").className).toContain("border");
   });
 
   // "If current and Target value are same, but it wasn't rebalanced — just make
@@ -245,7 +259,7 @@ describe("ReserveRebalance", () => {
       expect(action("car").getAttribute("data-kind")).toBe("undo"),
     );
     // Car is on its target now and would sort last — it stays where it was.
-    expect(order()).toEqual(["car", "sport", "newborn", "food"]);
+    expect(order()).toEqual(["sport", "car", "newborn", "food"]);
   });
 
   it("sorts afresh the next time it is opened", async () => {
@@ -351,9 +365,9 @@ describe("ReserveRebalance", () => {
     const { user } = await open();
     await user.clear(target("car"));
     await user.type(target("car"), "1000");
-    expect(order()).toEqual(["car", "sport", "newborn", "food"]);
+    expect(order()).toEqual(["sport", "car", "newborn", "food"]);
     await user.tab();
-    expect(order()).toEqual(["car", "sport", "newborn", "food"]);
+    expect(order()).toEqual(["sport", "car", "newborn", "food"]);
   });
 
   // Undo is a real button, not a link dressed as one: it undoes a money move,

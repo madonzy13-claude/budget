@@ -126,33 +126,35 @@ describe("parseTargetCents", () => {
 });
 
 describe("sortRebalanceRows", () => {
-  // Red, then yellow, then grey (user, 260805) — deliberately NOT the chart's
-  // straight ascending percent, which files the settled rows between the two.
-  it("leads with the short reserves, then the fat ones, then the settled", () => {
+  // Biggest difference first, whichever way it points (user, 260808). This
+  // SUPERSEDES the short-then-fat-then-settled banding of 260805: a buffer
+  // 80,000 over is a bigger thing to deal with than one 1,000 under, and the
+  // limit dialog is ordered the same way so the two read alike.
+  it("leads with the biggest move, whichever direction it goes", () => {
+    const rows = [
+      row({ categoryId: "small-short", currentCents: 9_000, targetCents: 10_000 }),
+      row({ categoryId: "big-fat", currentCents: 90_000, targetCents: 10_000 }),
+      row({ categoryId: "big-short", currentCents: 0, targetCents: 80_000 }),
+      row({ categoryId: "small-fat", currentCents: 11_000, targetCents: 10_000 }),
+    ];
+    expect(sortRebalanceRows(rows).map((r) => r.categoryId)).toEqual([
+      "big-fat",
+      "big-short",
+      "small-short",
+      "small-fat",
+    ]);
+  });
+
+  it("still leaves the settled rows last — their move is nothing", () => {
     const rows = [
       row({ categoryId: "even", currentCents: 10_000, targetCents: 10_000 }),
       row({ categoryId: "fat", currentCents: 90_000, targetCents: 10_000 }),
       row({ categoryId: "short", currentCents: 0, targetCents: 10_000 }),
     ];
     expect(sortRebalanceRows(rows).map((r) => r.categoryId)).toEqual([
-      "short",
       "fat",
+      "short",
       "even",
-    ]);
-  });
-
-  it("puts the biggest move first inside each band", () => {
-    const rows = [
-      row({ categoryId: "small-short", currentCents: 9_000, targetCents: 10_000 }),
-      row({ categoryId: "small-fat", currentCents: 11_000, targetCents: 10_000 }),
-      row({ categoryId: "big-fat", currentCents: 90_000, targetCents: 10_000 }),
-      row({ categoryId: "big-short", currentCents: 0, targetCents: 80_000 }),
-    ];
-    expect(sortRebalanceRows(rows).map((r) => r.categoryId)).toEqual([
-      "big-short",
-      "small-short",
-      "big-fat",
-      "small-fat",
     ]);
   });
 

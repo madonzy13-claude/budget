@@ -172,6 +172,59 @@ describe("LimitRebalance", () => {
     expect(order).toEqual(["car", "sport", "food"]);
   });
 
+  // ── What it looks like (user, 260808) ────────────────────────────────────
+  //
+  // The reserve dialog reads "holds → should hold" with an arrow between the
+  // two and the row's own colour down its left edge. This one had neither, so
+  // two dialogs doing the same job looked unrelated.
+  it("points from what the limit is to what it should be", async () => {
+    const { container } = { container: document.body };
+    await open();
+    const row = screen.getByTestId("limit-rebalance-row-car");
+    // One arrow per editable side, so each line reads left to right.
+    expect(row.querySelectorAll("svg.lucide-arrow-right").length).toBe(2);
+    expect(container).toBeTruthy();
+  });
+
+  it("carries the row's own colour, red when the limit has to rise", async () => {
+    await open();
+    // Car must go 1,000 → 1,500: under-budgeted, which is the shortfall colour.
+    expect(
+      screen.getByTestId("limit-rebalance-row-car").dataset["color"],
+    ).toBe("var(--trading-down)");
+    // Sport is 1,000 → 1,500 as well; Food is already right, so it is neither.
+    expect(
+      screen.getByTestId("limit-rebalance-row-food").dataset["color"],
+    ).toBe("var(--muted-foreground)");
+  });
+
+  it("is amber when the limit can come down", async () => {
+    await open(vi.fn(async () => {}), [
+      {
+        categoryId: "slack",
+        name: "Slack",
+        needsCents: 200_000,
+        wantsCents: 0,
+        suggestedLimitCents: 100_000,
+      },
+    ]);
+    expect(
+      screen.getByTestId("limit-rebalance-row-slack").dataset["color"],
+    ).toBe("var(--primary)");
+  });
+
+  it("gives the move a real call to action, and the reversal a quieter one", async () => {
+    const { user } = await open();
+    // The yellow compact CTA the dense trader rows use — not a grey chip that
+    // reads as a label (user, 260808).
+    expect(action("car").className).toContain("bg-[var(--primary)]");
+    await user.click(action("car"));
+    await waitFor(() => expect(action("car").dataset["kind"]).toBe("undo"));
+    // Undo is a reversal: still a button, but it must not compete with the CTA.
+    expect(action("car").className).not.toContain("bg-[var(--primary)]");
+    expect(action("car").className).toContain("border");
+  });
+
   it("stays out of the way when no limit needs changing", () => {
     render(
       <LimitRebalance

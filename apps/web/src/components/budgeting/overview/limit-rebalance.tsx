@@ -14,7 +14,7 @@
  */
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { SlidersHorizontal } from "lucide-react";
+import { ArrowRight, RotateCcw, Scale } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -28,11 +28,13 @@ import { centsToBare } from "@/lib/cents-format";
 import { parseTargetCents } from "@/lib/reserve-rebalance";
 import {
   limitRebalanceButton,
+  limitRowPct,
   proposeSplit,
   sortLimitRows,
   type LimitRow,
   type LimitSplit,
 } from "@/lib/limit-rebalance";
+import { reserveFitColor } from "@/components/budgeting/charts/diverging-bar-chart";
 
 export interface LimitCandidate {
   categoryId: string;
@@ -164,6 +166,7 @@ export function LimitRebalance({
   // torn down one keystroke in (the lesson from the reserve dialog, 260805).
   const renderRow = (row: LimitRow) => {
     const { kind, disabled } = limitRebalanceButton(row);
+    const color = reserveFitColor(limitRowPct(row));
     const side = (
       s: "needs" | "wants",
       prevCents: number,
@@ -179,6 +182,10 @@ export function LimitRebalance({
         >
           {format(prevCents)}
         </span>
+        <ArrowRight
+          aria-hidden
+          className="size-3 shrink-0 text-[var(--muted-foreground)]"
+        />
         <Input
           data-testid={`limit-rebalance-${s}-${row.categoryId}`}
           type="text"
@@ -200,14 +207,22 @@ export function LimitRebalance({
         key={row.categoryId}
         data-testid={`limit-rebalance-row-${row.categoryId}`}
         data-category={row.categoryId}
-        className="flex flex-col gap-1.5 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 py-2.5"
+        data-color={color}
+        // The same 2px accent the reserve rows carry, in the colour this
+        // category's own change is drawn in.
+        style={{ borderLeftColor: color }}
+        className="flex flex-col gap-1.5 rounded-[var(--radius-md)] border-l-2 bg-[var(--surface-card-dark)] px-3 py-2.5"
       >
         <div className="flex items-center justify-between gap-2">
           <span className="truncate text-num-sm">{row.name}</span>
           <Button
             type="button"
-            size="sm"
-            variant={kind === "undo" ? "outline" : "secondary"}
+            // The compact yellow CTA the dense rows use: a grey chip beside a
+            // grey figure read as a label rather than the thing to press
+            // (user, 260808). Undo stays a button, but a quieter one — it must
+            // not compete with the move it reverses.
+            size="subscribe"
+            variant={kind === "undo" ? "outline" : "subscribe"}
             data-testid={`limit-rebalance-action-${row.categoryId}`}
             data-kind={kind}
             disabled={disabled || busy === row.categoryId}
@@ -219,8 +234,13 @@ export function LimitRebalance({
               { name: row.name },
             )}
             onClick={() => void run(row)}
-            className="h-7 shrink-0 px-2.5 text-caption"
+            className="shrink-0 gap-1.5"
           >
+            {kind === "undo" ? (
+              <RotateCcw aria-hidden className="size-3.5" />
+            ) : (
+              <Scale aria-hidden className="size-3.5" />
+            )}
             {t(
               kind === "undo"
                 ? "reserveFit.undoAction"
@@ -247,7 +267,10 @@ export function LimitRebalance({
           setOpen(true);
         }}
       >
-        <SlidersHorizontal aria-hidden className="size-4" />
+        {/* The weighing scales, the same icon the reserves block uses: the two
+            dialogs do the same job and had no business looking unrelated
+            (user, 260808). */}
+        <Scale aria-hidden className="size-4" />
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>

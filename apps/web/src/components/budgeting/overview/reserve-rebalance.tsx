@@ -22,7 +22,7 @@
  */
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { ArrowRight, Scale } from "lucide-react";
+import { ArrowRight, RotateCcw, Scale } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -202,11 +202,14 @@ export function ReserveRebalance({
           <span className="truncate text-num-sm">{row.name}</span>
           <Button
             type="button"
-            size="sm"
             // Both states are BUTTONS. Undo was a ghost, which on a dark card
             // is bare text and read as a link — it undoes a money move and has
-            // to look as pressable as what it replaced (user, 260805).
-            variant={kind === "undo" ? "outline" : "secondary"}
+            // to look as pressable as what it replaced (user, 260805). The
+            // move is now the compact yellow CTA the dense rows use: grey on
+            // grey read as a label rather than the thing to press (user,
+            // 260808). Undo stays quieter — it must not compete.
+            size="subscribe"
+            variant={kind === "undo" ? "outline" : "subscribe"}
             data-testid={`reserve-rebalance-action-${row.categoryId}`}
             data-kind={kind}
             disabled={disabled || busy === row.categoryId}
@@ -218,8 +221,13 @@ export function ReserveRebalance({
               { name: row.name },
             )}
             onClick={() => void run(row)}
-            className="h-7 shrink-0 px-2.5 text-caption"
+            className="shrink-0 gap-1.5"
           >
+            {kind === "undo" ? (
+              <RotateCcw aria-hidden className="size-3.5" />
+            ) : (
+              <Scale aria-hidden className="size-3.5" />
+            )}
             {t(
               kind === "undo"
                 ? "reserveFit.undoAction"
