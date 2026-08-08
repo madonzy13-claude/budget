@@ -39,6 +39,12 @@ export interface ReserveFitRow {
   gap_cents: string;
   worst_month: string | null;
   worst_overage_cents: string;
+  /** What an average month ahead costs: the habit plus every recurring payment
+   *  at its monthly rate. The Future chart measures today's limit against THIS,
+   *  so the two figures it lists and the difference between them are one
+   *  subtraction (260808). Optional: a payload cached before it existed replays
+   *  without it, and the chart falls back to the observed mean. */
+  projected_monthly_cents?: string | null;
   /** The limit that would keep this category solvent across the whole runway,
    *  and what moving to it costs or frees each month (260807). null = today's
    *  limit already is that limit. */

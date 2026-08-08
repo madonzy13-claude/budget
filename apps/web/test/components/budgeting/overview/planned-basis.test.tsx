@@ -54,6 +54,15 @@ vi.mock("@/hooks/use-spendings-summary", () => ({
 vi.mock("@/hooks/use-set-category-limit", () => ({
   useSetCategoryLimit: () => ({ mutateAsync: async () => {} }),
 }));
+// What the limit dialog is handed — it opens FROM this chart, so it has to
+// propose the figure the bar just drew.
+const limitRows: { current: unknown[] } = { current: [] };
+vi.mock("@/components/budgeting/overview/limit-rebalance", () => ({
+  LimitRebalance: ({ rows }: { rows: unknown[] }) => {
+    limitRows.current = rows;
+    return <div data-testid="limit-dialog" />;
+  },
+}));
 const fitDto: { current: unknown } = { current: undefined };
 vi.mock("@/hooks/use-reserve-fit", () => ({
   useReserveFit: () => ({ data: fitDto.current }),
@@ -162,15 +171,17 @@ describe("How far off plan — which limit it measures against", () => {
     expect(chart().getAttribute("data-gap")).toBe("10000");
   });
 
-  it("draws the CHANGE each limit needs, not spending against it", async () => {
-    // Measuring spending against the suggested limit cancelled itself out: the
-    // limit is built FROM that same mean spend, so the bar reduced to an
-    // arithmetic residue and nine categories in ten drew exactly zero (audit,
-    // 260807). The change is the thing the household actually makes.
+  it("draws what the category will COST against today's limit", async () => {
+    // SUPERSEDES 260807, which drew the reserve walk's suggested change. The
+    // walk weighs the reserve and the runway, so its answer was not the
+    // difference between the two figures the tooltip listed above it — 2,500
+    // and 2,215 with a difference of +1,314 (user, 260808). The bar is now the
+    // plain subtraction: what an average month ahead costs, less the limit.
     fitDto.current = {
       rows: [
         {
           category_id: "c1",
+          projected_monthly_cents: "120000",
           suggested_limit_cents: "120000",
           suggested_delta_cents: "40000",
         },
@@ -181,15 +192,17 @@ describe("How far off plan — which limit it measures against", () => {
     await user.click(
       screen.getByRole("button", { name: "planned.basisFuture" }),
     );
-    // Today 800, needed 1,200 → raise it by 400.
+    // Costs 1,200 a month against a limit of 800 → 400 short.
     expect(chart().getAttribute("data-gap")).toBe("40000");
   });
 
-  it("draws nothing to change when the reserve chart suggests nothing", async () => {
+  it("draws nothing to change when the limit is exactly what it costs", async () => {
     fitDto.current = {
       rows: [
         {
           category_id: "c1",
+          // Costs 800, limit is 800.
+          projected_monthly_cents: "80000",
           suggested_limit_cents: null,
           suggested_delta_cents: null,
         },
@@ -344,6 +357,110 @@ describe("How far off plan — each basis shows only its own baseline", () => {
     expect(labels).toContain("planned.currentLimit");
   });
 
+  // The three figures must be one piece of arithmetic (user, 260808). The bar
+  // drew the reserve walk's suggested CHANGE while the rows above it listed
+  // today's limit and the spend — 2,500 and 2,215 with a difference of +1,314,
+  // which is not the difference between anything shown.
+  it("FUTURE reads the spend as what the category will actually cost", async () => {
+    const user = userEvent.setup();
+    fitDto.current = {
+      rows: [
+        {
+          category_id: "c1",
+          name: "Car",
+          held_cents: "0",
+          needed_cents: "0",
+          gap_cents: "0",
+          // 1,064 of habit and schedule together, against a limit of 800.
+          projected_monthly_cents: "106400",
+          suggested_limit_cents: "500000",
+          suggested_delta_cents: "420000",
+          large_transactions: [],
+        },
+      ],
+    };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    const r = rows();
+    expect(
+      r.find((x) => x.label === "planned.expectedSpend")!.value,
+    ).toContain("1,064");
+    // …and the difference is that against today's limit, nothing else.
+    expect(r.at(-1)!.label).toBe("planned.difference");
+    expect(r.at(-1)!.value).toContain("264");
+  });
+
+  it("FUTURE draws the bar from the same subtraction", async () => {
+    const user = userEvent.setup();
+    fitDto.current = {
+      rows: [
+        {
+          category_id: "c1",
+          name: "Car",
+          held_cents: "0",
+          needed_cents: "0",
+          gap_cents: "0",
+          projected_monthly_cents: "106400",
+          suggested_limit_cents: "500000",
+          suggested_delta_cents: "420000",
+          large_transactions: [],
+        },
+      ],
+    };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    // 1,064 − 800 = 264, NOT the walk's 4,200.
+    expect(
+      screen.getByTestId("avg-chart").getAttribute("data-gap"),
+    ).toBe("26400");
+  });
+
+  it("hands the limit dialog the very figure the bar drew", async () => {
+    fitDto.current = {
+      rows: [
+        {
+          category_id: "c1",
+          name: "Car",
+          held_cents: "0",
+          needed_cents: "0",
+          gap_cents: "0",
+          projected_monthly_cents: "106400",
+          // The walk's own answer is deliberately different here: it weighs the
+          // reserve and the runway. The dialog must follow the BAR (user,
+          // 260808), or the two disagree about the same row again.
+          suggested_limit_cents: "500000",
+          suggested_delta_cents: "420000",
+          large_transactions: [],
+        },
+      ],
+    };
+    // The dialog also needs to know how the limit is split today.
+    summaryDto.current = {
+      categories: [
+        {
+          categoryId: "c1",
+          plannedCents: "80000",
+          needsCents: "80000",
+          wantsCents: "0",
+          cushionCents: "0",
+        },
+      ],
+    };
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    expect(
+      (limitRows.current[0] as { suggestedLimitCents?: number } | undefined)
+        ?.suggestedLimitCents,
+    ).toBe(106400);
+  });
+
   it("FUTURE does not repeat the limit it will need beside the spend", async () => {
     // A category with nothing scheduled needs exactly what it keeps spending,
     // so the two rows printed the same figure twice (user screenshot, 260808).
@@ -374,8 +491,10 @@ describe("How far off plan — each basis shows only its own baseline", () => {
   });
 
   it("FUTURE's difference is the same number the bar draws", async () => {
-    // The bar is the limit CHANGE; the tooltip was still computing spend minus
-    // limit, so the two disagreed on the same row.
+    // One subtraction, drawn once and written once.
+    fitDto.current = {
+      rows: [{ category_id: "c1", projected_monthly_cents: "120000" }],
+    };
     const user = userEvent.setup();
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
     await user.click(

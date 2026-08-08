@@ -316,6 +316,16 @@ export function PlannedSection({
         ],
     ),
   );
+  /** categoryId → what an average month ahead costs: the habit plus every
+   *  recurring payment at its monthly rate (260808). This is what the FUTURE
+   *  reading measures today's limit against. */
+  const projected = new Map<string, number>(
+    (fit.data?.rows ?? []).flatMap((r) =>
+      r.projected_monthly_cents == null
+        ? []
+        : [[r.category_id, Number(r.projected_monthly_cents)] as [string, number]],
+    ),
+  );
   const oneOffCandidates: OneOffCandidate[] = (fit.data?.rows ?? []).flatMap(
     (r) =>
       (r.large_transactions ?? []).map((c) => ({
@@ -344,19 +354,24 @@ export function PlannedSection({
   // Only categories the walk actually wants moved, and only once their current
   // split is known — a row proposing a change from an unknown starting point
   // would be proposing it from zero.
+  // The dialog opens FROM the Future chart, so it proposes exactly what that
+  // chart drew: what an average month ahead costs. The reserve walk's own
+  // suggestion weighs the runway and what is already held — a different, and
+  // for this purpose contradictory, answer (user, 260808).
   const limitCandidates: LimitCandidate[] = (fit.data?.rows ?? []).flatMap(
     (r) => {
       const split = splitById.get(r.category_id);
-      const suggested = Number(r.suggested_limit_cents ?? 0);
-      if (!split || !r.suggested_limit_cents) return [];
-      if (Math.round(Number(r.suggested_delta_cents ?? 0)) === 0) return [];
+      const expected = projected.get(r.category_id);
+      if (!split || expected == null) return [];
+      const current = split.needsCents + split.wantsCents;
+      if (Math.abs(expected - current) < 100) return [];
       return [
         {
           categoryId: r.category_id,
           name: r.name,
           needsCents: split.needsCents,
           wantsCents: split.wantsCents,
-          suggestedLimitCents: suggested,
+          suggestedLimitCents: expected,
         },
       ];
     },
@@ -763,17 +778,19 @@ export function PlannedSection({
                       // Whichever baseline is being read is the one the bar and
                       // its colour come from; the other rides along in the
                       // tooltip so the comparison is visible either way.
-                      // FUTURE draws the CHANGE the limit needs, not spending
-                      // measured against it. Measuring spending against the
-                      // suggested limit cancels itself out — the limit is built
-                      // FROM that same mean spend, so the bar reduced to an
-                      // arithmetic residue and most categories drew exactly zero
-                      // (audit, 260807). The change is what the household acts
-                      // on, and it is the same number the reserve tooltip shows.
-                      const change = limitChanges.get(c.category_id);
+                      //
+                      // FUTURE measures today's limit against what the category
+                      // will actually COST from here — the habit plus every
+                      // recurring payment at its monthly rate. It used to draw
+                      // the reserve walk's suggested change instead, while the
+                      // rows above it listed today's limit and the spend: 2,500
+                      // and 2,215 with a difference of +1,314, which is not the
+                      // difference between anything on screen (user, 260808).
+                      // Three figures, one subtraction.
+                      const expected = projected.get(c.category_id) ?? real;
                       const planned = basis === "future" ? current : avg;
                       const gap =
-                        basis === "future" ? (change ?? 0) : real - planned;
+                        basis === "future" ? expected - current : real - planned;
                       // Colour follows the bar: as a share of today's limit for
                       // the change, and of the baseline for the past reading.
                       const pctBase = basis === "future" ? current : planned;
@@ -786,7 +803,7 @@ export function PlannedSection({
                       return {
                         name: c.name,
                         categoryId: c.category_id,
-                        real,
+                        real: basis === "future" ? expected : real,
                         planned,
                         avg,
                         current,

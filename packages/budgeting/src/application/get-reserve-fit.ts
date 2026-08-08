@@ -24,6 +24,10 @@ import { ok, err, type Result } from "@budget/shared-kernel";
 import { reserveFit, type ReserveFitMonth } from "../domain/reserve-fit";
 import { smallestSufficientLimit } from "../domain/suggest-limit";
 import { reserveNeededToday } from "../domain/reserve-requirement";
+import {
+  scheduledMonthlyNormalize,
+  type Cadence,
+} from "./scheduled-monthly-normalize";
 import { projectScheduledPayments } from "../domain/scheduled-payment-projection";
 import type { ReservePositionsResult } from "./get-reserve-positions";
 import type { OverviewPlannedRepo } from "./get-overview-planned";
@@ -117,6 +121,13 @@ export interface ReserveFitRowDTO {
   gap_cents: string;
   worst_month: string | null;
   worst_overage_cents: string;
+  /** What this category will cost in an AVERAGE month from here: the ordinary
+   *  habit plus every recurring rule normalised to a monthly figure. The Future
+   *  chart draws this against today's limit, so the two figures it lists and
+   *  the difference between them are finally the same arithmetic (user,
+   *  260808). A one-off is left out — it happens once, and the reserve is what
+   *  funds it. */
+  projected_monthly_cents: string;
   /** The limit that would keep this category solvent across the whole runway,
    *  and what moving to it costs or frees each month. null = today's limit
    *  already is that limit, so there is nothing to say (260807). */
@@ -348,6 +359,23 @@ export function getReserveFit(deps: GetReserveFitDeps) {
               BigInt(months.length)
             : 0n;
 
+        // What an average month ahead costs: the habit that is left once every
+        // routine rule is floored out of it, plus every recurring rule at its
+        // monthly rate. ONCE is left out — it happens once, and the reserve is
+        // what funds it, not the run rate.
+        const projectedMonthly =
+          baselineSpend +
+          rules
+            .filter(
+              (r) => r.category_id === w.category_id && r.cadence !== "ONCE",
+            )
+            .reduce(
+              (acc, r) =>
+                acc +
+                scheduledMonthlyNormalize(r.amount_cents, r.cadence as Cadence),
+              0n,
+            );
+
         // The rules in full: the baseline above has had them taken out of
         // every month, whether the ledger named them or not, so counting them
         // here charges each of them exactly once.
@@ -422,6 +450,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           gap_cents: (position.reserveCents - neededCents).toString(),
           worst_month: past.worstMonth,
           worst_overage_cents: past.worstOverageCents.toString(),
+          projected_monthly_cents: projectedMonthly.toString(),
           suggested_limit_cents: suggestion?.limitCents.toString() ?? null,
           // What the reserve would need AT that limit. Lowering a limit stops
           // the reserve topping itself up, so the requirement RISES — reporting

@@ -268,6 +268,118 @@ describe("a monthly rule the limit already covers", () => {
   });
 });
 
+/**
+ * projected_monthly_cents — what this category will cost in an average month
+ * from here (user, 260808).
+ *
+ * The Future chart used to draw the reserve walk's suggested limit CHANGE while
+ * listing "current limit" and "expected spend" above it, and the three did not
+ * add up: 2,500 and 2,215 with a difference of +1,314. The household asked for
+ * the plain thing — what the category will cost, and how far today's limit is
+ * from it — so the read model answers with the projection itself.
+ *
+ * Habit plus the schedule: the ordinary baseline (which has every routine rule
+ * floored out of it) plus every rule normalised to a monthly figure, so a
+ * 12,000 yearly insurance is 1,000 a month of limit whether or not the range
+ * happened to contain the month it lands in.
+ */
+describe("projected monthly cost", () => {
+  const CAT = "cat-proj";
+  const projDeps = (
+    rules: unknown[],
+    spentCents = 200000n,
+    limitCents = 250000n,
+  ) =>
+    deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return [
+            {
+              category_id: CAT,
+              name: "Proj",
+              created_month: "2025-01",
+              archived_month: null,
+              is_investment: false,
+            },
+          ];
+        },
+        async monthlyPlannedByCategory() {
+          return ["2026-01", "2026-02"].map((month) => ({
+            category_id: CAT,
+            month,
+            planned_cents: limitCents,
+            needs_cents: limitCents,
+          }));
+        },
+        async monthlySpendByCategory() {
+          return ["2026-01", "2026-02"].map((month) => ({
+            category_id: CAT,
+            month,
+            spent_cents: spentCents,
+            scheduled_cents: 0n,
+          }));
+        },
+      },
+      exclusionsRepo: { async largeTransactions() { return []; } },
+      activeScheduledPayments: async () => rules,
+      reservePositions: async () =>
+        ok({
+          positions: new Map(position(CAT, 0n)),
+          openMonth: "2026-03",
+          internalCents: 0n,
+          userDefinedCents: 0n,
+          surplusCents: 0n,
+          direction: "NONE" as const,
+        }) as unknown as Result<never, Error>,
+    } as never);
+
+  const rule = (amount_cents: bigint, cadence: string, extra = {}) => ({
+    category_id: CAT,
+    name: "Proj",
+    amount_cents,
+    currency: "PLN",
+    cadence,
+    yearly_month: cadence === "YEARLY" ? 1 : null,
+    next_due_date: "2026-03-15",
+    ...extra,
+  });
+
+  test("with nothing scheduled, it is what the category spends", async () => {
+    const row = await rowFor(CAT, projDeps([]));
+    expect(row?.projected_monthly_cents).toBe("200000");
+  });
+
+  test("a monthly rule already inside the habit is not added twice", async () => {
+    // 2,000 of history and a 2,000 monthly rule are the same 2,000 (the routine
+    // floor takes it out of habit), so the projection is 2,000 — not 4,000.
+    const row = await rowFor(CAT, projDeps([rule(200000n, "MONTHLY")]));
+    expect(row?.projected_monthly_cents).toBe("200000");
+  });
+
+  test("a yearly charge counts as its monthly share", async () => {
+    // 12,000 every January is 1,000 a month of limit, whether or not January is
+    // in the range being read.
+    const row = await rowFor(CAT, projDeps([rule(1200000n, "YEARLY")]));
+    expect(row?.projected_monthly_cents).toBe("300000");
+  });
+
+  test("habit on top of the schedule adds up", async () => {
+    // 2,000 spent, of which 500 is the rule → 1,500 of habit, and the rule is
+    // 500 a month. The projection is the 2,000 it actually costs.
+    const row = await rowFor(CAT, projDeps([rule(50000n, "MONTHLY")]));
+    expect(row?.projected_monthly_cents).toBe("200000");
+  });
+
+  test("a one-off is not part of an average month", async () => {
+    // It happens once. The reserve is what funds it; the run rate is not.
+    const row = await rowFor(
+      CAT,
+      projDeps([rule(900000n, "ONCE", { next_due_date: "2026-06-10" })]),
+    );
+    expect(row?.projected_monthly_cents).toBe("200000");
+  });
+});
+
 describe("getReserveFit", () => {
   test("sizes each category on the deepest trough of its own history", async () => {
     // Food banks 3000 in January, then goes 15000 over → 12000 had to be held.
