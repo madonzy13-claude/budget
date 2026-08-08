@@ -10,6 +10,10 @@ import type { BudgetSummary } from "@/components/budgeting/budget-switcher";
 
 const SERVER_API_BASE = process.env["API_INTERNAL_URL"] ?? "http://api:4000";
 
+/** Matches the auth call's budget (server-session.ts): long enough for a slow
+ *  answer, short enough that a hung API never holds a render open. */
+const SERVER_FETCH_TIMEOUT_MS = 6000;
+
 export async function serverApiFetch(
   budgetId: string | null,
   path: string,
@@ -25,11 +29,22 @@ export async function serverApiFetch(
     headers.set("Cookie", cookieHeader);
   if (budgetId && !headers.has("X-Budget-ID"))
     headers.set("X-Budget-ID", budgetId);
-  return fetch(`${SERVER_API_BASE}${path}`, {
-    ...init,
-    headers,
-    cache: init.cache ?? "no-store",
-  });
+  try {
+    return await fetch(`${SERVER_API_BASE}${path}`, {
+      ...init,
+      headers,
+      cache: init.cache ?? "no-store",
+      signal: init.signal ?? AbortSignal.timeout(SERVER_FETCH_TIMEOUT_MS),
+    });
+  } catch {
+    // Unreachable API, DNS failure, or the timeout above. Every caller already
+    // handles a bad RESPONSE gracefully — the membership gate fails open,
+    // reservesEnabled defaults to true, the task list comes back empty — but a
+    // rejected fetch skipped all of it and threw out of the server component,
+    // so a budget switch during a deploy showed "Something went wrong" instead
+    // of the shell plus whatever the client had cached (user, 260808).
+    return new Response(null, { status: 503, statusText: "API unreachable" });
+  }
 }
 
 /**
