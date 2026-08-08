@@ -99,6 +99,14 @@ export interface BudgetRepo {
     userId: string,
   ): Promise<Record<string, string[]>>;
   /** MERGE a patch in, so one chart's pick never clears another's. */
+  /** Set or clear what ONE member calls this budget (260808). Blank clears. */
+  setMemberBudgetName(
+    budgetId: string,
+    userId: string,
+    name: string | null,
+  ): Promise<void>;
+  /** What THIS member calls it, or null when they never renamed it. */
+  memberBudgetName(budgetId: string, userId: string): Promise<string | null>;
   mergeMemberUiPrefs(
     budgetId: string,
     userId: string,

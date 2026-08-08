@@ -97,9 +97,22 @@ export function budgetIdentityRoutesFactory(
       console.error("[budget-identity:get] listMembers failed:", e);
     }
 
+    // The name is the READER's (260808): their membership row carries what they
+    // chose to call this budget, and the budget's own name is the fallback.
+    let ownName: string | null = null;
+    try {
+      ownName =
+        (await deps.tenancy.workspaceRepo.memberBudgetName?.(
+          budgetId,
+          actorUserId,
+        )) ?? null;
+    } catch (e) {
+      console.error("[budget-identity:get] memberBudgetName failed:", e);
+    }
+
     return c.json({
       id: budget.id,
-      name: budget.name,
+      name: ownName ?? budget.name,
       slug: budget.slug,
       kind: budget.kind,
       defaultCurrency: budget.default_currency,
@@ -141,7 +154,28 @@ export function budgetIdentityRoutesFactory(
     }
     const callerEntry = patchMembers.find((m) => m.userId === actorUserId);
     if (!callerEntry) return c.json({ error: "not_found" }, 404);
-    if (callerEntry.role !== "owner")
+
+    // A rename is a PRIVATE act (user, 260808): it writes the caller's own
+    // label on their membership row, so it changes nothing for anyone else —
+    // and therefore is not the owner's privilege. Everything else on this
+    // route is budget identity, which still is.
+    if (body.name !== undefined) {
+      await deps.tenancy.workspaceRepo.setMemberBudgetName(
+        budgetId,
+        actorUserId,
+        body.name,
+      );
+    }
+
+    const touchesIdentity =
+      body.default_currency !== undefined ||
+      body.reserves_enabled !== undefined ||
+      body.cushion_enabled !== undefined ||
+      body.investments_enabled !== undefined ||
+      body.amount_privacy_enabled !== undefined ||
+      body.cushion_target_months !== undefined ||
+      body.cushion_mode_enabled !== undefined;
+    if (touchesIdentity && callerEntry.role !== "owner")
       return c.json({ error: "forbidden" }, 403);
 
     // T-06-02-01: currency lock — reject if budget already has transactions
@@ -154,7 +188,6 @@ export function budgetIdentityRoutesFactory(
 
     // Apply name / currency / reserves / cushion-feature / cushion_target_months identity patch
     if (
-      body.name !== undefined ||
       body.default_currency !== undefined ||
       body.reserves_enabled !== undefined ||
       body.cushion_enabled !== undefined ||
@@ -166,7 +199,6 @@ export function budgetIdentityRoutesFactory(
         await deps.tenancy.workspaceRepo.updateIdentity(
           budgetId,
           {
-            ...(body.name !== undefined ? { name: body.name } : {}),
             ...(body.default_currency !== undefined
               ? { defaultCurrency: body.default_currency }
               : {}),

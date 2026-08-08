@@ -33,18 +33,38 @@ ALTER INDEX IF EXISTS budgeting.recurring_rules_pkey
 ALTER INDEX IF EXISTS budgeting.recurring_rules_next_due_idx
   RENAME TO scheduled_payments_next_due_idx;
 
--- The policy is renamed rather than dropped and rebuilt: a window with no
+-- The policies are renamed rather than dropped and rebuilt: a window with no
 -- policy on a FORCE-RLS table is a window where a tenant could read another's.
-ALTER POLICY recurring_rules_tenant_isolation
-  ON budgeting.scheduled_payments
-  RENAME TO scheduled_payments_tenant_isolation;
+--
+-- Conditionally, because these two do not exist at the same point in every
+-- database. post-migration.sql re-asserts every policy BY NAME and runs AFTER
+-- the migrations, so on an EXISTING database the old names are here to be
+-- renamed, while on a FRESH one post-migration has not run yet and there is
+-- nothing to rename — the worker's policy in particular is created only there.
+-- An unguarded ALTER POLICY aborted the whole migration run on any new
+-- database, which is every CI run and every new deployment (260808).
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_policies
+              WHERE schemaname = 'budgeting'
+                AND tablename = 'scheduled_payments'
+                AND policyname = 'recurring_rules_tenant_isolation') THEN
+    ALTER POLICY recurring_rules_tenant_isolation
+      ON budgeting.scheduled_payments
+      RENAME TO scheduled_payments_tenant_isolation;
+  END IF;
 
--- The worker's cross-tenant SELECT, which is how the engine finds what is due
--- before it knows whose it is. Orphaning this one under the old name would leave
--- the engine's own permission described by a word the schema no longer uses.
-ALTER POLICY recurring_rules_worker_cron_scan
-  ON budgeting.scheduled_payments
-  RENAME TO scheduled_payments_worker_cron_scan;
+  -- The worker's cross-tenant SELECT, which is how the engine finds what is
+  -- due before it knows whose it is.
+  IF EXISTS (SELECT 1 FROM pg_policies
+              WHERE schemaname = 'budgeting'
+                AND tablename = 'scheduled_payments'
+                AND policyname = 'recurring_rules_worker_cron_scan') THEN
+    ALTER POLICY recurring_rules_worker_cron_scan
+      ON budgeting.scheduled_payments
+      RENAME TO scheduled_payments_worker_cron_scan;
+  END IF;
+END $$;
 
 -- ------------------------------------------- the ledger column pointing at it
 ALTER TABLE budgeting.expense_ledger

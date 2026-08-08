@@ -123,7 +123,12 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         reserves_enabled: boolean;
         pending_tasks_count: number;
       }>(sql`
-        SELECT w.id, w.slug, w.name, w.kind, w.default_currency,
+        -- The name is the READER's: their membership row carries the label
+        -- they chose, and the budget's own name is only the fallback (260808).
+        -- The m row is the caller's own — the WHERE below binds it to them — so
+        -- COALESCE can never pick up somebody else's word for the budget.
+        SELECT w.id, w.slug, COALESCE(m.display_name, w.name) AS name,
+               w.kind, w.default_currency,
                w.owner_user_id, w.member_count, w.created_at, w.cushion_mode_enabled,
                w.reserves_enabled,
                COALESCE(tk.pending, 0)::int AS pending_tasks_count
@@ -199,6 +204,58 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       reservesEnabled: row.reserves_enabled ?? true,
       pendingTasksCount: Number(row.pending_tasks_count),
     }));
+  }
+
+  /**
+   * Set (or clear) what ONE member calls this budget. Bound to the caller's own
+   * membership row and scoped by tenant, so a rename is a private act — it
+   * cannot reach another member's screen (user, 260808).
+   *
+   * Blank is not a name: it clears the override rather than storing an empty
+   * string, which would render as an empty pill in the switcher.
+   */
+  async setMemberBudgetName(
+    budgetId: string,
+    userId: string,
+    name: string | null,
+  ): Promise<void> {
+    const trimmed = name === null ? null : name.trim();
+    const value = trimmed === null || trimmed === "" ? null : trimmed;
+    const r = await withTenantTx(
+      TenantId(budgetId),
+      UserId(userId),
+      async (tx) => {
+        await tx.execute(sql`
+          UPDATE tenancy.budget_members
+             SET display_name = ${value}
+           WHERE budget_id = ${budgetId}::uuid
+             AND user_id = ${userId}::uuid
+        `);
+      },
+    );
+    if (r.isErr()) throw r.error;
+  }
+
+  /** What THIS member calls the budget, or null when they never renamed it. */
+  async memberBudgetName(
+    budgetId: string,
+    userId: string,
+  ): Promise<string | null> {
+    const r = await withTenantTx(
+      TenantId(budgetId),
+      UserId(userId),
+      async (tx) =>
+        (
+          await tx.execute<{ display_name: string | null }>(sql`
+            SELECT display_name FROM tenancy.budget_members
+             WHERE budget_id = ${budgetId}::uuid
+               AND user_id = ${userId}::uuid
+             LIMIT 1
+          `)
+        ).rows[0]?.display_name ?? null,
+    );
+    if (r.isErr()) throw r.error;
+    return r.value;
   }
 
   async listMembers(budgetId: string): Promise<MemberDTO[]> {
