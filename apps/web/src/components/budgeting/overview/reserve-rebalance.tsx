@@ -36,6 +36,7 @@ import { reserveFitColor } from "@/components/budgeting/charts/diverging-bar-cha
 import { centsToBare } from "@/lib/cents-format";
 import {
   parseTargetCents,
+  roundUpUnit,
   rebalanceBand,
   rebalanceButton,
   rebalanceRowPct,
@@ -96,7 +97,9 @@ export function ReserveRebalance({
     categoryId: r.categoryId,
     name: r.name,
     currentCents: applied[r.categoryId]?.currentCents ?? r.heldCents,
-    targetCents: targets[r.categoryId] ?? r.neededCents,
+    // Whole units: the walk answers to the groszy, but what someone is asked
+    // to move is a figure they would actually type (user, 260808).
+    targetCents: targets[r.categoryId] ?? roundUpUnit(r.neededCents),
     baselineCents: applied[r.categoryId]?.baselineCents ?? null,
   }));
 

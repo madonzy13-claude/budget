@@ -155,6 +155,20 @@ describe("ReserveRebalance", () => {
     expect(field.className).toContain("ml-auto");
   });
 
+  // Nobody moves 661.63 (user, 260808). The walk answers to the groszy; the
+  // figure someone is asked to act on is whole.
+  it("proposes a whole target, never a decimal", async () => {
+    await open(vi.fn(async (_id: string, cents: number) => cents), [
+      {
+        categoryId: "odd",
+        name: "Odd",
+        heldCents: 10_000,
+        neededCents: 66_163,
+      },
+    ]);
+    expect(target("odd").value).toBe("662");
+  });
+
   // The move is the thing to press, so it looks like it (user, 260808). A grey
   // chip beside a grey figure read as a label.
   it("gives the move a real call to action, and the reversal a quieter one", async () => {

@@ -8,6 +8,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  roundUpUnit,
   rebalanceBand,
   rebalancePct,
   rebalanceButton,
@@ -187,5 +188,46 @@ describe("sortRebalanceRows", () => {
       "b",
       "a",
     ]);
+  });
+});
+
+describe("roundUpUnit", () => {
+  // A reserve target of 661.63 is the walk's answer to the groszy; what the
+  // member is asked to move is a whole figure (user, 260808). Up, not down, so
+  // the buffer still covers what the history asked for.
+  it("takes a part-unit up to the whole one", () => {
+    expect(roundUpUnit(66163)).toBe(66200);
+  });
+
+  it("leaves a whole unit alone", () => {
+    expect(roundUpUnit(66200)).toBe(66200);
+  });
+
+  it("leaves nothing as nothing", () => {
+    expect(roundUpUnit(0)).toBe(0);
+  });
+});
+
+describe("a difference under one unit is not an instruction", () => {
+  // The targets are whole now, so a reserve holding 1,720.01 against a target
+  // of 1,720 would otherwise show a one-groszy move to make.
+  it("goes inert rather than offering a groszy", () => {
+    expect(
+      rebalanceButton(row({ currentCents: 172001, targetCents: 172000 })),
+    ).toEqual({ kind: "rebalance", disabled: true });
+  });
+
+  it("still offers a real move", () => {
+    expect(
+      rebalanceButton(row({ currentCents: 172000, targetCents: 173000 })),
+    ).toEqual({ kind: "rebalance", disabled: false });
+  });
+
+  it("still offers the undo on a row that was moved", () => {
+    expect(
+      rebalanceButton(
+        row({ currentCents: 172001, targetCents: 172000, baselineCents: 0 }),
+      ),
+    ).toEqual({ kind: "undo", disabled: false });
   });
 });

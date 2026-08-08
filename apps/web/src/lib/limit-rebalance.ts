@@ -13,6 +13,10 @@
  */
 
 import { fitPct } from "./reserve-fit-rows";
+import { roundUpUnit } from "./reserve-rebalance";
+
+/** One whole currency unit, in cents. */
+const UNIT = 100;
 
 export interface LimitSplit {
   needsCents: number;
@@ -44,11 +48,17 @@ export function proposeSplit(
   wantsCents: number,
   totalCents: number,
 ): LimitSplit {
-  const total = Math.max(0, Math.round(totalCents));
+  // Whole units on both sides. Nobody sets a limit of 3,129.90: the walk
+  // answers to the groszy, but a limit is a decision and it is made in whole
+  // złoty (user, 260808). Rounding UP so the limit still covers what was asked.
+  const total = roundUpUnit(Math.max(0, totalCents));
   const current = needsCents + wantsCents;
   if (current <= 0 || wantsCents <= 0)
     return { needsCents: total, wantsCents: 0 };
-  const wants = Math.min(total, Math.round((total * wantsCents) / current));
+  const wants = Math.min(
+    total,
+    Math.round((total * wantsCents) / current / UNIT) * UNIT,
+  );
   return { needsCents: total - wants, wantsCents: wants };
 }
 
@@ -67,8 +77,11 @@ export function limitMoveSize(row: LimitRow): number {
 
 export function limitRebalanceButton(row: LimitRow): LimitRebalanceButton {
   // A new target outranks the undo: the member is asking for a different move,
-  // not to take the last one back.
-  if (limitMoveSize(row) !== 0) return { kind: "rebalance", disabled: false };
+  // not to take the last one back. Under a whole unit is not a move — the
+  // proposals are whole, so a limit sitting on 1,000.40 against a proposed
+  // 1,000 is not something to act on (260808).
+  if (limitMoveSize(row) >= UNIT)
+    return { kind: "rebalance", disabled: false };
   if (row.baseline !== null) return { kind: "undo", disabled: false };
   return { kind: "rebalance", disabled: true };
 }

@@ -34,6 +34,25 @@ describe("proposeSplit", () => {
     });
   });
 
+  // Nobody sets a limit of 3,129.90 (user, 260808). The walk answers to the
+  // groszy; a limit is a decision, and it is made in whole złoty.
+  it("proposes whole units, never a decimal", () => {
+    const s = proposeSplit(100000, 0, 312990);
+    expect(s.needsCents % 100).toBe(0);
+    expect(s.wantsCents % 100).toBe(0);
+  });
+
+  it("rounds UP, so the limit still covers what the walk asked for", () => {
+    expect(proposeSplit(100000, 0, 312990).needsCents).toBe(313000);
+  });
+
+  it("keeps BOTH sides whole and still summing to the rounded total", () => {
+    const s = proposeSplit(10033, 20067, 100001);
+    expect(s.needsCents % 100).toBe(0);
+    expect(s.wantsCents % 100).toBe(0);
+    expect(s.needsCents + s.wantsCents).toBe(100100);
+  });
+
   it("puts every złoty on needs when nothing was ever split", () => {
     // needs = planned, wants = 0 is the pre-split default, and a category that
     // never separated the two should not be handed a wants line by a rounding.
@@ -52,9 +71,9 @@ describe("proposeSplit", () => {
   });
 
   it("gives the rounding to needs so the two always make the target", () => {
-    // 1/3 of 1,000.01 cannot be split evenly; the halves must still sum.
-    const s = proposeSplit(100, 200, 100001);
-    expect(s.needsCents + s.wantsCents).toBe(100001);
+    // A third of 1,001 cannot be split evenly; the halves must still sum.
+    const s = proposeSplit(100, 200, 100100);
+    expect(s.needsCents + s.wantsCents).toBe(100100);
   });
 
   it("never proposes a negative side", () => {
@@ -84,6 +103,14 @@ describe("limitRebalanceButton", () => {
         row({ baseline: { needsCents: 50000, wantsCents: 50000 } }),
       ),
     ).toEqual({ kind: "undo", disabled: false });
+  });
+
+  // With whole-unit proposals a limit sitting on 1,000.40 against a proposed
+  // 1,000 is not something to act on — the same rule the reserve tooltip runs.
+  it("goes inert when the difference is under a whole unit", () => {
+    expect(
+      limitRebalanceButton(row({ needsCents: 60040, targetNeedsCents: 60000 })),
+    ).toEqual({ kind: "rebalance", disabled: true });
   });
 
   it("goes inert on a limit that is already what it should be", () => {
