@@ -131,19 +131,25 @@ describe("ReserveRebalance", () => {
     });
   });
 
-  // …and with that gone the button drops onto the line it acts on, so the row
-  // is a name over its controls rather than a button floating above a hole.
-  it("puts the button on the line with the target it changes", async () => {
+  // …and with it gone the FIELD closes that line, flush to the card's right
+  // edge under the button, so both lines end in the same place instead of the
+  // second one trailing off into the hole the figure left.
+  //
+  // All three on one line was tried and does not fit a 390px phone: the widest
+  // figure is a third of the width and "Збалансувати" is twice "Rebalance",
+  // which cut the target field down to "16077." (verified at 390px, 260808).
+  it("ends both lines at the same edge", async () => {
     await open();
-    const controls = screen
-      .getByTestId("reserve-rebalance-target-car")
-      .closest("div")!;
-    expect(
-      controls.contains(screen.getByTestId("reserve-rebalance-action-car")),
-    ).toBe(true);
+    const field = screen.getByTestId("reserve-rebalance-target-car");
+    const controls = field.closest("div")!;
     expect(
       controls.contains(screen.getByTestId("reserve-rebalance-current-car")),
     ).toBe(true);
+    expect(
+      controls.contains(screen.getByTestId("reserve-rebalance-action-car")),
+    ).toBe(false);
+    // ml-auto is what pushes it to the edge the button sits on.
+    expect(field.className).toContain("ml-auto");
   });
 
   // "If current and Target value are same, but it wasn't rebalanced — just make
