@@ -130,6 +130,9 @@ describe("monthlySpendByCategory — the scheduled half", () => {
   test("the ordinary remainder is the difference, and it is what habit costs", async () => {
     const m = await monthsOf();
     const april = m.get("2026-04")!;
-    expect(april.spent_cents - april.scheduled_cents).toBe(8000n);
+    // `scheduled_cents` is optional on the DTO — a payload cached before the
+    // column existed replays without it — so the read model's own answer is
+    // asserted rather than assumed present.
+    expect(april.spent_cents - (april.scheduled_cents ?? 0n)).toBe(8000n);
   });
 });

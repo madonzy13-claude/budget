@@ -283,6 +283,11 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // that refills the walk, so the month still running is left out — unless
         // it is the only month there is, when a weak signal beats none at all
         // (user, 260804; the same rule the planned averages follow).
+        // What this category is committed to every month, from the rules
+        // themselves. Needed BEFORE the history is read — see the floor below.
+        const commitments = [...(committed.get(w.category_id) ?? [])];
+        const routineRate = commitments[0]?.[1].routine ?? 0n;
+
         const closed = all.filter((m) => m !== nowMonth);
         const months: ReserveFitMonth[] = (
           closed.length > 0 ? closed : all
@@ -292,10 +297,22 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           // un-ticked, less what a scheduled payment took. What is left is what
           // this category costs by habit, and it is the only part history can
           // tell us that the schedule cannot.
+          //
+          // The ledger's own link is the best evidence of what a rule took, but
+          // it only exists from the day the rule was recorded. Alimony paid for
+          // a year and scheduled last month leaves eleven months whose "habit"
+          // silently contains it — and the forward walk then charged the same
+          // 2,000 again, telling a household with a 2,500 limit and 2,215 of
+          // spend to raise that limit by 1,314 (user screenshot, 260808).
+          //
+          // So a ROUTINE rule — one that fires every month or oftener — puts a
+          // FLOOR under what each month's scheduled portion must have been. A
+          // month that names more than that keeps its own figure.
+          const seen = scheduledByCell.get(key) ?? 0n;
           const spent =
             (spendByCell.get(key) ?? 0n) -
             (excludedByCell.get(key) ?? 0n) -
-            (scheduledByCell.get(key) ?? 0n);
+            (seen > routineRate ? seen : routineRate);
           return {
             month,
             limitCents:
@@ -305,8 +322,6 @@ export function getReserveFit(deps: GetReserveFitDeps) {
             spentCents: spent > 0n ? spent : 0n,
           };
         });
-
-        const commitments = [...(committed.get(w.category_id) ?? [])];
 
         // History's own contribution: the deepest trough of (limit − ORDINARY
         // spend). It is what irregular habit has cost before, and nothing else
@@ -333,35 +348,13 @@ export function getReserveFit(deps: GetReserveFitDeps) {
               BigInt(months.length)
             : 0n;
 
-        // Did the ledger ever say WHICH spend came from a rule? Confirming a
-        // draft writes the link, so a category running on scheduled payments
-        // has it; one whose rows were typed in before the rule existed does
-        // not, and its "ordinary" history silently contains the rule's money.
-        const everLinked = months.some(
-          (m) => (scheduledByCell.get(`${w.category_id}|${m.month}`) ?? 0n) > 0n,
-        );
-
+        // The rules in full: the baseline above has had them taken out of
+        // every month, whether the ledger named them or not, so counting them
+        // here charges each of them exactly once.
         const byMonth = new Map(commitments);
         const forward = forwardWindow.map((m) => {
           const c = byMonth.get(m);
-          if (!c) return 0n;
-          // A ROUTINE payment — one that fires every month or oftener — is not
-          // a lump to save up for; it is what the limit IS. The question is
-          // only whether the baseline already contains it.
-          //
-          // Linked history says no: the split took it out at source, so the
-          // whole rule is money the ordinary walk never saw. Unlinked history
-          // says the rule's money is sitting inside that baseline already, and
-          // adding it again charged the same alimony twice — a category with a
-          // 2,000 monthly rule, 2,000 a month of history and a 2,500 limit was
-          // told to raise that limit by 1,314 (user screenshot, 260808). What
-          // is genuinely NEW is only the part the habit does not already cover.
-          const routine = everLinked
-            ? c.routine
-            : c.routine > baselineSpend
-              ? c.routine - baselineSpend
-              : 0n;
-          return routine + c.onTop + c.oneTime;
+          return c ? c.routine + c.onTop + c.oneTime : 0n;
         });
         // What must be in this reserve TODAY. The old answer assumed the
         // household would never save another złoty — the forward walk started
