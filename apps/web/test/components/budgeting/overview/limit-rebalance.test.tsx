@@ -178,12 +178,32 @@ describe("LimitRebalance", () => {
   // two and the row's own colour down its left edge. This one had neither, so
   // two dialogs doing the same job looked unrelated.
   it("points from what the limit is to what it should be", async () => {
-    const { container } = { container: document.body };
     await open();
     const row = screen.getByTestId("limit-rebalance-row-car");
     // One arrow per editable side, so each line reads left to right.
     expect(row.querySelectorAll("svg.lucide-arrow-right").length).toBe(2);
-    expect(container).toBeTruthy();
+  });
+
+  it("lines every arrow up in one column", async () => {
+    // "150 zł →" and "3,233 zł →" put their arrows in different places, so the
+    // eye had to find the line again on every row (user, 260808). The figure
+    // gets ONE width, sized to the widest of them, exactly as the reserve
+    // dialog already does.
+    await open();
+    const widths = screen
+      .getAllByTestId(/^limit-rebalance-prev-/)
+      .map((el) => (el as HTMLElement).style.width);
+    expect(widths.every((w) => w !== "")).toBe(true);
+    expect(new Set(widths).size).toBe(1);
+  });
+
+  it("says what the arrow means, for anyone who cannot see it", async () => {
+    await open();
+    const arrow = screen
+      .getByTestId("limit-rebalance-row-car")
+      .querySelector("svg.lucide-arrow-right")!;
+    expect(arrow.getAttribute("aria-hidden")).not.toBe("true");
+    expect(arrow.getAttribute("aria-label")).toBe("planned.becomes");
   });
 
   it("carries the row's own colour, red when the limit has to rise", async () => {

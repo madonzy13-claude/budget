@@ -161,6 +161,19 @@ export function LimitRebalance({
     }));
   };
 
+  // Every figure gets ONE width, sized to the widest of them, so the arrows
+  // land in a single column down the dialog instead of wherever the number in
+  // front of them happened to end (user, 260808). The same trick the reserve
+  // dialog uses; `num` is tabular, so a character really is a `ch`.
+  const prevCh =
+    Math.max(
+      5,
+      ...shown.flatMap((r) => [
+        format(r.needsCents).length,
+        format(r.wantsCents).length,
+      ]),
+    ) + 0.5;
+
   // A plain function, NOT a nested component: a component declared inside this
   // one gets a fresh identity every render, so the field being typed into is
   // torn down one keystroke in (the lesson from the reserve dialog, 260805).
@@ -178,13 +191,19 @@ export function LimitRebalance({
         </span>
         <span
           data-testid={`limit-rebalance-prev-${s}-${row.categoryId}`}
-          className="num truncate text-num-sm text-[var(--muted-foreground)]"
+          style={{ width: `${prevCh}ch` }}
+          className="num shrink-0 truncate text-num-sm text-[var(--muted-foreground)]"
         >
           {format(prevCents)}
         </span>
+        {/* Bigger and brighter than the hairline it was: it is the one mark
+            saying which figure replaces which, and it was the faintest thing
+            on the row (user, 260808). Labelled, so it says so to a reader who
+            cannot see it either. */}
         <ArrowRight
-          aria-hidden
-          className="size-3 shrink-0 text-[var(--muted-foreground)]"
+          aria-label={t("planned.becomes")}
+          role="img"
+          className="size-4 shrink-0 text-[var(--foreground)]"
         />
         <Input
           data-testid={`limit-rebalance-${s}-${row.categoryId}`}

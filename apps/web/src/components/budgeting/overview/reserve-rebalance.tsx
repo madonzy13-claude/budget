@@ -249,9 +249,12 @@ export function ReserveRebalance({
           >
             {format(row.currentCents)}
           </span>
+          {/* The one mark saying which figure replaces which, and it was the
+              faintest thing on the row (user, 260808). */}
           <ArrowRight
-            aria-hidden
-            className="size-3 shrink-0 text-[var(--muted-foreground)]"
+            aria-label={t("reserveFit.becomes")}
+            role="img"
+            className="size-4 shrink-0 text-[var(--foreground)]"
           />
           <Input
             data-testid={`reserve-rebalance-target-${row.categoryId}`}
