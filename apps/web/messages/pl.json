@@ -242,6 +242,7 @@
     },
     "identity": {
       "name_label": "Nazwa",
+      "name_private_hint": "Tę nazwę widzisz tylko Ty — pozostali mają własną.",
       "name_saved": "Nazwa budżetu zapisana",
       "currency_label": "Waluta",
       "currency_saved": "Waluta zaktualizowana",

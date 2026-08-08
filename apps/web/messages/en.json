@@ -242,6 +242,7 @@
     },
     "identity": {
       "name_label": "Name",
+      "name_private_hint": "Only you see this name — everyone else keeps their own.",
       "name_saved": "Budget name saved",
       "currency_label": "Currency",
       "currency_saved": "Currency updated",

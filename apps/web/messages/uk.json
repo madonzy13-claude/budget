@@ -242,6 +242,7 @@
     },
     "identity": {
       "name_label": "Назва",
+      "name_private_hint": "Цю назву бачите лише ви — інші мають власну.",
       "name_saved": "Назву бюджету збережено",
       "currency_label": "Валюта",
       "currency_saved": "Валюту оновлено",

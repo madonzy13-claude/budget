@@ -109,9 +109,17 @@ export function BudgetIdentitySection({
     <div className="divide-y divide-[var(--hairline-on-dark)]">
       {/* Budget name — label left, value right, single row. */}
       <div className="flex items-center justify-between gap-4 py-3">
-        <p className="shrink-0 text-sm font-semibold text-[var(--body)]">
-          {t("identity.name_label")}
-        </p>
+        <div className="min-w-0 shrink">
+          <p className="text-sm font-semibold text-[var(--body)]">
+            {t("identity.name_label")}
+          </p>
+          {/* Renaming stopped being a shared act in 260808 — without saying so,
+              a member who renames and sees their partner's screen unchanged has
+              found a bug rather than a feature. */}
+          <p className="text-caption text-[var(--muted-foreground)]">
+            {t("identity.name_private_hint")}
+          </p>
+        </div>
         <div className="min-w-0 flex-1 text-right">
           <InlineEditCell
             value={displayName}
