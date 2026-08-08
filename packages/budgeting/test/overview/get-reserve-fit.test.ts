@@ -176,6 +176,98 @@ const rowFor = async (id: string, d = deps()) => {
   return dto.rows.find((r) => r.category_id === id);
 };
 
+/**
+ * A category whose whole cost IS a monthly rule — alimony, rent, a nursery fee
+ * (user screenshot, 260808). Kids, live: a 2,500 limit, ~2,000 going out every
+ * month, and a MONTHLY scheduled payment of 2,000 for the same thing.
+ *
+ * The bar told the household to RAISE that limit by 1,314 while its own tooltip
+ * said the category spends 2,215 against a limit of 2,500. Both the history and
+ * the projection were charging the same alimony: the ledger rows predate the
+ * rule, so nothing links them, and the forward walk added the rule ON TOP of a
+ * baseline that already contained it.
+ *
+ * A routine payment — one that fires every month or oftener — is what a limit
+ * IS. Only the part of it that does not fit inside the limit is new money.
+ */
+describe("a monthly rule the limit already covers", () => {
+  const CAT = "cat-kids";
+  const routineDeps = (limitCents: bigint, ruleCents: bigint) =>
+    deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return [
+            {
+              category_id: CAT,
+              name: "Kids",
+              created_month: "2025-01",
+              archived_month: null,
+              is_investment: false,
+            },
+          ];
+        },
+        async monthlyPlannedByCategory() {
+          return ["2026-01", "2026-02"].map((month) => ({
+            category_id: CAT,
+            month,
+            planned_cents: limitCents,
+            needs_cents: limitCents,
+          }));
+        },
+        async monthlySpendByCategory() {
+          // Spent every month, and NOT linked to the rule — which is the whole
+          // point: history entered before the rule existed carries no link.
+          return ["2026-01", "2026-02"].map((month) => ({
+            category_id: CAT,
+            month,
+            spent_cents: 200000n,
+            scheduled_cents: 0n,
+          }));
+        },
+      },
+      exclusionsRepo: { async largeTransactions() { return []; } },
+      activeScheduledPayments: async () => [
+        {
+          category_id: CAT,
+          amount_cents: ruleCents,
+          cadence: "MONTHLY" as const,
+          yearly_month: null,
+          next_due_date: "2026-03-15",
+          note: "Alimony",
+          name: "Kids",
+        },
+      ],
+      reservePositions: async () =>
+        ok({
+          positions: new Map(position(CAT, 100n)),
+          openMonth: "2026-03",
+          internalCents: 0n,
+          userDefinedCents: 0n,
+          surplusCents: 0n,
+          direction: "NONE" as const,
+        }) as unknown as Result<never, Error>,
+    } as never);
+
+  test("does not ask for a rise the spending does not justify", async () => {
+    const row = await rowFor(CAT, routineDeps(250000n, 200000n));
+    // It spends 2,000 against a 2,500 limit. Whatever else is true, the limit
+    // does not have to go UP.
+    expect(Number(row?.suggested_delta_cents ?? 0)).toBeLessThanOrEqual(0);
+  });
+
+  test("needs nothing held for a payment its limit covers every month", async () => {
+    const row = await rowFor(CAT, routineDeps(250000n, 200000n));
+    expect(row?.needed_cents).toBe("0");
+  });
+
+  test("…but still raises the limit when the rule outgrows it", async () => {
+    // A 3,000 monthly rule against a 2,500 limit IS new money: 500 of it does
+    // not fit inside the plan, whatever the history says.
+    const row = await rowFor(CAT, routineDeps(250000n, 300000n));
+    expect(Number(row?.suggested_delta_cents ?? 0)).toBeGreaterThan(0);
+  });
+});
+
 describe("getReserveFit", () => {
   test("sizes each category on the deepest trough of its own history", async () => {
     // Food banks 3000 in January, then goes 15000 over → 12000 had to be held.
@@ -667,7 +759,31 @@ describe("getReserveFit", () => {
   // 26,000 of habit against a 20,000 limit accrues nothing, so a year of the
   // rule lands on the reserve alongside history's own 12,000.
   test("a monthly rule is funded by the limit, or by the reserve", async () => {
+    // The ledger SAYS which spend was the rule's (scheduled_cents), so the
+    // ordinary history below is 17,000/35,000 with the rule's 5,000 already
+    // taken out. Without that evidence the rule's money is indistinguishable
+    // from habit and must not be charged twice — see the routine-rule block
+    // near the top of this file (260808).
     const d = deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return windows;
+        },
+        async monthlyPlannedByCategory() {
+          return planned;
+        },
+        async monthlySpendByCategory() {
+          return spend.map((r) =>
+            r.category_id === CAT_FOOD
+              ? {
+                  ...r,
+                  spent_cents: r.spent_cents + 5000n,
+                  scheduled_cents: 5000n,
+                }
+              : r,
+          );
+        },
+      },
       activeScheduledPayments: async () => [
         {
           category_id: CAT_FOOD,
@@ -684,6 +800,27 @@ describe("getReserveFit", () => {
 
   test("a monthly rule bigger than the whole limit still counts its excess", async () => {
     const d = deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return windows;
+        },
+        async monthlyPlannedByCategory() {
+          return planned;
+        },
+        async monthlySpendByCategory() {
+          // Again the ledger names the rule's own charges, so the 17,000/35,000
+          // of habit below is habit and nothing else.
+          return spend.map((r) =>
+            r.category_id === CAT_FOOD
+              ? {
+                  ...r,
+                  spent_cents: r.spent_cents + 26000n,
+                  scheduled_cents: 26000n,
+                }
+              : r,
+          );
+        },
+      },
       activeScheduledPayments: async () => [
         {
           category_id: CAT_FOOD,

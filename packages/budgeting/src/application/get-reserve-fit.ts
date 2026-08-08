@@ -306,37 +306,13 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           };
         });
 
-        // Forward months assume the PLAN IS MET — spend equals the limit, so a
-        // quiet future neither drains nor refills the buffer. On top of that:
-        //   ROUTINE commitments (monthly and oftener) are what the limit was set
-        //   for, so only their EXCESS over it counts;
-        //   RARE ones (yearly) land on top of an ordinary month — September
-        //   still has its fuel and parking, so the whole charge counts.
-        // Sizing at "charge − limit" left exactly the charge covered and the
-        // rest of that month uncovered (user, 260804).
-        const latestLimit = months.length
-          ? (months.reduce((a, b) => (a.month > b.month ? a : b)).limitCents ??
-            0n)
-          : 0n;
         const commitments = [...(committed.get(w.category_id) ?? [])];
-        const future: ReserveFitMonth[] = commitments.map(([month, c]) => {
-          const routineExcess =
-            c.routine > latestLimit ? c.routine - latestLimit : 0n;
-          return {
-            month,
-            limitCents: latestLimit,
-            spentCents: latestLimit + c.onTop + c.oneTime + routineExcess,
-          };
-        });
 
         // History's own contribution: the deepest trough of (limit − ORDINARY
         // spend). It is what irregular habit has cost before, and nothing else
         // — the scheduled half was taken out at source, so this can be added to
         // the commitments below without charging anything twice.
         const past = reserveFit(months);
-        // Kept for the audit trail only (worst month, overage months). What must
-        // be HELD is worked out below, counting accrual.
-        void future;
 
         // The limit that would keep this category solvent, spread across the
         // whole runway (260807 r2). The first cut aimed at the NEXT lump, and a
@@ -346,11 +322,6 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // DENSE over the whole runway, not just the months carrying a charge:
         // a category with nothing scheduled still has a year to fund its buffer
         // over, and an array of its commitment months alone would give it none.
-        const byMonth = new Map(commitments);
-        const forward = forwardWindow.map((m) => {
-          const c = byMonth.get(m);
-          return c ? c.routine + c.onTop + c.oneTime : 0n;
-        });
         // Ordinary spending, straight from the months above — they already hold
         // the ordinary half only. The old code subtracted a forward RATE from a
         // historical mean and hoped the two cancelled; they did not when a rule
@@ -361,6 +332,37 @@ export function getReserveFit(deps: GetReserveFitDeps) {
             ? months.reduce((acc, m) => acc + m.spentCents, 0n) /
               BigInt(months.length)
             : 0n;
+
+        // Did the ledger ever say WHICH spend came from a rule? Confirming a
+        // draft writes the link, so a category running on scheduled payments
+        // has it; one whose rows were typed in before the rule existed does
+        // not, and its "ordinary" history silently contains the rule's money.
+        const everLinked = months.some(
+          (m) => (scheduledByCell.get(`${w.category_id}|${m.month}`) ?? 0n) > 0n,
+        );
+
+        const byMonth = new Map(commitments);
+        const forward = forwardWindow.map((m) => {
+          const c = byMonth.get(m);
+          if (!c) return 0n;
+          // A ROUTINE payment — one that fires every month or oftener — is not
+          // a lump to save up for; it is what the limit IS. The question is
+          // only whether the baseline already contains it.
+          //
+          // Linked history says no: the split took it out at source, so the
+          // whole rule is money the ordinary walk never saw. Unlinked history
+          // says the rule's money is sitting inside that baseline already, and
+          // adding it again charged the same alimony twice — a category with a
+          // 2,000 monthly rule, 2,000 a month of history and a 2,500 limit was
+          // told to raise that limit by 1,314 (user screenshot, 260808). What
+          // is genuinely NEW is only the part the habit does not already cover.
+          const routine = everLinked
+            ? c.routine
+            : c.routine > baselineSpend
+              ? c.routine - baselineSpend
+              : 0n;
+          return routine + c.onTop + c.oneTime;
+        });
         // What must be in this reserve TODAY. The old answer assumed the
         // household would never save another złoty — the forward walk started
         // at zero — so it came out as the sum of the whole runway's lumps, and
