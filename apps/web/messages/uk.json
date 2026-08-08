@@ -1504,8 +1504,7 @@
           "basisPast": "Минуле",
           "basisFuture": "Майбутнє",
           "byCategoryFuture": "Наскільки має змінитися ліміт, за категоріями",
-          "expectedSpend": "Очікувані витрати",
-          "futureLimit": "Потрібний ліміт"
+          "expectedSpend": "Очікувані витрати"
         },
         "wealth": {
           "capitalization": "Капіталізація",

@@ -715,10 +715,6 @@ export function PlannedSection({
                       return {
                         name: c.name,
                         categoryId: c.category_id,
-                        // The limit this category should move TO — today's plus
-                        // the change. Named so the future tooltip can show what
-                        // the bar is asking for, not just how far it is.
-                        futureLimit: current + (change ?? 0),
                         real,
                         planned,
                         avg,
@@ -804,17 +800,19 @@ export function PlannedSection({
                       // average, which is the one that actually accumulated.
                       ...(basis === "future"
                         ? // The average is history. What the future reading is
-                          // about is today's limit and the one it should
-                          // become — dropping every limit left a change with
+                          // about is today's limit and the change the bar
+                          // draws — dropping every limit left a change with
                           // nothing to relate it to (user, 260807).
+                          //
+                          // The limit it will NEED is not listed: a category
+                          // with nothing scheduled needs exactly what it keeps
+                          // spending, so the row printed the expected spend a
+                          // second time (user, 260808). Today's limit plus the
+                          // difference below is the one to move to.
                           [
                             {
                               label: t("planned.currentLimit"),
                               value: fmtTooltip(Number(row.current)),
-                            },
-                            {
-                              label: t("planned.futureLimit"),
-                              value: fmtTooltip(Number(row.futureLimit)),
                             },
                           ]
                         : [

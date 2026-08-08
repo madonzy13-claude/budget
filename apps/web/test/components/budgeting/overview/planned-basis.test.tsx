@@ -321,9 +321,9 @@ describe("How far off plan — each basis shows only its own baseline", () => {
     expect(rows().at(-1)!.label).toBe("planned.difference");
   });
 
-  it("FUTURE drops the average limit but keeps the limits that matter", async () => {
+  it("FUTURE drops the average limit but keeps today's", async () => {
     // The average is history; the future reading is about today's limit and the
-    // one it should become. Dropping every limit left the reader with a change
+    // change the bar draws. Dropping every limit left the reader with a change
     // and nothing to relate it to (user, 260807).
     const user = userEvent.setup();
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
@@ -333,23 +333,24 @@ describe("How far off plan — each basis shows only its own baseline", () => {
     const labels = rows().map((r) => r.label);
     expect(labels).not.toContain("planned.avgLimit");
     expect(labels).toContain("planned.currentLimit");
-    expect(labels).toContain("planned.futureLimit");
   });
 
-  it("FUTURE shows the limits themselves, today's and the one to move to", async () => {
+  it("FUTURE does not repeat the limit it will need beside the spend", async () => {
+    // A category with nothing scheduled needs exactly what it keeps spending,
+    // so the two rows printed the same figure twice (user screenshot, 260808).
+    // Today's limit plus the difference is the one to move to.
     const user = userEvent.setup();
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
     await user.click(
       screen.getByRole("button", { name: "planned.basisFuture" }),
     );
     const r = rows();
+    expect(r.map((x) => x.label)).not.toContain("planned.futureLimit");
     expect(r.find((x) => x.label === "planned.currentLimit")!.value).toContain(
       "800",
     );
-    // Formatted, so the separator is part of it.
-    expect(r.find((x) => x.label === "planned.futureLimit")!.value).toContain(
-      "1,200",
-    );
+    expect(r.find((x) => x.label === "planned.expectedSpend")).toBeDefined();
+    expect(r.at(-1)!.label).toBe("planned.difference");
   });
 
   it("FUTURE carries no range total — none of these accumulated", async () => {
