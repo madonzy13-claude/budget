@@ -1553,7 +1553,7 @@
           "heldTotal": "Held",
           "neededTotal": "Needed",
           "unassigned": "Not counted — no category: {list}. Give them one in Settings → Scheduled payments and they will size their reserve.",
-          "aboveTarget": "ahead of schedule",
+          "aboveTarget": "more than needed",
           "belowTarget": "less than needed",
           "onTarget": "Exactly what is needed",
           "rebalanceTitle": "Rebalance reserves",

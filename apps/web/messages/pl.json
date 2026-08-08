@@ -1576,7 +1576,7 @@
           "heldTotal": "Trzymane",
           "neededTotal": "Potrzebne",
           "unassigned": "Nie liczone — brak kategorii: {list}. Przypisz ją w Ustawienia → Zaplanowane płatności, a wpłyną na rezerwę.",
-          "aboveTarget": "z wyprzedzeniem",
+          "aboveTarget": "więcej niż potrzeba",
           "belowTarget": "poniżej potrzeby",
           "onTarget": "Dokładnie tyle, ile trzeba",
           "rebalanceTitle": "Zbilansuj rezerwy",
