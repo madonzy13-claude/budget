@@ -292,7 +292,21 @@ export function LimitRebalance({
         <Scale aria-hidden className="size-4" />
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          // Closing ends the session — same rule as the reserve dialog: undo is
+          // for taking back what you just did, and a stale baseline would write
+          // back the figure already stored (user, 260809).
+          if (!next) {
+            setApplied({});
+            setTargets({});
+            setDrafts({});
+            setOrder(null);
+          }
+        }}
+      >
         <DialogContent
           data-testid="limit-rebalance-dialog"
           // Radix would focus the first field, and a focused decimal input

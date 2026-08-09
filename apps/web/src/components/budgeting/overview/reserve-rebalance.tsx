@@ -142,8 +142,7 @@ export function ReserveRebalance({
         setApplied((a) => ({
           ...a,
           [row.categoryId]: {
-            baselineCents:
-              a[row.categoryId]?.baselineCents ?? row.currentCents,
+            baselineCents: a[row.categoryId]?.baselineCents ?? row.currentCents,
             currentCents: settled,
           },
         }));
@@ -306,7 +305,25 @@ export function ReserveRebalance({
         <Scale aria-hidden className="size-4" />
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          // Closing ends the session. An undo takes back what you JUST did, and
+          // once the dialog is shut you did not just do it: the list refetches,
+          // so the figure undo would restore is the one already there and the
+          // button sat offering a move that did nothing (user, 260809). The
+          // same staleness left a row wearing the accent of a move it had
+          // already made.
+          if (!next) {
+            setApplied({});
+            setCovered({});
+            setTargets({});
+            setDrafts({});
+            setOrder(null);
+          }
+        }}
+      >
         <DialogContent
           data-testid="reserve-rebalance-dialog"
           // Radix would focus the first target field, and a focused decimal
@@ -316,7 +333,9 @@ export function ReserveRebalance({
         >
           <DialogHeader>
             <DialogTitle>{t("reserveFit.rebalanceTitle")}</DialogTitle>
-            <DialogDescription>{t("reserveFit.rebalanceExplainer")}</DialogDescription>
+            <DialogDescription>
+              {t("reserveFit.rebalanceExplainer")}
+            </DialogDescription>
           </DialogHeader>
           <ul className="flex flex-col gap-1.5">{shown.map(renderRow)}</ul>
         </DialogContent>

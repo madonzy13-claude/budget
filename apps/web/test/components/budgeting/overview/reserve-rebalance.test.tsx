@@ -37,9 +37,8 @@ vi.mock("next-intl", () => ({
   useLocale: () => "en",
 }));
 
-const { ReserveRebalance } = await import(
-  "@/components/budgeting/overview/reserve-rebalance"
-);
+const { ReserveRebalance } =
+  await import("@/components/budgeting/overview/reserve-rebalance");
 
 /** Car is short, Sport is fat, Newborn and Food are already right. */
 const ROWS = [
@@ -111,8 +110,9 @@ describe("ReserveRebalance", () => {
     expect(colorOf("sport")).toBe(reserveFitColor(100));
     expect(colorOf("newborn")).toBe(reserveFitColor(0));
     // …and those are three DIFFERENT colours, so the row really is banded.
-    expect(new Set([colorOf("car"), colorOf("sport"), colorOf("newborn")]).size)
-      .toBe(3);
+    expect(
+      new Set([colorOf("car"), colorOf("sport"), colorOf("newborn")]).size,
+    ).toBe(3);
   });
 
   it("shows what each reserve holds against what it should", async () => {
@@ -158,14 +158,17 @@ describe("ReserveRebalance", () => {
   // Nobody moves 661.63 (user, 260808). The walk answers to the groszy; the
   // figure someone is asked to act on is whole.
   it("proposes a whole target, never a decimal", async () => {
-    await open(vi.fn(async (_id: string, cents: number) => cents), [
-      {
-        categoryId: "odd",
-        name: "Odd",
-        heldCents: 10_000,
-        neededCents: 66_163,
-      },
-    ]);
+    await open(
+      vi.fn(async (_id: string, cents: number) => cents),
+      [
+        {
+          categoryId: "odd",
+          name: "Odd",
+          heldCents: 10_000,
+          neededCents: 66_163,
+        },
+      ],
+    );
     expect(target("odd").value).toBe("662");
   });
 
@@ -406,5 +409,58 @@ describe("ReserveRebalance", () => {
       />,
     );
     expect(screen.queryByTestId("reserve-rebalance-open")).toBeNull();
+  });
+});
+
+/**
+ * Closing the dialog ends the session (user, 260809).
+ *
+ * "I rebalanced, closed the popup, opened it again and the Undo button is
+ * there — and it undoes nothing." It could not: the row it would put back was
+ * captured before the move, and by the time the dialog reopens the list has
+ * been refetched, so undo wrote the figure that was already there. An undo is
+ * for taking back what you just did, and once the dialog is shut you did not
+ * just do it.
+ */
+describe("ReserveRebalance — undo lasts as long as the dialog", () => {
+  const colorOf = (id: string) =>
+    screen
+      .getByTestId(`reserve-rebalance-row-${id}`)
+      .getAttribute("data-color");
+
+  it("offers undo while the dialog stays open", async () => {
+    const { user } = await open();
+    await user.click(action("car"));
+    await waitFor(() =>
+      expect(action("car").getAttribute("data-kind")).toBe("undo"),
+    );
+  });
+
+  it("forgets it once the dialog is closed and reopened", async () => {
+    const settled = vi.fn(async (_id: string, cents: number) => cents);
+    const { user } = await open(settled);
+    await user.click(action("car"));
+    await waitFor(() =>
+      expect(action("car").getAttribute("data-kind")).toBe("undo"),
+    );
+
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByTestId("reserve-rebalance-dialog")).toBeNull(),
+    );
+    await user.click(screen.getByTestId("reserve-rebalance-open"));
+
+    // The move is in the data by now; there is nothing left to take back.
+    expect(action("car").getAttribute("data-kind")).toBe("rebalance");
+  });
+
+  // The row's accent says how far this reserve is from its target. Once the
+  // move lands they are the same, so the accent has to stop saying "short"
+  // (user, 260809).
+  it("recolours the row the moment the move lands", async () => {
+    const { user } = await open();
+    expect(colorOf("car")).toBe("var(--trading-down)");
+    await user.click(action("car"));
+    await waitFor(() => expect(colorOf("car")).toBe("var(--muted-foreground)"));
   });
 });
