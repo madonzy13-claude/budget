@@ -86,6 +86,17 @@ export function BudgetIdentitySection({
     });
     if (!res.ok) throw new Error("Failed to save name");
     setDisplayName(newName);
+    // The switcher in the header is a CLIENT component reading
+    // ["active-budgets"], cached for 30 seconds — so router.refresh() alone
+    // re-rendered the server tree while the dropdown kept the old name until
+    // that cache went stale on its own (user, 260809). Rename it in place for
+    // the instant change, then let the server confirm.
+    qc.setQueryData(
+      ["active-budgets"],
+      (old: { id: string; name: string }[] | undefined) =>
+        old?.map((b) => (b.id === budgetId ? { ...b, name: newName } : b)),
+    );
+    void qc.invalidateQueries({ queryKey: ["active-budgets"] });
     toast.success(t("identity.name_saved"));
     router.refresh();
   };
