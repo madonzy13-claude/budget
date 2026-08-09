@@ -66,8 +66,13 @@ describe("a repeating payment is counted once — from the ledger, not a guess",
   // taken out of it, because the ledger says which rows those are. So every
   // rule is simply added, once. Nothing is inferred from the size of anything
   // (user, 260809 — "the code shouldn't assume anything").
-  const monthly = (amount: number) =>
-    [{ amount_cents: zl(amount), cadence: "MONTHLY" as const, yearly_month: null }];
+  const monthly = (amount: number) => [
+    {
+      amount_cents: zl(amount),
+      cadence: "MONTHLY" as const,
+      yearly_month: null,
+    },
+  ];
 
   test("adds the rule on top of what habit costs", () => {
     // 215 of habit left after the alimony was taken out, plus the 2,000 rule.
@@ -134,5 +139,94 @@ describe("a one-off is saved for, month by month", () => {
   test("it rides on top of the habit, like every other commitment", () => {
     const spent = Object.fromEntries(YEAR.map((m) => [m, 5000]));
     expect(run(spent, once(9000, "2027-02-10"))).toBe(zl(5000 + 1800));
+  });
+});
+
+/**
+ * Money already set aside is not money you must save again (user, 260809).
+ *
+ * Travel, live: 17,315 sitting in the reserve for a 17,000 trip, and the
+ * suggested limit still spread that trip over the twelve months to it. Setting
+ * that limit funds the trip a SECOND time, out of income — at which point the
+ * reserve has no job left, the chart called all 17,315 spare, and the household
+ * was invited to empty a buffer it would have to rebuild from zero.
+ *
+ * So a one-off asks only for what its category's reserve does not already hold.
+ * Yearly bills keep their whole share: they come round again every year, and no
+ * reserve pre-funds them for ever.
+ */
+describe("a one-off already saved for asks for nothing more", () => {
+  const once = (amount: number, date: string) => ({
+    amount_cents: zl(amount),
+    cadence: "ONCE" as const,
+    yearly_month: null,
+    next_due_date: date,
+  });
+  const withHeld = (
+    held: number,
+    rules: Parameters<typeof projectedMonthly>[0]["rules"],
+  ) =>
+    projectedMonthly({
+      windowMonths: YEAR,
+      spentByMonth: new Map(),
+      rules,
+      fromMonth: "2026-09",
+      reserveHeldCents: zl(held),
+    });
+
+  test("a reserve that covers the whole trip removes its monthly share", () => {
+    expect(withHeld(9000, [once(9000, "2027-02-10")])).toBe(0n);
+  });
+
+  test("more held than the trip costs is not a credit against anything else", () => {
+    const spent = Object.fromEntries(YEAR.map((m) => [m, 200]));
+    expect(
+      projectedMonthly({
+        windowMonths: YEAR,
+        spentByMonth: new Map(
+          Object.entries(spent).map(([m, v]) => [m, zl(v)] as const),
+        ),
+        rules: [once(9000, "2027-02-10")],
+        fromMonth: "2026-09",
+        reserveHeldCents: zl(20000),
+      }),
+    ).toBe(zl(200));
+  });
+
+  test("a partial reserve leaves only the shortfall to save", () => {
+    // 9,000 due in five months with 4,000 already held → 1,000 a month.
+    expect(withHeld(4000, [once(9000, "2027-02-10")])).toBe(zl(1000));
+  });
+
+  test("the reserve goes to the SOONEST trip first", () => {
+    // 5,000 held against a 5,000 trip two months out and a 6,000 one six
+    // months out: the near one is covered, the far one still needs 1,000/mo.
+    expect(
+      withHeld(5000, [once(6000, "2027-03-10"), once(5000, "2026-11-10")]),
+    ).toBe(zl(1000));
+  });
+
+  test("it does NOT excuse a yearly bill, which comes round again", () => {
+    expect(
+      withHeld(50000, [
+        { amount_cents: zl(12000), cadence: "YEARLY", yearly_month: 1 },
+      ]),
+    ).toBe(zl(1000));
+  });
+
+  test("a reserve with no one-off to cover changes nothing", () => {
+    expect(
+      withHeld(50000, [
+        { amount_cents: zl(400), cadence: "MONTHLY", yearly_month: null },
+      ]),
+    ).toBe(zl(400));
+  });
+
+  test("a date already gone consumes none of the reserve", () => {
+    // The passed trip asks for nothing, so the whole reserve is still there
+    // for the one that has not happened yet.
+    expect(
+      withHeld(9000, [once(4000, "2026-01-10"), once(9000, "2027-02-10")]),
+    ).toBe(0n);
   });
 });

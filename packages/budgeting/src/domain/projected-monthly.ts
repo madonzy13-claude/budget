@@ -53,6 +53,9 @@ export interface ProjectedMonthlyInput {
   rules: readonly ProjectionRule[];
   /** The month the projection is made FROM — one-offs are split from here. */
   fromMonth: string;
+  /** What this category's reserve already holds. Credited against the one-offs
+   *  ahead of it, soonest first: money set aside is not money to save again. */
+  reserveHeldCents?: bigint;
 }
 
 /** Whole months from `a` to `b` ('YYYY-MM'), negative if b is earlier. */
@@ -63,7 +66,13 @@ function monthsApart(a: string, b: string): number {
 }
 
 export function projectedMonthly(input: ProjectedMonthlyInput): bigint {
-  const { windowMonths, spentByMonth, rules, fromMonth } = input;
+  const {
+    windowMonths,
+    spentByMonth,
+    rules,
+    fromMonth,
+    reserveHeldCents: reserveHeld = 0n,
+  } = input;
 
   // 1. The habit: everything the category actually cost, over every month of
   //    the window — the empty ones included, because a month it spent nothing
@@ -89,13 +98,31 @@ export function projectedMonthly(input: ProjectedMonthlyInput): bigint {
   //    money is there whatever day of that month it is charged on. A date
   //    already gone asks for nothing; one landing this month asks for all of
   //    it, because there is no month left to spread it over.
+  //
+  //    …less whatever the category's reserve ALREADY holds for it. Spreading a
+  //    trip that is paid for over the months to it funds it a second time out
+  //    of income, and then the reserve holding the first copy reads as spare —
+  //    the chart offered to empty a 17,315 buffer for a 17,000 trip (user,
+  //    260809). Soonest first: that is the one the money will be spent on.
+  //    Only ONE-OFFS are credited; a yearly bill returns every year and no
+  //    reserve pre-funds it for ever.
+  let credit = reserveHeld > 0n ? reserveHeld : 0n;
+  const oneOffs = rules
+    .filter(
+      (r): r is ProjectionRule & { next_due_date: string } =>
+        r.cadence === "ONCE" &&
+        !!r.next_due_date &&
+        monthsApart(fromMonth, r.next_due_date.slice(0, 7)) >= 0,
+    )
+    .sort((a, b) => (a.next_due_date < b.next_due_date ? -1 : 1));
+
   let saving = 0n;
-  for (const r of rules) {
-    if (r.cadence !== "ONCE" || !r.next_due_date) continue;
-    const due = r.next_due_date.slice(0, 7);
-    const away = monthsApart(fromMonth, due);
-    if (away < 0) continue;
-    saving += r.amount_cents / BigInt(away > 0 ? away : 1);
+  for (const r of oneOffs) {
+    const away = monthsApart(fromMonth, r.next_due_date.slice(0, 7));
+    const covered = credit < r.amount_cents ? credit : r.amount_cents;
+    credit -= covered;
+    const outstanding = r.amount_cents - covered;
+    saving += outstanding / BigInt(away > 0 ? away : 1);
   }
 
   return observed + recurring + saving;

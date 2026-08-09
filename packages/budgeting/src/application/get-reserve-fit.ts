@@ -279,7 +279,11 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         FORWARD_MONTHS,
         monthsBetween(forwardFrom, furthest) + 1,
       );
-      const committed = projectScheduledPayments(rules, forwardFrom, windowMonths);
+      const committed = projectScheduledPayments(
+        rules,
+        forwardFrom,
+        windowMonths,
+      );
       /** Every month of the runway in order — the ones with nothing due too. */
       const forwardWindow = Array.from({ length: windowMonths }, (_, i) =>
         addMonths(forwardFrom, i),
@@ -419,6 +423,11 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           ),
           rules: rules.filter((r) => r.category_id === w.category_id),
           fromMonth: nowMonth,
+          // What this category has ALREADY set aside. Without it the suggested
+          // limit spread a trip the reserve is holding the money for over the
+          // months to it — funding it twice, and leaving the reserve looking
+          // spare enough to empty (user, 260809).
+          reserveHeldCents: position.reserveCents,
         });
 
         // The rules in full: the baseline above has had them taken out of
