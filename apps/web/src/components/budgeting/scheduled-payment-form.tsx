@@ -201,14 +201,14 @@ export function ScheduledPaymentForm({
       (initialCadence === "ONCE"
         ? todayIso()
         : nextDueDate(
-        initialCadence,
-        {
-          weeklyDow: initialValues?.weeklyDow ?? WEEKDAY_ORDER[0]!,
-          dayOfMonth: Number(initialValues?.cadenceAnchor ?? 1),
-          yearlyMonth: initialValues?.yearlyMonth ?? 1,
-        },
-        todayIso(),
-      )),
+            initialCadence,
+            {
+              weeklyDow: initialValues?.weeklyDow ?? WEEKDAY_ORDER[0]!,
+              dayOfMonth: Number(initialValues?.cadenceAnchor ?? 1),
+              yearlyMonth: initialValues?.yearlyMonth ?? 1,
+            },
+            todayIso(),
+          )),
   );
   useEffect(() => {
     if (firstDueTouched.current) return;
@@ -270,10 +270,16 @@ export function ScheduledPaymentForm({
         toast.error(t("rule.errorAmount"));
         return;
       }
-      // "Last date" is optional; when set it cannot precede the first due date.
-      // ISO YYYY-MM-DD strings compare chronologically.
-      const endDate = lastDate || null;
-      if (endDate !== null && endDate < firstDueDate) {
+      // A one-time payment's deadline IS its date, which is why the last-date
+      // field is hidden for ONCE — but the hidden STATE still held the date the
+      // rule was loaded with, so moving the payment forward compared the new
+      // date against the old deadline and refused the save (user, 260809: Japan,
+      // 1 Aug → 1 Nov 2027). Let the deadline follow the date, as the service
+      // already does when it stores the row.
+      // Otherwise "last date" is optional, and when set it cannot precede the
+      // first due date. ISO YYYY-MM-DD strings compare chronologically.
+      const endDate = cadence === "ONCE" ? firstDueDate : lastDate || null;
+      if (cadence !== "ONCE" && endDate !== null && endDate < firstDueDate) {
         toast.error(t("rule.errorLastBeforeFirst"));
         return;
       }
@@ -285,14 +291,14 @@ export function ScheduledPaymentForm({
           cadence === "ONCE"
             ? { cadence: "ONCE" }
             : cadence === "WEEKLY"
-            ? { cadence: "WEEKLY", weekly_dow: weeklyDow }
-            : cadence === "MONTHLY"
-              ? { cadence: "MONTHLY", cadence_anchor: cadenceAnchor }
-              : {
-                  cadence: "YEARLY",
-                  yearly_month: yearlyMonth,
-                  cadence_anchor: cadenceAnchor,
-                };
+              ? { cadence: "WEEKLY", weekly_dow: weeklyDow }
+              : cadence === "MONTHLY"
+                ? { cadence: "MONTHLY", cadence_anchor: cadenceAnchor }
+                : {
+                    cadence: "YEARLY",
+                    yearly_month: yearlyMonth,
+                    cadence_anchor: cadenceAnchor,
+                  };
         // Post to the budget-scoped path so requireWorkspace resolves
         // tenancy from the URL segment; fall back to the legacy root
         // mount + X-Budget-ID header when the caller did not pass an id.
@@ -347,14 +353,14 @@ export function ScheduledPaymentForm({
           cadence === "ONCE"
             ? { cadence: "ONCE", nextDueDate: firstDueDate }
             : cadence === "WEEKLY"
-            ? { cadence: "WEEKLY", weeklyDow }
-            : cadence === "MONTHLY"
-              ? { cadence: "MONTHLY", cadenceAnchor }
-              : {
-                  cadence: "YEARLY",
-                  yearlyMonth,
-                  cadenceAnchor,
-                };
+              ? { cadence: "WEEKLY", weeklyDow }
+              : cadence === "MONTHLY"
+                ? { cadence: "MONTHLY", cadenceAnchor }
+                : {
+                    cadence: "YEARLY",
+                    yearlyMonth,
+                    cadenceAnchor,
+                  };
         const res = await doFetch(editUrl, {
           method: "PATCH",
           headers: {
@@ -671,16 +677,16 @@ export function ScheduledPaymentForm({
                   derives end_date from it, so offering the field would ask the
                   same question twice (user, 260807). */}
               {cadence !== "ONCE" && (
-              <div>
-                <Label htmlFor="rr-lastdue">{t("rule.lastDueLabel")}</Label>
-                <DateInput
-                  id="rr-lastdue"
-                  value={lastDate}
-                  min={firstDueDate}
-                  placeholder={t("rule.lastDuePlaceholder")}
-                  onChange={(v) => setLastDate(v)}
-                />
-              </div>
+                <div>
+                  <Label htmlFor="rr-lastdue">{t("rule.lastDueLabel")}</Label>
+                  <DateInput
+                    id="rr-lastdue"
+                    value={lastDate}
+                    min={firstDueDate}
+                    placeholder={t("rule.lastDuePlaceholder")}
+                    onChange={(v) => setLastDate(v)}
+                  />
+                </div>
               )}
             </>
 

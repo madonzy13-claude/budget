@@ -124,7 +124,7 @@ describe("Scheduled payment form — a payment that happens once", () => {
     expect(screen.queryByLabelText("rule.dateLabel")).toBeTruthy();
   });
 
-  it("sends cadence ONCE with no selector and no end date", async () => {
+  it("sends cadence ONCE with no selector, its deadline being its date", async () => {
     const user = userEvent.setup();
     renderForm();
     await user.type(screen.getByLabelText("rule.amountLabel"), "250");
@@ -136,7 +136,9 @@ describe("Scheduled payment form — a payment that happens once", () => {
     expect(body.cadence_anchor).toBeUndefined();
     expect(body.weekly_dow).toBeUndefined();
     expect(body.yearly_month).toBeUndefined();
-    expect(body.end_date ?? null).toBeNull();
+    // The form asks for the date once and derives the deadline from it — the
+    // same value create-scheduled-payment.ts stores for a ONCE row anyway.
+    expect(body.end_date).toBe(body.first_due_date);
   });
 
   it("going back to a rhythm brings the last-date field back", async () => {
@@ -178,6 +180,48 @@ describe("Scheduled payment form — editing a one-time payment", () => {
     const edits = (sentBody()!.edits ?? {}) as Record<string, unknown>;
     expect(edits.cadence).toBe("ONCE");
     expect(edits.nextDueDate).toBe("2027-05-05");
+  });
+
+  // Moving the date is the ONLY thing there is to change about when a one-time
+  // payment happens, and it was the one edit the form refused: the stored rule
+  // carries end_date = its own date, the last-date field is hidden for ONCE, so
+  // the hidden value stayed on the OLD date and the submit guard read the move
+  // as "deadline before first due" (user, 260809 — Japan, 1 Aug → 1 Nov 2027).
+  it("lets the date move forward — the deadline moves with it", async () => {
+    const user = userEvent.setup();
+    render(
+      <ScheduledPaymentForm
+        open
+        onOpenChange={vi.fn()}
+        mode="edit"
+        budgetId="b1"
+        categories={CATEGORIES}
+        defaultCurrency="PLN"
+        onSaved={vi.fn()}
+        initialValues={{
+          ruleId: "r1",
+          categoryId: null,
+          amount: "17000",
+          currency: "PLN",
+          cadence: "ONCE",
+          cadenceAnchor: null,
+          weeklyDow: null,
+          yearlyMonth: null,
+          note: "Japan",
+          firstDueDate: "2027-08-01",
+          endDate: "2027-08-01",
+        }}
+      />,
+    );
+    await user.clear(screen.getByLabelText("rule.dateLabel"));
+    await user.type(screen.getByLabelText("rule.dateLabel"), "2027-11-01");
+    fireEvent.submit(document.querySelector("form")!);
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(toastError).not.toHaveBeenCalled();
+    const edits = (sentBody()!.edits ?? {}) as Record<string, unknown>;
+    expect(edits.nextDueDate).toBe("2027-11-01");
+    // The deadline follows the date rather than pinning it to the old one.
+    expect(edits.endDate).toBe("2027-11-01");
   });
 });
 
