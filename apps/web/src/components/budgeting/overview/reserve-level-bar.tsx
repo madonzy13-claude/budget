@@ -191,8 +191,13 @@ export function ReserveLevelBar({
               aria-label={`${format(missing)} ${t("reserveFit.belowTarget")}`}
               className="ml-auto h-full rounded-r-full"
               style={{
-                // Behind the outline's right edge; the covered stretch has
-                // already given back the left one.
+                // HELD off the outline's right edge, not merely trimmed. This
+                // stretch is pinned right by ml-auto, so giving width back
+                // moved its left edge and left the dashes sitting on the
+                // border they stop inside (user screenshot, 260809). The
+                // covered stretch has already given back the left inset, so
+                // the two still meet exactly where they should.
+                marginRight: INNER_PAD,
                 width: stretch(missing, INNER_PAD),
                 background: MISSING,
               }}

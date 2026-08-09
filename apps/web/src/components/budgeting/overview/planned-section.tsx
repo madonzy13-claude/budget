@@ -718,6 +718,13 @@ export function PlannedSection({
                 {/* The title says WHICH limit the bars are judged against
                   (260806): the switch below it is easy to miss, and "How far
                   off plan" reads identically whichever way it is set. */}
+                <ChartLabel testId="overview-planned-title">
+                  {t(
+                    basis === "future"
+                      ? "planned.byCategoryFuture"
+                      : "planned.byCategoryAverage",
+                  )}
+                </ChartLabel>
                 {/* The same meter the reserve chart carries, reading limits
                     against what they should be: a ratio of one quantity to the
                     one it ought to be is the same shape either way, so the
@@ -733,13 +740,6 @@ export function PlannedSection({
                     neededLabel={t("planned.limitsNeededTotal")}
                   />
                 )}
-                <ChartLabel testId="overview-planned-title">
-                  {t(
-                    basis === "future"
-                      ? "planned.byCategoryFuture"
-                      : "planned.byCategoryAverage",
-                  )}
-                </ChartLabel>
                 {/* The percent/zł switch went (260805): a percentage of a limit
                   is a step away from the money, and the money is what you act
                   on. What the pill track carries instead is the BASELINE —

@@ -70,6 +70,13 @@ describe("ReserveLevelBar", () => {
     expect(screen.getByTestId("reserve-bar-gap").style.width).toBe(
       "calc(50% - 5px)",
     );
+    // …which only holds if it is HELD 5px off that edge. Trimming the width of
+    // a stretch pinned right by ml-auto moved its LEFT edge, never its right,
+    // so the dashes ran onto the border they are supposed to stop inside
+    // (user screenshot, 260809).
+    expect(
+      parseFloat(screen.getByTestId("reserve-bar-gap").style.marginRight),
+    ).toBe(5);
   });
 
   // Padding only works while the bar is INSIDE the box. Once it runs past, the

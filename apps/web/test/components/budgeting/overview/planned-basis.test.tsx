@@ -505,6 +505,12 @@ describe("How far off plan — each basis shows only its own baseline", () => {
     // 800 of limit against the 1,064 it should be.
     expect(meter.textContent).toContain("800");
     expect(meter.textContent).toContain("1,064");
+    // …and it belongs UNDER the heading it is about (user, 260809).
+    const title = screen.getByTestId("overview-planned-title");
+    expect(
+      title.compareDocumentPosition(meter) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("keeps a category whose limit is already right in the dialog", async () => {
