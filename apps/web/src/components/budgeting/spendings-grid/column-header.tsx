@@ -80,6 +80,15 @@ export function ColumnHeader({
   // cushion keeps its cushion limit for good, so looking back at it from a
   // normal month must not swap in the normal figure (user, 260806).
   const showCushionValue = cushionModeEnabled;
+  // The limit on show is the one the spend is measured against, and it is also
+  // the most of it that can be used (260809).
+  const limitOnShow = BigInt(
+    (showCushionValue ? summary.cushionCents : summary.plannedCents) || "0",
+  );
+  const spentSoFar = BigInt(summary.spentCents || "0");
+  const usedAgainstLimit = (
+    spentSoFar > limitOnShow ? limitOnShow : spentSoFar
+  ).toString();
   // "Left" never shows negative — overspend is surfaced by the overspent row.
 
   function handleDoubleClick(e: React.MouseEvent) {
@@ -267,7 +276,12 @@ export function ColumnHeader({
                   : "text-[var(--muted-foreground)]"
               }
             >
-              {centsToBare(summary.spentCents, locale)}
+              {/* Capped AT the limit: a limit cannot be used more than once
+                  over, and "3,367 / 1,100" said it had been used three times
+                  (user screenshot, 260809). Everything past it comes out of the
+                  reserve, and past that it is overspend — both have their own
+                  rows below, so nothing is hidden by stopping here. */}
+              {centsToBare(usedAgainstLimit, locale)}
             </span>
             <span className="text-[var(--muted-foreground)]">
               {" / "}
