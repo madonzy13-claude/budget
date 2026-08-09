@@ -1242,3 +1242,49 @@ describe("ChartTooltipContent — fixed columns only when there is a column", ()
     expect(pinned(container)).toBeGreaterThan(0);
   });
 });
+
+/**
+ * A bar worth nothing straddles the zero line (user screenshot, 260809).
+ *
+ * There has always been a straddle for the on-plan mark, but it asked the RAW
+ * percent — so a category thirty groszy off printed "+0 zł", took the even
+ * grey, and then drew itself starting AT the line and growing right, sitting
+ * visibly to one side of every other bar's origin. The colour already knew it
+ * was nothing (colorPct zeroes sub-unit gaps); the shape did not ask.
+ */
+describe("the zero bar sits ON the line", () => {
+  // ONE chart, so every row shares an axis and the x values are comparable.
+  const xs = () => {
+    const { container } = render(
+      <div style={{ width: 600, height: 400 }}>
+        <OverviewDivergingBarChart
+          data={[
+            { name: "Groszy", pct: 0.4, colorPct: 0 },
+            { name: "Exact", pct: 0, colorPct: 0 },
+            { name: "Real", pct: 40, colorPct: 40 },
+          ]}
+          categoryKey="name"
+          valueKey="pct"
+          colorKey="colorPct"
+        />
+      </div>,
+    );
+    return [
+      ...container.querySelectorAll(".recharts-bar-rectangle .recharts-rectangle"),
+    ].map((r) => {
+      // Where the bar's MIDDLE sits. A bar worth nothing is a mark ON the zero
+      // line, so its centre is the line — whatever width it is drawn at.
+      const x = Number(r.getAttribute("x"));
+      const w = Number(r.getAttribute("width"));
+      return Math.round(x + w / 2);
+    });
+  };
+
+  it("centres a rounds-to-zero bar on the line, like an exact zero", () => {
+    const [groszy, exact, real] = xs();
+    expect(groszy).toBe(exact);
+    // …and a bar with something in it grows FROM the line, so its middle is
+    // off to one side.
+    expect(real).toBeGreaterThan(exact!);
+  });
+});

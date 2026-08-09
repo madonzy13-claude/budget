@@ -588,9 +588,17 @@ export function OverviewDivergingBarChart({
             shape={(props: {
               x?: number;
               width?: number;
-              payload?: { __pct?: number };
+              payload?: Record<string, unknown>;
             }) => {
-              const onPlan = Number(props.payload?.__pct ?? 0) === 0;
+              // Ask the SAME number the colour asks. The raw percent still
+              // carries the groszy, so a category thirty of them off printed
+              // "+0 zł", took the even grey — and then drew itself starting AT
+              // the line instead of across it, sitting visibly to one side of
+              // every other bar's origin (user screenshot, 260809).
+              const shown =
+                colorValue(props.payload?.[colorKey]) ??
+                Number(props.payload?.["__pct"] ?? 0);
+              const onPlan = Number(shown ?? 0) === 0;
               return (
                 <Rectangle
                   {...props}
