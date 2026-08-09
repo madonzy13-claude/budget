@@ -57,6 +57,12 @@ vi.mock("@/hooks/use-set-category-limit", () => ({
 // What the limit dialog is handed — it opens FROM this chart, so it has to
 // propose the figure the bar just drew.
 const limitRows: { current: unknown[] } = { current: [] };
+// Reset between tests: the dialog only renders when there is something to
+// show, so a stale capture from the previous test reads as a pass for the
+// very bug this file is meant to catch.
+beforeEach(() => {
+  limitRows.current = [];
+});
 vi.mock("@/components/budgeting/overview/limit-rebalance", () => ({
   LimitRebalance: ({ rows }: { rows: unknown[] }) => {
     limitRows.current = rows;
@@ -459,6 +465,48 @@ describe("How far off plan — each basis shows only its own baseline", () => {
       (limitRows.current[0] as { suggestedLimitCents?: number } | undefined)
         ?.suggestedLimitCents,
     ).toBe(106400);
+  });
+
+  it("keeps a category whose limit is already right in the dialog", async () => {
+    // Two faces of one bug (user, 260809): a settled category never reached
+    // the dialog at all, and a category REBALANCED inside it became settled
+    // and vanished from under the finger that had just acted on it. The
+    // reserve dialog keeps such rows and greys the button; this one dropped
+    // them.
+    fitDto.current = {
+      rows: [
+        {
+          category_id: "c1",
+          name: "Car",
+          held_cents: "0",
+          needed_cents: "0",
+          gap_cents: "0",
+          // Exactly today's limit — nothing to change.
+          projected_monthly_cents: "80000",
+          large_transactions: [],
+        },
+      ],
+    };
+    summaryDto.current = {
+      categories: [
+        {
+          categoryId: "c1",
+          plannedCents: "80000",
+          needsCents: "80000",
+          wantsCents: "0",
+          cushionCents: "0",
+        },
+      ],
+    };
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    expect(limitRows.current).toHaveLength(1);
+    expect(
+      (limitRows.current[0] as { categoryId?: string } | undefined)?.categoryId,
+    ).toBe("c1");
   });
 
   it("FUTURE does not repeat the limit it will need beside the spend", async () => {

@@ -363,8 +363,11 @@ export function PlannedSection({
       const split = splitById.get(r.category_id);
       const expected = projected.get(r.category_id);
       if (!split || expected == null) return [];
-      const current = split.needsCents + split.wantsCents;
-      if (Math.abs(expected - current) < 100) return [];
+      // A category whose limit is ALREADY right stays on the list, with its
+      // button visibly inert — the same as the reserve dialog. Dropping it had
+      // two faces: a settled category never appeared at all, and one you had
+      // just rebalanced became settled and vanished from under the finger that
+      // acted on it (user, 260809).
       return [
         {
           categoryId: r.category_id,
