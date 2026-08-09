@@ -22,7 +22,6 @@ import {
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { reserveFitRows } from "@/lib/reserve-fit-rows";
 import { reserveTotals } from "@/lib/reserve-totals";
-import { roundUpUnit } from "@/lib/reserve-rebalance";
 import { ReserveLevelBar } from "./reserve-level-bar";
 import type { ReserveFitDTO } from "@/hooks/use-reserve-fit";
 import {
@@ -170,16 +169,16 @@ export function ReserveFitView({
           colorKey="pct"
           tooltipExtra={(row) => {
             const gap = Number(row.gapCents);
-            // TWO STATEMENTS, NOT ONE INSTRUCTION (user, 260809). Everything
-            // here is measured at the limit in force, so the move above lands
-            // this reserve at zero on its own; the limit line below is separate
-            // advice about the plan, not the other half of the same act.
+            // ONE QUESTION PER CARD (user, 260809). This chart asks whether
+            // the BUFFER is the right size, and everything on it is measured
+            // at the limit in force — so the move below lands this reserve at
+            // zero on its own.
             //
-            // So no conjunction: "and" said do both to get there, "or" said
-            // either would — and with the basis fixed at today's limit neither
-            // is true. Each line stands by itself.
-            const limit = row.suggestedLimitCents as number | null;
-            const delta = row.suggestedDeltaCents as number | null;
+            // The limit itself belongs to the Future chart, which is where it
+            // is decided and where the dialog that writes it lives. Naming it
+            // here too was the same decision in two places, and every
+            // disagreement between them — the rounding, the basis, the and/or
+            // — came out of keeping both.
             return [
               {
                 label: t("reserveFit.held"),
@@ -214,25 +213,6 @@ export function ReserveFitView({
                       value: format(gap),
                       section: true,
                     },
-              // The action always leads, and the limit follows it — joined by
-              // "and" when both halves are meant together, "or" when they are
-              // two ways to the same place (user, 260808).
-              ...(limit == null || delta == null
-                ? []
-                : [
-                    {
-                      label: t("reserveFit.setLimit"),
-                      // The whole unit the DIALOG will write. The walk answers
-                      // to the groszy and only the dialog rounded up, so one
-                      // suggestion read 4,085 here and 4,086 there (user,
-                      // 260809). The change carries the same rounding, so
-                      // limit − change is still the limit in force.
-                      value: format(roundUpUnit(limit)),
-                      value2: `(${delta < 0 ? "-" : "+"}${format(
-                        Math.abs(delta + (roundUpUnit(limit) - limit)),
-                      )})`,
-                    },
-                  ]),
             ];
           }}
         />
