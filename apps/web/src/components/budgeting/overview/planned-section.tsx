@@ -83,6 +83,11 @@ import { monthsInRange } from "@/lib/months-in-range";
 
 const NEUTRAL = "var(--muted-foreground)";
 
+/** One whole currency unit, in cents — the granularity a limit is decided in.
+ *  The rebalance dialog proposes whole units and its button goes inert below
+ *  one, so the chart reads a sub-unit difference the same way: no change. */
+const UNIT_CENTS = 100;
+
 /** Actual-line colour per plan band (260801): green inside needs, yellow in the
  *  wants band, red past the whole plan. Shared by the stroke gradient + tooltip. */
 const ZONE_COLOR = {
@@ -260,7 +265,8 @@ export function PlannedSection({
   // "YYYY-MM" → a name, in the member's locale. Both carry the year: the
   // upcoming chart can span more than twelve months now, so a bare month name
   // would put two different Septembers under the same word (260807).
-  const monthName = (m: string | number) => scheduleMonthLabel(String(m), locale);
+  const monthName = (m: string | number) =>
+    scheduleMonthLabel(String(m), locale);
   const shortMonthName = (m: string | number) =>
     scheduleMonthTick(String(m), locale);
   const hasCompletedMonth = rangeHasCompletedMonth(
@@ -324,7 +330,12 @@ export function PlannedSection({
     (fit.data?.rows ?? []).flatMap((r) =>
       r.projected_monthly_cents == null
         ? []
-        : [[r.category_id, Number(r.projected_monthly_cents)] as [string, number]],
+        : [
+            [r.category_id, Number(r.projected_monthly_cents)] as [
+              string,
+              number,
+            ],
+          ],
     ),
   );
   const oneOffCandidates: OneOffCandidate[] = (fit.data?.rows ?? []).flatMap(
@@ -823,17 +834,27 @@ export function PlannedSection({
                       // Three figures, one subtraction.
                       const expected = projected.get(c.category_id) ?? real;
                       const planned = basis === "future" ? current : avg;
+                      const rawGap =
+                        basis === "future"
+                          ? expected - current
+                          : real - planned;
+                      // A limit is set in whole units, and the dialog proposes
+                      // whole ones — so what a rebalance leaves behind is a few
+                      // groszy of rounding, which is nothing to act on (the
+                      // same rule that makes the dialog's button inert). Drawn,
+                      // those groszy became the largest thing on the chart:
+                      // with no real change left the axis zoomed into them and
+                      // every settled category came back as a full-length
+                      // "−1 zł" bar (user, 260809).
                       const gap =
-                        basis === "future" ? expected - current : real - planned;
+                        basis === "future" && Math.abs(rawGap) < UNIT_CENTS
+                          ? 0
+                          : rawGap;
                       // Colour follows the bar: as a share of today's limit for
                       // the change, and of the baseline for the past reading.
                       const pctBase = basis === "future" ? current : planned;
                       const pct =
-                        pctBase > 0
-                          ? (gap / pctBase) * 100
-                          : gap > 0
-                            ? 100
-                            : 0;
+                        pctBase > 0 ? (gap / pctBase) * 100 : gap > 0 ? 100 : 0;
                       return {
                         name: c.name,
                         categoryId: c.category_id,
@@ -860,7 +881,8 @@ export function PlannedSection({
                     // change to show; drawing it at zero would read as "this
                     // limit is right" for one nothing was worked out for.
                     .filter(
-                      (c) => basis !== "future" || limitChanges.has(c.categoryId),
+                      (c) =>
+                        basis !== "future" || limitChanges.has(c.categoryId),
                     )
                     .sort((a, b) => b.gap - a.gap)}
                   categoryKey="name"

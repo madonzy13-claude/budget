@@ -228,6 +228,10 @@ export function divergingDomain(values: number[]): [number, number] {
  */
 const TICK_LADDER = [10, 20, 50, 100, 200, 400, 800, 1600, 3200, 6400] as const;
 
+/** One whole currency unit, in cents — the finest step the MONEY axis may take,
+ *  because that is the finest its labels can say. */
+const UNIT_CENTS = 100;
+
 export function divergingTicks(min: number, max: number): number[] {
   const ticks = new Set<number>([0]);
   for (const t of TICK_LADDER) {
@@ -251,7 +255,14 @@ export function amountTicks(min: number, max: number): number[] {
   const mantissa = raw / 10 ** Math.floor(Math.log10(raw));
   const snapped =
     mantissa <= 1 ? 1 : mantissa <= 2 ? 2 : mantissa <= 2.5 ? 2.5 : 5;
-  const step = snapped * 10 ** Math.floor(Math.log10(raw));
+  // …but never finer than one whole unit. The labels are written in whole
+  // money, so a step of 50 groszy prints the same word twice: a chart whose
+  // biggest change was under a złoty carried "−1 zł · −1 zł · 0 zł · +1 zł"
+  // (user, 260809).
+  const step = Math.max(
+    UNIT_CENTS,
+    snapped * 10 ** Math.floor(Math.log10(raw)),
+  );
   const ticks = new Set<number>([0]);
   for (let t = step; t <= reach + step; t += step) {
     if (t <= max + step) ticks.add(t);

@@ -753,6 +753,22 @@ describe("amountTicks", () => {
   it("does not run away on a huge spread", () => {
     expect(amountTicks(-1, 5_000_000).length).toBeLessThanOrEqual(12);
   });
+
+  // Money is written in whole units, so a step finer than one prints the same
+  // label twice: a chart whose biggest change was under a złoty carried the
+  // axis "−1 zł · −1 zł · 0 zł · +1 zł" (user, 260809, after rebalancing every
+  // limit in a budget).
+  it("never steps finer than one whole unit", () => {
+    const step = Math.min(...amountTicks(-140, 40).filter((t) => t > 0));
+    expect(step).toBeGreaterThanOrEqual(100);
+  });
+
+  it("prints no whole-unit label twice, however small the spread", () => {
+    for (const reach of [10, 44, 99, 140, 250]) {
+      const labels = amountTicks(-reach, reach).map((t) => Math.round(t / 100));
+      expect(new Set(labels).size).toBe(labels.length);
+    }
+  });
 });
 
 describe("Diverging chart — money reading", () => {
@@ -1209,7 +1225,9 @@ describe("ChartTooltipContent — fixed columns only when there is a column", ()
   // up DOWN the rows. When only one row carries a second value there is nothing
   // to line up with, and the fixed width just opens a gulf between the amount
   // and the figure beside it (user screenshot, 260807).
-  const rowsWith = (extra: { label: string; value: string; value2?: string }[]) =>
+  const rowsWith = (
+    extra: { label: string; value: string; value2?: string }[],
+  ) =>
     render(
       <ChartTooltipContent
         active
@@ -1270,7 +1288,9 @@ describe("the zero bar sits ON the line", () => {
       </div>,
     );
     return [
-      ...container.querySelectorAll(".recharts-bar-rectangle .recharts-rectangle"),
+      ...container.querySelectorAll(
+        ".recharts-bar-rectangle .recharts-rectangle",
+      ),
     ].map((r) => ({
       // Where the bar's MIDDLE sits, and how wide it is drawn.
       mid: Math.round(

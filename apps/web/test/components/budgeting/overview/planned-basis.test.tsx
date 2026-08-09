@@ -111,9 +111,8 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
     `${n > 0 ? "+" : n < 0 ? "−" : ""}${f(Math.abs(n))}`,
 }));
 
-const { PlannedSection } = await import(
-  "@/components/budgeting/overview/planned-section"
-);
+const { PlannedSection } =
+  await import("@/components/budgeting/overview/planned-section");
 
 /** Food averaged 500 across the range but is set to 800 now; it spent 600. */
 const row = {
@@ -129,9 +128,7 @@ const row = {
 
 const base = {
   currency: "PLN",
-  timeline: [
-    { label: "2026-01", planned_cents: "50000", real_cents: "60000" },
-  ],
+  timeline: [{ label: "2026-01", planned_cents: "50000", real_cents: "60000" }],
   plannedAvgVsReal: [row],
   scheduledPerMonth: [],
   rangeTotals: {
@@ -222,6 +219,50 @@ describe("How far off plan — which limit it measures against", () => {
     expect(chart().getAttribute("data-gap")).toBe("0");
   });
 
+  // Limits are set in whole units and the dialog proposes whole ones, so what
+  // survives a rebalance is a few groszy of rounding. Those groszy were still
+  // drawn: with nothing bigger on the chart the axis zoomed into them and every
+  // settled category came back as a full-length "−1 zł" bar (user, 260809,
+  // after rebalancing every limit in a budget). Under a unit is not a change.
+  it("draws a rebalanced limit as settled, not as a full-length bar", async () => {
+    fitDto.current = {
+      rows: [
+        {
+          category_id: "c1",
+          // Limit 800.00, cost 799.56 — the rounding the rebalance left behind.
+          projected_monthly_cents: "79956",
+          suggested_limit_cents: "80000",
+          suggested_delta_cents: "44",
+        },
+      ],
+    };
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    expect(chart().getAttribute("data-gap")).toBe("0");
+  });
+
+  it("still draws a change of a whole unit or more", async () => {
+    fitDto.current = {
+      rows: [
+        {
+          category_id: "c1",
+          projected_monthly_cents: "79000",
+          suggested_limit_cents: "79000",
+          suggested_delta_cents: "-1000",
+        },
+      ],
+    };
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    expect(chart().getAttribute("data-gap")).toBe("-1000");
+  });
+
   it("leaves out a category the reserve engine never examined", async () => {
     // Reserve-EXCLUDED categories have no fit row at all. Drawing them at zero
     // reads as "this limit is right" for a category nothing was worked out for;
@@ -249,7 +290,9 @@ describe("How far off plan — which limit it measures against", () => {
     // has its own baseline and the other is a figure nobody reads (user,
     // 260807).
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
-    const values = JSON.parse(chart().getAttribute("data-tooltip")!) as string[];
+    const values = JSON.parse(
+      chart().getAttribute("data-tooltip")!,
+    ) as string[];
     expect(values.join(" ")).toContain("500");
     expect(values.join(" ")).not.toContain("800");
   });
@@ -390,9 +433,9 @@ describe("How far off plan — each basis shows only its own baseline", () => {
       screen.getByRole("button", { name: "planned.basisFuture" }),
     );
     const r = rows();
-    expect(
-      r.find((x) => x.label === "planned.expectedSpend")!.value,
-    ).toContain("1,064");
+    expect(r.find((x) => x.label === "planned.expectedSpend")!.value).toContain(
+      "1,064",
+    );
     // …and the difference is that against today's limit, nothing else.
     expect(r.at(-1)!.label).toBe("planned.difference");
     expect(r.at(-1)!.value).toContain("264");
@@ -420,9 +463,9 @@ describe("How far off plan — each basis shows only its own baseline", () => {
       screen.getByRole("button", { name: "planned.basisFuture" }),
     );
     // 1,064 − 800 = 264, NOT the walk's 4,200.
-    expect(
-      screen.getByTestId("avg-chart").getAttribute("data-gap"),
-    ).toBe("26400");
+    expect(screen.getByTestId("avg-chart").getAttribute("data-gap")).toBe(
+      "26400",
+    );
   });
 
   it("hands the limit dialog the very figure the bar drew", async () => {
@@ -508,8 +551,7 @@ describe("How far off plan — each basis shows only its own baseline", () => {
     // …and it belongs UNDER the heading it is about (user, 260809).
     const title = screen.getByTestId("overview-planned-title");
     expect(
-      title.compareDocumentPosition(meter) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
+      title.compareDocumentPosition(meter) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
