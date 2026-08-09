@@ -23,7 +23,10 @@
 import { ok, err, type Result } from "@budget/shared-kernel";
 import { reserveFit, type ReserveFitMonth } from "../domain/reserve-fit";
 import { reserveNeededToday } from "../domain/reserve-requirement";
-import { projectedMonthly } from "../domain/projected-monthly";
+import {
+  earmarkedForOneOffs,
+  projectedMonthly,
+} from "../domain/projected-monthly";
 import type { FxProvider } from "@budget/shared-kernel";
 import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
 import { projectScheduledPayments } from "../domain/scheduled-payment-projection";
@@ -406,6 +409,9 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // existed for, so a category given to twice in a year reads as a
         // twelfth of those gifts and not half of them (user, 260808); the
         // running month is left out for the same reason the walk drops it.
+        const categoryRules = rules.filter(
+          (r) => r.category_id === w.category_id,
+        );
         const projected = projectedMonthly({
           windowMonths: scopeMonths,
           // ORDINARY spend: the month's total, less the one-offs the household
@@ -421,7 +427,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
               return [m, ordinary > 0n ? ordinary : 0n];
             }),
           ),
-          rules: rules.filter((r) => r.category_id === w.category_id),
+          rules: categoryRules,
           fromMonth: nowMonth,
           // What this category has ALREADY set aside. Without it the suggested
           // limit spread a trip the reserve is holding the money for over the
@@ -445,12 +451,27 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // short (user, 260807). Counting the accrual the current limit already
         // produces makes this and the suggestion below one function: the
         // suggested limit is exactly the limit at which this equals `held`.
-        const neededCents = reserveNeededToday({
+        //
+        // …with a FLOOR: whatever the projection above stopped asking the limit
+        // to save for, because this reserve is already holding it, the reserve
+        // has to keep holding. Without the floor the two halves of one credit
+        // disagreed — the limit was excused Japan because the reserve had the
+        // money, and the requirement then said "needed 0" because the limit's
+        // accrual could fund Japan on its own. Held 17,315, needed 0, and a
+        // recommendation that only made sense if the reserve stayed put (user,
+        // 260809).
+        const earmarked = earmarkedForOneOffs(
+          categoryRules,
+          nowMonth,
+          position.reserveCents,
+        );
+        const walked = reserveNeededToday({
           baselineSpendCents: baselineSpend,
           commitmentsByMonth: forward,
           historicalNeedCents: past.neededCents,
           limitCents: currentLimit,
         });
+        const neededCents = walked > earmarked ? walked : earmarked;
         // No current limit means nothing to suggest a change TO — the row is
         // already being judged on its own history (see currentLimit above).
         //
@@ -530,12 +551,18 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           suggested_needed_cents:
             suggestion == null
               ? null
-              : reserveNeededToday({
-                  baselineSpendCents: baselineSpend,
-                  commitmentsByMonth: forward,
-                  historicalNeedCents: past.neededCents,
-                  limitCents: suggestion.limitCents,
-                }).toString(),
+              : // The same floor as `neededCents`: at the suggested limit the
+                // reserve still has to hold what the limit was excused from
+                // saving for.
+                (() => {
+                  const there = reserveNeededToday({
+                    baselineSpendCents: baselineSpend,
+                    commitmentsByMonth: forward,
+                    historicalNeedCents: past.neededCents,
+                    limitCents: suggestion.limitCents,
+                  });
+                  return (there > earmarked ? there : earmarked).toString();
+                })(),
           suggested_delta_cents: suggestion?.deltaCents.toString() ?? null,
           suggested_over_months: suggestion?.overMonths ?? null,
           suggested_direction: suggestion?.direction ?? null,

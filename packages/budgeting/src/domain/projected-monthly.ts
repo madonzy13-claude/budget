@@ -65,6 +65,68 @@ function monthsApart(a: string, b: string): number {
   return by * 12 + bm - (ay * 12 + am);
 }
 
+/** One future one-off, and how much of the reserve is standing behind it. */
+interface OneOffCredit {
+  /** Whole months from the projection month to the one it lands in, ≥ 0. */
+  monthsAway: number;
+  /** Of its amount, what the reserve already holds… */
+  coveredCents: bigint;
+  /** …and what is left to save out of income. */
+  outstandingCents: bigint;
+}
+
+/**
+ * Spend `heldCents` against the one-offs ahead, SOONEST first — that is the one
+ * the money will be spent on. Dates already gone take nothing: they are not
+ * coming, so the reserve is still free for what is.
+ *
+ * The single source of the credit. `projectedMonthly` reads the outstanding
+ * half (what the limit must still save); the reserve requirement reads the
+ * covered half (what the reserve must therefore keep holding). Splitting them
+ * across two calculations is what let one say "needed 0" while the other
+ * assumed the reserve would pay (user, 260809).
+ */
+function creditOneOffs(
+  rules: readonly ProjectionRule[],
+  fromMonth: string,
+  heldCents: bigint,
+): OneOffCredit[] {
+  let credit = heldCents > 0n ? heldCents : 0n;
+  return rules
+    .filter(
+      (r): r is ProjectionRule & { next_due_date: string } =>
+        r.cadence === "ONCE" &&
+        !!r.next_due_date &&
+        monthsApart(fromMonth, r.next_due_date.slice(0, 7)) >= 0,
+    )
+    .sort((a, b) => (a.next_due_date < b.next_due_date ? -1 : 1))
+    .map((r) => {
+      const coveredCents = credit < r.amount_cents ? credit : r.amount_cents;
+      credit -= coveredCents;
+      return {
+        monthsAway: monthsApart(fromMonth, r.next_due_date.slice(0, 7)),
+        coveredCents,
+        outstandingCents: r.amount_cents - coveredCents,
+      };
+    });
+}
+
+/**
+ * How much of this reserve is spoken for by the trips ahead of it — the money
+ * the limit is no longer being asked to save, and which therefore has to stay
+ * where it is. Never more than the trips cost, never more than is held.
+ */
+export function earmarkedForOneOffs(
+  rules: readonly ProjectionRule[],
+  fromMonth: string,
+  heldCents: bigint,
+): bigint {
+  return creditOneOffs(rules, fromMonth, heldCents).reduce(
+    (acc, c) => acc + c.coveredCents,
+    0n,
+  );
+}
+
 export function projectedMonthly(input: ProjectedMonthlyInput): bigint {
   const {
     windowMonths,
@@ -106,23 +168,9 @@ export function projectedMonthly(input: ProjectedMonthlyInput): bigint {
   //    260809). Soonest first: that is the one the money will be spent on.
   //    Only ONE-OFFS are credited; a yearly bill returns every year and no
   //    reserve pre-funds it for ever.
-  let credit = reserveHeld > 0n ? reserveHeld : 0n;
-  const oneOffs = rules
-    .filter(
-      (r): r is ProjectionRule & { next_due_date: string } =>
-        r.cadence === "ONCE" &&
-        !!r.next_due_date &&
-        monthsApart(fromMonth, r.next_due_date.slice(0, 7)) >= 0,
-    )
-    .sort((a, b) => (a.next_due_date < b.next_due_date ? -1 : 1));
-
   let saving = 0n;
-  for (const r of oneOffs) {
-    const away = monthsApart(fromMonth, r.next_due_date.slice(0, 7));
-    const covered = credit < r.amount_cents ? credit : r.amount_cents;
-    credit -= covered;
-    const outstanding = r.amount_cents - covered;
-    saving += outstanding / BigInt(away > 0 ? away : 1);
+  for (const c of creditOneOffs(rules, fromMonth, reserveHeld)) {
+    saving += c.outstandingCents / BigInt(c.monthsAway > 0 ? c.monthsAway : 1);
   }
 
   return observed + recurring + saving;

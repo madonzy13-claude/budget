@@ -15,7 +15,10 @@
  *      lands.
  */
 import { describe, test, expect } from "bun:test";
-import { projectedMonthly } from "../../src/domain/projected-monthly";
+import {
+  earmarkedForOneOffs,
+  projectedMonthly,
+} from "../../src/domain/projected-monthly";
 
 const zl = (n: number) => BigInt(Math.round(n * 100));
 const months = (from: string, n: number) =>
@@ -228,5 +231,59 @@ describe("a one-off already saved for asks for nothing more", () => {
     expect(
       withHeld(9000, [once(4000, "2026-01-10"), once(9000, "2027-02-10")]),
     ).toBe(0n);
+  });
+});
+
+/**
+ * The other half of the same credit (user, 260809).
+ *
+ * If the limit is no longer asked to save for a trip the reserve is holding the
+ * money for, then that reserve must KEEP holding it — otherwise the chart says
+ * "needed 0" (the limit's accrual could fund the trip on its own) beside advice
+ * that assumes the reserve will. Whatever the projection credits, the reserve
+ * requirement floors.
+ */
+describe("what the reserve is earmarked for", () => {
+  const once = (amount: number, date: string) => ({
+    amount_cents: zl(amount),
+    cadence: "ONCE" as const,
+    yearly_month: null,
+    next_due_date: date,
+  });
+  const at = (held: number, rules: Parameters<typeof earmarkedForOneOffs>[0]) =>
+    earmarkedForOneOffs(rules, "2026-09", zl(held));
+
+  test("is the whole trip when the reserve covers it", () => {
+    expect(at(17315, [once(17000, "2027-08-01")])).toBe(zl(17000));
+  });
+
+  test("is only what is held when the reserve falls short", () => {
+    expect(at(4000, [once(9000, "2027-02-10")])).toBe(zl(4000));
+  });
+
+  test("stops at the trips — the rest of the reserve is free", () => {
+    expect(at(20000, [once(9000, "2027-02-10")])).toBe(zl(9000));
+  });
+
+  test("spends the reserve on the SOONEST trip first", () => {
+    expect(at(5000, [once(6000, "2027-03-10"), once(5000, "2026-11-10")])).toBe(
+      zl(5000),
+    );
+  });
+
+  test("earmarks nothing for a date already gone", () => {
+    expect(at(9000, [once(4000, "2026-01-10")])).toBe(0n);
+  });
+
+  test("earmarks nothing against a yearly bill", () => {
+    expect(
+      at(50000, [
+        { amount_cents: zl(12000), cadence: "YEARLY", yearly_month: 1 },
+      ]),
+    ).toBe(0n);
+  });
+
+  test("is nothing when the reserve is empty", () => {
+    expect(at(0, [once(9000, "2027-02-10")])).toBe(0n);
   });
 });
