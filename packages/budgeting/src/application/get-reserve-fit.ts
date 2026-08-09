@@ -551,14 +551,27 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           suggested_needed_cents:
             suggestion == null
               ? null
-              : // The same floor as `neededCents`: at the suggested limit the
-                // reserve still has to hold what the limit was excused from
-                // saving for.
-                (() => {
+              : (() => {
+                  // HISTORY IS JUDGED AGAINST THE LIMIT IN FORCE, so it has to
+                  // be re-walked at the limit being suggested. Reusing the
+                  // figure worked out at today's limit made this forecast wrong
+                  // in exactly the case it exists for — the one where the limit
+                  // moves. Travel promised "17,000 needed, 315 spare" and paid
+                  // out "add 1,403" the moment the limit was set (user,
+                  // 260809): a lower limit makes past months overspend, and the
+                  // buffer they ask for grows.
+                  const pastThere = reserveFit(
+                    months.map((m) => ({
+                      ...m,
+                      limitCents: suggestion.limitCents,
+                    })),
+                  );
+                  // …and the same floor as `neededCents`: at any limit the
+                  // reserve still holds what the limit was excused from saving.
                   const there = reserveNeededToday({
                     baselineSpendCents: baselineSpend,
                     commitmentsByMonth: forward,
-                    historicalNeedCents: past.neededCents,
+                    historicalNeedCents: pastThere.neededCents,
                     limitCents: suggestion.limitCents,
                   });
                   return (there > earmarked ? there : earmarked).toString();
