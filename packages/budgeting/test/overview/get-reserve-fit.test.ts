@@ -160,6 +160,12 @@ function deps(over: Partial<Parameters<typeof getReserveFit>[0]> = {}) {
         return { default_currency: "PLN" };
       },
     },
+    // 1 EUR = 4.30 PLN. Anything already in PLN never reaches this.
+    fxProvider: {
+      async rateAsOf() {
+        return { rate: "4.30", provider: "test", isStale: false };
+      },
+    },
     ...over,
   } as Parameters<typeof getReserveFit>[0];
 }
@@ -410,6 +416,32 @@ describe("projected monthly cost", () => {
       expect(r.suggested_limit_cents).toBe(r.projected_monthly_cents);
       expect(r.suggested_delta_cents).not.toBeNull();
     }
+  });
+
+  test("a rule in another currency is converted before it is counted", async () => {
+    // The scheduled CHARTS have always converted; this projection did not, so a
+    // 100 EUR rule in a PLN budget contributed 100 (user, 260809). At 4.30 it
+    // is 430, on top of the 2,000 of habit.
+    const row = await rowFor(
+      CAT,
+      projDeps([{ ...rule(10000n, "MONTHLY"), currency: "EUR" }]),
+    );
+    expect(row?.projected_monthly_cents).toBe("243000");
+  });
+
+  test("…and its reserve is sized in the budget's money too", async () => {
+    // The same conversion has to reach the commitments the buffer is walked
+    // against, or the two halves of the row disagree about the same rule.
+    const yearly = await rowFor(
+      CAT,
+      projDeps(
+        [{ ...rule(120000n, "YEARLY"), currency: "EUR" }],
+        0n,
+        0n,
+      ),
+    );
+    // 1,200 EUR once a year is 5,160 PLN — 430 a month of limit.
+    expect(yearly?.projected_monthly_cents).toBe("43000");
   });
 
   test("a one-off is saved for, month by month", async () => {

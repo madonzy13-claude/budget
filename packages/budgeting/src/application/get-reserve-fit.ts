@@ -24,6 +24,8 @@ import { ok, err, type Result } from "@budget/shared-kernel";
 import { reserveFit, type ReserveFitMonth } from "../domain/reserve-fit";
 import { reserveNeededToday } from "../domain/reserve-requirement";
 import { projectedMonthly } from "../domain/projected-monthly";
+import type { FxProvider } from "@budget/shared-kernel";
+import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
 import { projectScheduledPayments } from "../domain/scheduled-payment-projection";
 import type { ReservePositionsResult } from "./get-reserve-positions";
 import type { OverviewPlannedRepo } from "./get-overview-planned";
@@ -75,6 +77,8 @@ export interface GetReserveFitDeps {
       category_id: string | null;
       amount_cents: bigint;
       cadence: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+      /** The rule's OWN currency, which need not be the budget's (260809). */
+      currency?: string | null;
       yearly_month: number | null;
       /** ONCE has no rhythm to derive a month from — its date is the month it
        *  lands in, so the forward walk needs it to reserve for it at all. */
@@ -89,6 +93,10 @@ export interface GetReserveFitDeps {
     }[]
   >;
   now?: () => Date;
+  /** Rules carry their own currency, so a 100 EUR charge in a PLN budget is
+   *  430 of limit, not 100. The scheduled charts have always converted; this
+   *  read model counted the bare number (user, 260809). */
+  fxProvider: FxProvider;
   exclusionsRepo: ReserveFitExclusionsRepo;
   reservePositions: (input: {
     tenantId: string;
@@ -170,7 +178,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
   ): Promise<Result<ReserveFitDTO, Error>> => {
     try {
       const { budgetId, from, to } = input;
-      const [meta, windows, planned, spend, large, rules, positionsResult] =
+      const [meta, windows, planned, spend, large, rawRules, positionsResult] =
         await Promise.all([
           deps.metaReader.getBudgetMeta(budgetId),
           deps.overviewRepo.categoryWindows(budgetId),
@@ -230,6 +238,31 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       // forward leg starts after BOTH the range and today, so a member reading an
       // old range still gets the real future rather than a replayed one.
       const nowMonth = (deps.now?.() ?? new Date()).toISOString().slice(0, 7);
+
+      // Every rule in the BUDGET's money, once, before anything counts it. A
+      // rule carries its own currency, so a 100 EUR charge in a PLN budget is
+      // 430 of limit — the scheduled charts have always converted, this read
+      // model did not (user, 260809). Converted here rather than at each use,
+      // so the projection and the reserve walk cannot disagree about a rule.
+      const budgetCcy = meta?.default_currency ?? "EUR";
+      const asOfDate = new Date(`${nowMonth}-01T00:00:00Z`);
+      const rules = await Promise.all(
+        rawRules.map(async (r) =>
+          !r.currency || r.currency === budgetCcy
+            ? r
+            : {
+                ...r,
+                amount_cents: await sumWalletsToCurrency(
+                  [{ amount_cents: r.amount_cents, currency: r.currency }],
+                  budgetCcy,
+                  deps.fxProvider,
+                  asOfDate,
+                ),
+                currency: budgetCcy,
+              },
+        ),
+      );
+
       const lastMonth = to.slice(0, 7) > nowMonth ? to.slice(0, 7) : nowMonth;
       // Far enough to reach the last thing scheduled, and never less than a
       // year — so an ordinary yearly renewal is still caught when nothing sits

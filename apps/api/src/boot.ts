@@ -511,6 +511,9 @@ export async function boot(): Promise<BootedDeps> {
         createOverviewRepo().activeScheduledPayments(budgetId),
       reservePositions: baseBudgeting.reservePositions,
       metaReader: summaryRepo,
+      // Rules carry their own currency: a 100 EUR charge in a PLN budget is
+      // 430 of limit, not 100 (260809).
+      fxProvider: baseBudgeting.fxProvider,
     }),
     setReserveFitExclusions: reserveFitRepo.setExclusions,
     // Phase 11 (11-06): Financial-Wealth section. 3h snapshot series + a live
