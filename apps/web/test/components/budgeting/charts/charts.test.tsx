@@ -358,10 +358,10 @@ describe("Overview charts", () => {
         />,
       ).container;
 
-    // The row that says what to DO is the point of the card, so it is drawn
-    // whole in the accent rather than as one more label-and-figure in the list
-    // of numbers it came from (user, 260809).
-    it("draws a call-to-action row in the accent, label and figure together", () => {
+    // The row that says what to DO is the point of the card, so the
+    // INSTRUCTION carries the accent. The figure beside it does not: a
+    // highlighted number is not a call to action (user, 260809).
+    it("accents the instruction and leaves its figure alone", () => {
       const c = renderExtra(() => [
         { label: "Expected spend", value: "1,064 zl" },
         { label: "Set the limit to", value: "1,064 zl", cta: true },
@@ -374,11 +374,11 @@ describe("Overview charts", () => {
         (n) => n.textContent === "Expected spend",
       )!;
       expect(ctaValue.textContent).toBe("1,064 zl");
-      // Both halves of the instruction carry the same accent…
-      expect(label.style.color).toBe((ctaValue as HTMLElement).style.color);
       expect(label.style.fontWeight).toBe("600");
-      // …and it is NOT the colour the ordinary rows are labelled in.
+      // The label is accented…
       expect(plain.style.color).not.toBe(label.style.color);
+      // …the figure is not.
+      expect((ctaValue as HTMLElement).style.color).not.toBe(label.style.color);
     });
 
     it("leaves an ordinary row unmarked", () => {

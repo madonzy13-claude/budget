@@ -65,9 +65,9 @@ export function ChartTooltipContent({
     /** Opens a section of its own: a rule above it, so a conclusion (the
      *  difference) reads apart from the figures it came from. */
     section?: boolean;
-    /** THE thing to do. Drawn whole in the accent, so the instruction reads as
-     *  one and carries the weight of the card rather than sitting in the list
-     *  of figures it came from (user, 260809). */
+    /** THE thing to do. The INSTRUCTION carries the accent; the figure beside
+     *  it stays in the ordinary colour, so the row reads as a call to action
+     *  rather than as a highlighted number (user, 260809). */
     cta?: boolean;
   }>;
   /** Per-series-row SUFFIX cell(s) after the value (e.g. a % change, or a
@@ -422,7 +422,6 @@ export function ChartTooltipContent({
             style={{
               marginLeft: "auto",
               fontWeight: 600,
-              color: row.cta ? CHART_THEME.accent : undefined,
               minWidth: row.value2 != null ? colWidth : undefined,
               textAlign: "right",
               whiteSpace: "nowrap",
