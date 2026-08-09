@@ -70,6 +70,8 @@ export function ReserveLevelBar({
   // so 8px more each side puts this on exactly the forecast band's width.
   insetLeft = 8,
   insetRight = 8,
+  heldLabel,
+  neededLabel,
 }: {
   heldCents: number;
   neededCents: number;
@@ -77,8 +79,15 @@ export function ReserveLevelBar({
   testId: string;
   insetLeft?: number;
   insetRight?: number;
+  /** What the two sides are CALLED. The meter is a ratio of one quantity to
+   *  the one it should be, which is as true of limits as of reserves — so the
+   *  Future chart borrows the shape and renames the halves (260809). */
+  heldLabel?: string;
+  neededLabel?: string;
 }) {
   const t = useTranslations("bdp.tab.overview");
+  const heldName = heldLabel ?? t("reserveFit.heldTotal");
+  const neededName = neededLabel ?? t("reserveFit.neededTotal");
 
   const held = Math.max(0, heldCents);
   const needed = Math.max(0, neededCents);
@@ -127,14 +136,14 @@ export function ReserveLevelBar({
         className="flex items-baseline justify-between gap-3 text-caption"
       >
         <span data-testid={`${testId}-needed`} style={{ color: TARGET }}>
-          {t("reserveFit.neededTotal")}{" "}
+          {neededName}{" "}
           <span className="num font-semibold">{format(needed)}</span>
         </span>
         <span
           data-testid={`${testId}-held`}
           className="text-[var(--muted-foreground)]"
         >
-          {t("reserveFit.heldTotal")}{" "}
+          {heldName}{" "}
           <span className="num text-[var(--body-on-dark)]">{format(held)}</span>
         </span>
       </div>
@@ -145,7 +154,7 @@ export function ReserveLevelBar({
         {needed > 0 && (
           <div
             data-testid={`${testId}-target`}
-            aria-label={`${t("reserveFit.neededTotal")}: ${format(needed)}`}
+            aria-label={`${neededName}: ${format(needed)}`}
             className="absolute inset-y-0 left-0 rounded-full border"
             style={{ width: width(needed), borderColor: TARGET }}
           />
@@ -163,7 +172,7 @@ export function ReserveLevelBar({
           {covered > 0 && (
             <div
               data-testid={`${testId}-covered`}
-              aria-label={`${t("reserveFit.heldTotal")}: ${format(held)}`}
+              aria-label={`${heldName}: ${format(held)}`}
               className="h-full rounded-l-full"
               style={{
                 marginLeft: INNER_PAD,

@@ -1473,6 +1473,8 @@
           "needs": "Potrzeby",
           "openLimitRebalance": "Zbilansuj limity",
           "limitRebalanceTitle": "Zbilansuj limity",
+          "limitsTotal": "Limity",
+          "limitsNeededTotal": "Powinno być",
           "limitRebalanceExplainer": "Daj każdej kategorii tyle miejsca, ile naprawdę potrzebuje, żeby w przyszłym miesiącu nie przekraczać limitu.",
           "rebalanceNeedsAria": "Nowe potrzeby dla {name}",
           "rebalanceWantsAria": "Nowe zachcianki dla {name}",

@@ -55,6 +55,7 @@ import {
 } from "./reserve-fit-one-offs";
 import { signedMoney } from "./reserve-fit-view";
 import { LimitRebalance, type LimitCandidate } from "./limit-rebalance";
+import { ReserveLevelBar } from "./reserve-level-bar";
 import { useSpendingsSummary } from "@/hooks/use-spendings-summary";
 import { useSetCategoryLimit } from "@/hooks/use-set-category-limit";
 import { ChartNeedsCompletedMonth } from "./chart-needs-completed-month";
@@ -354,6 +355,21 @@ export function PlannedSection({
   // Only categories the walk actually wants moved, and only once their current
   // split is known — a row proposing a change from an unknown starting point
   // would be proposing it from zero.
+  // What every limit adds up to, against what they should. Only the rows the
+  // chart actually draws, so the line and the bars under it are the same set.
+  const limitTotals = (fit.data?.rows ?? []).reduce(
+    (acc, r) => {
+      const split = splitById.get(r.category_id);
+      const expected = projected.get(r.category_id);
+      if (!split || expected == null) return acc;
+      return {
+        current: acc.current + split.needsCents + split.wantsCents,
+        expected: acc.expected + expected,
+      };
+    },
+    { current: 0, expected: 0 },
+  );
+
   // The dialog opens FROM the Future chart, so it proposes exactly what that
   // chart drew: what an average month ahead costs. The reserve walk's own
   // suggestion weighs the runway and what is already held — a different, and
@@ -702,6 +718,21 @@ export function PlannedSection({
                 {/* The title says WHICH limit the bars are judged against
                   (260806): the switch below it is easy to miss, and "How far
                   off plan" reads identically whichever way it is set. */}
+                {/* The same meter the reserve chart carries, reading limits
+                    against what they should be: a ratio of one quantity to the
+                    one it ought to be is the same shape either way, so the
+                    colours keep their meaning — amber past the outline is
+                    slack, red short of it is missing (user, 260809). */}
+                {basis === "future" && limitTotals.expected > 0 && (
+                  <ReserveLevelBar
+                    heldCents={limitTotals.current}
+                    neededCents={limitTotals.expected}
+                    format={fmtTooltip}
+                    testId="limit-level-bar"
+                    heldLabel={t("planned.limitsTotal")}
+                    neededLabel={t("planned.limitsNeededTotal")}
+                  />
+                )}
                 <ChartLabel testId="overview-planned-title">
                   {t(
                     basis === "future"

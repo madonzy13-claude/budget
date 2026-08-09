@@ -1450,6 +1450,8 @@
           "needs": "Needs",
           "openLimitRebalance": "Rebalance limits",
           "limitRebalanceTitle": "Rebalance limits",
+          "limitsTotal": "Limits",
+          "limitsNeededTotal": "Should be",
           "limitRebalanceExplainer": "Give each category the room it actually needs, so next month stops going over.",
           "rebalanceNeedsAria": "New needs for {name}",
           "rebalanceWantsAria": "New wants for {name}",

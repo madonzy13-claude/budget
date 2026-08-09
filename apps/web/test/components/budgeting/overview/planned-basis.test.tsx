@@ -467,6 +467,46 @@ describe("How far off plan — each basis shows only its own baseline", () => {
     ).toBe(106400);
   });
 
+  it("FUTURE gets the same meter the reserve chart has", async () => {
+    // One line, read at a glance: what the limits add up to against what they
+    // should (user, 260809). Same component, so the colours mean the same
+    // thing — amber past the outline is slack, red short of it is missing.
+    fitDto.current = {
+      rows: [
+        {
+          category_id: "c1",
+          name: "Car",
+          held_cents: "0",
+          needed_cents: "0",
+          gap_cents: "0",
+          projected_monthly_cents: "106400",
+          large_transactions: [],
+        },
+      ],
+    };
+    summaryDto.current = {
+      categories: [
+        {
+          categoryId: "c1",
+          plannedCents: "80000",
+          needsCents: "80000",
+          wantsCents: "0",
+          cushionCents: "0",
+        },
+      ],
+    };
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    expect(screen.queryByTestId("limit-level-bar")).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    const meter = screen.getByTestId("limit-level-bar");
+    // 800 of limit against the 1,064 it should be.
+    expect(meter.textContent).toContain("800");
+    expect(meter.textContent).toContain("1,064");
+  });
+
   it("keeps a category whose limit is already right in the dialog", async () => {
     // Two faces of one bug (user, 260809): a settled category never reached
     // the dialog at all, and a category REBALANCED inside it became settled

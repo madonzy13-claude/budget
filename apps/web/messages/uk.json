@@ -1473,6 +1473,8 @@
           "needs": "Потреби",
           "openLimitRebalance": "Збалансувати ліміти",
           "limitRebalanceTitle": "Збалансувати ліміти",
+          "limitsTotal": "Ліміти",
+          "limitsNeededTotal": "Має бути",
           "limitRebalanceExplainer": "Дайте кожній категорії стільки, скільки їй справді потрібно, щоб наступного місяця не виходити за межі.",
           "rebalanceNeedsAria": "Нові потреби для {name}",
           "rebalanceWantsAria": "Нові бажання для {name}",
