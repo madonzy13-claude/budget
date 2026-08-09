@@ -24,10 +24,7 @@ import { ok, err, type Result } from "@budget/shared-kernel";
 import { reserveFit, type ReserveFitMonth } from "../domain/reserve-fit";
 import { smallestSufficientLimit } from "../domain/suggest-limit";
 import { reserveNeededToday } from "../domain/reserve-requirement";
-import {
-  scheduledMonthlyNormalize,
-  type Cadence,
-} from "./scheduled-monthly-normalize";
+import { projectedMonthly } from "../domain/projected-monthly";
 import { projectScheduledPayments } from "../domain/scheduled-payment-projection";
 import type { ReservePositionsResult } from "./get-reserve-positions";
 import type { OverviewPlannedRepo } from "./get-overview-planned";
@@ -299,6 +296,24 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         const commitments = [...(committed.get(w.category_id) ?? [])];
         const routineRate = commitments[0]?.[1].routine ?? 0n;
 
+        // Every month of the RANGE this category has existed for — the ones it
+        // spent nothing in included, because a quiet month is still a month it
+        // was alive and under a limit. The average that used to divide by the
+        // months carrying a figure read two gifts a year as 251 a month
+        // (user, 260808). The running month is dropped, as everywhere else:
+        // half a month of spend against a whole month of limit is not a rate.
+        const scopeMonths: string[] = [];
+        for (
+          let m = from.slice(0, 7);
+          m <= to.slice(0, 7);
+          m = addMonths(m, 1)
+        ) {
+          if (m === nowMonth) continue;
+          if (w.created_month !== null && m < w.created_month) continue;
+          if (w.archived_month !== null && m > w.archived_month) continue;
+          scopeMonths.push(m);
+        }
+
         const closed = all.filter((m) => m !== nowMonth);
         const months: ReserveFitMonth[] = (
           closed.length > 0 ? closed : all
@@ -359,22 +374,23 @@ export function getReserveFit(deps: GetReserveFitDeps) {
               BigInt(months.length)
             : 0n;
 
-        // What an average month ahead costs: the habit that is left once every
-        // routine rule is floored out of it, plus every recurring rule at its
-        // monthly rate. ONCE is left out — it happens once, and the reserve is
-        // what funds it, not the run rate.
-        const projectedMonthly =
-          baselineSpend +
-          rules
-            .filter(
-              (r) => r.category_id === w.category_id && r.cadence !== "ONCE",
-            )
-            .reduce(
-              (acc, r) =>
-                acc +
-                scheduledMonthlyNormalize(r.amount_cents, r.cadence as Cadence),
-              0n,
-            );
+        // What an average month ahead costs — see projected-monthly.ts for the
+        // three rules. The window is every month of the RANGE this category has
+        // existed for, so a category given to twice in a year reads as a
+        // twelfth of those gifts and not half of them (user, 260808); the
+        // running month is left out for the same reason the walk drops it.
+        const projected = projectedMonthly({
+          windowMonths: scopeMonths,
+          spentByMonth: new Map(
+            scopeMonths.map((m) => [
+              m,
+              (spendByCell.get(`${w.category_id}|${m}`) ?? 0n) -
+                (excludedByCell.get(`${w.category_id}|${m}`) ?? 0n),
+            ]),
+          ),
+          rules: rules.filter((r) => r.category_id === w.category_id),
+          fromMonth: nowMonth,
+        });
 
         // The rules in full: the baseline above has had them taken out of
         // every month, whether the ledger named them or not, so counting them
@@ -409,18 +425,34 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // default screen. The trough walk keeps its fallback; the suggestion
         // does not get one.
         const hasClosedMonth = all.some((m) => m !== nowMonth);
-        const suggestion =
-          currentLimit > 0n && months.length > 0 && hasClosedMonth
-            ? smallestSufficientLimit({
-                heldCents: position.reserveCents,
-                baselineSpendCents: baselineSpend,
-                commitmentsByMonth: forward,
-                // What irregular ORDINARY spending has cost before, wanted by
-                // the end of the runway.
-                historicalNeedCents: past.neededCents,
-                currentLimitCents: currentLimit,
-              })
-            : null;
+        // ONE suggested limit, wherever it is shown (user, 260808). The reserve
+        // tooltip used to offer "or set the limit to X" from a solvency walk
+        // while the Future chart drew a different X from the projection — two
+        // numbers for one decision, on two screens a tap apart.
+        //
+        // The projection is the one that survives, because it is the answer to
+        // the question the household actually asks: what does this category
+        // cost me a month? The walk's extra input was what the reserve already
+        // holds, and that is a separate question — held against needed, which
+        // the same row still reports.
+        // …and nothing at all when today's limit already IS it: a suggestion
+        // that changes nothing is noise on every row of the chart. Under a
+        // whole unit is not a change.
+        const suggestionWorthMaking =
+          hasClosedMonth &&
+          scopeMonths.length > 0 &&
+          (projected - currentLimit > 99n || currentLimit - projected > 99n);
+        const suggestion = suggestionWorthMaking
+          ? {
+              limitCents: projected,
+              deltaCents: projected - currentLimit,
+              overMonths: scopeMonths.length,
+              direction:
+                projected > currentLimit
+                  ? ("raise" as const)
+                  : ("lower" as const),
+            }
+          : null;
 
         // Nothing spent, nothing planned, nothing committed and nothing held:
         // an archived test category ("ымо", "імперія") that would otherwise sit
@@ -450,7 +482,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           gap_cents: (position.reserveCents - neededCents).toString(),
           worst_month: past.worstMonth,
           worst_overage_cents: past.worstOverageCents.toString(),
-          projected_monthly_cents: projectedMonthly.toString(),
+          projected_monthly_cents: projected.toString(),
           suggested_limit_cents: suggestion?.limitCents.toString() ?? null,
           // What the reserve would need AT that limit. Lowering a limit stops
           // the reserve topping itself up, so the requirement RISES — reporting

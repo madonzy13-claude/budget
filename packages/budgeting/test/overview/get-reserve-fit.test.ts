@@ -356,11 +356,20 @@ describe("projected monthly cost", () => {
     expect(row?.projected_monthly_cents).toBe("200000");
   });
 
-  test("a yearly charge counts as its monthly share", async () => {
-    // 12,000 every January is 1,000 a month of limit, whether or not January is
-    // in the range being read.
+  test("a yearly charge the history cannot account for is added", async () => {
+    // 12,000 every January is 1,000 a month of limit. A category that spends
+    // nothing else has nothing for it to hide inside, so the whole share is
+    // new money.
+    const row = await rowFor(CAT, projDeps([rule(1200000n, "YEARLY")], 0n));
+    expect(row?.projected_monthly_cents).toBe("100000");
+  });
+
+  test("…and is NOT added on top of a history that already contains it", async () => {
+    // The gap the monthly floor never covered (user, 260808): a year-long
+    // window contains the January it lands in, so its share is already in the
+    // average and adding it again charged the same insurance twice.
     const row = await rowFor(CAT, projDeps([rule(1200000n, "YEARLY")]));
-    expect(row?.projected_monthly_cents).toBe("300000");
+    expect(row?.projected_monthly_cents).toBe("200000");
   });
 
   test("habit on top of the schedule adds up", async () => {
@@ -370,13 +379,28 @@ describe("projected monthly cost", () => {
     expect(row?.projected_monthly_cents).toBe("200000");
   });
 
-  test("a one-off is not part of an average month", async () => {
-    // It happens once. The reserve is what funds it; the run rate is not.
+  test("the suggested limit IS the projection, in both places it is shown", async () => {
+    // The reserve tooltip offered "or set the limit to X" from a solvency walk
+    // while the Future chart drew a different X from the projection — two
+    // numbers for one decision (user, 260808). There is one now.
+    // Every row, including the fixtures whose solvency walk answers something
+    // else entirely.
+    const dto = (await getReserveFit(deps())(input))._unsafeUnwrap();
+    expect(dto.rows.length).toBeGreaterThan(0);
+    for (const r of dto.rows) {
+      expect(r.suggested_limit_cents).toBe(r.projected_monthly_cents);
+      expect(r.suggested_delta_cents).not.toBeNull();
+    }
+  });
+
+  test("a one-off is saved for, month by month", async () => {
+    // 9,000 due in June, read in March: three months to put it aside, so the
+    // limit has to carry 3,000 a month on top of the habit (user, 260808).
     const row = await rowFor(
       CAT,
       projDeps([rule(900000n, "ONCE", { next_due_date: "2026-06-10" })]),
     );
-    expect(row?.projected_monthly_cents).toBe("200000");
+    expect(row?.projected_monthly_cents).toBe("500000");
   });
 });
 
@@ -1165,16 +1189,17 @@ describe("getReserveFit — the limit that would fund the buffer", () => {
   // spend is 26000 against a 20000 limit, so the category cannot accrue a cent
   // today and "top up 7000 now" would drain straight back out.
   //
-  // Ordinary spending is 26000 a month and nothing is scheduled, so the limit
-  // starts there — a limit under what a category spends is a standing
-  // overspend. On top of it, history's 12000 trough less the 5000 held is 7000
-  // to find, spread across the twelve-month runway: 584 a month.
-  test("spreads what history asks for across the whole runway", async () => {
+  // SUPERSEDED (user, 260808): the suggested limit is what the category COSTS,
+  // and nothing else. It used to fold in rebuilding the reserve — history's
+  // 12,000 trough less the 5,000 held, spread over the runway — which made it a
+  // different number from the one the Future chart drew for the same category.
+  // Whether the buffer is short is a separate question, and the same row still
+  // answers it: held against needed.
+  test("names what the category costs, not what the buffer also wants", async () => {
     const food = await rowFor(CAT_FOOD);
-    expect(food?.suggested_limit_cents).toBe("26584");
-    expect(food?.suggested_delta_cents).toBe("6584");
+    expect(food?.suggested_limit_cents).toBe(food!.projected_monthly_cents);
+    expect(food?.suggested_delta_cents).toBe("6000");
     expect(food?.suggested_direction).toBe("raise");
-    expect(food?.suggested_over_months).toBe(12);
   });
 
   test("says nothing when today's limit is already the smallest sufficient one", async () => {
