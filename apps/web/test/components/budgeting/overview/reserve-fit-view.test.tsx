@@ -583,8 +583,51 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     expect(out.value).toBe("7889 zl");
     const limit = rows.find((r) => r.label === "reserveFit.setLimit")!;
     expect(limit.conj).toBe("reserveFit.and");
-    expect(limit.value).toBe("4085 zl");
-    expect(limit.value2).toBe("(+785 zl)");
+    expect(limit.value).toBe("4086 zl");
+    expect(limit.value2).toBe("(+786 zl)");
+  });
+
+  // The tooltip named 4,085 and the dialog that acts on it proposed 4,086: the
+  // walk answers to the groszy, and only the dialog rounded up to the whole unit
+  // it will actually write. One suggestion, two figures (user, 260809).
+  it("names the limit the dialog will write, to the whole unit", () => {
+    renderWith(
+      withSuggestion("sport", {
+        held_cents: "1731521",
+        needed_cents: "942584",
+        gap_cents: "788937",
+        suggested_limit_cents: "408548",
+        suggested_delta_cents: "78548",
+        suggested_needed_cents: "8",
+        suggested_direction: "raise",
+      }),
+    );
+    const limit = tooltipFor("Sport").find(
+      (r) => r.label === "reserveFit.setLimit",
+    )!;
+    expect(limit.value).toBe("4086 zl");
+    // …and the change carries the same rounding, so limit − change is the
+    // limit in force: 4,086 − 786 = 3,300.
+    expect(limit.value2).toBe("(+786 zl)");
+  });
+
+  it("rounds a limit coming DOWN the same way the dialog does", () => {
+    renderWith(
+      withSuggestion("sport", {
+        held_cents: "428300",
+        needed_cents: "89400",
+        gap_cents: "338900",
+        suggested_limit_cents: "193412",
+        suggested_delta_cents: "-1588",
+        suggested_needed_cents: "109100",
+        suggested_direction: "lower",
+      }),
+    );
+    const limit = tooltipFor("Sport").find(
+      (r) => r.label === "reserveFit.setLimit",
+    )!;
+    expect(limit.value).toBe("1935 zl");
+    expect(limit.value2).toBe("(-15 zl)");
   });
 
   it("still caps the withdrawal when LOWERING the limit needs more held back", () => {

@@ -23,6 +23,7 @@ import {
 import { roundsToZero } from "@/lib/cents-format";
 import { reserveFitRows } from "@/lib/reserve-fit-rows";
 import { reserveTotals } from "@/lib/reserve-totals";
+import { roundUpUnit } from "@/lib/reserve-rebalance";
 import { ReserveLevelBar } from "./reserve-level-bar";
 import type { ReserveFitDTO } from "@/hooks/use-reserve-fit";
 import {
@@ -252,9 +253,14 @@ export function ReserveFitView({
                     {
                       conj: combined ? t("reserveFit.and") : t("reserveFit.or"),
                       label: t("reserveFit.setLimit"),
-                      value: format(limit),
+                      // The whole unit the DIALOG will write. The walk answers
+                      // to the groszy and only the dialog rounded up, so one
+                      // suggestion read 4,085 here and 4,086 there (user,
+                      // 260809). The change carries the same rounding, so
+                      // limit − change is still the limit in force.
+                      value: format(roundUpUnit(limit)),
                       value2: `(${delta < 0 ? "-" : "+"}${format(
-                        Math.abs(delta),
+                        Math.abs(delta + (roundUpUnit(limit) - limit)),
                       )})`,
                     },
                   ]),
