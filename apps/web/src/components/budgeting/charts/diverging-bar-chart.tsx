@@ -161,6 +161,9 @@ function colorValue(raw: unknown): number | null {
   return raw !== undefined && raw !== null && Number.isFinite(n) ? n : null;
 }
 
+/** The mark a bar worth nothing is drawn as: a hairline ON the zero line. */
+const ZERO_MARK_PX = 2;
+
 export function reserveFitColor(pct: number): string {
   if (pct === 0) return "var(--muted-foreground)";
   return pct > 0 ? "var(--primary)" : "var(--trading-down)";
@@ -599,10 +602,16 @@ export function OverviewDivergingBarChart({
                 colorValue(props.payload?.[colorKey]) ??
                 Number(props.payload?.["__pct"] ?? 0);
               const onPlan = Number(shown ?? 0) === 0;
+              // …and it is drawn as the SAME hairline however far off zero the
+              // groszy behind it are. Left at its own scale, thirty of them
+              // came out as a rounded blob beside the line while an exact zero
+              // was a thin mark on it — two shapes for one meaning.
+              const width = onPlan ? ZERO_MARK_PX : props.width;
               return (
                 <Rectangle
                   {...props}
-                  x={onPlan ? (props.x ?? 0) - (props.width ?? 0) / 2 : props.x}
+                  width={width}
+                  x={onPlan ? (props.x ?? 0) - ZERO_MARK_PX / 2 : props.x}
                   radius={onPlan ? 1 : 4}
                 />
               );

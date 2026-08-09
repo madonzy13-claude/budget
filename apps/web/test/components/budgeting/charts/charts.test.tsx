@@ -1271,20 +1271,28 @@ describe("the zero bar sits ON the line", () => {
     );
     return [
       ...container.querySelectorAll(".recharts-bar-rectangle .recharts-rectangle"),
-    ].map((r) => {
-      // Where the bar's MIDDLE sits. A bar worth nothing is a mark ON the zero
-      // line, so its centre is the line — whatever width it is drawn at.
-      const x = Number(r.getAttribute("x"));
-      const w = Number(r.getAttribute("width"));
-      return Math.round(x + w / 2);
-    });
+    ].map((r) => ({
+      // Where the bar's MIDDLE sits, and how wide it is drawn.
+      mid: Math.round(
+        Number(r.getAttribute("x")) + Number(r.getAttribute("width")) / 2,
+      ),
+      width: Number(r.getAttribute("width")),
+    }));
   };
 
   it("centres a rounds-to-zero bar on the line, like an exact zero", () => {
     const [groszy, exact, real] = xs();
-    expect(groszy).toBe(exact);
+    expect(groszy!.mid).toBe(exact!.mid);
     // …and a bar with something in it grows FROM the line, so its middle is
     // off to one side.
-    expect(real).toBeGreaterThan(exact!);
+    expect(real!.mid).toBeGreaterThan(exact!.mid);
+  });
+
+  it("draws it as the same hairline, not a pill at its own scale", () => {
+    // The Past reading renders an exact zero as a thin mark on the line; the
+    // Future one drew thirty groszy at whatever width the axis gave it, which
+    // came out as a chunky rounded blob beside the line (user, 260809).
+    const [groszy, exact] = xs();
+    expect(groszy!.width).toBe(exact!.width);
   });
 });
