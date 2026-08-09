@@ -1,6 +1,10 @@
 /**
  * reserve-requirement.test.ts — what a reserve must hold TODAY (260807 r3).
  *
+ * The suggested LIMIT left this file in 260808 — it is the projection now
+ * (domain/projected-monthly.ts), not a solvency walk — so what remains here is
+ * only what a reserve must HOLD.
+ *
  * `needed` used to be worked out as though the household would never save
  * another złoty, so it came out as the sum of the whole runway's lumps. Travel
  * read "short 7,702" while its own limit was quietly putting 1,834 a month into
@@ -9,7 +13,6 @@
  */
 import { describe, test, expect } from "bun:test";
 import { reserveNeededToday } from "../../src/domain/reserve-requirement";
-import { smallestSufficientLimit } from "../../src/domain/suggest-limit";
 
 const zl = (n: number) => BigInt(Math.round(n * 100));
 
@@ -93,43 +96,6 @@ describe("reserveNeededToday", () => {
         limitCents: zl(900),
       }),
     ).toBe(zl(1200));
-  });
-});
-
-describe("the requirement and the suggestion are one function", () => {
-  const held = zl(17315);
-
-  test("at the suggested limit, the requirement is covered by what is held", () => {
-    const s = smallestSufficientLimit({
-      ...travel,
-      heldCents: held,
-      currentLimitCents: zl(3233),
-    })!;
-    expect(
-      reserveNeededToday({ ...travel, limitCents: s.limitCents }) <= held,
-    ).toBe(true);
-  });
-
-  test("one groszy below it, the requirement is no longer covered", () => {
-    const s = smallestSufficientLimit({
-      ...travel,
-      heldCents: held,
-      currentLimitCents: zl(3233),
-    })!;
-    expect(
-      reserveNeededToday({ ...travel, limitCents: s.limitCents - 1n }) > held,
-    ).toBe(true);
-  });
-
-  test("a category already ahead is told it can lower the limit, not top up", () => {
-    const needed = reserveNeededToday({ ...travel, limitCents: zl(3233) });
-    expect(needed).toBeLessThan(held);
-    const s = smallestSufficientLimit({
-      ...travel,
-      heldCents: held,
-      currentLimitCents: zl(3233),
-    })!;
-    expect(s.direction).toBe("lower");
   });
 });
 

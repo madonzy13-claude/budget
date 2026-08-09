@@ -22,7 +22,6 @@
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
 import { reserveFit, type ReserveFitMonth } from "../domain/reserve-fit";
-import { smallestSufficientLimit } from "../domain/suggest-limit";
 import { reserveNeededToday } from "../domain/reserve-requirement";
 import { projectedMonthly } from "../domain/projected-monthly";
 import { projectScheduledPayments } from "../domain/scheduled-payment-projection";
