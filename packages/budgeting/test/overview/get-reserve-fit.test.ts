@@ -215,13 +215,14 @@ describe("a monthly rule the limit already covers", () => {
           }));
         },
         async monthlySpendByCategory() {
-          // Spent every month, and NOT linked to the rule — which is the whole
-          // point: history entered before the rule existed carries no link.
+          // The ledger names the rule's own money — which after a confirmed
+          // draft (or the import backfill) is what every month looks like.
+          // Ordinary spend is therefore nothing, and the rule is counted once.
           return ["2026-01", "2026-02"].map((month) => ({
             category_id: CAT,
             month,
             spent_cents: 200000n,
-            scheduled_cents: 0n,
+            scheduled_cents: 200000n,
           }));
         },
       },
@@ -289,6 +290,7 @@ describe("projected monthly cost", () => {
     rules: unknown[],
     spentCents = 200000n,
     limitCents = 250000n,
+    scheduledCents = 0n,
   ) =>
     deps({
       overviewRepo: {
@@ -316,7 +318,7 @@ describe("projected monthly cost", () => {
             category_id: CAT,
             month,
             spent_cents: spentCents,
-            scheduled_cents: 0n,
+            scheduled_cents: scheduledCents,
           }));
         },
       },
@@ -349,11 +351,23 @@ describe("projected monthly cost", () => {
     expect(row?.projected_monthly_cents).toBe("200000");
   });
 
-  test("a monthly rule already inside the habit is not added twice", async () => {
-    // 2,000 of history and a 2,000 monthly rule are the same 2,000 (the routine
-    // floor takes it out of habit), so the projection is 2,000 — not 4,000.
-    const row = await rowFor(CAT, projDeps([rule(200000n, "MONTHLY")]));
+  test("a monthly rule the ledger has named is counted exactly once", async () => {
+    // 2,000 spent, all of it linked to the 2,000 rule: no ordinary habit at
+    // all, so the projection is the rule — not twice it, and not nothing.
+    const row = await rowFor(
+      CAT,
+      projDeps([rule(200000n, "MONTHLY")], 200000n, 250000n, 200000n),
+    );
     expect(row?.projected_monthly_cents).toBe("200000");
+  });
+
+  test("unlinked history and a rule DO both count — that is the ledger's answer", async () => {
+    // Nothing here infers that the two are the same money (user, 260809). If a
+    // category's rows are not linked to the rule that describes them, the app
+    // is being told they are different spending, and it says so. Linking them
+    // is a deliberate act: confirm the draft, or run the import backfill.
+    const row = await rowFor(CAT, projDeps([rule(200000n, "MONTHLY")]));
+    expect(row?.projected_monthly_cents).toBe("400000");
   });
 
   test("a yearly charge the history cannot account for is added", async () => {
@@ -364,18 +378,23 @@ describe("projected monthly cost", () => {
     expect(row?.projected_monthly_cents).toBe("100000");
   });
 
-  test("…and is NOT added on top of a history that already contains it", async () => {
-    // The gap the monthly floor never covered (user, 260808): a year-long
-    // window contains the January it lands in, so its share is already in the
-    // average and adding it again charged the same insurance twice.
-    const row = await rowFor(CAT, projDeps([rule(1200000n, "YEARLY")]));
-    expect(row?.projected_monthly_cents).toBe("200000");
+  test("…and its own charge is out of the habit, so it is not doubled", async () => {
+    // The January it landed in is linked, so it never reached the habit; the
+    // monthly share is added once, from the rule.
+    const row = await rowFor(
+      CAT,
+      projDeps([rule(1200000n, "YEARLY")], 200000n, 250000n, 200000n),
+    );
+    expect(row?.projected_monthly_cents).toBe("100000");
   });
 
   test("habit on top of the schedule adds up", async () => {
-    // 2,000 spent, of which 500 is the rule → 1,500 of habit, and the rule is
-    // 500 a month. The projection is the 2,000 it actually costs.
-    const row = await rowFor(CAT, projDeps([rule(50000n, "MONTHLY")]));
+    // 2,000 spent, of which the ledger says 500 was the rule → 1,500 of habit
+    // plus a 500 rule is the 2,000 it actually costs.
+    const row = await rowFor(
+      CAT,
+      projDeps([rule(50000n, "MONTHLY")], 200000n, 250000n, 50000n),
+    );
     expect(row?.projected_monthly_cents).toBe("200000");
   });
 

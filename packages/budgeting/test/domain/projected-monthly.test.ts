@@ -61,61 +61,50 @@ describe("the average is over the window, not over the months with numbers", () 
   });
 });
 
-describe("a repeating payment is counted once", () => {
+describe("a repeating payment is counted once — from the ledger, not a guess", () => {
+  // The spend handed in is ORDINARY: what is linked to a rule has already been
+  // taken out of it, because the ledger says which rows those are. So every
+  // rule is simply added, once. Nothing is inferred from the size of anything
+  // (user, 260809 — "the code shouldn't assume anything").
   const monthly = (amount: number) =>
     [{ amount_cents: zl(amount), cadence: "MONTHLY" as const, yearly_month: null }];
 
-  test("a rule the history already pays is not added again", () => {
-    // Kids, live: 2,000 a month of alimony, a 2,000 monthly rule, and the
-    // ledger links only the one month since the rule was recorded. The habit
-    // already contains it, so the projection is what it costs — not twice that.
-    const spent = Object.fromEntries(YEAR.map((m) => [m, 2000]));
-    expect(run(spent, monthly(2000))).toBe(zl(2000));
+  test("adds the rule on top of what habit costs", () => {
+    // 215 of habit left after the alimony was taken out, plus the 2,000 rule.
+    const spent = Object.fromEntries(YEAR.map((m) => [m, 215]));
+    expect(run(spent, monthly(2000))).toBe(zl(2215));
   });
 
-  test("a rule the history has never paid is added in full", () => {
+  test("a rule in a category with no other spending is just the rule", () => {
     expect(run({}, monthly(3000))).toBe(zl(3000));
   });
 
-  test("only the part the history cannot account for is added", () => {
-    // 500 a month of habit and a 2,000 rule: 500 of the rule is already in
-    // there, so 1,500 is new.
-    const spent = Object.fromEntries(YEAR.map((m) => [m, 500]));
-    expect(run(spent, monthly(2000))).toBe(zl(2000));
+  test("a NEW rule is added even where the category already spends more", () => {
+    // The case the old guess got wrong: 800 of habit and a new 500 rule is
+    // 1,300, not 800. Nothing links that rule to the past because it has no
+    // past — and now nothing pretends otherwise.
+    const spent = Object.fromEntries(YEAR.map((m) => [m, 800]));
+    expect(run(spent, monthly(500))).toBe(zl(1300));
   });
 
-  test("a yearly charge inside the window is not added on top of itself", () => {
-    // THE GAP the monthly floor never covered: 12,000 every January is 1,000 a
-    // month, and a year-long window already contains that January.
-    const spent = { "2026-01": 12000 };
+  test("a yearly charge is its monthly share, wherever the window falls", () => {
+    // 12,000 every January is 1,000 a month. The January it landed in is
+    // already out of the habit above, so this is not a second helping.
     expect(
-      run(spent, [
+      run({}, [
         { amount_cents: zl(12000), cadence: "YEARLY", yearly_month: 1 },
       ]),
     ).toBe(zl(1000));
   });
 
-  test("a yearly charge the window never saw IS added", () => {
-    // A three-month window with no January in it knows nothing about it.
-    expect(
-      run(
-        {},
-        [{ amount_cents: zl(12000), cadence: "YEARLY", yearly_month: 1 }],
-        months("2026-05", 3),
-      ),
-    ).toBe(zl(1000));
-  });
-
-  test("two rules cannot both claim the same spending", () => {
-    // 600 of habit against a 400 and a 300 rule: the habit can only account
-    // for 600 of the 700, so 100 is new.
+  test("two rules each count for themselves", () => {
     const spent = Object.fromEntries(YEAR.map((m) => [m, 600]));
     expect(
       run(spent, [
         { amount_cents: zl(400), cadence: "MONTHLY", yearly_month: null },
         { amount_cents: zl(300), cadence: "MONTHLY", yearly_month: null },
       ]),
-    ).toBe(zl(700));
+    ).toBe(zl(1300));
   });
 });
 
@@ -142,7 +131,7 @@ describe("a one-off is saved for, month by month", () => {
     expect(run({}, once(9000, "2026-01-10"))).toBe(0n);
   });
 
-  test("it is never absorbed by the history — it has not happened yet", () => {
+  test("it rides on top of the habit, like every other commitment", () => {
     const spent = Object.fromEntries(YEAR.map((m) => [m, 5000]));
     expect(run(spent, once(9000, "2027-02-10"))).toBe(zl(5000 + 1800));
   });

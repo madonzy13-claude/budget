@@ -12,18 +12,17 @@
  *    carry a figure. Giving twice in a year is a twelfth of those two gifts
  *    each month, not half of them.
  *
- * 2. A REPEATING PAYMENT IS COUNTED ONCE. Its charges are already inside the
- *    history whenever they have been paid, and the ledger's own link only
- *    names them from the day the rule was recorded — which for an alimony
- *    paid all year and scheduled last month is a year too late. So the
- *    history is the witness: a rule is taken as already inside the observed
- *    spending up to the amount that spending can account for, and only the
- *    remainder is new money. Two rules cannot claim the same złoty.
+ * 2. A REPEATING PAYMENT IS COUNTED ONCE, and the LEDGER says so — nothing
+ *    here infers it. The spend handed in is ORDINARY: whatever is linked to a
+ *    rule has already been taken out of it at source, so every rule is simply
+ *    added, once, at its monthly size.
  *
- *    Where this is wrong: a genuinely NEW rule added to a category that
- *    already spends more than it. Nothing in the data separates that from a
- *    long-standing cost only just written down, and the error is bounded by
- *    the rule's own size — where charging it twice was not.
+ *    An earlier version guessed instead: it treated a rule as already inside
+ *    the observed spending up to whatever that spending could cover. That
+ *    quietly swallowed genuinely new rules, and guessing is not this layer's
+ *    job (user, 260809). Where history predates the rules — an import — the
+ *    links are made once, deliberately, by a backfill; after that the fact is
+ *    on the row and the arithmetic is deterministic.
  *
  * 3. A ONE-OFF IS SAVED FOR. It has not happened, so no history can account
  *    for it; it is split over the months between now and the day it lands.
@@ -47,8 +46,9 @@ export interface ProjectionRule {
 export interface ProjectedMonthlyInput {
   /** Months of the range the category existed in, 'YYYY-MM', oldest first. */
   windowMonths: readonly string[];
-  /** What it cost in each of those months, one-offs the household set aside
-   *  already removed. A month with no entry cost nothing. */
+  /** ORDINARY spend in each of those months: the month's total, less the
+   *  one-offs the household set aside, less whatever the ledger links to a
+   *  scheduled payment. A month with no entry cost nothing. */
   spentByMonth: ReadonlyMap<string, bigint>;
   rules: readonly ProjectionRule[];
   /** The month the projection is made FROM — one-offs are split from here. */
@@ -75,25 +75,15 @@ export function projectedMonthly(input: ProjectedMonthlyInput): bigint {
         span
       : 0n;
 
-  // 2. Repeating rules, largest first so the allocation below is stable.
-  const repeating = rules
+  // 2. Every repeating rule, at its monthly size. Once each: the habit above
+  //    is ordinary spend, which by definition excludes them.
+  const recurring = rules
     .filter((r) => r.cadence !== "ONCE")
-    .map((r) => ({
-      rule: r,
-      monthly: scheduledMonthlyNormalize(r.amount_cents, r.cadence as Cadence),
-    }))
-    .sort((a, b) => (b.monthly > a.monthly ? 1 : b.monthly < a.monthly ? -1 : 0));
-
-  // How much of the observed spending is still unclaimed. Each rule takes what
-  // it can from it — that part of the rule is already in the average — and only
-  // what is left over is money the limit does not yet cover.
-  let unclaimed = observed;
-  let extra = 0n;
-  for (const { monthly } of repeating) {
-    const absorbed = monthly < unclaimed ? monthly : unclaimed;
-    unclaimed -= absorbed;
-    extra += monthly - absorbed;
-  }
+    .reduce(
+      (acc, r) =>
+        acc + scheduledMonthlyNormalize(r.amount_cents, r.cadence as Cadence),
+      0n,
+    );
 
   // 3. One-offs: split over the months BEFORE the one it lands in, so the
   //    money is there whatever day of that month it is charged on. A date
@@ -108,5 +98,5 @@ export function projectedMonthly(input: ProjectedMonthlyInput): bigint {
     saving += r.amount_cents / BigInt(away > 0 ? away : 1);
   }
 
-  return observed + extra + saving;
+  return observed + recurring + saving;
 }

@@ -290,10 +290,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // that refills the walk, so the month still running is left out — unless
         // it is the only month there is, when a weak signal beats none at all
         // (user, 260804; the same rule the planned averages follow).
-        // What this category is committed to every month, from the rules
-        // themselves. Needed BEFORE the history is read — see the floor below.
         const commitments = [...(committed.get(w.category_id) ?? [])];
-        const routineRate = commitments[0]?.[1].routine ?? 0n;
 
         // Every month of the RANGE this category has existed for — the ones it
         // spent nothing in included, because a quiet month is still a month it
@@ -323,21 +320,15 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           // this category costs by habit, and it is the only part history can
           // tell us that the schedule cannot.
           //
-          // The ledger's own link is the best evidence of what a rule took, but
-          // it only exists from the day the rule was recorded. Alimony paid for
-          // a year and scheduled last month leaves eleven months whose "habit"
-          // silently contains it — and the forward walk then charged the same
-          // 2,000 again, telling a household with a 2,500 limit and 2,215 of
-          // spend to raise that limit by 1,314 (user screenshot, 260808).
-          //
-          // So a ROUTINE rule — one that fires every month or oftener — puts a
-          // FLOOR under what each month's scheduled portion must have been. A
-          // month that names more than that keeps its own figure.
-          const seen = scheduledByCell.get(key) ?? 0n;
+          // What the ledger LINKS to a rule, and nothing more. A floor used to
+          // be inferred here from the rule's own rate, to cover history that
+          // predated the rule — but inferring is not this layer's job (user,
+          // 260809). Where an import left the two unlinked, a one-time backfill
+          // links them; after that this is a fact on the row.
           const spent =
             (spendByCell.get(key) ?? 0n) -
             (excludedByCell.get(key) ?? 0n) -
-            (seen > routineRate ? seen : routineRate);
+            (scheduledByCell.get(key) ?? 0n);
           return {
             month,
             limitCents:
@@ -380,12 +371,18 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // running month is left out for the same reason the walk drops it.
         const projected = projectedMonthly({
           windowMonths: scopeMonths,
+          // ORDINARY spend: the month's total, less the one-offs the household
+          // set aside, less what the ledger LINKS to a scheduled payment. The
+          // rules are then added once each, from the rules themselves.
           spentByMonth: new Map(
-            scopeMonths.map((m) => [
-              m,
-              (spendByCell.get(`${w.category_id}|${m}`) ?? 0n) -
-                (excludedByCell.get(`${w.category_id}|${m}`) ?? 0n),
-            ]),
+            scopeMonths.map((m) => {
+              const key = `${w.category_id}|${m}`;
+              const ordinary =
+                (spendByCell.get(key) ?? 0n) -
+                (excludedByCell.get(key) ?? 0n) -
+                (scheduledByCell.get(key) ?? 0n);
+              return [m, ordinary > 0n ? ordinary : 0n];
+            }),
           ),
           rules: rules.filter((r) => r.category_id === w.category_id),
           fromMonth: nowMonth,
