@@ -147,6 +147,104 @@ describe("Budgets route (renamed from workspaces)", () => {
     expect(body.ownership_share_pct).toBe(100);
   });
 
+  /**
+   * A budget's name belongs to the reader (260808). There are TWO GET /:id
+   * handlers — this one and budget-identity's — and only the other learned
+   * that, so the Settings page kept showing the shared name while the header
+   * showed the member's own, even after a reload (user screenshot, 260809).
+   */
+  it("GET /budgets/:id answers with the caller's OWN name for the budget", async () => {
+    const { budgetsRoutesFactory } = require("../../src/routes/budgets");
+    const app2 = new Hono();
+    app2.use(async (c: any, next: any) => {
+      c.set("session", { user: { id: "user-001" } } as any);
+      c.set("tenantIds", ["budget-001"]);
+      await next();
+    });
+    const deps = {
+      tenancy: {
+        workspaceRepo: {
+          findById: async () => ({
+            id: "budget-001",
+            slug: "abc123",
+            name: "Private Budget",
+            kind: "PRIVATE" as const,
+            default_currency: "PLN",
+            ownerUserId: "user-001",
+            memberCount: 2,
+            createdAt: new Date(),
+          }),
+          memberBudgetName: async () => "Private",
+          listForUser: async () => [],
+          listMembers: async () => [{ userId: "user-001", role: "owner" }],
+          hasTransactions: async () => false,
+          updateIdentity: async () => {},
+          getAggPrefsForUser: async () => new Map(),
+        },
+        memberShareRepo: { list: async () => [], update: async () => {} },
+      },
+      identity: {
+        userRepo: {
+          getActiveWorkspaceIds: async () => [] as string[],
+          setActiveWorkspaceIds: async () => {},
+          findById: async () => null,
+          updateLocale: async () => {},
+          setDisplayCurrencyIfUnset: async () => {},
+        },
+        auth: { api: { createOrganization: async () => ({}) } },
+      },
+    } as any;
+    app2.route("/budgets", budgetsRoutesFactory(deps));
+    const body = (await (await app2.request("/budgets/budget-001")).json()) as any;
+    expect(body.name).toBe("Private");
+  });
+
+  it("GET /budgets/:id falls back to the budget's own name", async () => {
+    const { budgetsRoutesFactory } = require("../../src/routes/budgets");
+    const app2 = new Hono();
+    app2.use(async (c: any, next: any) => {
+      c.set("session", { user: { id: "user-001" } } as any);
+      c.set("tenantIds", ["budget-001"]);
+      await next();
+    });
+    const deps = {
+      tenancy: {
+        workspaceRepo: {
+          findById: async () => ({
+            id: "budget-001",
+            slug: "abc123",
+            name: "Private Budget",
+            kind: "PRIVATE" as const,
+            default_currency: "PLN",
+            ownerUserId: "user-001",
+            memberCount: 1,
+            createdAt: new Date(),
+          }),
+          memberBudgetName: async () => null,
+          listForUser: async () => [],
+          listMembers: async () => [{ userId: "user-001", role: "owner" }],
+          hasTransactions: async () => false,
+          updateIdentity: async () => {},
+          getAggPrefsForUser: async () => new Map(),
+        },
+        memberShareRepo: { list: async () => [], update: async () => {} },
+      },
+      identity: {
+        userRepo: {
+          getActiveWorkspaceIds: async () => [] as string[],
+          setActiveWorkspaceIds: async () => {},
+          findById: async () => null,
+          updateLocale: async () => {},
+          setDisplayCurrencyIfUnset: async () => {},
+        },
+        auth: { api: { createOrganization: async () => ({}) } },
+      },
+    } as any;
+    app2.route("/budgets", budgetsRoutesFactory(deps));
+    const body = (await (await app2.request("/budgets/budget-001")).json()) as any;
+    expect(body.name).toBe("Private Budget");
+  });
+
   it("GET /budgets/:id returns 404 when budget not in tenantIds", async () => {
     const { budgetsRoutesFactory } = require("../../src/routes/budgets");
     const app3 = new Hono();

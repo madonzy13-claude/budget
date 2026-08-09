@@ -176,6 +176,23 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       console.error("[budgets:get] listMembers failed:", e);
     }
 
+    // The name is the READER's (260808): their membership row carries what
+    // they chose to call this budget, and the budget's own name is only the
+    // fallback. There are TWO GET /:id handlers — this one and
+    // budget-identity's — and only the other learned that, so Settings kept
+    // showing the shared name while the header showed the member's own, even
+    // after a reload (user screenshot, 260809).
+    let ownName: string | null = null;
+    try {
+      ownName =
+        (await deps.tenancy.workspaceRepo.memberBudgetName?.(
+          budgetId,
+          actorUserId,
+        )) ?? null;
+    } catch (e) {
+      console.error("[budgets:get] memberBudgetName failed:", e);
+    }
+
     // Task 11: caller's own include_in_aggregation flag (self-toggle in
     // Settings) + self-set ownership_share_pct (no Σ=100 constraint —
     // each member freely picks how much of THIS budget's wealth counts
@@ -197,7 +214,7 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
 
     return c.json({
       id: budget.id,
-      name: budget.name,
+      name: ownName ?? budget.name,
       slug: budget.slug,
       kind: budget.kind,
       defaultCurrency: budget.default_currency,
