@@ -52,9 +52,7 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
       data-value-key={valueKey}
       data-money={String(typeof formatValue === "function")}
       data-band={String(onPlanBand)}
-      data-tooltips={JSON.stringify(
-        data.map((d) => tooltipExtra?.(d) ?? null),
-      )}
+      data-tooltips={JSON.stringify(data.map((d) => tooltipExtra?.(d) ?? null))}
       data-samples={JSON.stringify({
         positive: formatValue?.(4600),
         negative: formatValue?.(-4600),
@@ -555,6 +553,58 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     expect(limit.label).toBe("reserveFit.setLimit");
     expect(limit.value).toBe("1934 zl");
     expect(limit.value2).toBe("(-16 zl)");
+  });
+
+  // Every case above lowers the limit, where "what stays safe at the suggested
+  // limit" is SMALLER than today's surplus and rightly caps the withdrawal. On a
+  // RAISE the requirement falls away instead, so the same expression became the
+  // WHOLE reserve — the card told the household to take out 17,315 while its own
+  // rows said 17,315 held against 9,426 needed, and the bar drew 7,889.
+  //
+  // And the advice was bad even where it was arithmetically defensible: money
+  // that only becomes spare once you raise the limit has to be saved again from
+  // zero over the following months (user, 260809). Take what is genuinely spare
+  // at the limit in force, and no more.
+  it("never advises withdrawing more than is spare at TODAY's limit", () => {
+    renderWith(
+      withSuggestion("sport", {
+        held_cents: "1731521",
+        needed_cents: "942584",
+        gap_cents: "788937",
+        suggested_limit_cents: "408548",
+        suggested_delta_cents: "78548",
+        suggested_needed_cents: "8",
+        suggested_direction: "raise",
+      }),
+    );
+    const rows = tooltipFor("Sport");
+    const out = rows.find((r) => r.label === "reserveFit.withdraw")!;
+    // The figure the bar draws — 17,315 held less the 9,426 still doing a job.
+    expect(out.value).toBe("7889 zl");
+    const limit = rows.find((r) => r.label === "reserveFit.setLimit")!;
+    expect(limit.conj).toBe("reserveFit.and");
+    expect(limit.value).toBe("4085 zl");
+    expect(limit.value2).toBe("(+785 zl)");
+  });
+
+  it("still caps the withdrawal when LOWERING the limit needs more held back", () => {
+    // The 260807 rule, restated as a cap rather than a replacement: 4,283 held,
+    // 3,389 spare today, but only 3,192 stays safe once the limit comes down.
+    renderWith(
+      withSuggestion("sport", {
+        held_cents: "428300",
+        needed_cents: "89400",
+        gap_cents: "338900",
+        suggested_limit_cents: "193400",
+        suggested_delta_cents: "-1600",
+        suggested_needed_cents: "109100",
+        suggested_direction: "lower",
+      }),
+    );
+    const out = tooltipFor("Sport").find(
+      (r) => r.label === "reserveFit.withdraw",
+    )!;
+    expect(out.value).toBe("3192 zl");
   });
 
   it("does not offer a withdrawal of nothing", () => {

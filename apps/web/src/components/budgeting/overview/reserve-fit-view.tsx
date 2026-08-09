@@ -185,16 +185,28 @@ export function ReserveFitView({
             // to meet what is held and the cut alone spends the whole surplus.
             const outThere =
               neededThere == null ? null : Math.max(0, held - neededThere);
-            // …and then there is no second leg to combine, so the limit change
-            // and the withdrawal go back to being alternatives. "And withdraw
-            // 0 zł" is not an instruction, and it had displaced the withdrawal
-            // the bar itself was drawing (user, 260807).
+            // …but only ever as a CAP. That reading holds while the limit comes
+            // DOWN, where the requirement rises to meet what is held. RAISE it
+            // and the requirement falls away instead, so held − needed-there is
+            // the whole reserve: the card told the household to withdraw 17,315
+            // beside its own rows reading 17,315 held against 9,426 needed, and
+            // a bar drawing 7,889 (user, 260809).
+            //
+            // It is also the wrong advice on its own terms. The extra only
+            // becomes spare once the limit is raised, and taking it means
+            // saving it again from zero over the following months — so never
+            // offer more than is genuinely spare at the limit in force.
+            const canWithdraw =
+              outThere == null ? gap : Math.min(gap, outThere);
+            // …and when nothing is left to take, there is no second leg to
+            // combine, so the limit change and the withdrawal go back to being
+            // alternatives. "And withdraw 0 zł" is not an instruction, and it
+            // had displaced the withdrawal the bar itself was drawing (260807).
             const combined =
               gap > 0 &&
               limit != null &&
               delta != null &&
-              outThere != null &&
-              !roundsToZero(outThere);
+              !roundsToZero(canWithdraw);
             return [
               {
                 label: t("reserveFit.held"),
@@ -226,9 +238,9 @@ export function ReserveFitView({
                     }
                   : {
                       label: t("reserveFit.withdraw"),
-                      // On a combined row this is what stays safe AT the lower
-                      // limit, which is less than today's limit allows.
-                      value: format(combined ? outThere! : gap),
+                      // Whichever is smaller: what is spare today, and what
+                      // stays safe once the suggested limit is in force.
+                      value: format(combined ? canWithdraw : gap),
                       section: true,
                     },
               // The action always leads, and the limit follows it — joined by
