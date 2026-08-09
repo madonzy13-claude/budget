@@ -429,19 +429,25 @@ describe("projected monthly cost", () => {
     expect(row?.projected_monthly_cents).toBe("243000");
   });
 
-  test("…and its reserve is sized in the budget's money too", async () => {
-    // The same conversion has to reach the commitments the buffer is walked
-    // against, or the two halves of the row disagree about the same rule.
+  test("…as a monthly share of the limit", async () => {
     const yearly = await rowFor(
       CAT,
-      projDeps(
-        [{ ...rule(120000n, "YEARLY"), currency: "EUR" }],
-        0n,
-        0n,
-      ),
+      projDeps([{ ...rule(120000n, "YEARLY"), currency: "EUR" }], 0n, 0n),
     );
     // 1,200 EUR once a year is 5,160 PLN — 430 a month of limit.
     expect(yearly?.projected_monthly_cents).toBe("43000");
+  });
+
+  test("…and the RESERVE is sized in the budget's money too", async () => {
+    // The conversion has to reach the commitments the buffer is walked
+    // against, not just the projection, or the two halves of one row disagree
+    // about the same rule. A 1,200 EUR bill with no limit to accrue against
+    // has to be sitting there: 5,160 PLN, not 1,200.
+    const yearly = await rowFor(
+      CAT,
+      projDeps([{ ...rule(120000n, "YEARLY"), currency: "EUR" }], 0n, 0n),
+    );
+    expect(yearly?.needed_cents).toBe("516000");
   });
 
   test("a one-off is saved for, month by month", async () => {
