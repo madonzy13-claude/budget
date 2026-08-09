@@ -109,50 +109,39 @@ export function BudgetIdentitySection({
 
   return (
     <div className="divide-y divide-[var(--hairline-on-dark)]">
-      {/* Budget name — label left, value right, and the note on its OWN line
-          underneath. Sharing the label's column, that sentence squeezed the
-          value into two characters a line: "Pr / Bu" (user screenshot,
-          260809). */}
-      <div className="flex flex-col py-3">
-        <div className="flex items-center justify-between gap-4">
-          <p className="shrink-0 text-sm font-semibold text-[var(--body)]">
-            {t("identity.name_label")}
-          </p>
-          <div className="min-w-0 flex-1 text-right">
-            <InlineEditCell
-              value={displayName}
-              testId="budget-name-input"
-              ariaLabel={t("identity.name_label")}
-              render={(v) => (
-                <span className="block rounded-md px-3 py-1.5 text-sm text-[var(--body)] hover:bg-[var(--surface-elevated-dark)]">
-                  {v}
-                </span>
-              )}
-              renderEditor={(draft, onChange, onCommit, onCancel) => (
-                <Input
-                  autoFocus
-                  data-testid="budget-name-input"
-                  value={draft}
-                  maxLength={80}
-                  onChange={(e) => onChange(e.target.value)}
-                  onBlur={onCommit}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") onCancel();
-                    if (e.key === "Enter") onCommit();
-                  }}
-                  className="h-9 bg-[var(--surface-elevated-dark)] text-right text-sm"
-                />
-              )}
-              onSave={saveName}
-            />
-          </div>
-        </div>
-        {/* Renaming stopped being a shared act in 260808 — without saying so, a
-          member who renames and then sees their partner's screen unchanged has
-          found a bug rather than a feature. */}
-        <p className="pt-1 text-caption text-[var(--muted-foreground)]">
-          {t("identity.name_private_hint")}
+      {/* Budget name — label left, value right, single row. */}
+      <div className="flex items-center justify-between gap-4 py-3">
+        <p className="shrink-0 text-sm font-semibold text-[var(--body)]">
+          {t("identity.name_label")}
         </p>
+        <div className="min-w-0 flex-1 text-right">
+          <InlineEditCell
+            value={displayName}
+            testId="budget-name-input"
+            ariaLabel={t("identity.name_label")}
+            render={(v) => (
+              <span className="block rounded-md px-3 py-1.5 text-sm text-[var(--body)] hover:bg-[var(--surface-elevated-dark)]">
+                {v}
+              </span>
+            )}
+            renderEditor={(draft, onChange, onCommit, onCancel) => (
+              <Input
+                autoFocus
+                data-testid="budget-name-input"
+                value={draft}
+                maxLength={80}
+                onChange={(e) => onChange(e.target.value)}
+                onBlur={onCommit}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") onCancel();
+                  if (e.key === "Enter") onCommit();
+                }}
+                className="h-9 bg-[var(--surface-elevated-dark)] text-right text-sm"
+              />
+            )}
+            onSave={saveName}
+          />
+        </div>
       </div>
 
       {/* Default currency — label left, picker (or locked display) right.

@@ -242,12 +242,11 @@
     },
     "identity": {
       "name_label": "Nazwa",
-      "name_private_hint": "Tę nazwę widzisz tylko Ty — pozostali mają własną.",
       "name_saved": "Nazwa budżetu zapisana",
       "currency_label": "Waluta",
       "currency_saved": "Waluta zaktualizowana",
       "privacy_label": "Ukryj kwoty",
-      "privacy_hint": "Ukrywaj kwoty domyślnie; dotknij oka, aby je odsłonić.",
+      "privacy_hint": "Ukrywaj kwoty domyślnie; dotknij dowolnej kwoty, aby je odsłonić.",
       "privacy_on_toast": "Kwoty domyślnie ukryte",
       "privacy_off_toast": "Kwoty zawsze widoczne",
       "privacy_error": "Nie udało się zaktualizować ustawienia prywatności",
@@ -474,7 +473,7 @@
       "feature_help_text": "Licz ten budżet do łącznego majątku.",
       "feature_on_toast": "Uwzględniono w Twojej sumie",
       "feature_off_toast": "Wykluczono z Twojej sumy",
-      "share_label": "Procent majątku w podsumowaniu budżetów",
+      "share_label": "Udział w majątku",
       "share_help": "Jaka część majątku tego budżetu liczy się do Twojej sumy (0-100%).",
       "error_save": "Nie udało się zapisać. Spróbuj ponownie."
     },
