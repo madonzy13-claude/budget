@@ -1214,6 +1214,7 @@
           "12": "Грудень"
         },
         "firstDueLabel": "Перша дата",
+        "nextDueLabel": "Наступний платіж",
         "lastDueLabel": "Кінцева дата (необовʼязково)",
         "lastDuePlaceholder": "Без кінцевої дати",
         "errorLastBeforeFirst": "Кінцева дата не може бути раніше першої дати",

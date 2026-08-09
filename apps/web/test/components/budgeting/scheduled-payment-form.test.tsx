@@ -180,3 +180,48 @@ describe("Scheduled payment form — editing a one-time payment", () => {
     expect(edits.nextDueDate).toBe("2027-05-05");
   });
 });
+
+/**
+ * The date field is bound to the rule's NEXT occurrence, which marches forward
+ * every time one is generated. Calling it "first due date" while EDITING said
+ * the opposite: a yearly tier change created in 2023 showed "15 Oct 2026", and
+ * that reads as the day it started (user, 260809).
+ */
+describe("the date field says which date it is", () => {
+  const renderEdit = () =>
+    render(
+      <ScheduledPaymentForm
+        open
+        onOpenChange={vi.fn()}
+        mode="edit"
+        budgetId="b1"
+        ruleId="r1"
+        categories={CATEGORIES}
+        defaultCurrency="PLN"
+        onSaved={vi.fn()}
+        initialValues={{
+          name: "Tier change (winter)",
+          amount: "200",
+          currency: "PLN",
+          categoryId: CATEGORIES[0]!.id,
+          cadence: "YEARLY",
+          yearlyMonth: 10,
+          cadenceAnchor: 15,
+          firstDueDate: "2026-10-15",
+          endDate: null,
+        }}
+      />,
+    );
+
+  it("calls it the NEXT due date when editing", () => {
+    renderEdit();
+    expect(screen.getByText("rule.nextDueLabel")).toBeTruthy();
+    expect(screen.queryByText("rule.firstDueLabel")).toBeNull();
+  });
+
+  it("…and the FIRST due date when creating, which is what it is then", () => {
+    renderForm();
+    expect(screen.getByText("rule.firstDueLabel")).toBeTruthy();
+    expect(screen.queryByText("rule.nextDueLabel")).toBeNull();
+  });
+});

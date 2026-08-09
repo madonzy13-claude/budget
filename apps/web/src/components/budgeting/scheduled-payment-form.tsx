@@ -640,7 +640,18 @@ export function ScheduledPaymentForm({
                   (iOS/Android) opens the calendar reliably. */}
               <div>
                 <Label htmlFor="rr-firstdue">
-                  {t(cadence === "ONCE" ? "rule.dateLabel" : "rule.firstDueLabel")}
+                  {/* On an EXISTING rule this is the NEXT occurrence — the
+                      field is bound to next_due_date, which moves forward
+                      every time one is generated. Calling it "first due date"
+                      there said the opposite: a yearly rule created in 2023
+                      showed 2026 and read as the day it began (user, 260809). */}
+                  {t(
+                    cadence === "ONCE"
+                      ? "rule.dateLabel"
+                      : mode === "edit"
+                        ? "rule.nextDueLabel"
+                        : "rule.firstDueLabel",
+                  )}
                 </Label>
                 <DateInput
                   id="rr-firstdue"

@@ -1191,6 +1191,7 @@
           "12": "December"
         },
         "firstDueLabel": "First due date",
+        "nextDueLabel": "Next due date",
         "lastDueLabel": "Last date (optional)",
         "lastDuePlaceholder": "No end date",
         "errorLastBeforeFirst": "Last date can't be before the first due date",

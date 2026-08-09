@@ -1214,6 +1214,7 @@
           "12": "Grudzień"
         },
         "firstDueLabel": "Pierwsza data",
+        "nextDueLabel": "Następny termin",
         "lastDueLabel": "Data końcowa (opcjonalnie)",
         "lastDuePlaceholder": "Bez daty końcowej",
         "errorLastBeforeFirst": "Data końcowa nie może być wcześniejsza niż pierwsza data",
