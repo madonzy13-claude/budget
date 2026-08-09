@@ -60,6 +60,9 @@ interface SpendingsCategoryLike {
   plannedCents: string;
   /** THE Investments category — excluded from the retirement burn rate. */
   isInvestment: boolean;
+  /** How that category's limit is set: "smart" = whatever income is left after
+   *  every other limit, "manual" = a figure the household chose. */
+  investmentLimitMode?: string | null;
 }
 interface SpendingsSummaryLike {
   budgetCurrency: string;
@@ -298,8 +301,17 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
         // planned) — the money-runway burn rate. Also excludes Investments.
         if (!c.isInvestment)
           monthlyEffectivePlanned += BigInt(c.activeBudgetCents);
+        // A SMART investments limit is not a bill — it is "whatever income is
+        // left when every other limit is paid", so carrying it here made "Left"
+        // read as the whole month's income and the card was permanently short
+        // (user, 260809: 38,422 zł left against 5,133 zł of cash). Its own
+        // upcoming outflows below still count; only the residual limit goes.
+        // MANUAL stays: choosing to move 500 a month IS money spoken for — the
+        // same line the INCOME_UNDER_PLANNED task draws.
+        const smartInvestment =
+          c.isInvestment && c.investmentLimitMode === "smart";
         const leftover = BigInt(c.activeBudgetCents) - BigInt(c.spentCents);
-        const leftoverPos = leftover > 0n ? leftover : 0n;
+        const leftoverPos = smartInvestment || leftover < 0n ? 0n : leftover;
         const catUpcoming = upcoming.get(c.categoryId) ?? 0n;
         leftToSpend += leftoverPos > catUpcoming ? leftoverPos : catUpcoming;
       }

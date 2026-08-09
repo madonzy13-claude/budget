@@ -245,6 +245,90 @@ describe("Overview cards", () => {
     expect(dto.spendings.left_cents).toBe(5200n); // 1500 + 3000 + 700
   });
 
+  // A SMART Investments limit is "whatever income is left after every other
+  // limit" — it is not money the household still has to SPEND this month, and
+  // counting it made "Left" read as the entire income (user, 260809: 38,422 zł
+  // left against 5,133 zł of cash). The rest of the card already treats it this
+  // way: the retirement burn rate and the overspent tally both skip Investments,
+  // and the INCOME_UNDER_PLANNED task counts MANUAL investing but not SMART.
+  test("left_cents ignores a SMART investments limit (user, 260809)", async () => {
+    const d = deps();
+    d.spendingsSummary = async () =>
+      ok({
+        ...spendingsDto,
+        categories: [
+          ...spendingsDto.categories,
+          {
+            ...spendingsDto.categories[1]!,
+            categoryId: "inv",
+            name: "Investments",
+            spentCents: "0",
+            activeBudgetCents: "1838400",
+            plannedCents: "1838400",
+            balanceCents: "1838400",
+            isInvestment: true,
+            investmentLimitMode: "smart",
+          },
+        ],
+      }) as never;
+    const dto = (await getOverviewCards(d)(input))._unsafeUnwrap();
+    expect(dto.spendings.left_cents).toBe(3000n);
+  });
+
+  // A MANUAL investing limit IS a decision to move that much money, so it stays
+  // in — the same line the INCOME_UNDER_PLANNED task draws.
+  test("left_cents keeps a MANUAL investments limit", async () => {
+    const d = deps();
+    d.spendingsSummary = async () =>
+      ok({
+        ...spendingsDto,
+        categories: [
+          ...spendingsDto.categories,
+          {
+            ...spendingsDto.categories[1]!,
+            categoryId: "inv",
+            name: "Investments",
+            spentCents: "0",
+            activeBudgetCents: "50000",
+            plannedCents: "50000",
+            balanceCents: "50000",
+            isInvestment: true,
+            investmentLimitMode: "manual",
+          },
+        ],
+      }) as never;
+    const dto = (await getOverviewCards(d)(input))._unsafeUnwrap();
+    expect(dto.spendings.left_cents).toBe(53000n); // 3000 + 50000
+  });
+
+  // Scheduled investing that really is due this month still counts: the SMART
+  // limit goes, the actual bill does not.
+  test("a SMART investments category still contributes its upcoming outflows", async () => {
+    const d = deps();
+    d.spendingsSummary = async () =>
+      ok({
+        ...spendingsDto,
+        categories: [
+          ...spendingsDto.categories,
+          {
+            ...spendingsDto.categories[1]!,
+            categoryId: "inv",
+            name: "Investments",
+            spentCents: "0",
+            activeBudgetCents: "1838400",
+            plannedCents: "1838400",
+            balanceCents: "1838400",
+            isInvestment: true,
+            investmentLimitMode: "smart",
+          },
+        ],
+      }) as never;
+    d.upcomingByCategory = async () =>
+      new Map<string, bigint>([["inv", 1240n]]);
+    const dto = (await getOverviewCards(d)(input))._unsafeUnwrap();
+    expect(dto.spendings.left_cents).toBe(4240n); // 3000 + the 1,240 bill
+  });
+
   test("spendings.good is false when wallets can't cover what's left", async () => {
     const d = deps();
     d.walletRepo = {
