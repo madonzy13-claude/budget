@@ -978,24 +978,42 @@ export function PlannedSection({
                         value: fmtTooltip(Number(row.real)),
                         value2: total(fmtTooltip(Number(row.realTotal))),
                       },
-                      {
-                        // One baseline is listed above, so naming it again here
-                        // says nothing (user, 260807).
-                        label: t("planned.difference"),
-                        // Amount AND percent on one line — the bar shows the
-                        // percent, the tooltip should tie it back to real money.
-                        // Percent first — it is what the bar length encodes; the
-                        // money is the supporting detail (260801).
-                        value: `${pctSign}${Math.abs(
-                          Math.round(Number(row.pct)),
-                        )}% · ${sign}${fmtTooltip(Math.abs(diff))}`,
-                        // A conclusion, not another figure in the list — it opens
-                        // its own section under a rule (260803).
-                        section: true,
-                        color: varianceColorForRange(Number(row.pct), {
-                          runningMonthOnly: rangeWithinRunningMonth,
-                        }),
-                      },
+                      // FUTURE: the row is a decision, so it reads as one —
+                      // "Set the limit to 2,669 zł", in the accent, with the
+                      // change it makes beside it. "Difference −11% · −331 zł"
+                      // stated the same thing as arithmetic and left the reader
+                      // to do the addition (user, 260809). The figure is the
+                      // whole unit the rebalance dialog will write, so the two
+                      // cannot disagree.
+                      basis === "future"
+                        ? {
+                            label: t("reserveFit.setLimit"),
+                            value: fmtTooltip(
+                              Math.ceil(Number(row.real) / UNIT_CENTS) *
+                                UNIT_CENTS,
+                            ),
+                            value2: `(${sign}${fmtTooltip(Math.abs(diff))})`,
+                            section: true,
+                            cta: true,
+                          }
+                        : {
+                            // One baseline is listed above, so naming it again here
+                            // says nothing (user, 260807).
+                            label: t("planned.difference"),
+                            // Amount AND percent on one line — the bar shows the
+                            // percent, the tooltip should tie it back to real money.
+                            // Percent first — it is what the bar length encodes; the
+                            // money is the supporting detail (260801).
+                            value: `${pctSign}${Math.abs(
+                              Math.round(Number(row.pct)),
+                            )}% · ${sign}${fmtTooltip(Math.abs(diff))}`,
+                            // A conclusion, not another figure in the list — it opens
+                            // its own section under a rule (260803).
+                            section: true,
+                            color: varianceColorForRange(Number(row.pct), {
+                              runningMonthOnly: rangeWithinRunningMonth,
+                            }),
+                          },
                     ];
                   }}
                   formatTooltip={fmtTooltip}

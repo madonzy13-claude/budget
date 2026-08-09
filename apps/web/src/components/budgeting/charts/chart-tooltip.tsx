@@ -65,6 +65,10 @@ export function ChartTooltipContent({
     /** Opens a section of its own: a rule above it, so a conclusion (the
      *  difference) reads apart from the figures it came from. */
     section?: boolean;
+    /** THE thing to do. Drawn whole in the accent, so the instruction reads as
+     *  one and carries the weight of the card rather than sitting in the list
+     *  of figures it came from (user, 260809). */
+    cta?: boolean;
   }>;
   /** Per-series-row SUFFIX cell(s) after the value (e.g. a % change, or a
    *  [%, amount] pair). Return a string for ONE extra column, or an array for
@@ -390,7 +394,13 @@ export function ChartTooltipContent({
           )}
           {/* The label is what gives: it may wrap to a second line so the box
               keeps its width. The value beside it never breaks mid-number. */}
-          <span style={{ color: CHART_THEME.axis, minWidth: 0 }}>
+          <span
+            style={{
+              color: row.cta ? CHART_THEME.accent : CHART_THEME.axis,
+              fontWeight: row.cta ? 600 : undefined,
+              minWidth: 0,
+            }}
+          >
             {row.conj && (
               <>
                 <span
@@ -408,9 +418,11 @@ export function ChartTooltipContent({
               TOTAL column is muted: it is context for the average the bar is
               drawn from (260803). */}
           <span
+            data-testid={row.cta ? "tooltip-cta-value" : undefined}
             style={{
               marginLeft: "auto",
               fontWeight: 600,
+              color: row.cta ? CHART_THEME.accent : undefined,
               minWidth: row.value2 != null ? colWidth : undefined,
               textAlign: "right",
               whiteSpace: "nowrap",

@@ -207,11 +207,13 @@ export function ReserveFitView({
                       label: t("reserveFit.addToReserve"),
                       value: format(-gap),
                       section: true,
+                      cta: true,
                     }
                   : {
                       label: t("reserveFit.withdraw"),
                       value: format(gap),
                       section: true,
+                      cta: true,
                     },
             ];
           }}

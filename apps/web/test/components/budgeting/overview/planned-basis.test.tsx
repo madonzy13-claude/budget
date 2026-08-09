@@ -358,8 +358,10 @@ describe("How far off plan — the tooltip", () => {
     expect(rows().some((r) => r.label === "planned.real")).toBe(false);
   });
 
-  it("calls the difference just Difference, on either side", async () => {
-    // The baseline is named a line above; repeating it here said nothing.
+  it("calls the difference just Difference on the PAST side", async () => {
+    // The baseline is named a line above; repeating it here said nothing. The
+    // FUTURE side ends on the decision instead (user, 260809) — see the CTA
+    // suite at the foot of this file.
     const user = userEvent.setup();
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
     expect(rows().at(-1)!.label).toBe("planned.difference");
@@ -367,7 +369,7 @@ describe("How far off plan — the tooltip", () => {
     await user.click(
       screen.getByRole("button", { name: "planned.basisFuture" }),
     );
-    expect(rows().at(-1)!.label).toBe("planned.difference");
+    expect(rows().at(-1)!.label).toBe("reserveFit.setLimit");
   });
 });
 
@@ -436,9 +438,11 @@ describe("How far off plan — each basis shows only its own baseline", () => {
     expect(r.find((x) => x.label === "planned.expectedSpend")!.value).toContain(
       "1,064",
     );
-    // …and the difference is that against today's limit, nothing else.
-    expect(r.at(-1)!.label).toBe("planned.difference");
-    expect(r.at(-1)!.value).toContain("264");
+    // …and the row ends on the decision that follows from it: today's 800 plus
+    // the 264 it is short (user, 260809).
+    expect(r.at(-1)!.label).toBe("reserveFit.setLimit");
+    expect(r.at(-1)!.value).toContain("1,064");
+    expect(r.at(-1)!.value2).toContain("264");
   });
 
   it("FUTURE draws the bar from the same subtraction", async () => {
@@ -612,7 +616,7 @@ describe("How far off plan — each basis shows only its own baseline", () => {
       "800",
     );
     expect(r.find((x) => x.label === "planned.expectedSpend")).toBeDefined();
-    expect(r.at(-1)!.label).toBe("planned.difference");
+    expect(r.at(-1)!.label).toBe("reserveFit.setLimit");
   });
 
   it("FUTURE carries no range total — none of these accumulated", async () => {
@@ -623,7 +627,10 @@ describe("How far off plan — each basis shows only its own baseline", () => {
     await user.click(
       screen.getByRole("button", { name: "planned.basisFuture" }),
     );
-    for (const r of rows()) expect(r.value2).toBeUndefined();
+    // …the DECISION at the foot carries the change it makes, which is not a
+    // total either — every other row stands alone.
+    for (const r of rows())
+      if (r.label !== "reserveFit.setLimit") expect(r.value2).toBeUndefined();
   });
 
   it("FUTURE's difference is the same number the bar draws", async () => {
@@ -637,7 +644,8 @@ describe("How far off plan — each basis shows only its own baseline", () => {
       screen.getByRole("button", { name: "planned.basisFuture" }),
     );
     expect(chart().getAttribute("data-gap")).toBe("40000");
-    expect(rows().at(-1)!.value).toContain("400");
+    // The bar's subtraction, now written as the change the decision makes.
+    expect(rows().at(-1)!.value2).toContain("400");
   });
 
   it("FUTURE calls the spending what it is — what you are expected to spend", async () => {
@@ -649,5 +657,73 @@ describe("How far off plan — each basis shows only its own baseline", () => {
     const labels = rows().map((r) => r.label);
     expect(labels).toContain("planned.expectedSpend");
     expect(labels).not.toContain("planned.spent");
+  });
+});
+
+/**
+ * The Future reading ends in a decision, so the last line IS the decision
+ * (user, 260809). "Difference −11% · −331 zł" stated it as arithmetic and left
+ * the reader to do the addition themselves.
+ */
+describe("How far off plan — the Future tooltip ends on the limit", () => {
+  const rows = () =>
+    JSON.parse(chart().getAttribute("data-tooltip-rows")!) as {
+      label: string;
+      value: string;
+      value2?: string;
+      cta?: boolean;
+    }[];
+
+  const openFuture = async () => {
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+  };
+
+  it("names the limit to move to, as the call to action", async () => {
+    fitDto.current = {
+      rows: [
+        {
+          category_id: "c1",
+          // Costs 1,200 a month against a limit of 800.
+          projected_monthly_cents: "120000",
+          suggested_limit_cents: "120000",
+          suggested_delta_cents: "40000",
+        },
+      ],
+    };
+    await openFuture();
+    const last = rows()[rows().length - 1]!;
+    expect(last.label).toBe("reserveFit.setLimit");
+    expect(last.cta).toBe(true);
+    expect(last.value).toContain("1,200");
+    // …and the change it makes, beside it.
+    expect(last.value2).toContain("400");
+    expect(rows().map((r) => r.label)).not.toContain("planned.difference");
+  });
+
+  it("rounds it to the whole unit the dialog will write", async () => {
+    fitDto.current = {
+      rows: [
+        {
+          category_id: "c1",
+          projected_monthly_cents: "119901",
+          suggested_limit_cents: "119901",
+          suggested_delta_cents: "39901",
+        },
+      ],
+    };
+    await openFuture();
+    const last = rows()[rows().length - 1]!;
+    expect(last.value).toContain("1,200");
+  });
+
+  it("leaves the PAST reading measuring the difference", async () => {
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    const labels = rows().map((r) => r.label);
+    expect(labels).toContain("planned.difference");
+    expect(labels).not.toContain("reserveFit.setLimit");
   });
 });

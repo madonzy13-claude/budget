@@ -358,6 +358,34 @@ describe("Overview charts", () => {
         />,
       ).container;
 
+    // The row that says what to DO is the point of the card, so it is drawn
+    // whole in the accent rather than as one more label-and-figure in the list
+    // of numbers it came from (user, 260809).
+    it("draws a call-to-action row in the accent, label and figure together", () => {
+      const c = renderExtra(() => [
+        { label: "Expected spend", value: "1,064 zl" },
+        { label: "Set the limit to", value: "1,064 zl", cta: true },
+      ]);
+      const ctaValue = c.querySelector('[data-testid="tooltip-cta-value"]')!;
+      const label = [...c.querySelectorAll("span")].find(
+        (n) => n.textContent === "Set the limit to",
+      )!;
+      const plain = [...c.querySelectorAll("span")].find(
+        (n) => n.textContent === "Expected spend",
+      )!;
+      expect(ctaValue.textContent).toBe("1,064 zl");
+      // Both halves of the instruction carry the same accent…
+      expect(label.style.color).toBe((ctaValue as HTMLElement).style.color);
+      expect(label.style.fontWeight).toBe("600");
+      // …and it is NOT the colour the ordinary rows are labelled in.
+      expect(plain.style.color).not.toBe(label.style.color);
+    });
+
+    it("leaves an ordinary row unmarked", () => {
+      const c = renderExtra(() => [{ label: "Held", value: "17,315 zl" }]);
+      expect(c.querySelector('[data-testid="tooltip-cta-value"]')).toBeNull();
+    });
+
     it("renders a row's second value alongside the first", () => {
       const c = renderExtra(() => [
         { label: "Planned", value: "50 zl", value2: "200 zl" },

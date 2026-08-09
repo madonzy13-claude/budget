@@ -537,3 +537,63 @@ describe("ReserveFitView — what the tooltip tells you to do", () => {
     expect(labels("Sport")).toContain("reserveFit.balanced");
   });
 });
+
+/**
+ * The instruction is the point of the card, so it is drawn as one (user,
+ * 260809): whole, in the accent, rather than another label-and-figure in the
+ * list of numbers it came from.
+ */
+describe("ReserveFitView — the action reads as an action", () => {
+  const tooltipRows = (name: string) => {
+    const chart = screen.getByTestId("fit-chart");
+    const rows = chart.getAttribute("data-rows")!.split(",");
+    const all = JSON.parse(chart.getAttribute("data-tooltips")!) as {
+      label: string;
+      cta?: boolean;
+    }[][];
+    return all[rows.indexOf(name)]!;
+  };
+
+  const render_ = () =>
+    render(
+      <ReserveFitView
+        data={DTO as never}
+        onSave={vi.fn()}
+        onRebalance={vi.fn(async () => 0)}
+        format={(c: number) => `${Math.round(c / 100)} zl`}
+        formatExact={(c: number) => `${(c / 100).toFixed(2)} zl`}
+      />,
+    );
+
+  it("marks the top-up as the call to action", () => {
+    render_();
+    const add = tooltipRows("Car").find(
+      (r) => r.label === "reserveFit.addToReserve",
+    )!;
+    expect(add.cta).toBe(true);
+  });
+
+  it("marks the withdrawal as the call to action", () => {
+    render_();
+    const out = tooltipRows("Sport").find(
+      (r) => r.label === "reserveFit.withdraw",
+    )!;
+    expect(out.cta).toBe(true);
+  });
+
+  it("leaves the figures it came from alone", () => {
+    render_();
+    for (const row of tooltipRows("Car")) {
+      if (row.label === "reserveFit.addToReserve") continue;
+      expect(row.cta).toBeUndefined();
+    }
+  });
+
+  it("does not dress up 'nothing to do' as something to do", () => {
+    render_();
+    const settled = tooltipRows("Newborn").find(
+      (r) => r.label === "reserveFit.balanced",
+    )!;
+    expect(settled.cta).toBeUndefined();
+  });
+});
