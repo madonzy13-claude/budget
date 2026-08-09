@@ -465,13 +465,25 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           nowMonth,
           position.reserveCents,
         );
-        const walked = reserveNeededToday({
-          baselineSpendCents: baselineSpend,
-          commitmentsByMonth: forward,
-          historicalNeedCents: past.neededCents,
-          limitCents: currentLimit,
-        });
-        const neededCents = walked > earmarked ? walked : earmarked;
+        //
+        // `needed` stays the requirement at the limit in FORCE — that is what
+        // this figure has always meant and what the sizing tests pin. The chart
+        // re-bases it onto the recommended limit for display (user, 260809,
+        // lib/reserve-fit-rows.ts); the DTO reports both, and history is
+        // re-walked for the second because it moves with the limit too.
+        const neededAt = (limitCents: bigint): bigint => {
+          const walked = reserveNeededToday({
+            baselineSpendCents: baselineSpend,
+            commitmentsByMonth: forward,
+            historicalNeedCents:
+              limitCents === currentLimit
+                ? past.neededCents
+                : reserveFit(months.map((m) => ({ ...m, limitCents })))
+                    .neededCents,
+            limitCents,
+          });
+          return walked > earmarked ? walked : earmarked;
+        };
         // No current limit means nothing to suggest a change TO — the row is
         // already being judged on its own history (see currentLimit above).
         //
@@ -513,6 +525,8 @@ export function getReserveFit(deps: GetReserveFitDeps) {
             }
           : null;
 
+        const neededCents = neededAt(currentLimit);
+
         // Nothing spent, nothing planned, nothing committed and nothing held:
         // an archived test category ("ымо", "імперія") that would otherwise sit
         // at 0% saying nothing (user, 260804). A dead category that still HOLDS
@@ -548,34 +562,12 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           // only the figure at today's limit invited the household to withdraw
           // the surplus AND lower the limit, which leaves them short (user,
           // 260807).
+          // What the buffer needs at the limit being suggested — the basis the
+          // chart draws once there is a suggestion to draw.
           suggested_needed_cents:
             suggestion == null
               ? null
-              : (() => {
-                  // HISTORY IS JUDGED AGAINST THE LIMIT IN FORCE, so it has to
-                  // be re-walked at the limit being suggested. Reusing the
-                  // figure worked out at today's limit made this forecast wrong
-                  // in exactly the case it exists for — the one where the limit
-                  // moves. Travel promised "17,000 needed, 315 spare" and paid
-                  // out "add 1,403" the moment the limit was set (user,
-                  // 260809): a lower limit makes past months overspend, and the
-                  // buffer they ask for grows.
-                  const pastThere = reserveFit(
-                    months.map((m) => ({
-                      ...m,
-                      limitCents: suggestion.limitCents,
-                    })),
-                  );
-                  // …and the same floor as `neededCents`: at any limit the
-                  // reserve still holds what the limit was excused from saving.
-                  const there = reserveNeededToday({
-                    baselineSpendCents: baselineSpend,
-                    commitmentsByMonth: forward,
-                    historicalNeedCents: pastThere.neededCents,
-                    limitCents: suggestion.limitCents,
-                  });
-                  return (there > earmarked ? there : earmarked).toString();
-                })(),
+              : neededAt(suggestion.limitCents).toString(),
           suggested_delta_cents: suggestion?.deltaCents.toString() ?? null,
           suggested_over_months: suggestion?.overMonths ?? null,
           suggested_direction: suggestion?.direction ?? null,

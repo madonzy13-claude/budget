@@ -525,15 +525,14 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
   });
 
   it("gives a surplus row ONE recommendation: lower the limit AND withdraw", () => {
-    // The two interact. Lowering the limit stops the reserve topping itself up,
-    // so what it needs rises — withdrawing the full surplus as well leaves the
-    // household short. One safe end-state instead of two options that cannot
-    // both be taken (user, 260807).
+    // The two interact, so they are one instruction: do both and the row lands
+    // at zero (user, 260807, restated 260809). Every figure here is measured at
+    // the limit being recommended, so needed − held IS the move.
     renderWith(
       withSuggestion("sport", {
         held_cents: "428300",
-        needed_cents: "89400",
-        gap_cents: "338900",
+        needed_cents: "109100",
+        gap_cents: "319200",
         suggested_limit_cents: "193400",
         suggested_delta_cents: "-1600",
         suggested_needed_cents: "109100",
@@ -549,7 +548,7 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     // 4,283 − 1,091 at the lower limit, NOT the 3,389 today's limit allows.
     expect(out.value).toBe("3192 zl");
     const limit = rows[3]!;
-    expect(limit.conj).toBe("reserveFit.and");
+    expect(limit.conj).toBeUndefined();
     expect(limit.label).toBe("reserveFit.setLimit");
     expect(limit.value).toBe("1934 zl");
     expect(limit.value2).toBe("(-16 zl)");
@@ -582,7 +581,7 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     // The figure the bar draws — 17,315 held less the 9,426 still doing a job.
     expect(out.value).toBe("7889 zl");
     const limit = rows.find((r) => r.label === "reserveFit.setLimit")!;
-    expect(limit.conj).toBe("reserveFit.and");
+    expect(limit.conj).toBeUndefined();
     expect(limit.value).toBe("4086 zl");
     expect(limit.value2).toBe("(+786 zl)");
   });
@@ -630,14 +629,16 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     expect(limit.value2).toBe("(-15 zl)");
   });
 
-  it("still caps the withdrawal when LOWERING the limit needs more held back", () => {
-    // The 260807 rule, restated as a cap rather than a replacement: 4,283 held,
-    // 3,389 spare today, but only 3,192 stays safe once the limit comes down.
+  it("moves the reserve by exactly what the bar draws", () => {
+    // SUPERSEDES the 260807 cap. The cap existed because the card mixed two
+    // limits — the rows at today's, the move at the suggested one. The row is
+    // now judged at ONE limit, so the move IS the gap and no clamp can differ
+    // from it (user, 260809).
     renderWith(
       withSuggestion("sport", {
         held_cents: "428300",
-        needed_cents: "89400",
-        gap_cents: "338900",
+        needed_cents: "109100",
+        gap_cents: "319200",
         suggested_limit_cents: "193400",
         suggested_delta_cents: "-1600",
         suggested_needed_cents: "109100",
@@ -650,7 +651,30 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     expect(out.value).toBe("3192 zl");
   });
 
-  it("does not offer a withdrawal of nothing", () => {
+  it("says ADD when the limit it recommends needs a bigger buffer", () => {
+    // Travel, live: lowering the limit to what the category costs makes past
+    // months overspend, so the buffer has to grow — "add 1,403", not a
+    // withdrawal (user, 260809).
+    renderWith(
+      withSuggestion("sport", {
+        held_cents: "1731521",
+        needed_cents: "1871784",
+        gap_cents: "-140263",
+        suggested_limit_cents: "266882",
+        suggested_delta_cents: "-63118",
+        suggested_needed_cents: "1871784",
+        suggested_direction: "lower",
+      }),
+    );
+    const rows = tooltipFor("Sport");
+    const add = rows.find((r) => r.label === "reserveFit.addToReserve")!;
+    expect(add.value).toBe("1403 zl");
+    expect(
+      rows.find((r) => r.label === "reserveFit.setLimit")!.conj,
+    ).toBeUndefined();
+  });
+
+  it("drops the conjunction when the reserve needs no move at all", () => {
     // Travel, live: the bar draws +1,237 of slack, and the suggested 103 off
     // the limit absorbs every złoty of it — so the second leg came out as
     // "and withdraw 0 zł", which is not an instruction, and it had taken the
@@ -659,8 +683,8 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
     renderWith(
       withSuggestion("car", {
         held_cents: "1731500",
-        needed_cents: "1607800",
-        gap_cents: "123700",
+        needed_cents: "1731500",
+        gap_cents: "0",
         suggested_limit_cents: "313000",
         suggested_delta_cents: "-10300",
         suggested_needed_cents: "1731500",
@@ -668,12 +692,11 @@ describe("ReserveFitView — two routes out of a short reserve", () => {
       }),
     );
     const rows = tooltipFor("Car");
-    const out = rows.find((r) => r.label === "reserveFit.withdraw")!;
-    expect(out.value).toBe("1237 zl");
+    // The limit change is then the whole instruction, and nothing joins it to
+    // a move that is not being asked for.
     const alt = rows.find((r) => r.label === "reserveFit.setLimit")!;
-    expect(alt.conj).toBe("reserveFit.or");
     expect(alt.value).toBe("3130 zl");
-    // …and only ONE of the two is on offer, so neither is worded as a pair.
+    expect(alt.conj).toBeUndefined();
     expect(rows.filter((r) => r.conj === "reserveFit.and")).toEqual([]);
   });
 

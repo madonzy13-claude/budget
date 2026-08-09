@@ -20,7 +20,6 @@ import {
   OverviewDivergingBarChart,
   reserveFitColor,
 } from "@/components/budgeting/charts/diverging-bar-chart";
-import { roundsToZero } from "@/lib/cents-format";
 import { reserveFitRows } from "@/lib/reserve-fit-rows";
 import { reserveTotals } from "@/lib/reserve-totals";
 import { roundUpUnit } from "@/lib/reserve-rebalance";
@@ -171,43 +170,16 @@ export function ReserveFitView({
           colorKey="pct"
           tooltipExtra={(row) => {
             const gap = Number(row.gapCents);
-            // A SHORT row has two genuine alternatives: put the money in, or
-            // raise the limit so it fills itself. A SURPLUS row does not — the
-            // two interact, because lowering a limit stops the reserve topping
-            // itself up and so RAISES what it needs. Taking the full surplus out
-            // AND lowering the limit leaves the household short, so a surplus
-            // row gets ONE safe end-state instead (user, 260807).
+            // TWO STATEMENTS, NOT ONE INSTRUCTION (user, 260809). Everything
+            // here is measured at the limit in force, so the move above lands
+            // this reserve at zero on its own; the limit line below is separate
+            // advice about the plan, not the other half of the same act.
+            //
+            // So no conjunction: "and" said do both to get there, "or" said
+            // either would — and with the basis fixed at today's limit neither
+            // is true. Each line stands by itself.
             const limit = row.suggestedLimitCents as number | null;
             const delta = row.suggestedDeltaCents as number | null;
-            const neededThere = row.suggestedNeededCents as number | null;
-            const held = Number(row.heldCents);
-            // What could still come out AFTER the limit came down. Often
-            // nothing: a smaller limit accrues less, so the requirement rises
-            // to meet what is held and the cut alone spends the whole surplus.
-            const outThere =
-              neededThere == null ? null : Math.max(0, held - neededThere);
-            // …but only ever as a CAP. That reading holds while the limit comes
-            // DOWN, where the requirement rises to meet what is held. RAISE it
-            // and the requirement falls away instead, so held − needed-there is
-            // the whole reserve: the card told the household to withdraw 17,315
-            // beside its own rows reading 17,315 held against 9,426 needed, and
-            // a bar drawing 7,889 (user, 260809).
-            //
-            // It is also the wrong advice on its own terms. The extra only
-            // becomes spare once the limit is raised, and taking it means
-            // saving it again from zero over the following months — so never
-            // offer more than is genuinely spare at the limit in force.
-            const canWithdraw =
-              outThere == null ? gap : Math.min(gap, outThere);
-            // …and when nothing is left to take, there is no second leg to
-            // combine, so the limit change and the withdrawal go back to being
-            // alternatives. "And withdraw 0 zł" is not an instruction, and it
-            // had displaced the withdrawal the bar itself was drawing (260807).
-            const combined =
-              gap > 0 &&
-              limit != null &&
-              delta != null &&
-              !roundsToZero(canWithdraw);
             return [
               {
                 label: t("reserveFit.held"),
@@ -239,9 +211,7 @@ export function ReserveFitView({
                     }
                   : {
                       label: t("reserveFit.withdraw"),
-                      // Whichever is smaller: what is spare today, and what
-                      // stays safe once the suggested limit is in force.
-                      value: format(combined ? canWithdraw : gap),
+                      value: format(gap),
                       section: true,
                     },
               // The action always leads, and the limit follows it — joined by
@@ -251,7 +221,6 @@ export function ReserveFitView({
                 ? []
                 : [
                     {
-                      conj: combined ? t("reserveFit.and") : t("reserveFit.or"),
                       label: t("reserveFit.setLimit"),
                       // The whole unit the DIALOG will write. The walk answers
                       // to the groszy and only the dialog rounded up, so one

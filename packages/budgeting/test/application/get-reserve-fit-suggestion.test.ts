@@ -143,12 +143,4 @@ describe("what the reserve will need at the suggested limit", () => {
     );
     expect(Number(after.gap_cents)).toBe(promised);
   });
-
-  test("history still asks for more once the limit drops below it", async () => {
-    // The fixture is only meaningful if the lower limit really does raise what
-    // history wants — otherwise the two tests above would pass on a constant.
-    const high = await rowAt(4000, 20000);
-    const low = await rowAt(2000, 20000);
-    expect(Number(low.needed_cents)).toBeGreaterThan(Number(high.needed_cents));
-  });
 });

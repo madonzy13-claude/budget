@@ -214,3 +214,44 @@ describe("reserveFitRows — the limit that would fund the buffer", () => {
     expect(row!.suggestedDirection).toBeNull();
   });
 });
+
+/**
+ * The basis is the limit in FORCE (user, 260809).
+ *
+ * A re-base onto the recommended limit was tried and reverted the same day: the
+ * bar answers "where does this reserve stand", and the suggestion beside it
+ * answers "where should it go". Two questions, two figures.
+ */
+describe("reserveFitRows — measured at the limit in force", () => {
+  it("ignores what the buffer would need at the suggested limit", () => {
+    const [r] = reserveFitRows([
+      row({
+        held_cents: "1731521",
+        needed_cents: "942584",
+        gap_cents: "788937",
+        suggested_limit_cents: "266882",
+        suggested_delta_cents: "-63118",
+        suggested_needed_cents: "1871784",
+      }),
+    ]).sized;
+    expect(r?.neededCents).toBe(942584);
+    expect(r?.gapCents).toBe(788937);
+    expect(r?.short).toBe(false);
+    // …and it still carries the forecast, for the sentence under the bar.
+    expect(r?.suggestedNeededCents).toBe(1871784);
+  });
+
+  it("is unchanged when the row recommends nothing", () => {
+    const [r] = reserveFitRows([
+      row({
+        held_cents: "1731521",
+        needed_cents: "942584",
+        gap_cents: "788937",
+        suggested_limit_cents: null,
+        suggested_needed_cents: null,
+      }),
+    ]).sized;
+    expect(r?.neededCents).toBe(942584);
+    expect(r?.gapCents).toBe(788937);
+  });
+});

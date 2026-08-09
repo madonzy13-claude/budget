@@ -55,6 +55,10 @@ export function fitPct(heldCents: number, neededCents: number): number {
 
 function toSized(r: ReserveFitRow): SizedReserveRow {
   const held = Number(r.held_cents);
+  // Measured at the limit in FORCE — where this reserve actually stands today
+  // (user, 260809). A re-base onto the recommended limit was tried and reverted
+  // the same day: the bar answers "where am I", and the suggestion beside it
+  // answers "where should I go".
   const needed = Number(r.needed_cents);
   const gap = Number(r.gap_cents);
   const pct = fitPct(held, needed);
