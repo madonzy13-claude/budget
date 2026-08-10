@@ -69,6 +69,10 @@ export function ChartTooltipContent({
      *  it stays in the ordinary colour, so the row reads as a call to action
      *  rather than as a highlighted number (user, 260809). */
     cta?: boolean;
+    /** Overrides the accent for THIS instruction: money that has to go IN is
+     *  drawn in the shortfall colour, money that can come out in the surplus
+     *  one — the same two colours the bars use (user, 260810). */
+    ctaColor?: string;
   }>;
   /** Per-series-row SUFFIX cell(s) after the value (e.g. a % change, or a
    *  [%, amount] pair). Return a string for ONE extra column, or an array for
@@ -396,7 +400,9 @@ export function ChartTooltipContent({
               keeps its width. The value beside it never breaks mid-number. */}
           <span
             style={{
-              color: row.cta ? CHART_THEME.accent : CHART_THEME.axis,
+              color: row.cta
+                ? (row.ctaColor ?? CHART_THEME.accent)
+                : CHART_THEME.axis,
               fontWeight: row.cta ? 600 : undefined,
               minWidth: 0,
             }}

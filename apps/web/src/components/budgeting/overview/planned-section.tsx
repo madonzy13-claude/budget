@@ -979,23 +979,40 @@ export function PlannedSection({
                         value2: total(fmtTooltip(Number(row.realTotal))),
                       },
                       // FUTURE: the row is a decision, so it reads as one —
-                      // "Set the limit to 2,669 zł", in the accent, with the
-                      // change it makes beside it. "Difference −11% · −331 zł"
-                      // stated the same thing as arithmetic and left the reader
-                      // to do the addition (user, 260809). The figure is the
-                      // whole unit the rebalance dialog will write, so the two
-                      // cannot disagree.
+                      // "Increase limit by 331 zł", in the colour that says
+                      // which way it points. "Difference −11% · −331 zł" stated
+                      // the same thing as arithmetic and left the reader to
+                      // work out both the direction and the destination (user,
+                      // 260809, 260810).
+                      //
+                      // A limit that has to RISE is a shortfall — the category
+                      // costs more than it is given — so it takes the shortfall
+                      // colour; one that can come down is slack, and takes the
+                      // surplus one. The same two colours the bars use.
+                      //
+                      // Whole units, because that is what the rebalance dialog
+                      // writes, and nothing at all under one: there is no
+                      // instruction in forty groszy.
                       basis === "future"
-                        ? {
-                            label: t("reserveFit.setLimit"),
-                            value: fmtTooltip(
-                              Math.ceil(Number(row.real) / UNIT_CENTS) *
-                                UNIT_CENTS,
-                            ),
-                            value2: `(${sign}${fmtTooltip(Math.abs(diff))})`,
-                            section: true,
-                            cta: true,
-                          }
+                        ? Math.abs(diff) < UNIT_CENTS
+                          ? null
+                          : {
+                              label: t(
+                                diff > 0
+                                  ? "planned.increaseLimitBy"
+                                  : "planned.decreaseLimitBy",
+                              ),
+                              value: fmtTooltip(
+                                Math.round(Math.abs(diff) / UNIT_CENTS) *
+                                  UNIT_CENTS,
+                              ),
+                              section: true,
+                              cta: true,
+                              ctaColor:
+                                diff > 0
+                                  ? "var(--trading-down)"
+                                  : "var(--primary)",
+                            }
                         : {
                             // One baseline is listed above, so naming it again here
                             // says nothing (user, 260807).
@@ -1014,7 +1031,9 @@ export function PlannedSection({
                               runningMonthOnly: rangeWithinRunningMonth,
                             }),
                           },
-                    ];
+                      // …and a Future row with nothing to ask for drops out
+                      // rather than printing "change it by 0".
+                    ].filter((r): r is NonNullable<typeof r> => r !== null);
                   }}
                   formatTooltip={fmtTooltip}
                   // 260731 (user decision): the CHARTS always show real numbers — masking

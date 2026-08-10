@@ -550,6 +550,7 @@ describe("ReserveFitView — the action reads as an action", () => {
     const all = JSON.parse(chart.getAttribute("data-tooltips")!) as {
       label: string;
       cta?: boolean;
+      ctaColor?: string;
     }[][];
     return all[rows.indexOf(name)]!;
   };
@@ -565,20 +566,24 @@ describe("ReserveFitView — the action reads as an action", () => {
       />,
     );
 
-  it("marks the top-up as the call to action", () => {
+  it("marks the top-up as the call to action, in the shortfall colour", () => {
     render_();
     const add = tooltipRows("Car").find(
       (r) => r.label === "reserveFit.addToReserve",
     )!;
     expect(add.cta).toBe(true);
+    // Money that has to go IN reads like the short bars do (user, 260810).
+    expect(add.ctaColor).toBe("var(--trading-down)");
   });
 
-  it("marks the withdrawal as the call to action", () => {
+  it("marks the withdrawal as the call to action, in the accent", () => {
     render_();
     const out = tooltipRows("Sport").find(
       (r) => r.label === "reserveFit.withdraw",
     )!;
     expect(out.cta).toBe(true);
+    // Money that can come OUT is slack, and keeps the default accent.
+    expect(out.ctaColor).toBeUndefined();
   });
 
   it("leaves the figures it came from alone", () => {

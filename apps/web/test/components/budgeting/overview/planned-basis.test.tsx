@@ -369,7 +369,8 @@ describe("How far off plan — the tooltip", () => {
     await user.click(
       screen.getByRole("button", { name: "planned.basisFuture" }),
     );
-    expect(rows().at(-1)!.label).toBe("reserveFit.setLimit");
+    // 600 of expected spend against an 800 limit → it can come DOWN.
+    expect(rows().at(-1)!.label).toBe("planned.decreaseLimitBy");
   });
 });
 
@@ -440,9 +441,8 @@ describe("How far off plan — each basis shows only its own baseline", () => {
     );
     // …and the row ends on the decision that follows from it: today's 800 plus
     // the 264 it is short (user, 260809).
-    expect(r.at(-1)!.label).toBe("reserveFit.setLimit");
-    expect(r.at(-1)!.value).toContain("1,064");
-    expect(r.at(-1)!.value2).toContain("264");
+    expect(r.at(-1)!.label).toBe("planned.increaseLimitBy");
+    expect(r.at(-1)!.value).toContain("264");
   });
 
   it("FUTURE draws the bar from the same subtraction", async () => {
@@ -616,7 +616,7 @@ describe("How far off plan — each basis shows only its own baseline", () => {
       "800",
     );
     expect(r.find((x) => x.label === "planned.expectedSpend")).toBeDefined();
-    expect(r.at(-1)!.label).toBe("reserveFit.setLimit");
+    expect(r.at(-1)!.label).toBe("planned.decreaseLimitBy");
   });
 
   it("FUTURE carries no range total — none of these accumulated", async () => {
@@ -644,8 +644,8 @@ describe("How far off plan — each basis shows only its own baseline", () => {
       screen.getByRole("button", { name: "planned.basisFuture" }),
     );
     expect(chart().getAttribute("data-gap")).toBe("40000");
-    // The bar's subtraction, now written as the change the decision makes.
-    expect(rows().at(-1)!.value2).toContain("400");
+    // The bar's subtraction, now written as the change it asks for.
+    expect(rows().at(-1)!.value).toContain("400");
   });
 
   it("FUTURE calls the spending what it is — what you are expected to spend", async () => {
@@ -682,7 +682,7 @@ describe("How far off plan — the Future tooltip ends on the limit", () => {
     );
   };
 
-  it("names the limit to move to, as the call to action", async () => {
+  it("says which way to move the limit, and by how much", async () => {
     fitDto.current = {
       rows: [
         {
@@ -696,15 +696,53 @@ describe("How far off plan — the Future tooltip ends on the limit", () => {
     };
     await openFuture();
     const last = rows()[rows().length - 1]!;
-    expect(last.label).toBe("reserveFit.setLimit");
+    // Costs 1,200 against a limit of 800 → the limit has to go UP by 400, and
+    // a limit that has to rise is a shortfall: red (user, 260810).
+    expect(last.label).toBe("planned.increaseLimitBy");
     expect(last.cta).toBe(true);
-    expect(last.value).toContain("1,200");
-    // …and the change it makes, beside it.
-    expect(last.value2).toContain("400");
+    expect(last.value).toContain("400");
+    expect(last.value2).toBeUndefined();
+    expect(last.ctaColor).toBe("var(--trading-down)");
     expect(rows().map((r) => r.label)).not.toContain("planned.difference");
   });
 
-  it("rounds it to the whole unit the dialog will write", async () => {
+  it("calls a limit that can come DOWN a decrease, in the surplus colour", async () => {
+    fitDto.current = {
+      rows: [
+        {
+          category_id: "c1",
+          // Costs 500 against a limit of 800 → 300 of slack.
+          projected_monthly_cents: "50000",
+          suggested_limit_cents: "50000",
+          suggested_delta_cents: "-30000",
+        },
+      ],
+    };
+    await openFuture();
+    const last = rows()[rows().length - 1]!;
+    expect(last.label).toBe("planned.decreaseLimitBy");
+    expect(last.value).toContain("300");
+    expect(last.ctaColor).toBe("var(--primary)");
+  });
+
+  it("asks for nothing when the limit is already right", async () => {
+    fitDto.current = {
+      rows: [
+        {
+          category_id: "c1",
+          projected_monthly_cents: "80000",
+          suggested_limit_cents: "80000",
+          suggested_delta_cents: "0",
+        },
+      ],
+    };
+    await openFuture();
+    const labels = rows().map((r) => r.label);
+    expect(labels).not.toContain("planned.increaseLimitBy");
+    expect(labels).not.toContain("planned.decreaseLimitBy");
+  });
+
+  it("says the change in whole units, as the dialog will write it", async () => {
     fitDto.current = {
       rows: [
         {
@@ -717,13 +755,14 @@ describe("How far off plan — the Future tooltip ends on the limit", () => {
     };
     await openFuture();
     const last = rows()[rows().length - 1]!;
-    expect(last.value).toContain("1,200");
+    // 1,199.01 of cost against a limit of 800 → 399.01 up, said in whole zł.
+    expect(last.value).toContain("399");
   });
 
   it("leaves the PAST reading measuring the difference", async () => {
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
     const labels = rows().map((r) => r.label);
     expect(labels).toContain("planned.difference");
-    expect(labels).not.toContain("reserveFit.setLimit");
+    expect(labels).not.toContain("planned.increaseLimitBy");
   });
 });

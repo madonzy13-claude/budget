@@ -208,6 +208,9 @@ export function ReserveFitView({
                       value: format(-gap),
                       section: true,
                       cta: true,
+                      // Money that has to go IN is a shortfall, and reads in
+                      // the colour the short bars are drawn in (user, 260810).
+                      ctaColor: "var(--trading-down)",
                     }
                   : {
                       label: t("reserveFit.withdraw"),

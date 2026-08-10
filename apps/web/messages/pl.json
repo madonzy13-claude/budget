@@ -1496,6 +1496,8 @@
           "avgByCategory": "Odchylenie od planu, wg kategorii",
           "avgPie": "Planowane wydatki wg kategorii",
           "difference": "Różnica",
+          "increaseLimitBy": "Zwiększ limit o",
+          "decreaseLimitBy": "Zmniejsz limit o",
           "ring": {
             "needs": "Potrzeby",
             "wants": "Zachcianki",

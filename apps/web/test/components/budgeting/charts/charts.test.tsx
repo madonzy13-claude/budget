@@ -381,6 +381,21 @@ describe("Overview charts", () => {
       expect((ctaValue as HTMLElement).style.color).not.toBe(label.style.color);
     });
 
+    it("lets an instruction override the accent", () => {
+      const c = renderExtra(() => [
+        {
+          label: "Add to reserve",
+          value: "4,000 zl",
+          cta: true,
+          ctaColor: "var(--trading-down)",
+        },
+      ]);
+      const label = [...c.querySelectorAll("span")].find(
+        (n) => n.textContent === "Add to reserve",
+      )!;
+      expect(label.style.color).toBe("var(--trading-down)");
+    });
+
     it("leaves an ordinary row unmarked", () => {
       const c = renderExtra(() => [{ label: "Held", value: "17,315 zl" }]);
       expect(c.querySelector('[data-testid="tooltip-cta-value"]')).toBeNull();
