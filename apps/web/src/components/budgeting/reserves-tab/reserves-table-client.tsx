@@ -435,8 +435,6 @@ export function ReservesTableClient({ budgetId }: ReservesTableClientProps) {
         <ReservesTotalsFooter
           internalCents={footerInternalCents}
           userDefinedCents={summary.data.totals.userDefinedCents}
-          usedThisMonthCents={totalUsedThisMonthCents}
-          usedAllTimeCents={footerUsedCents}
           currency={budgetCurrency}
         />
 

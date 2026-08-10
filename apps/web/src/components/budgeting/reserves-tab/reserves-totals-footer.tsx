@@ -4,8 +4,6 @@
  *
  *   TOTAL AVAILABLE   internalCents       (Σ active reserve)
  *   TOTAL IN WALLETS  userDefinedCents    (Σ RESERVE-wallet balances) + arrow
- *   TOTAL USED        usedThisMonthCents  (this month — prominent)
- *                     usedAllTimeCents    (all time — small + muted)
  *
  * Both used figures are summed by the client island (it holds the rows) and
  * passed in pre-aggregated — this stays a dumb presentational primitive.
@@ -28,17 +26,13 @@ export interface ReservesTotalsFooterProps {
   /** Σ RESERVE-wallet balances (userDefined), serialized cents → TOTAL IN WALLETS. */
   userDefinedCents: string;
   /** Σ active rows' THIS-MONTH used reserve (serialized cents). */
-  usedThisMonthCents: string;
   /** Σ active rows' ALL-TIME used reserve (cumulative, serialized cents). */
-  usedAllTimeCents: string;
   currency: string;
 }
 
 export function ReservesTotalsFooter({
   internalCents,
   userDefinedCents,
-  usedThisMonthCents,
-  usedAllTimeCents,
   currency,
 }: ReservesTotalsFooterProps) {
   const t = useTranslations("bdp.tab.reserves");
@@ -97,31 +91,6 @@ export function ReservesTotalsFooter({
             />
           )}
           {fmt(userDefinedCents)} {currency}
-        </span>
-      </div>
-
-      {/* TOTAL USED — this month over all time, SAME size now. The muted colour
-          + the THIS MONTH/ALL TIME tag separate the two periods visually. */}
-      <div className="flex items-start justify-between gap-4">
-        <span className={`${label} pt-0.5`}>{t("totals.usedLabel")}</span>
-        {/* Period tag sits LEFT of the amount so the currency code stays the
-            last token on every line → all "EUR" suffixes align flush-right. */}
-        <span className="flex flex-col items-end gap-0.5">
-          <span data-testid="reserves-total-used" className={value}>
-            <span className="text-[9px] uppercase tracking-wider text-[var(--primary)]">
-              {t("totals.thisMonth")}
-            </span>
-            {fmt(usedThisMonthCents)} {currency}
-          </span>
-          <span
-            data-testid="reserves-total-used-alltime"
-            className="flex items-center gap-1 whitespace-nowrap text-num-md tabular-nums text-[var(--muted-foreground)]"
-          >
-            <span className="text-[9px] uppercase tracking-wider">
-              {t("totals.allTime")}
-            </span>
-            {fmt(usedAllTimeCents)} {currency}
-          </span>
         </span>
       </div>
     </div>

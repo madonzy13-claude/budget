@@ -845,3 +845,48 @@ describe("How far off plan — the meter counts what the bars draw", () => {
     expect(text).toContain("7,108");
   });
 });
+
+/**
+ * The meter counts EVERY limit (user, 260810).
+ *
+ * Counting only the categories the reserve engine tracks made the line
+ * disagree with the timeline above it by exactly the excluded ones — 7,208
+ * here against 8,708 there, the 1,500 of Housing and Subscriptions.
+ */
+describe("How far off plan — the meter counts every category", () => {
+  it("includes a category the walk has no opinion about, on both sides", async () => {
+    dto.current = {
+      ...base,
+      plannedAvgVsReal: [
+        { ...row, category_id: "c1", name: "Food", planned_current_cents: "80000" },
+        { ...row, category_id: "c2", name: "Housing", planned_current_cents: "100000" },
+      ],
+    };
+    summaryDto.current = {
+      categories: [
+        { categoryId: "c1", plannedCents: "80000", needsCents: "80000", wantsCents: "0", cushionCents: "0" },
+        { categoryId: "c2", plannedCents: "100000", needsCents: "100000", wantsCents: "0", cushionCents: "0" },
+      ],
+    };
+    // Only Food is tracked; Housing is reserve-excluded and has no fit row.
+    fitDto.current = {
+      rows: [
+        {
+          category_id: "c1",
+          projected_monthly_cents: "120000",
+          suggested_limit_cents: "120000",
+          suggested_delta_cents: "40000",
+        },
+      ],
+    };
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    const meter = screen.getByTestId("limit-level-bar").textContent ?? "";
+    // Limits 800 + 1,000 = 1,800; should be 1,200 + 1,000 = 2,200.
+    expect(meter).toContain("1,800");
+    expect(meter).toContain("2,200");
+  });
+});

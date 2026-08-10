@@ -161,40 +161,8 @@ describe("ReservesTableClient — engine model + W-3 excluded rows", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("footer renders the 3 stacked total labels (available / wallets / used)", () => {
-    renderClient();
-    const footer = screen.getByTestId("reserves-totals-footer");
-    // next-intl mock echoes the key — assert all three label keys render.
-    expect(footer.textContent).toContain("totals.internalLabel");
-    expect(footer.textContent).toContain("totals.walletsLabel");
-    expect(footer.textContent).toContain("totals.usedLabel");
-  });
 
-  it("TOTAL USED line sums the active rows' usedCents (1200 + 800 = 2000c → 20)", () => {
-    renderClient();
-    const usedTotal = screen.getByTestId("reserves-total-used");
-    // 2000 cents → "20" (centsToBare drops the whole-unit .00).
-    expect(usedTotal.textContent).toMatch(/20 EUR/);
-  });
 
-  it("TOTAL USED excludes excluded-row usedCents (only active rows count)", () => {
-    renderClient({
-      excludedRows: [
-        {
-          categoryId: "B",
-          name: "Hobbies",
-          reserveCents: "50000",
-          usedCents: "99900",
-          usedThisMonthCents: "99900",
-          overspentCents: "0",
-        },
-      ],
-    });
-    const usedTotal = screen.getByTestId("reserves-total-used");
-    // Still 20 (active 1200+800), the 99900 excluded used is NOT summed.
-    expect(usedTotal.textContent).toMatch(/20 EUR/);
-    expect(usedTotal.textContent).not.toMatch(/999/);
-  });
 
   it("clientApiFetch is NEVER called with a /categories path (single-source-of-truth)", () => {
     renderClient();

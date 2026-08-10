@@ -368,21 +368,26 @@ export function PlannedSection({
   // would be proposing it from zero.
   // What every limit adds up to, against what they should. Only the rows the
   // chart actually draws, so the line and the bars under it are the same set.
-  const limitTotals = (fit.data?.rows ?? []).reduce(
-    (acc, r) => {
-      const split = splitById.get(r.category_id);
-      const expected = projected.get(r.category_id);
-      if (!split || expected == null) return acc;
+  // EVERY category with a limit, not just the ones the reserve engine tracks
+  // (user, 260810). Counting only the tracked ones made the line disagree with
+  // the timeline above it by exactly the excluded categories — 7,208 here
+  // against 8,708 there, the 1,500 of Housing and Subscriptions. A category the
+  // walk has no opinion about contributes its limit to BOTH sides, which is the
+  // truth: nothing about it needs to change.
+  const limitTotals = [...splitById.entries()].reduce(
+    (acc, [categoryId, split]) => {
+      const expected = projected.get(categoryId) ?? null;
       const current = split.needsCents + split.wantsCents;
       // Counted the way the BARS count it: a difference under a whole unit is
       // not a change, so it must not be one here either. Summing the raw
       // groszy instead had eight settled categories add up to "3 zł more than
       // needed" beneath eight bars all reading 0 (user, 260810).
-      const gap = expected - current;
+      const gap = expected == null ? 0 : expected - current;
       return {
         current: acc.current + current,
         expected:
-          acc.expected + (Math.abs(gap) < UNIT_CENTS ? current : expected),
+          acc.expected +
+          (expected == null || Math.abs(gap) < UNIT_CENTS ? current : expected),
       };
     },
     { current: 0, expected: 0 },
