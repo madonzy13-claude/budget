@@ -142,6 +142,32 @@ export function rowHitBoxes(
   return bars.map((b, i) => (paired ? [b, labels[i]!] : [b]));
 }
 
+/**
+ * WHICH ROW the tooltip is about — from our own active index, never recharts'.
+ *
+ * The chart ran two hit-tests: ours (DOM rects, drives the dimming) and
+ * recharts' own (drives what its <Tooltip> hands the content). On a finger they
+ * disagree, and the screen contradicted itself: Uncategorized lit up while the
+ * box read "Food & Home" (user, 260810). The highlight is the one the member
+ * aimed, so the box follows it.
+ */
+export function tooltipPayloadFor<T extends object>(
+  rows: readonly T[],
+  index: number | null,
+  valueKey: string,
+): Array<{ dataKey: string; value: number | undefined; payload: T }> {
+  const row = index == null ? undefined : rows[index];
+  if (!row) return [];
+  const raw = (row as Record<string, unknown>)[valueKey];
+  return [
+    {
+      dataKey: valueKey,
+      value: typeof raw === "number" ? raw : undefined,
+      payload: row,
+    },
+  ];
+}
+
 export function touchSelection(
   point: { x: number; y: number },
   rows: readonly (readonly HitBox[])[],
@@ -575,8 +601,20 @@ export function OverviewDivergingBarChart({
             // (user, 260805).
             wrapperStyle={{ pointerEvents: "auto" }}
             cursor={{ fill: CHART_THEME.grid, fillOpacity: 0.15 }}
-            content={
+            // The payload and the title come from OUR active row, not from
+            // recharts' parallel hit-test — see tooltipPayloadFor.
+            content={(props: Record<string, unknown>) => (
               <ChartTooltipContent
+                {...props}
+                active={activeIndex !== null}
+                payload={tooltipPayloadFor(rows, activeIndex, "__pct")}
+                label={
+                  activeIndex == null
+                    ? undefined
+                    : ((
+                        rows[activeIndex] as Record<string, unknown> | undefined
+                      )?.[categoryKey] as string | undefined)
+                }
                 formatY={tipFmt}
                 series={[]}
                 // The bar's dataKey is an internal ("__pct") — showing it as a
@@ -587,7 +625,7 @@ export function OverviewDivergingBarChart({
                 extra={tooltipExtra}
                 onDismiss={() => setActive(null)}
               />
-            }
+            )}
           />
           <Bar
             dataKey="__pct"

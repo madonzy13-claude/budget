@@ -22,6 +22,7 @@ import {
   labelPlacement,
   reserveFitColor,
   rowHitBoxes,
+  tooltipPayloadFor,
   touchSelection,
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
@@ -767,6 +768,48 @@ describe("Overview charts", () => {
 // member sizing a reserve wants to know it is 1,900 zł fat, not 240% fat. The
 // ticks then have to come from the data's own magnitude rather than the percent
 // ladder, and still include zero, which the whole chart is built around.
+/**
+ * The box and the highlight must be about the SAME row (user, 260810).
+ *
+ * The chart ran two hit-tests — ours over DOM rects, which dims every other
+ * row, and recharts' own, which decided what its <Tooltip> handed the content.
+ * On a finger they disagreed and the screen contradicted itself: Uncategorized
+ * lit up while the box read "Food & Home".
+ */
+describe("tooltipPayloadFor", () => {
+  const ROWS = [
+    { name: "Travel", __pct: -12 },
+    { name: "Uncategorized", __pct: -3 },
+    { name: "Food & Home", __pct: 41 },
+  ];
+
+  it("hands over the row the highlight is on", () => {
+    const [entry] = tooltipPayloadFor(ROWS, 1, "__pct");
+    expect(entry!.payload).toBe(ROWS[1]);
+    expect(entry!.value).toBe(-3);
+    expect(entry!.dataKey).toBe("__pct");
+  });
+
+  it("hands over nothing when nothing is selected", () => {
+    expect(tooltipPayloadFor(ROWS, null, "__pct")).toEqual([]);
+  });
+
+  it("survives an index that has gone out of range mid-refetch", () => {
+    expect(tooltipPayloadFor(ROWS, 9, "__pct")).toEqual([]);
+  });
+
+  it("carries no value when the row's figure is not a number", () => {
+    const [entry] = tooltipPayloadFor(
+      [{ name: "X", __pct: "nope" }],
+      0,
+      "__pct",
+    );
+    expect(entry!.value).toBeUndefined();
+    // …but the row itself still reaches the box, so its own rows still render.
+    expect(entry!.payload).toEqual({ name: "X", __pct: "nope" });
+  });
+});
+
 describe("amountTicks", () => {
   it("always includes the zero line", () => {
     expect(amountTicks(-500, 900)).toContain(0);
