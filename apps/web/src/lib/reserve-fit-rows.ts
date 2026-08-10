@@ -53,6 +53,29 @@ export function fitPct(heldCents: number, neededCents: number): number {
   return heldCents > 0 ? 100 : 0;
 }
 
+/** One whole currency unit, in cents. */
+export const UNIT = 100;
+
+/**
+ * Is this reserve close enough to count as the right size?
+ *
+ * The walk answers to the groszy — 505.08 — but the rebalance dialog rounds
+ * every target UP to a whole unit, because nobody is asked to move 92 groszy.
+ * So a reserve that has just been rebalanced sits a little ABOVE what its
+ * history asked for, permanently, by construction.
+ *
+ * The chart used to draw that residue as a surplus. One is invisible; five of
+ * them added up to "3 zł more than needed" over a budget whose every reserve
+ * had just been put right — and no amount of rebalancing could clear it,
+ * because the same dialog refuses to offer a move under a whole unit (user
+ * screenshot, 260810). Anything the member cannot act on is not a discrepancy,
+ * so this is the ONE rule both sides now run: `rebalanceButton` disables below
+ * it, and the chart draws nothing below it.
+ */
+export function isSettled(heldCents: number, neededCents: number): boolean {
+  return Math.abs(heldCents - neededCents) < UNIT;
+}
+
 function toSized(r: ReserveFitRow): SizedReserveRow {
   const held = Number(r.held_cents);
   // Measured at the limit in FORCE — where this reserve actually stands today
@@ -60,8 +83,12 @@ function toSized(r: ReserveFitRow): SizedReserveRow {
   // the same day: the bar answers "where am I", and the suggestion beside it
   // answers "where should I go".
   const needed = Number(r.needed_cents);
-  const gap = Number(r.gap_cents);
-  const pct = fitPct(held, needed);
+  // A reserve within a whole unit of its target has nothing anyone can do about
+  // it — see isSettled. Draw it as level rather than as a bar that cannot be
+  // cleared.
+  const settled = isSettled(held, needed);
+  const gap = settled ? 0 : Number(r.gap_cents);
+  const pct = settled ? 0 : fitPct(held, needed);
   return {
     categoryId: r.category_id,
     name: r.name,

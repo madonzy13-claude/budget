@@ -255,3 +255,36 @@ describe("reserveFitRows — measured at the limit in force", () => {
     expect(r?.gapCents).toBe(788937);
   });
 });
+
+/**
+ * The bars beside the same verdict. Presents held 506.00 against a history
+ * asking 505.08 — the 0.92 is the rebalance dialog's own round-up, and it was
+ * drawn as a "+1 zł" bar the member could not clear: the dialog will not offer
+ * a move smaller than a whole unit (user screenshot, 260810).
+ */
+describe("reserveFitRows — a residue is not a discrepancy", () => {
+  it("draws nothing for a category settled within a whole unit", () => {
+    const [r] = reserveFitRows([
+      row({ held_cents: "50600", needed_cents: "50508", gap_cents: "92" }),
+    ]).sized;
+    expect(r?.gapCents).toBe(0);
+    expect(r?.pct).toBe(0);
+    expect(r?.short).toBe(false);
+  });
+
+  it("does the same when the residue is on the short side", () => {
+    const [r] = reserveFitRows([
+      row({ held_cents: "177550", needed_cents: "177600", gap_cents: "-50" }),
+    ]).sized;
+    expect(r?.gapCents).toBe(0);
+    expect(r?.short).toBe(false);
+  });
+
+  it("still draws a gap of one whole unit — the smallest real move", () => {
+    const [r] = reserveFitRows([
+      row({ held_cents: "50600", needed_cents: "50500", gap_cents: "100" }),
+    ]).sized;
+    expect(r?.gapCents).toBe(100);
+    expect(r?.pct).toBeGreaterThan(0);
+  });
+});
