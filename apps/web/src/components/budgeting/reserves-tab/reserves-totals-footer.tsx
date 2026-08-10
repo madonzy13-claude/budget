@@ -17,7 +17,7 @@
  */
 import * as React from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowUp, ArrowDown, Check } from "lucide-react";
 import { centsToBare } from "@/lib/cents-format";
 
 export interface ReservesTotalsFooterProps {
@@ -42,12 +42,17 @@ export function ReservesTotalsFooter({
   // group separators are correct. The trailing currency code is intentional.
   const fmt = (cents: string) => centsToBare(cents, locale);
 
-  // Wallet vs needed (TOTAL AVAILABLE = Σ reserve needed). More than needed → up
-  // (green); less → down (red); equal → no arrow.
+  // Held vs needed (TOTAL NEEDED = Σ reserve needed):
+  //   more  → up arrow, YELLOW. Holding a surplus is not a win — it is money
+  //           the plan has no use for sitting idle — and green read as "well
+  //           done" for it (user, 260810).
+  //   less  → down arrow, red.
+  //   equal → a green check. This is the one state that IS finished, and it
+  //           used to say nothing at all.
   const need = BigInt(internalCents);
   const wallet = BigInt(userDefinedCents);
-  const walletDir: "up" | "down" | "none" =
-    wallet > need ? "up" : wallet < need ? "down" : "none";
+  const walletDir: "up" | "down" | "level" =
+    wallet > need ? "up" : wallet < need ? "down" : "level";
 
   const label =
     "text-caption uppercase tracking-wider text-[var(--muted-foreground)] whitespace-nowrap";
@@ -79,6 +84,13 @@ export function ReservesTotalsFooter({
           {walletDir === "up" && (
             <ArrowUp
               data-testid="reserves-wallets-arrow-up"
+              className="h-3 w-3 shrink-0 text-[var(--primary)]"
+              aria-hidden="true"
+            />
+          )}
+          {walletDir === "level" && (
+            <Check
+              data-testid="reserves-wallets-check"
               className="h-3 w-3 shrink-0 text-[var(--trading-up,#26a69a)]"
               aria-hidden="true"
             />

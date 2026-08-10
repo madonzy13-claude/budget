@@ -105,6 +105,9 @@ async function emitTaskCreatedIfInserted(
   tenantId: string,
   budgetId: string,
   kind: TaskKind,
+  /** Extra fields the notification layer needs to decide what (or whether) to
+   *  say — it consumes the event, never the task row. */
+  extra?: Record<string, unknown>,
 ): Promise<void> {
   const row = res.rows[0];
   if (!row || row.inserted !== true) return;
@@ -114,7 +117,7 @@ async function emitTaskCreatedIfInserted(
     aggregateType: "task",
     aggregateId: taskId,
     eventType: "task.created",
-    payload: { kind, budgetId, taskId },
+    payload: { kind, budgetId, taskId, ...extra },
   });
 }
 
@@ -281,12 +284,18 @@ export function createTaskRepo(): TaskRepo {
         DO UPDATE SET payload_json = EXCLUDED.payload_json
         RETURNING id, (xmax = 0) AS inserted
       `);
+      // ONE task kind, two opposite readings — top up a short reserve, or take
+      // back a surplus. The push copy only ever knew the first, so a member
+      // holding MORE than they needed was told a reserve was running low
+      // (user, 260810). The direction rides the event so the notification layer
+      // can tell them apart; the handler never reads the task row.
       await emitTaskCreatedIfInserted(
         tx,
         res,
         tenantId,
         budgetId,
         "RESERVE_TOPUP",
+        { direction: payload.direction },
       );
     },
 

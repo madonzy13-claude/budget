@@ -86,9 +86,6 @@ describe("ReservesTotalsFooter (05-19 — 3 totals, no banner)", () => {
     expect(footer.textContent).toMatch(/100/);
   });
 
-
-
-
   it("footer wrapper renders as bordered floating card (not sticky)", () => {
     renderFooter();
     const footer = screen.getByTestId("reserves-totals-footer");
@@ -102,13 +99,22 @@ describe("ReservesTotalsFooter (05-19 — 3 totals, no banner)", () => {
     expect(screen.getByTestId("reserves-totals-footer")).toBeInTheDocument();
   });
 
-  // Arrow beside TOTAL IN WALLETS: wallet vs needed (= TOTAL AVAILABLE).
-  it("wallet MORE than needed → green up arrow (no down)", () => {
+  // Mark beside TOTAL HELD: held vs needed (= TOTAL NEEDED).
+  //
+  // Holding MORE than is needed is not a win — it is money sitting idle that
+  // the plan has no use for, and green said "well done" for it. Yellow is the
+  // colour every other "look at this" wears. Green is kept for the one state
+  // that IS finished: held exactly meets needed (user, 260810).
+  it("holding MORE than needed → yellow up arrow (no down, no check)", () => {
     renderFooter({ internalCents: "10000", userDefinedCents: "30000" });
-    expect(screen.getByTestId("reserves-wallets-arrow-up")).toBeInTheDocument();
+    const up = screen.getByTestId("reserves-wallets-arrow-up");
+    expect(up).toBeInTheDocument();
+    expect(up.className).toContain("var(--primary)");
+    expect(up.className).not.toContain("trading-up");
     expect(
       screen.queryByTestId("reserves-wallets-arrow-down"),
     ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("reserves-wallets-check")).toBeNull();
   });
 
   it("wallet LESS than needed → red down arrow (no up)", () => {
@@ -121,8 +127,11 @@ describe("ReservesTotalsFooter (05-19 — 3 totals, no banner)", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("wallet EQUALS needed → no arrow", () => {
+  it("held EQUALS needed → green check, no arrows", () => {
     renderFooter({ internalCents: "20000", userDefinedCents: "20000" });
+    const check = screen.getByTestId("reserves-wallets-check");
+    expect(check).toBeInTheDocument();
+    expect(check.className).toContain("trading-up");
     expect(
       screen.queryByTestId("reserves-wallets-arrow-up"),
     ).not.toBeInTheDocument();
