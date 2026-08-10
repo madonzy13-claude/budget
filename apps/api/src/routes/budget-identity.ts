@@ -31,8 +31,9 @@ const patchBudgetSchema = z.object({
   // Phase 9: Investments feature toggle. Plain boolean — gates the Investments
   // section on the wallets page. Owner-gated via the same path as cushion.
   investments_enabled: z.boolean().optional(),
-  // r36: amount-privacy toggle. Plain boolean — when true the Overview hides
-  // amounts by default (eye to reveal). Owner-gated via the same path as reserves.
+  // Amount privacy: when true the Overview hides amounts by default (eye to
+  // reveal). NOT owner-gated and NOT budget-wide — it writes the caller's own
+  // membership row (migration 0082), like the budget's name.
   amount_privacy_enabled: z.boolean().optional(),
   // Phase 7 Plan 07-07 (D-PH7-15, D-PH7-33) + UAT round 7: cushion target
   // months multiplier. Defense in depth: Zod 1..60 here + DB CHECK
@@ -110,6 +111,20 @@ export function budgetIdentityRoutesFactory(
       console.error("[budget-identity:get] memberBudgetName failed:", e);
     }
 
+    // Privacy mode is the READER's too (migration 0082) — read it off their
+    // membership row. Off when there is no row to read: a screen that hides
+    // nothing is recoverable in one tap, and defaulting the other way would
+    // redact a budget for someone who never asked for it.
+    let amountPrivacyEnabled = false;
+    try {
+      const prefs =
+        await deps.tenancy.workspaceRepo.getAggPrefsForUser(actorUserId);
+      amountPrivacyEnabled =
+        prefs.get(budgetId)?.amount_privacy_enabled ?? false;
+    } catch (e) {
+      console.error("[budget-identity:get] getAggPrefsForUser failed:", e);
+    }
+
     return c.json({
       id: budget.id,
       name: ownName ?? budget.name,
@@ -122,7 +137,7 @@ export function budgetIdentityRoutesFactory(
       reservesEnabled: budget.reservesEnabled ?? true,
       cushionEnabled: budget.cushionEnabled ?? true,
       investmentsEnabled: budget.investmentsEnabled ?? false,
-      amountPrivacyEnabled: budget.amountPrivacyEnabled ?? true,
+      amountPrivacyEnabled,
       hasTransactions,
       currentUserRole,
     });
@@ -167,12 +182,22 @@ export function budgetIdentityRoutesFactory(
       );
     }
 
+    // So is privacy mode (user, 260810): whether amounts sit behind a redaction
+    // bar answers who is standing behind THIS member, not what the household
+    // has agreed. It writes their membership row and nobody else's.
+    if (body.amount_privacy_enabled !== undefined) {
+      await deps.tenancy.workspaceRepo.setMemberAmountPrivacy(
+        budgetId,
+        actorUserId,
+        body.amount_privacy_enabled,
+      );
+    }
+
     const touchesIdentity =
       body.default_currency !== undefined ||
       body.reserves_enabled !== undefined ||
       body.cushion_enabled !== undefined ||
       body.investments_enabled !== undefined ||
-      body.amount_privacy_enabled !== undefined ||
       body.cushion_target_months !== undefined ||
       body.cushion_mode_enabled !== undefined;
     if (touchesIdentity && callerEntry.role !== "owner")
@@ -192,7 +217,6 @@ export function budgetIdentityRoutesFactory(
       body.reserves_enabled !== undefined ||
       body.cushion_enabled !== undefined ||
       body.investments_enabled !== undefined ||
-      body.amount_privacy_enabled !== undefined ||
       body.cushion_target_months !== undefined
     ) {
       try {
@@ -210,9 +234,6 @@ export function budgetIdentityRoutesFactory(
               : {}),
             ...(body.investments_enabled !== undefined
               ? { investmentsEnabled: body.investments_enabled }
-              : {}),
-            ...(body.amount_privacy_enabled !== undefined
-              ? { amountPrivacyEnabled: body.amount_privacy_enabled }
               : {}),
             ...(body.cushion_target_months !== undefined
               ? { cushionTargetMonths: body.cushion_target_months }

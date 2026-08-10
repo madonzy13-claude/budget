@@ -36,12 +36,11 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         reserves_enabled: boolean;
         cushion_enabled: boolean;
         investments_enabled: boolean;
-        amount_privacy_enabled: boolean;
         // Migration 0027: column is numeric(4,1); pg returns numeric as
         // string. Caller parses to number.
         cushion_target_months: string | number | null;
       }>(
-        sql`SELECT id, slug, name, kind, default_currency, owner_user_id, member_count, created_at, cushion_mode_enabled, reserves_enabled, cushion_enabled, investments_enabled, amount_privacy_enabled, cushion_target_months
+        sql`SELECT id, slug, name, kind, default_currency, owner_user_id, member_count, created_at, cushion_mode_enabled, reserves_enabled, cushion_enabled, investments_enabled, cushion_target_months
             FROM tenancy.budgets WHERE id = ${id}`,
       );
       return result.rows[0] ?? null;
@@ -62,7 +61,6 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       reservesEnabled: row.reserves_enabled ?? true,
       cushionEnabled: row.cushion_enabled ?? true,
       investmentsEnabled: row.investments_enabled ?? false,
-      amountPrivacyEnabled: row.amount_privacy_enabled ?? true,
       cushionTargetMonths:
         row.cushion_target_months == null
           ? 6
@@ -305,7 +303,6 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       reservesEnabled?: boolean;
       cushionEnabled?: boolean;
       investmentsEnabled?: boolean;
-      amountPrivacyEnabled?: boolean;
       // Phase 7 Plan 07-07 (D-PH7-15, D-PH7-33): cushion target months —
       // multiplier for category cushion_amount in the cushion summary math.
       // Range 1..60 enforced at API (Zod) AND DB (CHECK constraint via
@@ -349,14 +346,6 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         // upstream in the budget-identity route.
         await tx.execute(
           sql`UPDATE tenancy.budgets SET investments_enabled = ${patch.investmentsEnabled} WHERE id = ${budgetId}::uuid`,
-        );
-      }
-      if (patch.amountPrivacyEnabled !== undefined) {
-        // r36: amount-privacy global toggle. Boolean only; when true the Overview
-        // hides amounts by default with an eye to reveal. Owner gate enforced
-        // upstream in the budget-identity route.
-        await tx.execute(
-          sql`UPDATE tenancy.budgets SET amount_privacy_enabled = ${patch.amountPrivacyEnabled} WHERE id = ${budgetId}::uuid`,
         );
       }
       if (patch.cushionTargetMonths !== undefined) {
@@ -671,12 +660,14 @@ export class DrizzleBudgetRepo implements BudgetRepo {
    * RLS policy lets a user read their own membership rows via
    * app.current_user_id alone — no per-budget tenant_ids needed.
    */
-  async getAggPrefsForUser(
-    userId: string,
-  ): Promise<
+  async getAggPrefsForUser(userId: string): Promise<
     Map<
       string,
-      { ownership_share_pct: number; include_in_aggregation: boolean }
+      {
+        ownership_share_pct: number;
+        include_in_aggregation: boolean;
+        amount_privacy_enabled: boolean;
+      }
     >
   > {
     const r = await withUserContext(UserId(userId), async (tx) =>
@@ -684,8 +675,10 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         budget_id: string;
         ownership_share_pct: number;
         include_in_aggregation: boolean;
+        amount_privacy_enabled: boolean;
       }>(sql`
-        SELECT budget_id, ownership_share_pct, include_in_aggregation
+        SELECT budget_id, ownership_share_pct, include_in_aggregation,
+               amount_privacy_enabled
           FROM tenancy.budget_members
          WHERE user_id = ${userId}::uuid
       `),
@@ -693,15 +686,45 @@ export class DrizzleBudgetRepo implements BudgetRepo {
     if (r.isErr()) throw r.error;
     const map = new Map<
       string,
-      { ownership_share_pct: number; include_in_aggregation: boolean }
+      {
+        ownership_share_pct: number;
+        include_in_aggregation: boolean;
+        amount_privacy_enabled: boolean;
+      }
     >();
     for (const row of r.value.rows) {
       map.set(row.budget_id, {
         ownership_share_pct: Number(row.ownership_share_pct),
         include_in_aggregation: row.include_in_aggregation,
+        // migration 0082: false for anyone who joined after the move.
+        amount_privacy_enabled: row.amount_privacy_enabled ?? false,
       });
     }
     return map;
+  }
+
+  /**
+   * Set whether THIS member sees amounts redacted by default (migration 0082).
+   * Self-service, like the aggregation prefs below: the caller is both the tx
+   * actor and the row being written, so it can never reach another member's
+   * screen — and therefore is not the owner's privilege to set.
+   */
+  async setMemberAmountPrivacy(
+    budgetId: string,
+    userId: string,
+    enabled: boolean,
+  ): Promise<void> {
+    const r = await withTenantTx(
+      TenantId(budgetId),
+      UserId(userId),
+      async (tx) =>
+        tx.execute(sql`
+          UPDATE tenancy.budget_members
+             SET amount_privacy_enabled = ${enabled}
+           WHERE budget_id = ${budgetId}::uuid AND user_id = ${userId}::uuid
+        `),
+    );
+    if (r.isErr()) throw r.error;
   }
 
   /**

@@ -200,14 +200,19 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     // user-scoped repo method (Task 3/4) — reused here rather than
     // extending listMembers' MemberDTO. Both default to the column
     // defaults (true / 100) if the lookup fails.
+    //
+    // Privacy mode rides the same row (migration 0082) — each member decides
+    // whether THEIR screen redacts amounts. Off when there is no row to read.
     let includeInAggregation = true;
     let ownershipSharePct = 100;
+    let amountPrivacyEnabled = false;
     try {
       const prefs =
         await deps.tenancy.workspaceRepo.getAggPrefsForUser(actorUserId);
       const mine = prefs.get(budgetId);
       includeInAggregation = mine?.include_in_aggregation ?? true;
       ownershipSharePct = mine?.ownership_share_pct ?? 100;
+      amountPrivacyEnabled = mine?.amount_privacy_enabled ?? false;
     } catch (e) {
       console.error("[budgets:get] getAggPrefsForUser failed:", e);
     }
@@ -224,7 +229,7 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       reservesEnabled: budget.reservesEnabled ?? true,
       cushionEnabled: budget.cushionEnabled ?? true,
       investmentsEnabled: budget.investmentsEnabled ?? false,
-      amountPrivacyEnabled: budget.amountPrivacyEnabled ?? true,
+      amountPrivacyEnabled,
       cushionTargetMonths: budget.cushionTargetMonths ?? 6,
       includeInAggregation,
       ownership_share_pct: ownershipSharePct,

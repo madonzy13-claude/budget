@@ -24,6 +24,7 @@ import { useActiveBudgets } from "@/hooks/use-active-budgets";
 import { SettingsConfigProgress } from "@/components/settings/settings-config-progress";
 import { computeSettingsProgress } from "@/lib/settings-progress";
 import { BudgetIdentitySection } from "@/components/settings/budget-identity-section";
+import { PrivacySection } from "@/components/settings/privacy-section";
 import { CushionSection } from "@/components/settings/cushion-section";
 import { InvestmentsSection } from "@/components/settings/investments-section";
 import { ReservesSection } from "@/components/settings/reserves-section";
@@ -196,14 +197,22 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
                 name={budget.name}
                 defaultCurrency={budget.defaultCurrency}
                 hasTransactions={budget.hasTransactions}
-                amountPrivacyEnabled={budget.amountPrivacyEnabled ?? true}
-                isOwner={isOwner}
               />
             </OwnerGate>
+            {/* Privacy mode is the READER's, not the budget's (user, 260810),
+                so it sits OUTSIDE the owner gate — a member who is not the
+                owner is exactly who needs it. Joins on the rows' rhythm:
+                currency's py-3 gives 12px above, pt-3 makes 24. */}
+            <div className="border-t border-[var(--hairline-on-dark)] py-3">
+              <PrivacySection
+                budgetId={budget.id}
+                amountPrivacyEnabled={budget.amountPrivacyEnabled ?? false}
+              />
+            </div>
             {/* Task 11: self-service, NOT owner-gated — any member may include/exclude
                 their own budget from their personal all-budgets aggregate. Only shown
                 once the user has ≥2 budgets (nothing to aggregate with just one). */}
-            {/* Joins on the rows' own rhythm: the privacy row's py-3 already
+            {/* Joins on the rows' own rhythm: the privacy block's py-3 already
                 gives 12px below it, so pt-3 makes 24px — mt-4 + pt-4 made 44
                 and read as a hole under Privacy mode (user, 260810). */}
             {budgetCount >= 2 && (

@@ -26,6 +26,12 @@ describe("Budget identity routes (SETT-02)", () => {
         name: string | null,
       ) => void;
       memberName?: string | null;
+      /** Privacy mode is the CALLER's own setting (260810) — these stand in for
+       *  their membership row rather than the budget. */
+      privacySpy?: (budgetId: string, userId: string, enabled: boolean) => void;
+      memberPrivacy?: boolean;
+      /** No membership row for this budget in the prefs map at all. */
+      noPrefsRow?: boolean;
     } = {},
   ) {
     const app = new Hono();
@@ -62,6 +68,26 @@ describe("Budget identity routes (SETT-02)", () => {
             opts.memberNameSpy?.(id, userId, name);
           },
           memberBudgetName: async () => opts.memberName ?? null,
+          setMemberAmountPrivacy: async (
+            id: string,
+            userId: string,
+            enabled: boolean,
+          ) => {
+            opts.privacySpy?.(id, userId, enabled);
+          },
+          getAggPrefsForUser: async () =>
+            opts.noPrefsRow
+              ? new Map()
+              : new Map([
+                  [
+                    budgetId,
+                    {
+                      ownership_share_pct: 100,
+                      include_in_aggregation: true,
+                      amount_privacy_enabled: opts.memberPrivacy ?? false,
+                    },
+                  ],
+                ]),
           findById: async () => ({
             id: budgetId,
             name: "Test Budget",
@@ -273,12 +299,18 @@ describe("Budget identity routes (SETT-02)", () => {
     expect(captured).toEqual({ cushionTargetMonths: 12 });
   });
 
-  it("PATCH /budgets/:id with amount_privacy_enabled=false → 200; passes amountPrivacyEnabled to updateIdentity (r36)", async () => {
-    let captured: Record<string, unknown> | null = null;
+  // Privacy mode is one person's habit, not the budget's policy (user, 260810):
+  // two people sharing a household budget do not have the same shoulder-surfing
+  // problem. It rides the membership row, so it is neither owner-gated nor
+  // visible to anyone else — the same rule the budget's own name follows.
+  it("PATCH /budgets/:id amount_privacy_enabled writes the CALLER's membership row, not the budget", async () => {
+    const seen: [string, string, boolean][] = [];
+    let identityPatch: Record<string, unknown> | null = null;
     const app = buildApp({ user: { id: "user-001" } }, "budget-001", {
       hasTransactions: false,
+      privacySpy: (id, userId, enabled) => seen.push([id, userId, enabled]),
       updateIdentitySpy: (_id, patch) => {
-        captured = patch;
+        identityPatch = patch;
       },
     });
     const res = await app.request("/budgets/budget-001", {
@@ -287,19 +319,41 @@ describe("Budget identity routes (SETT-02)", () => {
       body: JSON.stringify({ amount_privacy_enabled: false }),
     });
     expect(res.status).toBe(200);
-    expect(captured).toEqual({ amountPrivacyEnabled: false });
+    expect(seen).toEqual([["budget-001", "user-001", false]]);
+    expect(identityPatch).toBeNull();
   });
 
-  it("PATCH /budgets/:id amount_privacy_enabled by non-owner → 403 (owner gate, r36)", async () => {
+  it("PATCH /budgets/:id amount_privacy_enabled by a non-owner → 200 (every member sets their own)", async () => {
+    const seen: [string, string, boolean][] = [];
     const app = buildApp({ user: { id: "user-001" } }, "budget-001", {
       callerRole: "member",
+      privacySpy: (id, userId, enabled) => seen.push([id, userId, enabled]),
     });
     const res = await app.request("/budgets/budget-001", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ amount_privacy_enabled: false }),
     });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(seen).toEqual([["budget-001", "user-001", false]]);
+  });
+
+  it("GET /budgets/:id reports the CALLER's own privacy setting", async () => {
+    const app = buildApp({ user: { id: "user-001" } }, "budget-001", {
+      memberPrivacy: true,
+    });
+    const res = await app.request("/budgets/budget-001");
+    expect(res.status).toBe(200);
+    expect((await res.json()).amountPrivacyEnabled).toBe(true);
+  });
+
+  it("GET /budgets/:id defaults privacy OFF when the member has no stored setting", async () => {
+    const app = buildApp({ user: { id: "user-001" } }, "budget-001", {
+      noPrefsRow: true,
+    });
+    const res = await app.request("/budgets/budget-001");
+    expect(res.status).toBe(200);
+    expect((await res.json()).amountPrivacyEnabled).toBe(false);
   });
 
   it("PATCH /budgets/:id with cushion_target_months=0 → 400 (Zod min=1)", async () => {

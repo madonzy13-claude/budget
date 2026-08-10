@@ -111,6 +111,7 @@ test("setMemberAggregationSettings persists sharePct alongside included (self, n
   expect(prefs.get(budgetId)).toEqual({
     ownership_share_pct: 42,
     include_in_aggregation: true,
+    amount_privacy_enabled: false,
   });
 });
 

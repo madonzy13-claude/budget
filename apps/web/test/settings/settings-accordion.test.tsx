@@ -169,6 +169,14 @@ describe("SettingsAccordion — member read-only gating (bug #1)", () => {
     expect(container.querySelector("fieldset[disabled]")).not.toBeNull();
   });
 
+  // Privacy mode is the reader's own (260810) — behind the gate it was dead
+  // for exactly the people who most need it.
+  it("lets a member set their own privacy mode", () => {
+    render(<SettingsAccordion budget={memberBudget} />);
+    const sw = screen.getByTestId("amount-privacy-switch");
+    expect(sw.closest("fieldset[disabled]")).toBeNull();
+  });
+
   it("leaves owner-only sections enabled for owners", () => {
     const { container } = render(<SettingsAccordion budget={sharedBudget} />);
     expect(container.querySelector("fieldset[disabled]")).toBeNull();

@@ -461,6 +461,64 @@ describe("Overview charts", () => {
     });
   });
 
+  /**
+   * The wealth tooltip carries the widest rows we ship — name, value, % and a
+   * signed amount — and the box is capped at min(280px, 76vw). The name sits in
+   * a minmax(0,1fr) column, so past that cap the column is squeezed to nothing
+   * while `nowrap` keeps the text at full length: "Capitalization" printed
+   * straight through "1,553,413 zł" (user screenshots, 260810).
+   */
+  describe("ChartTooltipContent — a long series name has somewhere to go", () => {
+    const renderGrid = () =>
+      render(
+        <ChartTooltipContent
+          active
+          label="4 Jun 2026"
+          payload={[
+            {
+              dataKey: "contributions",
+              value: 645731,
+              name: "Contributions",
+              payload: { contributions: 645731 },
+            },
+          ]}
+          series={[{ key: "contributions", label: "Contributions" }]}
+          rowSuffix={() => ["+11.0%", "+64,063 zł"]}
+          summary={() => ({
+            label: "Total",
+            value: "933,989 zł",
+            suffix: ["+26.6%", "+196,071 zł"],
+          })}
+        />,
+      ).container;
+
+    it("wraps the series name rather than running it over the value", () => {
+      const name = renderGrid().querySelector(
+        '[data-testid="tooltip-series-name"]',
+      ) as HTMLElement;
+      expect(name).not.toBeNull();
+      expect(name.style.whiteSpace).not.toBe("nowrap");
+      expect(name.style.overflowWrap).toBe("anywhere");
+    });
+
+    it("does the same for the summary row's label", () => {
+      const label = renderGrid().querySelector(
+        '[data-testid="tooltip-summary-label"]',
+      ) as HTMLElement;
+      expect(label).not.toBeNull();
+      expect(label.style.whiteSpace).not.toBe("nowrap");
+      expect(label.style.overflowWrap).toBe("anywhere");
+    });
+
+    it("keeps the figures on one line — only the name may wrap", () => {
+      const c = renderGrid();
+      const value = c.querySelector(
+        '[data-testid="tooltip-series-value"]',
+      ) as HTMLElement;
+      expect(value.style.whiteSpace).toBe("nowrap");
+    });
+  });
+
   describe("ChartTooltipContent marker color (r25 item 3)", () => {
     const payload = [
       {
