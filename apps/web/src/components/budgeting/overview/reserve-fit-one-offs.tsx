@@ -103,23 +103,28 @@ export function ReserveFitOneOffs({
         className="flex items-center gap-3 border-b border-[var(--hairline-dark)] py-2.5 last:border-b-0"
       >
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className={off ? "text-num-sm opacity-50" : "text-num-sm"}>
-            {format(Number(c.amount_cents))}
+          {/* The repeat note rides with the AMOUNT. It is the one thing on this
+              row that must not be missed — a rare-and-certain charge is exactly
+              what must NOT be ticked off as a one-off — and at the end of the
+              details line below it was the first thing a phone cropped: "repe…"
+              (user, 260810). `shrink-0` keeps it whole; the figure beside it is
+              short enough that neither has to give. */}
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className={off ? "text-num-sm opacity-50" : "text-num-sm"}>
+              {format(Number(c.amount_cents))}
+            </span>
+            {c.scheduled_cadence && (
+              <span
+                data-testid={`reserve-fit-recurs-${c.ledger_id}`}
+                className="shrink-0 text-caption text-[var(--primary)]"
+              >
+                {t("reserveFit.recurs", { cadence: c.scheduled_cadence })}
+              </span>
+            )}
           </span>
           <span className="truncate text-caption text-[var(--muted-foreground)]">
             {c.note ? `${c.note} · ` : ""}
             {c.category_name} · {formatShortDate(c.transaction_date, locale)}
-            {c.scheduled_cadence && (
-              <>
-                {" · "}
-                <span
-                  data-testid={`reserve-fit-recurs-${c.ledger_id}`}
-                  className="text-[var(--primary)]"
-                >
-                  {t("reserveFit.recurs", { cadence: c.scheduled_cadence })}
-                </span>
-              </>
-            )}
           </span>
         </div>
         <Switch
