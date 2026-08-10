@@ -766,3 +766,82 @@ describe("How far off plan — the Future tooltip ends on the limit", () => {
     expect(labels).not.toContain("planned.increaseLimitBy");
   });
 });
+
+/**
+ * The line above the bars has to agree with them (user, 260810).
+ *
+ * Every bar drew 0 and the meter still said "3 zł more than needed": the bars
+ * snap a sub-złoty difference to zero — a limit is decided in whole złoty — but
+ * the totals were summing the raw groszy, and eight categories of rounding came
+ * to three złoty of disagreement.
+ */
+describe("How far off plan — the meter counts what the bars draw", () => {
+  const meterText = async () => {
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    return screen.getByTestId("limit-level-bar").textContent ?? "";
+  };
+
+  /** Eight categories, each a few groszy under its limit — a rebalanced budget. */
+  const eightSettled = () => {
+    const cats = Array.from({ length: 8 }, (_, i) => `c${i + 1}`);
+    dto.current = {
+      ...base,
+      plannedAvgVsReal: cats.map((id) => ({
+        ...row,
+        category_id: id,
+        name: `Cat ${id}`,
+        planned_current_cents: "90100",
+      })),
+    };
+    summaryDto.current = {
+      categories: cats.map((id) => ({
+        categoryId: id,
+        plannedCents: "90100",
+        needsCents: "90100",
+        wantsCents: "0",
+        cushionCents: "0",
+      })),
+    };
+    fitDto.current = {
+      rows: cats.map((id) => ({
+        category_id: id,
+        // 901.00 of limit against 900.60 of cost: 40 groszy, eight times over.
+        projected_monthly_cents: "90060",
+        suggested_limit_cents: "90060",
+        suggested_delta_cents: "-40",
+      })),
+    };
+  };
+
+  it("reads level when every bar reads zero", async () => {
+    eightSettled();
+    const text = await meterText();
+    // 8 × 901 = 7,208 on both sides — not 7,208 against 7,205.
+    expect(text).toContain("7,208");
+    expect(text).not.toContain("7,205");
+  });
+
+  it("still counts a difference of a whole unit or more", async () => {
+    eightSettled();
+    fitDto.current = {
+      rows: (fitDto.current as { rows: Record<string, unknown>[] }).rows.map(
+        (r, i) =>
+          i === 0
+            ? {
+                ...r,
+                projected_monthly_cents: "80100",
+                suggested_delta_cents: "-10000",
+              }
+            : r,
+      ),
+    };
+    const text = await meterText();
+    // One category 100 zł under: 7,208 of limit against 7,108 needed.
+    expect(text).toContain("7,208");
+    expect(text).toContain("7,108");
+  });
+});
