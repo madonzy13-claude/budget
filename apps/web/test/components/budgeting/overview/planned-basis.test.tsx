@@ -18,6 +18,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const dto: { current: Record<string, unknown> } = { current: {} };
+/** The member's stored picks — the section's ONE category filter. */
+const prefsDto: { current: Record<string, unknown> } = { current: {} };
+const catsDto: { current: { id: string; name: string }[] } = {
+  current: [{ id: "c1", name: "Food" }],
+};
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
@@ -34,10 +39,14 @@ vi.mock("@/hooks/use-overview-planned", () => ({
   }),
 }));
 vi.mock("@/hooks/use-budget-data", () => ({
-  useCategories: () => ({ data: [{ id: "c1", name: "Food" }] }),
+  useCategories: () => ({ data: catsDto.current }),
 }));
 vi.mock("@/hooks/use-member-ui-prefs", () => ({
-  useMemberUiPrefs: () => ({ prefs: {}, isLoaded: true, save: () => {} }),
+  useMemberUiPrefs: () => ({
+    prefs: prefsDto.current,
+    isLoaded: true,
+    save: () => {},
+  }),
 }));
 // The section is collapsed until someone opens it; this one is about what it
 // draws once open.
@@ -144,6 +153,8 @@ const base = {
 const RANGE = { preset: "last3Months", from: "2025-11-01", to: "2026-01-31" };
 
 beforeEach(() => {
+  prefsDto.current = {};
+  catsDto.current = [{ id: "c1", name: "Food" }];
   dto.current = { ...base };
   // The reserve chart's answer is per-test; leaking one test's empty rows into
   // the next filtered every category out of the Future view.
@@ -917,5 +928,108 @@ describe("How far off plan — the meter counts every category", () => {
     // Limits 800 + 1,000 = 1,800; should be 1,200 + 1,000 = 2,200.
     expect(meter).toContain("1,800");
     expect(meter).toContain("2,200");
+  });
+});
+
+/**
+ * ONE filter for the section (user, 260810). It sits above the timeline and
+ * governs everything under it: the per-category bars, the meter and the pie.
+ * The pie's private picker is gone — two pickers disagreed about what "this
+ * budget" meant.
+ */
+describe("Spendings plan — one category filter for the section", () => {
+  const twoCategories = () => {
+    catsDto.current = [
+      { id: "c1", name: "Food" },
+      { id: "c2", name: "Car" },
+    ];
+    dto.current = {
+      ...base,
+      plannedAvgVsReal: [
+        {
+          ...row,
+          category_id: "c1",
+          name: "Food",
+          planned_current_cents: "80000",
+        },
+        {
+          ...row,
+          category_id: "c2",
+          name: "Car",
+          planned_current_cents: "50000",
+        },
+      ],
+    };
+    summaryDto.current = {
+      categories: [
+        {
+          categoryId: "c1",
+          plannedCents: "80000",
+          needsCents: "80000",
+          wantsCents: "0",
+          cushionCents: "0",
+        },
+        {
+          categoryId: "c2",
+          plannedCents: "50000",
+          needsCents: "50000",
+          wantsCents: "0",
+          cushionCents: "0",
+        },
+      ],
+    };
+    fitDto.current = { rows: [] };
+  };
+
+  it("offers exactly one picker", () => {
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    expect(screen.getAllByTestId("overview-planned-category")).toHaveLength(1);
+  });
+
+  it("puts it above the timeline it used to hide under", () => {
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    const picker = screen.getByTestId("overview-planned-category");
+    const title = screen.getByText("planned.timelineTitle");
+    expect(
+      picker.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("narrows the per-category bars", async () => {
+    twoCategories();
+    prefsDto.current = { "planned-categories": ["c1"] };
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    // The API hands back BOTH rows whatever the filter; the picking is here.
+    expect(chart().getAttribute("data-rows")).toBe("Food");
+  });
+
+  it("narrows the meter with them", async () => {
+    twoCategories();
+    prefsDto.current = { "planned-categories": ["c1"] };
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    const meter = screen.getByTestId("limit-level-bar").textContent ?? "";
+    expect(meter).toContain("800");
+    expect(meter).not.toContain("1,300");
+  });
+
+  it("counts everything when nothing is picked", async () => {
+    twoCategories();
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    expect(chart().getAttribute("data-rows")).toBe("Food,Car");
+    expect(screen.getByTestId("limit-level-bar").textContent).toContain(
+      "1,300",
+    );
   });
 });

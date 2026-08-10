@@ -13,13 +13,9 @@
  */
 import { useMemo, useState } from "react";
 import { SegmentedToggle } from "@/components/ui/segmented-toggle";
-import {
-  CategoryMultiSelect,
-  type PickableCategory,
-} from "./category-multi-select";
+import { CategoryMultiSelect } from "./category-multi-select";
 import {
   effectiveCategoryIds,
-  PLANNED_PIE_PREF,
   PLANNED_TIMELINE_PREF,
   prunePlannedCategories,
 } from "@/lib/planned-category-filter";
@@ -133,8 +129,6 @@ function PlannedByCategoryPie({
   formatValue,
   maskValue = false,
   picked,
-  onPick,
-  pickable,
   isInvestment,
   ringLabel,
 }: {
@@ -154,11 +148,12 @@ function PlannedByCategoryPie({
   maskValue?: boolean;
   /** Categories to show; empty = all of them. */
   picked: string[];
-  onPick: (ids: string[]) => void;
-  pickable: PickableCategory[];
 }) {
-  // The pie has its own picker (260802 request): a slice the member drops here
-  // stays on the timeline, and the other way round.
+  // ONE filter for the section (user, 260810). The pie used to keep its own —
+  // a slice dropped here stayed on the timeline and the other way round — so
+  // two pickers disagreed about what "this budget" meant. The ring still spans
+  // EVERY row (see planRing below), which is what keeps the investing arc when
+  // Investments itself is unticked.
   const shown = picked.length ? new Set(picked) : null;
   const inView = rows.filter((c) => !shown || shown.has(c.category_id));
   // The outer ring: needs / wants summed across the SAME categories the slices
@@ -198,11 +193,6 @@ function PlannedByCategoryPie({
   return (
     <div className="flex flex-col gap-2">
       <ChartLabel>{title}</ChartLabel>
-      <CategoryMultiSelect
-        categories={pickable}
-        selected={picked}
-        onCommit={onPick}
-      />
       <OverviewPieChart
         data={data}
         nameKey="name"
@@ -251,11 +241,8 @@ export function PlannedSection({
     save: savePrefs,
   } = useMemberUiPrefs(budgetId);
   const categoryIds = prefs[PLANNED_TIMELINE_PREF] ?? [];
-  const pieCategoryIds = prefs[PLANNED_PIE_PREF] ?? [];
   const setCategoryIds = (ids: string[]) =>
     void savePrefs(PLANNED_TIMELINE_PREF, ids);
-  const setPieCategoryIds = (ids: string[]) =>
-    void savePrefs(PLANNED_PIE_PREF, ids);
 
   // Counting the month still in progress is opt-IN: half a month of spend drags
   // an average down against months that ran their full course (260802 request).
@@ -356,30 +343,6 @@ export function PlannedSection({
   // would be proposing it from zero.
   // What every limit adds up to, against what they should. Only the rows the
   // chart actually draws, so the line and the bars under it are the same set.
-  // EVERY category with a limit, not just the ones the reserve engine tracks
-  // (user, 260810). Counting only the tracked ones made the line disagree with
-  // the timeline above it by exactly the excluded categories — 7,208 here
-  // against 8,708 there, the 1,500 of Housing and Subscriptions. A category the
-  // walk has no opinion about contributes its limit to BOTH sides, which is the
-  // truth: nothing about it needs to change.
-  const limitTotals = [...splitById.entries()].reduce(
-    (acc, [categoryId, split]) => {
-      const expected = projected.get(categoryId) ?? null;
-      const current = split.needsCents + split.wantsCents;
-      // Counted the way the BARS count it: a difference under a whole unit is
-      // not a change, so it must not be one here either. Summing the raw
-      // groszy instead had eight settled categories add up to "3 zł more than
-      // needed" beneath eight bars all reading 0 (user, 260810).
-      const gap = expected == null ? 0 : expected - current;
-      return {
-        current: acc.current + current,
-        expected:
-          acc.expected +
-          (expected == null || Math.abs(gap) < UNIT_CENTS ? current : expected),
-      };
-    },
-    { current: 0, expected: 0 },
-  );
 
   // The dialog opens FROM the Future chart, so it proposes exactly what that
   // chart drew: what an average month ahead costs. The reserve walk's own
@@ -410,6 +373,43 @@ export function PlannedSection({
   // Every category the budget has, investments included (260803 user request):
   // the picker offers exactly what the charts count, and both start ticked.
   const categories = useCategories(budgetId).data ?? [];
+
+  // The section's ONE category filter, resolved to the ids on screen. Empty
+  // when everything is shown — effectiveCategoryIds returns undefined for both
+  // "none picked" and "all picked", and neither narrows anything.
+  const shownIds = new Set(
+    effectiveCategoryIds(
+      categoryIds,
+      categories.map((c) => c.id as string),
+    ) ?? [],
+  );
+
+  // EVERY category with a limit, not just the ones the reserve engine tracks
+  // (user, 260810). Counting only the tracked ones made the line disagree with
+  // the timeline above it by exactly the excluded categories — 7,208 here
+  // against 8,708 there, the 1,500 of Housing and Subscriptions. A category the
+  // walk has no opinion about contributes its limit to BOTH sides, which is the
+  // truth: nothing about it needs to change.
+  const limitTotals = [...splitById.entries()].reduce(
+    (acc, [categoryId, split]) => {
+      // Only what the section's filter is showing (user, 260810).
+      if (shownIds.size > 0 && !shownIds.has(categoryId)) return acc;
+      const expected = projected.get(categoryId) ?? null;
+      const current = split.needsCents + split.wantsCents;
+      // Counted the way the BARS count it: a difference under a whole unit is
+      // not a change, so it must not be one here either. Summing the raw
+      // groszy instead had eight settled categories add up to "3 zł more than
+      // needed" beneath eight bars all reading 0 (user, 260810).
+      const gap = expected == null ? 0 : expected - current;
+      return {
+        current: acc.current + current,
+        expected:
+          acc.expected +
+          (expected == null || Math.abs(gap) < UNIT_CENTS ? current : expected),
+      };
+    },
+    { current: 0, expected: 0 },
+  );
   const { data, isPending, isError } = useOverviewPlanned(budgetId, {
     from: range.from,
     to: range.to,
@@ -507,25 +507,27 @@ export function PlannedSection({
         <>
           {/* Planned-vs-Real timeline. `wantsSplitExists` decides whether the
               WANTS band is drawn at all — see the series list below. */}
+          {/* ONE filter, at the top of the section it governs (user, 260810).
+              SUPERSEDES 260731's "it belongs to THIS chart": it narrows the
+              timeline, the per-category bars, the meter and the pie, and the
+              pie had grown a second picker that disagreed with it. */}
+          <CategoryMultiSelect
+            categories={categories.map((c) => ({
+              id: c.id,
+              name: c.name,
+              color:
+                hexForColorKey((c.colorKey as string | null) ?? null) ??
+                undefined,
+            }))}
+            selected={prunePlannedCategories(
+              categoryIds,
+              categories.map((c) => c.id),
+            )}
+            onCommit={setCategoryIds}
+          />
+
           <div className="flex flex-col gap-2">
             <ChartLabel>{t("planned.timelineTitle")}</ChartLabel>
-            {/* 260731: the category filter belongs to THIS chart, so it sits
-                under its label instead of floating above the whole section —
-                and it uses the app's Select chrome, not a raw <select>. */}
-            <CategoryMultiSelect
-              categories={categories.map((c) => ({
-                id: c.id,
-                name: c.name,
-                color:
-                  hexForColorKey((c.colorKey as string | null) ?? null) ??
-                  undefined,
-              }))}
-              selected={prunePlannedCategories(
-                categoryIds,
-                categories.map((c) => c.id),
-              )}
-              onCommit={setCategoryIds}
-            />
             {/* Directly under the picker, because the picker narrows THESE too
                 (260803 user request): the breakdown reads as the line's key,
                 the comparison as how the range went against plan. */}
@@ -887,6 +889,13 @@ export function PlannedSection({
                         plannedTotal: Number(c.planned_total_cents),
                       };
                     })
+                    // …and only the categories the section's filter shows. The
+                    // API hands back EVERY category here whatever the filter —
+                    // it narrows the timeline and the totals, not these rows —
+                    // so the picking happens here (user, 260810).
+                    .filter(
+                      (c) => shownIds.size === 0 || shownIds.has(c.categoryId),
+                    )
                     // Ordered the way the chart is being READ (260804) — always
                     // money now that the percent axis has gone.
                     //
@@ -1072,21 +1081,13 @@ export function PlannedSection({
             rows={data.plannedAvgVsReal}
             categories={categories}
             picked={prunePlannedCategories(
-              pieCategoryIds,
+              categoryIds,
               categories.map((c) => c.id as string),
             )}
-            onPick={setPieCategoryIds}
             isInvestment={(id) =>
               Boolean(categories.find((c) => c.id === id)?.isInvestment)
             }
             ringLabel={(key) => t(`planned.ring.${key}`)}
-            pickable={categories.map((c) => ({
-              id: c.id,
-              name: c.name,
-              color:
-                hexForColorKey((c.colorKey as string | null) ?? null) ??
-                undefined,
-            }))}
             title={t("planned.avgPie")}
             allLabel={t("planned.allCategories")}
             formatValue={fmtTooltip}

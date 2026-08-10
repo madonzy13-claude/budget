@@ -350,7 +350,9 @@ describe("Planned pie — investments on both rings", () => {
   });
 
   it("keeps the arc when the picker drops the investment category", async () => {
-    prefsMock.value = { "planned-pie-categories": ["c1"] };
+    // The section's ONE filter now governs the pie too (user, 260810) — its
+    // private "planned-pie-categories" set is gone.
+    prefsMock.value = { "planned-categories": ["c1"] };
     const user = userEvent.setup();
     renderSections();
     const p = await pie(user);
