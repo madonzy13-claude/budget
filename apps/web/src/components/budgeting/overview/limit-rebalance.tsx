@@ -68,7 +68,14 @@ export function LimitRebalance({
     Record<string, { needs?: string; wants?: string }>
   >({});
   const [targets, setTargets] = React.useState<Record<string, LimitSplit>>({});
-  const [applied, setApplied] = React.useState<Record<string, LimitSplit>>({});
+  /** A move that has been made: what was written, and what was there BEFORE.
+   *  The "before" is captured HERE rather than read from the props, because by
+   *  the time undo is pressed the parent has refetched and the props hold the
+   *  figure just written — undo then wrote it back and nothing changed (user,
+   *  260810). The reserve dialog has always captured it; this one did not. */
+  const [applied, setApplied] = React.useState<
+    Record<string, { split: LimitSplit; before: LimitSplit }>
+  >({});
   const [busy, setBusy] = React.useState<string | null>(null);
   const [order, setOrder] = React.useState<string[] | null>(null);
 
@@ -78,7 +85,8 @@ export function LimitRebalance({
       r.wantsCents,
       r.suggestedLimitCents,
     );
-    const current = applied[r.categoryId] ?? {
+    const entry = applied[r.categoryId];
+    const current = entry?.split ?? {
       needsCents: r.needsCents,
       wantsCents: r.wantsCents,
     };
@@ -90,10 +98,7 @@ export function LimitRebalance({
       wantsCents: current.wantsCents,
       targetNeedsCents: target.needsCents,
       targetWantsCents: target.wantsCents,
-      baseline:
-        applied[r.categoryId] === undefined
-          ? null
-          : { needsCents: r.needsCents, wantsCents: r.wantsCents },
+      baseline: entry?.before ?? null,
     };
   });
 
@@ -133,7 +138,18 @@ export function LimitRebalance({
           wantsCents: row.targetWantsCents,
         };
         await onApply(row.categoryId, split);
-        setApplied((a) => ({ ...a, [row.categoryId]: split }));
+        setApplied((a) => ({
+          ...a,
+          [row.categoryId]: {
+            split,
+            // The FIRST move's starting point, kept through a series of tries:
+            // undo returns you to where you began, not to the middle.
+            before: a[row.categoryId]?.before ?? {
+              needsCents: row.needsCents,
+              wantsCents: row.wantsCents,
+            },
+          },
+        }));
       }
     } catch {
       // The mutation owns the message. Leaving the row as it was keeps the

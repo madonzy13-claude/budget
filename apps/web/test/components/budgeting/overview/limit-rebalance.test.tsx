@@ -31,9 +31,8 @@ vi.mock("next-intl", () => ({
   useLocale: () => "en",
 }));
 
-const { LimitRebalance } = await import(
-  "@/components/budgeting/overview/limit-rebalance"
-);
+const { LimitRebalance } =
+  await import("@/components/budgeting/overview/limit-rebalance");
 
 /** Car should rise to 1,500; Food is already right; Sport splits 60/40. */
 const ROWS = [
@@ -62,10 +61,7 @@ const ROWS = [
 
 const format = (c: number) => `${(c / 100).toFixed(2)} zl`;
 
-async function open(
-  onApply = vi.fn(async () => {}),
-  rows: typeof ROWS = ROWS,
-) {
+async function open(onApply = vi.fn(async () => {}), rows: typeof ROWS = ROWS) {
   const user = userEvent.setup();
   render(<LimitRebalance rows={rows} onApply={onApply} format={format} />);
   await user.click(screen.getByTestId("limit-rebalance-open"));
@@ -143,9 +139,7 @@ describe("LimitRebalance", () => {
   it("offers to undo after a move, and puts the old split back", async () => {
     const { user, onApply } = await open();
     await user.click(action("car"));
-    await waitFor(() =>
-      expect(action("car").dataset["kind"]).toBe("undo"),
-    );
+    await waitFor(() => expect(action("car").dataset["kind"]).toBe("undo"));
     await user.click(action("car"));
     await waitFor(() =>
       expect(onApply).toHaveBeenLastCalledWith("car", {
@@ -209,9 +203,9 @@ describe("LimitRebalance", () => {
   it("carries the row's own colour, red when the limit has to rise", async () => {
     await open();
     // Car must go 1,000 → 1,500: under-budgeted, which is the shortfall colour.
-    expect(
-      screen.getByTestId("limit-rebalance-row-car").dataset["color"],
-    ).toBe("var(--trading-down)");
+    expect(screen.getByTestId("limit-rebalance-row-car").dataset["color"]).toBe(
+      "var(--trading-down)",
+    );
     // Sport is 1,000 → 1,500 as well; Food is already right, so it is neither.
     expect(
       screen.getByTestId("limit-rebalance-row-food").dataset["color"],
@@ -219,15 +213,18 @@ describe("LimitRebalance", () => {
   });
 
   it("is amber when the limit can come down", async () => {
-    await open(vi.fn(async () => {}), [
-      {
-        categoryId: "slack",
-        name: "Slack",
-        needsCents: 200_000,
-        wantsCents: 0,
-        suggestedLimitCents: 100_000,
-      },
-    ]);
+    await open(
+      vi.fn(async () => {}),
+      [
+        {
+          categoryId: "slack",
+          name: "Slack",
+          needsCents: 200_000,
+          wantsCents: 0,
+          suggestedLimitCents: 100_000,
+        },
+      ],
+    );
     expect(
       screen.getByTestId("limit-rebalance-row-slack").dataset["color"],
     ).toBe("var(--primary)");
@@ -254,5 +251,62 @@ describe("LimitRebalance", () => {
       />,
     );
     expect(screen.queryByTestId("limit-rebalance-open")).toBeNull();
+  });
+});
+
+/**
+ * Undo has to put back what was there BEFORE the move (user, 260810).
+ *
+ * The dialog read the "before" figures from its live props — and the moment the
+ * parent refetched, those held the value just written. Undo then wrote that
+ * same value back: nothing changed, the row settled on its target, and the
+ * button fell through to a disabled "Rebalance". The figure to restore has to
+ * be captured when the move is made, exactly as the reserve dialog does.
+ */
+describe("LimitRebalance — undo after the list has refreshed", () => {
+  const carRow = (needsCents: number, wantsCents: number) => [
+    { ...ROWS[0]!, needsCents, wantsCents },
+    ...ROWS.slice(1),
+  ];
+
+  it("restores the split the row had before the move", async () => {
+    const onApply = vi.fn(async () => {});
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <LimitRebalance
+        rows={carRow(100_000, 0)}
+        onApply={onApply}
+        format={format}
+      />,
+    );
+    await user.click(screen.getByTestId("limit-rebalance-open"));
+    await user.click(action("car"));
+    await waitFor(() =>
+      expect(onApply).toHaveBeenCalledWith("car", {
+        needsCents: 150_000,
+        wantsCents: 0,
+      }),
+    );
+
+    // The parent refetches: the row now REPORTS the figure just written.
+    rerender(
+      <LimitRebalance
+        rows={carRow(150_000, 0)}
+        onApply={onApply}
+        format={format}
+      />,
+    );
+    await waitFor(() =>
+      expect(action("car").getAttribute("data-kind")).toBe("undo"),
+    );
+    await user.click(action("car"));
+
+    // …and undo still writes back the 1,000 it started from, not the 1,500.
+    await waitFor(() =>
+      expect(onApply).toHaveBeenLastCalledWith("car", {
+        needsCents: 100_000,
+        wantsCents: 0,
+      }),
+    );
   });
 });
