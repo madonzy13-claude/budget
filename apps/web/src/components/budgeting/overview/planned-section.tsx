@@ -74,7 +74,7 @@ import { chartCompactCents, withDayStartBaseline } from "@/lib/chart-format";
 import { formatChartDate, formatChartTimestamp } from "@/lib/chart-date-format";
 import { labelToTimestamp } from "@/lib/chart-timestamp";
 import { insertMonthResets } from "@/lib/month-reset";
-import { appendTodayTail } from "@/lib/today-tail";
+import { appendTodayTail, tailDay } from "@/lib/today-tail";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { todayInTz, type OverviewRange } from "@/lib/overview-range";
 import { trimLeadingEmpty } from "@/lib/trim-leading-empty";
@@ -708,7 +708,11 @@ export function PlannedSection({
                 // The tooltip names the DAY a point stands for: a monthly point
                 // carries its month's value as of the last day (clamped to today
                 // while the month is still running).
-                labelFormat={(v) => formatTs(Number(v), locale)}
+                // …after mapping the tail back to the day it reports: it sits
+                // a day ahead only to have width (user, 260810).
+                labelFormat={(v) =>
+                  formatTs(tailDay(Number(v), todayIso), locale)
+                }
                 // 260731 (user decision): the CHARTS always show real numbers — masking
                 // them made the shapes unreadable. The privacy blur stays on the hero
                 // cards + totals, which is where a shoulder-surfer actually reads a figure.

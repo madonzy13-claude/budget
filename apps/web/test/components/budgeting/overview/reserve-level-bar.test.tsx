@@ -378,3 +378,44 @@ describe("ReserveLevelBar", () => {
     });
   });
 });
+
+/**
+ * Exactly on target (user, 260810).
+ *
+ * The fill is rounded on the left and squared on the right, because normally
+ * something follows it inside the box — the dashes it stops short of, or its
+ * own overspill past the outline. When it IS the whole bar there is nothing to
+ * meet, and a flat end against a rounded outline reads as a bar that has been
+ * cut off.
+ */
+describe("ReserveLevelBar — when held is exactly what is needed", () => {
+  const bar = (held: number, needed: number) => {
+    const { container } = render(
+      <ReserveLevelBar
+        heldCents={held}
+        neededCents={needed}
+        format={(c) => `${Math.round(c / 100)} zl`}
+        testId="meter"
+      />,
+    );
+    return container.querySelector<HTMLElement>(
+      '[data-testid="meter-covered"]',
+    )!;
+  };
+
+  it("rounds the right end as well as the left", () => {
+    const covered = bar(720800, 720800);
+    expect(covered.style.borderTopRightRadius).not.toBe("0px");
+    expect(covered.style.borderBottomRightRadius).not.toBe("0px");
+  });
+
+  it("keeps the right end square where the overspill continues past it", () => {
+    const over = bar(900000, 720800);
+    expect(over.style.borderTopRightRadius).toBe("0px");
+  });
+
+  it("is a pill, not a bar with one rounded end", () => {
+    const covered = bar(720800, 720800);
+    expect(covered.className).toContain("rounded-full");
+  });
+});

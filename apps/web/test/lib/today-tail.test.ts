@@ -8,7 +8,7 @@
  * range; the running month stays proportional to the days it has actually had.
  */
 import { describe, it, expect } from "vitest";
-import { appendTodayTail } from "../../src/lib/today-tail";
+import { appendTodayTail, tailDay } from "../../src/lib/today-tail";
 
 const row = (ts: string, real: number) => ({
   label: ts,
@@ -54,5 +54,30 @@ describe("appendTodayTail", () => {
 
   it("is a no-op for an empty series", () => {
     expect(appendTodayTail([], "2026-08-01")).toEqual([]);
+  });
+});
+
+/**
+ * The tail is moved a day forward for WIDTH. That is geometry — the reading is
+ * still today's — so anything that names the point maps it back, or the tooltip
+ * dates today's figures tomorrow (user, 260810: "11 Aug 2026", on the 10th).
+ */
+describe("tailDay", () => {
+  const TODAY = "2026-08-10";
+  const ts = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
+
+  it("names the tail after the day it reports", () => {
+    const rows = appendTodayTail(
+      [{ label: TODAY, ts: ts(TODAY), real: 10, needs: 5, wants: 5 }],
+      TODAY,
+    );
+    expect(tailDay(rows[0]!.ts, TODAY)).toBe(ts(TODAY));
+  });
+
+  it("leaves every other point exactly where it is", () => {
+    expect(tailDay(ts("2026-07-31"), TODAY)).toBe(ts("2026-07-31"));
+    expect(tailDay(ts("2026-08-10"), TODAY)).toBe(ts("2026-08-10"));
+    // …including a genuine point two days out, which is not the tail.
+    expect(tailDay(ts("2026-08-12"), TODAY)).toBe(ts("2026-08-12"));
   });
 });

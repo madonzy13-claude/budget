@@ -173,7 +173,15 @@ export function ReserveLevelBar({
             <div
               data-testid={`${testId}-covered`}
               aria-label={`${heldName}: ${format(held)}`}
-              className="h-full rounded-l-full"
+              // Nothing follows it inside the box and nothing spills past it:
+              // the bar IS the whole track, so it is a pill. A flat right end
+              // against the outline's curve reads as a bar cut off (user,
+              // 260810).
+              className={
+                missing === 0 && surplus === 0
+                  ? "h-full rounded-full"
+                  : "h-full rounded-l-full"
+              }
               style={{
                 marginLeft: INNER_PAD,
                 // Twice over when nothing follows it inside the box: it is

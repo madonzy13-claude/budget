@@ -12,6 +12,17 @@ import type { ResettableRow } from "./month-reset";
 
 const DAY_MS = 86_400_000;
 
+/**
+ * The tail sits a day AHEAD of the day it reports, because that is how it gets
+ * its width on a time-proportional axis. That is geometry, not a reading — so
+ * anything that NAMES the point has to map it back first, or the tooltip dates
+ * today's figures tomorrow (user, 260810: "11 Aug 2026", on the 10th).
+ */
+export function tailDay(ts: number, todayIso: string): number {
+  const today = Date.parse(`${todayIso}T00:00:00Z`);
+  return ts === today + DAY_MS ? today : ts;
+}
+
 export function appendTodayTail<T extends ResettableRow>(
   rows: T[],
   todayIso: string,
