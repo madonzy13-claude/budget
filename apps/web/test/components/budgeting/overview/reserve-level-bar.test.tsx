@@ -414,6 +414,16 @@ describe("ReserveLevelBar — when held is exactly what is needed", () => {
     expect(over.style.borderTopRightRadius).toBe("0px");
   });
 
+  // A few groszy is not a surplus. Everything else on the Overview treats a
+  // sub-unit difference as no difference; the shape has to agree, or a meter
+  // reading "exactly what is needed" can still draw a cut-off end (user,
+  // 260810).
+  it("reads a difference of groszy as exactly on target", () => {
+    const covered = bar(870840, 870800);
+    expect(covered.getAttribute("data-fit")).toBe("whole");
+    expect(covered.className).toContain("rounded-full");
+  });
+
   it("is a pill, not a bar with one rounded end", () => {
     const covered = bar(720800, 720800);
     expect(covered.className).toContain("rounded-full");

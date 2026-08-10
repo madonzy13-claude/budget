@@ -94,7 +94,14 @@ export function ReserveLevelBar({
   const scale = Math.max(held, needed);
   if (scale <= 0) return null;
 
-  const slack = held - needed;
+  // A few groszy is not a surplus and not a shortfall. Every other figure on
+  // the Overview treats a sub-unit difference as no difference — the bars, the
+  // totals, the rebalance buttons — and the SHAPE has to agree, or a meter
+  // reading "exactly what is needed" can still draw an end cut off square
+  // (user, 260810).
+  const UNIT = 100;
+  const raw = held - needed;
+  const slack = Math.abs(raw) < UNIT ? 0 : raw;
   const covered = Math.min(held, needed);
   const surplus = Math.max(0, slack);
   const missing = Math.max(0, -slack);
