@@ -1511,7 +1511,7 @@
           "overPlan": "Понад план",
           "underPlan": "Менше плану",
           "basis": "Ліміт",
-          "avgLimit": "Середній ліміт",
+          "avgLimit": "Ліміт",
           "currentLimit": "Поточний ліміт",
           "monthColumn": "міс.",
           "spent": "Витрачено",

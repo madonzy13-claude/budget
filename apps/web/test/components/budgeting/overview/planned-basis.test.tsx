@@ -20,6 +20,8 @@ import userEvent from "@testing-library/user-event";
 const dto: { current: Record<string, unknown> } = { current: {} };
 /** The member's stored picks — the section's ONE category filter. */
 const prefsDto: { current: Record<string, unknown> } = { current: {} };
+/** Every (key, value) the section has saved this test. */
+const savedPrefs: [string, unknown][] = [];
 const catsDto: { current: { id: string; name: string }[] } = {
   current: [{ id: "c1", name: "Food" }],
 };
@@ -45,7 +47,9 @@ vi.mock("@/hooks/use-member-ui-prefs", () => ({
   useMemberUiPrefs: () => ({
     prefs: prefsDto.current,
     isLoaded: true,
-    save: () => {},
+    save: (k: string, v: unknown) => {
+      savedPrefs.push([k, v]);
+    },
   }),
 }));
 // The section is collapsed until someone opens it; this one is about what it
@@ -153,6 +157,7 @@ const base = {
 const RANGE = { preset: "last3Months", from: "2025-11-01", to: "2026-01-31" };
 
 beforeEach(() => {
+  savedPrefs.length = 0;
   prefsDto.current = {};
   catsDto.current = [{ id: "c1", name: "Food" }];
   dto.current = { ...base };
@@ -1031,5 +1036,49 @@ describe("Spendings plan — one category filter for the section", () => {
     expect(screen.getByTestId("limit-level-bar").textContent).toContain(
       "1,300",
     );
+  });
+});
+
+/**
+ * PAST or FUTURE is remembered per member, per budget — like the time range
+ * (user, 260810). The in-memory store only survives a pill hop; this survives a
+ * new device.
+ */
+describe("Spendings plan — the basis is remembered", () => {
+  it("opens on the stored choice", () => {
+    prefsDto.current = { "planned-basis": ["future"] };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    // The Future reading names the limit; the Past one measures the difference.
+    const labels = JSON.parse(chart().getAttribute("data-tooltip-rows")!) as {
+      label: string;
+    }[];
+    expect(labels.map((r) => r.label)).not.toContain("planned.difference");
+  });
+
+  it("opens on Past when nothing is stored", () => {
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    const labels = JSON.parse(chart().getAttribute("data-tooltip-rows")!) as {
+      label: string;
+    }[];
+    expect(labels.map((r) => r.label)).toContain("planned.difference");
+  });
+
+  it("still understands the name the FUTURE reading used to have", () => {
+    // Stored before 260807, when it was called "current".
+    prefsDto.current = { "planned-basis": ["current"] };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    const labels = JSON.parse(chart().getAttribute("data-tooltip-rows")!) as {
+      label: string;
+    }[];
+    expect(labels.map((r) => r.label)).not.toContain("planned.difference");
+  });
+
+  it("writes the choice down when it is made", async () => {
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    expect(savedPrefs).toContainEqual(["planned-basis", ["future"]]);
   });
 });

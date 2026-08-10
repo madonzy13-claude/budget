@@ -1488,7 +1488,7 @@
           "overPlan": "Over plan",
           "underPlan": "Under plan",
           "basis": "Limit",
-          "avgLimit": "Average limit",
+          "avgLimit": "Limit",
           "currentLimit": "Current limit",
           "monthColumn": "month",
           "spent": "Spent",

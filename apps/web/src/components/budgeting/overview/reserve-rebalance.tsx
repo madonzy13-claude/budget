@@ -56,8 +56,10 @@ export interface RebalanceCandidate {
 /** What a move in this dialog did, so it can be taken back. */
 interface Applied {
   /** The reserve before the FIRST move — undo returns here, not to the middle
-   *  of a series of tries. */
-  baselineCents: number;
+   *  of a series of tries. NULL once the move has been taken back: the figure
+   *  below is then what undo restored, which the row keeps showing until the
+   *  parent refetches (user, 260810). */
+  baselineCents: number | null;
   /** What the server settled on. Not always the target: a raise that covered
    *  this month's overspend lands below it. */
   currentCents: number;
@@ -127,11 +129,14 @@ export function ReserveRebalance({
       if (kind === "undo") {
         const back = row.baselineCents ?? row.currentCents;
         await onRebalance(row.categoryId, back);
-        setApplied((a) => {
-          const next = { ...a };
-          delete next[row.categoryId];
-          return next;
-        });
+        // KEEP the restored figure on the row. Dropping the record let it fall
+        // back to the props, which still hold what the move wrote until the
+        // refetch lands — the row then read as though the undo never happened
+        // (user, 260810, same trap as the limit dialog).
+        setApplied((a) => ({
+          ...a,
+          [row.categoryId]: { baselineCents: null, currentCents: back },
+        }));
         setCovered((c) => {
           const next = { ...c };
           delete next[row.categoryId];

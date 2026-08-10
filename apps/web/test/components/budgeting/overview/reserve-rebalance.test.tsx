@@ -464,3 +464,51 @@ describe("ReserveRebalance — undo lasts as long as the dialog", () => {
     await waitFor(() => expect(colorOf("car")).toBe("var(--muted-foreground)"));
   });
 });
+
+/**
+ * The same undo trap as the limit dialog (user, 260810): dropping the record of
+ * the move let the row fall back to props that still held the value just
+ * written, so the restoration did not show until the next refetch.
+ */
+describe("ReserveRebalance — the row after undo", () => {
+  const carRow = (heldCents: number) => [
+    { ...ROWS[0]!, heldCents },
+    ...ROWS.slice(1),
+  ];
+
+  it("shows the restored reserve without waiting for a refetch", async () => {
+    const onRebalance = vi.fn(async (_id: string, cents: number) => cents);
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ReserveRebalance
+        rows={carRow(100_000)}
+        onRebalance={onRebalance}
+        format={format}
+      />,
+    );
+    await user.click(screen.getByTestId("reserve-rebalance-open"));
+    await user.click(action("car"));
+
+    // The parent refetches with the moved figure.
+    rerender(
+      <ReserveRebalance
+        rows={carRow(500_000)}
+        onRebalance={onRebalance}
+        format={format}
+      />,
+    );
+    await waitFor(() =>
+      expect(action("car").getAttribute("data-kind")).toBe("undo"),
+    );
+    await user.click(action("car"));
+
+    await waitFor(() =>
+      expect(onRebalance).toHaveBeenLastCalledWith("car", 100_000),
+    );
+    // …and the row says so immediately.
+    expect(
+      screen.getByTestId("reserve-rebalance-current-car").textContent,
+    ).toContain("1000");
+    expect(action("car").getAttribute("data-kind")).toBe("rebalance");
+  });
+});

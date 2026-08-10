@@ -310,3 +310,56 @@ describe("LimitRebalance — undo after the list has refreshed", () => {
     );
   });
 });
+
+/**
+ * …and the row must SHOW the restoration at once (user, 260810, second report).
+ *
+ * Undo wrote the right figure, then dropped its record of the move — so the row
+ * fell back to the props, which still held the value just replaced until the
+ * parent's refetch landed. The row read "76 → 76" with a disabled Rebalance:
+ * the move looked as though it had never been taken back.
+ */
+describe("LimitRebalance — the row after undo", () => {
+  const carRow = (needsCents: number) => [
+    { ...ROWS[0]!, needsCents, wantsCents: 0 },
+    ...ROWS.slice(1),
+  ];
+
+  it("shows the restored split without waiting for a refetch", async () => {
+    const onApply = vi.fn(async () => {});
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <LimitRebalance
+        rows={carRow(100_000)}
+        onApply={onApply}
+        format={format}
+      />,
+    );
+    await user.click(screen.getByTestId("limit-rebalance-open"));
+    await user.click(action("car"));
+
+    // The parent refetches: the props now hold the 1,500 just written — which
+    // is what the row fell back to when undo dropped its record of the move.
+    rerender(
+      <LimitRebalance
+        rows={carRow(150_000)}
+        onApply={onApply}
+        format={format}
+      />,
+    );
+    await waitFor(() =>
+      expect(action("car").getAttribute("data-kind")).toBe("undo"),
+    );
+    await user.click(action("car"));
+
+    // Back to the 1,000 it started from, at once — not "1,500 → 1,500" with a
+    // dead button until the next refetch lands.
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("limit-rebalance-prev-needs-car").textContent,
+      ).toBe("1000.00 zl"),
+    );
+    expect(action("car").getAttribute("data-kind")).toBe("rebalance");
+    expect(action("car").disabled).toBe(false);
+  });
+});

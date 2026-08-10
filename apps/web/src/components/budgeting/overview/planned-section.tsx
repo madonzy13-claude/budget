@@ -11,12 +11,14 @@
  * (default = All categories) re-scopes the timeline. Charts via the 11-02 wrappers
  * only; string cents → Number here (recharts needs Numbers).
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { CategoryMultiSelect } from "./category-multi-select";
 import {
   effectiveCategoryIds,
+  PLANNED_BASIS_PREF,
   PLANNED_TIMELINE_PREF,
+  decodeBasis,
   prunePlannedCategories,
 } from "@/lib/planned-category-filter";
 import { useMemberUiPrefs } from "@/hooks/use-member-ui-prefs";
@@ -279,14 +281,22 @@ export function PlannedSection({
   // has scheduled. The old pair was average/current; a stored "current" reads
   // as the future, which is the closest thing it meant.
   const [basis, setBasisState] = useState<"past" | "future">(() =>
-    store?.overview.plannedBasis === "current" ||
-    store?.overview.plannedBasis === "future"
-      ? "future"
-      : "past",
+    decodeBasis(store?.overview.plannedBasis),
   );
+  // …and once the member's stored choice arrives, it wins: the in-memory store
+  // only survives a pill hop, while this survives a new device (user, 260810).
+  // Their own change is what put it there, so this never fights the toggle.
+  const storedBasis = prefs[PLANNED_BASIS_PREF];
+  useEffect(() => {
+    if (!prefsLoaded || storedBasis === undefined) return;
+    const v = decodeBasis(storedBasis);
+    setBasisState(v);
+    if (store) store.overview.plannedBasis = v;
+  }, [prefsLoaded, storedBasis, store]);
   const setBasis = (v: "past" | "future") => {
     if (store) store.overview.plannedBasis = v;
     setBasisState(v);
+    void savePrefs(PLANNED_BASIS_PREF, [v]);
   };
 
   // The same one-off decisions the reserve chart uses — they come off THESE

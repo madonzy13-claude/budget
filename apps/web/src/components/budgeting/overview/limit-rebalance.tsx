@@ -74,7 +74,7 @@ export function LimitRebalance({
    *  figure just written — undo then wrote it back and nothing changed (user,
    *  260810). The reserve dialog has always captured it; this one did not. */
   const [applied, setApplied] = React.useState<
-    Record<string, { split: LimitSplit; before: LimitSplit }>
+    Record<string, { split: LimitSplit; before: LimitSplit | null }>
   >({});
   const [busy, setBusy] = React.useState<string | null>(null);
   const [order, setOrder] = React.useState<string[] | null>(null);
@@ -127,11 +127,15 @@ export function LimitRebalance({
           wantsCents: row.wantsCents,
         };
         await onApply(row.categoryId, back);
-        setApplied((a) => {
-          const next = { ...a };
-          delete next[row.categoryId];
-          return next;
-        });
+        // KEEP showing what was just restored. Dropping the record here let the
+        // row fall back to the props, which still hold the value the move wrote
+        // until the parent's refetch lands — so the row read "76 → 76" with a
+        // dead button and the undo looked as though it had not happened (user,
+        // 260810). `before: null` retires the undo without losing the figure.
+        setApplied((a) => ({
+          ...a,
+          [row.categoryId]: { split: back, before: null },
+        }));
       } else {
         const split = {
           needsCents: row.targetNeedsCents,
