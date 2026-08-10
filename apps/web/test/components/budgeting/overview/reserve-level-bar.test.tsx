@@ -247,10 +247,10 @@ describe("ReserveLevelBar", () => {
   it("calls idle money attention, not alarm", () => {
     setup(9000, 3000);
     // Over-held is a slow loss, not a failure — never the danger red. The ink
-    // itself flips with the theme (--surplus-ink: brand yellow on the dark
+    // itself flips with the theme (--accent-ink: brand yellow on the dark
     // card, near-black on the pale one), so this asserts what it is NOT.
     const action = screen.getByTestId("reserve-bar-action");
-    expect(action.style.color).toBe("var(--surplus-ink)");
+    expect(action.style.color).toBe("var(--accent-ink)");
     expect(action.style.color).not.toContain("trading-down");
   });
 
@@ -486,7 +486,7 @@ describe("ReserveLevelBar — the verdict's ink", () => {
   };
 
   it("uses a theme-flipping ink when the buffer is over target", () => {
-    expect(action(900000, 720800).style.color).toBe("var(--surplus-ink)");
+    expect(action(900000, 720800).style.color).toBe("var(--accent-ink)");
   });
 
   it("keeps the shortfall red, which reads on either card", () => {

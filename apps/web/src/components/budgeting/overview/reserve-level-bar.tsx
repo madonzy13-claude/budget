@@ -44,11 +44,10 @@ import { useTranslations } from "next-intl";
  *  as inert as an empty one. */
 const TARGET = "var(--trading-up)";
 const SURPLUS = "var(--primary)";
-/** The verdict's ink when the buffer is ABOVE target. Brand yellow on the dark
- *  card, near-black on the pale one: amber text on white cannot be read (user,
- *  260810). The bar's own stretch keeps SURPLUS — a yellow SHAPE is fine on
- *  both, it is only the TEXT that fails. */
-const SURPLUS_INK = "var(--surplus-ink)";
+/** The verdict's ink when the buffer is ABOVE target: brand yellow as TEXT,
+ *  which flips to the body ink on the pale card. The bar's own stretch keeps
+ *  SURPLUS — a yellow SHAPE reads on both, only text fails (user, 260810). */
+const SURPLUS_INK = "var(--accent-ink)";
 const SHORT = "var(--trading-down)";
 /** Breathing room between the outline and the bar it contains, in px: the box is
  *  16 tall with a 1px border around a 6px bar, so 4px of clearance above and
