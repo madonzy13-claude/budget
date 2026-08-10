@@ -206,8 +206,18 @@ export function ReserveLevelBar({
                 // then behind the outline's right edge as well as its left.
                 width: stretch(covered, INNER_PAD * (missing === 0 ? 2 : 1)),
                 background: TARGET,
-                borderTopRightRadius: surplus > 0 ? 0 : 9999,
-                borderBottomRightRadius: surplus > 0 ? 0 : 9999,
+                // NO radius here. The class owns all four corners, because CSS
+                // scales every radius by ONE factor when they overflow the box
+                // — and this element is 6px tall, so they always do:
+                //
+                //   f = min(side ÷ Σ radii on that side)
+                //
+                // With rounded-full on the left (16,777,200px) and an inline
+                // 9999px on the right, f came from the left pair: 6/33,554,400
+                // = 1.79e-7. The left corners landed on 3px, a proper cap; the
+                // right on 0.002px, square. Both values read as plainly
+                // non-zero in the DOM, which is why this survived three passes
+                // (user devtools, 260810).
               }}
             />
           )}

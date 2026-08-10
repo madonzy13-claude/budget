@@ -405,13 +405,14 @@ describe("ReserveLevelBar — when held is exactly what is needed", () => {
 
   it("rounds the right end as well as the left", () => {
     const covered = bar(720800, 720800);
-    expect(covered.style.borderTopRightRadius).not.toBe("0px");
-    expect(covered.style.borderBottomRightRadius).not.toBe("0px");
+    expect(covered.className).toContain("rounded-full");
+    expect(covered.className).not.toContain("rounded-l-full");
   });
 
   it("keeps the right end square where the overspill continues past it", () => {
     const over = bar(900000, 720800);
-    expect(over.style.borderTopRightRadius).toBe("0px");
+    expect(over.className).toContain("rounded-l-full");
+    expect(over.className).not.toContain("rounded-full");
   });
 
   // A few groszy is not a surplus. Everything else on the Overview treats a
@@ -422,6 +423,34 @@ describe("ReserveLevelBar — when held is exactly what is needed", () => {
     const covered = bar(870840, 870800);
     expect(covered.getAttribute("data-fit")).toBe("whole");
     expect(covered.className).toContain("rounded-full");
+  });
+
+  /**
+   * NEVER mix radius magnitudes on this element (user devtools, 260810).
+   *
+   * The class gave the left corners Tailwind's rounded-full — 16,777,200px —
+   * while an inline override gave the right corners 9999px. CSS scales EVERY
+   * radius by one factor when they overflow the box:
+   *
+   *     f = min(side ÷ Σ radii on that side) = 6 ÷ 33,554,400 = 1.79e-7
+   *     left  16,777,200 × f = 3px      → a proper cap
+   *     right      9,999 × f = 0.002px  → square
+   *
+   * So the smaller value was crushed to nothing and the bar read as cut off,
+   * while both values looked plainly non-zero in the DOM. The corners are the
+   * class's business alone now.
+   */
+  it("sets no radius inline, so nothing can out-scale the class", () => {
+    for (const [held, needed] of [
+      [720800, 720800],
+      [500000, 720800],
+      [900000, 720800],
+    ]) {
+      const covered = bar(held!, needed!);
+      expect(covered.style.borderTopRightRadius).toBe("");
+      expect(covered.style.borderBottomRightRadius).toBe("");
+      expect(covered.getAttribute("style") ?? "").not.toContain("radius");
+    }
   });
 
   it("is a pill, not a bar with one rounded end", () => {
