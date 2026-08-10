@@ -44,6 +44,11 @@ import { useTranslations } from "next-intl";
  *  as inert as an empty one. */
 const TARGET = "var(--trading-up)";
 const SURPLUS = "var(--primary)";
+/** The verdict's ink when the buffer is ABOVE target. Brand yellow on the dark
+ *  card, near-black on the pale one: amber text on white cannot be read (user,
+ *  260810). The bar's own stretch keeps SURPLUS — a yellow SHAPE is fine on
+ *  both, it is only the TEXT that fails. */
+const SURPLUS_INK = "var(--surplus-ink)";
 const SHORT = "var(--trading-down)";
 /** Breathing room between the outline and the bar it contains, in px: the box is
  *  16 tall with a 1px border around a 6px bar, so 4px of clearance above and
@@ -128,7 +133,7 @@ export function ReserveLevelBar({
     slack > 0 ? "aboveTarget" : slack < 0 ? "belowTarget" : "onTarget";
   // The action inherits the colour of the stretch it is about, so the sentence
   // and the shape never disagree.
-  const actionTone = slack > 0 ? SURPLUS : slack < 0 ? SHORT : undefined;
+  const actionTone = slack > 0 ? SURPLUS_INK : slack < 0 ? SHORT : undefined;
 
   return (
     <div

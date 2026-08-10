@@ -70,8 +70,21 @@ export interface ReserveFitDTO {
   unassigned_scheduled?: { name: string; amount_cents: string }[];
 }
 
+/**
+ * Everything this budget's reserve-fit is cached under, whatever range is on
+ * screen — and the ONLY thing a mutation should invalidate.
+ *
+ * Derived, not retyped: the invalidation used to spell the prefix out, and when
+ * the query key was bumped to "-v2" the two drifted apart. React Query matches
+ * prefixes element by element, so it silently matched nothing and a ticked-off
+ * one-off stayed on the chart until the page was reloaded (user, 260810).
+ */
+export function reserveFitKeyPrefix(budgetId: string) {
+  return ["budget", budgetId, "overview", "reserve-fit-v2"] as const;
+}
+
 export function reserveFitQueryKey(budgetId: string, from: string, to: string) {
-  return ["budget", budgetId, "overview", "reserve-fit-v2", from, to] as const;
+  return [...reserveFitKeyPrefix(budgetId), from, to] as const;
 }
 
 export function useReserveFit(
@@ -114,9 +127,7 @@ export function useSaveReserveFitExclusions(budgetId: string) {
       return true;
     },
     onSettled: () => {
-      void qc.invalidateQueries({
-        queryKey: ["budget", budgetId, "overview", "reserve-fit"],
-      });
+      void qc.invalidateQueries({ queryKey: reserveFitKeyPrefix(budgetId) });
     },
   });
 }

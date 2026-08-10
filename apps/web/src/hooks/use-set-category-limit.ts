@@ -62,9 +62,10 @@ export function useSetCategoryLimit(budgetId: string, month: string) {
       void qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
       void qc.invalidateQueries({ queryKey: ["budget", budgetId, "overview"] });
       void qc.invalidateQueries({ queryKey: ["budget", budgetId, "planned"] });
-      void qc.invalidateQueries({
-        queryKey: ["budget", budgetId, "reserve-fit"],
-      });
+      // The reserve-fit chart is covered by the "overview" prefix above. A
+      // fourth line naming ["budget", id, "reserve-fit"] matched nothing at all
+      // — that key has never existed — and reading it suggested a guarantee
+      // that was not there (260810).
     },
   });
 }

@@ -246,9 +246,12 @@ describe("ReserveLevelBar", () => {
 
   it("calls idle money attention, not alarm", () => {
     setup(9000, 3000);
-    // Over-held is a slow loss, not a failure — amber, never the danger red.
+    // Over-held is a slow loss, not a failure — never the danger red. The ink
+    // itself flips with the theme (--surplus-ink: brand yellow on the dark
+    // card, near-black on the pale one), so this asserts what it is NOT.
     const action = screen.getByTestId("reserve-bar-action");
-    expect(action.style.color).toContain("--primary");
+    expect(action.style.color).toBe("var(--surplus-ink)");
+    expect(action.style.color).not.toContain("trading-down");
   });
 
   it("calls an exposed buffer what it is", () => {
@@ -456,5 +459,41 @@ describe("ReserveLevelBar — when held is exactly what is needed", () => {
   it("is a pill, not a bar with one rounded end", () => {
     const covered = bar(720800, 720800);
     expect(covered.className).toContain("rounded-full");
+  });
+});
+
+/**
+ * The verdict has to be readable on BOTH cards (user, 260810).
+ *
+ * "6,341 zł more than needed" was drawn in brand yellow, which is right on the
+ * dark card and unreadable on the pale one. It now takes a token that flips
+ * with the theme — the same treatment --num-hero already has, and for the same
+ * reason. Red (short) reads on both, so it keeps its own colour.
+ */
+describe("ReserveLevelBar — the verdict's ink", () => {
+  const action = (held: number, needed: number) => {
+    const { container } = render(
+      <ReserveLevelBar
+        heldCents={held}
+        neededCents={needed}
+        format={(c) => `${Math.round(c / 100)} zl`}
+        testId="meter"
+      />,
+    );
+    return container.querySelector<HTMLElement>(
+      '[data-testid="meter-action"]',
+    )!;
+  };
+
+  it("uses a theme-flipping ink when the buffer is over target", () => {
+    expect(action(900000, 720800).style.color).toBe("var(--surplus-ink)");
+  });
+
+  it("keeps the shortfall red, which reads on either card", () => {
+    expect(action(500000, 720800).style.color).toBe("var(--trading-down)");
+  });
+
+  it("leaves an on-target verdict to inherit the card's own text colour", () => {
+    expect(action(720800, 720800).style.color).toBe("");
   });
 });
