@@ -1624,9 +1624,8 @@
           "reserveAria": "Available for {name}"
         },
         "totals": {
-          "internalLabel": "Total available",
-          "walletsLabel": "Total in wallets",
-          "usedLabel": "Total used",
+          "internalLabel": "Total needed",
+          "walletsLabel": "Total held",
           "thisMonth": "this month",
           "allTime": "all time"
         },

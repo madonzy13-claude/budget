@@ -1647,9 +1647,8 @@
           "reserveAria": "Dostępne dla {name}"
         },
         "totals": {
-          "internalLabel": "Razem dostępne",
-          "walletsLabel": "Razem w portfelach",
-          "usedLabel": "Razem wykorzystane",
+          "internalLabel": "Razem potrzeba",
+          "walletsLabel": "Razem zgromadzone",
           "thisMonth": "w tym miesiącu",
           "allTime": "od początku"
         },

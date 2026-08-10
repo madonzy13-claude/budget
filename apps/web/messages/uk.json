@@ -1647,9 +1647,8 @@
           "reserveAria": "Доступно для {name}"
         },
         "totals": {
-          "internalLabel": "Усього доступно",
-          "walletsLabel": "Усього в гаманцях",
-          "usedLabel": "Усього використано",
+          "internalLabel": "Усього потрібно",
+          "walletsLabel": "Усього відкладено",
           "thisMonth": "цього місяця",
           "allTime": "за весь час"
         },

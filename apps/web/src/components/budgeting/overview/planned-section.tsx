@@ -311,18 +311,6 @@ export function PlannedSection({
     enabled: warm,
   });
   const saveExclusions = useSaveReserveFitExclusions(budgetId);
-  /** categoryId → how much its limit should CHANGE, per the reserve chart.
-   *  Absent when the engine never examined the category (reserve-excluded);
-   *  0 when it examined it and found nothing to change. */
-  const limitChanges = new Map<string, number>(
-    (fit.data?.rows ?? []).map(
-      (r) =>
-        [r.category_id, Number(r.suggested_delta_cents ?? 0)] as [
-          string,
-          number,
-        ],
-    ),
-  );
   /** categoryId → what an average month ahead costs: the habit plus every
    *  recurring payment at its monthly rate (260808). This is what the FUTURE
    *  reading measures today's limit against. */
@@ -848,7 +836,15 @@ export function PlannedSection({
                       // and 2,215 with a difference of +1,314, which is not the
                       // difference between anything on screen (user, 260808).
                       // Three figures, one subtraction.
-                      const expected = projected.get(c.category_id) ?? real;
+                      // No projection means the reserve engine never examined
+                      // this category (reserve-excluded). Its limit is then the
+                      // only honest answer — nothing has been worked out that
+                      // would change it. Falling back to the past AVERAGE was
+                      // the formula that gave those rows the largest bars on
+                      // the chart (audit, 260807); it is gone.
+                      const expected =
+                        projected.get(c.category_id) ??
+                        (basis === "future" ? current : real);
                       const planned = basis === "future" ? current : avg;
                       const rawGap =
                         basis === "future"
@@ -893,13 +889,13 @@ export function PlannedSection({
                     })
                     // Ordered the way the chart is being READ (260804) — always
                     // money now that the percent axis has gone.
-                    // A category the reserve engine never examined has no
-                    // change to show; drawing it at zero would read as "this
-                    // limit is right" for one nothing was worked out for.
-                    .filter(
-                      (c) =>
-                        basis !== "future" || limitChanges.has(c.categoryId),
-                    )
+                    //
+                    // EVERY category, not just the ones the reserve engine
+                    // tracks: the chart showed 8 of 10, quietly dropping the
+                    // reserve-excluded ones (user, 260810). One the walk has no
+                    // opinion about draws at zero, which is the truth — nothing
+                    // about its limit needs to change — and it matches the
+                    // meter above, which now counts them too.
                     .sort((a, b) => b.gap - a.gap)}
                   categoryKey="name"
                   valueKey="gap"

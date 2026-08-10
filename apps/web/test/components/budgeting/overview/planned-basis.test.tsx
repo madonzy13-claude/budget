@@ -151,6 +151,10 @@ beforeEach(() => {
     rows: [
       {
         category_id: "c1",
+        // A real fit row always carries the projection — it is what the Future
+        // bar is drawn from. Without it the row now reads as "nothing worked
+        // out for this category", which is a different fixture entirely.
+        projected_monthly_cents: "60000",
         suggested_limit_cents: "120000",
         suggested_delta_cents: "40000",
       },
@@ -263,18 +267,21 @@ describe("How far off plan — which limit it measures against", () => {
     expect(chart().getAttribute("data-gap")).toBe("-1000");
   });
 
-  it("leaves out a category the reserve engine never examined", async () => {
-    // Reserve-EXCLUDED categories have no fit row at all. Drawing them at zero
-    // reads as "this limit is right" for a category nothing was worked out for;
-    // before this they silently fell back to a different formula entirely and
-    // produced the only large bars on the chart (audit, 260807).
+  // SUPERSEDES 260807's "leave it out". A reserve-EXCLUDED category has no fit
+  // row, and hiding it showed 8 of 10 categories with no explanation (user,
+  // 260810). It draws at zero, which is the truth — nothing about its limit
+  // needs to change — and the meter above counts it the same way. What 260807
+  // was actually protecting against was the FALLBACK formula that gave those
+  // rows the largest bars on the chart; that is gone, and the guard with it.
+  it("draws a category the reserve engine never examined, at zero", async () => {
     fitDto.current = { rows: [] };
     const user = userEvent.setup();
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
     await user.click(
       screen.getByRole("button", { name: "planned.basisFuture" }),
     );
-    expect(chart().getAttribute("data-rows")).toBe("");
+    expect(chart().getAttribute("data-rows")).toBe("Food");
+    expect(chart().getAttribute("data-gap")).toBe("0");
   });
 
   // "What will I need" has an answer whether or not a limit ever moved, so the
@@ -858,14 +865,36 @@ describe("How far off plan — the meter counts every category", () => {
     dto.current = {
       ...base,
       plannedAvgVsReal: [
-        { ...row, category_id: "c1", name: "Food", planned_current_cents: "80000" },
-        { ...row, category_id: "c2", name: "Housing", planned_current_cents: "100000" },
+        {
+          ...row,
+          category_id: "c1",
+          name: "Food",
+          planned_current_cents: "80000",
+        },
+        {
+          ...row,
+          category_id: "c2",
+          name: "Housing",
+          planned_current_cents: "100000",
+        },
       ],
     };
     summaryDto.current = {
       categories: [
-        { categoryId: "c1", plannedCents: "80000", needsCents: "80000", wantsCents: "0", cushionCents: "0" },
-        { categoryId: "c2", plannedCents: "100000", needsCents: "100000", wantsCents: "0", cushionCents: "0" },
+        {
+          categoryId: "c1",
+          plannedCents: "80000",
+          needsCents: "80000",
+          wantsCents: "0",
+          cushionCents: "0",
+        },
+        {
+          categoryId: "c2",
+          plannedCents: "100000",
+          needsCents: "100000",
+          wantsCents: "0",
+          cushionCents: "0",
+        },
       ],
     };
     // Only Food is tracked; Housing is reserve-excluded and has no fit row.
