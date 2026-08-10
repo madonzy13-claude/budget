@@ -200,8 +200,11 @@ export function PlannedTotals({
   // the by-category bars they asked the same three questions a second time
   // (user, 260805). Range totals over calendar months, so all three figures
   // come from one source and cannot disagree.
-  const per = (v: bigint) =>
-    months > 1 ? format(v / BigInt(months)) : undefined;
+  // `months` can be FRACTIONAL now: the month still running counts as the days
+  // it has actually had (user, 260810), so this cannot be integer division —
+  // BigInt(1.32) throws outright. Round to the cent and hand back a bigint.
+  const perMonth = (v: bigint) => BigInt(Math.round(Number(v) / months));
+  const per = (v: bigint) => (months > 1 ? format(perMonth(v)) : undefined);
 
   const comparison: Cell[] = [
     {
@@ -297,7 +300,7 @@ export function PlannedTotals({
           pct={pct}
           // The AMOUNT is monthly like its neighbours; the percent is a ratio,
           // identical either way, so it stays as it was (user, 260805).
-          amount={`${sign}${format(months > 1 ? absDiff / BigInt(months) : absDiff)}`}
+          amount={`${sign}${format(months > 1 ? perMonth(absDiff) : absDiff)}`}
           mask={maskValue}
           // Only while the range is this month alone: five days in, being under
           // says nothing. Reach back further and the colour returns (260803).
