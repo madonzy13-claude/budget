@@ -245,8 +245,8 @@
       "name_saved": "Budget name saved",
       "currency_label": "Currency",
       "currency_saved": "Currency updated",
-      "privacy_label": "Hide amounts",
-      "privacy_hint": "Hide amounts by default; tap any amount to reveal them.",
+      "privacy_label": "Privacy mode",
+      "privacy_hint": "Hide amounts by default. Tap any amount to reveal it.",
       "privacy_on_toast": "Amounts hidden by default",
       "privacy_off_toast": "Amounts always shown",
       "privacy_error": "Couldn't update the privacy setting",
@@ -469,12 +469,12 @@
       "audit_hint": "Every change is logged."
     },
     "aggregation": {
-      "feature_label": "Include in all-budgets total",
-      "feature_help_text": "Count this budget toward your combined net worth.",
+      "feature_label": "Include in net worth",
+      "feature_help_text": "Add this budget to your total net worth.",
       "feature_on_toast": "Included in your total",
       "feature_off_toast": "Excluded from your total",
-      "share_label": "Wealth share",
-      "share_help": "How much of this budget's wealth counts toward your total (0-100%).",
+      "share_label": "Net worth share",
+      "share_help": "Choose what percentage of this budget counts toward your total net worth.",
       "error_save": "Couldn't save. Try again."
     },
     "ownership": {
