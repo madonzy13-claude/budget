@@ -185,7 +185,11 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
           <AccordionTrigger className="px-6">
             {t("sections.identity")}
           </AccordionTrigger>
-          <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-5 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
+          {/* py-3, not py-5: this card's rows are a divide-y list that already
+              carries py-3 each, so 24px between rows — the card's own 20px sat
+              on top of the first row's 12 and put 32px above "Name" (user,
+              260810). */}
+          <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-3 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
             <OwnerGate isOwner={isOwner}>
               <BudgetIdentitySection
                 budgetId={budget.id}
@@ -199,8 +203,14 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
             {/* Task 11: self-service, NOT owner-gated — any member may include/exclude
                 their own budget from their personal all-budgets aggregate. Only shown
                 once the user has ≥2 budgets (nothing to aggregate with just one). */}
+            {/* Joins on the rows' own rhythm: the privacy row's py-3 already
+                gives 12px below it, so pt-3 makes 24px — mt-4 + pt-4 made 44
+                and read as a hole under Privacy mode (user, 260810). */}
             {budgetCount >= 2 && (
-              <div className="mt-4 border-t border-[var(--hairline-on-dark)] pt-4">
+              <div
+                data-testid="settings-aggregation-join"
+                className="border-t border-[var(--hairline-on-dark)] pt-3"
+              >
                 <AggregationSection
                   budgetId={budget.id}
                   includeInAggregation={budget.includeInAggregation ?? true}
