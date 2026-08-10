@@ -172,6 +172,17 @@ export function ReserveLevelBar({
           {covered > 0 && (
             <div
               data-testid={`${testId}-covered`}
+              // Which shape this is, in the DOM: a screenshot cannot tell a
+              // pill with a 3px cap from a square end, and two rounds went on
+              // arguing about it (user, 260809-260810). "whole" is the only
+              // state that rounds on the right.
+              data-fit={
+                missing === 0 && surplus === 0
+                  ? "whole"
+                  : missing > 0
+                    ? "short"
+                    : "over"
+              }
               aria-label={`${heldName}: ${format(held)}`}
               // Nothing follows it inside the box and nothing spills past it:
               // the bar IS the whole track, so it is a pill. A flat right end
