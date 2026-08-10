@@ -342,20 +342,13 @@ export function ReservesTableClient({ budgetId }: ReservesTableClientProps) {
   const excludedRows = summary.data.excludedRows;
   const { budgetCurrency } = summary.data.totals;
 
-  // TOTAL USED comes from the API totals (server sums EVERY non-excluded
-  // category incl. archived "keep history" rows that aren't displayed here).
-  const totalUsedCents = summary.data.totals.usedCents;
-  const totalUsedThisMonthCents = summary.data.totals.usedThisMonthCents;
-
   // While the cover count-down runs, the footer renders the interpolated
-  // totals (TOTAL AVAILABLE ↓ by cover, TOTAL USED ↑ by cover); otherwise the
-  // authoritative cache values.
+  // total; otherwise the authoritative cache value. (The USED line went on
+  // 260810 — see reserves-totals-footer.)
   const footerInternalCents =
     anim !== null
       ? String(anim.totalAvailable)
       : summary.data.totals.internalCents;
-  const footerUsedCents =
-    anim !== null ? String(anim.totalUsed) : totalUsedCents;
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
