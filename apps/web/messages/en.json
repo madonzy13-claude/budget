@@ -244,6 +244,7 @@
       "name_label": "Name",
       "name_saved": "Budget name saved",
       "currency_label": "Currency",
+      "currency_hint": "Used to convert and represent all budget amounts in a single currency.",
       "currency_saved": "Currency updated",
       "privacy_label": "Privacy mode",
       "privacy_hint": "Hide amounts by default. Tap any amount to reveal it.",

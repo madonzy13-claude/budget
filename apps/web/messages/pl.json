@@ -244,6 +244,7 @@
       "name_label": "Nazwa",
       "name_saved": "Nazwa budżetu zapisana",
       "currency_label": "Waluta",
+      "currency_hint": "Służy do przeliczania i przedstawiania wszystkich kwot budżetu w jednej walucie.",
       "currency_saved": "Waluta zaktualizowana",
       "privacy_label": "Tryb prywatny",
       "privacy_hint": "Ukrywaj kwoty domyślnie. Dotknij kwoty, aby ją odsłonić.",

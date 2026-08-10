@@ -161,9 +161,14 @@ export function BudgetIdentitySection({
           state (post-first-transaction) already renders at intrinsic
           size — this matches that footprint for visual consistency. */}
       <div className="flex items-center justify-between gap-4 py-3">
-        <p className="shrink-0 text-sm font-semibold text-[var(--body)]">
-          {t("identity.currency_label")}
-        </p>
+        <div className="min-w-0 space-y-0.5">
+          <p className="text-sm font-semibold text-[var(--body)]">
+            {t("identity.currency_label")}
+          </p>
+          <p className="text-xs text-[var(--muted-foreground)]">
+            {t("identity.currency_hint")}
+          </p>
+        </div>
         <div className="flex justify-end">
           {hasTransactions ? (
             // Locked (post-first-transaction): plain grey code, no lock chrome —
