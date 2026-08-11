@@ -259,16 +259,16 @@ describe("AggregateOverview — remembered range", () => {
   it("opens on the stored range", () => {
     userPrefs.current = { overviewRange: ["last12Months"] };
     render(<AggregateOverview />);
-    expect(
-      screen.getByTestId("aggregate-range-value").textContent,
-    ).toBe("last12Months");
+    expect(screen.getByTestId("aggregate-range-value").textContent).toBe(
+      "last12Months",
+    );
   });
 
   it("opens on six months when nothing is stored", () => {
     render(<AggregateOverview />);
-    expect(
-      screen.getByTestId("aggregate-range-value").textContent,
-    ).toBe("last6Months");
+    expect(screen.getByTestId("aggregate-range-value").textContent).toBe(
+      "last6Months",
+    );
   });
 
   // Drawing before the stored pick lands would fetch a trend for the default
@@ -304,8 +304,36 @@ describe("AggregateOverview — offline with no stored range", () => {
     link.degraded = true;
     render(<AggregateOverview />);
     expect(screen.queryByTestId("aggregate-loading")).toBeNull();
-    expect(
-      screen.getByTestId("aggregate-range-value").textContent,
-    ).toBe("last6Months");
+    expect(screen.getByTestId("aggregate-range-value").textContent).toBe(
+      "last6Months",
+    );
+  });
+});
+
+/**
+ * The all-budgets "Available to spend" card (user, 260811).
+ *
+ * It called its lower line "Left", while the per-budget card calls the same
+ * quantity "Upcoming" — one number, two names. And it carried a green tick or a
+ * red alert, which reads as a verdict on money that has not happened yet.
+ * Across many budgets there is no single forecast to be right or wrong about,
+ * so the card states the figures and passes no judgement: no icon at all.
+ */
+describe("AggregateOverview — available to spend", () => {
+  beforeEach(() => {
+    dataRef.current = DATA;
+  });
+
+  it("calls the lower line 'upcoming', matching the per-budget card", () => {
+    render(<AggregateOverview />);
+    const card = screen.getByTestId("aggregate-card-available-to-spend");
+    expect(within(card).getByText("upcoming")).toBeTruthy();
+    expect(within(card).queryByText("left")).toBeNull();
+  });
+
+  it("passes no verdict — the card carries no status icon", () => {
+    render(<AggregateOverview />);
+    const card = screen.getByTestId("aggregate-card-available-to-spend");
+    expect(card.querySelector("svg")).toBeNull();
   });
 });

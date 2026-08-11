@@ -200,7 +200,6 @@ export function AggregateOverview() {
       BigInt(b.overspent_top_cents) > BigInt(a.overspent_top_cents) ? 1 : -1,
     )[0];
 
-  const spendGood = cashTotal >= leftTotal;
   const anyReserves = reservesTotal > 0n || reservesReq > 0n;
   const reservesShort = reservesTotal < reservesReq;
   const reservesSurplus = reservesTotal > reservesReq;
@@ -382,7 +381,9 @@ export function AggregateOverview() {
           <StatCard
             testid="aggregate-card-available-to-spend"
             label={t("available_to_spend")}
-            icon={spendGood ? iconOk : iconBad}
+            // No icon: a tick or an alert is a verdict on a forecast, and
+            // across many budgets there is no single forecast to be right or
+            // wrong about. The card states the figures (user, 260811).
             value={<SlotAmount value={fmt(cashTotal)} />}
             sub={
               <dl className="text-caption mt-1.5 flex flex-col gap-0.5 text-[var(--muted-foreground)]">
@@ -393,7 +394,7 @@ export function AggregateOverview() {
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <dt>{t("left")}</dt>
+                  <dt>{t("upcoming")}</dt>
                   <dd className="num text-[var(--body-on-dark)]">
                     <SlotAmount value={fmt(leftTotal)} />
                   </dd>

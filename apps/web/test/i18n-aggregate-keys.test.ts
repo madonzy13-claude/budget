@@ -14,7 +14,9 @@ const KEYS = [
   "aggregate.attention_title",
   "aggregate.flow_title",
   "aggregate.spent",
-  "aggregate.left",
+  // Renamed from `left` (260811): one quantity, and the per-budget card had
+  // always called it "Upcoming".
+  "aggregate.upcoming",
   "aggregate.my_share",
   "aggregate.rate_unavailable",
   "aggregate.empty",

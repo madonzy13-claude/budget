@@ -784,7 +784,7 @@
     "attention_title": "Wymaga uwagi",
     "flow_title": "W tym miesiącu",
     "spent": "Wydano",
-    "left": "Pozostało",
+    "upcoming": "Przyszłe",
     "my_share": "twój udział: {pct}%",
     "rate_unavailable": "Kurs wymiany niedostępny — wykluczony z sum",
     "empty": "Brak uwzględnionych budżetów. Włącz opcję w ustawieniach budżetu.",

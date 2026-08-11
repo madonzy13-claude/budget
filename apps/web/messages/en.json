@@ -784,7 +784,7 @@
     "attention_title": "Needs attention",
     "flow_title": "This month",
     "spent": "Spent",
-    "left": "Left",
+    "upcoming": "Upcoming",
     "my_share": "your {pct}%",
     "rate_unavailable": "Exchange rate unavailable — excluded from totals",
     "empty": "No budgets included. Enable one in its settings.",

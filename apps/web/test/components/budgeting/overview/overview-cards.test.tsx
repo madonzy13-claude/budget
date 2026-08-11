@@ -178,14 +178,16 @@ describe("OverviewCards", () => {
     expect(screen.getByTestId("spend-bad")).toBeTruthy();
   });
 
-  it("shows a grey neutral dot + the old 'upcoming' figure when there's no income", () => {
+  it("shows NO dot at all + the old 'upcoming' figure when there's no income", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
     mockProjection.mockReturnValue({
       data: { spend_health: { good: null, surplus_deficit_cents: null } },
     });
     render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
-    // Grey dot, not green/red.
-    expect(screen.getByTestId("spend-neutral")).toBeTruthy();
+    // A grey circle said "there is a verdict here, and it is neutral" — there
+    // is no verdict at all without income to forecast against, so the slot is
+    // simply empty (user, 260811).
+    expect(screen.queryByTestId("spend-neutral")).toBeNull();
     expect(screen.queryByTestId("spend-good")).toBeNull();
     expect(screen.queryByTestId("spend-bad")).toBeNull();
     // Falls back to the original "Upcoming" line ($400 = left_cents), no surplus row.
