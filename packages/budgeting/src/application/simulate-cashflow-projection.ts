@@ -155,6 +155,15 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
 
   // Mutable running state.
   let cash = input.startCashCents;
+  // What each category may still spend inside its plan this month. Reserve money
+  // is earmarked against limits being EXCEEDED, so this is what decides whether
+  // an outflow may reach the pot at all (user, 260811).
+  const remainingLimit = new Map<string, bigint>();
+  for (const c of input.categories) {
+    const left = c.budgetThisMonthCents - c.spentSoFarCents;
+    remainingLimit.set(c.id, left > 0n ? left : 0n);
+  }
+  let limitsRolled = false;
   // Reserve = one pot of emergency money (Σ per-category reserve, funded by the
   // RESERVE wallets). Cash-based model: spending is paid from cash; only what
   // cash can't cover dips into this pot, and it depletes as used (it does not
@@ -175,6 +184,15 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
     // Compare year+month, not the bare month, so the burn switches to next
     // month's rate at the boundary (a 2-month window never repeats a month).
     const inStartMonth = `${d.year}-${d.month}` === startYearMonth;
+    // A new month restores every plan in full.
+    if (!inStartMonth && !limitsRolled) {
+      for (const c of input.categories)
+        remainingLimit.set(
+          c.id,
+          c.budgetNextMonthCents > 0n ? c.budgetNextMonthCents : 0n,
+        );
+      limitsRolled = true;
+    }
 
     // Income lands.
     const incomeToday = incomeByDate.get(iso) ?? 0n;
@@ -186,15 +204,30 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
 
     const applyOutflow = (catId: string, amt: bigint) => {
       if (amt <= 0n) return;
+      // Split the outflow at the category's remaining plan. Only what lies
+      // BEYOND it is overspend, and only overspend may reach the reserve pot —
+      // the forecast used to treat the pot as a general overdraft, so a bill
+      // sitting well inside an untouched limit still painted the day yellow
+      // when the real problem was an empty spending wallet (user, 260811).
+      // An outflow with no category has no plan to stay inside, so all of it
+      // counts as beyond one.
+      const remaining = remainingLimit.get(catId) ?? 0n;
+      const withinLimit = amt < remaining ? amt : remaining;
+      const overspend = amt - withinLimit;
+      remainingLimit.set(catId, remaining - withinLimit);
+
       // Pay from cash first (cash never funds below 0)...
       const fromCash = amt < cash ? amt : cash > 0n ? cash : 0n;
       cash -= fromCash;
       let deficit = amt - fromCash;
       if (deficit <= 0n) return;
-      // ...then dip into the reserve pot, attributed to the category whose
-      // spending needed it (reserve-covered spending does NOT reduce cash)...
+      // ...then dip into the reserve pot for the overspend part only, attributed
+      // to the category whose spending needed it (reserve-covered spending does
+      // NOT reduce cash). Cash is assumed to have paid the in-plan part first,
+      // so the shortfall is overspend up to `overspend`.
+      const eligible = deficit < overspend ? deficit : overspend;
       const fromReserve =
-        deficit < reservePool ? deficit : reservePool > 0n ? reservePool : 0n;
+        eligible < reservePool ? eligible : reservePool > 0n ? reservePool : 0n;
       if (fromReserve > 0n) {
         reservePool -= fromReserve;
         reserveUsedMap.set(
