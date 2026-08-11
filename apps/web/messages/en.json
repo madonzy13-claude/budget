@@ -1386,6 +1386,7 @@
           "unitY": "y",
           "unitM": "m",
           "unitD": "d",
+          "unitW": "w",
           "overspentMotivation": "Good job — keep it up!",
           "spendGood": "Wallets cover what's left to spend",
           "spendBad": "Wallets don't cover what's left to spend",

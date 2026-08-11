@@ -66,9 +66,40 @@ describe("annualiseByCategory", () => {
       p("c1", "Subscriptions", 4_000n, "MONTHLY"), // 480.00
       p("c1", "Subscriptions", 50_000n, "YEARLY"), // 500.00
     ]);
-    expect(out).toEqual([
-      { category_id: "c1", name: "Subscriptions", amount_cents: 98_000n },
+    expect(out).toHaveLength(1);
+    expect(out[0]!.category_id).toBe("c1");
+    expect(out[0]!.amount_cents).toBe(98_000n);
+  });
+
+  // The tooltip shows the working, not just the total: "200 × 12m = 2,400"
+  // (user, 260811), so each payment carries its own rate and yearly figure.
+  test("keeps the payments behind the bar, biggest first", () => {
+    const out = annualiseByCategory([
+      { ...p("c1", "Subscriptions", 4_000n, "MONTHLY"), rule_name: "Netflix" },
+      { ...p("c1", "Subscriptions", 50_000n, "YEARLY"), rule_name: "Domain" },
     ]);
+    expect(out[0]!.items).toEqual([
+      {
+        name: "Domain",
+        amount_cents: 50_000n,
+        cadence: "YEARLY",
+        yearly_cents: 50_000n,
+      },
+      {
+        name: "Netflix",
+        amount_cents: 4_000n,
+        cadence: "MONTHLY",
+        yearly_cents: 48_000n,
+      },
+    ]);
+  });
+
+  test("a ONCE payment is not listed either", () => {
+    const out = annualiseByCategory([
+      { ...p("c1", "Travel", 4_000n, "MONTHLY"), rule_name: "Saver" },
+      { ...p("c1", "Travel", 90_000n, "ONCE"), rule_name: "Camping" },
+    ]);
+    expect(out[0]!.items.map((i) => i.name)).toEqual(["Saver"]);
   });
 
   test("orders categories biggest first", () => {
@@ -85,9 +116,10 @@ describe("annualiseByCategory", () => {
       p(null, null, 1_000n, "MONTHLY"),
       p(null, null, 2_000n, "MONTHLY"),
     ]);
-    expect(out).toEqual([
-      { category_id: null, name: null, amount_cents: 36_000n },
-    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.category_id).toBeNull();
+    expect(out[0]!.amount_cents).toBe(36_000n);
+    expect(out[0]!.items).toHaveLength(2);
   });
 
   test("a category with only ONCE payments is dropped, not drawn empty", () => {

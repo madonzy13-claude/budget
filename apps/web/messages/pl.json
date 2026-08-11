@@ -1409,6 +1409,7 @@
           "unitY": "l",
           "unitM": "m",
           "unitD": "d",
+          "unitW": "t",
           "overspentMotivation": "Dobra robota — tak trzymaj!",
           "spendGood": "Portfele pokrywają to, co zostało do wydania",
           "spendBad": "Portfele nie pokrywają tego, co zostało do wydania",

@@ -216,6 +216,18 @@ function PlannedByCategoryPie({
   );
 }
 
+/** How often each cadence charges in a year, and the unit the tooltip prints
+ *  after it: "12m", "52.143w", "365d", "1y". Mirrors annualFactor() in
+ *  packages/budgeting — the numbers the member gave (monthly ×12, weekly
+ *  ×52.143) and the two that follow from them. ONCE never reaches here: it
+ *  annualises to nothing and the server drops it. */
+const RATE_LABEL: Record<string, { n: string; unit: string } | undefined> = {
+  DAILY: { n: "365", unit: "cards.unitD" },
+  WEEKLY: { n: "52.143", unit: "cards.unitW" },
+  MONTHLY: { n: "12", unit: "cards.unitM" },
+  YEARLY: { n: "1", unit: "cards.unitY" },
+};
+
 export function PlannedSection({
   budgetId,
   range,
@@ -1155,8 +1167,15 @@ export function PlannedSection({
                 data={data.scheduledPerYear!.map((r) => ({
                   category: r.name || t("planned.scheduledNoCategory"),
                   yearly: Number(r.amount_cents),
+                  items: r.items ?? [],
                 }))}
                 xKey="category"
+                // recharts' "vertical": categories down the Y axis, bars
+                // running right — the same orientation every other
+                // by-category chart in this section uses, and the only one
+                // that gives a name like "Subscriptions" room to read. The
+                // chart scales its own height with the row count.
+                layout="vertical"
                 series={[
                   {
                     key: "yearly",
@@ -1167,6 +1186,27 @@ export function PlannedSection({
                 formatValue={fmtY}
                 formatTooltip={fmtTooltip}
                 maskAmounts={false}
+                // The working behind each bar: "200 × 12m = 2,400" — how the
+                // yearly figure was reached, per payment (user, 260811).
+                tooltipExtra={(row) => {
+                  const items =
+                    (row.items as {
+                      name: string | null;
+                      amount_cents: string;
+                      cadence: string;
+                      yearly_cents: string;
+                    }[]) ?? [];
+                  return items.map((it) => ({
+                    label: it.name || t("planned.scheduledNoCategory"),
+                    value: `${fmtTooltip(Number(it.amount_cents))} × ${
+                      RATE_LABEL[it.cadence]
+                        ? `${RATE_LABEL[it.cadence]!.n}${t(
+                            RATE_LABEL[it.cadence]!.unit,
+                          )}`
+                        : "1"
+                    } = ${fmtTooltip(Number(it.yearly_cents))}`,
+                  }));
+                }}
               />
             </div>
           )}

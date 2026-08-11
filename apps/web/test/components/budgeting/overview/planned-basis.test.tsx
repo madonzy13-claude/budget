@@ -130,17 +130,27 @@ vi.mock("@/components/budgeting/charts/bar-chart", () => ({
     data,
     xKey,
     series,
+    layout,
+    tooltipExtra,
   }: {
     data: Record<string, unknown>[];
     xKey: string;
     series: { key: string; label: string; color?: string }[];
+    layout?: string;
+    tooltipExtra?: (
+      row: Record<string, unknown>,
+    ) => { label: string; value: string }[];
   }) => (
     <div
       data-testid="scheduled-year-chart"
       data-x-key={xKey}
+      data-layout={layout ?? "horizontal"}
       data-rows={data.map((d) => String(d[xKey])).join(",")}
       data-values={data.map((d) => String(d.yearly)).join(",")}
       data-color={series[0]?.color ?? ""}
+      data-tooltip={JSON.stringify(
+        data[0] ? (tooltipExtra?.(data[0]) ?? []) : [],
+      )}
     />
   ),
 }));
@@ -1132,6 +1142,19 @@ describe("scheduled payments per year, by category", () => {
     );
   });
 
+  it("runs the bars along the category axis, like the other by-category charts", () => {
+    // recharts' "vertical": categories down the Y axis, bars extending right —
+    // which also gives long category names room to read (user, 260811).
+    dto.current = {
+      ...base,
+      scheduledPerYear: [
+        { category_id: "c1", name: "Housing", amount_cents: "1200000" },
+      ],
+    };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    expect(yearChart()!.getAttribute("data-layout")).toBe("vertical");
+  });
+
   it("names the bucket for payments with no category", () => {
     dto.current = {
       ...base,
@@ -1160,6 +1183,43 @@ describe("scheduled payments per year, by category", () => {
     expect(yearChart()!.getAttribute("data-rows")).toBe(
       "Housing,Subscriptions",
     );
+  });
+
+  it("shows the working per payment in the tooltip", () => {
+    // "200 × 12m = 2,400 zł" — the member wants to see how the yearly figure
+    // was reached, not just the total (user, 260811).
+    dto.current = {
+      ...base,
+      scheduledPerYear: [
+        {
+          category_id: "c1",
+          name: "Subscriptions",
+          amount_cents: "98000",
+          items: [
+            {
+              name: "Domain",
+              amount_cents: "50000",
+              cadence: "YEARLY",
+              yearly_cents: "50000",
+            },
+            {
+              name: "Netflix",
+              amount_cents: "4000",
+              cadence: "MONTHLY",
+              yearly_cents: "48000",
+            },
+          ],
+        },
+      ],
+    };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    const rows = JSON.parse(
+      yearChart()!.getAttribute("data-tooltip")!,
+    ) as { label: string; value: string }[];
+    expect(rows.map((r) => r.label)).toEqual(["Domain", "Netflix"]);
+    // 40 a month × 12 = 480 a year.
+    expect(rows[1]!.value).toContain("× 12");
+    expect(rows[1]!.value).toContain("=");
   });
 
   it("draws nothing when there is nothing standing", () => {

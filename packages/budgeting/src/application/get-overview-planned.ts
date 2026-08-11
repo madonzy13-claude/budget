@@ -25,6 +25,7 @@ import { upcomingByMonth } from "../domain/upcoming-schedule";
 // Incomes and the smart investment limit still use it.
 import { type Cadence } from "./scheduled-monthly-normalize";
 import { annualiseByCategory } from "../domain/annualise-scheduled";
+import type { Cadence as ScheduledCadence } from "../domain/cadence";
 
 export interface MonthlyPlannedRow {
   category_id: string;
@@ -252,6 +253,14 @@ export interface OverviewPlannedDTO {
     category_id: string | null;
     name: string | null;
     amount_cents: string;
+    /** The payments behind the bar, biggest first — the tooltip shows the
+     *  working ("200 × 12m = 2,400"). */
+    items: {
+      name: string | null;
+      amount_cents: string;
+      cadence: ScheduledCadence;
+      yearly_cents: string;
+    }[];
   }[];
 }
 
@@ -847,6 +856,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           rules.map((rule, i) => ({
             category_id: rule.category_id,
             name: rule.name,
+            rule_name: rule.rule_name,
             amount_cents: ruleAmounts[i]!,
             cadence: rule.cadence,
           })),
@@ -854,6 +864,12 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           category_id: r.category_id,
           name: r.name,
           amount_cents: r.amount_cents.toString(),
+          items: r.items.map((it) => ({
+            name: it.name,
+            amount_cents: it.amount_cents.toString(),
+            cadence: it.cadence,
+            yearly_cents: it.yearly_cents.toString(),
+          })),
         })),
       });
     } catch (e) {

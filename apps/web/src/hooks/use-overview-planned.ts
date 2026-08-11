@@ -70,6 +70,14 @@ export interface OverviewPlannedDTO {
     category_id: string | null;
     name: string | null;
     amount_cents: string;
+    /** The payments behind the bar, biggest first — the tooltip prints the
+     *  working ("200 × 12m = 2,400"). Optional for payloads cached before it. */
+    items?: {
+      name: string | null;
+      amount_cents: string;
+      cadence: string;
+      yearly_cents: string;
+    }[];
   }[];
 }
 
