@@ -185,6 +185,9 @@ export function AggregateOverview() {
   const cashTotal = sumCents(summable, "cash_full_cents");
   const spentTotal = sumCents(summable, "spent_month_cents");
   const leftTotal = sumCents(summable, "left_month_cents");
+  // Green when the cash on hand covers everything still expected to go out this
+  // month; red when it does not (user, 260811). Equal counts as covered.
+  const spendCovered = cashTotal >= leftTotal;
   const reservesTotal = sumCents(summable, "reserves_full_cents");
   const reservesReq = sumCents(summable, "reserves_required_cents");
   // Cushion coverage is a HOUSEHOLD safety check → FULL cushion wallets vs FULL
@@ -381,9 +384,21 @@ export function AggregateOverview() {
           <StatCard
             testid="aggregate-card-available-to-spend"
             label={t("available_to_spend")}
-            // No icon: a tick or an alert is a verdict on a forecast, and
-            // across many budgets there is no single forecast to be right or
-            // wrong about. The card states the figures (user, 260811).
+            icon={
+              spendCovered ? (
+                <CircleCheck
+                  data-testid="aggregate-spend-good"
+                  className={`${ICON} text-[var(--trading-up)]`}
+                  aria-hidden
+                />
+              ) : (
+                <CircleAlert
+                  data-testid="aggregate-spend-bad"
+                  className={`${ICON} text-[var(--trading-down)]`}
+                  aria-hidden
+                />
+              )
+            }
             value={<SlotAmount value={fmt(cashTotal)} />}
             sub={
               <dl className="text-caption mt-1.5 flex flex-col gap-0.5 text-[var(--muted-foreground)]">

@@ -331,9 +331,32 @@ describe("AggregateOverview — available to spend", () => {
     expect(within(card).queryByText("left")).toBeNull();
   });
 
-  it("passes no verdict — the card carries no status icon", () => {
+  it("goes green when the cash on hand covers what is still upcoming", () => {
+    // Fixture: cash 600 + 3,400 = 4,000 against upcoming 400 + 400 = 800.
     render(<AggregateOverview />);
     const card = screen.getByTestId("aggregate-card-available-to-spend");
-    expect(card.querySelector("svg")).toBeNull();
+    expect(within(card).getByTestId("aggregate-spend-good")).toBeTruthy();
+    expect(within(card).queryByTestId("aggregate-spend-bad")).toBeNull();
+  });
+
+  it("goes red when it does not", () => {
+    dataRef.current = {
+      ...DATA,
+      budgets: [makeBudget({ cash_cents: "10000", left_month_cents: "90000" })],
+    };
+    render(<AggregateOverview />);
+    const card = screen.getByTestId("aggregate-card-available-to-spend");
+    expect(within(card).getByTestId("aggregate-spend-bad")).toBeTruthy();
+    expect(within(card).queryByTestId("aggregate-spend-good")).toBeNull();
+  });
+
+  it("treats exactly covered as green, not short", () => {
+    dataRef.current = {
+      ...DATA,
+      budgets: [makeBudget({ cash_cents: "50000", left_month_cents: "50000" })],
+    };
+    render(<AggregateOverview />);
+    const card = screen.getByTestId("aggregate-card-available-to-spend");
+    expect(within(card).getByTestId("aggregate-spend-good")).toBeTruthy();
   });
 });
