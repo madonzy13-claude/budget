@@ -1180,7 +1180,9 @@ export function PlannedSection({
                   {
                     key: "yearly",
                     label: t("planned.scheduledSeries"),
-                    color: "var(--muted-foreground)",
+                    // Theme-aware neutral: darker than the text grey in dark,
+                    // lighter in light (see --chart-bar-neutral).
+                    color: "var(--chart-bar-neutral)",
                   },
                 ]}
                 formatValue={fmtY}

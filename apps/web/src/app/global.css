@@ -144,6 +144,14 @@
        needed") and the filter's "Select all". Yellow as a SHAPE (bars, fills,
        the toggle's own background) keeps --primary: only text fails. */
     --accent-ink: var(--primary);
+    /* Neutral chart bars ("scheduled payments per year, by category"): a
+       statement of fact, so they stay out of the accent palette. Deliberately
+       NOT --muted-foreground, which is one flat grey for both themes: on the
+       dark card that grey is louder than the data deserves, and on the pale one
+       it is heavier than the hairlines around it. So the bar goes DARKER than
+       the text grey in dark and LIGHTER in light (user, 260811) — subdued on
+       both, and always clear of the surface behind it. */
+    --chart-bar-neutral: #4d5663;
     /* Chart LINE/AREA series = the brand yellow (user: "I liked yellow for
        charts, bring it back" — round 25 item 1). BARS use a separate blue/teal
        (yellow bars were too loud, the brown replacement was disliked): --chart-bar-1
@@ -255,6 +263,9 @@
     --num-hero: var(--body-on-dark);
     /* …and brand-yellow TEXT with it. */
     --accent-ink: var(--body-on-dark);
+    /* …and the neutral bars go the other way: lighter than the text grey, a
+       step darker than the elevated surface so they still read on the card. */
+    --chart-bar-neutral: #b0b9c4;
     /* Budget-switcher label goes grey in light (matches the "Spent" card label). */
     --nav-budget-header: var(--muted-foreground);
   }

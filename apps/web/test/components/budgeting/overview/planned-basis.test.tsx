@@ -1137,8 +1137,10 @@ describe("scheduled payments per year, by category", () => {
       "Housing,Subscriptions",
     );
     expect(yearChart()!.getAttribute("data-values")).toBe("1200000,98000");
+    // A token, not --muted-foreground: the bars go DARKER in dark mode and
+    // LIGHTER in light, which one flat grey cannot do (user, 260811).
     expect(yearChart()!.getAttribute("data-color")).toBe(
-      "var(--muted-foreground)",
+      "var(--chart-bar-neutral)",
     );
   });
 
