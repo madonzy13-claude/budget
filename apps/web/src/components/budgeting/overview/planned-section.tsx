@@ -31,6 +31,7 @@ import {
 import { useStagedWarmup } from "@/hooks/use-staged-warmup";
 import { CHART_THEME } from "@/components/budgeting/charts/chart-theme";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
+import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import {
   OverviewDivergingBarChart,
   varianceColorForRange,
@@ -1137,6 +1138,38 @@ export function PlannedSection({
               }}
             />
           </div>
+
+          {/* A YEAR of standing commitments, by category (user, 260811). The
+              chart above answers "what is coming and when"; this answers "where
+              does it all go", which a calendar cannot: a 40/month subscription
+              and a 500/year renewal look nothing alike month to month and are
+              nearly the same yearly commitment.
+
+              Deliberately NOT category-filtered — the question is the shape of
+              the whole year, which needs every category to mean anything. Grey,
+              because it is a statement of fact rather than a verdict. */}
+          {(data.scheduledPerYear?.length ?? 0) > 0 && (
+            <div className="flex flex-col gap-2">
+              <ChartLabel>{t("planned.scheduledPerYear")}</ChartLabel>
+              <OverviewBarChart
+                data={data.scheduledPerYear!.map((r) => ({
+                  category: r.name || t("planned.scheduledNoCategory"),
+                  yearly: Number(r.amount_cents),
+                }))}
+                xKey="category"
+                series={[
+                  {
+                    key: "yearly",
+                    label: t("planned.scheduledSeries"),
+                    color: "var(--muted-foreground)",
+                  },
+                ]}
+                formatValue={fmtY}
+                formatTooltip={fmtTooltip}
+                maskAmounts={false}
+              />
+            </div>
+          )}
         </>
       )}
     </OverviewSection>

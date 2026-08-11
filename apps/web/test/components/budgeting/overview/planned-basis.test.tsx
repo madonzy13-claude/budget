@@ -124,6 +124,27 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
     `${n > 0 ? "+" : n < 0 ? "−" : ""}${f(Math.abs(n))}`,
 }));
 
+// The yearly scheduled chart; records the rows + series colour it was handed.
+vi.mock("@/components/budgeting/charts/bar-chart", () => ({
+  OverviewBarChart: ({
+    data,
+    xKey,
+    series,
+  }: {
+    data: Record<string, unknown>[];
+    xKey: string;
+    series: { key: string; label: string; color?: string }[];
+  }) => (
+    <div
+      data-testid="scheduled-year-chart"
+      data-x-key={xKey}
+      data-rows={data.map((d) => String(d[xKey])).join(",")}
+      data-values={data.map((d) => String(d.yearly)).join(",")}
+      data-color={series[0]?.color ?? ""}
+    />
+  ),
+}));
+
 const { PlannedSection } =
   await import("@/components/budgeting/overview/planned-section");
 
@@ -144,6 +165,7 @@ const base = {
   timeline: [{ label: "2026-01", planned_cents: "50000", real_cents: "60000" }],
   plannedAvgVsReal: [row],
   scheduledPerMonth: [],
+  scheduledPerYear: [],
   rangeTotals: {
     planned_cents: "150000",
     spent_cents: "180000",
@@ -1080,5 +1102,81 @@ describe("Spendings plan — the basis is remembered", () => {
       screen.getByRole("button", { name: "planned.basisFuture" }),
     );
     expect(savedPrefs).toContainEqual(["planned-basis", ["future"]]);
+  });
+});
+
+/**
+ * A year of standing commitments, by category (user, 260811). The "by month"
+ * chart answers what is coming and when; this one answers where the money goes
+ * over a whole year, so a 40/month subscription and a 500/year renewal can be
+ * compared. Deliberately NOT category-filtered.
+ */
+describe("scheduled payments per year, by category", () => {
+  const yearChart = () => screen.queryByTestId("scheduled-year-chart");
+
+  it("draws a grey bar per category, biggest first, straight from the payload", () => {
+    dto.current = {
+      ...base,
+      scheduledPerYear: [
+        { category_id: "c1", name: "Housing", amount_cents: "1200000" },
+        { category_id: "c2", name: "Subscriptions", amount_cents: "98000" },
+      ],
+    };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    expect(yearChart()!.getAttribute("data-rows")).toBe(
+      "Housing,Subscriptions",
+    );
+    expect(yearChart()!.getAttribute("data-values")).toBe("1200000,98000");
+    expect(yearChart()!.getAttribute("data-color")).toBe(
+      "var(--muted-foreground)",
+    );
+  });
+
+  it("names the bucket for payments with no category", () => {
+    dto.current = {
+      ...base,
+      scheduledPerYear: [
+        { category_id: null, name: null, amount_cents: "36000" },
+      ],
+    };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    expect(yearChart()!.getAttribute("data-rows")).toBe(
+      "planned.scheduledNoCategory",
+    );
+  });
+
+  it("ignores the category filter — every category is drawn", () => {
+    // Only c1 is picked for the rest of the section; the yearly chart still
+    // shows both, because "where do the commitments go" needs all of them.
+    prefsDto.current = { "planned-categories": ["c1"] };
+    dto.current = {
+      ...base,
+      scheduledPerYear: [
+        { category_id: "c1", name: "Housing", amount_cents: "1200000" },
+        { category_id: "c2", name: "Subscriptions", amount_cents: "98000" },
+      ],
+    };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    expect(yearChart()!.getAttribute("data-rows")).toBe(
+      "Housing,Subscriptions",
+    );
+  });
+
+  it("draws nothing when there is nothing standing", () => {
+    dto.current = { ...base, scheduledPerYear: [] };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    expect(yearChart()).toBeNull();
+  });
+
+  it("survives a payload cached before the chart existed", () => {
+    const withoutIt: Record<string, unknown> = {
+      ...(base as never as Record<string, unknown>),
+    };
+    delete withoutIt.scheduledPerYear;
+    dto.current = withoutIt;
+    expect(() =>
+      render(<PlannedSection budgetId="b1" range={RANGE as never} />),
+    ).not.toThrow();
+    expect(yearChart()).toBeNull();
   });
 });

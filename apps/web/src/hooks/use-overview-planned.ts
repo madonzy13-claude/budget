@@ -64,6 +64,13 @@ export interface OverviewPlannedDTO {
     planned_cents: string;
     items: { name: string; amount_cents: string }[];
   }[];
+  /** A YEAR of standing commitments per category, biggest first (260811).
+   *  Optional: a payload cached before this shipped replays without it. */
+  scheduledPerYear?: {
+    category_id: string | null;
+    name: string | null;
+    amount_cents: string;
+  }[];
 }
 
 export function useOverviewPlanned(

@@ -24,6 +24,7 @@ import { upcomingByMonth } from "../domain/upcoming-schedule";
 // upcoming series places each payment in its real month instead of averaging it.
 // Incomes and the smart investment limit still use it.
 import { type Cadence } from "./scheduled-monthly-normalize";
+import { annualiseByCategory } from "../domain/annualise-scheduled";
 
 export interface MonthlyPlannedRow {
   category_id: string;
@@ -242,6 +243,15 @@ export interface OverviewPlannedDTO {
     planned_cents: string;
     /** the individual payments that make up this month's bar (tooltip list). */
     items: { name: string; amount_cents: string }[];
+  }[];
+  /** A YEAR of standing commitments, per category, biggest first (user, 260811).
+   *  Monthly ×12, weekly ×52.143, daily ×365, yearly ×1; ONCE contributes
+   *  nothing. Deliberately NOT category-filtered — it answers "where do the
+   *  commitments go", which needs every category to mean anything. */
+  scheduledPerYear: {
+    category_id: string | null;
+    name: string | null;
+    amount_cents: string;
   }[];
 }
 
@@ -829,6 +839,21 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           month: m.month,
           planned_cents: m.cents.toString(),
           items: m.items,
+        })),
+        // Same FX-converted amounts, asked a different question: a whole year of
+        // commitments grouped by category. Every rule counts — no category
+        // filter — because the point is the shape of the whole year.
+        scheduledPerYear: annualiseByCategory(
+          rules.map((rule, i) => ({
+            category_id: rule.category_id,
+            name: rule.name,
+            amount_cents: ruleAmounts[i]!,
+            cadence: rule.cadence,
+          })),
+        ).map((r) => ({
+          category_id: r.category_id,
+          name: r.name,
+          amount_cents: r.amount_cents.toString(),
         })),
       });
     } catch (e) {

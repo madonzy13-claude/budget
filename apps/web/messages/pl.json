@@ -1492,6 +1492,8 @@
           "totalPlanned": "Łącznie zaplanowane",
           "total": "Razem",
           "scheduledPerMonth": "Nadchodzące zaplanowane płatności, wg miesiąca",
+          "scheduledPerYear": "Płatności zaplanowane rocznie, wg kategorii",
+          "scheduledNoCategory": "Bez kategorii",
           "scheduledSeries": "Zaplanowane płatności",
           "timelineTitle": "Jak każdy miesiąc wypadł względem planu",
           "avgByCategory": "Odchylenie od planu, wg kategorii",
