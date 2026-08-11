@@ -331,15 +331,41 @@ describe("AggregateOverview — available to spend", () => {
     expect(within(card).queryByText("left")).toBeNull();
   });
 
-  it("goes green when the cash on hand covers what is still upcoming", () => {
-    // Fixture: cash 600 + 3,400 = 4,000 against upcoming 400 + 400 = 800.
+  it("goes green when every budget's forecast stays above water", () => {
+    dataRef.current = { ...DATA, forecast_status: "green" };
     render(<AggregateOverview />);
     const card = screen.getByTestId("aggregate-card-available-to-spend");
     expect(within(card).getByTestId("aggregate-spend-good")).toBeTruthy();
+    expect(within(card).queryByTestId("aggregate-spend-warn")).toBeNull();
     expect(within(card).queryByTestId("aggregate-spend-bad")).toBeNull();
   });
 
-  it("goes red when it does not", () => {
+  it("goes yellow when a budget dips but the others could cover it", () => {
+    dataRef.current = { ...DATA, forecast_status: "yellow" };
+    render(<AggregateOverview />);
+    const card = screen.getByTestId("aggregate-card-available-to-spend");
+    expect(within(card).getByTestId("aggregate-spend-warn")).toBeTruthy();
+    expect(within(card).queryByTestId("aggregate-spend-good")).toBeNull();
+    expect(within(card).queryByTestId("aggregate-spend-bad")).toBeNull();
+  });
+
+  it("goes red when the holes are deeper than everything else together", () => {
+    dataRef.current = { ...DATA, forecast_status: "red" };
+    render(<AggregateOverview />);
+    const card = screen.getByTestId("aggregate-card-available-to-spend");
+    expect(within(card).getByTestId("aggregate-spend-bad")).toBeTruthy();
+    expect(within(card).queryByTestId("aggregate-spend-good")).toBeNull();
+  });
+
+  it("falls back to cash-vs-upcoming for a payload cached before forecasts", () => {
+    // Fixture cash 4,000 vs upcoming 800 → covered.
+    dataRef.current = DATA;
+    render(<AggregateOverview />);
+    const card = screen.getByTestId("aggregate-card-available-to-spend");
+    expect(within(card).getByTestId("aggregate-spend-good")).toBeTruthy();
+  });
+
+  it("…and shows red on that fallback when cash does not cover it", () => {
     dataRef.current = {
       ...DATA,
       budgets: [makeBudget({ cash_cents: "10000", left_month_cents: "90000" })],
@@ -347,16 +373,5 @@ describe("AggregateOverview — available to spend", () => {
     render(<AggregateOverview />);
     const card = screen.getByTestId("aggregate-card-available-to-spend");
     expect(within(card).getByTestId("aggregate-spend-bad")).toBeTruthy();
-    expect(within(card).queryByTestId("aggregate-spend-good")).toBeNull();
-  });
-
-  it("treats exactly covered as green, not short", () => {
-    dataRef.current = {
-      ...DATA,
-      budgets: [makeBudget({ cash_cents: "50000", left_month_cents: "50000" })],
-    };
-    render(<AggregateOverview />);
-    const card = screen.getByTestId("aggregate-card-available-to-spend");
-    expect(within(card).getByTestId("aggregate-spend-good")).toBeTruthy();
   });
 });

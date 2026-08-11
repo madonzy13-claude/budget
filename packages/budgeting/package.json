@@ -57,6 +57,7 @@
     "./src/domain/cadence": "./src/domain/cadence.ts",
     "./src/domain/scheduled-payment": "./src/domain/scheduled-payment.ts",
     "./src/domain/scheduled-payment-end-date": "./src/domain/scheduled-payment-end-date.ts",
+    "./src/domain/aggregate-forecast-status": "./src/domain/aggregate-forecast-status.ts",
     "./src/ports/scheduled-payment-repo": "./src/ports/scheduled-payment-repo.ts",
     "./src/ports/scheduled-draft-repo": "./src/ports/scheduled-draft-repo.ts",
     "./src/adapters/persistence/scheduled-payment-repo": "./src/adapters/persistence/scheduled-payment-repo.ts",

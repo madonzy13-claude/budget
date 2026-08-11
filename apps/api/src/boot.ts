@@ -613,6 +613,9 @@ export async function boot(): Promise<BootedDeps> {
         tenancy.workspaceRepo.getAggPrefsForUser(userId),
       displayCurrencyReader,
       fxProvider: baseBudgeting.fxProvider,
+      // The cross-budget spend verdict reads each budget's own forecast, so the
+      // all-budgets card answers the same question the per-budget card does.
+      getCashflowProjectionForTenant: budgetingFinal.getCashflowProjection,
     }),
     // Task 9: combined net-worth trend. Reuses the just-composed getOverviewWealth
     // (same series the per-budget Financial-Wealth section shows) — adapts its

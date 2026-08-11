@@ -52,6 +52,10 @@ export interface AggregateBudgetRow {
 export interface AllBudgetsAggregate {
   display_currency: string;
   budgets: AggregateBudgetRow[];
+  /** Cross-budget spend verdict from the cash-flow forecasts (260811). Optional:
+   *  a payload cached before this existed replays without it, and the card falls
+   *  back to its older cash-vs-upcoming rule. */
+  forecast_status?: "green" | "yellow" | "red";
 }
 
 export function useBudgetsAggregate() {

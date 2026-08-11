@@ -185,9 +185,13 @@ export function AggregateOverview() {
   const cashTotal = sumCents(summable, "cash_full_cents");
   const spentTotal = sumCents(summable, "spent_month_cents");
   const leftTotal = sumCents(summable, "left_month_cents");
-  // Green when the cash on hand covers everything still expected to go out this
-  // month; red when it does not (user, 260811). Equal counts as covered.
-  const spendCovered = cashTotal >= leftTotal;
+  // The verdict comes from the cash-flow FORECASTS now (user, 260811): green
+  // when no included budget goes under, yellow when one does but the spare cash
+  // in the others would cover it — money to move, not money missing — and red
+  // when it would not. A payload cached before the server computed this replays
+  // without it, so the older cash-vs-upcoming comparison is the fallback.
+  const spendStatus: "green" | "yellow" | "red" =
+    data.forecast_status ?? (cashTotal >= leftTotal ? "green" : "red");
   const reservesTotal = sumCents(summable, "reserves_full_cents");
   const reservesReq = sumCents(summable, "reserves_required_cents");
   // Cushion coverage is a HOUSEHOLD safety check → FULL cushion wallets vs FULL
@@ -385,10 +389,18 @@ export function AggregateOverview() {
             testid="aggregate-card-available-to-spend"
             label={t("available_to_spend")}
             icon={
-              spendCovered ? (
+              spendStatus === "green" ? (
                 <CircleCheck
                   data-testid="aggregate-spend-good"
                   className={`${ICON} text-[var(--trading-up)]`}
+                  aria-hidden
+                />
+              ) : spendStatus === "yellow" ? (
+                // Same shape as red, in the forecast's own amber: the timeline
+                // beside it already reads yellow as "attention, not trouble".
+                <CircleAlert
+                  data-testid="aggregate-spend-warn"
+                  className={`${ICON} text-[var(--primary)]`}
                   aria-hidden
                 />
               ) : (

@@ -271,18 +271,30 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       firstRedDate,
       worstShortfallCents: worstShortfall,
     },
-    spendHealth: deriveSpendHealth({ days, incomePoints: input.incomePayments }),
+    spendHealth: deriveSpendHealth({
+      days,
+      incomePoints: input.incomePayments,
+    }),
   };
 }
 
 /**
  * "Available to spend" card health from the projection.
- *  - NO upcoming income → { good: null, surplusDeficitCents: null }: the dot is
- *    neutral/grey and the card keeps showing its old "upcoming" figure.
- *  - Income exists → `good` is false when ANY day at/before the LAST income (in the
- *    today→end-of-next-month window) is red (a shortfall in that span ⇒ red); the
- *    surplus/deficit value is the projected cash on the day BEFORE the NEAREST
- *    (first) income — the low right before the next refill.
+ *
+ * THE ICON (`good`) — false when ANY day in the projection is red, i.e. cash
+ * goes below zero at some point in the today→end-of-next-month window. Income
+ * is irrelevant to the verdict, and so is where the last pay-day falls (user,
+ * 260811).
+ *
+ * Both of those used to narrow it, and both hid real holes: with no income the
+ * card gave no verdict at all, and with income it stopped looking at the last
+ * pay-day — so a budget that went underwater after it was reported as fine. The
+ * card now says exactly what the forecast line beside it draws.
+ *
+ * THE VALUE (`surplusDeficitCents`) is unchanged and still needs income: it is
+ * the projected cash on the day BEFORE the NEAREST income — the low right
+ * before the next refill. With no income there is no such day, so it stays
+ * null and the card keeps showing its "Upcoming" figure instead.
  */
 export function deriveSpendHealth(proj: {
   days: Pick<DayCell, "date" | "color" | "availableCents">[];
@@ -291,15 +303,14 @@ export function deriveSpendHealth(proj: {
   const days = proj.days;
   // ISO dates sort lexicographically → [0] is the nearest, last is the latest.
   const incomeDates = proj.incomePoints.map((p) => p.date).sort();
-  if (days.length === 0 || incomeDates.length === 0) {
-    return { good: null, surplusDeficitCents: null };
-  }
+  // Nothing projected at all is the one case with no verdict to give.
+  if (days.length === 0) return { good: null, surplusDeficitCents: null };
+
+  // The verdict: any red day anywhere in the window.
+  const good = !days.some((d) => d.color === "red");
+  if (incomeDates.length === 0) return { good, surplusDeficitCents: null };
 
   const firstIncome = incomeDates[0]!;
-  const lastIncome = incomeDates[incomeDates.length - 1]!;
-
-  // Icon spans to the last income; value is the day before the nearest income.
-  const good = !days.some((d) => d.color === "red" && d.date <= lastIncome);
   const cutoff = Temporal.PlainDate.from(firstIncome)
     .subtract({ days: 1 })
     .toString();
