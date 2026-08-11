@@ -1,5 +1,32 @@
-import { test as base } from "playwright-bdd";
+import { test as bddBase } from "playwright-bdd";
 import { fetchWith429Retry } from "./fetch-with-429-retry";
+import { destroyFixtureUser } from "./cleanup-fixture-data";
+
+/**
+ * Every account minted during the current scenario, whatever minted it.
+ *
+ * Wiring teardown into the three user fixtures was not enough: steps sign users
+ * up directly too — the onboarding wizard needs a user with no budget, and the
+ * share-link flow needs a SECOND user to accept the invite. Both called
+ * signUpViaHttp and dropped the id on the floor, so both leaked (observed
+ * 260811: 6 users survived a 37-scenario run).
+ *
+ * Registering at the point of creation makes that impossible to forget: any
+ * path that signs somebody up is cleaned up, including ones not written yet.
+ */
+const mintedUsers: { userId: string; email: string }[] = [];
+
+/** Auto fixture: drains the registry after every scenario. Applied to all three
+ *  exported `test` objects, so it runs whichever one a feature binds to. */
+const base = bddBase.extend<{ _fixtureDataCleanup: void }>({
+  _fixtureDataCleanup: [
+    async ({}, use) => {
+      await use();
+      for (const u of mintedUsers.splice(0)) await destroyFixtureUser(u);
+    },
+    { auto: true },
+  ],
+});
 
 interface FreshUser {
   email: string;
@@ -218,6 +245,7 @@ export async function signUpViaHttp(
     (c) =>
       `${c.name}=${c.value}; Path=${c.path}; Domain=${c.domain}${c.httpOnly ? "; HttpOnly" : ""}${c.secure ? "; Secure" : ""}${c.sameSite ? `; SameSite=${c.sameSite}` : ""}`,
   );
+  mintedUsers.push({ userId, email });
   return { userId, setCookieHeaders };
 }
 

@@ -8,7 +8,11 @@ import { test } from "../fixtures/index.js";
 import { WalletsPage } from "../pages/WalletsPage.js";
 import { BudgetPage } from "../pages/BudgetPage.js";
 import { TransactionsPage } from "../pages/TransactionsPage.js";
-import { ScheduledPage } from "../pages/ScheduledPage.js";
+// The file moved in 53817182 ("recurring rules become scheduled payments, all
+// the way down"); the class kept its name and this import did not follow. Node
+// could not resolve it, so the ENTIRE suite failed to load — no scenario has
+// run since (260811).
+import { ScheduledPage } from "../pages/ScheduledPaymentsPage.js";
 import { createFreshUser } from "../fixtures/freshUser.js";
 
 const { Given, When, Then } = createBdd(test);
@@ -684,8 +688,7 @@ async function seedMonthlyRule(
     // budget stored in scenarioCtx (set by the workspace bootstrap step).
     budgetId =
       ((scenarioCtx as Record<string, unknown> | undefined)?.["workspaceId"] as
-        | string
-        | undefined) ??
+        string | undefined) ??
       ((scenarioCtx as Record<string, unknown> | undefined)?.[
         "activeBudgetId"
       ] as string | undefined);
