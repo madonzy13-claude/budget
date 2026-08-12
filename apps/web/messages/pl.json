@@ -1564,9 +1564,6 @@
         },
         "projection": {
           "title": "Prognoza pieniędzy na najbliższe 100 dni",
-          "allFine": "Wszystko wygląda dobrze",
-          "mightRunShort": "Pieniędzy może zabraknąć już {date}",
-          "shortBy": "brakuje {amount}",
           "empty": "Dodaj dochód lub zaplanowane płatności, aby zobaczyć prognozę",
           "available": "Dostępne",
           "reserveShrinking": "Kurczy się rezerwa",

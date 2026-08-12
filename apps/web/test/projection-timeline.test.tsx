@@ -11,9 +11,6 @@ const messages = {
       overview: {
         projection: {
           title: "How your money holds up ahead",
-          allFine: "Everything looks fine",
-          mightRunShort: "Might run short around {date}",
-          shortBy: "short {amount}",
           empty: "Add income or scheduled rules to forecast",
           available: "Available",
           reserveShrinking: "Reserve shrinking",
@@ -276,12 +273,28 @@ describe("ProjectionTimeline", () => {
     ).toEqual(["Jul"]);
   });
 
-  test("headline names the first RED date (yellow doesn't count)", () => {
+  // The caption under the line ("Money may run short as early as …") repeated
+  // what the colour already says, and cost the card a whole line (user,
+  // 260812). The date is still in the tooltip of the day it names.
+  test("no caption under the line", () => {
     renderIt();
-    // first_red_date is 2026-07-17 (the yellow 07-16 must NOT drive it)
-    const text = screen.getByTestId("projection-headline").textContent!;
-    expect(text).toContain("17");
-    expect(text).not.toContain("16");
+    expect(screen.queryByTestId("projection-headline")).toBeNull();
+  });
+
+  // …and with no income there is nothing to put under the band, so the band
+  // stops at the strip rather than holding a row of empty space.
+  test("the band keeps a row for income dots only when there are any", () => {
+    const { unmount } = renderIt();
+    const withIncome = screen.getByTestId("projection-band").className;
+    expect(screen.getAllByTestId("projection-income-marker").length).toBe(1);
+    unmount();
+
+    projectionData = { ...dto, income_points: [] };
+    renderIt();
+    expect(screen.queryByTestId("projection-income-marker")).toBeNull();
+    expect(screen.getByTestId("projection-band").className).not.toBe(
+      withIncome,
+    );
   });
 
   test("scrubbing shows a tooltip with that day's available and shortfall", async () => {

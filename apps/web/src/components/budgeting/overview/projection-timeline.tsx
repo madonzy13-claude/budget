@@ -3,18 +3,17 @@
  * projection-timeline.tsx — Overview cash-flow projection banner. A fluent
  * colour-flowing line (green→yellow→red) over the next 100 days: a single
  * horizontal CSS gradient whose stops are the per-day zone colours (no discrete
- * segments) carrying the month names inside it. Income (▲) and scheduled-bill
- * (●) markers sit on the timeline. A
- * scrubber (pointer hover + touch finger-slide) shows a tooltip ABOVE the line so
- * the finger never covers it. The danger-date summary is a caption under the line;
- * the header is a single-line title.
+ * segments) carrying the month names inside it. A payment is a notch cut into
+ * the strip, income a dot under it. A scrubber (pointer hover + touch
+ * finger-slide) shows a tooltip ABOVE the line so the finger never covers it —
+ * which is where every date, name and amount lives.
  */
 import { useMemo, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { useProjection, type ProjectionDay } from "@/hooks/use-projection";
 import { centsToDisplayCompact } from "@/lib/cents-format";
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
-import { formatShortDate, formatDayMonth } from "@/lib/format-date";
+import { formatShortDate } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 
 const CARD =
@@ -99,15 +98,6 @@ export function ProjectionTimeline({
     });
   }, [data, locale]);
 
-  const headline = useMemo(() => {
-    if (!data) return "";
-    // Only RED days count as a problem; yellow (dipping into reserve) is fine.
-    const firstRed = data.summary.first_red_date;
-    return firstRed
-      ? t("mightRunShort", { date: formatDayMonth(firstRed, locale) })
-      : t("allFine");
-  }, [data, t, locale]);
-
   if (isLoading) {
     return <div className={cn(CARD, "h-[104px] animate-pulse")} aria-hidden />;
   }
@@ -130,6 +120,10 @@ export function ProjectionTimeline({
   };
 
   const activePct = active === null || n <= 1 ? 0 : (active / (n - 1)) * 100;
+  // The band is the strip plus, when there is any, the row the income dots sit
+  // in. With no income it stopped at the strip and the card kept a strip of
+  // empty space anyway (user, 260812).
+  const hasIncome = data.income_points.length > 0;
 
   return (
     <div className={CARD} data-testid="projection-timeline">
@@ -139,10 +133,11 @@ export function ProjectionTimeline({
 
       <div
         data-testid="projection-band"
-        // 20px strip + the income row under it. It was 44px so the ▼ markers had
-        // somewhere to sit ABOVE the line; they are notches inside the strip
-        // now, and the empty half read as a gap under the title (user, 260812).
-        className="relative h-9 touch-none select-none"
+        // 20px strip + the income row under it, when there is income.
+        className={cn(
+          "relative touch-none select-none",
+          hasIncome ? "h-[30px]" : "h-5",
+        )}
         onPointerLeave={() => setActive(null)}
         onPointerMove={(e) => selectFromClientX(e.clientX, e.currentTarget)}
         onPointerDown={(e) => selectFromClientX(e.clientX, e.currentTarget)}
@@ -302,14 +297,6 @@ export function ProjectionTimeline({
           />
         )}
       </div>
-
-      {/* Danger-date summary caption (one line, under the line). */}
-      <p
-        data-testid="projection-headline"
-        className="mt-2 truncate text-xs text-[var(--muted-foreground)]"
-      >
-        {headline}
-      </p>
     </div>
   );
 }

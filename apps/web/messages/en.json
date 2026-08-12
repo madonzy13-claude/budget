@@ -1541,9 +1541,6 @@
         },
         "projection": {
           "title": "Money forecast for the next 100 days",
-          "allFine": "Everything looks fine",
-          "mightRunShort": "Money may run short as early as {date}",
-          "shortBy": "short {amount}",
           "empty": "Add income or scheduled payments to see your forecast",
           "available": "Available",
           "reserveShrinking": "Reserve shrinking",

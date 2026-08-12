@@ -32,6 +32,20 @@ describe("narrow currency sign position", () => {
     );
   });
 
+  // Moving the sign to the end leaves behind the space that separated it from
+  // the number, so a deficit read "- 3,209 zł" (user, 260812).
+  it("keeps the minus attached to the amount", () => {
+    expect(norm(centsToRounded("-320900", "PLN", "en", true))).toBe(
+      "-3,209 zł",
+    );
+    expect(norm(centsToDisplayCompact("-320900", "PLN", "en", true))).toBe(
+      "-3,209 zł",
+    );
+    expect(norm(centsToRounded("-70000", "SEK", "en", true))).toBe("-700 kr");
+    // …and the prefix-sign currencies were never affected.
+    expect(norm(centsToRounded("-320900", "USD", "en", true))).toBe("-$3,209");
+  });
+
   it("does not reposition the ISO-code fallback (narrow=false)", () => {
     expect(norm(centsToDisplayCompact("70000", "PLN", "en"))).toBe("PLN 700");
   });
