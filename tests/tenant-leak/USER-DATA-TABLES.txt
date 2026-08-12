@@ -48,7 +48,7 @@ budgeting.categories                      TENANT-SCOPED # categories_tenant_isol
 budgeting.category_limits                 TENANT-SCOPED # category_limits_tenant_isolation policy (app.tenant_ids)
 budgeting.category_share_overrides        TENANT-SCOPED # category_share_overrides_tenant_isolation policy (app.tenant_ids)
 budgeting.incomes                         TENANT-SCOPED # incomes_tenant_isolation policy (app.tenant_ids)
-budgeting.recurring_rules                 TENANT-SCOPED # recurring_rules_tenant_isolation policy (app.tenant_ids)
+budgeting.scheduled_payments              TENANT-SCOPED # scheduled_payments_tenant_isolation policy (app.tenant_ids); renamed from recurring_rules by 0077
 budgeting.budget_templates                TENANT-SCOPED # budget_templates_tenant_isolation policy (app.tenant_ids)
 budgeting.budget_template_items           TENANT-SCOPED # budget_template_items_tenant_isolation policy (app.tenant_ids)
 budgeting.budget_wealth_snapshots         TENANT-SCOPED # budget_wealth_snapshots_tenant_isolation policy (app.tenant_ids)
