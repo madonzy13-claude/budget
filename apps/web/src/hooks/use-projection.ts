@@ -10,6 +10,11 @@ export interface ProjectionDay {
   date: string;
   color: "green" | "yellow" | "red";
   available_cents: string;
+  /** The terms of the day's arithmetic, which the tooltip reads out:
+   *  available = opening + income − bill − planned_burn + reserve_covered. */
+  opening_cents: string;
+  planned_burn_cents: string;
+  reserve_covered_cents: string;
   income_cents: string;
   bill_cents: string;
   drew_reserve: { category_id: string; name: string; amount_cents: string }[];
@@ -21,6 +26,16 @@ export interface ProjectionDTO {
   days: ProjectionDay[];
   income_points: { date: string; name: string; amount_cents: string }[];
   bill_points: {
+    date: string;
+    name: string;
+    category_id: string | null;
+    amount_cents: string;
+  }[];
+  /** Scheduled occurrences whose date passed with no confirmation. Their money
+   *  already rides inside the daily planned spend, so they are informational —
+   *  the tooltip shows them on today's cell. Optional: an offline cache written
+   *  by an older build has no such field. */
+  pending_points?: {
     date: string;
     name: string;
     category_id: string | null;

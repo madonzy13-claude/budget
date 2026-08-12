@@ -32,6 +32,9 @@ export function registerOverviewProjectionRoutes(r: Hono, deps: BootedDeps) {
             date: d.date,
             color: d.color,
             available_cents: d.availableCents.toString(),
+            opening_cents: d.openingCents.toString(),
+            planned_burn_cents: d.plannedBurnCents.toString(),
+            reserve_covered_cents: d.reserveCoveredCents.toString(),
             income_cents: d.incomeCents.toString(),
             bill_cents: d.billCents.toString(),
             drew_reserve: d.drewReserve.map((x) => ({
@@ -51,6 +54,12 @@ export function registerOverviewProjectionRoutes(r: Hono, deps: BootedDeps) {
             amount_cents: x.amountCents.toString(),
           })),
           bill_points: p.billPoints.map((x) => ({
+            date: x.date,
+            name: x.name,
+            category_id: x.categoryId,
+            amount_cents: x.amountCents.toString(),
+          })),
+          pending_points: p.pendingPoints.map((x) => ({
             date: x.date,
             name: x.name,
             category_id: x.categoryId,

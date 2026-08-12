@@ -200,6 +200,10 @@ export function ProjectionTimeline({
             incomes={data.income_points.filter(
               (p) => p.date === data.days[active]!.date,
             )}
+            // Pending occurrences have dates in the PAST, so no day cell would
+            // ever match them. They belong to today — the first cell — which is
+            // where they drift to until they are answered.
+            pending={active === 0 ? (data.pending_points ?? []) : []}
             leftPct={activePct}
             currency={data.currency}
             locale={locale}
@@ -220,10 +224,44 @@ export function ProjectionTimeline({
   );
 }
 
+/** One term of the day's arithmetic: sign + label on the left, amount right. */
+function LedgerRow({
+  sign,
+  label,
+  amount,
+  color,
+  testId,
+}: {
+  sign?: "+" | "−";
+  label: string;
+  amount: React.ReactNode;
+  color?: string;
+  testId?: string;
+}) {
+  return (
+    <div
+      data-testid={testId}
+      className="flex items-baseline justify-between gap-3"
+    >
+      <span className="min-w-0 truncate text-[var(--muted-foreground)]">
+        {sign ? `${sign} ` : ""}
+        {label}
+      </span>
+      <span
+        className="shrink-0 tabular-nums"
+        style={{ color: color ?? "var(--body-on-dark)" }}
+      >
+        {amount}
+      </span>
+    </div>
+  );
+}
+
 function ProjectionTooltip({
   day,
   bills,
   incomes,
+  pending,
   leftPct,
   currency,
   locale,
@@ -233,6 +271,8 @@ function ProjectionTooltip({
   day: ProjectionDay;
   bills: { name: string; category_id: string | null; amount_cents: string }[];
   incomes: { name: string; amount_cents: string }[];
+  /** Unconfirmed occurrences, shown on the first (today) cell only — see below. */
+  pending: { date: string; name: string; amount_cents: string }[];
   leftPct: number;
   currency: string;
   locale: string;
@@ -314,10 +354,56 @@ function ProjectionTooltip({
         </span>
       </div>
 
-      {/* Available — the headline figure */}
-      <div className="mt-2 flex items-baseline justify-between gap-4">
-        <span className="text-[var(--muted-foreground)]">{t("available")}</span>
+      {/* The day as ONE subtraction. The line's first cell sits a day's burn
+          below the "available to spend" card, which reads as a mismatch until
+          the arithmetic is spelled out (user, 260812):
+            start of day  + income − scheduled − planned spend
+            (+ whatever the reserve covered, which never touches cash) = left */}
+      <div className="mt-2 space-y-px">
+        <LedgerRow
+          label={t("opening")}
+          amount={money(day.opening_cents)}
+          testId="projection-opening"
+        />
+        {Number(day.income_cents) > 0 && (
+          <LedgerRow
+            sign="+"
+            label={t("income")}
+            amount={money(day.income_cents)}
+            color="var(--trading-up)"
+          />
+        )}
+        {Number(day.bill_cents) > 0 && (
+          <LedgerRow
+            sign="−"
+            label={t("bill")}
+            amount={money(day.bill_cents)}
+            testId="projection-bill-total"
+          />
+        )}
+        {Number(day.planned_burn_cents) > 0 && (
+          <LedgerRow
+            sign="−"
+            label={t("plannedSpend")}
+            amount={money(day.planned_burn_cents)}
+            testId="projection-planned-burn"
+          />
+        )}
+        {Number(day.reserve_covered_cents) > 0 && (
+          <LedgerRow
+            sign="+"
+            label={t("reserveUsed")}
+            amount={money(day.reserve_covered_cents)}
+            color="var(--primary)"
+          />
+        )}
+      </div>
+
+      {/* …and the result of it. */}
+      <div className="mt-1.5 flex items-baseline justify-between gap-4 border-t border-[var(--hairline-dark)] pt-1.5">
+        <span className="text-[var(--muted-foreground)]">{t("left")}</span>
         <span
+          data-testid="projection-left"
           className="shrink-0 text-sm font-semibold tabular-nums"
           style={{
             color:
@@ -327,6 +413,38 @@ function ProjectionTooltip({
           {money(day.available_cents)}
         </span>
       </div>
+
+      {/* Occurrences whose date passed with no answer. Their money is already
+          inside the daily planned spend above — this section only says so, and
+          keeps saying it every day until the payment is confirmed or rejected
+          (user, 260812). Anchored to the first cell, which is today. */}
+      {pending.length > 0 && (
+        <div className="mt-2 border-t border-[var(--hairline-dark)] pt-2">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+            {t("pending")}
+          </div>
+          {pending.map((p, i) => (
+            <div
+              key={`p${i}`}
+              data-testid="projection-pending-row"
+              className="flex items-baseline justify-between gap-3 py-px"
+            >
+              <span className="min-w-0 truncate text-[var(--body-on-dark)]">
+                {p.name || t("bill")}{" "}
+                <span className="text-[var(--muted-foreground)]">
+                  · {formatShortDate(p.date, locale)}
+                </span>
+              </span>
+              <span className="shrink-0 tabular-nums text-[var(--muted-foreground)]">
+                {money(p.amount_cents)}
+              </span>
+            </div>
+          ))}
+          <div className="mt-1 text-[10px] leading-snug text-[var(--muted-foreground)]">
+            {t("pendingHint")}
+          </div>
+        </div>
+      )}
 
       {sections.map((sec) => (
         <div

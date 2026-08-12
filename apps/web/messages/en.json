@@ -1550,7 +1550,12 @@
           "reserveUsed": "Reserve used",
           "cantCover": "Can't cover",
           "income": "Income",
-          "bill": "Scheduled payments"
+          "bill": "Scheduled payments",
+          "opening": "Start of day",
+          "plannedSpend": "Planned spend",
+          "left": "Left",
+          "pending": "Not confirmed yet",
+          "pendingHint": "Still counted in your plan until you confirm or reject it"
         },
         "reserveFit": {
           "title": "Is each reserve the right size?",

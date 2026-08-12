@@ -16,6 +16,7 @@ import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { CategoryMultiSelect } from "./category-multi-select";
 import {
   effectiveCategoryIds,
+  narrowedCategoryCount,
   PLANNED_BASIS_PREF,
   PLANNED_TIMELINE_PREF,
   decodeBasis,
@@ -1112,7 +1113,21 @@ export function PlannedSection({
             }
             ringLabel={(key) => t(`planned.ring.${key}`)}
             title={t("planned.avgPie")}
-            allLabel={t("planned.allCategories")}
+            // The centre keeps saying "All categories" only while that is true —
+            // dropping Investments alone still counts as all, since its money is
+            // not planned spending (user, 260812).
+            allLabel={(() => {
+              const narrowed = narrowedCategoryCount(
+                categoryIds,
+                categories.map((c) => ({
+                  id: c.id as string,
+                  isInvestment: Boolean(c.isInvestment),
+                })),
+              );
+              return narrowed === null
+                ? t("planned.allCategories")
+                : t("planned.categoriesPicked", { count: narrowed });
+            })()}
             formatValue={fmtTooltip}
             // Same call as the metrics above: planned spend stays readable.
           />

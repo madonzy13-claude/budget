@@ -1573,7 +1573,12 @@
           "reserveUsed": "Użyto rezerwy",
           "cantCover": "Nie starcza na",
           "income": "Dochód",
-          "bill": "Zaplanowane płatności"
+          "bill": "Zaplanowane płatności",
+          "opening": "Na początek dnia",
+          "plannedSpend": "Planowane wydatki",
+          "left": "Zostaje",
+          "pending": "Jeszcze niepotwierdzone",
+          "pendingHint": "Nadal liczone w planie, dopóki nie potwierdzisz lub nie odrzucisz"
         },
         "reserveFit": {
           "title": "Czy każda rezerwa ma właściwą wielkość?",

@@ -44,6 +44,15 @@ export interface DayCell {
   date: string;
   color: DayColor;
   availableCents: bigint; // cash end-of-day
+  /** Cash entering the day, before income and outflows. The FIRST day's opening
+   *  is the wallet balance the "available to spend" card shows — the tooltip
+   *  reads out the whole day as one equation:
+   *    available = opening + income − bills − plannedBurn + reserveCovered  */
+  openingCents: bigint;
+  /** The even discretionary spend applied that day, across all categories. */
+  plannedBurnCents: bigint;
+  /** Σ drewReserve — spending the pot paid for, which never reduces cash. */
+  reserveCoveredCents: bigint;
   /** Reserve used per category ON THIS DAY — the spending that day that cash
    *  couldn't cover, funded from the reserve pot (per-day, not cumulative). */
   drewReserve: DayReserveDraw[];
@@ -73,6 +82,16 @@ export interface CashflowProjection {
     categoryId: string | null;
     amountCents: bigint;
   }[];
+  /** Scheduled occurrences whose date passed with no confirmation. Their money
+   *  is already inside the daily burn (the category's plan still holds it), so
+   *  they move no cash here — they are echoed for the tooltip, which tells the
+   *  user the payment is still counted and still drifting. */
+  pendingPoints: {
+    date: string;
+    name: string;
+    categoryId: string | null;
+    amountCents: bigint;
+  }[];
   summary: {
     firstYellowDate: string | null;
     firstRedDate: string | null;
@@ -94,6 +113,8 @@ export interface CashflowSimInput {
   categories: CashflowCategoryInput[];
   incomePayments: CashflowEvent[];
   bills: CashflowEvent[];
+  /** Unconfirmed occurrences dated on or before today (see `pendingPoints`). */
+  pendingDrafts?: CashflowEvent[];
 }
 
 export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
@@ -194,6 +215,9 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       limitsRolled = true;
     }
 
+    // Cash entering the day — the figure the tooltip's equation starts from.
+    const openingCents = cash;
+
     // Income lands.
     const incomeToday = incomeByDate.get(iso) ?? 0n;
     cash += incomeToday;
@@ -248,8 +272,11 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
     for (const b of billsByDate.get(iso) ?? []) {
       applyOutflow(b.categoryId ?? "", b.amountCents);
     }
+    let plannedBurnCents = 0n;
     for (const c of input.categories) {
-      applyOutflow(c.id, (inStartMonth ? burnThis : burnNext).get(c.id) ?? 0n);
+      const burn = (inStartMonth ? burnThis : burnNext).get(c.id) ?? 0n;
+      plannedBurnCents += burn;
+      applyOutflow(c.id, burn);
     }
 
     const toRows = (m: Map<string, bigint>): DayReserveDraw[] =>
@@ -278,6 +305,9 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       date: iso,
       color,
       availableCents: cash,
+      openingCents,
+      plannedBurnCents,
+      reserveCoveredCents: reserveUsed.reduce((s, r) => s + r.amountCents, 0n),
       drewReserve: reserveUsed,
       shortfall: short,
       incomeCents: incomeToday,
@@ -294,6 +324,12 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       amountCents: e.amountCents,
     })),
     billPoints: input.bills.map((e) => ({
+      date: e.date,
+      name: e.name,
+      categoryId: e.categoryId ?? null,
+      amountCents: e.amountCents,
+    })),
+    pendingPoints: (input.pendingDrafts ?? []).map((e) => ({
       date: e.date,
       name: e.name,
       categoryId: e.categoryId ?? null,

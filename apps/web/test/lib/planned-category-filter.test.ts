@@ -8,12 +8,46 @@
 import { describe, it, expect } from "vitest";
 import {
   effectiveCategoryIds,
+  narrowedCategoryCount,
   PLANNED_PIE_PREF,
   PLANNED_TIMELINE_PREF,
   prunePlannedCategories,
 } from "../../src/lib/planned-category-filter";
 
 const ALL = ["a", "b", "c"];
+
+// The pie's centre says "All categories" — which was a lie the moment a
+// category was unticked. It only stays true when nothing is filtered out, or
+// when the only thing dropped is the investment category: investments are not
+// planned spending, so hiding that slice narrows nothing (user, 260812).
+describe("narrowedCategoryCount", () => {
+  const cats = [
+    { id: "a", isInvestment: false },
+    { id: "b", isInvestment: false },
+    { id: "inv", isInvestment: true },
+  ];
+
+  it("is null when nothing is picked (the picker means 'everything')", () => {
+    expect(narrowedCategoryCount([], cats)).toBeNull();
+  });
+
+  it("is null when every category is picked", () => {
+    expect(narrowedCategoryCount(["a", "b", "inv"], cats)).toBeNull();
+  });
+
+  it("is null when ONLY the investment category is dropped", () => {
+    expect(narrowedCategoryCount(["a", "b"], cats)).toBeNull();
+  });
+
+  it("counts the picked categories once a real one is dropped", () => {
+    expect(narrowedCategoryCount(["a", "inv"], cats)).toBe(2);
+    expect(narrowedCategoryCount(["a"], cats)).toBe(1);
+  });
+
+  it("ignores ids the budget no longer has", () => {
+    expect(narrowedCategoryCount(["a", "b", "gone"], cats)).toBeNull();
+  });
+});
 
 describe("effectiveCategoryIds", () => {
   it("asks for nothing in particular when every category is picked", () => {

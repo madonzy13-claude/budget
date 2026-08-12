@@ -169,6 +169,28 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
              AND transaction_date <= ${thisMonthEndStr}::date
            GROUP BY category_id`);
 
+        // Occurrences whose date has passed with no answer yet. Generating a
+        // draft rolls the rule's next_due_date forward, so this money is in
+        // NEITHER of the two places the projection looks: not a future bill,
+        // not confirmed spend. It still rides inside the category's daily burn
+        // (the plan hasn't been consumed), and the tooltip says so — the user
+        // asked to see that it is still counted and still drifting (260812).
+        // Dismissed drafts are answers, so they drop out.
+        const pending = await tx.execute(sql`
+          SELECT e.transaction_date::text AS date,
+                 COALESCE(NULLIF(e.note, ''), sp.note, '') AS name,
+                 e.category_id::text AS category_id,
+                 e.amount_converted_cents::text AS amount_cents
+            FROM budgeting.expense_ledger e
+            LEFT JOIN budgeting.scheduled_payments sp ON sp.id = e.scheduled_payment_id
+           WHERE e.tenant_id = ${input.tenantId}::uuid
+             AND e.kind = 'SPENDING'
+             AND e.confirmed_at IS NULL
+             AND e.deleted_at IS NULL
+             AND e.dismissed_at IS NULL
+             AND e.transaction_date <= ${today.toString()}::date
+           ORDER BY e.transaction_date`);
+
         const incomes = await tx.execute(sql`
           SELECT name, (amount * 100)::bigint::text AS amount_cents, currency,
                  cadence, cadence_anchor, weekly_dow, yearly_month,
@@ -192,6 +214,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
           walletRows: wallets.rows,
           catRows: cats.rows,
           spendRows: spend.rows,
+          pendingRows: pending.rows,
           incomeRows: incomes.rows,
           ruleRows: rules.rows,
         };
@@ -309,6 +332,16 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       }
     }
 
+    // Already stored in the budget currency (amount_converted_cents), so no FX.
+    const pendingDrafts: CashflowEvent[] = (
+      L.pendingRows as Record<string, string | null>[]
+    ).map((r) => ({
+      date: r.date as string,
+      name: r.name ?? "",
+      categoryId: r.category_id,
+      amountCents: BigInt(r.amount_cents as string),
+    }));
+
     return simulateCashflow({
       today: today.toString(),
       windowEnd: windowEnd.toString(),
@@ -318,6 +351,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       categories,
       incomePayments,
       bills,
+      pendingDrafts,
     });
   };
 }

@@ -345,3 +345,101 @@ describe("simulateCashflow — reserve only covers spending past the limit", () 
     expect(d.color).toBe("red");
   });
 });
+
+// The forecast line is only trustworthy if the user can read WHY a day fell by
+// what it fell. Every day therefore carries the terms of one equation:
+//   available = opening + income − bills − plannedBurn + reserveCovered
+// (reserve-covered spending is paid from the pot, so it never reduces cash).
+describe("simulateCashflow — the day's arithmetic", () => {
+  test("first day opens on the wallet balance, not one burn below it", () => {
+    const p = simulateCashflow(base());
+    const first = p.days[0]!;
+    expect(first.openingCents).toBe(100_000n);
+    // 30_000 over 17 days left in July (15th → 31st) = 1_764/day.
+    expect(first.plannedBurnCents).toBe(1_764n);
+    expect(first.availableCents).toBe(100_000n - 1_764n);
+  });
+
+  test("every day's terms add up to that day's available", () => {
+    const p = simulateCashflow(
+      base({
+        startCashCents: 20_000n,
+        reservePoolCents: 50_000n,
+        incomePayments: [
+          { date: "2026-07-25", name: "Salary", amountCents: 200_000n },
+        ],
+        bills: [
+          {
+            date: "2026-07-20",
+            name: "Rent",
+            amountCents: 60_000n,
+            categoryId: "cat-food",
+          },
+        ],
+      }),
+    );
+    for (const d of p.days) {
+      expect(
+        d.openingCents +
+          d.incomeCents -
+          d.billCents -
+          d.plannedBurnCents +
+          d.reserveCoveredCents,
+      ).toBe(d.availableCents);
+    }
+    // Each day opens exactly where the previous one closed.
+    for (let i = 1; i < p.days.length; i++) {
+      expect(p.days[i]!.openingCents).toBe(p.days[i - 1]!.availableCents);
+    }
+  });
+
+  test("reserve-covered spending shows up as a term, not as lost cash", () => {
+    const p = simulateCashflow(
+      base({
+        startCashCents: 0n,
+        reservePoolCents: 100_000n,
+        categories: [
+          {
+            id: "cat-food",
+            name: "Food",
+            budgetThisMonthCents: 0n,
+            budgetNextMonthCents: 0n,
+            spentSoFarCents: 0n,
+          },
+        ],
+        bills: [
+          {
+            date: "2026-07-20",
+            name: "Extra",
+            amountCents: 10_000n,
+            categoryId: "cat-food",
+          },
+        ],
+      }),
+    );
+    const d = dayOn(p, "2026-07-20");
+    expect(d.reserveCoveredCents).toBe(10_000n);
+    expect(d.availableCents).toBe(0n);
+  });
+
+  test("pending unconfirmed drafts ride along without moving cash", () => {
+    const pending = [
+      { date: "2026-07-05", name: "T-Mobile", amountCents: 3_000n },
+    ];
+    const withPending = simulateCashflow(base({ pendingDrafts: pending }));
+    const without = simulateCashflow(base());
+    expect(withPending.pendingPoints).toEqual([
+      {
+        date: "2026-07-05",
+        name: "T-Mobile",
+        categoryId: null,
+        amountCents: 3_000n,
+      },
+    ]);
+    // Its money is already inside the discretionary burn — counting it again
+    // would draw the same payment twice.
+    expect(withPending.days.map((d) => d.availableCents)).toEqual(
+      without.days.map((d) => d.availableCents),
+    );
+  });
+});
