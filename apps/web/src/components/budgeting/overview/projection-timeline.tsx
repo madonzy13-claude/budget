@@ -3,7 +3,8 @@
  * projection-timeline.tsx — Overview cash-flow projection banner. A fluent
  * colour-flowing line (green→yellow→red) over the next 100 days: a single
  * horizontal CSS gradient whose stops are the per-day zone colours (no discrete
- * segments). Income (▲) and scheduled-bill (●) markers sit on the timeline. A
+ * segments) carrying the month names inside it. Income (▲) and scheduled-bill
+ * (●) markers sit on the timeline. A
  * scrubber (pointer hover + touch finger-slide) shows a tooltip ABOVE the line so
  * the finger never covers it. The danger-date summary is a caption under the line;
  * the header is a single-line title.
@@ -74,12 +75,12 @@ export function ProjectionTimeline({
   };
 
   /**
-   * The ruler under the line. 100 days of colour say nothing about WHEN without
-   * one, and months are the unit the household already thinks in — a label
-   * where each begins, plus the month the window opens in pinned to the left.
+   * Where each month begins, as a % across the window. 100 days of colour say
+   * nothing about WHEN, and months are the unit the household already reads
+   * dates in — so the strip carries them itself (see the line below).
    *
-   * A month opening in the last sliver of the window is skipped: printing its
-   * name half outside the card, for three days of it, is noise (user, 260812).
+   * A month opening in the last sliver of the window is skipped: naming a
+   * segment three days wide crowds the one before it for nothing (user, 260812).
    */
   const monthMarks = useMemo(() => {
     if (!data || data.days.length === 0) return [];
@@ -143,11 +144,47 @@ export function ProjectionTimeline({
         onPointerMove={(e) => selectFromClientX(e.clientX, e.currentTarget)}
         onPointerDown={(e) => selectFromClientX(e.clientX, e.currentTarget)}
       >
-        {/* Fluent colour line (visual). */}
+        {/* Fluent colour line — and the calendar itself. The months live INSIDE
+            it: a divider where each turns, its name in the segment that follows,
+            in the same dark ink the brand uses on top of a colour. A row of
+            labels under the bar read as a separate chart; here the strip simply
+            IS the three months (user, 260812). Tall enough (20px) to hold 10px
+            text without crowding it, and clipped by its own rounded ends. */}
         <div
-          className="absolute inset-x-0 top-1/2 h-3 -translate-y-1/2 rounded-full"
+          data-testid="projection-line"
+          className="absolute inset-x-0 top-1/2 h-5 -translate-y-1/2 overflow-hidden rounded-full"
           style={{ background: gradient }}
-        />
+        >
+          {monthMarks.map((m, i) => (
+            <span key={m.key}>
+              {i > 0 && (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-y-0 w-px"
+                  style={{
+                    left: `${m.pct}%`,
+                    background:
+                      "color-mix(in oklab, var(--on-primary) 22%, transparent)",
+                  }}
+                />
+              )}
+              <span
+                data-testid="projection-month"
+                aria-hidden="true"
+                className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] font-medium leading-none"
+                style={{
+                  left: `${m.pct}%`,
+                  // Clear of the rounded end on the left, of the divider elsewhere.
+                  marginLeft: i === 0 ? "8px" : "5px",
+                  color:
+                    "color-mix(in oklab, var(--on-primary) 62%, transparent)",
+                }}
+              >
+                {m.label}
+              </span>
+            </span>
+          ))}
+        </div>
 
         {/* Scheduled-bill markers (money OUT): red ▼ above the line, pointing at
             it. Inline-styled colour so a Tailwind arbitrary-value ambiguity can't
@@ -163,7 +200,7 @@ export function ProjectionTimeline({
               className="absolute z-[2] size-0 -translate-x-1/2"
               style={{
                 left: `${pct}%`,
-                bottom: "calc(50% + 10px)",
+                bottom: "calc(50% + 13px)",
                 borderLeft: "5px solid transparent",
                 borderRight: "5px solid transparent",
                 borderTop: "7px solid var(--muted-foreground)",
@@ -184,7 +221,7 @@ export function ProjectionTimeline({
               className="absolute z-[2] -translate-x-1/2 text-[11px] font-bold leading-none"
               style={{
                 left: `${pct}%`,
-                top: "calc(50% + 10px)",
+                top: "calc(50% + 12px)",
                 color: "var(--trading-up)",
               }}
             >
@@ -197,7 +234,7 @@ export function ProjectionTimeline({
         {active !== null && (
           <span
             aria-hidden
-            className="absolute top-1/2 z-[2] h-5 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded bg-[var(--body-on-dark)]"
+            className="absolute top-1/2 z-[2] h-7 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded bg-[var(--body-on-dark)]"
             style={{ left: `${activePct}%` }}
           />
         )}
@@ -238,32 +275,10 @@ export function ProjectionTimeline({
         )}
       </div>
 
-      {/* Month ruler. A hairline tick where the month turns and its name just
-          after it — read as "from here, September". The opening month sits flush
-          left, where the window starts, and gets no tick: nothing turns there. */}
-      <div className="relative mt-1 h-3 select-none" aria-hidden="true">
-        {monthMarks.map((m, i) => (
-          <span
-            key={m.key}
-            data-testid="projection-month"
-            className="absolute top-0 whitespace-nowrap text-[10px] leading-3 text-[var(--muted-foreground)]"
-            style={{ left: `${m.pct}%` }}
-          >
-            {i > 0 && (
-              <span
-                className="absolute -top-0.5 left-0 h-1.5 w-px"
-                style={{ background: "var(--hairline-dark)" }}
-              />
-            )}
-            <span className={i > 0 ? "pl-1" : undefined}>{m.label}</span>
-          </span>
-        ))}
-      </div>
-
       {/* Danger-date summary caption (one line, under the line). */}
       <p
         data-testid="projection-headline"
-        className="mt-1 truncate text-xs text-[var(--muted-foreground)]"
+        className="mt-2 truncate text-xs text-[var(--muted-foreground)]"
       >
         {headline}
       </p>

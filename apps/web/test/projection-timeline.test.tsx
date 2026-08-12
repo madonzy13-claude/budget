@@ -171,6 +171,15 @@ describe("ProjectionTimeline", () => {
     ).toEqual(["Jul", "Aug", "Sep"]);
   });
 
+  test("the months live INSIDE the line, not under it", () => {
+    projectionData = { ...dto, days: runOfDays("2026-07-28", 40) };
+    renderIt();
+    const bar = screen.getByTestId("projection-line");
+    for (const m of screen.getAllByTestId("projection-month")) {
+      expect(bar.contains(m)).toBe(true);
+    }
+  });
+
   test("a month label sits where that month starts", () => {
     projectionData = { ...dto, days: runOfDays("2026-07-28", 40) };
     renderIt();
