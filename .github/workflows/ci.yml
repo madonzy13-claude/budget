@@ -302,6 +302,13 @@ jobs:
           # throttles that into a multi-hour run. Disable the limiter for THIS
           # e2e job only — it stays enabled in dev/prod (and in every other CI job).
           AUTH_RATE_LIMIT_DISABLED=true
+          # This job BUILDS the web image (compose images are not shared between
+          # jobs) and that build now REFUSES to proceed without a push key: the
+          # value is inlined into the client bundle, so an image built without one
+          # ships with notifications permanently dead and nothing says so. Same
+          # PLACEHOLDER the compose-smoke job uses — E2E never exercises push, so
+          # any well-formed value satisfies the guard.
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY=BEl62iUYgUivxIkv69yViEuiBIa40HI0DLLuxazjqAKMgQkLp1kMkVJZBLGqBcNRfLfPFHRSbg6ZBjBpLJ8HZ7c
           EOF
       - name: Start full dev stack (compose with override = mailpit included)
         run: docker compose up -d --wait
