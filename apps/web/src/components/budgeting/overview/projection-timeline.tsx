@@ -234,7 +234,12 @@ export function ProjectionTimeline({
           ))}
         </div>
 
-        {/* Income markers (money IN): green ▲ below the line, pointing up. */}
+        {/* Income (money IN): a green dot under the band. It was a literal "$",
+            which a złoty or hryvnia budget got too; a dot says "money lands
+            here" in every currency and the tooltip carries the amount (user
+            picked it from the mockups, 260812). Below the band rather than
+            inside it, so income reads as arriving AT the line while payments
+            are cut OUT of it. */}
         {data.income_points.map((p, i) => {
           const pct = pctFor(p.date);
           if (pct === null) return null;
@@ -243,15 +248,13 @@ export function ProjectionTimeline({
               key={`inc-${i}`}
               data-testid="projection-income-marker"
               aria-hidden
-              className="absolute z-[2] -translate-x-1/2 text-[11px] font-bold leading-none"
+              className="absolute z-[2] size-[5px] -translate-x-1/2 rounded-full"
               style={{
                 left: `${pct}%`,
-                top: "23px",
-                color: "var(--trading-up)",
+                top: "24px",
+                background: "var(--trading-up)",
               }}
-            >
-              $
-            </span>
+            />
           );
         })}
 

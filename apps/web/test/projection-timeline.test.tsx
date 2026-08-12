@@ -314,6 +314,17 @@ describe("ProjectionTimeline", () => {
     expect(screen.getAllByTestId("projection-income-marker")).toHaveLength(1);
   });
 
+  // The mark was a literal "$" — printed on a złoty budget too. A dot says
+  // "money lands here" in every currency, and the tooltip carries the amount
+  // (user picked the dot from the mockups, 260812).
+  test("income is a green dot, not a currency glyph", () => {
+    renderIt();
+    const dot = screen.getAllByTestId("projection-income-marker")[0]!;
+    expect(dot.textContent).toBe("");
+    expect(dot.className).toContain("rounded-full");
+    expect(dot.style.background).toContain("--trading-up");
+  });
+
   // The line's first cell sits one day's burn BELOW the "available to spend"
   // card, which reads as a mismatch until the tooltip spells the day out as
   // one subtraction (user, 260812).
