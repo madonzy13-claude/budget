@@ -160,14 +160,13 @@
        one ink that reads on all three. On the PALE card the band is the loudest
        thing on screen and that ink turns into shouting, so it softens there;
        same reasoning as --chart-bar-neutral above (user, 260812).
-       --forecast-marker is the scheduled-payment ▼ sitting above the band: a
-       flat grey is quiet against a dark card and hard against a light one. */
+       --forecast-notch is a scheduled payment: a notch cut into the band's
+       lower edge rather than a ▼ floating above it, because over 100 days the
+       wedges collided on consecutive days and read as a mess. Same ink family
+       as the month rules, a step stronger so one payment still registers. */
     --forecast-ink: color-mix(in oklab, var(--on-primary) 62%, transparent);
     --forecast-rule: color-mix(in oklab, var(--on-primary) 22%, transparent);
-    /* …and it is DARKER than the text grey here, not lighter: on the dark card
-       #707a8a read as a row of hard wedges over a quiet band (user, 260812).
-       Same value the neutral bars take, for the same reason. */
-    --forecast-marker: #4d5663;
+    --forecast-notch: color-mix(in oklab, var(--on-primary) 38%, transparent);
     /* Chart LINE/AREA series = the brand yellow (user: "I liked yellow for
        charts, bring it back" — round 25 item 1). BARS use a separate blue/teal
        (yellow bars were too loud, the brown replacement was disliked): --chart-bar-1
@@ -286,7 +285,7 @@
        interior ink and its markers step back rather than compete with it. */
     --forecast-ink: color-mix(in oklab, var(--on-primary) 42%, transparent);
     --forecast-rule: color-mix(in oklab, var(--on-primary) 14%, transparent);
-    --forecast-marker: #9aa4b2;
+    --forecast-notch: color-mix(in oklab, var(--on-primary) 30%, transparent);
     /* Budget-switcher label goes grey in light (matches the "Spent" card label). */
     --nav-budget-header: var(--muted-foreground);
   }

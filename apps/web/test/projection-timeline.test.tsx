@@ -195,13 +195,12 @@ describe("ProjectionTimeline", () => {
     ).toContain("--forecast-rule");
     unmount();
 
-    // …and the ▼ above the band, which is the other thing that read hard on
-    // the pale card. The default fixture is the one carrying a bill.
+    // …and the payment notches, which are the other ink riding on the band.
     projectionData = dto;
     renderIt();
     expect(
-      screen.getAllByTestId("projection-bill-marker")[0]!.style.borderTop,
-    ).toContain("--forecast-marker");
+      screen.getAllByTestId("projection-bill-marker")[0]!.style.background,
+    ).toContain("--forecast-notch");
   });
 
   test("a month label sits where that month starts", () => {
@@ -247,9 +246,18 @@ describe("ProjectionTimeline", () => {
     expect(tip.textContent).toContain("Rent");
   });
 
-  test("renders income (▲) and scheduled-bill (▼) markers on the timeline", () => {
+  // Scheduled payments were ▼ wedges floating above the band. Over 100 days
+  // they collide — a household with bills on consecutive days got a row of
+  // overlapping arrows — so each is now a notch cut into the strip's lower
+  // edge: neighbours merge into texture instead of piling up (user, 260812).
+  test("a scheduled payment is a notch inside the strip", () => {
     renderIt();
-    expect(screen.getAllByTestId("projection-bill-marker")).toHaveLength(1);
+    const notches = screen.getAllByTestId("projection-bill-marker");
+    expect(notches).toHaveLength(1);
+    const bar = screen.getByTestId("projection-line");
+    expect(bar.contains(notches[0]!)).toBe(true);
+    expect(notches[0]!.style.background).toContain("--forecast-notch");
+    // income keeps its own mark below the band
     expect(screen.getAllByTestId("projection-income-marker")).toHaveLength(1);
   });
 

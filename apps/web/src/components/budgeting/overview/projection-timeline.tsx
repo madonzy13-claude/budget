@@ -183,30 +183,31 @@ export function ProjectionTimeline({
               </span>
             </span>
           ))}
-        </div>
 
-        {/* Scheduled-bill markers (money OUT): red ▼ above the line, pointing at
-            it. Inline-styled colour so a Tailwind arbitrary-value ambiguity can't
-            drop it. */}
-        {data.bill_points.map((b, i) => {
-          const pct = pctFor(b.date);
-          if (pct === null) return null;
-          return (
-            <span
-              key={`bill-${i}`}
-              data-testid="projection-bill-marker"
-              aria-hidden
-              className="absolute z-[2] size-0 -translate-x-1/2"
-              style={{
-                left: `${pct}%`,
-                bottom: "calc(50% + 13px)",
-                borderLeft: "5px solid transparent",
-                borderRight: "5px solid transparent",
-                borderTop: "7px solid var(--forecast-marker)",
-              }}
-            />
-          );
-        })}
+          {/* Scheduled payments (money OUT): a notch in the strip's lower edge.
+              Two on neighbouring days merge into one thicker mark rather than
+              two overlapping shapes, which is what the ▼ wedges above the band
+              could not do (user, 260812). The scrubber's tooltip still itemises
+              every payment landing on the day you point at. */}
+          {data.bill_points.map((b, i) => {
+            const pct = pctFor(b.date);
+            if (pct === null) return null;
+            return (
+              <span
+                key={`bill-${i}`}
+                data-testid="projection-bill-marker"
+                aria-hidden="true"
+                className="absolute bottom-0 w-[1.5px] rounded-t-[1px]"
+                style={{
+                  left: `${pct}%`,
+                  height: "6px",
+                  transform: "translateX(-50%)",
+                  background: "var(--forecast-notch)",
+                }}
+              />
+            );
+          })}
+        </div>
 
         {/* Income markers (money IN): green ▲ below the line, pointing up. */}
         {data.income_points.map((p, i) => {
