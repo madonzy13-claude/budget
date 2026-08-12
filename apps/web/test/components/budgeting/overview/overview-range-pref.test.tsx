@@ -68,9 +68,8 @@ vi.mock("@/components/common/stick-on-scroll", () => ({
   ),
 }));
 
-const { OverviewSections } = await import(
-  "@/components/budgeting/overview/overview-sections"
-);
+const { OverviewSections } =
+  await import("@/components/budgeting/overview/overview-sections");
 
 beforeEach(() => {
   prefs.current = {};

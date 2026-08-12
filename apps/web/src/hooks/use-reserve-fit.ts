@@ -64,6 +64,15 @@ export interface ReserveFitRow {
 export interface ReserveFitDTO {
   currency: string;
   rows: ReserveFitRow[];
+  /** What EVERY category costs in an average month, including the ones with no
+   *  reserve row (opted out of the buffer, or untracked). The rows alone left
+   *  those without a figure and the Future chart drew today's limit against
+   *  itself (user, 260812). Optional: a payload cached before it existed
+   *  replays without it. */
+  projected_by_category?: {
+    category_id: string;
+    projected_monthly_cents: string;
+  }[];
   /** Active scheduled rules with no category — real commitments that belong to
    *  no buffer, so they size nothing. Optional: a payload cached before the
    *  field existed replays without it. */
@@ -130,4 +139,37 @@ export function useSaveReserveFitExclusions(budgetId: string) {
       void qc.invalidateQueries({ queryKey: reserveFitKeyPrefix(budgetId) });
     },
   });
+}
+
+/**
+ * categoryId → what an average month ahead costs, in cents.
+ *
+ * Prefers the per-category list, which covers every category; falls back to the
+ * reserve ROWS, which only exist for categories the buffer tracks — that gap is
+ * what made a reserve-excluded category read "expected = current limit"
+ * (user, 260812). A category with no figure is left out rather than guessed at.
+ */
+export function projectedMonthlyMap(
+  data:
+    | {
+        projected_by_category?: {
+          category_id: string;
+          projected_monthly_cents: string;
+        }[];
+        rows?: {
+          category_id: string;
+          projected_monthly_cents?: string | null;
+        }[];
+      }
+    | undefined,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const r of data?.rows ?? []) {
+    if (r.projected_monthly_cents == null) continue;
+    out.set(r.category_id, Number(r.projected_monthly_cents));
+  }
+  for (const p of data?.projected_by_category ?? []) {
+    out.set(p.category_id, Number(p.projected_monthly_cents));
+  }
+  return out;
 }

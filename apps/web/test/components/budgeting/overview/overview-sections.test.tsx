@@ -41,7 +41,8 @@ vi.mock("@/hooks/use-spendings-summary", () => ({
 vi.mock("@/hooks/use-set-category-limit", () => ({
   useSetCategoryLimit: () => ({ mutateAsync: async () => {} }),
 }));
-vi.mock("@/hooks/use-reserve-fit", () => ({
+vi.mock("@/hooks/use-reserve-fit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-reserve-fit")>()),
   useReserveFit: () => ({ data: undefined, isPending: false, isError: false }),
   useSaveReserveFitExclusions: () => ({ mutate: () => {} }),
 }));

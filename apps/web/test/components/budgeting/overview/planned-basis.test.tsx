@@ -83,7 +83,10 @@ vi.mock("@/components/budgeting/overview/limit-rebalance", () => ({
   },
 }));
 const fitDto: { current: unknown } = { current: undefined };
-vi.mock("@/hooks/use-reserve-fit", () => ({
+vi.mock("@/hooks/use-reserve-fit", async (importOriginal) => ({
+  // …keeping the real projectedMonthlyMap: it is the thing that turns this
+  // payload into what the chart draws, so stubbing it would hollow out the test.
+  ...(await importOriginal<typeof import("@/hooks/use-reserve-fit")>()),
   useReserveFit: () => ({ data: fitDto.current }),
   useSaveReserveFitExclusions: () => ({ mutate: () => {} }),
 }));
@@ -1215,9 +1218,10 @@ describe("scheduled payments per year, by category", () => {
       ],
     };
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
-    const rows = JSON.parse(
-      yearChart()!.getAttribute("data-tooltip")!,
-    ) as { label: string; value: string }[];
+    const rows = JSON.parse(yearChart()!.getAttribute("data-tooltip")!) as {
+      label: string;
+      value: string;
+    }[];
     expect(rows.map((r) => r.label)).toEqual(["Domain", "Netflix"]);
     // 40 a month × 12 = 480 a year.
     expect(rows[1]!.value).toContain("× 12");

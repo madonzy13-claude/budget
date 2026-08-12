@@ -48,6 +48,7 @@ import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import {
   useReserveFit,
   useSaveReserveFitExclusions,
+  projectedMonthlyMap,
 } from "@/hooks/use-reserve-fit";
 import {
   ReserveFitOneOffs,
@@ -325,18 +326,10 @@ export function PlannedSection({
   /** categoryId → what an average month ahead costs: the habit plus every
    *  recurring payment at its monthly rate (260808). This is what the FUTURE
    *  reading measures today's limit against. */
-  const projected = new Map<string, number>(
-    (fit.data?.rows ?? []).flatMap((r) =>
-      r.projected_monthly_cents == null
-        ? []
-        : [
-            [r.category_id, Number(r.projected_monthly_cents)] as [
-              string,
-              number,
-            ],
-          ],
-    ),
-  );
+  // Every category, not just the ones the reserve engine tracks: an opted-out
+  // category has no reserve row, and without a figure this chart drew today's
+  // limit against itself (user, 260812).
+  const projected = projectedMonthlyMap(fit.data);
   const oneOffCandidates: OneOffCandidate[] = (fit.data?.rows ?? []).flatMap(
     (r) =>
       (r.large_transactions ?? []).map((c) => ({
