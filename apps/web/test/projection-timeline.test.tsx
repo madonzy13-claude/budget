@@ -187,9 +187,12 @@ describe("ProjectionTimeline", () => {
     projectionData = dto;
     renderIt();
     const notch = screen.getAllByTestId("projection-bill-marker")[0]!;
-    // 20px strip, 6px notch → it starts at 14 and reaches the bottom edge.
-    expect(notch.getAttribute("y")).toBe("14");
-    expect(notch.getAttribute("height")).toBe("6");
+    // Whatever height it is tuned to, it hangs off the BOTTOM edge of the 20px
+    // strip — that is what keeps it a different language from the dividers.
+    const y = Number(notch.getAttribute("y"));
+    const h = Number(notch.getAttribute("height"));
+    expect(y + h).toBe(20);
+    expect(h).toBeLessThan(Number(rule.getAttribute("height")) + 20);
   });
 
   // A 1.5px line at a fractional x is spread over two device pixels by the

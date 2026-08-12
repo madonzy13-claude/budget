@@ -162,11 +162,12 @@
        same reasoning as --chart-bar-neutral above (user, 260812).
        --forecast-notch is a scheduled payment: a notch cut into the band's
        lower edge rather than a ▼ floating above it, because over 100 days the
-       wedges collided on consecutive days and read as a mess. Same ink family
-       as the month rules, a step stronger so one payment still registers. */
+       wedges collided on consecutive days and read as a mess. Lighter than the
+       month rules: there are dozens of them and they are texture, not
+       structure — the day itself is in the tooltip (user, 260812). */
     --forecast-ink: color-mix(in oklab, var(--on-primary) 62%, transparent);
     --forecast-rule: color-mix(in oklab, var(--on-primary) 22%, transparent);
-    --forecast-notch: color-mix(in oklab, var(--on-primary) 38%, transparent);
+    --forecast-notch: color-mix(in oklab, var(--on-primary) 24%, transparent);
     /* Chart LINE/AREA series = the brand yellow (user: "I liked yellow for
        charts, bring it back" — round 25 item 1). BARS use a separate blue/teal
        (yellow bars were too loud, the brown replacement was disliked): --chart-bar-1
@@ -285,7 +286,7 @@
        interior ink and its markers step back rather than compete with it. */
     --forecast-ink: color-mix(in oklab, var(--on-primary) 42%, transparent);
     --forecast-rule: color-mix(in oklab, var(--on-primary) 14%, transparent);
-    --forecast-notch: color-mix(in oklab, var(--on-primary) 30%, transparent);
+    --forecast-notch: color-mix(in oklab, var(--on-primary) 18%, transparent);
     /* Budget-switcher label goes grey in light (matches the "Spent" card label). */
     --nav-budget-header: var(--muted-foreground);
   }

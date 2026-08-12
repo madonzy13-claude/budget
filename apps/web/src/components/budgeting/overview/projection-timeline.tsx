@@ -190,15 +190,15 @@ export function ProjectionTimeline({
                   key={`bill-${i}`}
                   data-testid="projection-bill-marker"
                   x={`${pct}%`}
-                  // 20px strip, 6px notch — sits on the bottom edge.
-                  y="14"
+                  // 20px strip, 5px notch — sits on the bottom edge.
+                  y="15"
                   // ONE whole CSS pixel: 1.5px is 4.5 device pixels on a phone,
                   // which snapped to 4 or 5 depending on where the day fell —
                   // the same payment rendering wider or narrower than its
                   // neighbour (user, 260812). An integer width divides evenly at
                   // every device ratio, so every mark is identical.
                   width="1"
-                  height="6"
+                  height="5"
                   // …centred on its day, and never clipped at the far end.
                   transform="translate(-0.5)"
                   fill="var(--forecast-notch)"
