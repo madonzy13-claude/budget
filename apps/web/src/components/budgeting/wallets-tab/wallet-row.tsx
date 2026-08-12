@@ -254,8 +254,11 @@ function DraftRow({
           desktop, native <select> on touch (opens on the first tap). The cell
           gets a yellow ring while the dropdown is open (260723). */}
       <div
-        className={`w-[44px] shrink-0 rounded sm:w-[96px] md:w-[224px]${
-          currencyOpen ? " ring-1 ring-[var(--primary)]" : ""
+        // NOTE: keep a space before `${` — Tailwind's scanner does not extract a
+        // class glued to an interpolation, and md:w-[224px] silently vanished
+        // from the CSS bundle (260812-dgf).
+        className={`w-[44px] shrink-0 rounded sm:w-[96px] md:w-[224px] ${
+          currencyOpen ? "ring-1 ring-[var(--primary)]" : ""
         }`}
         data-nav-field="currency"
       >
@@ -736,8 +739,9 @@ function PersistedRow({
           Select is its own click-to-open trigger. Mutation runs from
           onSelect directly. */}
         <div
-          className={`w-[44px] rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[224px]${
-            currencyOpen ? " ring-1 ring-[var(--primary)]" : ""
+          // Space before `${` is load-bearing — see the draft row above.
+          className={`w-[44px] rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[224px] ${
+            currencyOpen ? "ring-1 ring-[var(--primary)]" : ""
           }`}
           data-inline-cell
           data-nav-field="currency"
