@@ -159,12 +159,12 @@ export function ProjectionTimeline({
             <span key={m.key}>
               {i > 0 && (
                 <span
+                  data-testid="projection-month-rule"
                   aria-hidden="true"
                   className="absolute inset-y-0 w-px"
                   style={{
                     left: `${m.pct}%`,
-                    background:
-                      "color-mix(in oklab, var(--on-primary) 22%, transparent)",
+                    background: "var(--forecast-rule)",
                   }}
                 />
               )}
@@ -176,8 +176,7 @@ export function ProjectionTimeline({
                   left: `${m.pct}%`,
                   // Clear of the rounded end on the left, of the divider elsewhere.
                   marginLeft: i === 0 ? "8px" : "5px",
-                  color:
-                    "color-mix(in oklab, var(--on-primary) 62%, transparent)",
+                  color: "var(--forecast-ink)",
                 }}
               >
                 {m.label}
@@ -203,7 +202,7 @@ export function ProjectionTimeline({
                 bottom: "calc(50% + 13px)",
                 borderLeft: "5px solid transparent",
                 borderRight: "5px solid transparent",
-                borderTop: "7px solid var(--muted-foreground)",
+                borderTop: "7px solid var(--forecast-marker)",
               }}
             />
           );

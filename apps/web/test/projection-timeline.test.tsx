@@ -180,6 +180,30 @@ describe("ProjectionTimeline", () => {
     }
   });
 
+  // Hardcoding the on-colour black here is what made the strip shout on the
+  // pale card: one ink for two very different surroundings. The theme tokens
+  // carry the difference, so the component must not name a colour itself
+  // (user, 260812).
+  test("the strip's ink comes from theme tokens, not hardcoded", () => {
+    projectionData = { ...dto, days: runOfDays("2026-07-28", 40) };
+    const { unmount } = renderIt();
+    expect(screen.getAllByTestId("projection-month")[1]!.style.color).toContain(
+      "--forecast-ink",
+    );
+    expect(
+      screen.getAllByTestId("projection-month-rule")[0]!.style.background,
+    ).toContain("--forecast-rule");
+    unmount();
+
+    // …and the ▼ above the band, which is the other thing that read hard on
+    // the pale card. The default fixture is the one carrying a bill.
+    projectionData = dto;
+    renderIt();
+    expect(
+      screen.getAllByTestId("projection-bill-marker")[0]!.style.borderTop,
+    ).toContain("--forecast-marker");
+  });
+
   test("a month label sits where that month starts", () => {
     projectionData = { ...dto, days: runOfDays("2026-07-28", 40) };
     renderIt();
