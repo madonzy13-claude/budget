@@ -185,6 +185,19 @@ describe("ProjectionTimeline", () => {
     expect(rule.getAttribute("stroke-dasharray")).toBeTruthy();
   });
 
+  // The band was 44px so the ▼ markers had room ABOVE the line. They are
+  // notches inside the strip now, and the empty half read as a gap under the
+  // title (user, 260812) — so the strip is flush with the top of the band and
+  // the band only keeps what the income row below it needs.
+  test("no dead space above the line", () => {
+    renderIt();
+    const strip = screen.getByTestId("projection-line");
+    expect(strip.className).toContain("top-0");
+    expect(strip.className).not.toContain("-translate-y-1/2");
+    const band = screen.getByTestId("projection-band");
+    expect(band.className).not.toContain("h-11");
+  });
+
   test("a payment stays a short solid notch on the bottom edge", () => {
     renderIt();
     const notch = screen.getAllByTestId("projection-bill-marker")[0]!;

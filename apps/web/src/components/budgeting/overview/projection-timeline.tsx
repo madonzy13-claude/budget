@@ -133,13 +133,16 @@ export function ProjectionTimeline({
 
   return (
     <div className={CARD} data-testid="projection-timeline">
-      <h3 className="mb-3 truncate text-caption text-[var(--muted-foreground)]">
+      <h3 className="mb-2 truncate text-caption text-[var(--muted-foreground)]">
         {t("title")}
       </h3>
 
       <div
         data-testid="projection-band"
-        className="relative h-11 touch-none select-none"
+        // 20px strip + the income row under it. It was 44px so the ▼ markers had
+        // somewhere to sit ABOVE the line; they are notches inside the strip
+        // now, and the empty half read as a gap under the title (user, 260812).
+        className="relative h-9 touch-none select-none"
         onPointerLeave={() => setActive(null)}
         onPointerMove={(e) => selectFromClientX(e.clientX, e.currentTarget)}
         onPointerDown={(e) => selectFromClientX(e.clientX, e.currentTarget)}
@@ -152,7 +155,7 @@ export function ProjectionTimeline({
             text without crowding it, and clipped by its own rounded ends. */}
         <div
           data-testid="projection-line"
-          className="absolute inset-x-0 top-1/2 h-5 -translate-y-1/2 overflow-hidden rounded-full"
+          className="absolute inset-x-0 top-0 h-5 overflow-hidden rounded-full"
           style={{ background: gradient }}
         >
           {/* Every mark on the band in ONE svg, drawn with crispEdges.
@@ -243,7 +246,7 @@ export function ProjectionTimeline({
               className="absolute z-[2] -translate-x-1/2 text-[11px] font-bold leading-none"
               style={{
                 left: `${pct}%`,
-                top: "calc(50% + 12px)",
+                top: "23px",
                 color: "var(--trading-up)",
               }}
             >
@@ -256,8 +259,8 @@ export function ProjectionTimeline({
         {active !== null && (
           <span
             aria-hidden
-            className="absolute top-1/2 z-[2] h-7 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded bg-[var(--body-on-dark)]"
-            style={{ left: `${activePct}%` }}
+            className="absolute z-[2] h-6 w-0.5 -translate-x-1/2 rounded bg-[var(--body-on-dark)]"
+            style={{ left: `${activePct}%`, top: "-2px" }}
           />
         )}
 
