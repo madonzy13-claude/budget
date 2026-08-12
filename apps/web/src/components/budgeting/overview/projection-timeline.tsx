@@ -73,6 +73,31 @@ export function ProjectionTimeline({
     return (i / (n - 1)) * 100;
   };
 
+  /**
+   * The ruler under the line. 100 days of colour say nothing about WHEN without
+   * one, and months are the unit the household already thinks in — a label
+   * where each begins, plus the month the window opens in pinned to the left.
+   *
+   * A month opening in the last sliver of the window is skipped: printing its
+   * name half outside the card, for three days of it, is noise (user, 260812).
+   */
+  const monthMarks = useMemo(() => {
+    if (!data || data.days.length === 0) return [];
+    const span = Math.max(data.days.length - 1, 1);
+    const monthName = (iso: string) =>
+      new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" })
+        .format(new Date(`${iso}T00:00:00Z`))
+        .replace(/\.$/, "");
+    return data.days.flatMap((d, i) => {
+      const opensAMonth = i === 0 || d.date.endsWith("-01");
+      if (!opensAMonth) return [];
+      const pct = (i / span) * 100;
+      // …and it must have room to be worth printing.
+      if (i > 0 && pct > 92) return [];
+      return [{ key: d.date, pct, label: monthName(d.date) }];
+    });
+  }, [data, locale]);
+
   const headline = useMemo(() => {
     if (!data) return "";
     // Only RED days count as a problem; yellow (dipping into reserve) is fine.
@@ -213,10 +238,32 @@ export function ProjectionTimeline({
         )}
       </div>
 
+      {/* Month ruler. A hairline tick where the month turns and its name just
+          after it — read as "from here, September". The opening month sits flush
+          left, where the window starts, and gets no tick: nothing turns there. */}
+      <div className="relative mt-1 h-3 select-none" aria-hidden="true">
+        {monthMarks.map((m, i) => (
+          <span
+            key={m.key}
+            data-testid="projection-month"
+            className="absolute top-0 whitespace-nowrap text-[10px] leading-3 text-[var(--muted-foreground)]"
+            style={{ left: `${m.pct}%` }}
+          >
+            {i > 0 && (
+              <span
+                className="absolute -top-0.5 left-0 h-1.5 w-px"
+                style={{ background: "var(--hairline-dark)" }}
+              />
+            )}
+            <span className={i > 0 ? "pl-1" : undefined}>{m.label}</span>
+          </span>
+        ))}
+      </div>
+
       {/* Danger-date summary caption (one line, under the line). */}
       <p
         data-testid="projection-headline"
-        className="mt-2 truncate text-xs text-[var(--muted-foreground)]"
+        className="mt-1 truncate text-xs text-[var(--muted-foreground)]"
       >
         {headline}
       </p>

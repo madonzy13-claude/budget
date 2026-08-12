@@ -101,8 +101,14 @@ const dto: ProjectionDTO = {
   },
 };
 
+// Swappable so a test can hand in a window that spans a month boundary.
+let projectionData: ProjectionDTO = dto;
 vi.mock("@/hooks/use-projection", () => ({
-  useProjection: () => ({ data: dto, isLoading: false, isError: false }),
+  useProjection: () => ({
+    data: projectionData,
+    isLoading: false,
+    isError: false,
+  }),
 }));
 
 const renderIt = (amountPrivacyEnabled = true) =>
@@ -115,8 +121,33 @@ const renderIt = (amountPrivacyEnabled = true) =>
     </NextIntlClientProvider>,
   );
 
+/** A flat green run of `n` days from `start`, for shape-only assertions. */
+function runOfDays(start: string, n: number): ProjectionDTO["days"] {
+  const out: ProjectionDTO["days"] = [];
+  let d = new Date(`${start}T00:00:00Z`);
+  for (let i = 0; i < n; i++) {
+    out.push({
+      date: d.toISOString().slice(0, 10),
+      color: "green",
+      available_cents: "100000",
+      opening_cents: "100000",
+      planned_burn_cents: "0",
+      reserve_covered_cents: "0",
+      income_cents: "0",
+      bill_cents: "0",
+      drew_reserve: [],
+      shortfall: [],
+    });
+    d = new Date(d.getTime() + 86_400_000);
+  }
+  return out;
+}
+
 describe("ProjectionTimeline", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    projectionData = dto;
+  });
 
   test("renders one band cell per day with the right color class", () => {
     renderIt();
@@ -124,6 +155,40 @@ describe("ProjectionTimeline", () => {
     expect(cells).toHaveLength(3);
     expect(cells[0].getAttribute("data-color")).toBe("green");
     expect(cells[2].getAttribute("data-color")).toBe("red");
+  });
+
+  // 100 days of colour with nothing to read it against: the line needed to say
+  // WHEN. Months are the natural ruler — one label where each begins, and the
+  // month the window opens in on the left (user, 260812).
+  test("labels the opening month and each month that begins in the window", () => {
+    projectionData = {
+      ...dto,
+      days: runOfDays("2026-07-28", 40), // Jul 28 → Sep 5
+    };
+    renderIt();
+    expect(
+      screen.getAllByTestId("projection-month").map((el) => el.textContent),
+    ).toEqual(["Jul", "Aug", "Sep"]);
+  });
+
+  test("a month label sits where that month starts", () => {
+    projectionData = { ...dto, days: runOfDays("2026-07-28", 40) };
+    renderIt();
+    const [jul, aug] = screen.getAllByTestId("projection-month");
+    // The opening month is pinned to the left edge; August begins on day 4 of
+    // 40, so its label sits at that fraction of the width.
+    expect(jul!.style.left).toBe("0%");
+    expect(parseFloat(aug!.style.left)).toBeCloseTo((4 / 39) * 100, 1);
+  });
+
+  test("drops a label with no room left to earn it", () => {
+    // A month opening in the last few days of the window would print its name
+    // half outside the card for the sake of three days.
+    projectionData = { ...dto, days: runOfDays("2026-07-01", 33) }; // Aug 1 is last
+    renderIt();
+    expect(
+      screen.getAllByTestId("projection-month").map((el) => el.textContent),
+    ).toEqual(["Jul"]);
   });
 
   test("headline names the first RED date (yellow doesn't count)", () => {
