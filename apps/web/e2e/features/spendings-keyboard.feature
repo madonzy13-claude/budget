@@ -62,7 +62,12 @@ Feature: Spendings grid — desktop keyboard navigation (r40b)
     And a confirmed transaction row for 700 cents is visible in the grid
     When I focus the "Groceries" quick input
     And I press "ArrowDown" in the grid
-    And I press "Delete" in the grid
+    # Wait for focus to actually land on the row before deleting it. The two
+    # quick-entries above each invalidate the grid, and a refetch that re-rendered
+    # between ArrowDown and Delete sent the keypress to the body — no row selected,
+    # so no confirmation ever opened and the next step timed out (~1 mobile run in 4).
+    Then a transaction row is focused
+    When I press "Delete" in the grid
     And I confirm the delete
     Then a transaction row is focused
     When I press "Delete" in the grid

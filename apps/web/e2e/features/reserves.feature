@@ -1,12 +1,15 @@
 @tasks-redesign
-Feature: Reserves tab — single Available value per category + 3 totals (no banner)
+Feature: Reserves tab — single Available value per category + 2 totals (no banner)
 
   The Phase 05 reserve rewrite + 05-19 reshape present each active category as ONE
   editable "Available" value (the per-category Used column is removed) and a totals
-  strip with THREE stacked totals: TOTAL AVAILABLE, TOTAL IN WALLETS, and TOTAL USED
-  (THIS MONTH). The old Expected/Actual/Share columns, the MismatchChip, the per-row
-  Used cell, and the surplus banner are gone — the RESERVE_TOPUP task card is the
-  single reconcile nudge. These scenarios drive the rebuilt web image end-to-end.
+  strip. That strip carried a third TOTAL USED (THIS MONTH) line until 260810, when
+  the totals were renamed to the two figures a household actually compares: TOTAL
+  NEEDED (what the plan asks the reserve to hold) and TOTAL HELD (what the reserve
+  wallets have), with a direction arrow between them. The old Expected/Actual/Share
+  columns, the MismatchChip, the per-row Used cell, and the surplus banner are gone
+  — the RESERVE_TOPUP task card is the single reconcile nudge. These scenarios drive
+  the rebuilt web image end-to-end.
 
   Background:
     Given I am signed in as a fresh user
@@ -19,13 +22,11 @@ Feature: Reserves tab — single Available value per category + 3 totals (no ban
     And the reserves tab has no "Used" column
     And the reserves tab has no "Share" column
 
-  Scenario: Reserves tab shows the three totals and no surplus banner
+  Scenario: Reserves tab shows both totals and no surplus banner
     When I open the reserves tab for the budget
     Then the reserves totals footer is visible
-    And the reserves totals footer shows the "Total available" total
-    And the reserves totals footer shows the "Total in wallets" total
-    And the reserves totals footer shows the "Total used" total
-    And the reserves totals footer shows the "this month" total
+    And the reserves totals footer shows the "Total needed" total
+    And the reserves totals footer shows the "Total held" total
     And the reserves tab has no surplus banner
 
   Scenario: Adjusting a category reserve updates the Available value
@@ -34,7 +35,7 @@ Feature: Reserves tab — single Available value per category + 3 totals (no ban
     Then the available cell for "Groceries" shows "300"
     # internal=30000 now exceeds userDefined=10000; the engine still tracks the
     # surplus, but the UI nudge is the RESERVE_TOPUP task card, not a banner.
-    And the reserves totals footer shows the "Total available" total
+    And the reserves totals footer shows the "Total needed" total
 
   Scenario: Adjusting a reserve that covers this month's overspend warns, then counts down
     # Groceries overspends its 50000c limit by 30000c this month, with no reserve yet.
