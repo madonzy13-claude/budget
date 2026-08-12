@@ -87,10 +87,20 @@ export function enumerateOccurrences(
 
 export interface ComputeCashflowProjectionDeps {
   fxProvider: FxProvider;
-  reservePositions: (input: {
-    tenantId: string;
-    budgetId: string;
-  }) => Promise<Result<{ userDefinedCents: bigint }, Error>>;
+  reservePositions: (input: { tenantId: string; budgetId: string }) => Promise<
+    Result<
+      {
+        userDefinedCents: bigint;
+        /** Per-category R. A category may only spend the reserve it built, so
+         *  the forecast needs the split, not just the total (user, 260812). */
+        positions?: Map<
+          string,
+          { reserveCents: bigint; reserveExcluded?: boolean }
+        >;
+      },
+      Error
+    >
+  >;
   now?: () => Date;
 }
 
@@ -263,6 +273,18 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       budgetId: input.budgetId,
     });
     const reservePoolCents = rp.isOk() ? rp.value.userDefinedCents : 0n;
+    // …and WHOSE it is. A category may only spend the reserve it has built; the
+    // pot above is just the ceiling on all of them together. An excluded
+    // category keeps none of it (that flag is the household saying "this one
+    // does not carry a buffer").
+    const reserveByCategory: Record<string, bigint> = {};
+    if (rp.isOk() && rp.value.positions) {
+      for (const [categoryId, pos] of rp.value.positions) {
+        if (pos.reserveExcluded) continue;
+        reserveByCategory[categoryId] =
+          pos.reserveCents > 0n ? pos.reserveCents : 0n;
+      }
+    }
 
     // Start cash = spendable wallets, FX→ccy.
     const walletItems = L.walletRows.map((r) => ({
@@ -403,6 +425,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       currency,
       startCashCents,
       reservePoolCents,
+      reserveByCategory,
       categories,
       incomePayments,
       bills,

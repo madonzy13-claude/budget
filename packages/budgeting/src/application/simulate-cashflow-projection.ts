@@ -115,10 +115,18 @@ export interface CashflowSimInput {
   windowEnd: string;
   currency: string;
   startCashCents: bigint;
-  /** The reserve pot = total RESERVE-wallet money (userDefined reserve — what the
-   *  user sees as "available reserves"), the emergency money that funds spending
-   *  cash can't cover. NOT the engine's per-category internal R. */
+  /** The CEILING on all reserve cover: total RESERVE-wallet money (userDefined
+   *  reserve — what the user sees as "available reserves"). Σ of the per-category
+   *  R below can exceed it, and only this is real money. */
   reservePoolCents: bigint;
+  /**
+   * categoryId → the reserve THAT category has built (R). A category may only
+   * spend its own: the pot is not a common overdraft. Without this the forecast
+   * offered a 70,000 zł one-off in Sport the household's entire 16,212 zł of
+   * reserve, every złoty of it earmarked elsewhere (user, 260812).
+   * A category missing here — or an outflow with no category at all — has none.
+   */
+  reserveByCategory?: Record<string, bigint>;
   categories: CashflowCategoryInput[];
   incomePayments: CashflowEvent[];
   bills: CashflowEvent[];
@@ -239,11 +247,16 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
     }
   };
   rollLimitsTo(startMonthKey);
-  // Reserve = one pot of emergency money (Σ per-category reserve, funded by the
-  // RESERVE wallets). Cash-based model: spending is paid from cash; only what
-  // cash can't cover dips into this pot, and it depletes as used (it does not
-  // grow back from unspent budget). When it's gone too, spending is uncovered.
+  // Reserve, in two layers. Each category may spend only the reserve IT has
+  // built (R, depleting as it goes), and every draw together is capped by the
+  // money actually sitting in the RESERVE wallets — Σ R can exceed it. Spending
+  // is paid from cash first; only what cash can't cover, and only the part
+  // BEYOND the category's plan, may reach either layer. When both are spent the
+  // spending is uncovered.
   let reservePool = input.reservePoolCents;
+  const reserveLeft = new Map<string, bigint>(
+    Object.entries(input.reserveByCategory ?? {}),
+  );
 
   const days: DayCell[] = [];
   let firstYellowDate: string | null = null;
@@ -292,15 +305,20 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       cash -= fromCash;
       let deficit = amt - fromCash;
       if (deficit <= 0n) return;
-      // ...then dip into the reserve pot for the overspend part only, attributed
-      // to the category whose spending needed it (reserve-covered spending does
-      // NOT reduce cash). Cash is assumed to have paid the in-plan part first,
-      // so the shortfall is overspend up to `overspend`.
+      // ...then dip into reserve for the overspend part only (reserve-covered
+      // spending does NOT reduce cash). Cash is assumed to have paid the in-plan
+      // part first, so the shortfall is overspend up to `overspend`.
+      //
+      // Two ceilings, both real: the category's OWN R — a category cannot spend
+      // a reserve another category built — and the money actually in the RESERVE
+      // wallets. Both deplete.
       const eligible = deficit < overspend ? deficit : overspend;
-      const fromReserve =
-        eligible < reservePool ? eligible : reservePool > 0n ? reservePool : 0n;
+      const ownReserve = reserveLeft.get(catId) ?? 0n;
+      const cap = ownReserve < reservePool ? ownReserve : reservePool;
+      const fromReserve = eligible < cap ? eligible : cap > 0n ? cap : 0n;
       if (fromReserve > 0n) {
         reservePool -= fromReserve;
+        reserveLeft.set(catId, ownReserve - fromReserve);
         reserveUsedMap.set(
           catId,
           (reserveUsedMap.get(catId) ?? 0n) + fromReserve,

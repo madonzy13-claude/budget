@@ -7,7 +7,7 @@ import {
 
 /** Minimal July-15 → Aug-31 window, USD, one category, no events, no reserve. */
 function base(overrides: Partial<CashflowSimInput> = {}): CashflowSimInput {
-  return {
+  const input: CashflowSimInput = {
     today: "2026-07-15",
     windowEnd: "2026-08-31",
     currency: "USD",
@@ -25,6 +25,17 @@ function base(overrides: Partial<CashflowSimInput> = {}): CashflowSimInput {
     bills: [],
     ...overrides,
   };
+  // Reserve became per-category on 260812. These fixtures are about the
+  // cash-vs-reserve mechanics rather than about WHOSE reserve it is, so unless a
+  // test says otherwise every category is assumed to have built the whole pot —
+  // which is exactly what they assumed before. The tests that care state their
+  // own split (see "a category may only draw its OWN reserve").
+  if (!input.reserveByCategory) {
+    input.reserveByCategory = Object.fromEntries(
+      input.categories.map((c) => [c.id, input.reservePoolCents]),
+    );
+  }
+  return input;
 }
 
 const dayOn = (p: ReturnType<typeof simulateCashflow>, date: string) =>
@@ -612,5 +623,162 @@ describe("simulateCashflow — safe to withdraw", () => {
     // 4 monthly plans of 30_000 are charged across the window
     const burned = p.days.reduce((a, d) => a + d.plannedBurnCents, 0n);
     expect(burned).toBe(120_000n);
+  });
+});
+
+/**
+ * RESERVE IS PER CATEGORY (user, 260812 — reported from the live app).
+ *
+ * A 70,000 zł one-off in Sport drew 16,212 zł of "reserve" on the forecast —
+ * which was the household's ENTIRE reserve pot, every złoty of it earmarked for
+ * other categories. Sport has no reserve of its own. The pot is not a common
+ * overdraft: each category may only spend the reserve it has actually built,
+ * and the RESERVE wallets cap the lot (Σ R can exceed the real money).
+ */
+describe("simulateCashflow — a category may only draw its OWN reserve", () => {
+  const overspendingBill = (categoryId: string, amountCents: bigint) => ({
+    date: "2026-07-20",
+    name: "One-off",
+    categoryId,
+    amountCents,
+  });
+
+  test("a category with no reserve of its own gets nothing, however full the pot", () => {
+    const p = simulateCashflow(
+      base({
+        startCashCents: 0n,
+        reservePoolCents: 1_621_200n, // the whole household pot
+        reserveByCategory: { "cat-other": 1_621_200n },
+        categories: [
+          {
+            id: "cat-sport",
+            name: "Sport",
+            budgetByMonth: { "2026-07": 0n, "2026-08": 0n },
+            spentSoFarCents: 0n,
+          },
+        ],
+        bills: [overspendingBill("cat-sport", 7_000_000n)],
+      }),
+    );
+    const d = dayOn(p, "2026-07-20");
+    expect(d.drewReserve).toEqual([]);
+    expect(d.shortfall).toEqual([
+      { categoryId: "cat-sport", name: "Sport", amountCents: 7_000_000n },
+    ]);
+    expect(d.color).toBe("red");
+  });
+
+  test("it draws its own, and no further", () => {
+    const p = simulateCashflow(
+      base({
+        startCashCents: 0n,
+        reservePoolCents: 1_000_000n,
+        reserveByCategory: { "cat-sport": 5_000n },
+        categories: [
+          {
+            id: "cat-sport",
+            name: "Sport",
+            budgetByMonth: { "2026-07": 0n, "2026-08": 0n },
+            spentSoFarCents: 0n,
+          },
+        ],
+        bills: [overspendingBill("cat-sport", 8_000n)],
+      }),
+    );
+    const d = dayOn(p, "2026-07-20");
+    expect(d.drewReserve).toEqual([
+      { categoryId: "cat-sport", name: "Sport", amountCents: 5_000n },
+    ]);
+    expect(d.shortfall).toEqual([
+      { categoryId: "cat-sport", name: "Sport", amountCents: 3_000n },
+    ]);
+  });
+
+  test("its own reserve depletes — a second call finds it spent", () => {
+    const p = simulateCashflow(
+      base({
+        startCashCents: 0n,
+        reservePoolCents: 1_000_000n,
+        reserveByCategory: { "cat-sport": 5_000n },
+        categories: [
+          {
+            id: "cat-sport",
+            name: "Sport",
+            budgetByMonth: { "2026-07": 0n, "2026-08": 0n },
+            spentSoFarCents: 0n,
+          },
+        ],
+        bills: [
+          overspendingBill("cat-sport", 5_000n),
+          {
+            date: "2026-07-25",
+            name: "Another",
+            categoryId: "cat-sport",
+            amountCents: 5_000n,
+          },
+        ],
+      }),
+    );
+    expect(dayOn(p, "2026-07-20").drewReserve).toHaveLength(1);
+    expect(dayOn(p, "2026-07-25").drewReserve).toEqual([]);
+    expect(dayOn(p, "2026-07-25").shortfall).toHaveLength(1);
+  });
+
+  test("the RESERVE wallets are still the ceiling over all categories", () => {
+    // Σ R = 20_000 on the books, but only 12_000 of real money behind it.
+    const p = simulateCashflow(
+      base({
+        startCashCents: 0n,
+        reservePoolCents: 12_000n,
+        reserveByCategory: { a: 10_000n, b: 10_000n },
+        categories: [
+          {
+            id: "a",
+            name: "A",
+            budgetByMonth: { "2026-07": 0n },
+            spentSoFarCents: 0n,
+          },
+          {
+            id: "b",
+            name: "B",
+            budgetByMonth: { "2026-07": 0n },
+            spentSoFarCents: 0n,
+          },
+        ],
+        bills: [
+          overspendingBill("a", 10_000n),
+          {
+            date: "2026-07-21",
+            name: "One-off",
+            categoryId: "b",
+            amountCents: 10_000n,
+          },
+        ],
+      }),
+    );
+    const drew = p.days.reduce(
+      (sum, d) => sum + d.drewReserve.reduce((s, r) => s + r.amountCents, 0n),
+      0n,
+    );
+    expect(drew).toBe(12_000n);
+  });
+
+  test("an outflow with no category has no reserve to reach for", () => {
+    const p = simulateCashflow(
+      base({
+        startCashCents: 0n,
+        reservePoolCents: 100_000n,
+        reserveByCategory: { "cat-food": 100_000n },
+        bills: [
+          {
+            date: "2026-07-20",
+            name: "Unassigned",
+            categoryId: null,
+            amountCents: 9_000n,
+          },
+        ],
+      }),
+    );
+    expect(dayOn(p, "2026-07-20").drewReserve).toEqual([]);
   });
 });
