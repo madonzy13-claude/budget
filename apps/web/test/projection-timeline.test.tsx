@@ -171,6 +171,28 @@ describe("ProjectionTimeline", () => {
     ).toEqual(["Jul", "Aug", "Sep"]);
   });
 
+  // A full-height divider and a 6px notch are both "a vertical mark on the
+  // band", and the household read the taller one as a bigger payment. They now
+  // hang from opposite edges: a month turns from the TOP, a payment cuts up
+  // from the BOTTOM, and neither spans the strip (user, 260812).
+  test("month dividers hang from the top, payment notches from the bottom", () => {
+    projectionData = { ...dto, days: runOfDays("2026-07-28", 40) };
+    const { unmount } = renderIt();
+    const rule = screen.getAllByTestId("projection-month-rule")[0]!;
+    expect(rule.style.top).toBe("0px");
+    expect(rule.style.bottom).toBe("");
+    // …and it no longer spans the whole 20px strip
+    expect(parseFloat(rule.style.height)).toBeLessThan(20);
+    unmount();
+
+    // The default fixture is the one carrying a payment.
+    projectionData = dto;
+    renderIt();
+    const notch = screen.getAllByTestId("projection-bill-marker")[0]!;
+    expect(notch.className).toContain("bottom-0");
+    expect(notch.style.top).toBe("");
+  });
+
   test("the months live INSIDE the line, not under it", () => {
     projectionData = { ...dto, days: runOfDays("2026-07-28", 40) };
     renderIt();

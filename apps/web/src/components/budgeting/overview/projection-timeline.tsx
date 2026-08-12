@@ -161,9 +161,14 @@ export function ProjectionTimeline({
                 <span
                   data-testid="projection-month-rule"
                   aria-hidden="true"
-                  className="absolute inset-y-0 w-px"
+                  className="absolute w-px"
+                  // Hangs from the TOP, and stops short of the payment notches
+                  // rising from the bottom. Full height made it the biggest mark
+                  // on the band, and it got read as a huge payment (user, 260812).
                   style={{
                     left: `${m.pct}%`,
+                    top: 0,
+                    height: "8px",
                     background: "var(--forecast-rule)",
                   }}
                 />
