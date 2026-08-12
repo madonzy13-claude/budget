@@ -1,7 +1,7 @@
 "use client";
 /**
  * projection-timeline.tsx — Overview cash-flow projection banner. A fluent
- * colour-flowing line (green→yellow→red) from today → end of next month: a single
+ * colour-flowing line (green→yellow→red) over the next 100 days: a single
  * horizontal CSS gradient whose stops are the per-day zone colours (no discrete
  * segments). Income (▲) and scheduled-bill (●) markers sit on the timeline. A
  * scrubber (pointer hover + touch finger-slide) shows a tooltip ABOVE the line so

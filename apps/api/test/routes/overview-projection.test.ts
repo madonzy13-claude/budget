@@ -92,7 +92,7 @@ describe("GET /budgets/:id/overview/projection", () => {
     fix = await createFixture();
   });
 
-  test("returns a day series spanning today → end of next month", async () => {
+  test("returns a day series spanning the forecast window", async () => {
     const app = await buildApp({
       userId: fix.userId,
       allowedTenantIds: [fix.budgetId],
@@ -126,7 +126,7 @@ describe("GET /budgets/:id/overview/projection", () => {
     expect(body.spend_health.surplus_deficit_cents).toBeNull();
   });
 
-  test("the window is a rolling 92 days and carries a withdrawable figure", async () => {
+  test("the window is a rolling 100 days and carries a withdrawable figure", async () => {
     const app = await buildApp({
       userId: fix.userId,
       allowedTenantIds: [fix.budgetId],
@@ -138,9 +138,9 @@ describe("GET /budgets/:id/overview/projection", () => {
       days: { date: string }[];
       safe_to_withdraw: { cents: string; thinnest_date: string | null };
     };
-    // 92 days ahead, not "to the end of next month" — a horizon that used to
+    // 100 days ahead, not "to the end of next month" — a horizon that used to
     // shrink to 30 days by the 30th and stretch to 61 on the 1st.
-    expect(body.days).toHaveLength(92);
+    expect(body.days).toHaveLength(100);
     expect(typeof body.safe_to_withdraw.cents).toBe("string");
     // Bare budget: no wallets, no plan → nothing to take out, nothing missing.
     expect(BigInt(body.safe_to_withdraw.cents)).toBe(0n);

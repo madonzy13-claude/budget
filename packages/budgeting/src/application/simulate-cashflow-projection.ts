@@ -20,7 +20,7 @@ export interface CashflowCategoryInput {
   id: string;
   name: string;
   /** 'YYYY-MM' → the active budget (cushion vs normal, picked by the loader) for
-   *  that month. The window is 92 days, so it spans up to FOUR of them; a month
+   *  that month. The window is 100 days, so it spans up to FIVE of them; a month
    *  with no entry has no plan. */
   budgetByMonth: Record<string, bigint>;
   /** Confirmed spend so far in the CURRENT month (before today). */
@@ -176,7 +176,7 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
   }
 
   // Every month the window touches, with the day it first appears on and how
-  // many days of that CALENDAR month remain from there. A 92-day window can
+  // many days of that CALENDAR month remain from there. A 100-day window can
   // start mid-month and end mid-month, and neither end owns a whole plan: the
   // opening month has already spent part of itself, and the closing month is
   // only entered — its plan drips at the month's own rate and simply stops when

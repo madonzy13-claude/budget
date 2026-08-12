@@ -47,7 +47,7 @@ export interface ProjectionDTO {
     worst_shortfall_cents: string;
   };
   /**
-   * What can leave the budget TODAY with every dip in the 92-day window still
+   * What can leave the budget TODAY with every dip in the 100-day window still
    * covered — the lowest point of a worst-case run (each month's plan spendable
    * the moment the month opens). Negative = you are short by that much. Optional:
    * an offline cache written by an older build has no such field.

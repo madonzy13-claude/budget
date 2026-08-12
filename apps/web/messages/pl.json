@@ -1562,7 +1562,7 @@
           "reserveFit": "Brak rezerw do oceny."
         },
         "projection": {
-          "title": "Prognoza pieniędzy do końca przyszłego miesiąca",
+          "title": "Prognoza pieniędzy na najbliższe 100 dni",
           "allFine": "Wszystko wygląda dobrze",
           "mightRunShort": "Pieniędzy może zabraknąć już {date}",
           "shortBy": "brakuje {amount}",

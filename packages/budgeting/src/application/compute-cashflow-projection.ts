@@ -50,8 +50,8 @@ const specOf = (r: CadenceRow): CadenceSpec => ({
 /** Backstop so a malformed cadence can never spin the projection loop forever. */
 export const MAX_PROJECTION_STEPS = 400;
 
-/** How far ahead the forecast looks: a rolling quarter (user, 260812). */
-export const PROJECTION_WINDOW_DAYS = 92;
+/** How far ahead the forecast looks: a rolling 100 days (user, 260812). */
+export const PROJECTION_WINDOW_DAYS = 100;
 
 /**
  * Occurrence ISO dates strictly after `afterExclusive`, up to and including `end`,
@@ -102,7 +102,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
     const asOf = deps.now ? deps.now() : new Date();
     const today = Temporal.Now.plainDateISO();
     const startMonth = today.with({ day: 1 });
-    // 92 days — a rolling quarter (user, 260812). "To the end of next month" was
+    // 100 days (user, 260812). "To the end of next month" was
     // a horizon that shrank as the month ran out: on the 30th it forecast one
     // month, on the 1st two. A fixed span always looks the same distance ahead.
     const windowEnd = today.add({ days: PROJECTION_WINDOW_DAYS - 1 });

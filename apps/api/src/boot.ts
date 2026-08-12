@@ -132,7 +132,7 @@ export interface BootedDeps {
     >["setExclusions"];
     /** Phase 11 (11-06): Financial-Wealth section (snapshot series + live point + pie). */
     getOverviewWealth: ReturnType<typeof getOverviewWealth>;
-    /** Overview projection timeline (today → end of next month). */
+    /** Overview projection timeline (today → 100 days out). */
     getCashflowProjection: ReturnType<typeof computeCashflowProjection>;
     /** Task 7: GET /budgets/aggregate — cross-budget "all budgets" rollup. */
     getAllBudgetsAggregate: ReturnType<typeof getAllBudgetsAggregate>;
@@ -583,7 +583,7 @@ export async function boot(): Promise<BootedDeps> {
         return byMonth;
       },
     }),
-    // Overview cash-flow projection timeline (today → end of next month).
+    // Overview cash-flow projection timeline (today → 100 days out).
     getCashflowProjection: computeCashflowProjection({
       fxProvider: baseBudgeting.fxProvider,
       reservePositions: baseBudgeting.reservePositions,

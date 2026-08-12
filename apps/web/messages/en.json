@@ -1539,7 +1539,7 @@
           "reserveFit": "No reserves to size yet."
         },
         "projection": {
-          "title": "Money forecast to the end of next month",
+          "title": "Money forecast for the next 100 days",
           "allFine": "Everything looks fine",
           "mightRunShort": "Money may run short as early as {date}",
           "shortBy": "short {amount}",

@@ -452,7 +452,7 @@ describe("simulateCashflow — safe to withdraw", () => {
   const threeMonths = (over: Partial<CashflowSimInput> = {}) =>
     base({
       today: "2026-07-15",
-      windowEnd: "2026-10-14", // 92 days
+      windowEnd: "2026-10-22", // 100 days
       startCashCents: 500_000n,
       categories: [
         {
@@ -606,9 +606,9 @@ describe("simulateCashflow — safe to withdraw", () => {
     expect(scenario(0n)).toBe(-50_000n);
   });
 
-  test("each month's own plan is charged — a 92-day window spans four of them", () => {
+  test("each month's own plan is charged — a 100-day window spans four of them", () => {
     const p = simulateCashflow(threeMonths({ spendTiming: "immediate" }));
-    expect(p.days).toHaveLength(92);
+    expect(p.days).toHaveLength(100);
     // 4 monthly plans of 30_000 are charged across the window
     const burned = p.days.reduce((a, d) => a + d.plannedBurnCents, 0n);
     expect(burned).toBe(120_000n);
