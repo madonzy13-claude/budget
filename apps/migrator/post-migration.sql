@@ -417,7 +417,7 @@ CREATE POLICY wallets_tenant_isolation ON budgeting.wallets
 -- "SELECT DISTINCT tenant_id FROM budgeting.wallets" scan works). Per-tenant withTenantTx
 -- is still required for INSERT/UPDATE/DELETE because permissive policies OR-combine but the
 -- worker writes only happen inside withTenantTx(tenantId, SYSTEM_USER) where app.tenant_ids
--- is set. Mirrors recurring_rules_worker_cron_scan (Plan 02-08).
+-- is set. Mirrors scheduled_payments_worker_cron_scan (Plan 02-08).
 DROP POLICY IF EXISTS wallets_worker_cron_scan ON budgeting.wallets;
 CREATE POLICY wallets_worker_cron_scan ON budgeting.wallets
   AS PERMISSIVE FOR SELECT TO worker_role
@@ -631,14 +631,15 @@ GRANT SELECT, INSERT, UPDATE ON budgeting.spending_by_category_month TO app_role
 -- Plan 02-09: replay CLI + reconciliation worker rebuild projection rows; DELETE
 -- needed for replay's DELETE+INSERT atomic rebuild. Granted to BOTH roles since the
 -- reconciliation cron runs under app_role inside withTenantTx(SYSTEM_USER) — same
--- pattern as recurring_rules above. Auto-repair path uses UPSERT (INSERT ... ON CONFLICT).
+-- pattern as scheduled_payments above. Auto-repair path uses UPSERT (INSERT ... ON CONFLICT).
 GRANT DELETE ON budgeting.spending_by_category_month TO app_role, worker_role;
 
--- ===== Plan 02-08: recurring_rules + recurring_drafts + system_user seed =====
+-- ===== Plan 02-08: scheduled_payments + recurring_drafts + system_user seed =====
+-- (the table was budgeting.recurring_rules until migration 0077 renamed it)
 
 -- ENABLE + FORCE RLS on new tables (ENABLE done by Drizzle migration; FORCE done here)
-ALTER TABLE budgeting.recurring_rules ENABLE ROW LEVEL SECURITY;
-ALTER TABLE budgeting.recurring_rules FORCE ROW LEVEL SECURITY;
+ALTER TABLE budgeting.scheduled_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE budgeting.scheduled_payments FORCE ROW LEVEL SECURITY;
 -- recurring_drafts was dropped in migration 0013 (Section C — folded into expense_ledger); guard with IF EXISTS.
 DO $$
 BEGIN
@@ -656,16 +657,16 @@ BEGIN
 END $$;
 
 -- RLS policies (idempotent — DROP IF EXISTS + re-CREATE)
-DROP POLICY IF EXISTS recurring_rules_tenant_isolation ON budgeting.recurring_rules;
-CREATE POLICY recurring_rules_tenant_isolation ON budgeting.recurring_rules
+DROP POLICY IF EXISTS scheduled_payments_tenant_isolation ON budgeting.scheduled_payments;
+CREATE POLICY scheduled_payments_tenant_isolation ON budgeting.scheduled_payments
   AS PERMISSIVE FOR ALL TO app_role, worker_role
   USING (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]))
   WITH CHECK (tenant_id = ANY(coalesce(nullif(current_setting('app.tenant_ids', true), ''), '{}')::uuid[]));
 
 -- GRANTs
-GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.recurring_rules TO app_role, worker_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.scheduled_payments TO app_role, worker_role;
 
--- D-05-g system user for cron-initiated writes (recurring engine, projection reconciliation)
+-- D-05-g system user for cron-initiated writes (scheduled-payment engine, projection reconciliation)
 -- NOTE: identity.users has FORCE ROW LEVEL SECURITY and only app_role/worker_role have INSERT policies.
 -- The migrator (table owner) cannot insert directly due to FORCE RLS. The system user is seeded
 -- via the Docker init SQL (runs as postgres superuser) in infra/postgres/init/.
@@ -675,20 +676,20 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.recurring_rules TO app_role, w
 --   ON CONFLICT (id) DO NOTHING;"
 
 -- Indexes for engine scan
-CREATE INDEX IF NOT EXISTS recurring_rules_next_due_idx
-  ON budgeting.recurring_rules (next_due_date) WHERE active = true;
+CREATE INDEX IF NOT EXISTS scheduled_payments_next_due_idx
+  ON budgeting.scheduled_payments (next_due_date) WHERE active = true;
 -- recurring_drafts dropped in migration 0013; indexes skipped.
 -- recurring_drafts_pending_idx: skipped (table dropped).
 -- recurring_drafts_rule_pending_due_idx: skipped (table dropped).
 
--- Cron scan policy: worker_role can SELECT recurring_rules across ALL tenants WITHOUT app.tenant_ids
+-- Cron scan policy: worker_role can SELECT scheduled_payments across ALL tenants WITHOUT app.tenant_ids
 -- set (so the engine's withInfraTx scan-distinct-tenants step works). Per-tenant withTenantTx is
--- still required for INSERTs/UPDATEs into recurring_rules and recurring_drafts (the tenant-isolation
+-- still required for INSERTs/UPDATEs into scheduled_payments and recurring_drafts (the tenant-isolation
 -- policy still applies because policies are PERMISSIVE — combined with OR, but worker writes only
 -- happen inside withTenantTx where app.tenant_ids is set, so the tenant-isolation USING + WITH CHECK
 -- still gates the actual mutation to the correct tenant).
-DROP POLICY IF EXISTS recurring_rules_worker_cron_scan ON budgeting.recurring_rules;
-CREATE POLICY recurring_rules_worker_cron_scan ON budgeting.recurring_rules
+DROP POLICY IF EXISTS scheduled_payments_worker_cron_scan ON budgeting.scheduled_payments;
+CREATE POLICY scheduled_payments_worker_cron_scan ON budgeting.scheduled_payments
   AS PERMISSIVE FOR SELECT TO worker_role
   USING (true);
 
@@ -700,9 +701,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.tasks TO app_role, worker_role
 
 -- Phase 2 v1.1: column-level GRANT UPDATE on editable expense_ledger columns
 -- (lifts REVOKE UPDATE for PATCH /transactions; preserves append-only for id/tenant_id/budget_id/created_at)
--- Phase 4 plan 04-02: added dismissed_at (per-occurrence recurring draft dismiss, RECR-06)
+-- Phase 4 plan 04-02: added dismissed_at (per-occurrence scheduled-payment draft dismiss, RECR-06)
 GRANT UPDATE (note, transaction_date, category_id, amount_original_cents, currency_original,
-              amount_converted_cents, fx_rate, fx_as_of, kind, recurring_rule_id,
+              amount_converted_cents, fx_rate, fx_as_of, kind, scheduled_payment_id,
               confirmed_at, dismissed_at, deleted_at, updated_at)
   ON budgeting.expense_ledger TO app_role;
 

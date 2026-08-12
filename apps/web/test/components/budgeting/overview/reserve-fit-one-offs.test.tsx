@@ -29,7 +29,7 @@ const CANDIDATES = [
     transaction_date: "2026-01-05",
     note: null,
     amount_cents: "70000",
-    recurring_cadence: null,
+    scheduled_cadence: null,
     excluded: false,
   },
   {
@@ -39,7 +39,7 @@ const CANDIDATES = [
     transaction_date: "2026-03-14",
     note: "Parachute jump",
     amount_cents: "480000",
-    recurring_cadence: null,
+    scheduled_cadence: null,
     excluded: false,
   },
   {
@@ -49,7 +49,7 @@ const CANDIDATES = [
     transaction_date: "2025-09-01",
     note: "Insurance",
     amount_cents: "500000",
-    recurring_cadence: "YEARLY",
+    scheduled_cadence: "YEARLY",
     excluded: false,
   },
   {
@@ -59,7 +59,7 @@ const CANDIDATES = [
     transaction_date: "2026-03-02",
     note: "Tyres",
     amount_cents: "90000",
-    recurring_cadence: null,
+    scheduled_cadence: null,
     excluded: true,
   },
 ];
@@ -156,6 +156,28 @@ describe("ReserveFitOneOffs", () => {
     expect(
       within(dialog).queryByTestId("reserve-fit-recurs-tx-jump"),
     ).toBeNull();
+  });
+
+  /**
+   * "repeats yearly" is the one thing on the row that must not be missed — a
+   * rare-and-certain charge is exactly what must NOT be ticked off as a one-off
+   * — and it sat at the end of a truncating line, so a phone showed "repe…"
+   * (user, 260810). It belongs beside the amount, where nothing crops it.
+   */
+  it("puts the repeat note beside the amount, not at the end of the details", async () => {
+    const { user } = setup();
+    const dialog = await openDialog(user);
+    const badge = within(dialog).getByTestId("reserve-fit-recurs-tx-ins");
+    const line = badge.parentElement!;
+    // Same line as the figure…
+    expect(line.textContent).toContain("5000");
+    // …and out of the line that truncates.
+    expect(line.className).not.toContain("truncate");
+    expect(badge.className).toContain("shrink-0");
+    const details = within(dialog)
+      .getByTestId("reserve-fit-row-tx-ins")
+      .querySelector(".truncate")!;
+    expect(details.textContent).not.toContain("YEARLY");
   });
 
   it("filters the list down to one category", async () => {

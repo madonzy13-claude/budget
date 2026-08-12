@@ -533,6 +533,48 @@
       "when": 1782739201003,
       "tag": "0076_purge_manual_equities",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1782739201004,
+      "tag": "0077_scheduled_payments_rename",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1782739201005,
+      "tag": "0078_scheduled_payment_once",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1782739201006,
+      "tag": "0079_scheduled_payment_deleted_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1782739201007,
+      "tag": "0080_income_once",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1782739201008,
+      "tag": "0081_member_budget_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1782739201009,
+      "tag": "0082_member_amount_privacy",
+      "breakpoints": true
     }
   ]
 }

@@ -24,7 +24,7 @@ function makeTx(fxAsOf: string, date: string): Transaction {
     "0.92500000", // fxRate
     fxAsOf, // fxAsOf
     null, // note
-    null, // recurringRuleId
+    null, // scheduledPaymentId
     new Date(), // confirmedAt
     "SPENDING", // kind
     new Date(), // createdAt

@@ -15,6 +15,10 @@ import { Money } from "@budget/shared-kernel";
 import type { Currency, FxProvider, Result } from "@budget/shared-kernel";
 import type { OverviewCards } from "./get-overview-cards";
 import { centsToMoney, moneyToCents } from "./compute-budget-wealth-now";
+import {
+  aggregateForecastStatus,
+  type AggregateForecastStatus,
+} from "../domain/aggregate-forecast-status";
 
 export interface AggregateBudgetRow {
   id: string;
@@ -71,6 +75,11 @@ export interface AggregateBudgetRow {
 export interface AllBudgetsAggregate {
   display_currency: string;
   budgets: AggregateBudgetRow[];
+  /** One verdict for the spend card across every INCLUDED budget: green when
+   *  none goes under, yellow when the spare cash elsewhere covers those that do,
+   *  red when it does not (user, 260811). "green" when no projection dep is
+   *  wired — the card falls back to its old cash-vs-upcoming rule. */
+  forecast_status: AggregateForecastStatus;
 }
 
 export interface GetAllBudgetsAggregateDeps {
@@ -99,6 +108,15 @@ export interface GetAllBudgetsAggregateDeps {
     getDisplayCurrency: (userId: string) => Promise<string | null>;
   };
   fxProvider: FxProvider;
+  /** Per-budget cash-flow forecast, for the cross-budget spend verdict. Optional:
+   *  without it the aggregate still builds and reports "green". */
+  getCashflowProjectionForTenant?: (input: {
+    tenantId: string;
+    budgetId: string;
+  }) => Promise<{
+    days: Array<{ availableCents: bigint }>;
+    summary: { worstShortfallCents: bigint };
+  }>;
   /** Clock; defaults to new Date(). */
   now?: () => Date;
 }
@@ -139,10 +157,7 @@ function toDisplayCcyShared(
   const converted = toDisplayCcy(cents, fromCcy, rate, displayCcy);
   // sharePct may be a 2-decimal percent (e.g. 33.5) → scale by basis points so
   // BigInt() never sees a non-integer.
-  return (
-    (converted * BigInt(Math.round(sharePct * 100))) /
-    10000n
-  ).toString();
+  return ((converted * BigInt(Math.round(sharePct * 100))) / 10000n).toString();
 }
 
 /** FX hop only, no share — for FLOW figures (spent/left/overspent). */
@@ -378,6 +393,52 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
       }),
     );
 
-    return { display_currency: displayCcy, budgets: rows };
+    // One verdict across the budgets that actually count toward this member's
+    // totals. Each budget's own forecast says whether it goes under; the spare
+    // cash in the others decides whether that matters (user, 260811).
+    //
+    // Both figures are FX-converted before they meet, or a hole in PLN would be
+    // weighed against spare in EUR. `spare` is the LOWEST projected cash, not
+    // today's balance: money a bill needs next week cannot be lent out.
+    const included = rows.filter((r) => r.included && !r.fx_unavailable);
+    const project = deps.getCashflowProjectionForTenant;
+    let forecast_status: AggregateForecastStatus = "green";
+    if (project) {
+      const positions = await Promise.all(
+        included.map(async (r) => {
+          try {
+            const [p, fx] = await Promise.all([
+              project({ tenantId: r.id, budgetId: r.id }),
+              deps.fxProvider.rateAsOf(
+                r.default_currency as Currency,
+                displayCcy as Currency,
+                now,
+              ),
+            ]);
+            const conv = (c: bigint) =>
+              toDisplayCcy(c, r.default_currency, fx.rate, displayCcy);
+            const shortfall = p.summary.worstShortfallCents;
+            if (shortfall > 0n)
+              return { shortfallCents: conv(shortfall), spareCents: 0n };
+            const trough = p.days.reduce(
+              (lowest, d) =>
+                d.availableCents < lowest ? d.availableCents : lowest,
+              p.days[0]?.availableCents ?? 0n,
+            );
+            return {
+              shortfallCents: 0n,
+              spareCents: trough > 0n ? conv(trough) : 0n,
+            };
+          } catch {
+            // A budget whose forecast cannot be built abstains — it must not
+            // redden the card on its own.
+            return { shortfallCents: 0n, spareCents: 0n };
+          }
+        }),
+      );
+      forecast_status = aggregateForecastStatus(positions);
+    }
+
+    return { display_currency: displayCcy, budgets: rows, forecast_status };
   };
 }

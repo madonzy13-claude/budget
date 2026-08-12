@@ -93,6 +93,9 @@ test("getAggPrefsForUser reads back known ownership_share_pct + include_in_aggre
   expect(prefs.get(budgetId)).toEqual({
     ownership_share_pct: 100,
     include_in_aggregation: true,
+    // migration 0082: a membership created from here on starts with privacy
+    // off — only the members who predate the move kept it on.
+    amount_privacy_enabled: false,
   });
 });
 

@@ -316,16 +316,27 @@ export const createTransactionSchema = z.discriminatedUnion("kind", [
 export type CreateTransactionInput = z.infer<typeof createTransactionSchema>;
 
 // ---------------------------------------------------------------------------
-// Recurring rules schemas (EXPN-08, plan 02-08)
+// Scheduled rules schemas (EXPN-08, plan 02-08)
 // ---------------------------------------------------------------------------
 
-export const cadenceSchema = z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"]);
+// ONCE (260807) is a payment that happens on one date and never again. It is
+// first in the list because it is the simplest thing the household can mean.
+export const cadenceSchema = z.enum([
+  "ONCE",
+  "DAILY",
+  "WEEKLY",
+  "MONTHLY",
+  "YEARLY",
+]);
 
 /**
  * Discriminated union for cadence + required selectors (RECR-01 / D-PH2-03).
  * Enforces per-cadence required fields at Zod level; DB CHECK mirrors this.
  */
 export const cadenceSpecSchema = z.discriminatedUnion("cadence", [
+  // No selector at all: a one-time payment has no pattern to describe, and its
+  // deadline is its own date (derived service-side).
+  z.object({ cadence: z.literal("ONCE") }),
   z.object({ cadence: z.literal("DAILY") }),
   z.object({
     cadence: z.literal("WEEKLY"),
@@ -343,7 +354,7 @@ export const cadenceSpecSchema = z.discriminatedUnion("cadence", [
 ]);
 
 /** Base fields common to all cadences */
-const createRecurringRuleBaseSchema = z.object({
+const createScheduledPaymentBaseSchema = z.object({
   category_id: z.string().uuid().nullable().optional(),
   amount: z
     .string()
@@ -354,13 +365,13 @@ const createRecurringRuleBaseSchema = z.object({
   first_due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
-export const createRecurringRuleSchema = z.intersection(
-  createRecurringRuleBaseSchema,
+export const createScheduledPaymentSchema = z.intersection(
+  createScheduledPaymentBaseSchema,
   cadenceSpecSchema,
 );
 
-export type CreateRecurringRuleInput = z.infer<
-  typeof createRecurringRuleSchema
+export type CreateScheduledPaymentInput = z.infer<
+  typeof createScheduledPaymentSchema
 >;
 
 const ruleEditsSchema = z
@@ -380,7 +391,7 @@ const ruleEditsSchema = z
   })
   .strict();
 
-export const updateRecurringRuleSchema = z.object({
+export const updateScheduledPaymentSchema = z.object({
   edits: ruleEditsSchema,
   /**
    * REQUIRED — no .default(). Caller MUST pass explicitly.
@@ -389,8 +400,8 @@ export const updateRecurringRuleSchema = z.object({
   applyToFuture: z.boolean(),
 });
 
-export type UpdateRecurringRuleInput = z.infer<
-  typeof updateRecurringRuleSchema
+export type UpdateScheduledPaymentInput = z.infer<
+  typeof updateScheduledPaymentSchema
 >;
 
 // Draft action schemas
@@ -426,7 +437,7 @@ export type EditConfirmDraftInput = z.infer<typeof editConfirmDraftSchema>;
 
 export const skipDraftSchema = z.object({});
 
-export interface RecurringRuleDto {
+export interface ScheduledPaymentDto {
   id: string;
   tenantId: string;
   accountId: string;
@@ -443,7 +454,7 @@ export interface RecurringRuleDto {
   createdAt: string;
 }
 
-export interface RecurringDraftDto {
+export interface ScheduledDraftDto {
   id: string;
   tenantId: string;
   ruleId: string;

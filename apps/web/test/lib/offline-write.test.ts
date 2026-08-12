@@ -49,12 +49,33 @@ describe("clientApiWrite — shared honest-offline write wrapper", () => {
     expect(res.ok).toBe(false);
   });
 
-  it("navigator.onLine===false → OfflineWriteError, POST never issued", async () => {
+  /**
+   * navigator.onLine===false was treated as gospel: refuse instantly, never
+   * even try. But iOS lies in BOTH directions — a PWA resumed from background,
+   * or a handover between Wi-Fi and cellular, can report false on a perfectly
+   * live link. The user hit exactly that: full 5G, healthy server answering in
+   * ~200ms, and "You're offline — changes can't be saved right now" with no
+   * request ever leaving the device (260811).
+   *
+   * So a device that believes it is offline still gets ONE attempt. If it is
+   * genuinely offline the fetch fails immediately and the same honest toast
+   * appears; if the flag was lying, the write goes through.
+   */
+  it("navigator.onLine===false still ATTEMPTS the write (the flag lies)", async () => {
     setOnline(false);
+    mockFetch.mockResolvedValue(new Response("{}", { status: 200 }));
+    const res = await clientApiWrite("/wallets", { method: "POST" });
+    expect(res.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("navigator.onLine===false and genuinely offline → OfflineWriteError", async () => {
+    setOnline(false);
+    mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
     await expect(
       clientApiWrite("/wallets", { method: "POST" }),
     ).rejects.toBeInstanceOf(OfflineWriteError);
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
   it("network throw (Failed to fetch) → OfflineWriteError", async () => {

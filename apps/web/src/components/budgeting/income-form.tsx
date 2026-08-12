@@ -3,7 +3,7 @@
 /**
  * income-form.tsx — Right-side slider to create/edit an Income (r32).
  *
- * Mirrors recurring-rule-form's chrome + cadence picker, minus the
+ * Mirrors scheduled-payment-form's chrome + cadence picker, minus the
  * category/note/first-due machinery, plus a required Name field. Both create
  * and edit POST/PATCH the FULL record (name + amount + currency + discriminated
  * cadence) so the frequency can be changed on edit.
@@ -34,13 +34,19 @@ import {
   formatAmountForList,
   type IncomeCadenceLite,
 } from "@/components/budgeting/income-list";
-import { WEEKDAY_ORDER } from "@/components/budgeting/recurring-rule-form";
+import { WEEKDAY_ORDER } from "@/components/budgeting/scheduled-payment-form";
 import { uuidv4 } from "@/lib/uuid";
 import { toDecimalString } from "@/lib/decimal";
+import { DateInput } from "@/components/budgeting/fields/date-input";
 import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
 import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 
-type UiCadence = "WEEKLY" | "MONTHLY" | "YEARLY";
+/** ONCE (260807) is not a rhythm — a bonus, a refund, the sale of a car. It
+ *  carries a DATE instead of a pay-day, and the date may not be in the past. */
+type UiCadence = "ONCE" | "WEEKLY" | "MONTHLY" | "YEARLY";
+
+/** Today, ISO. A one-time income cannot be dated before it. */
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
 export interface IncomeFormValues {
   incomeId?: string;
@@ -51,6 +57,8 @@ export interface IncomeFormValues {
   cadenceAnchor: number | null;
   weeklyDow: number | null;
   yearlyMonth: number | null;
+  /** The day a ONE-TIME income arrives. */
+  onceDate?: string | null;
 }
 
 export interface IncomeFormProps {
@@ -85,12 +93,16 @@ export function IncomeForm({
     initialValues?.currency ?? defaultCurrency ?? "USD",
   );
   const initialCadence: UiCadence =
+    initialValues?.cadence === "ONCE" ||
     initialValues?.cadence === "WEEKLY" ||
     initialValues?.cadence === "MONTHLY" ||
     initialValues?.cadence === "YEARLY"
       ? initialValues.cadence
       : "MONTHLY";
   const [cadence, setCadence] = useState<UiCadence>(initialCadence);
+  const [onceDate, setOnceDate] = useState<string>(
+    initialValues?.onceDate ?? todayISO(),
+  );
   const [cadenceAnchorRaw, setCadenceAnchorRaw] = useState<string>(
     String(initialValues?.cadenceAnchor ?? 1),
   );
@@ -114,7 +126,7 @@ export function IncomeForm({
     try {
       // The API takes a decimal STRING and accepts a dot only, so a comma
       // keyboard ("73,8" — the Polish layout's decimal key) was rejected and the
-      // save failed. Same bug as the recurring-rule form (260803 user report).
+      // save failed. Same bug as the scheduled-payment form (260803 user report).
       const amountValue = toDecimalString(amount);
       if (amountValue === null) {
         toast.error(t("form.errorAmount"));
@@ -125,7 +137,9 @@ export function IncomeForm({
         ? Math.max(1, Math.min(31, parsedAnchor))
         : 1;
       const cadencePart: Record<string, unknown> =
-        cadence === "WEEKLY"
+        cadence === "ONCE"
+          ? { cadence: "ONCE", once_date: onceDate }
+          : cadence === "WEEKLY"
           ? { cadence: "WEEKLY", weekly_dow: weeklyDow }
           : cadence === "MONTHLY"
             ? { cadence: "MONTHLY", cadence_anchor: anchor }
@@ -239,21 +253,38 @@ export function IncomeForm({
 
             <div>
               <Label>{t("form.cadenceLabel")}</Label>
-              <div className="flex gap-2 pt-1">
-                {(["WEEKLY", "MONTHLY", "YEARLY"] as const).map((cad) => (
+              {/* Four choices do not fit one row on a phone — "Yearly" ran off
+                  the edge (user screenshot, 260807). Two columns fit; it opens
+                  out to a single row once there is width. */}
+              <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-4">
+                {(["ONCE", "WEEKLY", "MONTHLY", "YEARLY"] as const).map((cad) => (
                   <Button
                     key={cad}
                     type="button"
                     data-testid={`income-cadence-${cad}`}
                     variant={cadence === cad ? "primary" : "outline"}
                     onClick={() => setCadence(cad)}
-                    className="flex-1"
+                    className="w-full"
                   >
                     {t(`form.${cad.toLowerCase()}`)}
                   </Button>
                 ))}
               </div>
             </div>
+
+            {/* The date IS the schedule for a one-time income, so it replaces
+                the pay-day fields rather than joining them (260807). */}
+            {cadence === "ONCE" && (
+              <div>
+                <Label htmlFor="income-once-date">{t("form.dateLabel")}</Label>
+                <DateInput
+                  id="income-once-date"
+                  value={onceDate}
+                  min={todayISO()}
+                  onChange={(v) => setOnceDate(v)}
+                />
+              </div>
+            )}
 
             {cadence === "WEEKLY" && (
               <div>

@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { Temporal } from "temporal-polyfill";
-import { nextOccurrence } from "../../src/domain/cadence";
+import { nextOccurrence, nextDueDateAfter } from "../../src/domain/cadence";
 
 describe("Cadence Math", () => {
   describe("MONTHLY — month-end preservation (Pitfall 6)", () => {
@@ -146,5 +146,47 @@ describe("Cadence Math", () => {
     expect(() =>
       nextOccurrence({ cadence: "BADCADENCE" as "DAILY" }, prev),
     ).toThrow("Unsupported cadence");
+  });
+});
+
+describe("ONCE — a payment that happens exactly once", () => {
+  // A one-time payment is modelled as a payment whose DEADLINE is its own date
+  // (user, 260807). That reuses the end-date machinery the engine already has:
+  // the catch-up loop stops at end_date and isRuleExhausted deactivates the row
+  // afterwards. All this needs from the cadence is a step that lands past the
+  // date, so the loop terminates and the exhaustion check fires — a "next
+  // occurrence" that is a real date but is never itself drafted.
+  test("steps to the day after, so the loop passes the deadline", () => {
+    const next = nextOccurrence(
+      { cadence: "ONCE" },
+      Temporal.PlainDate.from("2026-09-12"),
+    );
+    expect(next.toString()).toBe("2026-09-13");
+  });
+
+  test("steps past the last day of a month without wrapping oddly", () => {
+    expect(
+      nextOccurrence(
+        { cadence: "ONCE" },
+        Temporal.PlainDate.from("2026-12-31"),
+      ).toString(),
+    ).toBe("2027-01-01");
+  });
+
+  test("needs no anchor, weekday or month", () => {
+    // Every other cadence throws without its sub-field. A one-time payment has
+    // no pattern to describe, so demanding one would be ceremony.
+    expect(() =>
+      nextOccurrence({ cadence: "ONCE" }, Temporal.PlainDate.from("2026-09-12")),
+    ).not.toThrow();
+  });
+
+  test("nextDueDateAfter treats it the same way — no period overshoot", () => {
+    expect(
+      nextDueDateAfter(
+        { cadence: "ONCE" },
+        Temporal.PlainDate.from("2026-09-12"),
+      ).toString(),
+    ).toBe("2026-09-13");
   });
 });

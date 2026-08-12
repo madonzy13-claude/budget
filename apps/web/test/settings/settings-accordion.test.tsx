@@ -115,7 +115,7 @@ describe("SettingsAccordion — 5-section collapsible render (SETT-01)", () => {
     render(<SettingsAccordion budget={sharedBudget} />);
     expect(screen.getByText("sections.identity")).toBeInTheDocument();
     expect(screen.getByText("sections.cushion")).toBeInTheDocument();
-    expect(screen.getByText("sections.recurring")).toBeInTheDocument();
+    expect(screen.getByText("sections.scheduled")).toBeInTheDocument();
     expect(screen.getByText("sections.members")).toBeInTheDocument();
     expect(screen.getByText("sections.danger")).toBeInTheDocument();
   });
@@ -124,7 +124,7 @@ describe("SettingsAccordion — 5-section collapsible render (SETT-01)", () => {
     render(<SettingsAccordion budget={privateBudget} />);
     expect(screen.getByText("sections.identity")).toBeInTheDocument();
     expect(screen.getByText("sections.cushion")).toBeInTheDocument();
-    expect(screen.getByText("sections.recurring")).toBeInTheDocument();
+    expect(screen.getByText("sections.scheduled")).toBeInTheDocument();
     // Members section is now shown regardless of former private/shared kind.
     expect(screen.getByText("sections.members")).toBeInTheDocument();
     expect(screen.getByText("sections.danger")).toBeInTheDocument();
@@ -169,6 +169,14 @@ describe("SettingsAccordion — member read-only gating (bug #1)", () => {
     expect(container.querySelector("fieldset[disabled]")).not.toBeNull();
   });
 
+  // Privacy mode is the reader's own (260810) — behind the gate it was dead
+  // for exactly the people who most need it.
+  it("lets a member set their own privacy mode", () => {
+    render(<SettingsAccordion budget={memberBudget} />);
+    const sw = screen.getByTestId("amount-privacy-switch");
+    expect(sw.closest("fieldset[disabled]")).toBeNull();
+  });
+
   it("leaves owner-only sections enabled for owners", () => {
     const { container } = render(<SettingsAccordion budget={sharedBudget} />);
     expect(container.querySelector("fieldset[disabled]")).toBeNull();
@@ -211,5 +219,43 @@ describe("SettingsAccordion — aggregation toggle gating (Task 11)", () => {
     expect(
       screen.getByTestId("settings-aggregation-toggle"),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * The General card's own rhythm (user, 260810).
+ *
+ * Its rows are a divide-y list, each with py-3, so consecutive rows sit 24px
+ * apart. The card's padding added 20px on top of the first row's 12 (32px above
+ * "Name"), and the aggregation join added mt-4 + pt-4 on top of it (44px below
+ * "Privacy mode"). Both joins have to match the rhythm the rows set, not exceed
+ * it.
+ */
+describe("SettingsAccordion — the General card's spacing", () => {
+  /** The padded body of the open card — Radix puts our className on the inner
+   *  div, not on the [data-slot] wrapper. */
+  const identityContent = (container: HTMLElement) =>
+    [
+      ...container.querySelectorAll<HTMLElement>('[data-state="open"] div'),
+    ].find((n) => n.className.includes("surface-sunken-dark"))!;
+
+  it("pads the card to the same 12px its rows use", () => {
+    const { container } = render(<SettingsAccordion budget={sharedBudget} />);
+    const content = identityContent(container)!;
+    expect(content.className).toContain("py-3");
+    expect(content.className).not.toContain("py-5");
+  });
+
+  it("joins the aggregation block on the rows' rhythm, not above it", () => {
+    const { container } = render(
+      <SettingsAccordion budget={{ ...sharedBudget, budgetCount: 2 }} />,
+    );
+    const join = container.querySelector(
+      '[data-testid="settings-aggregation-join"]',
+    );
+    if (!join) return; // only rendered with 2+ budgets in this harness
+    expect(join.className).toContain("pt-3");
+    expect(join.className).not.toContain("mt-4");
+    expect(join.className).not.toContain("pt-4");
   });
 });

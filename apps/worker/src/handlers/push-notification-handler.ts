@@ -60,7 +60,7 @@ const BODIES: Record<string, Record<LocaleKey, string>> = {
     uk: "Один із ваших резервів закінчується — торкніться, щоб поповнити.",
   },
   CONFIRM_DRAFT: {
-    en: "A recurring expense is waiting — confirm or skip it.",
+    en: "A scheduled expense is waiting — confirm or skip it.",
     pl: "Cykliczny wydatek czeka — potwierdź lub pomiń.",
     uk: "Регулярна витрата очікує — підтвердіть або пропустіть.",
   },
@@ -193,14 +193,22 @@ async function dispatchToBudget(
 export function registerPushNotificationHandler(deps: PushHandlerDeps): void {
   // A NEW task → the per-kind actionable notification, deep-linking to the task.
   eventBus.subscribe("task.created", async (evt) => {
-    const { kind, budgetId, taskId } = evt.payload as {
+    const { kind, budgetId, taskId, direction } = evt.payload as {
       kind: string;
       budgetId: string;
       taskId: string;
+      direction?: string;
     };
     // D-11: unknown kind → safe skip, no throw
     const notifType = NOTIFICATION_TYPES[kind];
     if (!notifType) return;
+
+    // RESERVE_TOPUP covers both directions and this copy only speaks one of
+    // them: "one of your reserves is running low". A member holding MORE than
+    // they need got that message for the opposite situation (user, 260810).
+    // Holding a surplus is not an alarm — the task still lands in the queue for
+    // whenever they want to deal with it, but nothing buzzes.
+    if (kind === "RESERVE_TOPUP" && direction === "WITHDRAW") return;
 
     await dispatchToBudget(
       deps,

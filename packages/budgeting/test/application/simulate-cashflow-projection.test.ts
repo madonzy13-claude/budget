@@ -83,7 +83,12 @@ describe("simulateCashflow", () => {
           },
         ],
         bills: [
-          { date: "2026-07-20", name: "Rent", categoryId: "c", amountCents: 50_000n },
+          {
+            date: "2026-07-20",
+            name: "Rent",
+            categoryId: "c",
+            amountCents: 50_000n,
+          },
         ],
       }),
     );
@@ -114,7 +119,12 @@ describe("simulateCashflow", () => {
           },
         ],
         bills: [
-          { date: "2026-07-20", name: "Rent", categoryId: "c", amountCents: 50_000n },
+          {
+            date: "2026-07-20",
+            name: "Rent",
+            categoryId: "c",
+            amountCents: 50_000n,
+          },
         ],
       }),
     );
@@ -144,7 +154,12 @@ describe("simulateCashflow", () => {
           },
         ],
         bills: [
-          { date: "2026-07-20", name: "Rent", categoryId: "c", amountCents: 50_000n },
+          {
+            date: "2026-07-20",
+            name: "Rent",
+            categoryId: "c",
+            amountCents: 50_000n,
+          },
         ],
         incomePayments: [
           { date: "2026-07-25", name: "Salary", amountCents: 200_000n },
@@ -170,7 +185,12 @@ describe("simulateCashflow", () => {
           },
         ],
         bills: [
-          { date: "2026-07-20", name: "Rent", categoryId: "c", amountCents: 40_000n },
+          {
+            date: "2026-07-20",
+            name: "Rent",
+            categoryId: "c",
+            amountCents: 40_000n,
+          },
         ],
       }),
     );
@@ -182,5 +202,146 @@ describe("simulateCashflow", () => {
   test("empty budget: no categories, no events → flat green", () => {
     const p = simulateCashflow(base({ categories: [], startCashCents: 0n }));
     expect(p.days.every((d) => d.color === "green")).toBe(true);
+  });
+});
+
+/**
+ * Reserve covers OVERSPEND, not "ran out of cash" (user, 260811).
+ *
+ * The forecast drew on the reserve pot the moment cash could not pay, so a bill
+ * that fitted comfortably inside its category's untouched limit still coloured
+ * the day yellow — "you dipped into reserves" — when the truth was simply that
+ * the spending wallets were empty. Reserve money is earmarked against limits
+ * being exceeded; it is not a general overdraft.
+ *
+ * So: within the limit, cash is the only payer, and falling short of it is RED.
+ * Only the part of an outflow BEYOND the category's remaining limit may draw
+ * reserve, and only that turns a day yellow.
+ */
+describe("simulateCashflow — reserve only covers spending past the limit", () => {
+  test("bill inside an untouched limit + no cash → RED, reserve untouched", () => {
+    const p = simulateCashflow(
+      base({
+        startCashCents: 0n,
+        reservePoolCents: 100_000n,
+        categories: [
+          {
+            id: "cat-food",
+            name: "Food",
+            budgetThisMonthCents: 100_000n,
+            budgetNextMonthCents: 0n,
+            spentSoFarCents: 0n,
+          },
+        ],
+        bills: [
+          {
+            date: "2026-07-20",
+            name: "Groceries",
+            amountCents: 50_000n,
+            categoryId: "cat-food",
+          },
+        ],
+      }),
+    );
+    const d = dayOn(p, "2026-07-20");
+    expect(d.drewReserve).toEqual([]);
+    expect(d.color).toBe("red");
+    expect(d.availableCents).toBeLessThan(0n);
+  });
+
+  test("the part BEYOND the limit may draw reserve → yellow", () => {
+    // Limit 300, bill 500: 300 of it is inside the limit and is paid by the 300
+    // of cash; the 200 of overspend is what the reserve is for.
+    const p = simulateCashflow(
+      base({
+        startCashCents: 30_000n,
+        reservePoolCents: 100_000n,
+        categories: [
+          {
+            id: "cat-food",
+            name: "Food",
+            budgetThisMonthCents: 30_000n,
+            budgetNextMonthCents: 0n,
+            spentSoFarCents: 0n,
+          },
+        ],
+        bills: [
+          {
+            date: "2026-07-20",
+            name: "Big shop",
+            amountCents: 50_000n,
+            categoryId: "cat-food",
+          },
+        ],
+      }),
+    );
+    const d = dayOn(p, "2026-07-20");
+    expect(d.drewReserve).toEqual([
+      { categoryId: "cat-food", name: "Food", amountCents: 20_000n },
+    ]);
+    expect(d.color).toBe("yellow");
+    expect(d.availableCents).toBe(0n);
+  });
+
+  test("a limit already spent leaves every further bill reserve-eligible", () => {
+    const p = simulateCashflow(
+      base({
+        startCashCents: 0n,
+        reservePoolCents: 100_000n,
+        categories: [
+          {
+            id: "cat-food",
+            name: "Food",
+            budgetThisMonthCents: 30_000n,
+            budgetNextMonthCents: 0n,
+            spentSoFarCents: 30_000n, // limit already used up
+          },
+        ],
+        bills: [
+          {
+            date: "2026-07-20",
+            name: "Extra",
+            amountCents: 10_000n,
+            categoryId: "cat-food",
+          },
+        ],
+      }),
+    );
+    const d = dayOn(p, "2026-07-20");
+    expect(d.drewReserve).toEqual([
+      { categoryId: "cat-food", name: "Food", amountCents: 10_000n },
+    ]);
+    expect(d.color).toBe("yellow");
+  });
+
+  test("overspend beyond BOTH cash and reserve is still red", () => {
+    const p = simulateCashflow(
+      base({
+        startCashCents: 0n,
+        reservePoolCents: 5_000n,
+        categories: [
+          {
+            id: "cat-food",
+            name: "Food",
+            budgetThisMonthCents: 0n,
+            budgetNextMonthCents: 0n,
+            spentSoFarCents: 0n,
+          },
+        ],
+        bills: [
+          {
+            date: "2026-07-20",
+            name: "Extra",
+            amountCents: 10_000n,
+            categoryId: "cat-food",
+          },
+        ],
+      }),
+    );
+    const d = dayOn(p, "2026-07-20");
+    expect(d.drewReserve).toEqual([
+      { categoryId: "cat-food", name: "Food", amountCents: 5_000n },
+    ]);
+    expect(d.color).toBe("red");
   });
 });

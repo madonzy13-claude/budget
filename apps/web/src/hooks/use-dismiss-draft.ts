@@ -1,10 +1,10 @@
 "use client";
 /**
- * use-dismiss-draft.ts — Mutation to dismiss (skip) a pending recurring draft.
+ * use-dismiss-draft.ts — Mutation to dismiss (skip) a pending scheduled draft.
  *
- * POST /budgets/:budgetId/recurring-rules/drafts/:draftId/dismiss
+ * POST /budgets/:budgetId/scheduled-payments/drafts/:draftId/dismiss
  * D-PH4-R3: dismiss = dismissed_at = now() on this occurrence only.
- * Recurring rule keeps running; next occurrence will generate a new draft.
+ * Scheduled rule keeps running; next occurrence will generate a new draft.
  *
  * On success: invalidates ["drafts", ...] + ["spendings-summary", ...]
  */
@@ -23,7 +23,7 @@ export function useDismissDraft(budgetId: string, month: string) {
   return useMutation({
     mutationFn: async (draftId: string) => {
       const res = await clientApiWrite(
-        `/budgets/${budgetId}/recurring-rules/drafts/${draftId}/dismiss`,
+        `/budgets/${budgetId}/scheduled-payments/drafts/${draftId}/dismiss`,
         {
           method: "POST",
           headers: {

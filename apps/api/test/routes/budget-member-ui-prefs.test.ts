@@ -111,7 +111,37 @@ describe("Member UI preferences", () => {
     });
   });
 
-  it("PUT rejects a value that is not a list of ids → 400", async () => {
+  it("PUT stores a value that is not a list of ids — the range pick → 200", async () => {
+    // The Overview range rides the same prefs bag as the category pickers, but
+    // it is not a list of category ids: it is the preset's own name. A schema
+    // that only admits UUIDs rejected every range write, so the pick lived in
+    // the client cache and was gone by the next reload (user report, 260807).
+    const { app, store } = buildApp({ user: { id: "user-member" } });
+    const res = await app.request("/budgets/budget-001/ui-prefs", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prefs: { overviewRange: ["last3Months"] } }),
+    });
+    expect(res.status).toBe(200);
+    expect(store).toEqual({ overviewRange: ["last3Months"] });
+  });
+
+  it("PUT stores a custom range, which is its two dates → 200", async () => {
+    const { app, store } = buildApp({ user: { id: "user-member" } });
+    const res = await app.request("/budgets/budget-001/ui-prefs", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        prefs: { overviewRange: ["custom", "2026-01-01", "2026-03-31"] },
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(store).toEqual({
+      overviewRange: ["custom", "2026-01-01", "2026-03-31"],
+    });
+  });
+
+  it("PUT rejects a value that is not a list at all → 400", async () => {
     const { app, calls } = buildApp({ user: { id: "user-member" } });
     const res = await app.request("/budgets/budget-001/ui-prefs", {
       method: "PUT",

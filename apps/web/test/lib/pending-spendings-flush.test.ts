@@ -116,7 +116,7 @@ describe("Flushing pending spendings", () => {
 
       const [path, init] = mockWrite.mock.calls[0]!;
       expect(path).toBe(
-        "/budgets/budget-1/recurring-rules/drafts/draft-9/confirm",
+        "/budgets/budget-1/scheduled-payments/drafts/draft-9/confirm",
       );
       expect(init.method).toBe("POST");
       expect(init.headers["Idempotency-Key"]).toBe(entry.idempotencyKey);

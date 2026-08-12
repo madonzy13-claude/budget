@@ -17,7 +17,6 @@ import { Temporal } from "temporal-polyfill";
 import {
   TrendingUp,
   TrendingDown,
-  Circle,
   CircleCheck,
   CircleAlert,
   CirclePlus,
@@ -462,14 +461,11 @@ export function OverviewCards({
                 className="size-4 shrink-0 text-[var(--trading-down)]"
                 aria-label={t("cards.spendBad")}
               />
-            ) : (
-              // No upcoming income (or projection not loaded) → neutral grey dot.
-              <Circle
-                data-testid="spend-neutral"
-                className="size-4 shrink-0 text-[var(--muted-foreground)]"
-                aria-label={t("cards.spendNeutral")}
-              />
-            )}
+            ) : null}
+            {/* No upcoming income (or projection not loaded) → NO mark at all.
+                A grey circle still reads as a verdict, just a muted one; there
+                is no verdict to give without income to forecast against, so the
+                slot stays empty (user, 260811). */}
             {/* whitespace-nowrap, NOT truncate: `overflow:hidden` clips the
                   blurred edges of the hidden amount (r41). */}
             <span className="whitespace-nowrap">

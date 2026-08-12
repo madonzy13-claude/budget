@@ -36,7 +36,7 @@ function makeOriginal(): TransactionRow {
     fxRate: "1",
     fxAsOf: "2026-05-01",
     note: null,
-    recurringRuleId: null,
+    scheduledPaymentId: null,
     confirmedAt: new Date(),
     kind: "SPENDING",
     createdAt: new Date(),

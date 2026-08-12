@@ -123,3 +123,24 @@ describe("Category multi-select", () => {
     ).toBe("false");
   });
 });
+
+/**
+ * Brand yellow as TEXT is unreadable on the pale card (user, 260810), so
+ * "Select all" takes the ink that flips with the theme — the same token the
+ * meter's verdict uses. Yellow as a SHAPE is untouched.
+ */
+describe("CategoryMultiSelect — readable on either theme", () => {
+  it("draws Select all in the theme-flipping ink, not the raw brand yellow", async () => {
+    render(
+      <CategoryMultiSelect
+        categories={CATEGORIES}
+        selected={[]}
+        onCommit={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("overview-planned-category"));
+    const link = await screen.findByTestId("category-select-all");
+    expect(link.className).toContain("var(--accent-ink)");
+    expect(link.className).not.toContain("text-[var(--primary)]");
+  });
+});

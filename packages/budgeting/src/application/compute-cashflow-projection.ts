@@ -1,6 +1,6 @@
 /**
  * compute-cashflow-projection.ts — impure loader for the Overview projection
- * timeline. Reads wallets / incomes / recurring rules / category budgets / month
+ * timeline. Reads wallets / incomes / scheduled rules / category budgets / month
  * spend via raw SQL over withTenantTx, pulls per-category reserve from the injected
  * reservePositions seam, FX-converts every amount to the budget currency, enumerates
  * dated income + bill events across the window, then hands a fully-materialised
@@ -34,7 +34,7 @@ type TxLike = {
 type CadenceRow = {
   amount_cents: string;
   currency: string;
-  cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  cadence: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   cadence_anchor: number | null;
   weekly_dow: number | null;
   yearly_month: number | null;
@@ -52,7 +52,7 @@ export const MAX_PROJECTION_STEPS = 400;
 
 /**
  * Occurrence ISO dates strictly after `afterExclusive`, up to and including `end`,
- * following `spec` from `seed`. `seed` may be in the past (a recurring rule's
+ * following `spec` from `seed`. `seed` may be in the past (a scheduled rule's
  * nextDueDate) — the loop advances until it clears `afterExclusive`.
  */
 export function enumerateOccurrences(
@@ -73,6 +73,10 @@ export function enumerateOccurrences(
     if (Temporal.PlainDate.compare(cur, opts.afterExclusive) > 0) {
       out.push(cur.toString());
     }
+    // ONCE happens once. Its "next occurrence" is the following day — the step
+    // the generation loop uses to clear its own deadline — so walking it here
+    // would draw a single sofa as a daily payment (260807).
+    if (spec.cadence === "ONCE") break;
     cur = nextOccurrence(spec, cur);
   }
   return out;
@@ -167,16 +171,19 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
 
         const incomes = await tx.execute(sql`
           SELECT name, (amount * 100)::bigint::text AS amount_cents, currency,
-                 cadence, cadence_anchor, weekly_dow, yearly_month
+                 cadence, cadence_anchor, weekly_dow, yearly_month,
+                 once_date::text AS once_date
             FROM budgeting.incomes
-           WHERE tenant_id = ${input.tenantId}::uuid AND active = true`);
+           WHERE tenant_id = ${input.tenantId}::uuid AND active = true
+             -- Gone the day after it arrives, like every other read (260807).
+             AND (cadence <> 'ONCE' OR once_date >= CURRENT_DATE)`);
 
         const rules = await tx.execute(sql`
           SELECT category_id::text AS category_id, note,
                  (amount * 100)::bigint::text AS amount_cents, currency,
                  cadence, cadence_anchor, weekly_dow, yearly_month,
                  next_due_date::text AS next_due, end_date::text AS end_date
-            FROM budgeting.recurring_rules
+            FROM budgeting.scheduled_payments
            WHERE tenant_id = ${input.tenantId}::uuid AND active = true`);
 
         return {
@@ -270,7 +277,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       }
     }
 
-    // Recurring bills (seeded from nextDueDate), amount FX'd once each.
+    // Scheduled bills (seeded from nextDueDate), amount FX'd once each.
     const bills: CashflowEvent[] = [];
     for (const raw of L.ruleRows) {
       const r = raw as CadenceRow & {
@@ -323,12 +330,19 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
  */
 export function incomeSeedDate(
   r: {
-    cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+    cadence: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
     cadence_anchor: number | null;
     yearly_month: number | null;
+    once_date?: string | null;
   },
   today: Temporal.PlainDate,
 ): Temporal.PlainDate {
+  // A one-time income has no anchor to derive a day from — its date IS the
+  // occurrence. Without one there is nothing to place, so it seeds at today and
+  // the enumeration drops it.
+  if (r.cadence === "ONCE") {
+    return r.once_date ? Temporal.PlainDate.from(r.once_date) : today;
+  }
   if (r.cadence === "MONTHLY") {
     return today.with({
       day: Math.min(r.cadence_anchor ?? today.day, today.daysInMonth),

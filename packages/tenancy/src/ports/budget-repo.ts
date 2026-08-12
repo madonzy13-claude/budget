@@ -15,7 +15,6 @@ export interface BudgetRepo {
       reservesEnabled?: boolean;
       cushionEnabled?: boolean;
       investmentsEnabled?: boolean;
-      amountPrivacyEnabled?: boolean;
     },
     actorUserId: string,
   ): Promise<void>;
@@ -64,14 +63,26 @@ export interface BudgetRepo {
    * no per-budget tenant context needed since RLS on budget_members already
    * scopes by user_id).
    */
-  getAggPrefsForUser(
-    userId: string,
-  ): Promise<
+  getAggPrefsForUser(userId: string): Promise<
     Map<
       string,
-      { ownership_share_pct: number; include_in_aggregation: boolean }
+      {
+        ownership_share_pct: number;
+        include_in_aggregation: boolean;
+        /** Redact amounts until tapped — this member's own setting (0082). */
+        amount_privacy_enabled: boolean;
+      }
     >
   >;
+  /**
+   * Set whether THIS member sees amounts redacted by default. Self-service:
+   * the caller is both actor and target row, so it is not owner-gated.
+   */
+  setMemberAmountPrivacy(
+    budgetId: string,
+    userId: string,
+    enabled: boolean,
+  ): Promise<void>;
   /** All members of `budgetId` with their ownership share pct. */
   listMemberShares(
     budgetId: string,
@@ -99,6 +110,14 @@ export interface BudgetRepo {
     userId: string,
   ): Promise<Record<string, string[]>>;
   /** MERGE a patch in, so one chart's pick never clears another's. */
+  /** Set or clear what ONE member calls this budget (260808). Blank clears. */
+  setMemberBudgetName(
+    budgetId: string,
+    userId: string,
+    name: string | null,
+  ): Promise<void>;
+  /** What THIS member calls it, or null when they never renamed it. */
+  memberBudgetName(budgetId: string, userId: string): Promise<string | null>;
   mergeMemberUiPrefs(
     budgetId: string,
     userId: string,

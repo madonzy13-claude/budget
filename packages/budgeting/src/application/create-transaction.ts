@@ -153,7 +153,7 @@ export function createTransaction(deps: CreateTransactionDeps) {
       fxRate,
       fxAsOf,
       note: input.note ?? null,
-      recurringRuleId: null,
+      scheduledPaymentId: null,
       // Quick-entry path: auto-confirm immediately
       confirmedAt: new Date(),
       kind: kind as "SPENDING" | "INCOME",

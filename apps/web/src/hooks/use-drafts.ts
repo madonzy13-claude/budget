@@ -8,7 +8,7 @@
  * Invalidated by: use-confirm-draft, use-dismiss-draft.
  * queryFn: GET /budgets/:budgetId/transactions?month=YYYY-MM&confirmed=false
  *
- * DraftDTO extends TxnDTO with ruleName (recurring_rule.name joined server-side).
+ * DraftDTO extends TxnDTO with ruleName (scheduled_rule.name joined server-side).
  */
 import { useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";

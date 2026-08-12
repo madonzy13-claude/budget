@@ -7,20 +7,18 @@
  * planned-avg-vs-real bar (Y=category) and the planned-share pie. Under the
  * timeline's picker sit the range's figures — the spend broken into limit /
  * reserve / overspend, and spent against planned (260803). The
- * recurring charts moved out to their own section. A category selector
+ * scheduled charts moved out to their own section. A category selector
  * (default = All categories) re-scopes the timeline. Charts via the 11-02 wrappers
  * only; string cents → Number here (recharts needs Numbers).
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SegmentedToggle } from "@/components/ui/segmented-toggle";
-import {
-  CategoryMultiSelect,
-  type PickableCategory,
-} from "./category-multi-select";
+import { CategoryMultiSelect } from "./category-multi-select";
 import {
   effectiveCategoryIds,
-  PLANNED_PIE_PREF,
+  PLANNED_BASIS_PREF,
   PLANNED_TIMELINE_PREF,
+  decodeBasis,
   prunePlannedCategories,
 } from "@/lib/planned-category-filter";
 import { useMemberUiPrefs } from "@/hooks/use-member-ui-prefs";
@@ -33,6 +31,7 @@ import {
 import { useStagedWarmup } from "@/hooks/use-staged-warmup";
 import { CHART_THEME } from "@/components/budgeting/charts/chart-theme";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
+import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
 import {
   OverviewDivergingBarChart,
   varianceColorForRange,
@@ -54,15 +53,27 @@ import {
   type OneOffCandidate,
 } from "./reserve-fit-one-offs";
 import { signedMoney } from "./reserve-fit-view";
+import { LimitRebalance, type LimitCandidate } from "./limit-rebalance";
+import { ReserveLevelBar } from "./reserve-level-bar";
+import { useSpendingsSummary } from "@/hooks/use-spendings-summary";
+import { useSetCategoryLimit } from "@/hooks/use-set-category-limit";
 import { ChartNeedsCompletedMonth } from "./chart-needs-completed-month";
 import { rangeHasCompletedMonth } from "@/lib/range-completed-month";
 import { useCategories } from "@/hooks/use-budget-data";
-import { centsToRounded } from "@/lib/cents-format";
+import {
+  centsToDisplayCompact,
+  centsToRounded,
+  roundsToZero,
+} from "@/lib/cents-format";
+import {
+  scheduleMonthLabel,
+  scheduleMonthTick,
+} from "@/lib/schedule-month-label";
 import { chartCompactCents, withDayStartBaseline } from "@/lib/chart-format";
 import { formatChartDate, formatChartTimestamp } from "@/lib/chart-date-format";
 import { labelToTimestamp } from "@/lib/chart-timestamp";
 import { insertMonthResets } from "@/lib/month-reset";
-import { appendTodayTail } from "@/lib/today-tail";
+import { appendTodayTail, tailDay } from "@/lib/today-tail";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { todayInTz, type OverviewRange } from "@/lib/overview-range";
 import { trimLeadingEmpty } from "@/lib/trim-leading-empty";
@@ -70,6 +81,11 @@ import { PlannedTotals } from "./planned-totals";
 import { monthsInRange } from "@/lib/months-in-range";
 
 const NEUTRAL = "var(--muted-foreground)";
+
+/** One whole currency unit, in cents — the granularity a limit is decided in.
+ *  The rebalance dialog proposes whole units and its button goes inert below
+ *  one, so the chart reads a sub-unit difference the same way: no change. */
+const UNIT_CENTS = 100;
 
 /** Actual-line colour per plan band (260801): green inside needs, yellow in the
  *  wants band, red past the whole plan. Shared by the stroke gradient + tooltip. */
@@ -116,8 +132,6 @@ function PlannedByCategoryPie({
   formatValue,
   maskValue = false,
   picked,
-  onPick,
-  pickable,
   isInvestment,
   ringLabel,
 }: {
@@ -137,11 +151,12 @@ function PlannedByCategoryPie({
   maskValue?: boolean;
   /** Categories to show; empty = all of them. */
   picked: string[];
-  onPick: (ids: string[]) => void;
-  pickable: PickableCategory[];
 }) {
-  // The pie has its own picker (260802 request): a slice the member drops here
-  // stays on the timeline, and the other way round.
+  // ONE filter for the section (user, 260810). The pie used to keep its own —
+  // a slice dropped here stayed on the timeline and the other way round — so
+  // two pickers disagreed about what "this budget" meant. The ring still spans
+  // EVERY row (see planRing below), which is what keeps the investing arc when
+  // Investments itself is unticked.
   const shown = picked.length ? new Set(picked) : null;
   const inView = rows.filter((c) => !shown || shown.has(c.category_id));
   // The outer ring: needs / wants summed across the SAME categories the slices
@@ -181,11 +196,6 @@ function PlannedByCategoryPie({
   return (
     <div className="flex flex-col gap-2">
       <ChartLabel>{title}</ChartLabel>
-      <CategoryMultiSelect
-        categories={pickable}
-        selected={picked}
-        onCommit={onPick}
-      />
       <OverviewPieChart
         data={data}
         nameKey="name"
@@ -205,6 +215,18 @@ function PlannedByCategoryPie({
     </div>
   );
 }
+
+/** How often each cadence charges in a year, and the unit the tooltip prints
+ *  after it: "12m", "52.143w", "365d", "1y". Mirrors annualFactor() in
+ *  packages/budgeting — the numbers the member gave (monthly ×12, weekly
+ *  ×52.143) and the two that follow from them. ONCE never reaches here: it
+ *  annualises to nothing and the server drops it. */
+const RATE_LABEL: Record<string, { n: string; unit: string } | undefined> = {
+  DAILY: { n: "365", unit: "cards.unitD" },
+  WEEKLY: { n: "52.143", unit: "cards.unitW" },
+  MONTHLY: { n: "12", unit: "cards.unitM" },
+  YEARLY: { n: "1", unit: "cards.unitY" },
+};
 
 export function PlannedSection({
   budgetId,
@@ -234,26 +256,21 @@ export function PlannedSection({
     save: savePrefs,
   } = useMemberUiPrefs(budgetId);
   const categoryIds = prefs[PLANNED_TIMELINE_PREF] ?? [];
-  const pieCategoryIds = prefs[PLANNED_PIE_PREF] ?? [];
   const setCategoryIds = (ids: string[]) =>
     void savePrefs(PLANNED_TIMELINE_PREF, ids);
-  const setPieCategoryIds = (ids: string[]) =>
-    void savePrefs(PLANNED_PIE_PREF, ids);
 
   // Counting the month still in progress is opt-IN: half a month of spend drags
   // an average down against months that ran their full course (260802 request).
   // Only offered when the range holds the running month AND something else.
   const userTz = useUserTimezone();
   const todayIso = todayInTz(userTz).toString();
-  // Month numbers → names for the recurring chart, in the member's locale.
+  // "YYYY-MM" → a name, in the member's locale. Both carry the year: the
+  // upcoming chart can span more than twelve months now, so a bare month name
+  // would put two different Septembers under the same word (260807).
   const monthName = (m: string | number) =>
-    new Intl.DateTimeFormat(locale, { month: "long" }).format(
-      new Date(2000, Number(m) - 1, 1),
-    );
+    scheduleMonthLabel(String(m), locale);
   const shortMonthName = (m: string | number) =>
-    new Intl.DateTimeFormat(locale, { month: "short" }).format(
-      new Date(2000, Number(m) - 1, 1),
-    );
+    scheduleMonthTick(String(m), locale);
   const hasCompletedMonth = rangeHasCompletedMonth(
     range.from,
     range.to,
@@ -271,12 +288,28 @@ export function PlannedSection({
   // default: it is what the range actually ran on, and "current" only means
   // something once a limit has moved. Persisted across pill navigation like the
   // rest of this section's UI state.
-  const [basis, setBasisState] = useState<"average" | "current">(
-    () => store?.overview.plannedBasis ?? "average",
+  // PAST or FUTURE (260807). Past is what the range actually ran on — the
+  // average limit. Future is the limit this category will NEED, the one the
+  // reserve chart works out from what it holds, what it has spent and what it
+  // has scheduled. The old pair was average/current; a stored "current" reads
+  // as the future, which is the closest thing it meant.
+  const [basis, setBasisState] = useState<"past" | "future">(() =>
+    decodeBasis(store?.overview.plannedBasis),
   );
-  const setBasis = (v: "average" | "current") => {
+  // …and once the member's stored choice arrives, it wins: the in-memory store
+  // only survives a pill hop, while this survives a new device (user, 260810).
+  // Their own change is what put it there, so this never fights the toggle.
+  const storedBasis = prefs[PLANNED_BASIS_PREF];
+  useEffect(() => {
+    if (!prefsLoaded || storedBasis === undefined) return;
+    const v = decodeBasis(storedBasis);
+    setBasisState(v);
+    if (store) store.overview.plannedBasis = v;
+  }, [prefsLoaded, storedBasis, store]);
+  const setBasis = (v: "past" | "future") => {
     if (store) store.overview.plannedBasis = v;
     setBasisState(v);
+    void savePrefs(PLANNED_BASIS_PREF, [v]);
   };
 
   // The same one-off decisions the reserve chart uses — they come off THESE
@@ -288,6 +321,21 @@ export function PlannedSection({
     enabled: warm,
   });
   const saveExclusions = useSaveReserveFitExclusions(budgetId);
+  /** categoryId → what an average month ahead costs: the habit plus every
+   *  recurring payment at its monthly rate (260808). This is what the FUTURE
+   *  reading measures today's limit against. */
+  const projected = new Map<string, number>(
+    (fit.data?.rows ?? []).flatMap((r) =>
+      r.projected_monthly_cents == null
+        ? []
+        : [
+            [r.category_id, Number(r.projected_monthly_cents)] as [
+              string,
+              number,
+            ],
+          ],
+    ),
+  );
   const oneOffCandidates: OneOffCandidate[] = (fit.data?.rows ?? []).flatMap(
     (r) =>
       (r.large_transactions ?? []).map((c) => ({
@@ -297,9 +345,94 @@ export function PlannedSection({
       })),
   );
 
+  // Acting on the Future reading writes a needs/wants SPLIT, so the dialog
+  // needs what each limit is split into TODAY — which is what the spendings
+  // grid already reads for the current month.
+  const month = todayIso.slice(0, 7);
+  const summary = useSpendingsSummary(budgetId, month);
+  const setLimit = useSetCategoryLimit(budgetId, month);
+  const splitById = new Map(
+    (summary.data?.categories ?? []).map((c) => [
+      c.categoryId,
+      {
+        needsCents: Number(c.needsCents ?? c.plannedCents),
+        wantsCents: Number(c.wantsCents ?? 0),
+        cushionCents: Number(c.cushionCents ?? 0),
+      },
+    ]),
+  );
+  // Only categories the walk actually wants moved, and only once their current
+  // split is known — a row proposing a change from an unknown starting point
+  // would be proposing it from zero.
+  // What every limit adds up to, against what they should. Only the rows the
+  // chart actually draws, so the line and the bars under it are the same set.
+
+  // The dialog opens FROM the Future chart, so it proposes exactly what that
+  // chart drew: what an average month ahead costs. The reserve walk's own
+  // suggestion weighs the runway and what is already held — a different, and
+  // for this purpose contradictory, answer (user, 260808).
+  const limitCandidates: LimitCandidate[] = (fit.data?.rows ?? []).flatMap(
+    (r) => {
+      const split = splitById.get(r.category_id);
+      const expected = projected.get(r.category_id);
+      if (!split || expected == null) return [];
+      // A category whose limit is ALREADY right stays on the list, with its
+      // button visibly inert — the same as the reserve dialog. Dropping it had
+      // two faces: a settled category never appeared at all, and one you had
+      // just rebalanced became settled and vanished from under the finger that
+      // acted on it (user, 260809).
+      return [
+        {
+          categoryId: r.category_id,
+          name: r.name,
+          needsCents: split.needsCents,
+          wantsCents: split.wantsCents,
+          suggestedLimitCents: expected,
+        },
+      ];
+    },
+  );
+
   // Every category the budget has, investments included (260803 user request):
   // the picker offers exactly what the charts count, and both start ticked.
   const categories = useCategories(budgetId).data ?? [];
+
+  // The section's ONE category filter, resolved to the ids on screen. Empty
+  // when everything is shown — effectiveCategoryIds returns undefined for both
+  // "none picked" and "all picked", and neither narrows anything.
+  const shownIds = new Set(
+    effectiveCategoryIds(
+      categoryIds,
+      categories.map((c) => c.id as string),
+    ) ?? [],
+  );
+
+  // EVERY category with a limit, not just the ones the reserve engine tracks
+  // (user, 260810). Counting only the tracked ones made the line disagree with
+  // the timeline above it by exactly the excluded categories — 7,208 here
+  // against 8,708 there, the 1,500 of Housing and Subscriptions. A category the
+  // walk has no opinion about contributes its limit to BOTH sides, which is the
+  // truth: nothing about it needs to change.
+  const limitTotals = [...splitById.entries()].reduce(
+    (acc, [categoryId, split]) => {
+      // Only what the section's filter is showing (user, 260810).
+      if (shownIds.size > 0 && !shownIds.has(categoryId)) return acc;
+      const expected = projected.get(categoryId) ?? null;
+      const current = split.needsCents + split.wantsCents;
+      // Counted the way the BARS count it: a difference under a whole unit is
+      // not a change, so it must not be one here either. Summing the raw
+      // groszy instead had eight settled categories add up to "3 zł more than
+      // needed" beneath eight bars all reading 0 (user, 260810).
+      const gap = expected == null ? 0 : expected - current;
+      return {
+        current: acc.current + current,
+        expected:
+          acc.expected +
+          (expected == null || Math.abs(gap) < UNIT_CENTS ? current : expected),
+      };
+    },
+    { current: 0, expected: 0 },
+  );
   const { data, isPending, isError } = useOverviewPlanned(budgetId, {
     from: range.from,
     to: range.to,
@@ -374,6 +507,11 @@ export function PlannedSection({
   const fmtY = chartCompactCents;
   const fmtTooltip = (n: number) =>
     centsToRounded(BigInt(Math.round(n)), ccy, "en", true);
+  // To the cent: the limit dialog puts an editable "894.44" beside what the
+  // limit is now, and a rounded figure next to it reads as a mismatch that is
+  // not there (the lesson from the reserve dialog, 260805).
+  const fmtExact = (n: number) =>
+    centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en", true);
 
   return (
     <OverviewSection
@@ -392,25 +530,27 @@ export function PlannedSection({
         <>
           {/* Planned-vs-Real timeline. `wantsSplitExists` decides whether the
               WANTS band is drawn at all — see the series list below. */}
+          {/* ONE filter, at the top of the section it governs (user, 260810).
+              SUPERSEDES 260731's "it belongs to THIS chart": it narrows the
+              timeline, the per-category bars, the meter and the pie, and the
+              pie had grown a second picker that disagreed with it. */}
+          <CategoryMultiSelect
+            categories={categories.map((c) => ({
+              id: c.id,
+              name: c.name,
+              color:
+                hexForColorKey((c.colorKey as string | null) ?? null) ??
+                undefined,
+            }))}
+            selected={prunePlannedCategories(
+              categoryIds,
+              categories.map((c) => c.id),
+            )}
+            onCommit={setCategoryIds}
+          />
+
           <div className="flex flex-col gap-2">
             <ChartLabel>{t("planned.timelineTitle")}</ChartLabel>
-            {/* 260731: the category filter belongs to THIS chart, so it sits
-                under its label instead of floating above the whole section —
-                and it uses the app's Select chrome, not a raw <select>. */}
-            <CategoryMultiSelect
-              categories={categories.map((c) => ({
-                id: c.id,
-                name: c.name,
-                color:
-                  hexForColorKey((c.colorKey as string | null) ?? null) ??
-                  undefined,
-              }))}
-              selected={prunePlannedCategories(
-                categoryIds,
-                categories.map((c) => c.id),
-              )}
-              onCommit={setCategoryIds}
-            />
             {/* Directly under the picker, because the picker narrows THESE too
                 (260803 user request): the breakdown reads as the line's key,
                 the comparison as how the range went against plan. */}
@@ -427,7 +567,7 @@ export function PlannedSection({
               rangeWithinRunningMonth={rangeWithinRunningMonth}
               // Each total also says what it comes to in a month (user,
               // 260805) — one month of range has nothing to average.
-              months={monthsInRange(range.from, range.to)}
+              months={monthsInRange(range.from, range.to, todayIso)}
               format={(cents) => centsToRounded(cents, ccy, "en", true)}
               // Deliberately NOT masked (user, 260803): these are the plan and
               // what it cost, not a balance — the figures the member reads while
@@ -586,7 +726,11 @@ export function PlannedSection({
                 // The tooltip names the DAY a point stands for: a monthly point
                 // carries its month's value as of the last day (clamped to today
                 // while the month is still running).
-                labelFormat={(v) => formatTs(Number(v), locale)}
+                // …after mapping the tail back to the day it reports: it sits
+                // a day ahead only to have width (user, 260810).
+                labelFormat={(v) =>
+                  formatTs(tailDay(Number(v), todayIso), locale)
+                }
                 // 260731 (user decision): the CHARTS always show real numbers — masking
                 // them made the shapes unreadable. The privacy blur stays on the hero
                 // cards + totals, which is where a shoulder-surfer actually reads a figure.
@@ -616,11 +760,26 @@ export function PlannedSection({
                   off plan" reads identically whichever way it is set. */}
                 <ChartLabel testId="overview-planned-title">
                   {t(
-                    basis === "current"
-                      ? "planned.byCategoryCurrent"
+                    basis === "future"
+                      ? "planned.byCategoryFuture"
                       : "planned.byCategoryAverage",
                   )}
                 </ChartLabel>
+                {/* The same meter the reserve chart carries, reading limits
+                    against what they should be: a ratio of one quantity to the
+                    one it ought to be is the same shape either way, so the
+                    colours keep their meaning — amber past the outline is
+                    slack, red short of it is missing (user, 260809). */}
+                {basis === "future" && limitTotals.expected > 0 && (
+                  <ReserveLevelBar
+                    heldCents={limitTotals.current}
+                    neededCents={limitTotals.expected}
+                    format={fmtTooltip}
+                    testId="limit-level-bar"
+                    heldLabel={t("planned.limitsTotal")}
+                    neededLabel={t("planned.limitsNeededTotal")}
+                  />
+                )}
                 {/* The percent/zł switch went (260805): a percentage of a limit
                   is a step away from the money, and the money is what you act
                   on. What the pill track carries instead is the BASELINE —
@@ -635,20 +794,42 @@ export function PlannedSection({
                   collapsed to nothing and took the one-offs button's hit area
                   with it. A spacer opposite keeps the switch centred. */}
                 <div className="flex items-center justify-between">
-                  <span aria-hidden className="size-9 shrink-0" />
-                  {data.limits_moved && (
-                    <SegmentedToggle
-                      className="text-caption"
-                      testId="overview-planned-basis"
-                      label={t("planned.basis")}
-                      value={basis}
-                      onChange={(v) => setBasis(v as "average" | "current")}
-                      options={[
-                        { value: "average", label: t("planned.basisAverage") },
-                        { value: "current", label: t("planned.basisCurrent") },
-                      ]}
-                    />
+                  {/* Mirrors the reserves block: the thing that WRITES on the
+                      left, the thing that reshapes the history on the right,
+                      and the switch centred between them. Only the Future
+                      reading has limits to write (user, 260808); the spacer
+                      holds the switch centred when it is absent. */}
+                  {basis === "future" && limitCandidates.length > 0 ? (
+                    <div data-testid="overview-planned-corner-left">
+                      <LimitRebalance
+                        rows={limitCandidates}
+                        onApply={(categoryId, split) =>
+                          setLimit.mutateAsync({
+                            categoryId,
+                            ...split,
+                            cushionCents:
+                              splitById.get(categoryId)?.cushionCents ?? 0,
+                          })
+                        }
+                        format={fmtExact}
+                      />
+                    </div>
+                  ) : (
+                    <span aria-hidden className="size-9 shrink-0" />
                   )}
+                  {/* Always on offer now: "what will I need" has an answer
+                      whether or not a limit ever moved (user, 260807). */}
+                  <SegmentedToggle
+                    className="text-caption"
+                    testId="overview-planned-basis"
+                    label={t("planned.basis")}
+                    value={basis}
+                    onChange={(v) => setBasis(v as "past" | "future")}
+                    options={[
+                      { value: "past", label: t("planned.basisPast") },
+                      { value: "future", label: t("planned.basisFuture") },
+                    ]}
+                  />
                   <div data-testid="overview-planned-corner">
                     <ReserveFitOneOffs
                       candidates={oneOffCandidates}
@@ -671,27 +852,82 @@ export function PlannedSection({
                       // Whichever baseline is being read is the one the bar and
                       // its colour come from; the other rides along in the
                       // tooltip so the comparison is visible either way.
-                      const planned = basis === "current" ? current : avg;
+                      //
+                      // FUTURE measures today's limit against what the category
+                      // will actually COST from here — the habit plus every
+                      // recurring payment at its monthly rate. It used to draw
+                      // the reserve walk's suggested change instead, while the
+                      // rows above it listed today's limit and the spend: 2,500
+                      // and 2,215 with a difference of +1,314, which is not the
+                      // difference between anything on screen (user, 260808).
+                      // Three figures, one subtraction.
+                      // No projection means the reserve engine never examined
+                      // this category (reserve-excluded). Its limit is then the
+                      // only honest answer — nothing has been worked out that
+                      // would change it. Falling back to the past AVERAGE was
+                      // the formula that gave those rows the largest bars on
+                      // the chart (audit, 260807); it is gone.
+                      const expected =
+                        projected.get(c.category_id) ??
+                        (basis === "future" ? current : real);
+                      const planned = basis === "future" ? current : avg;
+                      const rawGap =
+                        basis === "future"
+                          ? expected - current
+                          : real - planned;
+                      // A limit is set in whole units, and the dialog proposes
+                      // whole ones — so what a rebalance leaves behind is a few
+                      // groszy of rounding, which is nothing to act on (the
+                      // same rule that makes the dialog's button inert). Drawn,
+                      // those groszy became the largest thing on the chart:
+                      // with no real change left the axis zoomed into them and
+                      // every settled category came back as a full-length
+                      // "−1 zł" bar (user, 260809).
+                      const gap =
+                        basis === "future" && Math.abs(rawGap) < UNIT_CENTS
+                          ? 0
+                          : rawGap;
+                      // Colour follows the bar: as a share of today's limit for
+                      // the change, and of the baseline for the past reading.
+                      const pctBase = basis === "future" ? current : planned;
                       const pct =
-                        planned > 0
-                          ? ((real - planned) / planned) * 100
-                          : real > 0
-                            ? 100
-                            : 0;
+                        pctBase > 0 ? (gap / pctBase) * 100 : gap > 0 ? 100 : 0;
                       return {
                         name: c.name,
-                        real,
+                        categoryId: c.category_id,
+                        real: basis === "future" ? expected : real,
                         planned,
                         avg,
                         current,
                         pct,
-                        gap: real - planned,
+                        // The bar is coloured by the number its LABEL shows, not
+                        // by the one behind it: a category 31 gr over drew a red
+                        // bar reading "+0 zł", a screen arguing with itself
+                        // (user, 260807). Too small to print is too small to
+                        // band, so it takes the even-grey. The tooltip still
+                        // carries the real percent.
+                        colorPct: roundsToZero(gap) ? 0 : pct,
+                        gap,
                         realTotal: Number(c.real_total_cents),
                         plannedTotal: Number(c.planned_total_cents),
                       };
                     })
+                    // …and only the categories the section's filter shows. The
+                    // API hands back EVERY category here whatever the filter —
+                    // it narrows the timeline and the totals, not these rows —
+                    // so the picking happens here (user, 260810).
+                    .filter(
+                      (c) => shownIds.size === 0 || shownIds.has(c.categoryId),
+                    )
                     // Ordered the way the chart is being READ (260804) — always
                     // money now that the percent axis has gone.
+                    //
+                    // EVERY category, not just the ones the reserve engine
+                    // tracks: the chart showed 8 of 10, quietly dropping the
+                    // reserve-excluded ones (user, 260810). One the walk has no
+                    // opinion about draws at zero, which is the truth — nothing
+                    // about its limit needs to change — and it matches the
+                    // meter above, which now counts them too.
                     .sort((a, b) => b.gap - a.gap)}
                   categoryKey="name"
                   valueKey="gap"
@@ -711,10 +947,23 @@ export function PlannedSection({
                   // Band by the PERCENT even when the axis is drawn in zł:
                   // cents are not a percentage, and feeding them to a band
                   // function turned +5% green into red the moment the scale was
-                  // flipped (user screenshots, 260805).
-                  colorKey="pct"
+                  // flipped (user screenshots, 260805). `colorPct` is that
+                  // percent with sub-unit gaps zeroed — see the map above.
+                  colorKey="colorPct"
                   tooltipExtra={(row) => {
-                    const diff = Number(row.real) - Number(row.planned);
+                    // The difference IS the bar. In the future reading the bar
+                    // is the limit change, and the tooltip was still computing
+                    // spend minus limit — two numbers for one row (user,
+                    // 260807).
+                    const diff =
+                      basis === "future"
+                        ? Number(row.gap)
+                        : Number(row.real) - Number(row.planned);
+                    // A limit and an expected monthly spend are RATES: the
+                    // total column belongs to the past reading, where the money
+                    // actually accumulated.
+                    const total = (v: string) =>
+                      basis === "future" ? undefined : v;
                     const pct = Number(row.pct);
                     const sign = diff > 0 ? "+" : diff < 0 ? "−" : "";
                     const pctSign = pct > 0 ? "+" : pct < 0 ? "−" : "";
@@ -728,54 +977,107 @@ export function PlannedSection({
                         // figure, and naming it after the arithmetic said less
                         // (user, 260806).
                         value: t("planned.monthColumn"),
-                        value2: t("planned.totalColumn"),
+                        value2: total(t("planned.totalColumn")),
                         head: true,
                       },
-                      // Both baselines, always — the difference below is
-                      // measured against whichever one the switch is on, and
-                      // seeing the other beside it is how you judge the choice
-                      // (260805). The total column belongs to the average,
-                      // which is the one that actually accumulated.
+                      // ONLY the baseline this reading is measured against
+                      // (user, 260807). Both were listed while the switch was
+                      // average-vs-current and the second justified the choice;
+                      // now each side has its own baseline and the other is a
+                      // figure nobody reads. The total column belongs to the
+                      // average, which is the one that actually accumulated.
+                      ...(basis === "future"
+                        ? // The average is history. What the future reading is
+                          // about is today's limit and the change the bar
+                          // draws — dropping every limit left a change with
+                          // nothing to relate it to (user, 260807).
+                          //
+                          // The limit it will NEED is not listed: a category
+                          // with nothing scheduled needs exactly what it keeps
+                          // spending, so the row printed the expected spend a
+                          // second time (user, 260808). Today's limit plus the
+                          // difference below is the one to move to.
+                          [
+                            {
+                              label: t("planned.currentLimit"),
+                              value: fmtTooltip(Number(row.current)),
+                            },
+                          ]
+                        : [
+                            {
+                              label: t("planned.avgLimit"),
+                              value: fmtTooltip(Number(row.avg)),
+                              value2: fmtTooltip(Number(row.plannedTotal)),
+                            },
+                          ]),
                       {
-                        label: t("planned.avgLimit"),
-                        value: fmtTooltip(Number(row.avg)),
-                        value2: fmtTooltip(Number(row.plannedTotal)),
-                      },
-                      {
-                        label: t("planned.currentLimit"),
-                        value: fmtTooltip(Number(row.current)),
-                        // A rate, not something that accumulated over the
-                        // range: there is no total to put here, and repeating
-                        // the average's would be a lie. The dash says "not
-                        // applicable" without leaving a hole in the column.
-                        value2: "—",
-                      },
-                      {
-                        label: t("planned.spent"),
-                        value: fmtTooltip(Number(row.real)),
-                        value2: fmtTooltip(Number(row.realTotal)),
-                      },
-                      {
+                        // In the FUTURE reading this average is not what was
+                        // spent, it is what the category is expected to keep
+                        // spending — which is what the limit has to cover.
                         label: t(
-                          basis === "current"
-                            ? "planned.differenceVsCurrent"
-                            : "planned.differenceVsAverage",
+                          basis === "future"
+                            ? "planned.expectedSpend"
+                            : "planned.spent",
                         ),
-                        // Amount AND percent on one line — the bar shows the
-                        // percent, the tooltip should tie it back to real money.
-                        // Percent first — it is what the bar length encodes; the
-                        // money is the supporting detail (260801).
-                        value: `${pctSign}${Math.abs(
-                          Math.round(Number(row.pct)),
-                        )}% · ${sign}${fmtTooltip(Math.abs(diff))}`,
-                        // A conclusion, not another figure in the list — it opens
-                        // its own section under a rule (260803).
-                        section: true,
-                        color: varianceColorForRange(Number(row.pct), {
-                          runningMonthOnly: rangeWithinRunningMonth,
-                        }),
+                        value: fmtTooltip(Number(row.real)),
+                        value2: total(fmtTooltip(Number(row.realTotal))),
                       },
-                    ];
+                      // FUTURE: the row is a decision, so it reads as one —
+                      // "Increase limit by 331 zł", in the colour that says
+                      // which way it points. "Difference −11% · −331 zł" stated
+                      // the same thing as arithmetic and left the reader to
+                      // work out both the direction and the destination (user,
+                      // 260809, 260810).
+                      //
+                      // A limit that has to RISE is a shortfall — the category
+                      // costs more than it is given — so it takes the shortfall
+                      // colour; one that can come down is slack, and takes the
+                      // surplus one. The same two colours the bars use.
+                      //
+                      // Whole units, because that is what the rebalance dialog
+                      // writes, and nothing at all under one: there is no
+                      // instruction in forty groszy.
+                      basis === "future"
+                        ? Math.abs(diff) < UNIT_CENTS
+                          ? null
+                          : {
+                              label: t(
+                                diff > 0
+                                  ? "planned.increaseLimitBy"
+                                  : "planned.decreaseLimitBy",
+                              ),
+                              value: fmtTooltip(
+                                Math.round(Math.abs(diff) / UNIT_CENTS) *
+                                  UNIT_CENTS,
+                              ),
+                              section: true,
+                              cta: true,
+                              ctaColor:
+                                diff > 0
+                                  ? "var(--trading-down)"
+                                  : "var(--primary)",
+                            }
+                        : {
+                            // One baseline is listed above, so naming it again here
+                            // says nothing (user, 260807).
+                            label: t("planned.difference"),
+                            // Amount AND percent on one line — the bar shows the
+                            // percent, the tooltip should tie it back to real money.
+                            // Percent first — it is what the bar length encodes; the
+                            // money is the supporting detail (260801).
+                            value: `${pctSign}${Math.abs(
+                              Math.round(Number(row.pct)),
+                            )}% · ${sign}${fmtTooltip(Math.abs(diff))}`,
+                            // A conclusion, not another figure in the list — it opens
+                            // its own section under a rule (260803).
+                            section: true,
+                            color: varianceColorForRange(Number(row.pct), {
+                              runningMonthOnly: rangeWithinRunningMonth,
+                            }),
+                          },
+                      // …and a Future row with nothing to ask for drops out
+                      // rather than printing "change it by 0".
+                    ].filter((r): r is NonNullable<typeof r> => r !== null);
                   }}
                   formatTooltip={fmtTooltip}
                   // 260731 (user decision): the CHARTS always show real numbers — masking
@@ -802,34 +1104,28 @@ export function PlannedSection({
             rows={data.plannedAvgVsReal}
             categories={categories}
             picked={prunePlannedCategories(
-              pieCategoryIds,
+              categoryIds,
               categories.map((c) => c.id as string),
             )}
-            onPick={setPieCategoryIds}
             isInvestment={(id) =>
               Boolean(categories.find((c) => c.id === id)?.isInvestment)
             }
             ringLabel={(key) => t(`planned.ring.${key}`)}
-            pickable={categories.map((c) => ({
-              id: c.id,
-              name: c.name,
-              color:
-                hexForColorKey((c.colorKey as string | null) ?? null) ??
-                undefined,
-            }))}
             title={t("planned.avgPie")}
             allLabel={t("planned.allCategories")}
             formatValue={fmtTooltip}
             // Same call as the metrics above: planned spend stays readable.
           />
 
-          {/* Recurring payments, by month — current config, NOT range-scoped
-              (D-14). It lived in a section of its own until 260804; one chart
-              did not earn a collapsible, and it reads as part of the plan. */}
+          {/* UPCOMING scheduled payments, by month — today to the furthest
+              next-due, never range-scoped (D-14). Until 260807 it drew a
+              calendar year of RATES, a yearly renewal divided by twelve; the
+              household wanted what is actually coming, so each payment now sits
+              in the month it really falls in and the axis is real months. */}
           <div className="flex flex-col gap-2">
-            <ChartLabel>{t("planned.recurringPerMonth")}</ChartLabel>
+            <ChartLabel>{t("planned.scheduledPerMonth")}</ChartLabel>
             <OverviewAreaChart
-              data={data.recurringPerMonth.map((m) => ({
+              data={data.scheduledPerMonth.map((m) => ({
                 month: String(m.month),
                 planned: Number(m.planned_cents),
                 items: m.items,
@@ -837,7 +1133,7 @@ export function PlannedSection({
               xKey="month"
               // The tooltip repeats the series name under the month it already
               // names, so it drops the ", by month" the chart title needs.
-              series={[{ key: "planned", label: t("planned.recurringSeries") }]}
+              series={[{ key: "planned", label: t("planned.scheduledSeries") }]}
               formatY={fmtY}
               formatTooltip={fmtTooltip}
               xTickFormat={shortMonthName}
@@ -854,6 +1150,68 @@ export function PlannedSection({
               }}
             />
           </div>
+
+          {/* A YEAR of standing commitments, by category (user, 260811). The
+              chart above answers "what is coming and when"; this answers "where
+              does it all go", which a calendar cannot: a 40/month subscription
+              and a 500/year renewal look nothing alike month to month and are
+              nearly the same yearly commitment.
+
+              Deliberately NOT category-filtered — the question is the shape of
+              the whole year, which needs every category to mean anything. Grey,
+              because it is a statement of fact rather than a verdict. */}
+          {(data.scheduledPerYear?.length ?? 0) > 0 && (
+            <div className="flex flex-col gap-2">
+              <ChartLabel>{t("planned.scheduledPerYear")}</ChartLabel>
+              <OverviewBarChart
+                data={data.scheduledPerYear!.map((r) => ({
+                  category: r.name || t("planned.scheduledNoCategory"),
+                  yearly: Number(r.amount_cents),
+                  items: r.items ?? [],
+                }))}
+                xKey="category"
+                // recharts' "vertical": categories down the Y axis, bars
+                // running right — the same orientation every other
+                // by-category chart in this section uses, and the only one
+                // that gives a name like "Subscriptions" room to read. The
+                // chart scales its own height with the row count.
+                layout="vertical"
+                series={[
+                  {
+                    key: "yearly",
+                    label: t("planned.scheduledSeries"),
+                    // Theme-aware neutral: darker than the text grey in dark,
+                    // lighter in light (see --chart-bar-neutral).
+                    color: "var(--chart-bar-neutral)",
+                  },
+                ]}
+                formatValue={fmtY}
+                formatTooltip={fmtTooltip}
+                maskAmounts={false}
+                // The working behind each bar: "200 × 12m = 2,400" — how the
+                // yearly figure was reached, per payment (user, 260811).
+                tooltipExtra={(row) => {
+                  const items =
+                    (row.items as {
+                      name: string | null;
+                      amount_cents: string;
+                      cadence: string;
+                      yearly_cents: string;
+                    }[]) ?? [];
+                  return items.map((it) => ({
+                    label: it.name || t("planned.scheduledNoCategory"),
+                    value: `${fmtTooltip(Number(it.amount_cents))} × ${
+                      RATE_LABEL[it.cadence]
+                        ? `${RATE_LABEL[it.cadence]!.n}${t(
+                            RATE_LABEL[it.cadence]!.unit,
+                          )}`
+                        : "1"
+                    } = ${fmtTooltip(Number(it.yearly_cents))}`,
+                  }));
+                }}
+              />
+            </div>
+          )}
         </>
       )}
     </OverviewSection>

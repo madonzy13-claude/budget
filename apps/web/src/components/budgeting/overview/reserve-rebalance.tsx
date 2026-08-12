@@ -22,7 +22,7 @@
  */
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { ArrowRight, Scale } from "lucide-react";
+import { ArrowRight, RotateCcw, Scale } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +36,7 @@ import { reserveFitColor } from "@/components/budgeting/charts/diverging-bar-cha
 import { centsToBare } from "@/lib/cents-format";
 import {
   parseTargetCents,
+  roundUpUnit,
   rebalanceBand,
   rebalanceButton,
   rebalanceRowPct,
@@ -55,8 +56,10 @@ export interface RebalanceCandidate {
 /** What a move in this dialog did, so it can be taken back. */
 interface Applied {
   /** The reserve before the FIRST move — undo returns here, not to the middle
-   *  of a series of tries. */
-  baselineCents: number;
+   *  of a series of tries. NULL once the move has been taken back: the figure
+   *  below is then what undo restored, which the row keeps showing until the
+   *  parent refetches (user, 260810). */
+  baselineCents: number | null;
   /** What the server settled on. Not always the target: a raise that covered
    *  this month's overspend lands below it. */
   currentCents: number;
@@ -96,7 +99,9 @@ export function ReserveRebalance({
     categoryId: r.categoryId,
     name: r.name,
     currentCents: applied[r.categoryId]?.currentCents ?? r.heldCents,
-    targetCents: targets[r.categoryId] ?? r.neededCents,
+    // Whole units: the walk answers to the groszy, but what someone is asked
+    // to move is a figure they would actually type (user, 260808).
+    targetCents: targets[r.categoryId] ?? roundUpUnit(r.neededCents),
     baselineCents: applied[r.categoryId]?.baselineCents ?? null,
   }));
 
@@ -124,11 +129,14 @@ export function ReserveRebalance({
       if (kind === "undo") {
         const back = row.baselineCents ?? row.currentCents;
         await onRebalance(row.categoryId, back);
-        setApplied((a) => {
-          const next = { ...a };
-          delete next[row.categoryId];
-          return next;
-        });
+        // KEEP the restored figure on the row. Dropping the record let it fall
+        // back to the props, which still hold what the move wrote until the
+        // refetch lands — the row then read as though the undo never happened
+        // (user, 260810, same trap as the limit dialog).
+        setApplied((a) => ({
+          ...a,
+          [row.categoryId]: { baselineCents: null, currentCents: back },
+        }));
         setCovered((c) => {
           const next = { ...c };
           delete next[row.categoryId];
@@ -139,8 +147,7 @@ export function ReserveRebalance({
         setApplied((a) => ({
           ...a,
           [row.categoryId]: {
-            baselineCents:
-              a[row.categoryId]?.baselineCents ?? row.currentCents,
+            baselineCents: a[row.categoryId]?.baselineCents ?? row.currentCents,
             currentCents: settled,
           },
         }));
@@ -181,7 +188,6 @@ export function ReserveRebalance({
     const band = rebalanceBand(row.currentCents, row.targetCents);
     const color = reserveFitColor(rebalanceRowPct(row));
     const { kind, disabled } = rebalanceButton(row);
-    const move = row.targetCents - row.currentCents;
     return (
       <li
         key={row.categoryId}
@@ -194,19 +200,23 @@ export function ReserveRebalance({
         style={{ borderLeftColor: color }}
         className="flex flex-col gap-1.5 rounded-[var(--radius-md)] border-l-2 bg-[var(--surface-card-dark)] px-3 py-2.5"
       >
-        {/* The name shares its line with the BUTTON rather than with the
-            numbers: "Zbilansuj" and "Збалансувати" are half again as wide as
-            "Rebalance", and on a 390px phone that verb needs a line where it
-            cannot crush the target field. */}
+        {/* The name shares its line with the BUTTON, and the line below ends
+            with the field: both run flush to the card's right edge, so the two
+            lines read as one block (user, 260808). One line for all three does
+            not fit a 390px phone — the widest figure alone is a third of it —
+            and "Збалансувати" is twice the width of "Rebalance". */}
         <div className="flex items-center justify-between gap-2">
           <span className="truncate text-num-sm">{row.name}</span>
           <Button
             type="button"
-            size="sm"
             // Both states are BUTTONS. Undo was a ghost, which on a dark card
             // is bare text and read as a link — it undoes a money move and has
-            // to look as pressable as what it replaced (user, 260805).
-            variant={kind === "undo" ? "outline" : "secondary"}
+            // to look as pressable as what it replaced (user, 260805). The
+            // move is now the compact yellow CTA the dense rows use: grey on
+            // grey read as a label rather than the thing to press (user,
+            // 260808). Undo stays quieter — it must not compete.
+            size="subscribe"
+            variant={kind === "undo" ? "outline" : "subscribe"}
             data-testid={`reserve-rebalance-action-${row.categoryId}`}
             data-kind={kind}
             disabled={disabled || busy === row.categoryId}
@@ -218,8 +228,13 @@ export function ReserveRebalance({
               { name: row.name },
             )}
             onClick={() => void run(row)}
-            className="h-7 shrink-0 px-2.5 text-caption"
+            className="shrink-0 gap-1.5"
           >
+            {kind === "undo" ? (
+              <RotateCcw aria-hidden className="size-3.5" />
+            ) : (
+              <Scale aria-hidden className="size-3.5" />
+            )}
             {t(
               kind === "undo"
                 ? "reserveFit.undoAction"
@@ -227,10 +242,9 @@ export function ReserveRebalance({
             )}
           </Button>
         </div>
-        {/* Both lines run edge to edge: the figure starts under the name and
-            the move ends under the button, so the card reads as two lines of
-            one block rather than two rows that happen to be near each other
-            (user, 260805). */}
+        {/* What it holds and what it should hold. The move figure that used to
+            close this line is gone: it restated the difference between the two
+            figures already on it. */}
         <div className="flex items-center gap-2">
           <span
             data-testid={`reserve-rebalance-current-${row.categoryId}`}
@@ -239,9 +253,12 @@ export function ReserveRebalance({
           >
             {format(row.currentCents)}
           </span>
+          {/* The one mark saying which figure replaces which, and it was the
+              faintest thing on the row (user, 260808). */}
           <ArrowRight
-            aria-hidden
-            className="size-3 shrink-0 text-[var(--muted-foreground)]"
+            aria-label={t("reserveFit.becomes")}
+            role="img"
+            className="size-4 shrink-0 text-[var(--foreground)]"
           />
           <Input
             data-testid={`reserve-rebalance-target-${row.categoryId}`}
@@ -258,23 +275,10 @@ export function ReserveRebalance({
               if (cents !== null)
                 setTargets((g) => ({ ...g, [row.categoryId]: cents }));
             }}
-            className="h-8 w-[6.5rem] shrink-0 text-right text-num-sm"
+            // A fixed field pushed to the right edge, under the button that
+            // acts on it. flex-1 swallowed the row instead.
+            className="ml-auto h-8 w-[7.5rem] shrink-0 text-right text-num-sm"
           />
-          {/* The MOVE, not the gap: what the button would do to this reserve.
-              So it reads + when money goes IN and − when it comes back out —
-              the opposite sign to the chart's bar, which measures how far the
-              buffer is from where it should be (user, 260805). The colour is
-              the row's own, so sign and colour cannot disagree: adding is red
-              because the buffer is short, taking back is amber. Pushed to the
-              row's right edge, under the button that would carry it out. */}
-          <span
-            data-testid={`reserve-rebalance-move-${row.categoryId}`}
-            className="num ml-auto shrink-0 truncate text-num-sm"
-            style={{ color }}
-          >
-            {move > 0 ? "+" : move < 0 ? "−" : ""}
-            {format(Math.abs(move))}
-          </span>
         </div>
         {covered[row.categoryId] !== undefined && (
           <p
@@ -306,7 +310,25 @@ export function ReserveRebalance({
         <Scale aria-hidden className="size-4" />
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          // Closing ends the session. An undo takes back what you JUST did, and
+          // once the dialog is shut you did not just do it: the list refetches,
+          // so the figure undo would restore is the one already there and the
+          // button sat offering a move that did nothing (user, 260809). The
+          // same staleness left a row wearing the accent of a move it had
+          // already made.
+          if (!next) {
+            setApplied({});
+            setCovered({});
+            setTargets({});
+            setDrafts({});
+            setOrder(null);
+          }
+        }}
+      >
         <DialogContent
           data-testid="reserve-rebalance-dialog"
           // Radix would focus the first target field, and a focused decimal
@@ -316,7 +338,9 @@ export function ReserveRebalance({
         >
           <DialogHeader>
             <DialogTitle>{t("reserveFit.rebalanceTitle")}</DialogTitle>
-            <DialogDescription>{t("reserveFit.rebalanceExplainer")}</DialogDescription>
+            <DialogDescription>
+              {t("reserveFit.rebalanceExplainer")}
+            </DialogDescription>
           </DialogHeader>
           <ul className="flex flex-col gap-1.5">{shown.map(renderRow)}</ul>
         </DialogContent>

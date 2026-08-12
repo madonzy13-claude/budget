@@ -159,3 +159,30 @@ describe("AggregationSection", () => {
     expect(putMock).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * These two rows read differently from every other setting (user, 260810): the
+ * share title came out unbolted and with a pointer cursor over text that is not
+ * a control, because it was a <label>; and the toggle's description was a size
+ * larger than the hints around it.
+ */
+describe("AggregationSection — reads like the settings around it", () => {
+  const renderOn = () =>
+    render(
+      <AggregationSection budgetId="b1" includeInAggregation sharePct={100} />,
+    );
+
+  it("titles the share row like a setting, not a form label", () => {
+    renderOn();
+    const title = screen.getByText("share_label");
+    expect(title.tagName).toBe("P");
+    expect(title.className).toContain("font-semibold");
+  });
+
+  it("sizes both hints like the ones beside them", () => {
+    renderOn();
+    for (const key of ["feature_help_text", "share_help"]) {
+      expect(screen.getByText(key).className).toContain("text-xs");
+    }
+  });
+});

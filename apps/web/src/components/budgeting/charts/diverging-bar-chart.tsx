@@ -142,6 +142,32 @@ export function rowHitBoxes(
   return bars.map((b, i) => (paired ? [b, labels[i]!] : [b]));
 }
 
+/**
+ * WHICH ROW the tooltip is about — from our own active index, never recharts'.
+ *
+ * The chart ran two hit-tests: ours (DOM rects, drives the dimming) and
+ * recharts' own (drives what its <Tooltip> hands the content). On a finger they
+ * disagree, and the screen contradicted itself: Uncategorized lit up while the
+ * box read "Food & Home" (user, 260810). The highlight is the one the member
+ * aimed, so the box follows it.
+ */
+export function tooltipPayloadFor<T extends object>(
+  rows: readonly T[],
+  index: number | null,
+  valueKey: string,
+): Array<{ dataKey: string; value: number | undefined; payload: T }> {
+  const row = index == null ? undefined : rows[index];
+  if (!row) return [];
+  const raw = (row as Record<string, unknown>)[valueKey];
+  return [
+    {
+      dataKey: valueKey,
+      value: typeof raw === "number" ? raw : undefined,
+      payload: row,
+    },
+  ];
+}
+
 export function touchSelection(
   point: { x: number; y: number },
   rows: readonly (readonly HitBox[])[],
@@ -160,6 +186,9 @@ function colorValue(raw: unknown): number | null {
   const n = Number(raw);
   return raw !== undefined && raw !== null && Number.isFinite(n) ? n : null;
 }
+
+/** The mark a bar worth nothing is drawn as: a hairline ON the zero line. */
+const ZERO_MARK_PX = 2;
 
 export function reserveFitColor(pct: number): string {
   if (pct === 0) return "var(--muted-foreground)";
@@ -225,6 +254,10 @@ export function divergingDomain(values: number[]): [number, number] {
  */
 const TICK_LADDER = [10, 20, 50, 100, 200, 400, 800, 1600, 3200, 6400] as const;
 
+/** One whole currency unit, in cents — the finest step the MONEY axis may take,
+ *  because that is the finest its labels can say. */
+const UNIT_CENTS = 100;
+
 export function divergingTicks(min: number, max: number): number[] {
   const ticks = new Set<number>([0]);
   for (const t of TICK_LADDER) {
@@ -248,7 +281,14 @@ export function amountTicks(min: number, max: number): number[] {
   const mantissa = raw / 10 ** Math.floor(Math.log10(raw));
   const snapped =
     mantissa <= 1 ? 1 : mantissa <= 2 ? 2 : mantissa <= 2.5 ? 2.5 : 5;
-  const step = snapped * 10 ** Math.floor(Math.log10(raw));
+  // …but never finer than one whole unit. The labels are written in whole
+  // money, so a step of 50 groszy prints the same word twice: a chart whose
+  // biggest change was under a złoty carried "−1 zł · −1 zł · 0 zł · +1 zł"
+  // (user, 260809).
+  const step = Math.max(
+    UNIT_CENTS,
+    snapped * 10 ** Math.floor(Math.log10(raw)),
+  );
   const ticks = new Set<number>([0]);
   for (let t = step; t <= reach + step; t += step) {
     if (t <= max + step) ticks.add(t);
@@ -561,8 +601,20 @@ export function OverviewDivergingBarChart({
             // (user, 260805).
             wrapperStyle={{ pointerEvents: "auto" }}
             cursor={{ fill: CHART_THEME.grid, fillOpacity: 0.15 }}
-            content={
+            // The payload and the title come from OUR active row, not from
+            // recharts' parallel hit-test — see tooltipPayloadFor.
+            content={(props: Record<string, unknown>) => (
               <ChartTooltipContent
+                {...props}
+                active={activeIndex !== null}
+                payload={tooltipPayloadFor(rows, activeIndex, "__pct")}
+                label={
+                  activeIndex == null
+                    ? undefined
+                    : ((
+                        rows[activeIndex] as Record<string, unknown> | undefined
+                      )?.[categoryKey] as string | undefined)
+                }
                 formatY={tipFmt}
                 series={[]}
                 // The bar's dataKey is an internal ("__pct") — showing it as a
@@ -573,7 +625,7 @@ export function OverviewDivergingBarChart({
                 extra={tooltipExtra}
                 onDismiss={() => setActive(null)}
               />
-            }
+            )}
           />
           <Bar
             dataKey="__pct"
@@ -588,13 +640,27 @@ export function OverviewDivergingBarChart({
             shape={(props: {
               x?: number;
               width?: number;
-              payload?: { __pct?: number };
+              payload?: Record<string, unknown>;
             }) => {
-              const onPlan = Number(props.payload?.__pct ?? 0) === 0;
+              // Ask the SAME number the colour asks. The raw percent still
+              // carries the groszy, so a category thirty of them off printed
+              // "+0 zł", took the even grey — and then drew itself starting AT
+              // the line instead of across it, sitting visibly to one side of
+              // every other bar's origin (user screenshot, 260809).
+              const shown =
+                colorValue(props.payload?.[colorKey]) ??
+                Number(props.payload?.["__pct"] ?? 0);
+              const onPlan = Number(shown ?? 0) === 0;
+              // …and it is drawn as the SAME hairline however far off zero the
+              // groszy behind it are. Left at its own scale, thirty of them
+              // came out as a rounded blob beside the line while an exact zero
+              // was a thin mark on it — two shapes for one meaning.
+              const width = onPlan ? ZERO_MARK_PX : props.width;
               return (
                 <Rectangle
                   {...props}
-                  x={onPlan ? (props.x ?? 0) - (props.width ?? 0) / 2 : props.x}
+                  width={width}
+                  x={onPlan ? (props.x ?? 0) - ZERO_MARK_PX / 2 : props.x}
                   radius={onPlan ? 1 : 4}
                 />
               );

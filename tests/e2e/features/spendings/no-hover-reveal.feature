@@ -12,7 +12,7 @@ Feature: Hover does not reveal action chips (D-PH4-INT1 regression guard)
   Scenario: Pointermove over a draft row leaves DOM in resting state
     Given I am signed in as a fresh user with workspace "Family"
     And the budget "Family" has a category "Groceries" with planned "200.00" "PLN"
-    And the budget "Family" has a recurring rule "Rent" for category "Groceries" of "50.00" "PLN" due this month
+    And the budget "Family" has a scheduled rule "Rent" for category "Groceries" of "50.00" "PLN" due this month
     When I open the Spendings tab on a budget "Family"
     And I move the pointer over the draft row "Rent" without clicking
     Then I do not see floating action chips on "the draft row Rent"

@@ -73,6 +73,33 @@ export async function runBudgetWealthSnapshot3h(
         TenantId(b.tenant_id),
         UserId(SYSTEM_USER_ID),
         async (tx) => {
+          // A budget created today, with its wallets added tomorrow, spends the
+          // gap being recorded once an hour as worth nothing — and the wealth
+          // chart draws that literally: a cliff to zero between whatever history
+          // it was seeded with and its first real reading (user, 260810, 22 such
+          // rows on one budget). Those zeros were TRUE and still meaningless:
+          // nobody had put anything in yet.
+          //
+          // So a budget with no wallet AT ALL has nothing to plot and is not
+          // plotted. The test is deliberately the existence of a wallet, not the
+          // total: a household whose wallets really do sum to zero is making a
+          // statement about its money, and that one still gets recorded.
+          //
+          // Checked only when there is nothing to write anyway, so the ordinary
+          // path costs no extra query — and inside this tx, where the tenant GUC
+          // is set (the id scan above runs under withInfraTx with no GUC, so an
+          // EXISTS there would be blocked by RLS and skip EVERY budget).
+          if (
+            wealth.capitalization_cents === 0n &&
+            wealth.investment_value_cents === 0n
+          ) {
+            const w = await (tx as DrizzleTx).execute(sql`
+              SELECT 1 FROM budgeting.wallets
+               WHERE tenant_id = ${b.tenant_id}::uuid
+               LIMIT 1
+            `);
+            if (w.rows.length === 0) return 0;
+          }
           const res = await (tx as DrizzleTx).execute(sql`
             INSERT INTO budgeting.budget_wealth_snapshots
               (tenant_id, budget_id, capitalization_cents, investment_value_cents, investment_cost_basis_cents, currency)

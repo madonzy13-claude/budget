@@ -10,9 +10,9 @@
  * decimalToCents parses them exactly (no float) with round-half-up to the cent.
  */
 import {
-  recurringMonthlyNormalize,
+  scheduledMonthlyNormalize,
   type Cadence,
-} from "./recurring-monthly-normalize";
+} from "./scheduled-monthly-normalize";
 
 /** Exact decimal-string → integer cents, round-half-up. No float (money path). */
 export function decimalToCents(amount: string): bigint {
@@ -39,18 +39,31 @@ export function computeInvestmentSmartLimit(input: {
 export interface IncomeForNormalize {
   amount: string; // numeric(19,4) string
   currency: string;
-  cadence: Cadence;
+  cadence: Cadence | "ONCE";
+  /** The day a ONE-TIME income arrives (mig 0080). Ignored for the rhythms. */
+  once_date?: string | null;
 }
 
 /**
  * Turn each income into a monthly-equivalent {amount_cents, currency} item (still
  * in its own currency) so the caller can FX-convert + sum via sumWalletsToCurrency.
+ *
+ * `month` ('YYYY-MM') is what a ONE-TIME income is judged against: it counts in
+ * full in the month it arrives and for nothing in any other — not a twelfth,
+ * not an average. A caller that cannot say which month it means gets zero for
+ * those incomes rather than a figure that is only true once a year (260807).
  */
 export function normalizeIncomesToMonthlyItems(
   incomes: IncomeForNormalize[],
+  month?: string,
 ): { amount_cents: bigint; currency: string }[] {
   return incomes.map((i) => ({
-    amount_cents: recurringMonthlyNormalize(decimalToCents(i.amount), i.cadence),
+    amount_cents:
+      i.cadence === "ONCE"
+        ? month && i.once_date?.slice(0, 7) === month
+          ? decimalToCents(i.amount)
+          : 0n
+        : scheduledMonthlyNormalize(decimalToCents(i.amount), i.cadence),
     currency: i.currency,
   }));
 }

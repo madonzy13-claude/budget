@@ -52,6 +52,9 @@ export function isOfflineWriteError(err: unknown): err is OfflineWriteError {
  *  later so the race always wins first (and the abort is just a real cancel). */
 const RACE_TIMEOUT_MS = 6000;
 const ABORT_TIMEOUT_MS = 8000;
+/** When the device says it is offline we still try, but briefly: a real dead
+ *  link rejects almost instantly, so this only bounds the rare hung case. */
+const OFFLINE_RACE_TIMEOUT_MS = 2000;
 
 /**
  * clientApiWrite — `clientApiFetch` for mutations, with the honest-offline
@@ -62,10 +65,18 @@ export async function clientApiWrite(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  // FAST-NEGATIVE: device KNOWS it is offline → instant, no doomed request.
-  if (typeof navigator !== "undefined" && navigator.onLine === false) {
-    throw new OfflineWriteError();
-  }
+  // navigator.onLine===false used to refuse instantly, without a request. It
+  // lies in BOTH directions: a PWA resumed from background, or a Wi-Fi↔cellular
+  // handover, reports false on a live link — and the write was then impossible
+  // until something happened to flip the flag back, with nothing the member
+  // could do about it (user, 260811: full 5G, server answering in ~200ms, "You're
+  // offline" and no request ever sent).
+  //
+  // So a device that believes it is offline still gets ONE attempt, just on a
+  // shorter leash: genuinely offline, fetch rejects at once and the same honest
+  // toast appears; lying, the write goes through.
+  const believedOffline =
+    typeof navigator !== "undefined" && navigator.onLine === false;
 
   let raceTimer: ReturnType<typeof setTimeout> | undefined;
   let res: Response;
@@ -79,7 +90,7 @@ export async function clientApiWrite(
     const timeoutPromise = new Promise<never>((_, reject) => {
       raceTimer = setTimeout(
         () => reject(new OfflineWriteError()),
-        RACE_TIMEOUT_MS,
+        believedOffline ? OFFLINE_RACE_TIMEOUT_MS : RACE_TIMEOUT_MS,
       );
     });
     res = await Promise.race([fetchPromise, timeoutPromise]);

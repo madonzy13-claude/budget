@@ -37,12 +37,14 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
     valueKey,
     formatValue,
     onPlanBand,
+    tooltipExtra,
   }: {
     data: Record<string, unknown>[];
     categoryKey: string;
     valueKey: string;
     formatValue?: (n: number) => string;
     onPlanBand?: boolean;
+    tooltipExtra?: (row: Record<string, unknown>) => unknown;
   }) => (
     <div
       data-testid="fit-chart"
@@ -50,6 +52,7 @@ vi.mock("@/components/budgeting/charts/diverging-bar-chart", () => ({
       data-value-key={valueKey}
       data-money={String(typeof formatValue === "function")}
       data-band={String(onPlanBand)}
+      data-tooltips={JSON.stringify(data.map((d) => tooltipExtra?.(d) ?? null))}
       data-samples={JSON.stringify({
         positive: formatValue?.(4600),
         negative: formatValue?.(-4600),
@@ -129,7 +132,7 @@ const DTO = {
           transaction_date: "2026-03-14",
           note: "Parachute jump",
           amount_cents: "480000",
-          recurring_cadence: null,
+          scheduled_cadence: null,
           excluded: false,
         },
       ],
@@ -150,7 +153,7 @@ const DTO = {
           transaction_date: "2025-09-01",
           note: "Insurance",
           amount_cents: "500000",
-          recurring_cadence: "YEARLY",
+          scheduled_cadence: "YEARLY",
           excluded: false,
         },
       ],
@@ -430,5 +433,172 @@ describe("ReserveFitView", () => {
     );
     expect(screen.queryByTestId("fit-chart")).toBeNull();
     expect(screen.getByTestId("reserve-fit-empty")).toBeTruthy();
+  });
+});
+
+describe("ReserveFitView — what the tooltip tells you to do", () => {
+  /** The tooltip rows the chart would draw for `name`. */
+  const tooltipFor = (name: string) => {
+    const chart = screen.getByTestId("fit-chart");
+    const rows = chart.getAttribute("data-rows")!.split(",");
+    const all = JSON.parse(chart.getAttribute("data-tooltips")!) as {
+      label: string;
+      value: string;
+      value2?: string;
+      conj?: string;
+    }[][];
+    return all[rows.indexOf(name)]!;
+  };
+
+  const withSuggestion = (
+    categoryId: string,
+    extra: Record<string, unknown>,
+  ) => ({
+    ...DTO,
+    rows: DTO.rows.map((r) =>
+      r.category_id === categoryId ? { ...r, ...extra } : r,
+    ),
+  });
+
+  const renderWith = (data: unknown) =>
+    render(
+      <ReserveFitView
+        data={data as never}
+        onSave={vi.fn()}
+        onRebalance={vi.fn(async () => 0)}
+        format={(c: number) => `${Math.round(c / 100)} zl`}
+        formatExact={(c: number) => `${(c / 100).toFixed(2)} zl`}
+      />,
+    );
+
+  const labels = (name: string) => tooltipFor(name).map((r) => r.label);
+
+  /**
+   * The limit belongs to the Future chart, which is where it is decided and
+   * where the dialog that writes it lives. Saying it here too was the same
+   * decision in two places, and every disagreement between the two - the
+   * rounding, the basis, the and/or - came out of keeping both (user, 260809).
+   */
+  it("says nothing about the limit, even when the row carries a suggestion", () => {
+    renderWith(
+      withSuggestion("car", {
+        suggested_limit_cents: "313000",
+        suggested_delta_cents: "-10300",
+        suggested_needed_cents: "1731500",
+        suggested_direction: "lower",
+      }),
+    );
+    expect(labels("Car")).not.toContain("reserveFit.setLimit");
+  });
+
+  it("asks a short reserve for the money it is missing", () => {
+    renderWith(DTO);
+    // Car holds 1,000 against 5,000 needed.
+    const rows = tooltipFor("Car");
+    expect(rows[0]!.label).toBe("reserveFit.held");
+    expect(rows[0]!.value).toBe("1000 zl");
+    expect(rows[1]!.label).toBe("reserveFit.needed");
+    expect(rows[1]!.value).toBe("5000 zl");
+    const add = rows.find((r) => r.label === "reserveFit.addToReserve")!;
+    expect(add.value).toBe("4000 zl");
+  });
+
+  it("offers a fat reserve the money it is sitting on", () => {
+    renderWith(DTO);
+    // Sport holds 4,600 and needs nothing.
+    const out = tooltipFor("Sport").find(
+      (r) => r.label === "reserveFit.withdraw",
+    )!;
+    expect(out.value).toBe("4600 zl");
+  });
+
+  it("says there is nothing to do when the reserve is already right", () => {
+    renderWith(DTO);
+    expect(labels("Newborn")).toContain("reserveFit.balanced");
+  });
+
+  it("never mentions the runway", () => {
+    renderWith(DTO);
+    for (const row of tooltipFor("Car")) {
+      expect(row.value).not.toMatch(/mo\b/);
+      expect(row.label).not.toMatch(/month/i);
+    }
+  });
+
+  // A difference under a whole unit is not an instruction (260808).
+  it("reads a difference of groszy as balanced", () => {
+    renderWith(
+      withSuggestion("sport", {
+        held_cents: "172001",
+        needed_cents: "172000",
+        gap_cents: "1",
+      }),
+    );
+    expect(labels("Sport")).toContain("reserveFit.balanced");
+  });
+});
+
+/**
+ * The instruction is the point of the card, so it is drawn as one (user,
+ * 260809): whole, in the accent, rather than another label-and-figure in the
+ * list of numbers it came from.
+ */
+describe("ReserveFitView — the action reads as an action", () => {
+  const tooltipRows = (name: string) => {
+    const chart = screen.getByTestId("fit-chart");
+    const rows = chart.getAttribute("data-rows")!.split(",");
+    const all = JSON.parse(chart.getAttribute("data-tooltips")!) as {
+      label: string;
+      cta?: boolean;
+      ctaColor?: string;
+    }[][];
+    return all[rows.indexOf(name)]!;
+  };
+
+  const render_ = () =>
+    render(
+      <ReserveFitView
+        data={DTO as never}
+        onSave={vi.fn()}
+        onRebalance={vi.fn(async () => 0)}
+        format={(c: number) => `${Math.round(c / 100)} zl`}
+        formatExact={(c: number) => `${(c / 100).toFixed(2)} zl`}
+      />,
+    );
+
+  it("marks the top-up as the call to action, in the shortfall colour", () => {
+    render_();
+    const add = tooltipRows("Car").find(
+      (r) => r.label === "reserveFit.addToReserve",
+    )!;
+    expect(add.cta).toBe(true);
+    // Money that has to go IN reads like the short bars do (user, 260810).
+    expect(add.ctaColor).toBe("var(--trading-down)");
+  });
+
+  it("marks the withdrawal as the call to action, in the accent", () => {
+    render_();
+    const out = tooltipRows("Sport").find(
+      (r) => r.label === "reserveFit.withdraw",
+    )!;
+    expect(out.cta).toBe(true);
+    // Money that can come OUT is slack, and keeps the default accent.
+    expect(out.ctaColor).toBeUndefined();
+  });
+
+  it("leaves the figures it came from alone", () => {
+    render_();
+    for (const row of tooltipRows("Car")) {
+      if (row.label === "reserveFit.addToReserve") continue;
+      expect(row.cta).toBeUndefined();
+    }
+  });
+
+  it("does not dress up 'nothing to do' as something to do", () => {
+    render_();
+    const settled = tooltipRows("Newborn").find(
+      (r) => r.label === "reserveFit.balanced",
+    )!;
+    expect(settled.cta).toBeUndefined();
   });
 });

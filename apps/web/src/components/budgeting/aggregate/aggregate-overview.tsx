@@ -185,6 +185,13 @@ export function AggregateOverview() {
   const cashTotal = sumCents(summable, "cash_full_cents");
   const spentTotal = sumCents(summable, "spent_month_cents");
   const leftTotal = sumCents(summable, "left_month_cents");
+  // The verdict comes from the cash-flow FORECASTS now (user, 260811): green
+  // when no included budget goes under, yellow when one does but the spare cash
+  // in the others would cover it — money to move, not money missing — and red
+  // when it would not. A payload cached before the server computed this replays
+  // without it, so the older cash-vs-upcoming comparison is the fallback.
+  const spendStatus: "green" | "yellow" | "red" =
+    data.forecast_status ?? (cashTotal >= leftTotal ? "green" : "red");
   const reservesTotal = sumCents(summable, "reserves_full_cents");
   const reservesReq = sumCents(summable, "reserves_required_cents");
   // Cushion coverage is a HOUSEHOLD safety check → FULL cushion wallets vs FULL
@@ -200,7 +207,6 @@ export function AggregateOverview() {
       BigInt(b.overspent_top_cents) > BigInt(a.overspent_top_cents) ? 1 : -1,
     )[0];
 
-  const spendGood = cashTotal >= leftTotal;
   const anyReserves = reservesTotal > 0n || reservesReq > 0n;
   const reservesShort = reservesTotal < reservesReq;
   const reservesSurplus = reservesTotal > reservesReq;
@@ -382,7 +388,29 @@ export function AggregateOverview() {
           <StatCard
             testid="aggregate-card-available-to-spend"
             label={t("available_to_spend")}
-            icon={spendGood ? iconOk : iconBad}
+            icon={
+              spendStatus === "green" ? (
+                <CircleCheck
+                  data-testid="aggregate-spend-good"
+                  className={`${ICON} text-[var(--trading-up)]`}
+                  aria-hidden
+                />
+              ) : spendStatus === "yellow" ? (
+                // Same shape as red, in the forecast's own amber: the timeline
+                // beside it already reads yellow as "attention, not trouble".
+                <CircleAlert
+                  data-testid="aggregate-spend-warn"
+                  className={`${ICON} text-[var(--primary)]`}
+                  aria-hidden
+                />
+              ) : (
+                <CircleAlert
+                  data-testid="aggregate-spend-bad"
+                  className={`${ICON} text-[var(--trading-down)]`}
+                  aria-hidden
+                />
+              )
+            }
             value={<SlotAmount value={fmt(cashTotal)} />}
             sub={
               <dl className="text-caption mt-1.5 flex flex-col gap-0.5 text-[var(--muted-foreground)]">
@@ -393,7 +421,7 @@ export function AggregateOverview() {
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <dt>{t("left")}</dt>
+                  <dt>{t("upcoming")}</dt>
                   <dd className="num text-[var(--body-on-dark)]">
                     <SlotAmount value={fmt(leftTotal)} />
                   </dd>

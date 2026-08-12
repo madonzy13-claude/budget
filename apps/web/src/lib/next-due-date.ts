@@ -1,6 +1,6 @@
 /**
- * next-due-date.ts — nearest UPCOMING date (today or later) matching a recurring
- * rule's cadence + day configuration. Used to auto-fill the recurring form's
+ * next-due-date.ts — nearest UPCOMING date (today or later) matching a scheduled
+ * rule's cadence + day configuration. Used to auto-fill the scheduled form's
  * "first due date" so it follows the picked cadence/day instead of defaulting to
  * today. Pure + UTC-based (dates are YYYY-MM-DD, no time / tz drift).
  */

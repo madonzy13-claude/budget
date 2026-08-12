@@ -4,7 +4,7 @@
  *
  * Segmented pill row (Month · 3M · Year · All · Custom); the active pill is
  * yellow-underlined. "Custom" reveals two native date inputs (from → to). Drives
- * the range-scoped sections only — the recurring charts + reserves bar ignore it.
+ * the range-scoped sections only — the scheduled charts + reserves bar ignore it.
  * Emits a resolved {preset, from, to} so callers key their RQ fetch off it.
  */
 import { useEffect, useRef, useState } from "react";

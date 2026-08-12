@@ -97,7 +97,10 @@ describe("TransactionRow", () => {
     expect(row.textContent).toContain("15");
   });
 
-  it("on focus shows an inline meta line: CREATION date (day + short month, NO year) + note", () => {
+  // SUPERSEDES r40b's "creation date": a spending added today for 31 July IS a
+  // July spending, and the row said 10 Aug (user, 260810). The date on the row
+  // is the date the money moved.
+  it("on focus shows an inline meta line: the SPENDING date (day + short month, NO year) + note", () => {
     renderRow({
       txn: {
         ...txn,
@@ -111,7 +114,7 @@ describe("TransactionRow", () => {
     const row = screen.getByTestId("txn-row-1500");
     fireEvent.focus(row);
     const meta = screen.getByTestId("txn-row-meta");
-    expect(meta.textContent?.trim()).toBe("13 Feb · Weekly shop"); // no year, + note
+    expect(meta.textContent?.trim()).toBe("14 May · Weekly shop"); // no year, + note
     expect(meta.textContent).not.toContain("2026"); // NO year
     expect(meta.textContent).not.toContain("15:43"); // NO time
     expect(meta.textContent).not.toContain("5/14/2026"); // NOT the spending date
@@ -122,7 +125,7 @@ describe("TransactionRow", () => {
     const row = screen.getByTestId("txn-row-1500");
     fireEvent.focus(row);
     const meta = screen.getByTestId("txn-row-meta");
-    expect(meta.textContent?.trim()).toBe("13 Feb");
+    expect(meta.textContent?.trim()).toBe("14 May");
     expect(meta.textContent).not.toContain("·");
   });
 

@@ -65,6 +65,28 @@ ENV GIT_COMMIT=$GIT_COMMIT
 ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY=
 ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY
 
+# THE GUARDRAIL. Building without the key produces an image that looks
+# perfectly healthy and cannot turn notifications on at all — subscribe() gets
+# an empty applicationServerKey and fails silently. It has cost four rounds of
+# "notifications don't work" (260803, 260806, 260809, 260810).
+#
+# `make build-web` has checked this since 260806, but a guard on one path is no
+# guard: `docker compose build web` walks straight past it, which is exactly how
+# it broke again. Here, every path has to come through — make, compose, CI, a
+# human in a hurry.
+RUN test -n "$NEXT_PUBLIC_VAPID_PUBLIC_KEY" || { \
+      echo ""; \
+      echo "ERROR: NEXT_PUBLIC_VAPID_PUBLIC_KEY is empty."; \
+      echo "The client bundle INLINES it, so this image would ship with push"; \
+      echo "notifications permanently dead — and nothing would say so."; \
+      echo ""; \
+      echo "Build with the secrets injected:"; \
+      echo "    make build-web                          # one service"; \
+      echo "    infisical run --env=dev -- docker compose build web"; \
+      echo ""; \
+      exit 1; \
+    }
+
 RUN cd apps/web && bunx next build --webpack
 
 # Stage 3: Runtime

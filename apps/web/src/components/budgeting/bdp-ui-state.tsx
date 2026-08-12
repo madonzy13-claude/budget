@@ -39,9 +39,12 @@ export interface BdpUiStore {
     /** Whether the averages chart counts the month still in progress (260802) —
      *  off by default, and persisted across pill navigation like the selector. */
     plannedScale?: "pct" | "amount";
-    /** Which baseline the by-category bars are drawn against — what the limit
-     *  AVERAGED across the range, or what it is set to NOW (260805). */
-    plannedBasis?: "average" | "current";
+    /** Which baseline the by-category bars are drawn against: the PAST — what
+     *  the limit averaged across the range — or the FUTURE, the limit the
+     *  reserve chart says the category will need (260807). "current" is the
+     *  old name for the second, still readable from a session that predates
+     *  the rename. */
+    plannedBasis?: "past" | "future" | "current";
   };
   spendings: { scrollTop?: number; scrollLeft?: number };
   /** Investment rows tapped open (mobile P/L expand), keyed by holding id. */

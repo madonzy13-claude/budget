@@ -2,7 +2,7 @@
  * BudgetSettingsPage.ts — Phase 6 Budget Settings tab page object.
  *
  * The Settings tab lives at /[locale]/budgets/[id]/settings and renders
- * a 5-section accordion: identity, cushion, recurring, members, danger.
+ * a 5-section accordion: identity, cushion, scheduled, members, danger.
  * PRIVATE budgets show only 4 sections (no Members).
  */
 import { type Page, type Locator, expect } from "@playwright/test";

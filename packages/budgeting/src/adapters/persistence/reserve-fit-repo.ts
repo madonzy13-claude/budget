@@ -5,7 +5,7 @@
  * Two jobs:
  *   1. the candidates — the biggest confirmed spends per category in range, each
  *      carrying whether the budget has already un-ticked it and whether it came
- *      from a recurring rule (a yearly insurance charge is rare AND certain, so
+ *      from a scheduled rule (a yearly insurance charge is rare AND certain, so
  *      the member should see that before deciding);
  *   2. the toggle — insert/delete a row in budgeting.reserve_fit_exclusions.
  *
@@ -82,13 +82,13 @@ export function createReserveFitRepo(): ReserveFitRepo {
                    l.transaction_date,
                    l.note,
                    l.amount_converted_cents,
-                   r.cadence AS recurring_cadence,
+                   r.cadence AS scheduled_cadence,
                    ROW_NUMBER() OVER (
                      PARTITION BY l.category_id
                      ORDER BY l.amount_converted_cents DESC
                    ) AS rn
               FROM budgeting.expense_ledger l
-              LEFT JOIN budgeting.recurring_rules r ON r.id = l.recurring_rule_id
+              LEFT JOIN budgeting.scheduled_payments r ON r.id = l.scheduled_payment_id
              WHERE l.tenant_id = ${budgetId}::uuid
                AND l.budget_id = ${budgetId}::uuid
                AND l.kind = 'SPENDING'
@@ -103,7 +103,7 @@ export function createReserveFitRepo(): ReserveFitRepo {
                  to_char(ranked.transaction_date, 'YYYY-MM-DD') AS transaction_date,
                  ranked.note,
                  ranked.amount_converted_cents::text AS amount_cents,
-                 ranked.recurring_cadence,
+                 ranked.scheduled_cadence,
                  (x.ledger_id IS NOT NULL) AS excluded
             FROM ranked
             LEFT JOIN budgeting.reserve_fit_exclusions x
@@ -118,7 +118,7 @@ export function createReserveFitRepo(): ReserveFitRepo {
           transaction_date: r.transaction_date as string,
           note: (r.note as string | null) ?? null,
           amount_cents: BigInt(r.amount_cents as string),
-          recurring_cadence: (r.recurring_cadence as string | null) ?? null,
+          scheduled_cadence: (r.scheduled_cadence as string | null) ?? null,
           excluded: Boolean(r.excluded),
         }));
       });

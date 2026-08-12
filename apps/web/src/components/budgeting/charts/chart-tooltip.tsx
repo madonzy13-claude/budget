@@ -51,6 +51,9 @@ export function ChartTooltipContent({
    *  `summary` below. */
   extra?: (row: Record<string, unknown>) => Array<{
     label: string;
+    /** A leading "and"/"or", set in the accent so two rows read as the two
+     *  halves of ONE instruction rather than two separate lines (260808). */
+    conj?: string;
     value: string;
     color?: string;
     /** A SECOND right-aligned column — "How far off plan, by category" shows the
@@ -62,6 +65,14 @@ export function ChartTooltipContent({
     /** Opens a section of its own: a rule above it, so a conclusion (the
      *  difference) reads apart from the figures it came from. */
     section?: boolean;
+    /** THE thing to do. The INSTRUCTION carries the accent; the figure beside
+     *  it stays in the ordinary colour, so the row reads as a call to action
+     *  rather than as a highlighted number (user, 260809). */
+    cta?: boolean;
+    /** Overrides the accent for THIS instruction: money that has to go IN is
+     *  drawn in the shortfall colour, money that can come out in the surplus
+     *  one — the same two colours the bars use (user, 260810). */
+    ctaColor?: string;
   }>;
   /** Per-series-row SUFFIX cell(s) after the value (e.g. a % change, or a
    *  [%, amount] pair). Return a string for ONE extra column, or an array for
@@ -114,6 +125,12 @@ export function ChartTooltipContent({
     extra && payload[0]?.payload ? extra(payload[0].payload) : [];
   const headRow = extraRows.find((r) => r.head);
   const bodyRows = extraRows.filter((r) => !r.head);
+  // The amount cells are a fixed width so an average and a range total line up
+  // DOWN the rows. With only one row carrying a second value there is nothing
+  // to line up with, and the fixed width just opens a gulf between the amount
+  // and the figure beside it (user screenshot, 260807).
+  const alignedColumns = bodyRows.filter((r) => r.value2 != null).length > 1;
+  const colWidth = alignedColumns ? 62 : undefined;
   const toCells = (r: string | string[] | undefined): string[] =>
     r == null ? [] : Array.isArray(r) ? r : [r];
   const marker = (color: string, dashed: boolean) => (
@@ -154,6 +171,11 @@ export function ChartTooltipContent({
         fontSize: 12,
         padding: "6px 8px",
         minWidth: 140,
+        // A ceiling, or a long row simply makes a wide tooltip and the box runs
+        // off the right edge of a phone (user screenshot, 260807). The vw term
+        // keeps it inside the narrowest screen we ship to; the px term stops it
+        // sprawling on a desktop.
+        maxWidth: "min(280px, 76vw)",
         cursor: onDismiss ? "pointer" : undefined,
       }}
     >
@@ -172,12 +194,16 @@ export function ChartTooltipContent({
           {headRow && (
             <>
               <span
-                style={{ marginLeft: "auto", minWidth: 62, textAlign: "right" }}
+                style={{
+                  marginLeft: "auto",
+                  minWidth: colWidth,
+                  textAlign: "right",
+                }}
               >
                 {headRow.value}
               </span>
               {headRow.value2 != null && (
-                <span style={{ minWidth: 62, textAlign: "right" }}>
+                <span style={{ minWidth: colWidth, textAlign: "right" }}>
                   {headRow.value2}
                 </span>
               )}
@@ -262,6 +288,17 @@ export function ChartTooltipContent({
           textAlign: "right" as const,
           whiteSpace: "nowrap" as const,
         };
+        // The name is the ONE cell allowed to give way. It sits in the
+        // minmax(0,1fr) column, so once the row wants more than the tooltip's
+        // max-width the column is squeezed towards nothing — and `nowrap` then
+        // painted the full name straight over the value beside it
+        // ("Capitalization" through "1,553,413 zł", user screenshots 260810).
+        // Wrapping costs a line of height; overlapping costs the reading.
+        const nameStyle = {
+          color: CHART_THEME.axis,
+          minWidth: 0,
+          overflowWrap: "anywhere" as const,
+        };
         const cols = Array.from({ length: nCells });
         return (
           <div
@@ -279,10 +316,11 @@ export function ChartTooltipContent({
             {rows.map((r, i) => (
               <Fragment key={i}>
                 {marker(r.color, r.dashed)}
-                <span style={{ color: CHART_THEME.axis, whiteSpace: "nowrap" }}>
+                <span data-testid="tooltip-series-name" style={nameStyle}>
                   {r.name ?? ""}
                 </span>
                 <span
+                  data-testid="tooltip-series-value"
                   style={{
                     fontWeight: 600,
                     textAlign: "right",
@@ -313,7 +351,7 @@ export function ChartTooltipContent({
                   }}
                 />
                 <span aria-hidden />
-                <span style={{ color: CHART_THEME.axis, whiteSpace: "nowrap" }}>
+                <span data-testid="tooltip-summary-label" style={nameStyle}>
                   {summaryRow.label}
                 </span>
                 <span
@@ -370,17 +408,41 @@ export function ChartTooltipContent({
               }}
             />
           )}
-          <span style={{ color: CHART_THEME.axis }}>{row.label}</span>
+          {/* The label is what gives: it may wrap to a second line so the box
+              keeps its width. The value beside it never breaks mid-number. */}
+          <span
+            style={{
+              color: row.cta
+                ? (row.ctaColor ?? CHART_THEME.accent)
+                : CHART_THEME.axis,
+              fontWeight: row.cta ? 600 : undefined,
+              minWidth: 0,
+            }}
+          >
+            {row.conj && (
+              <>
+                <span
+                  data-testid="tooltip-conj"
+                  style={{ fontWeight: 600, color: CHART_THEME.accent }}
+                >
+                  {row.conj}
+                </span>{" "}
+              </>
+            )}
+            {row.label}
+          </span>
           {/* One column stays flush right, as it always was. Two columns line
               up in fixed widths so avg and total read down the tooltip. The
               TOTAL column is muted: it is context for the average the bar is
               drawn from (260803). */}
           <span
+            data-testid={row.cta ? "tooltip-cta-value" : undefined}
             style={{
               marginLeft: "auto",
               fontWeight: 600,
-              minWidth: row.value2 != null ? 62 : undefined,
+              minWidth: row.value2 != null ? colWidth : undefined,
               textAlign: "right",
+              whiteSpace: "nowrap",
             }}
           >
             {row.value}
@@ -390,7 +452,7 @@ export function ChartTooltipContent({
               style={{
                 fontWeight: 600,
                 color: CHART_THEME.axis,
-                minWidth: 62,
+                minWidth: colWidth,
                 textAlign: "right",
               }}
             >

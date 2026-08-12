@@ -105,6 +105,14 @@ export const budgetMembers = tenancy.table(
       .$type<Record<string, string[]>>()
       .notNull()
       .default({}),
+    // Hide amounts behind a redaction bar until tapped (migration 0082). On the
+    // MEMBER row because it answers "who is standing behind me" — one person's
+    // circumstance, not the household's policy (user, 260810). Off for anyone
+    // joining from here on; every member who existed at the migration kept the
+    // budget-level flag they had, which was on.
+    amountPrivacyEnabled: boolean("amount_privacy_enabled")
+      .notNull()
+      .default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

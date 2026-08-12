@@ -1,5 +1,5 @@
 /**
- * confirm-draft.ts — Per-occurrence confirm of a recurring draft (CASE B).
+ * confirm-draft.ts — Per-occurrence confirm of a scheduled draft (CASE B).
  * RECR-03, RECR-04: sets confirmed_at = now() with same SCD-2/audit/outbox pattern.
  * Rejects if already dismissed (dismissed_at NOT NULL) or already confirmed.
  *

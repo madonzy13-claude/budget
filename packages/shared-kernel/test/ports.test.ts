@@ -27,7 +27,7 @@ test("InMemoryFxProvider returns fixed rate for cross-currency", async () => {
 test("InMemoryFxProvider THROWS for an unseeded cross-currency pair (no silent rate-1 leak)", async () => {
   // Guard (05-21): the stub must not fabricate a cross-currency rate of 1.
   // The old `?? '1'` fallback leaked UNCONVERTED foreign amounts into the
-  // recurring draft engine (e.g. 3500 PLN stored as 3500 EUR). A faked 1 is
+  // scheduled draft engine (e.g. 3500 PLN stored as 3500 EUR). A faked 1 is
   // now impossible — callers must seed a rate or use a real provider.
   const fx = new InMemoryFxProvider();
   await expect(fx.rateAsOf("USD", "PLN", new Date())).rejects.toThrow(

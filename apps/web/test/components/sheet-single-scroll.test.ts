@@ -16,7 +16,7 @@ import { resolve } from "node:path";
 
 const SHEETS = [
   "src/components/budgeting/income-form.tsx",
-  "src/components/budgeting/recurring-rule-form.tsx",
+  "src/components/budgeting/scheduled-payment-form.tsx",
   "src/components/budgeting/wallets-tab/holding-sheet.tsx",
   "src/components/budgeting/category-slider.tsx",
   "src/components/budgeting/transaction-slider.tsx",

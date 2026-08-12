@@ -131,7 +131,7 @@ describe("POST /budgets/:budgetId/transactions", () => {
     expect(tx.kind).toBe("SPENDING");
     // confirmed_at must be set (quick-entry is auto-confirmed)
     expect(tx.confirmed_at).toBeTruthy();
-    expect(tx.recurring_rule_id).toBeNull();
+    expect(tx.scheduled_payment_id).toBeNull();
   });
 
   it("omitting currency_original defaults to budget currency with fx_rate='1'", async () => {

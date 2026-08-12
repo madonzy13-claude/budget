@@ -21,9 +21,9 @@ import type {
   MonthlySpendRow,
   CategoryWindow,
   DailySpendRow,
-  ActiveRecurringRule,
+  ActiveScheduledPayment,
 } from "../../application/get-overview-planned";
-import type { Cadence } from "../../application/recurring-monthly-normalize";
+import type { Cadence } from "../../application/scheduled-monthly-normalize";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -55,7 +55,14 @@ export function createOverviewRepo(): OverviewPlannedRepo {
         const res = await tx.execute(sql`
           SELECT category_id::text AS category_id,
                  to_char(transaction_date, 'YYYY-MM') AS month,
-                 COALESCE(SUM(amount_converted_cents), 0)::text AS spent_cents
+                 COALESCE(SUM(amount_converted_cents), 0)::text AS spent_cents,
+                 -- The half that came from a SCHEDULED payment. The schedule
+                 -- already projects these forward on their own, so sizing must
+                 -- be able to leave them out of "what habit costs" rather than
+                 -- charge the same camping trip twice (260807).
+                 COALESCE(SUM(amount_converted_cents)
+                            FILTER (WHERE scheduled_payment_id IS NOT NULL), 0)::text
+                   AS scheduled_cents
             FROM budgeting.expense_ledger
            WHERE budget_id = ${budgetId}::uuid
              AND tenant_id = ${budgetId}::uuid
@@ -71,6 +78,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
           category_id: r.category_id as string,
           month: r.month as string,
           spent_cents: BigInt(r.spent_cents as string),
+          scheduled_cents: BigInt(r.scheduled_cents as string),
         }));
       });
     },
@@ -221,7 +229,14 @@ export function createOverviewRepo(): OverviewPlannedRepo {
           : sql``;
         const res = await tx.execute(sql`
           SELECT to_char(transaction_date, 'YYYY-MM-DD') AS day,
-                 COALESCE(SUM(amount_converted_cents), 0)::text AS spent_cents
+                 COALESCE(SUM(amount_converted_cents), 0)::text AS spent_cents,
+                 -- The half that came from a SCHEDULED payment. The schedule
+                 -- already projects these forward on their own, so sizing must
+                 -- be able to leave them out of "what habit costs" rather than
+                 -- charge the same camping trip twice (260807).
+                 COALESCE(SUM(amount_converted_cents)
+                            FILTER (WHERE scheduled_payment_id IS NOT NULL), 0)::text
+                   AS scheduled_cents
             FROM budgeting.expense_ledger
            WHERE budget_id = ${budgetId}::uuid
              AND tenant_id = ${budgetId}::uuid
@@ -237,11 +252,12 @@ export function createOverviewRepo(): OverviewPlannedRepo {
         return res.rows.map((r) => ({
           day: r.day as string,
           spent_cents: BigInt(r.spent_cents as string),
+          scheduled_cents: BigInt(r.scheduled_cents as string),
         }));
       });
     },
 
-    async activeRecurringRules(budgetId): Promise<ActiveRecurringRule[]> {
+    async activeScheduledPayments(budgetId): Promise<ActiveScheduledPayment[]> {
       return read(budgetId, async (tx) => {
         const res = await tx.execute(sql`
           SELECT rr.category_id::text AS category_id,
@@ -250,8 +266,12 @@ export function createOverviewRepo(): OverviewPlannedRepo {
                  (rr.amount * 100)::bigint::text AS amount_cents,
                  rr.currency,
                  rr.cadence,
-                 rr.yearly_month
-            FROM budgeting.recurring_rules rr
+                 rr.yearly_month,
+                 -- A one-time payment has no pattern to derive a month from:
+                 -- its date IS the month it lands in (260807).
+                 rr.next_due_date::text AS next_due_date,
+                 rr.end_date::text AS end_date
+            FROM budgeting.scheduled_payments rr
             LEFT JOIN budgeting.categories c
               ON c.id = rr.category_id AND c.tenant_id = rr.tenant_id
            WHERE rr.tenant_id = ${budgetId}::uuid
@@ -265,6 +285,8 @@ export function createOverviewRepo(): OverviewPlannedRepo {
           currency: r.currency as string,
           cadence: r.cadence as Cadence,
           yearly_month: (r.yearly_month as number | null) ?? null,
+          next_due_date: (r.next_due_date as string | null) ?? null,
+          end_date: (r.end_date as string | null) ?? null,
         }));
       });
     },

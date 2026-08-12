@@ -36,12 +36,11 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         reserves_enabled: boolean;
         cushion_enabled: boolean;
         investments_enabled: boolean;
-        amount_privacy_enabled: boolean;
         // Migration 0027: column is numeric(4,1); pg returns numeric as
         // string. Caller parses to number.
         cushion_target_months: string | number | null;
       }>(
-        sql`SELECT id, slug, name, kind, default_currency, owner_user_id, member_count, created_at, cushion_mode_enabled, reserves_enabled, cushion_enabled, investments_enabled, amount_privacy_enabled, cushion_target_months
+        sql`SELECT id, slug, name, kind, default_currency, owner_user_id, member_count, created_at, cushion_mode_enabled, reserves_enabled, cushion_enabled, investments_enabled, cushion_target_months
             FROM tenancy.budgets WHERE id = ${id}`,
       );
       return result.rows[0] ?? null;
@@ -62,7 +61,6 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       reservesEnabled: row.reserves_enabled ?? true,
       cushionEnabled: row.cushion_enabled ?? true,
       investmentsEnabled: row.investments_enabled ?? false,
-      amountPrivacyEnabled: row.amount_privacy_enabled ?? true,
       cushionTargetMonths:
         row.cushion_target_months == null
           ? 6
@@ -123,7 +121,12 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         reserves_enabled: boolean;
         pending_tasks_count: number;
       }>(sql`
-        SELECT w.id, w.slug, w.name, w.kind, w.default_currency,
+        -- The name is the READER's: their membership row carries the label
+        -- they chose, and the budget's own name is only the fallback (260808).
+        -- The m row is the caller's own — the WHERE below binds it to them — so
+        -- COALESCE can never pick up somebody else's word for the budget.
+        SELECT w.id, w.slug, COALESCE(m.display_name, w.name) AS name,
+               w.kind, w.default_currency,
                w.owner_user_id, w.member_count, w.created_at, w.cushion_mode_enabled,
                w.reserves_enabled,
                COALESCE(tk.pending, 0)::int AS pending_tasks_count
@@ -201,6 +204,58 @@ export class DrizzleBudgetRepo implements BudgetRepo {
     }));
   }
 
+  /**
+   * Set (or clear) what ONE member calls this budget. Bound to the caller's own
+   * membership row and scoped by tenant, so a rename is a private act — it
+   * cannot reach another member's screen (user, 260808).
+   *
+   * Blank is not a name: it clears the override rather than storing an empty
+   * string, which would render as an empty pill in the switcher.
+   */
+  async setMemberBudgetName(
+    budgetId: string,
+    userId: string,
+    name: string | null,
+  ): Promise<void> {
+    const trimmed = name === null ? null : name.trim();
+    const value = trimmed === null || trimmed === "" ? null : trimmed;
+    const r = await withTenantTx(
+      TenantId(budgetId),
+      UserId(userId),
+      async (tx) => {
+        await tx.execute(sql`
+          UPDATE tenancy.budget_members
+             SET display_name = ${value}
+           WHERE budget_id = ${budgetId}::uuid
+             AND user_id = ${userId}::uuid
+        `);
+      },
+    );
+    if (r.isErr()) throw r.error;
+  }
+
+  /** What THIS member calls the budget, or null when they never renamed it. */
+  async memberBudgetName(
+    budgetId: string,
+    userId: string,
+  ): Promise<string | null> {
+    const r = await withTenantTx(
+      TenantId(budgetId),
+      UserId(userId),
+      async (tx) =>
+        (
+          await tx.execute<{ display_name: string | null }>(sql`
+            SELECT display_name FROM tenancy.budget_members
+             WHERE budget_id = ${budgetId}::uuid
+               AND user_id = ${userId}::uuid
+             LIMIT 1
+          `)
+        ).rows[0]?.display_name ?? null,
+    );
+    if (r.isErr()) throw r.error;
+    return r.value;
+  }
+
   async listMembers(budgetId: string): Promise<MemberDTO[]> {
     // withInfraTx: infrastructure carve-out for listing members.
     // JOIN identity.users to include name/email for display in the members section (WR-05).
@@ -248,7 +303,6 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       reservesEnabled?: boolean;
       cushionEnabled?: boolean;
       investmentsEnabled?: boolean;
-      amountPrivacyEnabled?: boolean;
       // Phase 7 Plan 07-07 (D-PH7-15, D-PH7-33): cushion target months —
       // multiplier for category cushion_amount in the cushion summary math.
       // Range 1..60 enforced at API (Zod) AND DB (CHECK constraint via
@@ -292,14 +346,6 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         // upstream in the budget-identity route.
         await tx.execute(
           sql`UPDATE tenancy.budgets SET investments_enabled = ${patch.investmentsEnabled} WHERE id = ${budgetId}::uuid`,
-        );
-      }
-      if (patch.amountPrivacyEnabled !== undefined) {
-        // r36: amount-privacy global toggle. Boolean only; when true the Overview
-        // hides amounts by default with an eye to reveal. Owner gate enforced
-        // upstream in the budget-identity route.
-        await tx.execute(
-          sql`UPDATE tenancy.budgets SET amount_privacy_enabled = ${patch.amountPrivacyEnabled} WHERE id = ${budgetId}::uuid`,
         );
       }
       if (patch.cushionTargetMonths !== undefined) {
@@ -586,7 +632,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
 
   /** SETT-08: hard-delete — removes the budget row.
    *
-   * Several child tables (budget_members, recurring_rules, etc.) reference
+   * Several child tables (budget_members, scheduled_payments, etc.) reference
    * tenancy.budgets without ON DELETE CASCADE, so a direct DELETE on the
    * parent throws FK violation. We DELETE the known budget-scoped children
    * first, in the same tx, so the parent DELETE is unblocked.
@@ -614,12 +660,14 @@ export class DrizzleBudgetRepo implements BudgetRepo {
    * RLS policy lets a user read their own membership rows via
    * app.current_user_id alone — no per-budget tenant_ids needed.
    */
-  async getAggPrefsForUser(
-    userId: string,
-  ): Promise<
+  async getAggPrefsForUser(userId: string): Promise<
     Map<
       string,
-      { ownership_share_pct: number; include_in_aggregation: boolean }
+      {
+        ownership_share_pct: number;
+        include_in_aggregation: boolean;
+        amount_privacy_enabled: boolean;
+      }
     >
   > {
     const r = await withUserContext(UserId(userId), async (tx) =>
@@ -627,8 +675,10 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         budget_id: string;
         ownership_share_pct: number;
         include_in_aggregation: boolean;
+        amount_privacy_enabled: boolean;
       }>(sql`
-        SELECT budget_id, ownership_share_pct, include_in_aggregation
+        SELECT budget_id, ownership_share_pct, include_in_aggregation,
+               amount_privacy_enabled
           FROM tenancy.budget_members
          WHERE user_id = ${userId}::uuid
       `),
@@ -636,15 +686,45 @@ export class DrizzleBudgetRepo implements BudgetRepo {
     if (r.isErr()) throw r.error;
     const map = new Map<
       string,
-      { ownership_share_pct: number; include_in_aggregation: boolean }
+      {
+        ownership_share_pct: number;
+        include_in_aggregation: boolean;
+        amount_privacy_enabled: boolean;
+      }
     >();
     for (const row of r.value.rows) {
       map.set(row.budget_id, {
         ownership_share_pct: Number(row.ownership_share_pct),
         include_in_aggregation: row.include_in_aggregation,
+        // migration 0082: false for anyone who joined after the move.
+        amount_privacy_enabled: row.amount_privacy_enabled ?? false,
       });
     }
     return map;
+  }
+
+  /**
+   * Set whether THIS member sees amounts redacted by default (migration 0082).
+   * Self-service, like the aggregation prefs below: the caller is both the tx
+   * actor and the row being written, so it can never reach another member's
+   * screen — and therefore is not the owner's privilege to set.
+   */
+  async setMemberAmountPrivacy(
+    budgetId: string,
+    userId: string,
+    enabled: boolean,
+  ): Promise<void> {
+    const r = await withTenantTx(
+      TenantId(budgetId),
+      UserId(userId),
+      async (tx) =>
+        tx.execute(sql`
+          UPDATE tenancy.budget_members
+             SET amount_privacy_enabled = ${enabled}
+           WHERE budget_id = ${budgetId}::uuid AND user_id = ${userId}::uuid
+        `),
+    );
+    if (r.isErr()) throw r.error;
   }
 
   /**

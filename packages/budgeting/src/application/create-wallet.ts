@@ -9,7 +9,7 @@ import { Wallet, type WalletType } from "../domain/wallet";
 import type { WalletDto, CreateWalletInput } from "../contracts/api";
 import type { TaskRepo, TenantTx } from "../ports/task-repo";
 import { recomputeCushionTask } from "./recompute-cushion-task";
-import type { FxProviderLike } from "./recurring-engine-fx";
+import type { FxProviderLike } from "./scheduled-payment-engine-fx";
 
 export interface CreateWalletDeps {
   repo: WalletRepo;

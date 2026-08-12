@@ -114,18 +114,35 @@ export class ReservesPage {
     target: import("@playwright/test").Locator,
   ): Promise<void> {
     const handleBox = await handle.boundingBox();
-    const targetBox = await target.boundingBox();
-    if (!handleBox || !targetBox) throw new Error("DnD: bounding boxes unavailable");
+    if (!handleBox) throw new Error("DnD: bounding boxes unavailable");
 
     const fromX = handleBox.x + handleBox.width / 2;
     const fromY = handleBox.y + handleBox.height / 2;
-    const toX = targetBox.x + targetBox.width / 2;
-    const toY = targetBox.y + targetBox.height / 2;
 
     await this.page.mouse.move(fromX, fromY);
     await this.page.mouse.down();
     await this.page.mouse.move(fromX + 5, fromY + 5, { steps: 3 });
+
+    // Measure the destination ONCE THE DRAG IS UNDER WAY, not before it. Lifting
+    // a row out of its section collapses that row and re-flows everything below,
+    // so coordinates taken before mouse.down can point somewhere else entirely by
+    // the time the pointer arrives — which is how "drag back to Active" kept
+    // dropping the row into Excluded again (~1 run in 4, both projects).
+    const targetBox = await target.boundingBox();
+    if (!targetBox) throw new Error("DnD: bounding boxes unavailable");
+    const toX = targetBox.x + targetBox.width / 2;
+    const toY = targetBox.y + targetBox.height / 2;
+
     await this.page.mouse.move(toX, toY, { steps: 10 });
+    // dnd-kit resolves the drop target from the pointer position observed on a
+    // rendered frame, not from the mouseup itself. Releasing on the very frame
+    // the pointer arrives sometimes left `over` still null and the drop was
+    // discarded — the restore-to-Active step then never found its row (~1 run
+    // in 4). One more move on the spot plus a frame's grace gives the collision
+    // pass a tick to run before the release. (Harness only: dragging by hand
+    // always crosses several frames.)
+    await this.page.mouse.move(toX + 1, toY + 1, { steps: 2 });
+    await this.page.waitForTimeout(60);
     await this.page.mouse.up();
     await this.page.waitForLoadState("networkidle");
   }

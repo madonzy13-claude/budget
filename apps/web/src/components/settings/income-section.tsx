@@ -4,7 +4,7 @@
  * income-section.tsx — Settings → Income (r32).
  *
  * A per-budget list of expected incomes (name + amount + currency + frequency).
- * Mirrors recurring-section: inline list, an "Add income" CTA that opens the
+ * Mirrors scheduled-payments-section: inline list, an "Add income" CTA that opens the
  * right-side form slider (keyed per row so edit prefill is clean), and a
  * red-tinted delete confirmation. Config only for now.
  */
@@ -164,6 +164,7 @@ export function IncomeSection({
                 cadenceAnchor: editIncome.cadenceAnchor,
                 weeklyDow: editIncome.weeklyDow,
                 yearlyMonth: editIncome.yearlyMonth ?? null,
+                onceDate: editIncome.onceDate ?? null,
               }
             : undefined
         }

@@ -147,7 +147,7 @@ describe("Upcoming income projection", () => {
       ],
       day15,
     );
-    // 1000 × 30.44 ≈ 30440 (round-half-up per recurringMonthlyNormalize).
+    // 1000 × 30.44 ≈ 30440 (round-half-up per scheduledMonthlyNormalize).
     expect(items.length).toBe(1);
     expect(items[0]!.amount_cents).toBe(30440n);
     expect(items[0]!.currency).toBe("USD");

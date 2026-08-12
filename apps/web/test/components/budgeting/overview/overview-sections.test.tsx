@@ -32,6 +32,15 @@ vi.mock("@/hooks/use-overview-wealth", () => ({
 }));
 // The reserves section grew a reserve-fit block (260804); this suite exercises
 // composition, not that block's own data.
+// The Planned section's limit dialog reads the current needs/wants split and
+// writes a new one — neither is what this file is about, and both want a
+// QueryClient.
+vi.mock("@/hooks/use-spendings-summary", () => ({
+  useSpendingsSummary: () => ({ data: undefined }),
+}));
+vi.mock("@/hooks/use-set-category-limit", () => ({
+  useSetCategoryLimit: () => ({ mutateAsync: async () => {} }),
+}));
 vi.mock("@/hooks/use-reserve-fit", () => ({
   useReserveFit: () => ({ data: undefined, isPending: false, isError: false }),
   useSaveReserveFitExclusions: () => ({ mutate: () => {} }),
@@ -142,8 +151,8 @@ const PLANNED = {
     reserve_used_cents: "0",
     overspent_cents: "20000",
   },
-  recurringPerMonth: [{ month: 1, planned_cents: "10000" }],
-  recurringPerCategory: [
+  scheduledPerMonth: [{ month: 1, planned_cents: "10000" }],
+  scheduledPerCategory: [
     { category_id: "c1", name: "Food", planned_cents: "10000" },
   ],
 };
@@ -199,7 +208,7 @@ describe("OverviewSections", () => {
   it("renders three sections collapsed by default (no chart mounted)", () => {
     renderSections();
     // 260803: Overspent lost its own collapsible and reads inside Planned.
-    // 260804: so did the recurring chart — one chart did not earn a section.
+    // 260804: so did the scheduled chart — one chart did not earn a section.
     for (const name of [
       "sections.planned",
       "sections.reserves",
@@ -210,7 +219,7 @@ describe("OverviewSections", () => {
       screen.queryByRole("button", { name: "sections.overspent" }),
     ).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "sections.recurring" }),
+      screen.queryByRole("button", { name: "sections.scheduled" }),
     ).toBeNull();
     // collapsed → no chart bodies. The DATA is another matter: since 260806 a
     // collapsed section still warms in the background, so the reader never pays
@@ -218,14 +227,14 @@ describe("OverviewSections", () => {
     expect(screen.queryByTestId("line-chart")).toBeNull();
   });
 
-  // 260804: the recurring-by-month chart moved in under the planned pie, and
+  // 260804: the scheduled-by-month chart moved in under the planned pie, and
   // the by-category one is gone — the section it lived in went with it.
-  it("mounts the recurring-by-month chart inside Planned", async () => {
+  it("mounts the scheduled-by-month chart inside Planned", async () => {
     const user = userEvent.setup();
     renderSections();
     await user.click(screen.getByText("sections.planned"));
-    expect(screen.getByText("planned.recurringPerMonth")).toBeTruthy();
-    expect(screen.queryByText("planned.recurringPerCategory")).toBeNull();
+    expect(screen.getByText("planned.scheduledPerMonth")).toBeTruthy();
+    expect(screen.queryByText("planned.scheduledPerCategory")).toBeNull();
   });
 
   it("expanding Planned enables its fetch and mounts the timeline chart", async () => {
@@ -233,7 +242,7 @@ describe("OverviewSections", () => {
     renderSections();
     await user.click(screen.getByRole("button", { name: "sections.planned" }));
     expect(lastOpts(plannedMock).enabled).toBe(true);
-    // Timeline (Planned vs Real) + Recurring-by-month are now Simple Area charts.
+    // Timeline (Planned vs Real) + Scheduled-by-month are now Simple Area charts.
     expect(screen.getAllByTestId("area-chart").length).toBeGreaterThan(0);
   });
 
@@ -341,7 +350,9 @@ describe("Planned pie — investments on both rings", () => {
   });
 
   it("keeps the arc when the picker drops the investment category", async () => {
-    prefsMock.value = { "planned-pie-categories": ["c1"] };
+    // The section's ONE filter now governs the pie too (user, 260810) — its
+    // private "planned-pie-categories" set is gone.
+    prefsMock.value = { "planned-categories": ["c1"] };
     const user = userEvent.setup();
     renderSections();
     const p = await pie(user);

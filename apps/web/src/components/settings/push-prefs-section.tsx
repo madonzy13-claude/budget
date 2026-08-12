@@ -329,7 +329,7 @@ export function PushPrefsSection({
   return (
     <div className="space-y-4">
       {/* Master toggle */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between">
         <div className="space-y-0.5">
           <p className="text-sm font-medium text-[var(--body-on-dark)]">
             {t("enableLabel")}
@@ -340,6 +340,7 @@ export function PushPrefsSection({
         </div>
         <Switch
           data-testid="push-master-switch"
+          className="shrink-0"
           checked={masterOn}
           disabled={isLoading}
           onCheckedChange={handleMasterToggle}
@@ -350,7 +351,7 @@ export function PushPrefsSection({
       {/* r37: app-icon Badge — BELOW push. Enabling push auto-enables this (push
           grants the notification permission the badge needs) UNLESS the user has
           already set it manually. */}
-      <div className="flex items-center justify-between border-t border-[var(--hairline-on-dark)] pt-4">
+      <div className="flex items-start justify-between border-t border-[var(--hairline-on-dark)] pt-4">
         <div className="space-y-0.5">
           <p className="text-sm font-medium text-[var(--body-on-dark)]">
             {t("badge.label")}
@@ -361,6 +362,7 @@ export function PushPrefsSection({
         </div>
         <Switch
           data-testid="push-badge-switch"
+          className="shrink-0"
           checked={badgeEnabled}
           onCheckedChange={handleBadgeToggle}
           aria-label={t("badge.label")}
@@ -374,7 +376,7 @@ export function PushPrefsSection({
             {t("kindsLabel")}
           </p>
           {NOTIFICATION_KINDS.map((kind) => (
-            <div key={kind} className="flex items-center justify-between">
+            <div key={kind} className="flex items-start justify-between">
               <div className="space-y-0.5">
                 <p className="text-sm text-[var(--body-on-dark)]">
                   {t(`kind.${kind}.label`)}
@@ -385,6 +387,7 @@ export function PushPrefsSection({
               </div>
               <Switch
                 data-testid={`push-kind-${kind}`}
+                className="shrink-0"
                 checked={kindEnabled[kind]}
                 onCheckedChange={(checked) => handleKindToggle(kind, checked)}
                 aria-label={t(`kind.${kind}.label`)}
@@ -394,7 +397,7 @@ export function PushPrefsSection({
 
           {/* r32: budget-update reminder — toggle + weekday picker. */}
           <div className="space-y-3 border-t border-[var(--hairline-on-dark)] pt-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between">
               <div className="space-y-0.5">
                 <p className="text-sm text-[var(--body-on-dark)]">
                   {t("reminder.label")}
@@ -405,6 +408,7 @@ export function PushPrefsSection({
               </div>
               <Switch
                 data-testid="push-reminder-switch"
+                className="shrink-0"
                 checked={reminder.enabled}
                 onCheckedChange={handleReminderToggle}
                 aria-label={t("reminder.label")}

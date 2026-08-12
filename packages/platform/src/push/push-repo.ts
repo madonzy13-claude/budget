@@ -34,7 +34,7 @@ export type NotificationKind =
   // r32: a task was completed (by another member) — gated separately from the
   // per-kind created toggles.
   | "TASK_COMPLETED"
-  // r32: recurring "update your budget" reminder (config carries days + tz).
+  // r32: scheduled "update your budget" reminder (config carries days + tz).
   | "BUDGET_REMINDER"
   // r37: per-user-per-budget app-icon badge opt-in (NOT a push notification —
   // controls whether this budget feeds the PWA icon count). Must be in this list

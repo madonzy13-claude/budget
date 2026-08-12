@@ -31,7 +31,7 @@ import { createShareOverridesRoute } from "./routes/share-overrides";
 import { createBudgetSettingsRoute } from "./routes/budget-settings";
 import { createTransactionsRoute } from "./routes/transactions";
 import { createCurrenciesRoute } from "./routes/currencies";
-import { createRecurringRulesRoute } from "./routes/recurring-rules";
+import { createScheduledPaymentsRoute } from "./routes/scheduled-payments";
 import { createIncomesRoute } from "./routes/incomes";
 import { createInvestmentCategoryRoute } from "./routes/investment-category";
 import { createTasksRoute } from "./routes/tasks";
@@ -123,7 +123,7 @@ export function createApp(deps: BootedDeps) {
   // requireWorkspace added per sub-route via middleware below.
   app.use("/budgets/:budgetId/spendings-summary/*", requireWorkspace);
   app.use("/budgets/:budgetId/categories/*", requireWorkspace);
-  app.use("/budgets/:budgetId/recurring-rules/*", requireWorkspace);
+  app.use("/budgets/:budgetId/scheduled-payments/*", requireWorkspace);
   app.use("/budgets/:budgetId/incomes/*", requireWorkspace);
   app.use("/budgets/:budgetId/investment-category", requireWorkspace);
   app.use("/budgets/:budgetId/investment-category/*", requireWorkspace);
@@ -139,8 +139,8 @@ export function createApp(deps: BootedDeps) {
   // /budgets/:budgetId/categories/:id/limits on create/edit.
   app.route("/budgets/:budgetId/categories", createCategoryLimitsRoute(deps));
   app.route(
-    "/budgets/:budgetId/recurring-rules",
-    createRecurringRulesRoute(deps),
+    "/budgets/:budgetId/scheduled-payments",
+    createScheduledPaymentsRoute(deps),
   );
   app.route(
     "/budgets/:budgetId/incomes",
@@ -171,7 +171,7 @@ export function createApp(deps: BootedDeps) {
     "/budget-templates/*",
     "/budget-settings/*",
     "/transactions/*",
-    "/recurring-rules/*",
+    "/scheduled-payments/*",
     "/incomes/*",
   ]) {
     app.use(path, requireAuth, requireWorkspace);
@@ -184,7 +184,7 @@ export function createApp(deps: BootedDeps) {
   app.route("/budget-templates", createBudgetTemplatesRoute(deps));
   app.route("/budget-settings", createBudgetSettingsRoute(deps));
   app.route("/transactions", createTransactionsRoute(deps));
-  app.route("/recurring-rules", createRecurringRulesRoute(deps));
+  app.route("/scheduled-payments", createScheduledPaymentsRoute(deps));
   app.route(
     "/incomes",
     createIncomesRoute({

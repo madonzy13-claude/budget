@@ -177,7 +177,7 @@ async function seedTransactionAt(
 }
 
 /**
- * Seeds a recurring-style row where created_at (worker draft generation) and
+ * Seeds a scheduled-style row where created_at (worker draft generation) and
  * confirmed_at (user confirmation, null while pending) differ.
  */
 async function seedDraftAt(
@@ -468,7 +468,7 @@ describe("GET /budgets/:budgetId/spendings-summary", () => {
     );
   });
 
-  // A recurring draft is an expense_ledger row the WORKER created (created_at =
+  // A scheduled draft is an expense_ledger row the WORKER created (created_at =
   // generation time, e.g. 06:00) and the user confirmed later. The footer must
   // never surface a timestamp from the row's draft era: pending drafts don't
   // count at all, and a confirmed one counts from its confirmation.

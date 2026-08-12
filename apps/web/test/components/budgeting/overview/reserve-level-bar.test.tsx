@@ -70,6 +70,13 @@ describe("ReserveLevelBar", () => {
     expect(screen.getByTestId("reserve-bar-gap").style.width).toBe(
       "calc(50% - 5px)",
     );
+    // …which only holds if it is HELD 5px off that edge. Trimming the width of
+    // a stretch pinned right by ml-auto moved its LEFT edge, never its right,
+    // so the dashes ran onto the border they are supposed to stop inside
+    // (user screenshot, 260809).
+    expect(
+      parseFloat(screen.getByTestId("reserve-bar-gap").style.marginRight),
+    ).toBe(5);
   });
 
   // Padding only works while the bar is INSIDE the box. Once it runs past, the
@@ -239,9 +246,12 @@ describe("ReserveLevelBar", () => {
 
   it("calls idle money attention, not alarm", () => {
     setup(9000, 3000);
-    // Over-held is a slow loss, not a failure — amber, never the danger red.
+    // Over-held is a slow loss, not a failure — never the danger red. The ink
+    // itself flips with the theme (--accent-ink: brand yellow on the dark
+    // card, near-black on the pale one), so this asserts what it is NOT.
     const action = screen.getByTestId("reserve-bar-action");
-    expect(action.style.color).toContain("--primary");
+    expect(action.style.color).toBe("var(--accent-ink)");
+    expect(action.style.color).not.toContain("trading-down");
   });
 
   it("calls an exposed buffer what it is", () => {
@@ -369,5 +379,121 @@ describe("ReserveLevelBar", () => {
       const el = screen.getByTestId("reserve-bar-held");
       expect(el.outerHTML).not.toContain("--trading-up");
     });
+  });
+});
+
+/**
+ * Exactly on target (user, 260810).
+ *
+ * The fill is rounded on the left and squared on the right, because normally
+ * something follows it inside the box — the dashes it stops short of, or its
+ * own overspill past the outline. When it IS the whole bar there is nothing to
+ * meet, and a flat end against a rounded outline reads as a bar that has been
+ * cut off.
+ */
+describe("ReserveLevelBar — when held is exactly what is needed", () => {
+  const bar = (held: number, needed: number) => {
+    const { container } = render(
+      <ReserveLevelBar
+        heldCents={held}
+        neededCents={needed}
+        format={(c) => `${Math.round(c / 100)} zl`}
+        testId="meter"
+      />,
+    );
+    return container.querySelector<HTMLElement>(
+      '[data-testid="meter-covered"]',
+    )!;
+  };
+
+  it("rounds the right end as well as the left", () => {
+    const covered = bar(720800, 720800);
+    expect(covered.className).toContain("rounded-full");
+    expect(covered.className).not.toContain("rounded-l-full");
+  });
+
+  it("keeps the right end square where the overspill continues past it", () => {
+    const over = bar(900000, 720800);
+    expect(over.className).toContain("rounded-l-full");
+    expect(over.className).not.toContain("rounded-full");
+  });
+
+  // A few groszy is not a surplus. Everything else on the Overview treats a
+  // sub-unit difference as no difference; the shape has to agree, or a meter
+  // reading "exactly what is needed" can still draw a cut-off end (user,
+  // 260810).
+  it("reads a difference of groszy as exactly on target", () => {
+    const covered = bar(870840, 870800);
+    expect(covered.getAttribute("data-fit")).toBe("whole");
+    expect(covered.className).toContain("rounded-full");
+  });
+
+  /**
+   * NEVER mix radius magnitudes on this element (user devtools, 260810).
+   *
+   * The class gave the left corners Tailwind's rounded-full — 16,777,200px —
+   * while an inline override gave the right corners 9999px. CSS scales EVERY
+   * radius by one factor when they overflow the box:
+   *
+   *     f = min(side ÷ Σ radii on that side) = 6 ÷ 33,554,400 = 1.79e-7
+   *     left  16,777,200 × f = 3px      → a proper cap
+   *     right      9,999 × f = 0.002px  → square
+   *
+   * So the smaller value was crushed to nothing and the bar read as cut off,
+   * while both values looked plainly non-zero in the DOM. The corners are the
+   * class's business alone now.
+   */
+  it("sets no radius inline, so nothing can out-scale the class", () => {
+    for (const [held, needed] of [
+      [720800, 720800],
+      [500000, 720800],
+      [900000, 720800],
+    ]) {
+      const covered = bar(held!, needed!);
+      expect(covered.style.borderTopRightRadius).toBe("");
+      expect(covered.style.borderBottomRightRadius).toBe("");
+      expect(covered.getAttribute("style") ?? "").not.toContain("radius");
+    }
+  });
+
+  it("is a pill, not a bar with one rounded end", () => {
+    const covered = bar(720800, 720800);
+    expect(covered.className).toContain("rounded-full");
+  });
+});
+
+/**
+ * The verdict has to be readable on BOTH cards (user, 260810).
+ *
+ * "6,341 zł more than needed" was drawn in brand yellow, which is right on the
+ * dark card and unreadable on the pale one. It now takes a token that flips
+ * with the theme — the same treatment --num-hero already has, and for the same
+ * reason. Red (short) reads on both, so it keeps its own colour.
+ */
+describe("ReserveLevelBar — the verdict's ink", () => {
+  const action = (held: number, needed: number) => {
+    const { container } = render(
+      <ReserveLevelBar
+        heldCents={held}
+        neededCents={needed}
+        format={(c) => `${Math.round(c / 100)} zl`}
+        testId="meter"
+      />,
+    );
+    return container.querySelector<HTMLElement>(
+      '[data-testid="meter-action"]',
+    )!;
+  };
+
+  it("uses a theme-flipping ink when the buffer is over target", () => {
+    expect(action(900000, 720800).style.color).toBe("var(--accent-ink)");
+  });
+
+  it("keeps the shortfall red, which reads on either card", () => {
+    expect(action(500000, 720800).style.color).toBe("var(--trading-down)");
+  });
+
+  it("leaves an on-target verdict to inherit the card's own text colour", () => {
+    expect(action(720800, 720800).style.color).toBe("");
   });
 });

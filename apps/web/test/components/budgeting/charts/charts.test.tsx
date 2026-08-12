@@ -22,6 +22,7 @@ import {
   labelPlacement,
   reserveFitColor,
   rowHitBoxes,
+  tooltipPayloadFor,
   touchSelection,
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
@@ -358,6 +359,49 @@ describe("Overview charts", () => {
         />,
       ).container;
 
+    // The row that says what to DO is the point of the card, so the
+    // INSTRUCTION carries the accent. The figure beside it does not: a
+    // highlighted number is not a call to action (user, 260809).
+    it("accents the instruction and leaves its figure alone", () => {
+      const c = renderExtra(() => [
+        { label: "Expected spend", value: "1,064 zl" },
+        { label: "Set the limit to", value: "1,064 zl", cta: true },
+      ]);
+      const ctaValue = c.querySelector('[data-testid="tooltip-cta-value"]')!;
+      const label = [...c.querySelectorAll("span")].find(
+        (n) => n.textContent === "Set the limit to",
+      )!;
+      const plain = [...c.querySelectorAll("span")].find(
+        (n) => n.textContent === "Expected spend",
+      )!;
+      expect(ctaValue.textContent).toBe("1,064 zl");
+      expect(label.style.fontWeight).toBe("600");
+      // The label is accented…
+      expect(plain.style.color).not.toBe(label.style.color);
+      // …the figure is not.
+      expect((ctaValue as HTMLElement).style.color).not.toBe(label.style.color);
+    });
+
+    it("lets an instruction override the accent", () => {
+      const c = renderExtra(() => [
+        {
+          label: "Add to reserve",
+          value: "4,000 zl",
+          cta: true,
+          ctaColor: "var(--trading-down)",
+        },
+      ]);
+      const label = [...c.querySelectorAll("span")].find(
+        (n) => n.textContent === "Add to reserve",
+      )!;
+      expect(label.style.color).toBe("var(--trading-down)");
+    });
+
+    it("leaves an ordinary row unmarked", () => {
+      const c = renderExtra(() => [{ label: "Held", value: "17,315 zl" }]);
+      expect(c.querySelector('[data-testid="tooltip-cta-value"]')).toBeNull();
+    });
+
     it("renders a row's second value alongside the first", () => {
       const c = renderExtra(() => [
         { label: "Planned", value: "50 zl", value2: "200 zl" },
@@ -414,6 +458,64 @@ describe("Overview charts", () => {
       const c = renderExtra(() => [{ label: "Difference", value: "+12%" }]);
       expect(c.textContent).toContain("Difference");
       expect(c.textContent).toContain("+12%");
+    });
+  });
+
+  /**
+   * The wealth tooltip carries the widest rows we ship — name, value, % and a
+   * signed amount — and the box is capped at min(280px, 76vw). The name sits in
+   * a minmax(0,1fr) column, so past that cap the column is squeezed to nothing
+   * while `nowrap` keeps the text at full length: "Capitalization" printed
+   * straight through "1,553,413 zł" (user screenshots, 260810).
+   */
+  describe("ChartTooltipContent — a long series name has somewhere to go", () => {
+    const renderGrid = () =>
+      render(
+        <ChartTooltipContent
+          active
+          label="4 Jun 2026"
+          payload={[
+            {
+              dataKey: "contributions",
+              value: 645731,
+              name: "Contributions",
+              payload: { contributions: 645731 },
+            },
+          ]}
+          series={[{ key: "contributions", label: "Contributions" }]}
+          rowSuffix={() => ["+11.0%", "+64,063 zł"]}
+          summary={() => ({
+            label: "Total",
+            value: "933,989 zł",
+            suffix: ["+26.6%", "+196,071 zł"],
+          })}
+        />,
+      ).container;
+
+    it("wraps the series name rather than running it over the value", () => {
+      const name = renderGrid().querySelector(
+        '[data-testid="tooltip-series-name"]',
+      ) as HTMLElement;
+      expect(name).not.toBeNull();
+      expect(name.style.whiteSpace).not.toBe("nowrap");
+      expect(name.style.overflowWrap).toBe("anywhere");
+    });
+
+    it("does the same for the summary row's label", () => {
+      const label = renderGrid().querySelector(
+        '[data-testid="tooltip-summary-label"]',
+      ) as HTMLElement;
+      expect(label).not.toBeNull();
+      expect(label.style.whiteSpace).not.toBe("nowrap");
+      expect(label.style.overflowWrap).toBe("anywhere");
+    });
+
+    it("keeps the figures on one line — only the name may wrap", () => {
+      const c = renderGrid();
+      const value = c.querySelector(
+        '[data-testid="tooltip-series-value"]',
+      ) as HTMLElement;
+      expect(value.style.whiteSpace).toBe("nowrap");
     });
   });
 
@@ -724,6 +826,48 @@ describe("Overview charts", () => {
 // member sizing a reserve wants to know it is 1,900 zł fat, not 240% fat. The
 // ticks then have to come from the data's own magnitude rather than the percent
 // ladder, and still include zero, which the whole chart is built around.
+/**
+ * The box and the highlight must be about the SAME row (user, 260810).
+ *
+ * The chart ran two hit-tests — ours over DOM rects, which dims every other
+ * row, and recharts' own, which decided what its <Tooltip> handed the content.
+ * On a finger they disagreed and the screen contradicted itself: Uncategorized
+ * lit up while the box read "Food & Home".
+ */
+describe("tooltipPayloadFor", () => {
+  const ROWS = [
+    { name: "Travel", __pct: -12 },
+    { name: "Uncategorized", __pct: -3 },
+    { name: "Food & Home", __pct: 41 },
+  ];
+
+  it("hands over the row the highlight is on", () => {
+    const [entry] = tooltipPayloadFor(ROWS, 1, "__pct");
+    expect(entry!.payload).toBe(ROWS[1]);
+    expect(entry!.value).toBe(-3);
+    expect(entry!.dataKey).toBe("__pct");
+  });
+
+  it("hands over nothing when nothing is selected", () => {
+    expect(tooltipPayloadFor(ROWS, null, "__pct")).toEqual([]);
+  });
+
+  it("survives an index that has gone out of range mid-refetch", () => {
+    expect(tooltipPayloadFor(ROWS, 9, "__pct")).toEqual([]);
+  });
+
+  it("carries no value when the row's figure is not a number", () => {
+    const [entry] = tooltipPayloadFor(
+      [{ name: "X", __pct: "nope" }],
+      0,
+      "__pct",
+    );
+    expect(entry!.value).toBeUndefined();
+    // …but the row itself still reaches the box, so its own rows still render.
+    expect(entry!.payload).toEqual({ name: "X", __pct: "nope" });
+  });
+});
+
 describe("amountTicks", () => {
   it("always includes the zero line", () => {
     expect(amountTicks(-500, 900)).toContain(0);
@@ -752,6 +896,22 @@ describe("amountTicks", () => {
 
   it("does not run away on a huge spread", () => {
     expect(amountTicks(-1, 5_000_000).length).toBeLessThanOrEqual(12);
+  });
+
+  // Money is written in whole units, so a step finer than one prints the same
+  // label twice: a chart whose biggest change was under a złoty carried the
+  // axis "−1 zł · −1 zł · 0 zł · +1 zł" (user, 260809, after rebalancing every
+  // limit in a budget).
+  it("never steps finer than one whole unit", () => {
+    const step = Math.min(...amountTicks(-140, 40).filter((t) => t > 0));
+    expect(step).toBeGreaterThanOrEqual(100);
+  });
+
+  it("prints no whole-unit label twice, however small the spread", () => {
+    for (const reach of [10, 44, 99, 140, 250]) {
+      const labels = amountTicks(-reach, reach).map((t) => Math.round(t / 100));
+      expect(new Set(labels).size).toBe(labels.length);
+    }
   });
 });
 
@@ -1043,9 +1203,17 @@ describe("Diverging chart — how the two callers ask for it", () => {
     // Relative to the vitest root (apps/web), which is where the suite runs.
     readFileSync(`src/components/budgeting/overview/${f}`, "utf8");
 
-  it("colours both from the percent, whatever the axis reads in", () => {
+  it("colours both from a PERCENT field, never from the money axis", () => {
+    // Both must name a percent-valued key. planned-section moved to `colorPct`
+    // on 260807 — the same percent with sub-unit gaps zeroed, so a category a
+    // few groszy over stops drawing a red bar labelled "+0 zł". What must never
+    // appear here is the money key (`gap`), which is what broke this before:
+    // cents fed to a band function turned +5% into red the moment the axis
+    // flipped to zł.
+    expect(src("planned-section.tsx")).toContain('colorKey="colorPct"');
+    expect(src("reserve-fit-view.tsx")).toContain('colorKey="pct"');
     for (const f of ["planned-section.tsx", "reserve-fit-view.tsx"])
-      expect(src(f)).toContain('colorKey="pct"');
+      expect(src(f)).not.toContain('colorKey="gap"');
   });
 });
 
@@ -1116,5 +1284,179 @@ describe("Diverging chart — banded background", () => {
 
   it("drops every band in money, where a percent corridor means nothing", () => {
     expect(areas({ formatValue: (n: number) => String(n) })).toBe(0);
+  });
+});
+
+describe("ChartTooltipContent — staying on the phone", () => {
+  // The reserve tooltip grew a long row and ran off the right edge of the
+  // screen: the box had a minWidth and no ceiling, so a wide row simply made a
+  // wide tooltip (user screenshot, 260807).
+  const render1 = (label: string) =>
+    render(
+      <ChartTooltipContent
+        active
+        label="Travel"
+        payload={[{ dataKey: "__pct", value: 1, payload: { name: "Travel" } }]}
+        hideSeriesRows
+        extra={() => [{ label, value: "12 345 zł (+926 zł)" }]}
+      />,
+    );
+
+  it("caps its own width so a long row cannot push it off screen", () => {
+    const { container } = render1("Or set the limit to");
+    const box = container.firstElementChild as HTMLElement;
+    expect(box.style.maxWidth).not.toBe("");
+  });
+
+  it("lets a long row wrap instead of widening the box", () => {
+    const { container } = render1(
+      "Or set the limit to something with a very long name indeed",
+    );
+    const row = container.querySelector(
+      '[data-testid="tooltip-extra-row"]',
+    ) as HTMLElement;
+    expect(row).toBeTruthy();
+    // The label may wrap; the value must not be broken mid-number.
+    const value = row.lastElementChild as HTMLElement;
+    expect(value.style.whiteSpace).toBe("nowrap");
+  });
+});
+
+describe("ChartTooltipContent — the conjunction that joins two rows", () => {
+  it("sets the and/or apart from the label it leads", () => {
+    // Two rows that are halves of one instruction, so the word joining them
+    // carries the accent rather than sitting grey inside the sentence (user,
+    // 260808).
+    const { container } = render(
+      <ChartTooltipContent
+        active
+        label="Sport"
+        payload={[{ dataKey: "__pct", value: 1, payload: { name: "Sport" } }]}
+        hideSeriesRows
+        extra={() => [
+          { label: "Withdraw from reserve", value: "3,192 zl" },
+          { conj: "and", label: "set the limit to", value: "1,934 zl" },
+        ]}
+      />,
+    );
+    const second = container.querySelectorAll(
+      '[data-testid="tooltip-extra-row"]',
+    )[1]!;
+    const conj = second.querySelector('[data-testid="tooltip-conj"]')!;
+    expect(conj.textContent).toBe("and");
+    expect((conj as HTMLElement).style.fontWeight).toBe("600");
+    expect((conj as HTMLElement).style.color).toContain("chart-accent");
+    // …and the label it leads is still its own, unaccented run of text.
+    expect(second.textContent).toContain("set the limit to");
+  });
+
+  it("leaves a row without one alone", () => {
+    const { container } = render(
+      <ChartTooltipContent
+        active
+        label="Sport"
+        payload={[{ dataKey: "__pct", value: 1, payload: { name: "Sport" } }]}
+        hideSeriesRows
+        extra={() => [{ label: "Held", value: "4,283 zl" }]}
+      />,
+    );
+    expect(container.querySelector('[data-testid="tooltip-conj"]')).toBeNull();
+  });
+});
+
+describe("ChartTooltipContent — fixed columns only when there is a column", () => {
+  // The amount cells are a fixed 62px so that an average and a range total line
+  // up DOWN the rows. When only one row carries a second value there is nothing
+  // to line up with, and the fixed width just opens a gulf between the amount
+  // and the figure beside it (user screenshot, 260807).
+  const rowsWith = (
+    extra: { label: string; value: string; value2?: string }[],
+  ) =>
+    render(
+      <ChartTooltipContent
+        active
+        label="Car"
+        payload={[{ dataKey: "__pct", value: 1, payload: { name: "Car" } }]}
+        hideSeriesRows
+        extra={() => extra}
+      />,
+    );
+
+  /** How many amount cells are pinned to the fixed column width. */
+  const pinned = (container: HTMLElement) =>
+    [...container.querySelectorAll('[data-testid="tooltip-extra-row"] span')]
+      .map((s) => (s as HTMLElement).style.minWidth)
+      .filter((w) => w === "62px").length;
+
+  it("lets a lone pair hug the edge", () => {
+    const { container } = rowsWith([
+      { label: "Set the limit to", value: "747 zł", value2: "(-253 zł)" },
+      { label: "and withdraw", value: "2,123 zł" },
+    ]);
+    expect(pinned(container)).toBe(0);
+  });
+
+  it("keeps the columns fixed when two rows share them", () => {
+    const { container } = rowsWith([
+      { label: "Average limit", value: "500 zł", value2: "1,500 zł" },
+      { label: "Spent", value: "600 zł", value2: "1,800 zł" },
+    ]);
+    expect(pinned(container)).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * A bar worth nothing straddles the zero line (user screenshot, 260809).
+ *
+ * There has always been a straddle for the on-plan mark, but it asked the RAW
+ * percent — so a category thirty groszy off printed "+0 zł", took the even
+ * grey, and then drew itself starting AT the line and growing right, sitting
+ * visibly to one side of every other bar's origin. The colour already knew it
+ * was nothing (colorPct zeroes sub-unit gaps); the shape did not ask.
+ */
+describe("the zero bar sits ON the line", () => {
+  // ONE chart, so every row shares an axis and the x values are comparable.
+  const xs = () => {
+    const { container } = render(
+      <div style={{ width: 600, height: 400 }}>
+        <OverviewDivergingBarChart
+          data={[
+            { name: "Groszy", pct: 0.4, colorPct: 0 },
+            { name: "Exact", pct: 0, colorPct: 0 },
+            { name: "Real", pct: 40, colorPct: 40 },
+          ]}
+          categoryKey="name"
+          valueKey="pct"
+          colorKey="colorPct"
+        />
+      </div>,
+    );
+    return [
+      ...container.querySelectorAll(
+        ".recharts-bar-rectangle .recharts-rectangle",
+      ),
+    ].map((r) => ({
+      // Where the bar's MIDDLE sits, and how wide it is drawn.
+      mid: Math.round(
+        Number(r.getAttribute("x")) + Number(r.getAttribute("width")) / 2,
+      ),
+      width: Number(r.getAttribute("width")),
+    }));
+  };
+
+  it("centres a rounds-to-zero bar on the line, like an exact zero", () => {
+    const [groszy, exact, real] = xs();
+    expect(groszy!.mid).toBe(exact!.mid);
+    // …and a bar with something in it grows FROM the line, so its middle is
+    // off to one side.
+    expect(real!.mid).toBeGreaterThan(exact!.mid);
+  });
+
+  it("draws it as the same hairline, not a pill at its own scale", () => {
+    // The Past reading renders an exact zero as a thin mark on the line; the
+    // Future one drew thirty groszy at whatever width the axis gave it, which
+    // came out as a chunky rounded blob beside the line (user, 260809).
+    const [groszy, exact] = xs();
+    expect(groszy!.width).toBe(exact!.width);
   });
 });

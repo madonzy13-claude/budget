@@ -5,7 +5,7 @@
  * All SQL uses new column names from migration 0013:
  *   amount_original_cents (bigint), amount_converted_cents (bigint),
  *   currency_original, fx_as_of, budget_id, kind SPENDING|INCOME,
- *   recurring_rule_id, confirmed_at, updated_at, deleted_at.
+ *   scheduled_payment_id, confirmed_at, updated_at, deleted_at.
  *
  * Removed: wallet balance delta, spending_by_category_month upsert, correction chain.
  * Added: updateInPlace, confirm, softDelete, listForMonth.
@@ -39,7 +39,7 @@ function dbRowToTransactionRow(row: Record<string, unknown>): TransactionRow {
     fxRate: String(row.fx_rate),
     fxAsOf: (row.fx_as_of ?? row.fx_as_of_text) as string,
     note: (row.note as string | null) ?? null,
-    recurringRuleId: (row.recurring_rule_id as string | null) ?? null,
+    scheduledPaymentId: (row.scheduled_payment_id as string | null) ?? null,
     confirmedAt: row.confirmed_at ? new Date(row.confirmed_at as string) : null,
     kind: (row.kind as "SPENDING" | "INCOME") ?? "SPENDING",
     createdAt: new Date(row.created_at as string),
@@ -72,7 +72,7 @@ export class DrizzleTransactionRepo implements TransactionRepo {
               (id, tenant_id, budget_id, category_id, transaction_date,
                amount_original_cents, currency_original,
                amount_converted_cents, fx_rate, fx_as_of,
-               note, kind, recurring_rule_id, confirmed_at,
+               note, kind, scheduled_payment_id, confirmed_at,
                created_at, updated_at)
             VALUES
               (${row.id}::uuid,
@@ -87,7 +87,7 @@ export class DrizzleTransactionRepo implements TransactionRepo {
                ${row.fxAsOf}::date,
                ${row.note ?? null},
                ${row.kind},
-               ${row.recurringRuleId ? sql`${row.recurringRuleId}::uuid` : sql`NULL`},
+               ${row.scheduledPaymentId ? sql`${row.scheduledPaymentId}::uuid` : sql`NULL`},
                ${row.confirmedAt ? row.confirmedAt.toISOString() : null}::timestamptz,
                now(), now())`,
         );
@@ -129,7 +129,7 @@ export class DrizzleTransactionRepo implements TransactionRepo {
                    amount_original_cents, currency_original,
                    amount_converted_cents, fx_rate::text,
                    fx_as_of::text AS fx_as_of,
-                   note, kind, recurring_rule_id, confirmed_at, created_at, updated_at, deleted_at
+                   note, kind, scheduled_payment_id, confirmed_at, created_at, updated_at, deleted_at
             FROM budgeting.expense_ledger
             WHERE id = ${id}::uuid
               AND tenant_id = ${tenantId}::uuid
@@ -192,11 +192,11 @@ export class DrizzleTransactionRepo implements TransactionRepo {
         if (fields.kind !== undefined) {
           setClauses.push(sql`kind = ${fields.kind}`);
         }
-        if (fields.recurringRuleId !== undefined) {
+        if (fields.scheduledPaymentId !== undefined) {
           setClauses.push(
-            fields.recurringRuleId
-              ? sql`recurring_rule_id = ${fields.recurringRuleId}::uuid`
-              : sql`recurring_rule_id = NULL`,
+            fields.scheduledPaymentId
+              ? sql`scheduled_payment_id = ${fields.scheduledPaymentId}::uuid`
+              : sql`scheduled_payment_id = NULL`,
           );
         }
         if (fields.confirmedAt !== undefined) {
@@ -329,7 +329,7 @@ export class DrizzleTransactionRepo implements TransactionRepo {
                    amount_original_cents, currency_original,
                    amount_converted_cents, fx_rate::text,
                    fx_as_of::text AS fx_as_of,
-                   note, kind, recurring_rule_id, confirmed_at, created_at, updated_at, deleted_at
+                   note, kind, scheduled_payment_id, confirmed_at, created_at, updated_at, deleted_at
             FROM budgeting.expense_ledger
             WHERE tenant_id = ${tenantId}::uuid
               AND budget_id = ${budgetId}::uuid
@@ -361,7 +361,7 @@ export class DrizzleTransactionRepo implements TransactionRepo {
           execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
         };
         const result = await drizzleTx.execute(
-          // max(confirmed_at), NOT max(created_at): a recurring draft is created
+          // max(confirmed_at), NOT max(created_at): a scheduled draft is created
           // by the worker (created_at = generation time) and confirmed later, so
           // created_at would report a moment from the row's unconfirmed-draft era.
           // For manually added spendings the two are the same instant.

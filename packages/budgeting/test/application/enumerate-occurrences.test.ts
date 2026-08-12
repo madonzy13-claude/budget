@@ -111,3 +111,49 @@ describe("incomeSeedDate", () => {
     ).toBe("2026-07-15");
   });
 });
+
+describe("enumerateOccurrences — something that happens ONCE", () => {
+  const on = (iso: string) => Temporal.PlainDate.from(iso);
+
+  test("emits its one date and stops", () => {
+    // ONCE steps forward by a DAY (that is how the generation loop clears its
+    // own deadline), so without a stop this would emit every day to the end of
+    // the window — a single sofa drawn as a daily payment (260807).
+    expect(
+      enumerateOccurrences(
+        { cadence: "ONCE" },
+        {
+          seed: on("2026-11-04"),
+          afterExclusive: on("2026-08-07"),
+          end: on("2027-08-07"),
+        },
+      ),
+    ).toEqual(["2026-11-04"]);
+  });
+
+  test("emits nothing when its date has already gone", () => {
+    expect(
+      enumerateOccurrences(
+        { cadence: "ONCE" },
+        {
+          seed: on("2026-01-04"),
+          afterExclusive: on("2026-08-07"),
+          end: on("2027-08-07"),
+        },
+      ),
+    ).toEqual([]);
+  });
+
+  test("emits nothing when its date is past the window", () => {
+    expect(
+      enumerateOccurrences(
+        { cadence: "ONCE" },
+        {
+          seed: on("2029-01-04"),
+          afterExclusive: on("2026-08-07"),
+          end: on("2027-08-07"),
+        },
+      ),
+    ).toEqual([]);
+  });
+});

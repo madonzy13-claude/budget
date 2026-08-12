@@ -130,7 +130,9 @@ describe("SW navigation strategy — cached routes paint immediately", () => {
   });
 
   test("a background refresh that 404s does not replace the cached page", async () => {
-    const fetchFn = vi.fn().mockResolvedValue(new Response("nope", { status: 404 }));
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(new Response("nope", { status: 404 }));
     const matchCache = vi.fn().mockResolvedValue(cachedPage("/en/budgets/1"));
     const cachePut = vi.fn().mockResolvedValue(undefined);
 
@@ -263,12 +265,12 @@ describe("SW navigation strategy (network-first-with-write → cached doc → ap
     // the network timeout (offline fetch only hangs) — it returns the cached
     // real document right away. fetchFn must NOT be called.
     const fetchFn = vi.fn();
-    const matchCache = vi.fn().mockResolvedValue(cachedPage("/en/settings"));
+    const matchCache = vi.fn().mockResolvedValue(cachedPage("/en/budgets/1"));
     const cachePut = vi.fn();
     const matchShell = vi.fn();
 
     const res = await handleNavigationRequest(
-      navRequest("/en/settings"),
+      navRequest("/en/budgets/1"),
       fetchFn,
       matchCache,
       cachePut,
@@ -409,12 +411,12 @@ describe("SW navigation strategy (network-first-with-write → cached doc → ap
       () =>
         new Promise<Response>((resolve) => setTimeout(() => resolve(slow), 60)),
     );
-    const matchCache = vi.fn().mockResolvedValue(cachedPage("/en/settings"));
+    const matchCache = vi.fn().mockResolvedValue(cachedPage("/en/budgets/1"));
     const cachePut = vi.fn().mockResolvedValue(undefined);
     const matchShell = vi.fn();
 
     const res = await handleNavigationRequest(
-      navRequest("/en/settings"),
+      navRequest("/en/budgets/1"),
       fetchFn,
       matchCache,
       cachePut,
@@ -481,5 +483,82 @@ describe("offline-shell.html static document", () => {
     expect(shellHtml).toMatch(/history\.back\(\)/);
     // The old "Try again" (retry) primary button is gone.
     expect(shellHtml).not.toContain('data-i18n="retry"');
+  });
+});
+
+// 260812: cache-first for navigations rests on ONE invariant, stated in
+// sw-offline.ts itself — "the nav doc is a DATA-FREE client shell (SPA/SWR
+// refactor), so it carries no stale numbers". /settings breaks it: it is a
+// server component that reads the session and server-renders the display
+// currency, timezone and profile INTO the document. Served from cache, a reload
+// after changing the display currency painted the OLD value, and no React Query
+// refetch could correct it because the value never came from a query.
+//
+// So the rule narrows: routes that server-render user data go to the network
+// first. They keep the cache as an OFFLINE fallback — losing the instant paint
+// on one rarely-visited page is the whole cost.
+describe("SW navigation strategy — routes that server-render user data", () => {
+  test("/settings goes to the network even when a cached copy exists", async () => {
+    const fresh = new Response(
+      `<!doctype html><html><body><main data-testid="fresh-page">UAH</main></body></html>`,
+      { status: 200, headers: { "content-type": "text/html; charset=utf-8" } },
+    );
+    const fetchFn = vi.fn().mockResolvedValue(fresh);
+    const matchCache = vi.fn().mockResolvedValue(cachedPage("/en/settings"));
+
+    const res = await handleNavigationRequest(
+      navRequest("/en/settings"),
+      fetchFn,
+      matchCache,
+      vi.fn().mockResolvedValue(undefined),
+      vi.fn(),
+      false,
+    );
+
+    expect(await res.text()).toContain("fresh-page");
+  });
+
+  test("every locale prefix is covered, not just /en", async () => {
+    const fresh = new Response(`<html><body>fresh-pl</body></html>`, {
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+    const res = await handleNavigationRequest(
+      navRequest("/pl/settings"),
+      vi.fn().mockResolvedValue(fresh),
+      vi.fn().mockResolvedValue(cachedPage("/pl/settings")),
+      vi.fn().mockResolvedValue(undefined),
+      vi.fn(),
+      false,
+    );
+
+    expect(await res.text()).toContain("fresh-pl");
+  });
+
+  test("offline, it still falls back to the cached copy", async () => {
+    const res = await handleNavigationRequest(
+      navRequest("/en/settings"),
+      vi.fn().mockRejectedValue(new Error("offline")),
+      vi.fn().mockResolvedValue(cachedPage("/en/settings")),
+      vi.fn().mockResolvedValue(undefined),
+      vi.fn(),
+      true,
+    );
+
+    expect(await res.text()).toContain("cached-page");
+  });
+
+  test("a data-free route still paints from cache immediately", async () => {
+    const fetchFn = vi.fn(() => new Promise<Response>(() => {}));
+    const res = await handleNavigationRequest(
+      navRequest("/en/budgets/1"),
+      fetchFn,
+      vi.fn().mockResolvedValue(cachedPage("/en/budgets/1")),
+      vi.fn().mockResolvedValue(undefined),
+      vi.fn(),
+      false,
+    );
+
+    expect(await res.text()).toContain("cached-page");
   });
 });

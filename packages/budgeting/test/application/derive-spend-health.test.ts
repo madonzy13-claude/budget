@@ -2,10 +2,10 @@
 //
 // deriveSpendHealth — the "Available to spend" card health, derived from the
 // cash-flow projection.
-//   ICON (`good`):
-//     - no income        → null (grey/neutral dot)
-//     - income exists     → false if ANY red day at/before the LAST income in the
-//                           window (today→end of next month); else true.
+//   ICON (`good`) — 260811: the verdict no longer depends on income at all, and
+//   spans the WHOLE window rather than stopping at the last income:
+//     - false if ANY day in the projection is red (cash < 0); else true.
+//     - null only for a degenerate empty projection.
 //   SURPLUS/DEFICIT (`surplusDeficitCents`):
 //     - no income        → null (the card shows the old "upcoming" figure instead)
 //     - income exists     → projected cash on the day BEFORE the NEAREST (first)
@@ -43,10 +43,20 @@ const set = (days: DayCell[], date: string, patch: Partial<DayCell>) =>
   days.map((c) => (c.date === date ? { ...c, ...patch } : c));
 
 describe("deriveSpendHealth", () => {
-  test("no income → grey dot (good null) + no surplus/deficit (null)", () => {
+  test("no income, nothing red → still a verdict, and it is good", () => {
     const days = greenRange("2026-07-15", "2026-08-31", 12_000n);
     const h = deriveSpendHealth({ days, incomePoints: [] });
-    expect(h.good).toBeNull();
+    expect(h.good).toBe(true);
+    // No income means no "day before the next pay-day", so the card keeps
+    // showing its Upcoming figure instead of a surplus/deficit.
+    expect(h.surplusDeficitCents).toBeNull();
+  });
+
+  test("no income and a red day → red, income or not (user, 260811)", () => {
+    let days = greenRange("2026-07-15", "2026-08-31", 12_000n);
+    days = set(days, "2026-08-03", { color: "red", availableCents: -1n });
+    const h = deriveSpendHealth({ days, incomePoints: [] });
+    expect(h.good).toBe(false);
     expect(h.surplusDeficitCents).toBeNull();
   });
 
@@ -74,7 +84,10 @@ describe("deriveSpendHealth", () => {
     expect(h.surplusDeficitCents).toBe(5_000n); // value still day-before-first
   });
 
-  test("red only AFTER the last income (beyond horizon) → still good", () => {
+  test("red after the last income still counts — the whole range is judged", () => {
+    // Was "still good": the icon used to stop at the last income, so a hole
+    // beyond it went unreported. The forecast draws that day red, so the card
+    // says red (user, 260811).
     let days = greenRange("2026-07-15", "2026-08-31", 40_000n);
     days = set(days, "2026-08-30", { color: "red", availableCents: -9_000n });
     days = set(days, "2026-07-24", { availableCents: 7_000n });
@@ -82,7 +95,7 @@ describe("deriveSpendHealth", () => {
       days,
       incomePoints: [{ date: "2026-07-25" }, { date: "2026-08-25" }],
     });
-    expect(h.good).toBe(true);
+    expect(h.good).toBe(false);
     expect(h.surplusDeficitCents).toBe(7_000n);
   });
 
@@ -97,7 +110,7 @@ describe("deriveSpendHealth", () => {
     expect(h.surplusDeficitCents).toBe(-4_500n); // day before FIRST income (07-19)
   });
 
-  test("empty projection → grey, null (degenerate)", () => {
+  test("empty projection → no verdict (degenerate)", () => {
     const h = deriveSpendHealth({ days: [], incomePoints: [] });
     expect(h.good).toBeNull();
     expect(h.surplusDeficitCents).toBeNull();

@@ -22,12 +22,18 @@ interface FakeSW {
   addEventListener: ReturnType<typeof vi.fn>;
   removeEventListener: ReturnType<typeof vi.fn>;
   dispatch: (type: string) => void;
+  /** What the component asks for when it wants a fresh-build check. */
+  ready: Promise<{ update: ReturnType<typeof vi.fn> }>;
+  update: ReturnType<typeof vi.fn>;
 }
 
 function installFakeServiceWorker(controller: object | null): FakeSW {
   const listeners: Record<string, SwListener[]> = {};
+  const update = vi.fn().mockResolvedValue(undefined);
   const sw: FakeSW = {
     controller,
+    update,
+    ready: Promise.resolve({ update }),
     addEventListener: vi.fn((type: string, cb: SwListener) => {
       (listeners[type] ??= []).push(cb);
     }),
@@ -129,5 +135,83 @@ describe("SwUpdateReloader", () => {
       "controllerchange",
       expect.any(Function),
     );
+  });
+});
+
+/**
+ * Reloading on controllerchange only helps once the browser has NOTICED a new
+ * build, and an installed PWA that is resumed from the background never looks:
+ * no navigation, no fetch of sw.js, no controllerchange. The app sits on the
+ * build it was launched with for as long as it stays alive — a fix deployed
+ * hours ago is simply invisible (user, 260810, reporting a corrected figure
+ * still reading the old way 44 minutes after the deploy).
+ *
+ * So coming back to the foreground asks the question outright.
+ */
+describe("SwUpdateReloader — noticing a deploy on resume", () => {
+  const setHidden = (hidden: boolean) =>
+    Object.defineProperty(document, "visibilityState", {
+      value: hidden ? "hidden" : "visible",
+      configurable: true,
+    });
+
+  const resume = () => {
+    setHidden(false);
+    document.dispatchEvent(new Event("visibilitychange"));
+  };
+
+  it("asks the service worker for a new build when the app is resumed", async () => {
+    const sw = installFakeServiceWorker({});
+    render(React.createElement(SwUpdateReloader));
+
+    resume();
+    await sw.ready;
+    await Promise.resolve();
+
+    expect(sw.update).toHaveBeenCalled();
+  });
+
+  it("does not ask while the app is hidden", async () => {
+    const sw = installFakeServiceWorker({});
+    render(React.createElement(SwUpdateReloader));
+
+    setHidden(true);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await sw.ready;
+    await Promise.resolve();
+
+    expect(sw.update).not.toHaveBeenCalled();
+  });
+
+  it("does not hammer the network when the app flickers in and out", async () => {
+    const sw = installFakeServiceWorker({});
+    render(React.createElement(SwUpdateReloader));
+
+    resume();
+    await sw.ready;
+    await Promise.resolve();
+    resume();
+    resume();
+    await sw.ready;
+    await Promise.resolve();
+
+    expect(sw.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("survives a browser with no service worker at all", () => {
+    clearServiceWorker();
+    expect(() => {
+      render(React.createElement(SwUpdateReloader));
+      resume();
+    }).not.toThrow();
+  });
+
+  it("stops listening for resumes on unmount", () => {
+    installFakeServiceWorker({});
+    const spy = vi.spyOn(document, "removeEventListener");
+    const { unmount } = render(React.createElement(SwUpdateReloader));
+    unmount();
+    expect(spy).toHaveBeenCalledWith("visibilitychange", expect.any(Function));
+    spy.mockRestore();
   });
 });

@@ -286,10 +286,10 @@ export class DrizzleCategoryRepo implements CategoryRepo {
                )`,
       );
 
-      // Removing a category (EITHER mode) drops its future recurring rules and
+      // Removing a category (EITHER mode) drops its future scheduled rules and
       // any still-unconfirmed drafts, so nothing new lands in it going forward.
       await tx.execute(
-        sql`DELETE FROM budgeting.recurring_rules
+        sql`DELETE FROM budgeting.scheduled_payments
             WHERE category_id = ${categoryId}::uuid
               AND tenant_id = ${tenantId}::uuid`,
       );
@@ -519,7 +519,7 @@ export class DrizzleCategoryRepo implements CategoryRepo {
       // 260612-kxd T3: resolve CONFIRM_DRAFT tasks for this category's drafts
       // BEFORE the expense_ledger purge below — the subquery must still see
       // the draft rows to match payload_json->>'draft_id'. Without this,
-      // hard-deleting a category with a pending recurring draft left an
+      // hard-deleting a category with a pending scheduled draft left an
       // orphan PENDING task (the "Maczfit" banner ghost). Idempotent
       // (status='PENDING' guard) and double tenant-scoped (T-kxd-01).
       await tx.execute(
@@ -539,7 +539,7 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         "budgeting.category_limits",
         "budgeting.category_reserve_adjustments",
         "budgeting.category_share_overrides",
-        "budgeting.recurring_rules",
+        "budgeting.scheduled_payments",
         "budgeting.spending_by_category_month",
       ]) {
         await tx.execute(

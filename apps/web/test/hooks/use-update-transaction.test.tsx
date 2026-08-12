@@ -65,7 +65,7 @@ describe("useUpdateTransaction", () => {
           fx_rate: "1",
           fx_as_of: "2026-05-10",
           note: null,
-          recurring_rule_id: null,
+          scheduled_payment_id: null,
           confirmed_at: "2026-05-10T00:00:00.000Z",
           kind: "SPENDING",
           created_at: "2026-05-10T00:00:00.000Z",

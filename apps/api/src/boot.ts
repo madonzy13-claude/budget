@@ -120,7 +120,7 @@ export interface BootedDeps {
     getSpendingsSummary: ReturnType<typeof getSpendingsSummary>;
     /** Phase 11 (11-03): 5-card Overview summary (default_currency). */
     getOverviewCards: ReturnType<typeof getOverviewCards>;
-    /** Phase 11 (11-04): Planned section (timeline + planned-avg + recurring). */
+    /** Phase 11 (11-04): Planned section (timeline + planned-avg + scheduled). */
     getOverviewPlanned: ReturnType<typeof getOverviewPlanned>;
     /** Phase 11 (11-05): Overspent + Reserves section (after-reserves, default_ccy). */
     getOverviewOverspent: ReturnType<typeof getOverviewOverspent>;
@@ -475,7 +475,7 @@ export async function boot(): Promise<BootedDeps> {
       }),
     }),
     // Phase 11 (11-04): Planned section. Multi-month aggregation repo + the same
-    // meta reader + fxProvider (recurring amounts only).
+    // meta reader + fxProvider (scheduled amounts only).
     getOverviewPlanned: getOverviewPlanned({
       // One list of one-offs, two charts (260804): it comes off the per-category
       // AVERAGES here, exactly as it comes off the reserve walk.
@@ -507,10 +507,13 @@ export async function boot(): Promise<BootedDeps> {
       exclusionsRepo: reserveFitRepo,
       // Known commitments carry the walk forward: an annual renewal has to be
       // reserved for before it lands, not after (260804).
-      activeRecurringRules: (budgetId) =>
-        createOverviewRepo().activeRecurringRules(budgetId),
+      activeScheduledPayments: (budgetId) =>
+        createOverviewRepo().activeScheduledPayments(budgetId),
       reservePositions: baseBudgeting.reservePositions,
       metaReader: summaryRepo,
+      // Rules carry their own currency: a 100 EUR charge in a PLN budget is
+      // 430 of limit, not 100 (260809).
+      fxProvider: baseBudgeting.fxProvider,
     }),
     setReserveFitExclusions: reserveFitRepo.setExclusions,
     // Phase 11 (11-06): Financial-Wealth section. 3h snapshot series + a live
@@ -610,6 +613,9 @@ export async function boot(): Promise<BootedDeps> {
         tenancy.workspaceRepo.getAggPrefsForUser(userId),
       displayCurrencyReader,
       fxProvider: baseBudgeting.fxProvider,
+      // The cross-budget spend verdict reads each budget's own forecast, so the
+      // all-budgets card answers the same question the per-budget card does.
+      getCashflowProjectionForTenant: budgetingFinal.getCashflowProjection,
     }),
     // Task 9: combined net-worth trend. Reuses the just-composed getOverviewWealth
     // (same series the per-budget Financial-Wealth section shows) — adapts its

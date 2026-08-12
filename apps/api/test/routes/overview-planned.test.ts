@@ -4,7 +4,7 @@
  *
  * Exercises the multi-month SQL: SCD-2 limit active per month, per-month mode from
  * budget_mode_history (March = CUSHION → cushion_amount), confirmed-only real
- * (pending excluded), planned-avg over active months, recurring chart, adaptive
+ * (pending excluded), planned-avg over active months, scheduled chart, adaptive
  * daily bucket, and the Zod range guard. NO DB mocking.
  */
 import { describe, it, expect, beforeAll } from "bun:test";
@@ -140,9 +140,9 @@ async function createFixture(): Promise<Fixture> {
        VALUES ($1, $2, $3, $4, 'USD', 99000, 99000, 1, '2026-01-12'::date, '2026-01-12'::date, 'SPENDING', now(), now(), now())`,
       [crypto.randomUUID(), budgetId, budgetId, investId],
     );
-    // Active MONTHLY recurring rule: 100.00 USD on Food.
+    // Active MONTHLY scheduled rule: 100.00 USD on Food.
     await c.query(
-      `INSERT INTO budgeting.recurring_rules
+      `INSERT INTO budgeting.scheduled_payments
          (id, tenant_id, category_id, amount, currency, cadence, next_due_date, active, actor_user_id, created_at, updated_at)
        VALUES ($1, $2, $3, 100.00, 'USD', 'MONTHLY', '2026-07-01', true, $4, now(), now())`,
       [crypto.randomUUID(), budgetId, categoryId, userId],
@@ -205,7 +205,7 @@ describe("GET /budgets/:id/overview/planned", () => {
     other = await createFixture();
   });
 
-  it("monthly bucket: SCD-2 planned (March=cushion), confirmed-only real, planned-avg, recurring", async () => {
+  it("monthly bucket: SCD-2 planned (March=cushion), confirmed-only real, planned-avg, scheduled", async () => {
     const app = await buildApp({
       userId: fix.userId,
       allowedTenantIds: [fix.budgetId],
@@ -230,8 +230,7 @@ describe("GET /budgets/:id/overview/planned", () => {
         planned_avg_cents: string;
         real_avg_cents: string;
       }[];
-      recurringPerMonth: { month: number; planned_cents: string }[];
-      recurringPerCategory: { category_id: string; planned_cents: string }[];
+      scheduledPerMonth: { month: string; planned_cents: string }[];
     };
     expect(body.currency).toBe("USD");
     expect(body.bucket).toBe("monthly");
@@ -271,14 +270,17 @@ describe("GET /budgets/:id/overview/planned", () => {
     )!;
     expect(food.planned_avg_cents).toBe("18333"); // (20000+20000+15000)/3
     expect(food.real_avg_cents).toBe("17667"); // (18000+21000+14000)/3
-    // recurring MONTHLY 100.00 → 10000 in every month + per-category
+    // 260807: the series is UPCOMING months, keyed "YYYY-MM", running from this
+    // month to the furthest next-due — not a calendar year of slots 1..12. The
+    // per-CATEGORY cut went with the chart that used it (260804).
+    expect(body.scheduledPerMonth.length).toBeGreaterThan(0);
+    for (const m of body.scheduledPerMonth)
+      expect(m.month).toMatch(/^\d{4}-\d{2}$/);
+    // The seeded MONTHLY 100.00 shows as its own amount in the months it fires,
+    // never averaged away.
     expect(
-      body.recurringPerMonth.find((m) => m.month === 1)!.planned_cents,
-    ).toBe("10000");
-    expect(
-      body.recurringPerCategory.find((c) => c.category_id === fix.categoryId)!
-        .planned_cents,
-    ).toBe("10000");
+      body.scheduledPerMonth.some((m) => m.planned_cents === "10000"),
+    ).toBe(true);
   });
 
   it("daily bucket for a within-month range (D-20)", async () => {

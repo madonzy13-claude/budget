@@ -58,7 +58,7 @@ export interface DraftTaskFixture {
 }
 
 /**
- * Seed a fresh user + budget + category (+ recurring rule + unconfirmed
+ * Seed a fresh user + budget + category (+ scheduled rule + unconfirmed
  * draft unless `orphan`) + one PENDING CONFIRM_DRAFT task whose
  * payload_json->>'draft_id' points at the draft.
  */
@@ -105,7 +105,7 @@ export async function seedDraftWithTask(opts?: {
       [categoryId, budgetId, userId],
     );
     await client.query(
-      `INSERT INTO budgeting.recurring_rules
+      `INSERT INTO budgeting.scheduled_payments
          (id, tenant_id, category_id, amount, currency, cadence, cadence_anchor, weekly_dow,
           note, active, next_due_date, actor_user_id, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, 'MONTHLY', 15, NULL, 'Maczfit', true, $6::date, $7, now(), now())`,
@@ -125,7 +125,7 @@ export async function seedDraftWithTask(opts?: {
            (id, tenant_id, budget_id, category_id, transaction_date,
             amount_original_cents, currency_original,
             amount_converted_cents, fx_rate, fx_as_of,
-            note, recurring_rule_id, confirmed_at, kind, created_at, updated_at)
+            note, scheduled_payment_id, confirmed_at, kind, created_at, updated_at)
          VALUES ($1, $2, $2, $3, $4::date,
                  $5::bigint, $6,
                  $5::bigint, '1'::numeric, $4::date,

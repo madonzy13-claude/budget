@@ -139,6 +139,14 @@ export function useToggleCategoryReserveExcluded(budgetId: string) {
       qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
       // Cash-flow projection inputs changed — refresh the banner.
       qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
+      // Dropping a category out of the reserve (or putting it back) changes
+      // what the reserve is FOR: the queue gains or loses a withdraw task, and
+      // the Overview's reserve-fit reading moves with it. Neither was
+      // invalidated, so both kept the old answer until a full reload (user,
+      // 260810) — the same pair the reserve-adjust mutation already refreshes.
+      qc.invalidateQueries({ queryKey: ["tasks", budgetId, "pending"] });
+      // Prefix: the cards AND reserve-fit-v2 both hang off "overview".
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "overview"] });
     },
   });
 }

@@ -57,10 +57,27 @@ export interface OverviewPlannedDTO {
   /** True when ANY category's limit moved inside the range — the only case
    *  where average-vs-current is a real choice. Optional for cached payloads. */
   limits_moved?: boolean;
-  recurringPerMonth: {
-    month: number;
+  /** "Upcoming scheduled payments, by month": today → the furthest next-due.
+   *  `month` is a real calendar month ("2026-09"), not a slot 1..12 (260807). */
+  scheduledPerMonth: {
+    month: string;
     planned_cents: string;
     items: { name: string; amount_cents: string }[];
+  }[];
+  /** A YEAR of standing commitments per category, biggest first (260811).
+   *  Optional: a payload cached before this shipped replays without it. */
+  scheduledPerYear?: {
+    category_id: string | null;
+    name: string | null;
+    amount_cents: string;
+    /** The payments behind the bar, biggest first — the tooltip prints the
+     *  working ("200 × 12m = 2,400"). Optional for payloads cached before it. */
+    items?: {
+      name: string | null;
+      amount_cents: string;
+      cadence: string;
+      yearly_cents: string;
+    }[];
   }[];
 }
 

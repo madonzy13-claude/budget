@@ -11,7 +11,7 @@
  *   - the LIST under it is where the member overrules that history. Every large
  *     spend is counted by default, so an untouched chart can only ask you to
  *     hold too much; unticking one says "that won't happen again". A spend that
- *     came from a recurring rule carries its cadence, because rare-and-certain
+ *     came from a scheduled rule carries its cadence, because rare-and-certain
  *     (September insurance) is exactly what must NOT be unticked.
  */
 import type * as React from "react";
@@ -117,6 +117,10 @@ export function ReserveFitView({
               categoryId: r.categoryId,
               name: r.name,
               heldCents: r.heldCents,
+              // `needed` IS the target: it is the least this reserve can hold
+              // and still not overspend at today's limit, so topping up to it
+              // and withdrawing down to it are both legitimate moves (user,
+              // 260807).
               neededCents: r.neededCents,
             }))}
             onRebalance={onRebalance}
@@ -140,6 +144,13 @@ export function ReserveFitView({
             heldCents: r.heldCents,
             neededCents: r.neededCents,
             gapCents: r.gapCents,
+            // Carried so the tooltip can offer the limit route (260807); the
+            // bar itself is still drawn from pct/gapCents alone.
+            suggestedLimitCents: r.suggestedLimitCents,
+            suggestedDeltaCents: r.suggestedDeltaCents,
+            suggestedNeededCents: r.suggestedNeededCents,
+            suggestedOverMonths: r.suggestedOverMonths,
+            suggestedDirection: r.suggestedDirection,
           }))}
           categoryKey="name"
           valueKey={scale === "amount" ? "gapCents" : "pct"}
@@ -158,6 +169,16 @@ export function ReserveFitView({
           colorKey="pct"
           tooltipExtra={(row) => {
             const gap = Number(row.gapCents);
+            // ONE QUESTION PER CARD (user, 260809). This chart asks whether
+            // the BUFFER is the right size, and everything on it is measured
+            // at the limit in force — so the move below lands this reserve at
+            // zero on its own.
+            //
+            // The limit itself belongs to the Future chart, which is where it
+            // is decided and where the dialog that writes it lives. Naming it
+            // here too was the same decision in two places, and every
+            // disagreement between them — the rounding, the basis, the and/or
+            // — came out of keeping both.
             return [
               {
                 label: t("reserveFit.held"),
@@ -167,23 +188,48 @@ export function ReserveFitView({
                 label: t("reserveFit.needed"),
                 value: format(Number(row.neededCents)),
               },
-              {
-                label: gap < 0 ? t("reserveFit.short") : t("reserveFit.trim"),
-                value: format(Math.abs(gap)),
-                section: true,
-              },
+              // Three states, and every one of them is either an action or an
+              // explicit "nothing to do" (user, 260807). "Ahead of schedule"
+              // and "spare" were two names for money the household can take
+              // out either way — the difference was only how much could go
+              // wrong afterwards, which nobody acted on differently.
+              //
+              // A difference under a whole unit is not an instruction, so it
+              // reads as balanced rather than as a withdrawal of thirty groszy.
+              Math.abs(gap) < 100
+                ? {
+                    label: t("reserveFit.balanced"),
+                    value: "",
+                    section: true,
+                  }
+                : gap < 0
+                  ? {
+                      label: t("reserveFit.addToReserve"),
+                      value: format(-gap),
+                      section: true,
+                      cta: true,
+                      // Money that has to go IN is a shortfall, and reads in
+                      // the colour the short bars are drawn in (user, 260810).
+                      ctaColor: "var(--trading-down)",
+                    }
+                  : {
+                      label: t("reserveFit.withdraw"),
+                      value: format(gap),
+                      section: true,
+                      cta: true,
+                    },
             ];
           }}
         />
       )}
 
-      {(data.unassigned_recurring ?? []).length > 0 && (
+      {(data.unassigned_scheduled ?? []).length > 0 && (
         <p
           data-testid="reserve-fit-unassigned"
           className="text-caption text-center text-[var(--muted-foreground)]"
         >
           {t("reserveFit.unassigned", {
-            list: (data.unassigned_recurring ?? [])
+            list: (data.unassigned_scheduled ?? [])
               .map((r) => `${r.name} ${format(Number(r.amount_cents))}`)
               .join(", "),
           })}

@@ -1,5 +1,5 @@
 /**
- * use-confirm-draft-offline.test.tsx — confirming a recurring draft offline.
+ * use-confirm-draft-offline.test.tsx — confirming a scheduled draft offline.
  *
  * 260731-osq round 2 (user ask): a failed confirm must NOT be lost. It is queued
  * with the offline spendings queue and replayed once the connection returns.

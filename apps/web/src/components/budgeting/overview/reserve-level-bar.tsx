@@ -44,6 +44,10 @@ import { useTranslations } from "next-intl";
  *  as inert as an empty one. */
 const TARGET = "var(--trading-up)";
 const SURPLUS = "var(--primary)";
+/** The verdict's ink when the buffer is ABOVE target: brand yellow as TEXT,
+ *  which flips to the body ink on the pale card. The bar's own stretch keeps
+ *  SURPLUS — a yellow SHAPE reads on both, only text fails (user, 260810). */
+const SURPLUS_INK = "var(--accent-ink)";
 const SHORT = "var(--trading-down)";
 /** Breathing room between the outline and the bar it contains, in px: the box is
  *  16 tall with a 1px border around a 6px bar, so 4px of clearance above and
@@ -70,6 +74,8 @@ export function ReserveLevelBar({
   // so 8px more each side puts this on exactly the forecast band's width.
   insetLeft = 8,
   insetRight = 8,
+  heldLabel,
+  neededLabel,
 }: {
   heldCents: number;
   neededCents: number;
@@ -77,15 +83,29 @@ export function ReserveLevelBar({
   testId: string;
   insetLeft?: number;
   insetRight?: number;
+  /** What the two sides are CALLED. The meter is a ratio of one quantity to
+   *  the one it should be, which is as true of limits as of reserves — so the
+   *  Future chart borrows the shape and renames the halves (260809). */
+  heldLabel?: string;
+  neededLabel?: string;
 }) {
   const t = useTranslations("bdp.tab.overview");
+  const heldName = heldLabel ?? t("reserveFit.heldTotal");
+  const neededName = neededLabel ?? t("reserveFit.neededTotal");
 
   const held = Math.max(0, heldCents);
   const needed = Math.max(0, neededCents);
   const scale = Math.max(held, needed);
   if (scale <= 0) return null;
 
-  const slack = held - needed;
+  // A few groszy is not a surplus and not a shortfall. Every other figure on
+  // the Overview treats a sub-unit difference as no difference — the bars, the
+  // totals, the rebalance buttons — and the SHAPE has to agree, or a meter
+  // reading "exactly what is needed" can still draw an end cut off square
+  // (user, 260810).
+  const UNIT = 100;
+  const raw = held - needed;
+  const slack = Math.abs(raw) < UNIT ? 0 : raw;
   const covered = Math.min(held, needed);
   const surplus = Math.max(0, slack);
   const missing = Math.max(0, -slack);
@@ -112,7 +132,7 @@ export function ReserveLevelBar({
     slack > 0 ? "aboveTarget" : slack < 0 ? "belowTarget" : "onTarget";
   // The action inherits the colour of the stretch it is about, so the sentence
   // and the shape never disagree.
-  const actionTone = slack > 0 ? SURPLUS : slack < 0 ? SHORT : undefined;
+  const actionTone = slack > 0 ? SURPLUS_INK : slack < 0 ? SHORT : undefined;
 
   return (
     <div
@@ -127,14 +147,14 @@ export function ReserveLevelBar({
         className="flex items-baseline justify-between gap-3 text-caption"
       >
         <span data-testid={`${testId}-needed`} style={{ color: TARGET }}>
-          {t("reserveFit.neededTotal")}{" "}
+          {neededName}{" "}
           <span className="num font-semibold">{format(needed)}</span>
         </span>
         <span
           data-testid={`${testId}-held`}
           className="text-[var(--muted-foreground)]"
         >
-          {t("reserveFit.heldTotal")}{" "}
+          {heldName}{" "}
           <span className="num text-[var(--body-on-dark)]">{format(held)}</span>
         </span>
       </div>
@@ -145,7 +165,7 @@ export function ReserveLevelBar({
         {needed > 0 && (
           <div
             data-testid={`${testId}-target`}
-            aria-label={`${t("reserveFit.neededTotal")}: ${format(needed)}`}
+            aria-label={`${neededName}: ${format(needed)}`}
             className="absolute inset-y-0 left-0 rounded-full border"
             style={{ width: width(needed), borderColor: TARGET }}
           />
@@ -163,16 +183,45 @@ export function ReserveLevelBar({
           {covered > 0 && (
             <div
               data-testid={`${testId}-covered`}
-              aria-label={`${t("reserveFit.heldTotal")}: ${format(held)}`}
-              className="h-full rounded-l-full"
+              // Which shape this is, in the DOM: a screenshot cannot tell a
+              // pill with a 3px cap from a square end, and two rounds went on
+              // arguing about it (user, 260809-260810). "whole" is the only
+              // state that rounds on the right.
+              data-fit={
+                missing === 0 && surplus === 0
+                  ? "whole"
+                  : missing > 0
+                    ? "short"
+                    : "over"
+              }
+              aria-label={`${heldName}: ${format(held)}`}
+              // Nothing follows it inside the box and nothing spills past it:
+              // the bar IS the whole track, so it is a pill. A flat right end
+              // against the outline's curve reads as a bar cut off (user,
+              // 260810).
+              className={
+                missing === 0 && surplus === 0
+                  ? "h-full rounded-full"
+                  : "h-full rounded-l-full"
+              }
               style={{
                 marginLeft: INNER_PAD,
                 // Twice over when nothing follows it inside the box: it is
                 // then behind the outline's right edge as well as its left.
                 width: stretch(covered, INNER_PAD * (missing === 0 ? 2 : 1)),
                 background: TARGET,
-                borderTopRightRadius: surplus > 0 ? 0 : 9999,
-                borderBottomRightRadius: surplus > 0 ? 0 : 9999,
+                // NO radius here. The class owns all four corners, because CSS
+                // scales every radius by ONE factor when they overflow the box
+                // — and this element is 6px tall, so they always do:
+                //
+                //   f = min(side ÷ Σ radii on that side)
+                //
+                // With rounded-full on the left (16,777,200px) and an inline
+                // 9999px on the right, f came from the left pair: 6/33,554,400
+                // = 1.79e-7. The left corners landed on 3px, a proper cap; the
+                // right on 0.002px, square. Both values read as plainly
+                // non-zero in the DOM, which is why this survived three passes
+                // (user devtools, 260810).
               }}
             />
           )}
@@ -182,8 +231,13 @@ export function ReserveLevelBar({
               aria-label={`${format(missing)} ${t("reserveFit.belowTarget")}`}
               className="ml-auto h-full rounded-r-full"
               style={{
-                // Behind the outline's right edge; the covered stretch has
-                // already given back the left one.
+                // HELD off the outline's right edge, not merely trimmed. This
+                // stretch is pinned right by ml-auto, so giving width back
+                // moved its left edge and left the dashes sitting on the
+                // border they stop inside (user screenshot, 260809). The
+                // covered stretch has already given back the left inset, so
+                // the two still meet exactly where they should.
+                marginRight: INNER_PAD,
                 width: stretch(missing, INNER_PAD),
                 background: MISSING,
               }}

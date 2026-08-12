@@ -15,7 +15,7 @@ export type SettingsItemKey =
   | "reserveWallet"
   | "investmentsEnabled"
   | "investment"
-  | "recurring"
+  | "scheduled"
   | "income"
   | "category";
 
@@ -28,7 +28,7 @@ export interface SettingsProgressInput {
   hasReserveWallet: boolean;
   investmentsEnabled: boolean;
   hasInvestment: boolean;
-  hasRecurring: boolean;
+  hasScheduled: boolean;
   hasIncome: boolean;
   /** ≥1 non-investment category exists. */
   hasCategory: boolean;
@@ -85,7 +85,7 @@ export function computeSettingsProgress(
     ...(i.investmentsEnabled
       ? [{ key: "investment" as const, done: i.hasInvestment, weight: 10 }]
       : []),
-    { key: "recurring", done: i.hasRecurring, weight: 10 },
+    { key: "scheduled", done: i.hasScheduled, weight: 10 },
     { key: "income", done: i.hasIncome, weight: 10 },
     { key: "category", done: i.hasCategory, weight: 10 },
   ];

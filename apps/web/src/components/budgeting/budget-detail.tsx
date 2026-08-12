@@ -206,12 +206,14 @@ export function BudgetDetail({
     liveBudget?.reservesEnabled ??
     liveBudget?.reserves_enabled ??
     reservesEnabled;
-  // r36: amount-privacy flag (live from useBudget, invalidated by the Settings →
-  // General toggle) → when ON the Overview hides amounts by default with an eye.
+  // Amount-privacy flag (live from useBudget, invalidated by the Settings →
+  // General toggle) → when ON the Overview hides amounts by default with an
+  // eye. THIS member's own setting since migration 0082, so the fallback is
+  // off: nobody gets redaction they never asked for.
   const amountPrivacyOn =
     liveBudget?.amountPrivacyEnabled ??
     liveBudget?.amount_privacy_enabled ??
-    true;
+    false;
   // No server prop for investments (Overview-only) — read live from the same
   // useBudget query the Settings → Investments toggle invalidates, so the
   // "incl. investments" sub-line + the wealth view toggle react without a reload.
@@ -290,68 +292,68 @@ export function BudgetDetail({
           data-testid="bdp-sticky-wrapper"
           data-bdp-tabs
         >
-        <BdpTabs
-          locale={locale}
-          budgetId={budgetId}
-          activeTab={activeTab}
-          onSelect={select}
-          reservesEnabled={reservesOn}
-          initialTasks={initialTasks}
-        />
-      </div>
+          <BdpTabs
+            locale={locale}
+            budgetId={budgetId}
+            activeTab={activeTab}
+            onSelect={select}
+            reservesEnabled={reservesOn}
+            initialTasks={initialTasks}
+          />
+        </div>
 
-      <div className="pb-shell-safe">
-        {/* CSS-grid STACK: outgoing + incoming panes share one cell so they
+        <div className="pb-shell-safe">
+          {/* CSS-grid STACK: outgoing + incoming panes share one cell so they
             overlap + top-align (never push each other vertically); overflow-x-clip
             hides the horizontal slide. */}
-        <div className="grid grid-cols-[minmax(0,1fr)] overflow-x-clip">
-          <AnimatePresence initial={false} custom={dir}>
-            <motion.div
-              key={navKey.current}
-              className="min-w-0 [grid-area:1/1]"
-              custom={dir}
-              variants={reduce ? undefined : variants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={
-                reduce
-                  ? { duration: 0 }
-                  : { duration: 0.7, ease: [0.32, 0.72, 0, 1] }
-              }
-            >
-              {/* Tasks strip slides WITH the page (first child, as before). Keyed
+          <div className="grid grid-cols-[minmax(0,1fr)] overflow-x-clip">
+            <AnimatePresence initial={false} custom={dir}>
+              <motion.div
+                key={navKey.current}
+                className="min-w-0 [grid-area:1/1]"
+                custom={dir}
+                variants={reduce ? undefined : variants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={
+                  reduce
+                    ? { duration: 0 }
+                    : { duration: 0.7, ease: [0.32, 0.72, 0, 1] }
+                }
+              >
+                {/* Tasks strip slides WITH the page (first child, as before). Keyed
                   per tab so the always-start-collapsed + deep-link auto-expand
                   mount semantics hold on every switch. */}
-              {/* Overview has no task strip (no task kind maps to it); the guard
+                {/* Overview has no task strip (no task kind maps to it); the guard
                   also narrows BdpTab → Pill for the slider's `pill` prop. */}
-              {activeTab !== "overview" && (
-                <PillTaskSlider
-                  key={activeTab}
-                  budgetId={budgetId}
-                  locale={locale}
-                  pill={activeTab}
-                  initialTasks={initialTasks}
-                  focusTaskId={
-                    activeTab === initialTab ? focusTaskId : undefined
-                  }
-                />
-              )}
-              {paneReady ? (
-                <TabPane
-                  tab={activeTab}
-                  budgetId={budgetId}
-                  reservesEnabled={reservesOn}
-                  investmentsEnabled={investmentsOn}
-                  amountPrivacyEnabled={amountPrivacyOn}
-                />
-              ) : (
-                <SkeletonPane activeTab={activeTab} />
-              )}
-            </motion.div>
-          </AnimatePresence>
+                {activeTab !== "overview" && (
+                  <PillTaskSlider
+                    key={activeTab}
+                    budgetId={budgetId}
+                    locale={locale}
+                    pill={activeTab}
+                    initialTasks={initialTasks}
+                    focusTaskId={
+                      activeTab === initialTab ? focusTaskId : undefined
+                    }
+                  />
+                )}
+                {paneReady ? (
+                  <TabPane
+                    tab={activeTab}
+                    budgetId={budgetId}
+                    reservesEnabled={reservesOn}
+                    investmentsEnabled={investmentsOn}
+                    amountPrivacyEnabled={amountPrivacyOn}
+                  />
+                ) : (
+                  <SkeletonPane activeTab={activeTab} />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
-      </div>
       </div>
     </BdpUiStateProvider>
   );

@@ -37,9 +37,8 @@ vi.mock("next-intl", () => ({
   useLocale: () => "en",
 }));
 
-const { ReserveRebalance } = await import(
-  "@/components/budgeting/overview/reserve-rebalance"
-);
+const { ReserveRebalance } =
+  await import("@/components/budgeting/overview/reserve-rebalance");
 
 /** Car is short, Sport is fat, Newborn and Food are already right. */
 const ROWS = [
@@ -92,9 +91,12 @@ describe("ReserveRebalance", () => {
   });
 
   // Red, then yellow, then grey (user, 260805).
-  it("queues the short reserves first, then the fat, then the settled", async () => {
+  // Biggest move first, whichever way it points (user, 260808) — Sport's 4,600
+  // coming back out is a bigger thing to deal with than Car's 4,000 going in.
+  // Supersedes the short-then-fat banding of 260805.
+  it("queues the biggest move first and the settled last", async () => {
     await open();
-    expect(order()).toEqual(["car", "sport", "newborn", "food"]);
+    expect(order()).toEqual(["sport", "car", "newborn", "food"]);
   });
 
   it("paints each row the colour its bar has", async () => {
@@ -108,8 +110,9 @@ describe("ReserveRebalance", () => {
     expect(colorOf("sport")).toBe(reserveFitColor(100));
     expect(colorOf("newborn")).toBe(reserveFitColor(0));
     // …and those are three DIFFERENT colours, so the row really is banded.
-    expect(new Set([colorOf("car"), colorOf("sport"), colorOf("newborn")]).size)
-      .toBe(3);
+    expect(
+      new Set([colorOf("car"), colorOf("sport"), colorOf("newborn")]).size,
+    ).toBe(3);
   });
 
   it("shows what each reserve holds against what it should", async () => {
@@ -120,41 +123,64 @@ describe("ReserveRebalance", () => {
     expect(target("car").value).toBe("5000");
   });
 
-  // The figure on the right is the MOVE, not the gap: what pressing the button
-  // would do to the reserve. So it is positive when money goes IN, whichever
-  // way the chart's own bar points (user, 260805).
-  it("reads the money going in as a plus", async () => {
-    await open();
-    // Car holds 1,000 and needs 5,000 — the press puts 4,000 in.
-    expect(screen.getByTestId("reserve-rebalance-move-car").textContent).toBe(
-      "+4000.00 zl",
-    );
+  // The move figure is GONE (user screenshot, 260808). It restated what the
+  // two figures already beside it say — a reserve holding 4,283 with a target
+  // of 894 is plainly giving 3,389 back — and it was the loudest thing on a
+  // card whose actual subject is the target you can edit.
+  it("does not restate the move as a third figure", () => {
+    return open().then(() => {
+      expect(screen.queryByTestId("reserve-rebalance-move-car")).toBeNull();
+      expect(screen.queryByTestId("reserve-rebalance-move-sport")).toBeNull();
+    });
   });
 
-  it("reads the money coming out as a minus", async () => {
+  // …and with it gone the FIELD closes that line, flush to the card's right
+  // edge under the button, so both lines end in the same place instead of the
+  // second one trailing off into the hole the figure left.
+  //
+  // All three on one line was tried and does not fit a 390px phone: the widest
+  // figure is a third of the width and "Збалансувати" is twice "Rebalance",
+  // which cut the target field down to "16077." (verified at 390px, 260808).
+  it("ends both lines at the same edge", async () => {
     await open();
-    // Sport holds 4,600 and needs none — the press takes all of it back.
-    expect(screen.getByTestId("reserve-rebalance-move-sport").textContent).toBe(
-      "−4600.00 zl",
-    );
+    const field = screen.getByTestId("reserve-rebalance-target-car");
+    const controls = field.closest("div")!;
+    expect(
+      controls.contains(screen.getByTestId("reserve-rebalance-current-car")),
+    ).toBe(true);
+    expect(
+      controls.contains(screen.getByTestId("reserve-rebalance-action-car")),
+    ).toBe(false);
+    // ml-auto is what pushes it to the edge the button sits on.
+    expect(field.className).toContain("ml-auto");
   });
 
-  it("leaves a settled reserve's figure unsigned", async () => {
-    await open();
-    expect(screen.getByTestId("reserve-rebalance-move-food").textContent).toBe(
-      "0.00 zl",
+  // Nobody moves 661.63 (user, 260808). The walk answers to the groszy; the
+  // figure someone is asked to act on is whole.
+  it("proposes a whole target, never a decimal", async () => {
+    await open(
+      vi.fn(async (_id: string, cents: number) => cents),
+      [
+        {
+          categoryId: "odd",
+          name: "Odd",
+          heldCents: 10_000,
+          neededCents: 66_163,
+        },
+      ],
     );
+    expect(target("odd").value).toBe("662");
   });
 
-  // Adding is red and taking back is amber — the row's own band colour, so the
-  // sign and the colour cannot tell different stories.
-  it("keeps the move in the row's own colour", async () => {
-    await open();
-    const move = (id: string) =>
-      screen.getByTestId(`reserve-rebalance-move-${id}`).style.color;
-    expect(move("car")).toBe(reserveFitColor(-80));
-    expect(move("sport")).toBe(reserveFitColor(100));
-    expect(move("car")).not.toBe(move("sport"));
+  // The move is the thing to press, so it looks like it (user, 260808). A grey
+  // chip beside a grey figure read as a label.
+  it("gives the move a real call to action, and the reversal a quieter one", async () => {
+    const { user } = await open();
+    expect(action("car").className).toContain("bg-[var(--primary)]");
+    await user.click(action("car"));
+    await waitFor(() => expect(action("car").dataset["kind"]).toBe("undo"));
+    expect(action("car").className).not.toContain("bg-[var(--primary)]");
+    expect(action("car").className).toContain("border");
   });
 
   // "If current and Target value are same, but it wasn't rebalanced — just make
@@ -250,7 +276,7 @@ describe("ReserveRebalance", () => {
       expect(action("car").getAttribute("data-kind")).toBe("undo"),
     );
     // Car is on its target now and would sort last — it stays where it was.
-    expect(order()).toEqual(["car", "sport", "newborn", "food"]);
+    expect(order()).toEqual(["sport", "car", "newborn", "food"]);
   });
 
   it("sorts afresh the next time it is opened", async () => {
@@ -356,9 +382,9 @@ describe("ReserveRebalance", () => {
     const { user } = await open();
     await user.clear(target("car"));
     await user.type(target("car"), "1000");
-    expect(order()).toEqual(["car", "sport", "newborn", "food"]);
+    expect(order()).toEqual(["sport", "car", "newborn", "food"]);
     await user.tab();
-    expect(order()).toEqual(["car", "sport", "newborn", "food"]);
+    expect(order()).toEqual(["sport", "car", "newborn", "food"]);
   });
 
   // Undo is a real button, not a link dressed as one: it undoes a money move,
@@ -383,5 +409,106 @@ describe("ReserveRebalance", () => {
       />,
     );
     expect(screen.queryByTestId("reserve-rebalance-open")).toBeNull();
+  });
+});
+
+/**
+ * Closing the dialog ends the session (user, 260809).
+ *
+ * "I rebalanced, closed the popup, opened it again and the Undo button is
+ * there — and it undoes nothing." It could not: the row it would put back was
+ * captured before the move, and by the time the dialog reopens the list has
+ * been refetched, so undo wrote the figure that was already there. An undo is
+ * for taking back what you just did, and once the dialog is shut you did not
+ * just do it.
+ */
+describe("ReserveRebalance — undo lasts as long as the dialog", () => {
+  const colorOf = (id: string) =>
+    screen
+      .getByTestId(`reserve-rebalance-row-${id}`)
+      .getAttribute("data-color");
+
+  it("offers undo while the dialog stays open", async () => {
+    const { user } = await open();
+    await user.click(action("car"));
+    await waitFor(() =>
+      expect(action("car").getAttribute("data-kind")).toBe("undo"),
+    );
+  });
+
+  it("forgets it once the dialog is closed and reopened", async () => {
+    const settled = vi.fn(async (_id: string, cents: number) => cents);
+    const { user } = await open(settled);
+    await user.click(action("car"));
+    await waitFor(() =>
+      expect(action("car").getAttribute("data-kind")).toBe("undo"),
+    );
+
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByTestId("reserve-rebalance-dialog")).toBeNull(),
+    );
+    await user.click(screen.getByTestId("reserve-rebalance-open"));
+
+    // The move is in the data by now; there is nothing left to take back.
+    expect(action("car").getAttribute("data-kind")).toBe("rebalance");
+  });
+
+  // The row's accent says how far this reserve is from its target. Once the
+  // move lands they are the same, so the accent has to stop saying "short"
+  // (user, 260809).
+  it("recolours the row the moment the move lands", async () => {
+    const { user } = await open();
+    expect(colorOf("car")).toBe("var(--trading-down)");
+    await user.click(action("car"));
+    await waitFor(() => expect(colorOf("car")).toBe("var(--muted-foreground)"));
+  });
+});
+
+/**
+ * The same undo trap as the limit dialog (user, 260810): dropping the record of
+ * the move let the row fall back to props that still held the value just
+ * written, so the restoration did not show until the next refetch.
+ */
+describe("ReserveRebalance — the row after undo", () => {
+  const carRow = (heldCents: number) => [
+    { ...ROWS[0]!, heldCents },
+    ...ROWS.slice(1),
+  ];
+
+  it("shows the restored reserve without waiting for a refetch", async () => {
+    const onRebalance = vi.fn(async (_id: string, cents: number) => cents);
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ReserveRebalance
+        rows={carRow(100_000)}
+        onRebalance={onRebalance}
+        format={format}
+      />,
+    );
+    await user.click(screen.getByTestId("reserve-rebalance-open"));
+    await user.click(action("car"));
+
+    // The parent refetches with the moved figure.
+    rerender(
+      <ReserveRebalance
+        rows={carRow(500_000)}
+        onRebalance={onRebalance}
+        format={format}
+      />,
+    );
+    await waitFor(() =>
+      expect(action("car").getAttribute("data-kind")).toBe("undo"),
+    );
+    await user.click(action("car"));
+
+    await waitFor(() =>
+      expect(onRebalance).toHaveBeenLastCalledWith("car", 100_000),
+    );
+    // …and the row says so immediately.
+    expect(
+      screen.getByTestId("reserve-rebalance-current-car").textContent,
+    ).toContain("1000");
+    expect(action("car").getAttribute("data-kind")).toBe("rebalance");
   });
 });

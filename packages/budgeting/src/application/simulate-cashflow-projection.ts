@@ -155,6 +155,15 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
 
   // Mutable running state.
   let cash = input.startCashCents;
+  // What each category may still spend inside its plan this month. Reserve money
+  // is earmarked against limits being EXCEEDED, so this is what decides whether
+  // an outflow may reach the pot at all (user, 260811).
+  const remainingLimit = new Map<string, bigint>();
+  for (const c of input.categories) {
+    const left = c.budgetThisMonthCents - c.spentSoFarCents;
+    remainingLimit.set(c.id, left > 0n ? left : 0n);
+  }
+  let limitsRolled = false;
   // Reserve = one pot of emergency money (Σ per-category reserve, funded by the
   // RESERVE wallets). Cash-based model: spending is paid from cash; only what
   // cash can't cover dips into this pot, and it depletes as used (it does not
@@ -175,6 +184,15 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
     // Compare year+month, not the bare month, so the burn switches to next
     // month's rate at the boundary (a 2-month window never repeats a month).
     const inStartMonth = `${d.year}-${d.month}` === startYearMonth;
+    // A new month restores every plan in full.
+    if (!inStartMonth && !limitsRolled) {
+      for (const c of input.categories)
+        remainingLimit.set(
+          c.id,
+          c.budgetNextMonthCents > 0n ? c.budgetNextMonthCents : 0n,
+        );
+      limitsRolled = true;
+    }
 
     // Income lands.
     const incomeToday = incomeByDate.get(iso) ?? 0n;
@@ -186,15 +204,30 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
 
     const applyOutflow = (catId: string, amt: bigint) => {
       if (amt <= 0n) return;
+      // Split the outflow at the category's remaining plan. Only what lies
+      // BEYOND it is overspend, and only overspend may reach the reserve pot —
+      // the forecast used to treat the pot as a general overdraft, so a bill
+      // sitting well inside an untouched limit still painted the day yellow
+      // when the real problem was an empty spending wallet (user, 260811).
+      // An outflow with no category has no plan to stay inside, so all of it
+      // counts as beyond one.
+      const remaining = remainingLimit.get(catId) ?? 0n;
+      const withinLimit = amt < remaining ? amt : remaining;
+      const overspend = amt - withinLimit;
+      remainingLimit.set(catId, remaining - withinLimit);
+
       // Pay from cash first (cash never funds below 0)...
       const fromCash = amt < cash ? amt : cash > 0n ? cash : 0n;
       cash -= fromCash;
       let deficit = amt - fromCash;
       if (deficit <= 0n) return;
-      // ...then dip into the reserve pot, attributed to the category whose
-      // spending needed it (reserve-covered spending does NOT reduce cash)...
+      // ...then dip into the reserve pot for the overspend part only, attributed
+      // to the category whose spending needed it (reserve-covered spending does
+      // NOT reduce cash). Cash is assumed to have paid the in-plan part first,
+      // so the shortfall is overspend up to `overspend`.
+      const eligible = deficit < overspend ? deficit : overspend;
       const fromReserve =
-        deficit < reservePool ? deficit : reservePool > 0n ? reservePool : 0n;
+        eligible < reservePool ? eligible : reservePool > 0n ? reservePool : 0n;
       if (fromReserve > 0n) {
         reservePool -= fromReserve;
         reserveUsedMap.set(
@@ -271,18 +304,30 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       firstRedDate,
       worstShortfallCents: worstShortfall,
     },
-    spendHealth: deriveSpendHealth({ days, incomePoints: input.incomePayments }),
+    spendHealth: deriveSpendHealth({
+      days,
+      incomePoints: input.incomePayments,
+    }),
   };
 }
 
 /**
  * "Available to spend" card health from the projection.
- *  - NO upcoming income → { good: null, surplusDeficitCents: null }: the dot is
- *    neutral/grey and the card keeps showing its old "upcoming" figure.
- *  - Income exists → `good` is false when ANY day at/before the LAST income (in the
- *    today→end-of-next-month window) is red (a shortfall in that span ⇒ red); the
- *    surplus/deficit value is the projected cash on the day BEFORE the NEAREST
- *    (first) income — the low right before the next refill.
+ *
+ * THE ICON (`good`) — false when ANY day in the projection is red, i.e. cash
+ * goes below zero at some point in the today→end-of-next-month window. Income
+ * is irrelevant to the verdict, and so is where the last pay-day falls (user,
+ * 260811).
+ *
+ * Both of those used to narrow it, and both hid real holes: with no income the
+ * card gave no verdict at all, and with income it stopped looking at the last
+ * pay-day — so a budget that went underwater after it was reported as fine. The
+ * card now says exactly what the forecast line beside it draws.
+ *
+ * THE VALUE (`surplusDeficitCents`) is unchanged and still needs income: it is
+ * the projected cash on the day BEFORE the NEAREST income — the low right
+ * before the next refill. With no income there is no such day, so it stays
+ * null and the card keeps showing its "Upcoming" figure instead.
  */
 export function deriveSpendHealth(proj: {
   days: Pick<DayCell, "date" | "color" | "availableCents">[];
@@ -291,15 +336,14 @@ export function deriveSpendHealth(proj: {
   const days = proj.days;
   // ISO dates sort lexicographically → [0] is the nearest, last is the latest.
   const incomeDates = proj.incomePoints.map((p) => p.date).sort();
-  if (days.length === 0 || incomeDates.length === 0) {
-    return { good: null, surplusDeficitCents: null };
-  }
+  // Nothing projected at all is the one case with no verdict to give.
+  if (days.length === 0) return { good: null, surplusDeficitCents: null };
+
+  // The verdict: any red day anywhere in the window.
+  const good = !days.some((d) => d.color === "red");
+  if (incomeDates.length === 0) return { good, surplusDeficitCents: null };
 
   const firstIncome = incomeDates[0]!;
-  const lastIncome = incomeDates[incomeDates.length - 1]!;
-
-  // Icon spans to the last income; value is the day before the nearest income.
-  const good = !days.some((d) => d.color === "red" && d.date <= lastIncome);
   const cutoff = Temporal.PlainDate.from(firstIncome)
     .subtract({ days: 1 })
     .toString();

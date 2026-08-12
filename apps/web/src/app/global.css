@@ -138,6 +138,20 @@
        the dark card; flips to the near-black body ink in the light scope below
        (matches the other card numbers), because yellow washes out on the pale card. */
     --num-hero: var(--primary);
+    /* Brand yellow as TEXT: fine on the dark card, unreadable on the pale one,
+       so it flips to the body ink there — the same reason --num-hero flips
+       (user, 260810). Used by the meter's verdict ("6,341 zł more than
+       needed") and the filter's "Select all". Yellow as a SHAPE (bars, fills,
+       the toggle's own background) keeps --primary: only text fails. */
+    --accent-ink: var(--primary);
+    /* Neutral chart bars ("scheduled payments per year, by category"): a
+       statement of fact, so they stay out of the accent palette. Deliberately
+       NOT --muted-foreground, which is one flat grey for both themes: on the
+       dark card that grey is louder than the data deserves, and on the pale one
+       it is heavier than the hairlines around it. So the bar goes DARKER than
+       the text grey in dark and LIGHTER in light (user, 260811) — subdued on
+       both, and always clear of the surface behind it. */
+    --chart-bar-neutral: #4d5663;
     /* Chart LINE/AREA series = the brand yellow (user: "I liked yellow for
        charts, bring it back" — round 25 item 1). BARS use a separate blue/teal
        (yellow bars were too loud, the brown replacement was disliked): --chart-bar-1
@@ -247,6 +261,11 @@
     /* Hero capitalization number matches the other card figures (near-black ink)
        in light — brand yellow #fcd535 washes out on the pale card. */
     --num-hero: var(--body-on-dark);
+    /* …and brand-yellow TEXT with it. */
+    --accent-ink: var(--body-on-dark);
+    /* …and the neutral bars go the other way: lighter than the text grey, a
+       step darker than the elevated surface so they still read on the card. */
+    --chart-bar-neutral: #b0b9c4;
     /* Budget-switcher label goes grey in light (matches the "Spent" card label). */
     --nav-budget-header: var(--muted-foreground);
   }

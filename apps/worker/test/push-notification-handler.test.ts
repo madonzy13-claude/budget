@@ -58,13 +58,18 @@ function makeSub(
   };
 }
 
-function makeEvent(kind: string, budgetId = "budget-1", taskId = "task-1") {
+function makeEvent(
+  kind: string,
+  budgetId = "budget-1",
+  taskId = "task-1",
+  extra: Record<string, unknown> = {},
+) {
   return {
     tenantId: "tenant-1",
     aggregateType: "Task",
     aggregateId: taskId,
     eventType: "task.created",
-    payload: { kind, budgetId, taskId },
+    payload: { kind, budgetId, taskId, ...extra },
   };
 }
 
@@ -179,6 +184,41 @@ describe("push-notification-handler (PWAX-05)", () => {
       },
     });
     expect(mockSendPush).not.toHaveBeenCalled();
+  });
+
+  // The RESERVE_TOPUP task covers BOTH directions, and the push copy only
+  // knows one of them: a member holding MORE than they need was told a reserve
+  // was "running low" (user, 260810). Holding a surplus is not an alarm — the
+  // task still lands in the queue, but nothing buzzes.
+  test("RESERVE_TOPUP with direction=WITHDRAW — no push at all", async () => {
+    const { registerPushNotificationHandler } =
+      await import("../src/handlers/push-notification-handler");
+    registerPushNotificationHandler({ pushRepo: mockPushRepo as any });
+
+    const handler = subscribedHandlers.get("task.created")!;
+    await handler(
+      makeEvent("RESERVE_TOPUP", "budget-42", "task-99", {
+        direction: "WITHDRAW",
+      }),
+    );
+
+    expect(mockSendPush).not.toHaveBeenCalled();
+    expect(mockPushRepo.getSubscriptionsForBudget).not.toHaveBeenCalled();
+  });
+
+  test("RESERVE_TOPUP with direction=TOPUP — still pushes", async () => {
+    const { registerPushNotificationHandler } =
+      await import("../src/handlers/push-notification-handler");
+    registerPushNotificationHandler({ pushRepo: mockPushRepo as any });
+
+    const handler = subscribedHandlers.get("task.created")!;
+    await handler(
+      makeEvent("RESERVE_TOPUP", "budget-42", "task-99", {
+        direction: "TOPUP",
+      }),
+    );
+
+    expect(mockSendPush).toHaveBeenCalledTimes(1);
   });
 
   test("RESERVE_TOPUP — sends push to /budgets/<id>/reserves?task=<id>", async () => {

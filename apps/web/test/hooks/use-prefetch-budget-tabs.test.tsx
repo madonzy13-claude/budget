@@ -40,7 +40,7 @@ let gate: Promise<void>;
 // Settings/notification endpoints resolve instantly; priority endpoints pend on
 // the gate so the test controls when the priority NETWORK "completes".
 const isSettings = (p: string) =>
-  /\/members|cushion-summary|recurring-rules|\/push\//.test(p);
+  /\/members|cushion-summary|scheduled-payments|\/push\//.test(p);
 
 const mockFetch = vi.fn(async (path: string) => {
   calls.push(path);
@@ -102,7 +102,7 @@ describe("usePrefetchBudgetTabs (tiered first-open prefetch)", () => {
     // Settings deferred — must NOT fire while the priority network is in flight.
     expect(immediate).not.toContain("/members");
     expect(immediate).not.toContain("/cushion-summary");
-    expect(immediate).not.toContain("/recurring-rules");
+    expect(immediate).not.toContain("/scheduled-payments");
     expect(immediate).not.toContain("/push/preferences");
 
     // Priority network completes → settings tier runs.
@@ -113,7 +113,7 @@ describe("usePrefetchBudgetTabs (tiered first-open prefetch)", () => {
     const all = calls.join(" | ");
     expect(all).toContain("/members");
     expect(all).toContain("/cushion-summary");
-    expect(all).toContain("/recurring-rules");
+    expect(all).toContain("/scheduled-payments");
     expect(all).toContain("/push/preferences");
   });
 

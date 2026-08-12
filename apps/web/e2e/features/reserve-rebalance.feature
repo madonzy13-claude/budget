@@ -43,12 +43,6 @@ Feature: Rebalancing reserves from the Overview
   Scenario: Every target field starts in the same place
     Then the rebalance target fields all share one left edge
 
-  # The figure on the right is the MOVE: + when money goes in, − when it comes
-  # back out — the opposite sign to the chart's bar (user, 260805).
-  Scenario: The right-hand figure signs the move, not the gap
-    Then the rebalance figure for "Presents" reads "+"
-    And the rebalance figure for "Travel" reads "−"
-
   Scenario: A typed target is what gets moved, comma and all
     When I set the rebalance target for "Presents" to "1234,56"
     And I press the rebalance button for "Presents"

@@ -94,4 +94,35 @@ describe("useToggleCategoryReserveExcluded", () => {
       expect.objectContaining({ queryKey: ["spendings-summary", BUDGET_ID] }),
     );
   });
+
+  // Dropping a category out of the reserve changes what the reserve is FOR, so
+  // the queue gains (or loses) a withdraw task and the Overview's reserve-fit
+  // reading moves with it. Neither was invalidated, so both stayed on the old
+  // answer until a full reload (user, 260810).
+  it("refreshes the task queue and the Overview on settle", async () => {
+    mockWrite.mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+
+    const { result } = renderHook(
+      () => useToggleCategoryReserveExcluded(BUDGET_ID),
+      { wrapper },
+    );
+
+    await act(async () => {
+      result.current.mutate({
+        categoryId: "cat-A",
+        excluded: true,
+        categoryName: "Housing",
+      });
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["tasks", BUDGET_ID, "pending"] }),
+    );
+    // Prefix-only: reserve-fit and the cards both hang off "overview".
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["budget", BUDGET_ID, "overview"] }),
+    );
+  });
 });

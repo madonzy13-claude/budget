@@ -28,6 +28,32 @@
 export const SUPPORTED_LOCALES = ["en", "pl", "uk"] as const;
 
 /**
+ * Routes whose HTML carries server-rendered USER DATA, so a cached copy can be
+ * wrong rather than merely old.
+ *
+ * Cache-first (below) is sound only for the data-free client shells the SPA/SWR
+ * refactor produced: the document holds no numbers, React Query fills them and
+ * revalidates. /settings is the exception — a server component reads the session
+ * and renders the display currency, timezone and profile straight into the
+ * document. Served from cache, a reload right after changing the display
+ * currency painted the OLD value, and no refetch could fix it because the value
+ * never came from a query (260812).
+ *
+ * The first path segment is the locale, so anchor there: this must NOT catch a
+ * budget's own /settings tab, which is a client-data pane and belongs on the
+ * fast path.
+ */
+const SERVER_DATA_ROUTE = /^\/[^/]+\/settings(?:\/|$)/;
+
+export function servesServerRenderedData(url: string): boolean {
+  try {
+    return SERVER_DATA_ROUTE.test(new URL(url).pathname);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Navigation strategy: network-first WITH WRITE, fall back to the cached real
  * document, then to the precached app-shell.
  *
@@ -61,7 +87,13 @@ export async function handleNavigationRequest(
   // revalidates. What we give up is a fresh SHELL on the first paint, which
   // arrives a moment later anyway via the background refresh below and is
   // picked up on the next load.
-  const cachedFirst = await matchCache(request);
+  //
+  // …except where the document is NOT data-free (see SERVER_DATA_ROUTE): there
+  // the cached copy can be stale-and-wrong, so we go to the network and keep the
+  // cache purely as the offline fallback further down.
+  const cachedFirst = servesServerRenderedData(request.url)
+    ? undefined
+    : await matchCache(request);
   if (cachedFirst) {
     // Revalidate behind the paint. Deliberately NOT awaited: the whole point is
     // that the response is already on its way back to the browser. Skipped when
@@ -100,7 +132,6 @@ export async function handleNavigationRequest(
   );
 
   const settled = await network;
-
 
   if ("res" in settled) {
     const res = settled.res;

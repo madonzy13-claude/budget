@@ -3,9 +3,9 @@
  *
  * Planned section service: multi-month Planned-vs-Real timeline (D-12), adaptive
  * monthly/daily bucket (D-20), planned-avg-vs-real-avg over ONLY the months a
- * category was active (D-13), and the two current-config recurring charts (D-14).
+ * category was active (D-13), and the two current-config scheduled charts (D-14).
  * Timeline planned/real are already default_ccy (limits in budget ccy; ledger
- * stores amount_converted_cents) — no FX on that path; recurring amounts are FX'd.
+ * stores amount_converted_cents) — no FX on that path; scheduled amounts are FX'd.
  */
 import { describe, test, expect } from "bun:test";
 import { ok } from "@budget/shared-kernel";
@@ -69,7 +69,7 @@ const repo: GetOverviewPlannedDeps["repo"] = {
       { day: "2026-06-02", spent_cents: 3000n },
     ];
   },
-  async activeRecurringRules() {
+  async activeScheduledPayments() {
     return [
       {
         category_id: "A",
@@ -78,6 +78,8 @@ const repo: GetOverviewPlannedDeps["repo"] = {
         currency: "USD",
         cadence: "MONTHLY",
         yearly_month: null,
+        next_due_date: "2026-09-01",
+        end_date: null,
       },
       {
         category_id: "B",
@@ -86,6 +88,8 @@ const repo: GetOverviewPlannedDeps["repo"] = {
         currency: "USD",
         cadence: "YEARLY",
         yearly_month: 6,
+        next_due_date: "2027-06-12",
+        end_date: null,
       },
     ];
   },
@@ -247,7 +251,7 @@ describe("getOverviewPlanned", () => {
     ]);
   });
 
-  test("recurring per-month distribution (D-14, all cadences)", async () => {
+  test("upcoming per-month distribution: real months, lumps intact", async () => {
     const dto = (
       await getOverviewPlanned(deps())({
         tenantId: "b1",
@@ -256,14 +260,25 @@ describe("getOverviewPlanned", () => {
         to: "2026-03-31",
       })
     )._unsafeUnwrap();
-    // per-month: MONTHLY 10000 in all 12; YEARLY 120000 full in month 6 only
+    // 260807: the series is no longer a calendar year of rates. It runs from
+    // THIS month to the furthest next-due — here the June 2027 renewal — and a
+    // payment sits in the month it really falls in.
     const m = new Map(
-      dto.recurringPerMonth.map((x) => [x.month, x.planned_cents]),
+      dto.scheduledPerMonth.map((x) => [x.month, x.planned_cents]),
     );
-    expect(m.get(1)).toBe("10000");
-    expect(m.get(6)).toBe("130000"); // 10000 monthly + 120000 yearly
-    // 260804: the per-CATEGORY cut is gone with its chart — a yearly charge now
-    // only ever appears in the month it actually falls due.
+    const months = dto.scheduledPerMonth.map((x) => x.month);
+    expect(months[months.length - 1]).toBe("2027-06");
+    // Netflix from its own next due onwards, never before it.
+    expect(m.get("2026-09")).toBe("10000");
+    expect(m.get("2027-05")).toBe("10000");
+    // The renewal lands whole in its month, on top of that month's Netflix —
+    // NOT divided by twelve across the year.
+    expect(m.get("2027-06")).toBe("130000");
+    // Each month names what is behind it, for the tooltip.
+    expect(dto.scheduledPerMonth.at(-1)!.items).toEqual([
+      { name: "Netflix", amount_cents: "10000" },
+      { name: "Insurance", amount_cents: "120000" },
+    ]);
   });
 
   test("the Investments category is IN plannedAvgVsReal, at its SMART limit", async () => {
@@ -298,7 +313,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -378,7 +393,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -456,7 +471,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -517,7 +532,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -602,7 +617,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -664,7 +679,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -732,7 +747,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -792,7 +807,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -852,7 +867,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return []; // no confirmed spend in range
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -908,7 +923,7 @@ describe("getOverviewPlanned", () => {
           { day: "2026-07-14", spent_cents: 1000n },
         ];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -989,7 +1004,7 @@ describe("getOverviewPlanned", () => {
           { day: "2026-07-15", spent_cents: 25000n },
         ];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -1060,7 +1075,7 @@ describe("getOverviewPlanned", () => {
           { day: "2026-07-15", spent_cents: 25000n },
         ];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -1121,7 +1136,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [{ day: "2026-07-10", spent_cents: 5000n }];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -1176,7 +1191,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -1216,7 +1231,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -1253,7 +1268,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -1321,7 +1336,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -1404,7 +1419,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -1470,7 +1485,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -1562,7 +1577,7 @@ describe("getOverviewPlanned", () => {
           { day: "2026-07-31", spent_cents: 15000n },
         ];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -1624,7 +1639,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -1693,7 +1708,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     } as unknown as GetOverviewPlannedDeps["repo"];
@@ -1762,7 +1777,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     } as unknown as GetOverviewPlannedDeps["repo"];
@@ -1814,7 +1829,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -1869,7 +1884,7 @@ describe("getOverviewPlanned", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -1926,7 +1941,7 @@ describe("getOverviewPlanned", () => {
         asked = categoryIds;
         return [{ day: "2026-08-02", spent_cents: 1000n }];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     };
@@ -1993,7 +2008,7 @@ describe("one-off spend and the per-category averages", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     },
@@ -2089,7 +2104,7 @@ describe("a category whose only month is the one still running", () => {
       async dailySpend() {
         return [];
       },
-      async activeRecurringRules() {
+      async activeScheduledPayments() {
         return [];
       },
     },

@@ -12,7 +12,7 @@ const ALL_ON = {
   hasReserveWallet: true,
   investmentsEnabled: true,
   hasInvestment: true,
-  hasRecurring: true,
+  hasScheduled: true,
   hasIncome: true,
   hasCategory: true,
 };
@@ -25,7 +25,7 @@ const ALL_OFF = {
   hasReserveWallet: false,
   investmentsEnabled: false,
   hasInvestment: false,
-  hasRecurring: false,
+  hasScheduled: false,
   hasIncome: false,
   hasCategory: false,
 };

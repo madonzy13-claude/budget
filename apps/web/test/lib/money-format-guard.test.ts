@@ -5,7 +5,7 @@
  * `src/lib/cents-format.ts` (`centsToDisplayCompact` with symbol, `centsToBare`
  * without) so the rule "drop a whole-unit .00, pad non-zero fractions to two
  * digits" holds everywhere. Hand-rolled `Intl.NumberFormat(..., {style:
- * "currency"})` always prints 2 decimals (e.g. €1,900.00) and is the recurring
+ * "currency"})` always prints 2 decimals (e.g. €1,900.00) and is the scheduled
  * source of UAT formatting complaints. This test fails CI if any component
  * reintroduces one outside the single allowed home (cents-format.ts).
  */

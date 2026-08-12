@@ -18,6 +18,17 @@
 /** Each chart remembers its own choice under its own preference key. */
 export const PLANNED_TIMELINE_PREF = "planned-categories";
 export const PLANNED_PIE_PREF = "planned-pie-categories";
+/** PAST or FUTURE, kept on the member's row like the time range: a choice about
+ *  how you read your budget belongs to you, not to the browser you made it in
+ *  (user, 260810). Stored as a one-element list, which is all ui_prefs holds. */
+export const PLANNED_BASIS_PREF = "planned-basis";
+
+/** The stored basis, or "past" when nothing is stored / the value is unknown. */
+export function decodeBasis(stored: unknown): "past" | "future" {
+  const v = Array.isArray(stored) ? stored[0] : stored;
+  // "current" is what the FUTURE reading was called before 260807.
+  return v === "future" || v === "current" ? "future" : "past";
+}
 
 /** What to ask the API for — `undefined` means "everything, as before". */
 export function effectiveCategoryIds(

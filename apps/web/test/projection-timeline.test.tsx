@@ -14,7 +14,7 @@ const messages = {
           allFine: "Everything looks fine",
           mightRunShort: "Might run short around {date}",
           shortBy: "short {amount}",
-          empty: "Add income or recurring rules to forecast",
+          empty: "Add income or scheduled rules to forecast",
           available: "Available",
           reserveShrinking: "Reserve shrinking",
           reserveCovering: "Reserve covering",
@@ -120,11 +120,11 @@ describe("ProjectionTimeline", () => {
     await user.hover(cells[2]);
     const tip = screen.getByTestId("projection-tooltip");
     expect(tip.textContent).toContain("Food");
-    // the day's recurring bill is itemised by name, not just a total
+    // the day's scheduled bill is itemised by name, not just a total
     expect(tip.textContent).toContain("Rent");
   });
 
-  test("renders income (▲) and recurring-bill (▼) markers on the timeline", () => {
+  test("renders income (▲) and scheduled-bill (▼) markers on the timeline", () => {
     renderIt();
     expect(screen.getAllByTestId("projection-bill-marker")).toHaveLength(1);
     expect(screen.getAllByTestId("projection-income-marker")).toHaveLength(1);

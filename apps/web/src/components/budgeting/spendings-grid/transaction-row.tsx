@@ -23,7 +23,6 @@ import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
 import { parseAmountAndNote } from "@/lib/decimal";
 import { MobileKeyboardToggle } from "./mobile-keyboard-toggle";
 import { formatInstantDate } from "@/lib/format-date";
-import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -75,7 +74,6 @@ export function TransactionRow({
   const t = useTranslations("grid.txn");
   const tc = useTranslations("grid.confirm.deleteTxn");
   const locale = useLocale();
-  const userTz = useUserTimezone();
   const [revealed, setRevealed] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -230,16 +228,25 @@ export function TransactionRow({
   }, [revealed]);
 
   const formattedAmount = centsToBare(txn.amountConvertedCents, locale);
-  // r40b (item 8): the focus meta line shows the CREATION date in the user's
-  // timezone, day + short month, NO year ("13 Feb") — NOT the edit time and NOT
-  // the spending calendar date. Falls back to the spending date if the row
-  // predates the created_at wiring.
-  const formattedDate = txn.createdAt
-    ? formatInstantDate(txn.createdAt, locale, userTz, {
-        month: "short",
-        year: false,
-      })
-    : new Date(`${txn.transactionDate}T00:00:00`).toLocaleDateString(locale);
+  // The SPENDING date, day + short month, no year ("31 Jul").
+  //
+  // SUPERSEDES r40b, which showed the creation date here: a spending entered
+  // today for the 31st of July is a July spending, and the row said 10 Aug
+  // (user, 260810). When the two differ it is the calendar date that means
+  // something — it is the one the grid files the money under, and the one the
+  // edit sheet shows.
+  //
+  // A plain calendar date, so it is NOT run through a timezone: converting
+  // "2026-07-31" as an instant lands on the 30th for anyone west of UTC.
+  // Built at LOCAL midnight and formatted without a zone, so the calendar date
+  // survives: handing "2026-07-31" to a UTC-based formatter lands on the 30th
+  // for anyone west of UTC. Same day-first shape the row has always had.
+  const formattedDate = formatInstantDate(
+    new Date(`${txn.transactionDate}T00:00:00`),
+    locale,
+    undefined,
+    { month: "short", year: false },
+  );
   const confirmAmount = centsToDisplayCompact(
     txn.amountConvertedCents,
     txn.currencyConverted,

@@ -2,7 +2,7 @@
  * expense-ledger-draft-schema.ts — Drizzle schema fragment for expense_ledger draft columns.
  *
  * Phase 4 (Plan 04-01):
- *   ADD dismissed_at TIMESTAMPTZ NULL — marks a recurring draft as "dismissed for this month"
+ *   ADD dismissed_at TIMESTAMPTZ NULL — marks a scheduled draft as "dismissed for this month"
  *   without deleting it. Populated by POST /drafts/:draftId/dismiss route (Plan 04-02).
  *
  * Note: The expense_ledger table does NOT yet have a full Drizzle table definition
@@ -31,7 +31,7 @@ import { budgeting, appRole, workerRole } from "@budget/platform";
 
 /**
  * Drizzle schema for budgeting.expense_ledger.
- * Drafts = rows with confirmed_at IS NULL AND recurring_rule_id IS NOT NULL.
+ * Drafts = rows with confirmed_at IS NULL AND scheduled_payment_id IS NOT NULL.
  * Dismissed drafts = rows with dismissed_at IS NOT NULL.
  */
 export const expenseLedger = budgeting.table(
@@ -41,7 +41,7 @@ export const expenseLedger = budgeting.table(
     tenantId: uuid("tenant_id").notNull(),
     budgetId: uuid("budget_id"),
     categoryId: uuid("category_id"),
-    recurringRuleId: uuid("recurring_rule_id"),
+    scheduledPaymentId: uuid("scheduled_payment_id"),
     currencyOriginal: text("currency_original").notNull(),
     amountOriginalCents: bigint("amount_original_cents", { mode: "bigint" })
       .notNull()
@@ -55,7 +55,7 @@ export const expenseLedger = budgeting.table(
     kind: text("kind").notNull().default("SPENDING"),
     note: text("note"),
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
-    // Phase 4 (Plan 04-01): dismiss a recurring draft without deleting it.
+    // Phase 4 (Plan 04-01): dismiss a scheduled draft without deleting it.
     // SET when user taps "Dismiss" on a draft row (POST .../drafts/:id/dismiss).
     dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),

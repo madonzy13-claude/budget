@@ -24,16 +24,20 @@ const aggregationSchema = z.object({
 });
 
 /**
- * Per-member UI preferences: a small bag of "which categories this member picked
- * for chart X". Every value is a list of ids, so the shape stays checkable and
- * the column can never grow into a dumping ground — a new picker just claims a
- * new key. Keys and lists are bounded so a client cannot grow the row without
- * limit.
+ * Per-member UI preferences: a small bag of "what this member picked for
+ * surface X". Every value is a list of SHORT OPAQUE TOKENS — category ids for
+ * the chart pickers, but also a range preset's name or a custom range's two ISO
+ * dates (`["custom","2026-01-01","2026-03-31"]`). It read `z.string().uuid()`
+ * until 260807, which quietly 400'd every range write: the Overview's range was
+ * only ever remembered in the client cache and was back to the default a reload
+ * or two later (user report). Meaning belongs to whoever owns the key; this
+ * layer only keeps the row bounded — bounded key, bounded token, bounded list —
+ * so a client cannot grow it without limit.
  */
 const uiPrefsSchema = z.object({
   prefs: z.record(
     z.string().min(1).max(64),
-    z.array(z.string().uuid()).max(200),
+    z.array(z.string().min(1).max(64)).max(200),
   ),
 });
 

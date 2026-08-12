@@ -119,7 +119,9 @@ export function AggregationSection({
           <p className="text-sm font-semibold text-[var(--body)]">
             {t("feature_label")}
           </p>
-          <p className="text-sm text-[var(--muted-foreground)]">
+          {/* text-xs like the privacy hint above it — this one read a size
+              larger than every description around it (user, 260810). */}
+          <p className="text-xs text-[var(--muted-foreground)]">
             {t("feature_help_text")}
           </p>
         </div>
@@ -135,12 +137,13 @@ export function AggregationSection({
       {enabled && (
         <div className="flex items-center justify-between gap-3 border-t border-[var(--hairline-dark)] pt-3">
           <div className="min-w-0 space-y-1">
-            <label
-              htmlFor="settings-aggregation-share"
-              className="text-sm text-[var(--body)]"
-            >
+            {/* A heading, like every other setting's — it was a <label>, so
+                it came out unbolted and with a pointer cursor over text that
+                is not a control (user, 260810). The field keeps its own
+                aria-label, so nothing is lost by dropping the association. */}
+            <p className="text-sm font-semibold text-[var(--body)]">
               {t("share_label")}
-            </label>
+            </p>
             <p className="text-xs text-[var(--muted-foreground)]">
               {t("share_help")}
             </p>

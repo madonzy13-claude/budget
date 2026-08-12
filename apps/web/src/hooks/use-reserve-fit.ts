@@ -24,9 +24,9 @@ export interface ReserveFitTransaction {
   transaction_date: string;
   note: string | null;
   amount_cents: string;
-  /** 'YEARLY' etc. when the spend came from a recurring rule — evidence it will
+  /** 'YEARLY' etc. when the spend came from a scheduled rule — evidence it will
    *  come round again, so it should probably stay counted. */
-  recurring_cadence: string | null;
+  scheduled_cadence: string | null;
   excluded: boolean;
 }
 
@@ -39,6 +39,23 @@ export interface ReserveFitRow {
   gap_cents: string;
   worst_month: string | null;
   worst_overage_cents: string;
+  /** What an average month ahead costs: the habit plus every recurring payment
+   *  at its monthly rate. The Future chart measures today's limit against THIS,
+   *  so the two figures it lists and the difference between them are one
+   *  subtraction (260808). Optional: a payload cached before it existed replays
+   *  without it, and the chart falls back to the observed mean. */
+  projected_monthly_cents?: string | null;
+  /** The limit that would keep this category solvent across the whole runway,
+   *  and what moving to it costs or frees each month (260807). null = today's
+   *  limit already is that limit. */
+  suggested_limit_cents?: string | null;
+  /** What the reserve would need AT the suggested limit — higher than
+   *  `needed_cents` when the limit comes down, because a lower limit accrues
+   *  less. The pair is what makes "lower it AND withdraw" safe (260807). */
+  suggested_needed_cents?: string | null;
+  suggested_delta_cents?: string | null;
+  suggested_over_months?: number | null;
+  suggested_direction?: "raise" | "lower" | null;
   overage_months: number;
   months_counted: number;
   large_transactions: ReserveFitTransaction[];
@@ -47,14 +64,27 @@ export interface ReserveFitRow {
 export interface ReserveFitDTO {
   currency: string;
   rows: ReserveFitRow[];
-  /** Active recurring rules with no category — real commitments that belong to
+  /** Active scheduled rules with no category — real commitments that belong to
    *  no buffer, so they size nothing. Optional: a payload cached before the
    *  field existed replays without it. */
-  unassigned_recurring?: { name: string; amount_cents: string }[];
+  unassigned_scheduled?: { name: string; amount_cents: string }[];
+}
+
+/**
+ * Everything this budget's reserve-fit is cached under, whatever range is on
+ * screen — and the ONLY thing a mutation should invalidate.
+ *
+ * Derived, not retyped: the invalidation used to spell the prefix out, and when
+ * the query key was bumped to "-v2" the two drifted apart. React Query matches
+ * prefixes element by element, so it silently matched nothing and a ticked-off
+ * one-off stayed on the chart until the page was reloaded (user, 260810).
+ */
+export function reserveFitKeyPrefix(budgetId: string) {
+  return ["budget", budgetId, "overview", "reserve-fit-v2"] as const;
 }
 
 export function reserveFitQueryKey(budgetId: string, from: string, to: string) {
-  return ["budget", budgetId, "overview", "reserve-fit", from, to] as const;
+  return [...reserveFitKeyPrefix(budgetId), from, to] as const;
 }
 
 export function useReserveFit(
@@ -97,9 +127,7 @@ export function useSaveReserveFitExclusions(budgetId: string) {
       return true;
     },
     onSettled: () => {
-      void qc.invalidateQueries({
-        queryKey: ["budget", budgetId, "overview", "reserve-fit"],
-      });
+      void qc.invalidateQueries({ queryKey: reserveFitKeyPrefix(budgetId) });
     },
   });
 }

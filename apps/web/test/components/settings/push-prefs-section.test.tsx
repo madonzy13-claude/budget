@@ -255,3 +255,38 @@ describe("PushPrefsSection badge toggle (r37)", () => {
     expect(deviceBadge(budgetId)).toBe(false); // manual OFF respected
   });
 });
+
+/**
+ * Every other settings toggle — Reserves, Cushion, Investments, Net worth,
+ * Privacy mode — sits its switch against the row's TITLE (items-start). The
+ * notification rows were items-center, so each switch floated between its two
+ * lines of text (user, 260810).
+ */
+describe("PushPrefsSection — switches line up with their titles", () => {
+  const rowOf = (testId: string) =>
+    screen.getByTestId(testId).closest("div.flex") as HTMLElement;
+
+  it("aligns the master and badge switches to the title", async () => {
+    wrap(<PushPrefsSection budgetId={budgetId} initialMasterOn />);
+    for (const id of ["push-master-switch", "push-badge-switch"]) {
+      const row = rowOf(id);
+      expect(row.className).toContain("items-start");
+      expect(row.className).not.toContain("items-center");
+    }
+  });
+
+  it("aligns the per-kind and reminder switches too", async () => {
+    wrap(<PushPrefsSection budgetId={budgetId} initialMasterOn />);
+    await waitFor(() =>
+      expect(screen.getByTestId("push-reminder-switch")).toBeTruthy(),
+    );
+    for (const id of [
+      "push-kind-INCOME_UNDER_PLANNED",
+      "push-reminder-switch",
+    ]) {
+      const row = rowOf(id);
+      expect(row.className).toContain("items-start");
+      expect(row.className).not.toContain("items-center");
+    }
+  });
+});

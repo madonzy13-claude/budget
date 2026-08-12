@@ -173,6 +173,43 @@ describe("task-repo — task.created outbox emission", () => {
     );
   });
 
+  // The push handler has to tell the two directions apart: "top up your
+  // reserve" is an alarm, "you are holding a surplus" is not, and the copy
+  // only ever said the first (user, 260810). The direction has to travel with
+  // the event — the handler never reads the task row.
+  it("emitReserveTopup carries the direction on the outbox event", async () => {
+    const repo = createTaskRepo();
+    const other = await seedBudget();
+
+    const r = await withTenantTx(
+      TenantId(other.budgetId),
+      UserId(other.userId),
+      async (tx) => {
+        const typedTx = tx as unknown as {
+          execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+        };
+        await repo.emitReserveTopup(
+          other.budgetId,
+          other.budgetId,
+          {
+            kind: "RESERVE_TOPUP",
+            shortfall_cents: "5000",
+            direction: "WITHDRAW",
+            currency: "EUR",
+          } as unknown as import("@budget/budgeting/src/ports/task-repo").ReserveTopupPayload,
+          typedTx,
+        );
+      },
+    );
+    expect(r.isOk()).toBe(true);
+
+    const taskId = await findPendingTaskId(other.budgetId, "RESERVE_TOPUP");
+    const rows = await readOutboxRows(taskId!);
+    expect((rows[0].payload as Record<string, unknown>).direction).toBe(
+      "WITHDRAW",
+    );
+  });
+
   it("emitConfirmDraft emits one task.created outbox row with kind=CONFIRM_DRAFT", async () => {
     const repo = createTaskRepo();
     const draftId = crypto.randomUUID();

@@ -209,7 +209,7 @@
       "cushion": "Poduszka",
       "reserves": "Rezerwy",
       "investments": "Inwestycje",
-      "recurring": "Płatności cykliczne",
+      "scheduled": "Zaplanowane płatności",
       "income": "Dochód",
       "members": "Członkowie",
       "danger": "Strefa niebezpieczna"
@@ -235,7 +235,7 @@
         "reserveWallet": "Dodaj portfel rezerw",
         "investmentsEnabled": "Włącz Inwestycje",
         "investment": "Dodaj inwestycję",
-        "recurring": "Dodaj wydatek cykliczny",
+        "scheduled": "Dodaj zaplanowaną płatność",
         "income": "Dodaj dochód",
         "category": "Utwórz kategorię"
       }
@@ -244,9 +244,10 @@
       "name_label": "Nazwa",
       "name_saved": "Nazwa budżetu zapisana",
       "currency_label": "Waluta",
+      "currency_hint": "Służy do przeliczania i przedstawiania wszystkich kwot budżetu w jednej walucie.",
       "currency_saved": "Waluta zaktualizowana",
-      "privacy_label": "Ukryj kwoty",
-      "privacy_hint": "Ukrywaj kwoty domyślnie; dotknij oka, aby je odsłonić.",
+      "privacy_label": "Tryb prywatny",
+      "privacy_hint": "Ukrywaj kwoty domyślnie. Dotknij kwoty, aby ją odsłonić.",
       "privacy_on_toast": "Kwoty domyślnie ukryte",
       "privacy_off_toast": "Kwoty zawsze widoczne",
       "privacy_error": "Nie udało się zaktualizować ustawienia prywatności",
@@ -270,10 +271,10 @@
       "previewMet": "Masz {actual} z {required} — cel osiągnięty",
       "previewError": "Nie udało się załadować podsumowania poduszki."
     },
-    "recurring": {
-      "add_rule": "Dodaj regułę",
-      "add_rule_title": "Dodaj regułę cykliczną",
-      "edit_rule_title": "Edytuj regułę cykliczną"
+    "scheduled": {
+      "add_rule": "Dodaj płatność",
+      "add_rule_title": "Dodaj zaplanowaną płatność",
+      "edit_rule_title": "Edytuj zaplanowaną płatność"
     },
     "members": {
       "empty": "Brak innych członków.",
@@ -337,7 +338,7 @@
         },
         "CONFIRM_DRAFT": {
           "label": "Szkic wymaga potwierdzenia",
-          "description": "Gdy cykliczny szkic oczekuje na potwierdzenie"
+          "description": "Gdy szkic zaplanowanej płatności oczekuje na potwierdzenie"
         },
         "CUSHION_BELOW_TARGET": {
           "label": "Poduszka poniżej celu",
@@ -469,12 +470,12 @@
       "audit_hint": "Każda zmiana jest rejestrowana."
     },
     "aggregation": {
-      "feature_label": "Uwzględniaj w sumie wszystkich budżetów",
-      "feature_help_text": "Licz ten budżet do łącznego majątku.",
+      "feature_label": "Wliczaj do majątku netto",
+      "feature_help_text": "Dodaj ten budżet do Twojego majątku netto.",
       "feature_on_toast": "Uwzględniono w Twojej sumie",
       "feature_off_toast": "Wykluczono z Twojej sumy",
-      "share_label": "Procent majątku w podsumowaniu budżetów",
-      "share_help": "Jaka część majątku tego budżetu liczy się do Twojej sumy (0-100%).",
+      "share_label": "Udział w majątku netto",
+      "share_help": "Wybierz, jaki procent tego budżetu wlicza się do Twojego majątku netto.",
       "error_save": "Nie udało się zapisać. Spróbuj ponownie."
     },
     "ownership": {
@@ -783,7 +784,7 @@
     "attention_title": "Wymaga uwagi",
     "flow_title": "W tym miesiącu",
     "spent": "Wydano",
-    "left": "Pozostało",
+    "upcoming": "Przyszłe",
     "my_share": "twój udział: {pct}%",
     "rate_unavailable": "Kurs wymiany niedostępny — wykluczony z sum",
     "empty": "Brak uwzględnionych budżetów. Włącz opcję w ustawieniach budżetu.",
@@ -836,7 +837,7 @@
     "budget": "Budżet",
     "wallets": "Portfele",
     "transactions": "Transakcje",
-    "recurring": "Płatności cykliczne",
+    "scheduled": "Zaplanowane płatności",
     "budgetSwitcher": {
       "trigger": {
         "aria": "Przełącz budżet"
@@ -1139,7 +1140,9 @@
           "12": "Grudzień"
         },
         "saveButton": "Zapisz dochód",
-        "errorAmount": "Podaj kwotę, np. 73,80"
+        "errorAmount": "Podaj kwotę, np. 73,80",
+        "once": "Jednorazowo",
+        "dateLabel": "Data"
       },
       "list": {
         "empty": "Brak dochodów.",
@@ -1147,7 +1150,8 @@
         "weeklyOnDow": "Tygodniowo · {weekday}",
         "yearlyOn": "Rocznie · {month} {day}",
         "daily": "Codziennie",
-        "editButton": "Edytuj"
+        "editButton": "Edytuj",
+        "once": "Jednorazowo · {date}"
       },
       "delete": {
         "title": "Usunąć dochód?",
@@ -1161,15 +1165,15 @@
         "delete": "Nie udało się usunąć dochodu"
       }
     },
-    "recurring": {
-      "title": "Płatności cykliczne",
-      "addRuleButton": "Dodaj płatność cykliczną",
+    "scheduled": {
+      "title": "Zaplanowane płatności",
+      "addRuleButton": "Dodaj zaplanowaną płatność",
       "rule": {
-        "title": "Nowa reguła cykliczna",
-        "editTitle": "Edytuj regułę cykliczną",
+        "title": "Nowa zaplanowana płatność",
+        "editTitle": "Edytuj zaplanowaną płatność",
         "nameLabel": "Nazwa",
         "namePlaceholder": "np. Czynsz",
-        "saveButton": "Zapisz regułę",
+        "saveButton": "Zapisz płatność",
         "cancelButton": "Anuluj",
         "amountLabel": "Kwota",
         "currencyLabel": "Waluta",
@@ -1211,6 +1215,7 @@
           "12": "Grudzień"
         },
         "firstDueLabel": "Pierwsza data",
+        "nextDueLabel": "Następny termin",
         "lastDueLabel": "Data końcowa (opcjonalnie)",
         "lastDuePlaceholder": "Bez daty końcowej",
         "errorLastBeforeFirst": "Data końcowa nie może być wcześniejsza niż pierwsza data",
@@ -1218,11 +1223,13 @@
         "noteLabel": "Notatka (opcjonalnie)",
         "applyToFutureLabel": "Zastosuj również do przyszłych wystąpień",
         "applyToFutureHelp": "Edytuje nadchodzące oczekujące szkice, aby odzwierciedlały nową kwotę/kategorię. Potwierdzone w przeszłości transakcje nigdy nie są zmieniane.",
-        "categoryPlaceholder": "Wybierz kategorię…"
+        "categoryPlaceholder": "Wybierz kategorię…",
+        "once": "Jednorazowo",
+        "dateLabel": "Data"
       },
       "list": {
-        "title": "Płatności cykliczne",
-        "empty": "Brak reguł cyklicznych.",
+        "title": "Zaplanowane płatności",
+        "empty": "Brak zaplanowanych płatności.",
         "untitled": "Bez nazwy",
         "monthlyOnDay": "Miesięcznie · {day}",
         "weeklyOnDow": "Tygodniowo · {weekday}",
@@ -1230,10 +1237,11 @@
         "daily": "Codziennie",
         "nextDueLabel": "Następnie: {date}",
         "editButton": "Edytuj",
-        "archiveButton": "Archiwizuj"
+        "archiveButton": "Archiwizuj",
+        "once": "Jednorazowo"
       },
       "drafts": {
-        "inboxTitle": "Oczekujące cykliczne",
+        "inboxTitle": "Oczekujące płatności",
         "empty": "Brak oczekujących szkiców.",
         "confirmButton": "Potwierdź transakcję",
         "editConfirmButton": "Edytuj i potwierdź",
@@ -1242,12 +1250,12 @@
         "navBadgeLabel": "{count} spóźnionych"
       },
       "errors": {
-        "create": "Nie udało się utworzyć reguły",
-        "update": "Nie udało się zaktualizować reguły",
-        "delete": "Nie udało się usunąć reguły"
+        "create": "Nie udało się utworzyć płatności",
+        "update": "Nie udało się zaktualizować płatności",
+        "delete": "Nie udało się usunąć płatności"
       },
       "delete": {
-        "title": "Usunąć regułę cykliczną?",
+        "title": "Usunąć zaplanowaną płatność?",
         "body": "Spowoduje to zatrzymanie przyszłych szkiców. Zatwierdzone transakcje z przeszłości pozostają.",
         "confirm": "Usuń",
         "cancel": "Anuluj"
@@ -1401,6 +1409,7 @@
           "unitY": "l",
           "unitM": "m",
           "unitD": "d",
+          "unitW": "t",
           "overspentMotivation": "Dobra robota — tak trzymaj!",
           "spendGood": "Portfele pokrywają to, co zostało do wydania",
           "spendBad": "Portfele nie pokrywają tego, co zostało do wydania",
@@ -1464,6 +1473,18 @@
           "totalColumn": "razem",
           "planned": "Zaplanowane",
           "needs": "Potrzeby",
+          "openLimitRebalance": "Zbilansuj limity",
+          "limitRebalanceTitle": "Zbilansuj limity",
+          "limitsTotal": "Limity",
+          "limitsNeededTotal": "Powinno być",
+          "limitRebalanceExplainer": "Daj każdej kategorii tyle miejsca, ile naprawdę potrzebuje, żeby w przyszłym miesiącu nie przekraczać limitu.",
+          "rebalanceNeedsAria": "Nowe potrzeby dla {name}",
+          "rebalanceWantsAria": "Nowe zachcianki dla {name}",
+          "rebalanceLimitAria": "Zmień limit dla {name}",
+          "undoLimitAria": "Przywróć limit dla {name}",
+          "nothingToChange": "Ten limit jest już taki, jaki powinien być",
+          "becomes": "zmienia się na",
+          "limitSaveFailed": "Nie udało się zmienić tego limitu",
           "wants": "Zachcianki",
           "fromPlan": "Wydane z planu",
           "fromReserve": "Użyte rezerwy",
@@ -1471,12 +1492,16 @@
           "totalSpent": "Łącznie wydane",
           "totalPlanned": "Łącznie zaplanowane",
           "total": "Razem",
-          "recurringPerMonth": "Płatności cykliczne, wg miesiąca",
-          "recurringSeries": "Płatności cykliczne",
+          "scheduledPerMonth": "Nadchodzące zaplanowane płatności, wg miesiąca",
+          "scheduledPerYear": "Płatności zaplanowane rocznie, wg kategorii",
+          "scheduledNoCategory": "Bez kategorii",
+          "scheduledSeries": "Zaplanowane płatności",
           "timelineTitle": "Jak każdy miesiąc wypadł względem planu",
           "avgByCategory": "Odchylenie od planu, wg kategorii",
           "avgPie": "Planowane wydatki wg kategorii",
           "difference": "Różnica",
+          "increaseLimitBy": "Zwiększ limit o",
+          "decreaseLimitBy": "Zmniejsz limit o",
           "ring": {
             "needs": "Potrzeby",
             "wants": "Zachcianki",
@@ -1490,16 +1515,15 @@
           "overPlan": "Ponad plan",
           "underPlan": "Poniżej planu",
           "basis": "Limit",
-          "basisAverage": "Średni",
-          "basisCurrent": "Bieżący",
-          "avgLimit": "Średni limit",
+          "avgLimit": "Limit",
           "currentLimit": "Bieżący limit",
           "monthColumn": "mies.",
           "spent": "Wydane",
           "byCategoryAverage": "Odchylenie od średniego limitu, wg kategorii",
-          "byCategoryCurrent": "Odchylenie od dzisiejszego limitu, wg kategorii",
-          "differenceVsAverage": "Różnica wobec średniego limitu",
-          "differenceVsCurrent": "Różnica wobec bieżącego limitu"
+          "basisPast": "Przeszłość",
+          "basisFuture": "Przyszłość",
+          "byCategoryFuture": "O ile powinien zmienić się limit, wg kategorii",
+          "expectedSpend": "Oczekiwane wydatki"
         },
         "wealth": {
           "capitalization": "Kapitalizacja",
@@ -1542,21 +1566,20 @@
           "allFine": "Wszystko wygląda dobrze",
           "mightRunShort": "Pieniędzy może zabraknąć już {date}",
           "shortBy": "brakuje {amount}",
-          "empty": "Dodaj dochód lub reguły cykliczne, aby zobaczyć prognozę",
+          "empty": "Dodaj dochód lub zaplanowane płatności, aby zobaczyć prognozę",
           "available": "Dostępne",
           "reserveShrinking": "Kurczy się rezerwa",
           "reserveCovering": "Rezerwa pokrywa",
           "reserveUsed": "Użyto rezerwy",
           "cantCover": "Nie starcza na",
           "income": "Dochód",
-          "bill": "Płatności cykliczne"
+          "bill": "Zaplanowane płatności"
         },
         "reserveFit": {
           "title": "Czy każda rezerwa ma właściwą wielkość?",
           "held": "Trzymane",
           "needed": "Potrzebne",
           "short": "Brakuje",
-          "trim": "Do uwolnienia",
           "oneOffsFor": "Duże wydatki w {name}",
           "recurs": "powtarza się {cadence}",
           "reviewOneOffs": "Przejrzyj duże wydatki",
@@ -1570,12 +1593,12 @@
           "countedAria": "Licz {amount} do rezerw",
           "heldTotal": "Trzymane",
           "neededTotal": "Potrzebne",
-          "unassigned": "Nie liczone — brak kategorii: {list}. Przypisz ją w Ustawienia → Cykliczne, a wpłyną na rezerwę.",
-          "aboveTarget": "ponad potrzebę",
+          "unassigned": "Nie liczone — brak kategorii: {list}. Przypisz ją w Ustawienia → Zaplanowane płatności, a wpłyną na rezerwę.",
+          "aboveTarget": "więcej niż potrzeba",
           "belowTarget": "poniżej potrzeby",
           "onTarget": "Dokładnie tyle, ile trzeba",
           "rebalanceTitle": "Zbilansuj rezerwy",
-          "rebalanceExplainer": "Uzupełnij te, którym brakuje, i odbierz to, co nie jest potrzebne. Jeśli liczba wyliczona z historii Ci nie odpowiada, najpierw zmień cel.",
+          "rebalanceExplainer": "Pokryj nadchodzące wydatki i uwolnij pieniądze, które leżą bezczynnie.",
           "openRebalance": "Zbilansuj rezerwy",
           "rebalanceAction": "Zbilansuj",
           "undoAction": "Cofnij",
@@ -1584,7 +1607,14 @@
           "rebalanceAria": "Zbilansuj {name}",
           "undoAria": "Cofnij zmianę w {name}",
           "nothingToMove": "Już we właściwej wysokości",
-          "coveredOverspend": "{amount} z tego poszło na pokrycie przekroczeń, więc rezerwie nadal brakuje."
+          "becomes": "zmienia się na",
+          "coveredOverspend": "{amount} z tego poszło na pokrycie przekroczeń, więc rezerwie nadal brakuje.",
+          "addToReserve": "Dodaj do rezerwy",
+          "withdraw": "Wypłać z rezerwy",
+          "balanced": "Dobrze wyważone",
+          "and": "i",
+          "or": "albo",
+          "setLimit": "Ustaw limit na"
         },
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",
@@ -1621,9 +1651,8 @@
           "reserveAria": "Dostępne dla {name}"
         },
         "totals": {
-          "internalLabel": "Razem dostępne",
-          "walletsLabel": "Razem w portfelach",
-          "usedLabel": "Razem wykorzystane",
+          "internalLabel": "Razem potrzeba",
+          "walletsLabel": "Razem zgromadzone",
           "thisMonth": "w tym miesiącu",
           "allTime": "od początku"
         },
@@ -1719,7 +1748,7 @@
       "settings": {
         "label": "Ustawienia",
         "title": "Ustawienia",
-        "placeholder": "Tożsamość budżetu, przełącznik poduszki, reguły cykliczne i członkowie pojawią się w fazie 6."
+        "placeholder": "Tożsamość budżetu, przełącznik poduszki, zaplanowane płatności i członkowie pojawią się w fazie 6."
       }
     },
     "pillSlider": {
@@ -1768,7 +1797,7 @@
       "more": "Więcej",
       "detail": {
         "RESERVE_TOPUP": "Twoje portfele rezerwowe mają o {amount} mniej niż suma przypisana do rezerw kategorii. Masz dwie opcje: uzupełnij portfel rezerwowy (dodaj środki) do wysokości sumy kategorii, albo zmniejsz niektóre rezerwy kategorii, żeby ich suma odpowiadała saldu portfeli.",
-        "CONFIRM_DRAFT": "Reguła cykliczna utworzyła nowy szkic transakcji dla {ruleName} ({amount}). Otwórz zakładkę Wydatki, sprawdź wiersz szkicu i potwierdź go lub odrzuć. Potwierdzenie zapisuje transakcję w księdze; odrzucenie pomija ją bez wpływu na kolejne wystąpienia.",
+        "CONFIRM_DRAFT": "Zaplanowana płatność utworzyła nowy szkic transakcji dla {ruleName} ({amount}). Otwórz zakładkę Wydatki, sprawdź wiersz szkicu i potwierdź go lub odrzuć. Potwierdzenie zapisuje transakcję w księdze; odrzucenie pomija ją bez wpływu na kolejne wystąpienia.",
         "CUSHION_BELOW_TARGET": "Twoja poduszka finansowa jest poniżej celu ustawionego w Ustawieniach (miesiące × średnie wydatki). Brakuje {shortfall}. Masz trzy opcje: przelej środki do portfela typu Poduszka, obniż liczbę miesięcy w Ustawienia → Poduszka (mniejszy zapas = mniejsza wymagana poduszka), albo zmniejsz limity niektórych kategorii, żeby spadły średnie miesięczne wydatki.",
         "INCOME_UNDER_PLANNED": "Przy obecnym planie pieniądze spadną do {low} przed kolejnym wpływem — brakuje {shortfall}. Otwórz zakładkę Wydatki i obniż limity kategorii albo przesuń płatność, aż prognoza utrzyma się powyżej zera.",
         "RESERVE_TOPUP_withdraw": "Twoje portfele rezerwowe mają o {amount} więcej niż suma przypisana do rezerw kategorii. Masz dwie opcje: wypłać nadwyżkę z portfela rezerwowego, albo rozdziel ją między rezerwy kategorii (zwiększ jedną lub więcej kwot kategorii, żeby sumowały się do sumy portfeli)."
@@ -1905,7 +1934,7 @@
       },
       "dismissDraft": {
         "title": "Pominąć {ruleName} w {month}?",
-        "body": "Reguła cykliczna nadal będzie działać. Wersja robocza na kolejny miesiąc pojawi się zgodnie z harmonogramem.",
+        "body": "Zaplanowana płatność nadal będzie działać. Wersja robocza na kolejny miesiąc pojawi się zgodnie z harmonogramem.",
         "cta": "Pomiń ten miesiąc",
         "cancel": "Anuluj"
       }

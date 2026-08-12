@@ -42,33 +42,33 @@ export type BudgetingEvent =
       legIds: [string, string];
     }
   | {
-      type: "budgeting.recurring.rule.created";
+      type: "budgeting.scheduled.rule.created";
       ruleId: string;
       tenantId: string;
       cadence: string;
     }
   | {
-      type: "budgeting.recurring.rule.updated";
+      type: "budgeting.scheduled.rule.updated";
       ruleId: string;
       tenantId: string;
       appliedToFuture: boolean;
       affectedPendingDraftIds: string[];
     }
   | {
-      type: "budgeting.recurring.draft.generated";
+      type: "budgeting.scheduled.draft.generated";
       draftId: string;
       ruleId: string;
       tenantId: string;
       dueDate: string;
     }
   | {
-      type: "budgeting.recurring.confirmed";
+      type: "budgeting.scheduled.confirmed";
       draftId: string;
       ledgerId: string;
       tenantId: string;
     }
   | {
-      type: "budgeting.recurring.skipped";
+      type: "budgeting.scheduled.skipped";
       draftId: string;
       tenantId: string;
     };

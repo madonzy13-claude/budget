@@ -41,7 +41,7 @@ import type { FxProvider } from "@budget/shared-kernel";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
 import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
-import { recurringMonthlyNormalize } from "./recurring-monthly-normalize";
+import { scheduledMonthlyNormalize } from "./scheduled-monthly-normalize";
 import type { TaskRepo, IncomeUnderPlannedPayload } from "../ports/task-repo";
 
 /** System user for own-tx recomputes (no human actor on the trigger path). */
@@ -111,9 +111,11 @@ export interface IncomeVsPlanned {
 interface IncomeRow {
   amount_cents: string;
   currency: string;
-  cadence: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  cadence: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   cadence_anchor: number | null;
   yearly_month: number | null;
+  /** The day a ONE-TIME income arrives (mig 0080). */
+  once_date?: string | null;
 }
 
 /**
@@ -134,6 +136,18 @@ export function upcomingIncomeItems(
   for (const r of rows) {
     const cents = BigInt(r.amount_cents);
     if (cents === 0n) continue;
+    if (r.cadence === "ONCE") {
+      // The same rule a pay-day follows: still upcoming while its day is ahead,
+      // already in a wallet once it has passed. Counting it in both places
+      // would double it. A one-time income in another month is not this
+      // month's money at all (260807).
+      if (!r.once_date) continue;
+      const day = Temporal.PlainDate.from(r.once_date);
+      if (day.year === today.year && day.month === today.month && today.day < day.day) {
+        out.push({ amount_cents: cents, currency: r.currency });
+      }
+      continue;
+    }
     if (r.cadence === "MONTHLY" || r.cadence === "YEARLY") {
       // YEARLY only pays in its configured month.
       if (r.cadence === "YEARLY" && r.yearly_month !== today.month) continue;
@@ -144,7 +158,7 @@ export function upcomingIncomeItems(
     } else {
       // DAILY / WEEKLY — no fixed pay-day; treat as continuously upcoming.
       out.push({
-        amount_cents: recurringMonthlyNormalize(cents, r.cadence),
+        amount_cents: scheduledMonthlyNormalize(cents, r.cadence),
         currency: r.currency,
       });
     }

@@ -24,7 +24,7 @@ import {
   type RecomputeReserveTopupTaskDeps,
 } from "./recompute-reserve-topup-task";
 import { recomputeCushionTask } from "./recompute-cushion-task";
-import type { FxProviderLike } from "./recurring-engine-fx";
+import type { FxProviderLike } from "./scheduled-payment-engine-fx";
 
 export interface ArchiveWalletDeps {
   repo: WalletRepo;

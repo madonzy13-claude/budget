@@ -3,6 +3,7 @@ import {
   centsToBare,
   centsToDisplayCompact,
   centsToRounded,
+  roundsToZero,
 } from "../../src/lib/cents-format";
 
 // Intl separates the amount and sign with a non-breaking space; normalise it so
@@ -79,5 +80,38 @@ describe("centsToBare", () => {
   it("accepts bigint input", () => {
     expect(centsToBare(50000n)).toBe("500");
     expect(centsToBare(320n)).toBe("3.20");
+  });
+});
+
+describe("roundsToZero", () => {
+  // The by-category bars are coloured by variance but labelled in whole units.
+  // A category 31 gr over plan drew a RED bar labelled "+0 zł" — a screen
+  // contradicting itself (user report, 260807). Anything the label cannot show
+  // is not a value to colour.
+  it("agrees with what centsToRounded prints", () => {
+    for (const cents of [0, 1, 49, -49, 50, -50, 99, 149, 12345]) {
+      const printsZero = /^[^\d]*0[^\d]*$/.test(
+        centsToRounded(BigInt(cents), "PLN", "en", true),
+      );
+      expect(roundsToZero(cents)).toBe(printsZero);
+    }
+  });
+
+  it("is true under half a unit, either direction", () => {
+    expect(roundsToZero(0)).toBe(true);
+    expect(roundsToZero(31)).toBe(true);
+    expect(roundsToZero(-31)).toBe(true);
+    expect(roundsToZero(49)).toBe(true);
+  });
+
+  it("is false from half a unit up", () => {
+    expect(roundsToZero(50)).toBe(false);
+    expect(roundsToZero(-50)).toBe(false);
+    expect(roundsToZero(100)).toBe(false);
+  });
+
+  it("takes bigints as well as numbers", () => {
+    expect(roundsToZero(49n)).toBe(true);
+    expect(roundsToZero(-50n)).toBe(false);
   });
 });

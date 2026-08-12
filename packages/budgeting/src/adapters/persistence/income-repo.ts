@@ -1,7 +1,7 @@
 /**
  * income-repo.ts — Drizzle adapter for budgeting.incomes (r32).
  *
- * Thin CRUD for the Income settings config. Mirrors recurring-rule-repo's
+ * Thin CRUD for the Income settings config. Mirrors scheduled-payment-repo's
  * tenant-scoped raw-SQL pattern (all queries inside withTenantTx → RLS GUC).
  * Soft-delete (active=false) so a future consumer can reference historical rows.
  */
@@ -9,7 +9,14 @@ import { sql } from "drizzle-orm";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 
-export type IncomeCadence = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+/** ONCE (mig 0080) is an income that arrives on one date and never again — a
+ *  bonus, a refund, the sale of a car. */
+export type IncomeCadence =
+  | "ONCE"
+  | "DAILY"
+  | "WEEKLY"
+  | "MONTHLY"
+  | "YEARLY";
 
 export interface IncomeRow {
   id: string;
@@ -21,6 +28,8 @@ export interface IncomeRow {
   cadenceAnchor: number | null;
   weeklyDow: number | null;
   yearlyMonth: number | null;
+  /** ISO date. Set for ONCE, null otherwise. */
+  onceDate: string | null;
   active: boolean;
   createdAt: Date;
   actorUserId: string;
@@ -35,6 +44,8 @@ export interface IncomeWrite {
   cadenceAnchor: number | null;
   weeklyDow: number | null;
   yearlyMonth: number | null;
+  /** ISO date. Required for ONCE, must be null otherwise (DB CHECK). */
+  onceDate?: string | null;
   actorUserId: string;
 }
 
@@ -54,6 +65,7 @@ function rowToIncome(row: Record<string, unknown>): IncomeRow {
     cadenceAnchor: (row.cadence_anchor as number | null) ?? null,
     weeklyDow: (row.weekly_dow as number | null) ?? null,
     yearlyMonth: (row.yearly_month as number | null) ?? null,
+    onceDate: (row.once_date as string | null) ?? null,
     active: Boolean(row.active),
     createdAt: new Date(row.created_at as string),
     actorUserId: row.actor_user_id as string,
@@ -70,11 +82,12 @@ export class DrizzleIncomeRepo {
         const res = await dtx.execute(sql`
           INSERT INTO budgeting.incomes
             (tenant_id, name, amount, currency, cadence,
-             cadence_anchor, weekly_dow, yearly_month, active, actor_user_id)
+             cadence_anchor, weekly_dow, yearly_month, once_date, active, actor_user_id)
           VALUES
             (${input.tenantId}::uuid, ${input.name}, ${input.amount}::numeric,
              ${input.currency}, ${input.cadence},
              ${input.cadenceAnchor}, ${input.weeklyDow}, ${input.yearlyMonth},
+             ${input.onceDate ?? null}::date,
              true, ${input.actorUserId}::uuid)
           RETURNING id
         `);
@@ -94,6 +107,10 @@ export class DrizzleIncomeRepo {
         const res = await dtx.execute(sql`
           SELECT * FROM budgeting.incomes
            WHERE tenant_id = ${tenantId}::uuid AND active = true
+             -- A one-time income is REMOVED once its day has passed (user,
+             -- 260807). Doing it on read rather than on a cron means every
+             -- figure is right the moment the date turns, with nothing to race.
+             AND (cadence <> 'ONCE' OR once_date >= CURRENT_DATE)
            ORDER BY created_at ASC
         `);
         return res.rows.map(rowToIncome);
@@ -119,6 +136,7 @@ export class DrizzleIncomeRepo {
                  cadence_anchor = ${input.cadenceAnchor},
                  weekly_dow = ${input.weeklyDow},
                  yearly_month = ${input.yearlyMonth},
+                 once_date = ${input.onceDate ?? null}::date,
                  updated_at = now()
            WHERE id = ${id}::uuid AND tenant_id = ${input.tenantId}::uuid
              AND active = true

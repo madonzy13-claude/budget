@@ -65,8 +65,10 @@ function mapBudget(budgetId: string, raw: BudgetApiShape): SettingsBudget {
     investmentsEnabled:
       raw.investmentsEnabled ?? raw.investments_enabled ?? false,
     reservesEnabled: raw.reservesEnabled ?? raw.reserves_enabled ?? true,
+    // Off unless this member asked for it (migration 0082) — it is their own
+    // setting now, not the budget's, and nobody is opted in by silence.
     amountPrivacyEnabled:
-      raw.amountPrivacyEnabled ?? raw.amount_privacy_enabled ?? true,
+      raw.amountPrivacyEnabled ?? raw.amount_privacy_enabled ?? false,
     includeInAggregation:
       raw.includeInAggregation ?? raw.include_in_aggregation ?? true,
     sharePct: raw.sharePct ?? raw.ownership_share_pct ?? 100,

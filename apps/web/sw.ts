@@ -148,7 +148,7 @@ const serwist: Serwist = new Serwist({
       }),
     },
     // Stylesheets — StaleWhileRevalidate. CSS carries the global cursor /
-    // affordance rules; recurring UAT reports traced to a service worker
+    // affordance rules; scheduled UAT reports traced to a service worker
     // pinning a stale CSS bundle under CacheFirst, so a corrected build never
     // reached the user until they manually cleared storage. SWR serves the
     // cache instantly for speed but ALWAYS refetches in the background and

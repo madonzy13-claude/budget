@@ -24,6 +24,19 @@ export { fitPct as rebalancePct } from "./reserve-fit-rows";
 import { fitPct } from "./reserve-fit-rows";
 import { parseDecimal } from "./decimal";
 
+/** One whole currency unit, in cents. */
+const UNIT = 100;
+
+/**
+ * A target the member can actually act on. The walk answers to the groszy —
+ * 661.63 — but what someone is asked to MOVE is a whole figure, so the target
+ * goes up to the next whole unit (user, 260808). Up rather than down, so the
+ * buffer still covers what the history asked for.
+ */
+export function roundUpUnit(cents: number): number {
+  return Math.ceil(cents / UNIT) * UNIT;
+}
+
 export type RebalanceBand = "short" | "surplus" | "even";
 
 export interface RebalanceRow {
@@ -57,33 +70,30 @@ export interface RebalanceButton {
 export function rebalanceButton(row: RebalanceRow): RebalanceButton {
   // A new target outranks the undo: the member is asking for a different move,
   // not to take the last one back.
-  if (row.currentCents !== row.targetCents)
+  //
+  // Under a whole unit is not a move. Targets are whole now, so a reserve
+  // holding 1,720.01 against a target of 1,720 would otherwise offer a
+  // one-groszy transfer — the same rule the reserve tooltip runs (260808).
+  if (Math.abs(row.targetCents - row.currentCents) >= UNIT)
     return { kind: "rebalance", disabled: false };
   if (row.baselineCents !== null) return { kind: "undo", disabled: false };
   return { kind: "rebalance", disabled: true };
 }
 
-const BAND_RANK: Record<RebalanceBand, number> = {
-  short: 0,
-  surplus: 1,
-  even: 2,
-};
-
+/**
+ * Biggest difference first, whichever way it points (user, 260808).
+ *
+ * This supersedes the short-then-fat-then-settled banding of 260805: a buffer
+ * 80,000 over is a bigger thing to deal with than one 1,000 under, and putting
+ * every shortfall above every surplus buried it. Settled rows still land last
+ * without being special-cased — their move is nothing. The limit dialog sorts
+ * by the same rule, so the two read alike.
+ */
 export function sortRebalanceRows<
   T extends { currentCents: number; targetCents: number },
 >(rows: readonly T[]): T[] {
-  return [...rows].sort((a, b) => {
-    const band =
-      BAND_RANK[rebalanceBand(a.currentCents, a.targetCents)] -
-      BAND_RANK[rebalanceBand(b.currentCents, b.targetCents)];
-    if (band !== 0) return band;
-    // Inside a band, the bigger move first: a buffer 8,000 short is the one to
-    // deal with before one that is 1,000 short.
-    return (
-      Math.abs(b.targetCents - b.currentCents) -
-      Math.abs(a.targetCents - a.currentCents)
-    );
-  });
+  const move = (r: T) => Math.abs(r.targetCents - r.currentCents);
+  return [...rows].sort((a, b) => move(b) - move(a));
 }
 
 /**

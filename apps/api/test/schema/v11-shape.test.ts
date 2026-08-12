@@ -54,7 +54,11 @@ let postMig: string;
 let mergedSql: string;
 
 let expenseLedgerSchema: string;
-let recurringRulesSchema: string;
+// The table these invariants were written against is `recurring_rules` in the
+// v1.1 migrations. 0077 renamed it (table and Drizzle mirror) to
+// `scheduled_payments`; the historical SQL below still says recurring_rules
+// because that is what those migrations actually wrote.
+let scheduledPaymentsSchema: string;
 let shareLinksSchema: string;
 
 beforeAll(() => {
@@ -67,7 +71,10 @@ beforeAll(() => {
   );
   mergedSql = [sql0013, sql0014, sql0015, postMig].join("\n");
 
-  recurringRulesSchema = readSchema("budgeting", "recurring-rules-schema.ts");
+  scheduledPaymentsSchema = readSchema(
+    "budgeting",
+    "scheduled-payments-schema.ts",
+  );
   shareLinksSchema = readSchema("tenancy", "budget-share-links-schema.ts");
   expenseLedgerSchema = readFileSync(
     join(
@@ -258,35 +265,40 @@ describe("v1.1 SQL migrations — constraints", () => {
 // ---------------------------------------------------------------------------
 
 describe("v1.1 Drizzle TS schema mirrors", () => {
-  test("recurring-rules-schema.ts declares yearlyMonth / yearly_month column", () => {
+  test("scheduled-payments-schema.ts declares yearlyMonth / yearly_month column", () => {
     expect(
       containsPattern(
-        recurringRulesSchema,
+        scheduledPaymentsSchema,
         /yearlyMonth\s*:\s*integer\s*\(\s*["']yearly_month["']\s*\)/,
       ),
     ).toBe(true);
   });
 
-  test("recurring-rules-schema.ts cadence CHECK includes all four values", () => {
+  test("scheduled-payments-schema.ts cadence CHECK includes all four values", () => {
     expect(
-      containsPattern(recurringRulesSchema, /DAILY.*WEEKLY.*MONTHLY.*YEARLY/s),
+      containsPattern(
+        scheduledPaymentsSchema,
+        /DAILY.*WEEKLY.*MONTHLY.*YEARLY/s,
+      ),
     ).toBe(true);
   });
 
-  test("recurring-rules-schema.ts does NOT declare walletId / wallet_id as a column", () => {
+  test("scheduled-payments-schema.ts does NOT declare walletId / wallet_id as a column", () => {
     // Column declaration looks like: walletId: uuid("wallet_id")
     // The comment "walletId (wallet_id) DROPPED" is allowed — only flag actual column decls
     expect(
       containsPattern(
-        recurringRulesSchema,
+        scheduledPaymentsSchema,
         /walletId\s*:\s*\w+\s*\(["']wallet_id["']\)/,
       ),
     ).toBe(false);
   });
 
-  test("recurring-rules-schema.ts does NOT declare kind column", () => {
+  test("scheduled-payments-schema.ts does NOT declare kind column", () => {
     // Look for `kind:` field declaration pattern (not comments)
-    expect(containsPattern(recurringRulesSchema, /^\s+kind\s*:/m)).toBe(false);
+    expect(containsPattern(scheduledPaymentsSchema, /^\s+kind\s*:/m)).toBe(
+      false,
+    );
   });
 
   test("budget-share-links-schema.ts declares token column", () => {

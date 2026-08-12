@@ -9,7 +9,7 @@
  * Math (D-PH7-16):
  *   required_cents = Σ(category_limits.cushion_amount at PIT) × budgets.cushion_target_months
  *   actual_cents   = Σ(wallets WHERE wallet_type='CUSHION') with non-budget-currency
- *                    wallets FX-converted via computeRecurringFx
+ *                    wallets FX-converted via computeScheduledFx
  *   shortfall_cents = required_cents − actual_cents
  *
  * FX as-of date is TODAY (`Temporal.Now.plainDateISO()`) — Pitfall 5 in
@@ -39,11 +39,11 @@ import { TenantId, UserId } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
 import { sql } from "drizzle-orm";
 import { Temporal } from "temporal-polyfill";
-import { computeRecurringFx, type FxProviderLike } from "./recurring-engine-fx";
+import { computeScheduledFx, type FxProviderLike } from "./scheduled-payment-engine-fx";
 
 /**
  * Adapter-shape tx (matches existing pattern across the application layer —
- * see resolve-task.ts, recurring-engine-fx callers). The runtime drizzle tx is
+ * see resolve-task.ts, scheduled-payment-engine-fx callers). The runtime drizzle tx is
  * cast to this shape inside the function; no drizzle types leak across the
  * application boundary.
  */
@@ -154,14 +154,14 @@ export async function computeCushionSummary(
   `);
 
   // 4. FX-convert to budget currency (TODAY as as-of — Pitfall 5).
-  //    Reuse computeRecurringFx: it handles same-currency short-circuit and
+  //    Reuse computeScheduledFx: it handles same-currency short-circuit and
   //    enforces the `0 < rate < 1e6` bounds check (T-07-03-01 mitigation).
   let actualCents = 0n;
   for (const row of cushionWallets.rows as Array<{
     currency: string;
     amount_cents: string;
   }>) {
-    const fxResult = await computeRecurringFx({
+    const fxResult = await computeScheduledFx({
       ruleCurrency: row.currency,
       budgetCurrency: budget.default_currency,
       amountOriginalCents: row.amount_cents,

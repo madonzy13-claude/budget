@@ -36,9 +36,14 @@
  *      the reload ensures a single controllerchange yields exactly one reload and
  *      a fresh load after the reload never reloads again.
  */
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 const RELOAD_GUARD_KEY = "sw-reloaded-once";
+
+/** How often a resume may ask the network whether there is a new build. Long
+ *  enough that flicking between apps costs nothing, short enough that picking
+ *  the phone back up after a deploy lands on the new build. */
+const UPDATE_CHECK_MS = 60_000;
 
 export function SwUpdateReloader() {
   useEffect(() => {
@@ -69,6 +74,35 @@ export function SwUpdateReloader() {
 
     sw.addEventListener("controllerchange", handler);
     return () => sw.removeEventListener("controllerchange", handler);
+  }, []);
+
+  // Coming back to the app ASKS whether there is a new build.
+  //
+  // Everything above only fires once the browser has already noticed a deploy,
+  // and an installed PWA resumed from the background never looks: no
+  // navigation, no fetch of sw.js, no controllerchange. It keeps running the
+  // build it launched with for as long as iOS keeps it alive, so a fix shipped
+  // hours ago is simply not there — a corrected figure still read the old way
+  // 44 minutes after the deploy (user, 260810). registration.update() is the
+  // question; skipWaiting + clientsClaim in sw.ts install the answer, and the
+  // listener above turns it into the one reload.
+  const lastCheck = useRef(0);
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.serviceWorker) return;
+    const sw = navigator.serviceWorker;
+
+    function onVisible() {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastCheck.current < UPDATE_CHECK_MS) return;
+      lastCheck.current = now;
+      // Best-effort: offline, or a registration that has gone away, is not an
+      // error worth surfacing — the next resume asks again.
+      void sw.ready.then((reg) => reg.update()).catch(() => {});
+    }
+
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
   return null;

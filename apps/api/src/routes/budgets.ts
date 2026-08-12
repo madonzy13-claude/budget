@@ -176,6 +176,23 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       console.error("[budgets:get] listMembers failed:", e);
     }
 
+    // The name is the READER's (260808): their membership row carries what
+    // they chose to call this budget, and the budget's own name is only the
+    // fallback. There are TWO GET /:id handlers — this one and
+    // budget-identity's — and only the other learned that, so Settings kept
+    // showing the shared name while the header showed the member's own, even
+    // after a reload (user screenshot, 260809).
+    let ownName: string | null = null;
+    try {
+      ownName =
+        (await deps.tenancy.workspaceRepo.memberBudgetName?.(
+          budgetId,
+          actorUserId,
+        )) ?? null;
+    } catch (e) {
+      console.error("[budgets:get] memberBudgetName failed:", e);
+    }
+
     // Task 11: caller's own include_in_aggregation flag (self-toggle in
     // Settings) + self-set ownership_share_pct (no Σ=100 constraint —
     // each member freely picks how much of THIS budget's wealth counts
@@ -183,21 +200,26 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     // user-scoped repo method (Task 3/4) — reused here rather than
     // extending listMembers' MemberDTO. Both default to the column
     // defaults (true / 100) if the lookup fails.
+    //
+    // Privacy mode rides the same row (migration 0082) — each member decides
+    // whether THEIR screen redacts amounts. Off when there is no row to read.
     let includeInAggregation = true;
     let ownershipSharePct = 100;
+    let amountPrivacyEnabled = false;
     try {
       const prefs =
         await deps.tenancy.workspaceRepo.getAggPrefsForUser(actorUserId);
       const mine = prefs.get(budgetId);
       includeInAggregation = mine?.include_in_aggregation ?? true;
       ownershipSharePct = mine?.ownership_share_pct ?? 100;
+      amountPrivacyEnabled = mine?.amount_privacy_enabled ?? false;
     } catch (e) {
       console.error("[budgets:get] getAggPrefsForUser failed:", e);
     }
 
     return c.json({
       id: budget.id,
-      name: budget.name,
+      name: ownName ?? budget.name,
       slug: budget.slug,
       kind: budget.kind,
       defaultCurrency: budget.default_currency,
@@ -207,7 +229,7 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       reservesEnabled: budget.reservesEnabled ?? true,
       cushionEnabled: budget.cushionEnabled ?? true,
       investmentsEnabled: budget.investmentsEnabled ?? false,
-      amountPrivacyEnabled: budget.amountPrivacyEnabled ?? true,
+      amountPrivacyEnabled,
       cushionTargetMonths: budget.cushionTargetMonths ?? 6,
       includeInAggregation,
       ownership_share_pct: ownershipSharePct,

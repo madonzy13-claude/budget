@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 
 /**
- * /recurring — retired in Phase 6 (D-03).
+ * /scheduled — retired in Phase 6 (D-03).
  *
- * Recurring rules are now managed inline in the Budget Settings accordion.
+ * Scheduled rules are now managed inline in the Budget Settings accordion.
  * Redirect to home; the user can navigate to their budget's Settings tab.
  *
  * 260804: the old client + server action that rendered the form here were
@@ -17,7 +17,7 @@ interface PageProps {
   params: Promise<{ locale: string }>;
 }
 
-export default async function RecurringPage({ params }: PageProps) {
+export default async function ScheduledPage({ params }: PageProps) {
   const { locale } = await params;
   redirect(`/${locale}`);
 }

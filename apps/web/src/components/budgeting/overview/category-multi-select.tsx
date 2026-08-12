@@ -102,7 +102,9 @@ export function CategoryMultiSelect({
             type="button"
             data-testid="category-select-all"
             onClick={() => setDraft(all)}
-            className="text-[var(--primary)] hover:underline"
+            // Brand yellow as TEXT is unreadable on the pale card, so this
+            // takes the ink that flips with the theme (user, 260810).
+            className="text-[var(--accent-ink)] hover:underline"
           >
             {t("planned.selectAll")}
           </button>

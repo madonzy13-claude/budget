@@ -161,3 +161,130 @@ describe("reserveFitRows", () => {
     expect(sized[0]?.candidates).toEqual([]);
   });
 });
+
+describe("reserveFitRows — the limit that would fund the buffer", () => {
+  const base = {
+    category_id: "c1",
+    name: "Clothes",
+    held_cents: "30000",
+    needed_cents: "98200",
+    gap_cents: "-68200",
+    worst_month: "2026-03",
+    worst_overage_cents: "156200",
+    overage_months: 3,
+    months_counted: 11,
+    large_transactions: [],
+  };
+
+  it("carries the suggestion through to the row", () => {
+    const [row] = reserveFitRows([
+      {
+        ...base,
+        suggested_limit_cents: "23000",
+        suggested_delta_cents: "8000",
+        suggested_over_months: 2,
+        suggested_direction: "raise",
+      },
+    ] as never).sized;
+    expect(row!.suggestedLimitCents).toBe(23000);
+    expect(row!.suggestedDeltaCents).toBe(8000);
+    expect(row!.suggestedOverMonths).toBe(2);
+    expect(row!.suggestedDirection).toBe("raise");
+  });
+
+  it("has no suggestion when the server sent none", () => {
+    const [row] = reserveFitRows([
+      {
+        ...base,
+        suggested_limit_cents: null,
+        suggested_delta_cents: null,
+        suggested_over_months: null,
+        suggested_direction: null,
+      },
+    ] as never).sized;
+    expect(row!.suggestedLimitCents).toBeNull();
+    expect(row!.suggestedDirection).toBeNull();
+  });
+
+  it("survives a payload cached before the field existed", () => {
+    // The offline cache replays yesterday's shape; a missing suggestion must
+    // read as "nothing to say", not as NaN in a sentence.
+    const [row] = reserveFitRows([base] as never).sized;
+    expect(row!.suggestedLimitCents).toBeNull();
+    expect(row!.suggestedDirection).toBeNull();
+  });
+});
+
+/**
+ * The basis is the limit in FORCE (user, 260809).
+ *
+ * A re-base onto the recommended limit was tried and reverted the same day: the
+ * bar answers "where does this reserve stand", and the suggestion beside it
+ * answers "where should it go". Two questions, two figures.
+ */
+describe("reserveFitRows — measured at the limit in force", () => {
+  it("ignores what the buffer would need at the suggested limit", () => {
+    const [r] = reserveFitRows([
+      row({
+        held_cents: "1731521",
+        needed_cents: "942584",
+        gap_cents: "788937",
+        suggested_limit_cents: "266882",
+        suggested_delta_cents: "-63118",
+        suggested_needed_cents: "1871784",
+      }),
+    ]).sized;
+    expect(r?.neededCents).toBe(942584);
+    expect(r?.gapCents).toBe(788937);
+    expect(r?.short).toBe(false);
+    // …and it still carries the forecast, for the sentence under the bar.
+    expect(r?.suggestedNeededCents).toBe(1871784);
+  });
+
+  it("is unchanged when the row recommends nothing", () => {
+    const [r] = reserveFitRows([
+      row({
+        held_cents: "1731521",
+        needed_cents: "942584",
+        gap_cents: "788937",
+        suggested_limit_cents: null,
+        suggested_needed_cents: null,
+      }),
+    ]).sized;
+    expect(r?.neededCents).toBe(942584);
+    expect(r?.gapCents).toBe(788937);
+  });
+});
+
+/**
+ * The bars beside the same verdict. Presents held 506.00 against a history
+ * asking 505.08 — the 0.92 is the rebalance dialog's own round-up, and it was
+ * drawn as a "+1 zł" bar the member could not clear: the dialog will not offer
+ * a move smaller than a whole unit (user screenshot, 260810).
+ */
+describe("reserveFitRows — a residue is not a discrepancy", () => {
+  it("draws nothing for a category settled within a whole unit", () => {
+    const [r] = reserveFitRows([
+      row({ held_cents: "50600", needed_cents: "50508", gap_cents: "92" }),
+    ]).sized;
+    expect(r?.gapCents).toBe(0);
+    expect(r?.pct).toBe(0);
+    expect(r?.short).toBe(false);
+  });
+
+  it("does the same when the residue is on the short side", () => {
+    const [r] = reserveFitRows([
+      row({ held_cents: "177550", needed_cents: "177600", gap_cents: "-50" }),
+    ]).sized;
+    expect(r?.gapCents).toBe(0);
+    expect(r?.short).toBe(false);
+  });
+
+  it("still draws a gap of one whole unit — the smallest real move", () => {
+    const [r] = reserveFitRows([
+      row({ held_cents: "50600", needed_cents: "50500", gap_cents: "100" }),
+    ]).sized;
+    expect(r?.gapCents).toBe(100);
+    expect(r?.pct).toBeGreaterThan(0);
+  });
+});

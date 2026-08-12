@@ -123,7 +123,7 @@ describe("DraftRow", () => {
   });
 
   it("does NOT render the note when it just repeats the rule name (no dupe label)", () => {
-    // Recurring rules default their note to the rule name → "T-Mobile  T-Mobile".
+    // Scheduled rules default their note to the rule name → "T-Mobile  T-Mobile".
     renderDraftRow({
       draft: { ...draft, ruleName: "T-Mobile", note: "t-mobile" },
     });

@@ -52,7 +52,7 @@ describe("parseAmountAndNote", () => {
 });
 
 describe("toDecimalString", () => {
-  // The recurring-rule API takes a decimal STRING and accepts a dot only, so a
+  // The scheduled-payment API takes a decimal STRING and accepts a dot only, so a
   // comma keyboard ("73,8" — the Polish layout's decimal key) made every save
   // fail with a bare "Failed to create rule" (user report, 260803).
   it("turns a comma decimal into the dot form the API accepts", () => {

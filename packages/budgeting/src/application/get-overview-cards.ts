@@ -60,6 +60,9 @@ interface SpendingsCategoryLike {
   plannedCents: string;
   /** THE Investments category — excluded from the retirement burn rate. */
   isInvestment: boolean;
+  /** How that category's limit is set: "smart" = whatever income is left after
+   *  every other limit, "manual" = a figure the household chose. */
+  investmentLimitMode?: string | null;
 }
 interface SpendingsSummaryLike {
   budgetCurrency: string;
@@ -91,7 +94,7 @@ export interface GetOverviewCardsDeps {
     budgetId: string;
     month: string;
   }) => Promise<Result<SpendingsSummaryLike, Error>>;
-  /** r36: per-category upcoming outflows (drafts + projected recurring), budget
+  /** r36: per-category upcoming outflows (drafts + projected scheduled), budget
    *  ccy cents. Keyed by categoryId; NONE_CATEGORY_KEY holds uncategorised items. */
   upcomingByCategory: (input: {
     tenantId: string;
@@ -279,8 +282,8 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
       // Available-to-spend breakdown (item 1). Spent this month + "upcoming" (what
       // you still expect to pay). Per category (r36, user's "max per category"
       // rule): the LARGER of its leftover budget (activeBudget − spent, ≥0) or its
-      // upcoming outflows (unconfirmed drafts + projected recurring this month) —
-      // so a recurring bill already inside a category's leftover isn't double
+      // upcoming outflows (unconfirmed drafts + projected scheduled this month) —
+      // so a scheduled bill already inside a category's leftover isn't double
       // counted. Netting was per-SUM before, so overspend in one category wiped out
       // another's leftover → 0 even with money still to spend. wallet cash =
       // availableToSpend. "good" = wallets cover what's left.
@@ -298,12 +301,21 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
         // planned) — the money-runway burn rate. Also excludes Investments.
         if (!c.isInvestment)
           monthlyEffectivePlanned += BigInt(c.activeBudgetCents);
+        // A SMART investments limit is not a bill — it is "whatever income is
+        // left when every other limit is paid", so carrying it here made "Left"
+        // read as the whole month's income and the card was permanently short
+        // (user, 260809: 38,422 zł left against 5,133 zł of cash). Its own
+        // upcoming outflows below still count; only the residual limit goes.
+        // MANUAL stays: choosing to move 500 a month IS money spoken for — the
+        // same line the INCOME_UNDER_PLANNED task draws.
+        const smartInvestment =
+          c.isInvestment && c.investmentLimitMode === "smart";
         const leftover = BigInt(c.activeBudgetCents) - BigInt(c.spentCents);
-        const leftoverPos = leftover > 0n ? leftover : 0n;
+        const leftoverPos = smartInvestment || leftover < 0n ? 0n : leftover;
         const catUpcoming = upcoming.get(c.categoryId) ?? 0n;
         leftToSpend += leftoverPos > catUpcoming ? leftoverPos : catUpcoming;
       }
-      // Uncategorised upcoming (drafts/recurring with no category) has no budget to
+      // Uncategorised upcoming (drafts/scheduled with no category) has no budget to
       // max against — add it directly.
       leftToSpend += upcoming.get(NONE_CATEGORY_KEY) ?? 0n;
 

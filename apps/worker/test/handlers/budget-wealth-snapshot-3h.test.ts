@@ -41,7 +41,10 @@ interface Fx {
   currency: string;
 }
 
-async function seed(currency: string, walletBalance: number): Promise<Fx> {
+async function seed(
+  currency: string,
+  walletBalance: number | null,
+): Promise<Fx> {
   const pool = new Pool({ connectionString: DB_URL });
   const client = await pool.connect();
   const userId = crypto.randomUUID();
@@ -64,11 +67,14 @@ async function seed(currency: string, walletBalance: number): Promise<Fx> {
     await client.query(
       `SELECT set_config('app.tenant_ids', '{"${budgetId}"}', true)`,
     );
-    await client.query(
-      `INSERT INTO budgeting.wallets (id, tenant_id, name, wallet_type, currency, current_balance, created_at, actor_user_id)
-       VALUES ($1, $2, 'Main', 'SPENDINGS', $3, $4::numeric, now(), $5)`,
-      [crypto.randomUUID(), budgetId, currency, walletBalance, userId],
-    );
+    // null = a budget nobody has put a wallet in yet.
+    if (walletBalance !== null) {
+      await client.query(
+        `INSERT INTO budgeting.wallets (id, tenant_id, name, wallet_type, currency, current_balance, created_at, actor_user_id)
+         VALUES ($1, $2, 'Main', 'SPENDINGS', $3, $4::numeric, now(), $5)`,
+        [crypto.randomUUID(), budgetId, currency, walletBalance, userId],
+      );
+    }
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK");
@@ -113,7 +119,13 @@ async function snapshotsFor(
 
 const deps = {
   walletRepo: createOverviewCardsRepo(),
-  holdingsValuation: { investmentValueCents: async () => 0n },
+  holdingsValuation: {
+    investmentValueCents: async () => 0n,
+    // Added when migration 0062 gave snapshots a cost basis; the stub was never
+    // updated, so every budget in this file threw and the whole suite had been
+    // red ever since.
+    investmentCostBasisCents: async () => 0n,
+  },
   fxProvider: {
     rateAsOf: async () => ({ rate: "1", provider: "stub", isStale: false }),
   },
@@ -149,5 +161,40 @@ describe("budget-wealth-snapshot-3h", () => {
 
     // RLS: budget B's row is invisible under budget A's tenant context.
     expect(await snapshotsFor(b.budgetId, a.budgetId)).toHaveLength(0);
+  }, 180_000);
+});
+
+/**
+ * A budget is created, and the wallets arrive a day later. In between, the 3h
+ * cron faithfully recorded "this household is worth nothing" every hour — 22
+ * rows of it — and the wealth chart drew exactly that: a cliff to zero between
+ * the seeded history and the first real reading (user, 260810, "11 July there's
+ * a drop to zero in capitalization").
+ *
+ * The zeros were true and still meaningless: nobody had put anything in yet.
+ * A budget with no wallet at all has nothing to plot, so it is not plotted.
+ * A budget whose wallets really are empty is a different statement, and that
+ * one still gets recorded.
+ */
+describe("budget-wealth-snapshot-3h — a budget nobody has filled in yet", () => {
+  test("skips a budget with no wallets at all", async () => {
+    const empty = await seed("PLN", null);
+    const funded = await seed("USD", 700);
+
+    await runBudgetWealthSnapshot3h(deps);
+
+    expect(await snapshotsFor(empty.budgetId)).toHaveLength(0);
+    // …and the run still does its job for everyone else.
+    expect(await snapshotsFor(funded.budgetId)).toHaveLength(1);
+  }, 180_000);
+
+  test("still records a budget whose wallets really are empty", async () => {
+    const zeroed = await seed("USD", 0);
+
+    await runBudgetWealthSnapshot3h(deps);
+
+    const rows = await snapshotsFor(zeroed.budgetId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.capitalization_cents).toBe("0");
   }, 180_000);
 });

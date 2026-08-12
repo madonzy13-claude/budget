@@ -158,8 +158,8 @@ describe("PWA sheet displacement fixes (SHELL-R12)", () => {
     resolve(__dirname, "../src/components/budgeting/transaction-slider.tsx"),
     "utf8",
   );
-  const recurringRuleForm = readFileSync(
-    resolve(__dirname, "../src/components/budgeting/recurring-rule-form.tsx"),
+  const scheduledPaymentForm = readFileSync(
+    resolve(__dirname, "../src/components/budgeting/scheduled-payment-form.tsx"),
     "utf8",
   );
   const viewportDebug = readFileSync(
@@ -202,10 +202,10 @@ describe("PWA sheet displacement fixes (SHELL-R12)", () => {
     expect(firstSheetContent).toMatch(/onOpenAutoFocus/);
   });
 
-  it("recurring-rule-form SheetContent has onOpenAutoFocus preventDefault (root cause b)", () => {
-    expect(recurringRuleForm).toMatch(/onOpenAutoFocus/);
+  it("scheduled-payment-form SheetContent has onOpenAutoFocus preventDefault (root cause b)", () => {
+    expect(scheduledPaymentForm).toMatch(/onOpenAutoFocus/);
     const sheetContentBlock =
-      recurringRuleForm.match(/<SheetContent[\s\S]*?>/)?.[0] ?? "";
+      scheduledPaymentForm.match(/<SheetContent[\s\S]*?>/)?.[0] ?? "";
     expect(sheetContentBlock).toMatch(/onOpenAutoFocus/);
   });
 

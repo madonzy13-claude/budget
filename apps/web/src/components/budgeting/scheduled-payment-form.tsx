@@ -1,0 +1,733 @@
+"use client";
+
+/**
+ * scheduled-payment-form.tsx — Right-side slider for creating + editing
+ * scheduled rules. Re-aligned with the v1.1 backend contract:
+ *
+ *   - kind dropped (all rules produce SPENDING / expense drafts).
+ *   - accountId / walletId dropped (categorical-only per TXN-02).
+ *   - currency is a CurrencyPicker (free-text was a UX miss).
+ *   - cadence accepts WEEKLY | MONTHLY | YEARLY, sending the
+ *     discriminated `weekly_dow`, `cadence_anchor`, and
+ *     `yearly_month` fields the backend expects.
+ *   - Chrome matches transaction-slider so the create flow looks the
+ *     same right-side drawer the user already knows from the spendings
+ *     grid (Test 6 / Test 7 UAT feedback).
+ *
+ * The form owns its own `<Sheet>` — callers just pass `open` +
+ * `onOpenChange`, so the call site (settings/scheduled-payments-section.tsx) does not
+ * wrap it in an outer Sheet. The second call site, the legacy /scheduled page,
+ * was deleted on 260804: it mounted this form with NO budget context, which
+ * disables the "category required" guard below.
+ *
+ * Modes:
+ *   - create → POST /scheduled-payments
+ *   - edit   → PATCH /scheduled-payments/:id with applyToFuture toggle
+ */
+import { useState, useRef, useEffect } from "react";
+import { nextDueDate } from "@/lib/next-due-date";
+import { useTranslations } from "next-intl";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { CurrencyPicker } from "@/components/common/currency-picker";
+import { DateInput } from "@/components/budgeting/fields/date-input";
+import { formatAmountForList } from "@/components/budgeting/scheduled-payments-list";
+import { uuidv4 } from "@/lib/uuid";
+import { toDecimalString } from "@/lib/decimal";
+import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
+
+export type RuleMode = "create" | "edit";
+
+/** ONCE is not a rhythm — it is a payment on one date (260807). It carries no
+ *  selector, and its deadline is that date, so the "last date" field goes away
+ *  with it rather than asking the same question twice. */
+export type RuleCadence = "ONCE" | "WEEKLY" | "MONTHLY" | "YEARLY";
+
+export interface ScheduledPaymentFormValues {
+  ruleId?: string;
+  categoryId: string | null;
+  amount: string;
+  currency: string;
+  // `cadence` accepts the wider backend union (DAILY|...|YEARLY) so a row
+  // pulled from the API can be handed straight to `initialValues` without
+  // a narrowing cast. The form's local state coerces DAILY → MONTHLY in
+  // the UI because DAILY isn't a user-selectable option here.
+  cadence: "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  cadenceAnchor: number | null;
+  weeklyDow: number | null;
+  yearlyMonth: number | null;
+  note: string | null;
+  firstDueDate: string;
+  /** Optional "last date" (ISO YYYY-MM-DD). null / "" = no deadline. */
+  endDate?: string | null;
+}
+
+export interface ScheduledPaymentFormProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  mode: RuleMode;
+  /**
+   * Active budget id — required for create. Posts hit the budget-scoped
+   * route so the backend tenant guard binds the right workspace; the
+   * legacy root mount needs `X-Budget-ID` separately, which we now
+   * also send for parity with the rest of the chrome.
+   */
+  budgetId?: string;
+  /**
+   * Budget's default currency — used to seed the currency picker for
+   * create-mode. Edit-mode keeps the rule's saved currency. Falls back
+   * to "USD" when omitted (tests / dev pages).
+   */
+  defaultCurrency?: string;
+  /**
+   * Categories the rule can be attached to. When non-empty the form
+   * renders a Category picker; the chosen category id rides through
+   * to the API as `category_id`. Empty / omitted → no picker (the
+   * /scheduled legacy stub doesn't have budget context).
+   */
+  categories?: Array<{ id: string; name: string }>;
+  initialValues?: Partial<ScheduledPaymentFormValues>;
+  onSaved?: () => void;
+  /** For test override; defaults to global fetch. */
+  fetchImpl?: typeof fetch;
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Order weekdays appear in the WEEKLY picker. ISO/calendar convention:
+ * Monday first, Sunday last (matches every paper calendar and Apple/
+ * Google's `firstDayOfWeek` in en-EU/uk/pl). The underlying numeric
+ * scheme matches Postgres' `weekly_dow` (Sunday=0..Saturday=6) so the
+ * array maps presentation order → API value with one indirection.
+ *
+ * Exported for test coverage — the array IS the contract.
+ */
+export const WEEKDAY_ORDER: ReadonlyArray<number> = [1, 2, 3, 4, 5, 6, 0];
+
+export function ScheduledPaymentForm({
+  open,
+  onOpenChange,
+  mode,
+  budgetId,
+  defaultCurrency,
+  categories,
+  initialValues,
+  onSaved,
+  fetchImpl,
+}: ScheduledPaymentFormProps) {
+  const t = useTranslations("budgeting.scheduled");
+  const queryClient = useQueryClient();
+  const offlineToast = useOfflineWriteToast();
+
+  // Normalize the prefilled amount so the input value matches the
+  // shape the spendings grid uses ("1500", "123.50") instead of the
+  // backend's raw 4-fractional-digit string ("1500.0000", "123.5000").
+  // UAT-Phase6-Test7 retest #2: users see badly formatted amounts on
+  // edit and expect grid-consistent formatting.
+  const [amount, setAmount] = useState(
+    initialValues?.amount ? formatAmountForList(initialValues.amount) : "",
+  );
+  // Create-mode seeds from the budget's default currency; edit-mode
+  // keeps the rule's saved currency. "USD" is the fallback for tests
+  // and the standalone /scheduled stub page.
+  const [currency, setCurrency] = useState(
+    initialValues?.currency ?? defaultCurrency ?? "USD",
+  );
+  const [categoryId, setCategoryId] = useState<string | null>(
+    initialValues?.categoryId ?? null,
+  );
+  // Edits can only sit in WEEKLY/MONTHLY/YEARLY in the new UI. If an
+  // existing rule arrived with the dropped DAILY cadence we coerce it
+  // to MONTHLY so the picker has a defined value; the PATCH body never
+  // sends cadence (edits-only schema), so the row keeps its DB value.
+  const initialCadence: RuleCadence =
+    initialValues?.cadence === "ONCE" ||
+    initialValues?.cadence === "WEEKLY" ||
+    initialValues?.cadence === "MONTHLY" ||
+    initialValues?.cadence === "YEARLY"
+      ? initialValues.cadence
+      : "MONTHLY";
+  const [cadence, setCadence] = useState<RuleCadence>(initialCadence);
+  // UAT round 14: cadenceAnchor is a STRING in state so the day input can
+  // be transiently empty while editing (user backspaces 1 → "" → types
+  // 1..31). Previously `setCadenceAnchor(parseInt(e.target.value) || 1)`
+  // forced the value back to 1 on every backspace, making it impossible
+  // to clear the field. Submit-time parsing clamps to 1..31 with a
+  // default of 1 when blank, so the wire contract is unchanged.
+  const [cadenceAnchorRaw, setCadenceAnchorRaw] = useState<string>(
+    String(initialValues?.cadenceAnchor ?? 1),
+  );
+  // Default picker selection matches WEEKDAY_ORDER[0] (Monday).
+  const [weeklyDow, setWeeklyDow] = useState<number>(
+    initialValues?.weeklyDow ?? WEEKDAY_ORDER[0]!,
+  );
+  const [yearlyMonth, setYearlyMonth] = useState<number>(
+    initialValues?.yearlyMonth ?? 1,
+  );
+  // First due date AUTO-FOLLOWS the picked cadence + day: it fills with the
+  // nearest upcoming matching date (today counts). An edit that already has a
+  // date, or a manual date pick, freezes it (firstDueTouched) so we never
+  // override the user's own choice.
+  const firstDueTouched = useRef<boolean>(
+    mode === "edit" && initialValues?.firstDueDate != null,
+  );
+  const [firstDueDate, setFirstDueDate] = useState(
+    () =>
+      initialValues?.firstDueDate ??
+      // A one-time payment has no rhythm to follow, so there is no "nearest
+      // matching date" to compute — today stands in until the household picks.
+      (initialCadence === "ONCE"
+        ? todayIso()
+        : nextDueDate(
+            initialCadence,
+            {
+              weeklyDow: initialValues?.weeklyDow ?? WEEKDAY_ORDER[0]!,
+              dayOfMonth: Number(initialValues?.cadenceAnchor ?? 1),
+              yearlyMonth: initialValues?.yearlyMonth ?? 1,
+            },
+            todayIso(),
+          )),
+  );
+  useEffect(() => {
+    if (firstDueTouched.current) return;
+    // Nothing to follow for a one-time payment — leave the date alone rather
+    // than snapping it back on every re-render.
+    if (cadence === "ONCE") return;
+    const dom = parseInt(cadenceAnchorRaw, 10);
+    setFirstDueDate(
+      nextDueDate(
+        cadence,
+        {
+          weeklyDow,
+          dayOfMonth: Number.isFinite(dom) ? dom : 1,
+          yearlyMonth,
+        },
+        todayIso(),
+      ),
+    );
+  }, [cadence, weeklyDow, cadenceAnchorRaw, yearlyMonth]);
+  // Optional "last date" — empty string = no deadline. Free-follows nothing;
+  // the user sets it explicitly (or clears it via the native date control).
+  const [lastDate, setLastDate] = useState(initialValues?.endDate ?? "");
+  const [note, setNote] = useState(initialValues?.note ?? "");
+  // applyToFuture is permanently true — UAT-Phase6-Test7 retest: the
+  // user always wants edits to flow to upcoming drafts; the explicit
+  // checkbox was treated as noise and intentionally removed from the
+  // UI. PATCH body still carries `applyToFuture: true` for backend
+  // compatibility.
+  const applyToFuture = true;
+  const [saving, setSaving] = useState(false);
+
+  // Honest-offline write path. A test-supplied `fetchImpl` still wins (it
+  // receives the full /api/... URL + init exactly as before); otherwise the
+  // call routes through clientApiWrite, which prefixes /api, attaches
+  // X-Budget-ID, and throws OfflineWriteError on offline / unreachable / hung /
+  // 5xx so the catch below shows the shared offline toast.
+  const doFetch = fetchImpl
+    ? fetchImpl
+    : (url: string, init?: RequestInit) =>
+        clientApiWrite(url.replace(/^\/api/, ""), init ?? {});
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    try {
+      // UAT round 14: parse the string-state cadence anchor at submit
+      // time. Empty / non-numeric → 1. Otherwise clamp to 1..31.
+      const parsedAnchor = parseInt(cadenceAnchorRaw, 10);
+      const cadenceAnchor = Number.isFinite(parsedAnchor)
+        ? Math.max(1, Math.min(31, parsedAnchor))
+        : 1;
+      // The API takes a decimal STRING and accepts a dot only, so a comma
+      // keyboard ("73,8" — the Polish layout's decimal key) was rejected and the
+      // save died on a bare "Failed to create rule" (user report, 260803). Say
+      // what is wrong rather than spending a round trip to find out.
+      const amountValue = toDecimalString(amount);
+      if (amountValue === null) {
+        toast.error(t("rule.errorAmount"));
+        return;
+      }
+      // A one-time payment's deadline IS its date, which is why the last-date
+      // field is hidden for ONCE — but the hidden STATE still held the date the
+      // rule was loaded with, so moving the payment forward compared the new
+      // date against the old deadline and refused the save (user, 260809: Japan,
+      // 1 Aug → 1 Nov 2027). Let the deadline follow the date, as the service
+      // already does when it stores the row.
+      // Otherwise "last date" is optional, and when set it cannot precede the
+      // first due date. ISO YYYY-MM-DD strings compare chronologically.
+      const endDate = cadence === "ONCE" ? firstDueDate : lastDate || null;
+      if (cadence !== "ONCE" && endDate !== null && endDate < firstDueDate) {
+        toast.error(t("rule.errorLastBeforeFirst"));
+        return;
+      }
+      if (mode === "create") {
+        // Backend v1.1 contract: snake_case + cadence-discriminated body.
+        // Plain object first, then spread the cadence discriminator into
+        // a single payload to keep the union typesafe across branches.
+        const cadencePart: Record<string, unknown> =
+          cadence === "ONCE"
+            ? { cadence: "ONCE" }
+            : cadence === "WEEKLY"
+              ? { cadence: "WEEKLY", weekly_dow: weeklyDow }
+              : cadence === "MONTHLY"
+                ? { cadence: "MONTHLY", cadence_anchor: cadenceAnchor }
+                : {
+                    cadence: "YEARLY",
+                    yearly_month: yearlyMonth,
+                    cadence_anchor: cadenceAnchor,
+                  };
+        // Post to the budget-scoped path so requireWorkspace resolves
+        // tenancy from the URL segment; fall back to the legacy root
+        // mount + X-Budget-ID header when the caller did not pass an id.
+        const url = budgetId
+          ? `/api/budgets/${budgetId}/scheduled-payments`
+          : "/api/scheduled-payments";
+        const res = await doFetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": uuidv4(),
+            ...(budgetId ? { "X-Budget-ID": budgetId } : {}),
+          },
+          body: JSON.stringify({
+            amount: amountValue,
+            currency,
+            category_id: categoryId,
+            note: note || null,
+            first_due_date: firstDueDate,
+            end_date: endDate,
+            ...cadencePart,
+          }),
+        });
+        if (!res.ok) {
+          toast.error(t("errors.create"));
+          return;
+        }
+        // UAT round 11: creating a rule with first_due_date <= today
+        // synchronously materialises the first draft + emits CONFIRM_DRAFT
+        // server-side (create-scheduled-payment.ts catch-up loop, commit
+        // 4480afc). Invalidate the per-budget tasks query so the Spendings
+        // pill badge + slider show the new task within ~1 tick instead of
+        // waiting for the 60 s React Query poll.
+        if (budgetId) {
+          queryClient.invalidateQueries({
+            queryKey: ["tasks", budgetId, "pending"],
+          });
+        }
+      } else {
+        const ruleId = initialValues?.ruleId;
+        if (!ruleId) return;
+        const editUrl = budgetId
+          ? `/api/budgets/${budgetId}/scheduled-payments/${ruleId}`
+          : `/api/scheduled-payments/${ruleId}`;
+        // Cadence discriminator (camelCase — the edits schema mirrors
+        // `categoryId`). The backend persists these AND recomputes
+        // next_due_date so a changed day fires on the new schedule.
+        const editCadencePart: Record<string, unknown> =
+          // A one-time payment has no pattern for the backend to recompute
+          // from, so the date rides along explicitly — and the service moves
+          // the deadline with it.
+          cadence === "ONCE"
+            ? { cadence: "ONCE", nextDueDate: firstDueDate }
+            : cadence === "WEEKLY"
+              ? { cadence: "WEEKLY", weeklyDow }
+              : cadence === "MONTHLY"
+                ? { cadence: "MONTHLY", cadenceAnchor }
+                : {
+                    cadence: "YEARLY",
+                    yearlyMonth,
+                    cadenceAnchor,
+                  };
+        const res = await doFetch(editUrl, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": uuidv4(),
+            ...(budgetId ? { "X-Budget-ID": budgetId } : {}),
+          },
+          body: JSON.stringify({
+            edits: {
+              amount: amountValue,
+              currency,
+              categoryId,
+              note: note || null,
+              endDate,
+              ...editCadencePart,
+            },
+            applyToFuture,
+          }),
+        });
+        if (!res.ok) {
+          toast.error(t("errors.update"));
+          return;
+        }
+        // UAT round 11: editing a rule can change the next-due materialise
+        // path; refresh the tasks query for the same reason as the create
+        // branch above.
+        if (budgetId) {
+          queryClient.invalidateQueries({
+            queryKey: ["tasks", budgetId, "pending"],
+          });
+        }
+      }
+      onSaved?.();
+      onOpenChange(false);
+    } catch (err) {
+      // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
+      // The finally below resets `saving` so the spinner never sticks.
+      if (isOfflineWriteError(err)) {
+        offlineToast();
+        return;
+      }
+      // Non-offline throw → mirror the per-mode generic error already used on
+      // a non-ok response.
+      toast.error(t(mode === "create" ? "errors.create" : "errors.update"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-md flex flex-col p-0 overflow-y-auto"
+        // iOS standalone PWA: Radix auto-focuses the first field on open →
+        // the soft keyboard pans the layout viewport up (no browser chrome to
+        // absorb it), shifting the whole sheet up and hiding the title/X.
+        // Prevent autofocus; the user taps to focus.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+        }}
+      >
+        <SheetHeader className="px-6 py-4 border-b border-[var(--hairline-dark)]">
+          <SheetTitle>
+            {mode === "create" ? t("rule.title") : t("rule.editTitle")}
+          </SheetTitle>
+        </SheetHeader>
+
+        <form onSubmit={handleSubmit} className="flex flex-col">
+          <div className="px-6 py-4 space-y-4">
+            {/* Name — first + mandatory. Stored in the `note` column (it already
+                serves as the rule's label / task ruleName), so no schema change. */}
+            <div>
+              <Label htmlFor="rr-name">{t("rule.nameLabel")}</Label>
+              <Input
+                id="rr-name"
+                type="text"
+                value={note ?? ""}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder={t("rule.namePlaceholder")}
+                required
+              />
+            </div>
+
+            {/* Amount + currency share a row, mirroring the transaction
+                slider's amount-and-currency line. */}
+            <div className="grid grid-cols-[1fr_auto] gap-3">
+              <div>
+                <Label htmlFor="rr-amount">{t("rule.amountLabel")}</Label>
+                <Input
+                  id="rr-amount"
+                  type="text"
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="w-32">
+                <Label>{t("rule.currencyLabel")}</Label>
+                <CurrencyPicker
+                  value={currency}
+                  onSelect={setCurrency}
+                  variant="field"
+                />
+              </div>
+            </div>
+
+            {/* Category picker — mandatory. The form blocks Save until
+                a category is chosen so the draft has a column to land
+                in (UAT-Phase6-Test7 retest). Empty state renders an
+                un-selectable placeholder via the Radix `value` prop
+                left unset; once the user picks a value, the Save button
+                un-disables (see the disabled prop on the submit button). */}
+            {categories && categories.length > 0 && (
+              <div>
+                <Label htmlFor="rr-category">{t("rule.categoryLabel")}</Label>
+                <Select
+                  // UAT round 13: keep value undefined when categoryId is
+                  // null so the trigger shows the *placeholder* rather than
+                  // resolving to a category label. Radix only renders the
+                  // SelectValue placeholder when `value` is undefined.
+                  value={categoryId ?? undefined}
+                  onValueChange={(v) => setCategoryId(v)}
+                >
+                  <SelectTrigger id="rr-category">
+                    <SelectValue placeholder={t("rule.categoryPlaceholder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Cadence + anchor + first-due fields render in both
+                create AND edit modes (UAT-Phase6-Test7 retest: edit
+                used to hide everything below the amount/currency row).
+                Edit reuses the same state — the PATCH body now carries the
+                cadence discriminator (cadence + cadenceAnchor / weeklyDow /
+                yearlyMonth), so changing the day persists and the backend
+                recomputes next_due_date to fire on the new schedule. */}
+            <>
+              {/* Cadence picker: weekly / monthly / yearly tiles.
+                    The transfer/income kind toggle was dropped — all
+                    rules are expenses. */}
+              <div>
+                <Label>{t("rule.cadenceLabel")}</Label>
+                {/* Two columns on a phone: four choices in one row clipped the
+                    last one (user screenshot, 260807). */}
+                <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-4">
+                  <Button
+                    type="button"
+                    variant={cadence === "ONCE" ? "primary" : "outline"}
+                    onClick={() => setCadence("ONCE")}
+                    className="w-full"
+                  >
+                    {t("rule.once")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={cadence === "WEEKLY" ? "primary" : "outline"}
+                    onClick={() => setCadence("WEEKLY")}
+                    className="w-full"
+                  >
+                    {t("rule.weekly")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={cadence === "MONTHLY" ? "primary" : "outline"}
+                    onClick={() => setCadence("MONTHLY")}
+                    className="w-full"
+                  >
+                    {t("rule.monthly")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={cadence === "YEARLY" ? "primary" : "outline"}
+                    onClick={() => setCadence("YEARLY")}
+                    className="w-full"
+                  >
+                    {t("rule.yearly")}
+                  </Button>
+                </div>
+              </div>
+
+              {cadence === "WEEKLY" && (
+                <div>
+                  <Label htmlFor="rr-dow">{t("rule.weekdayLabel")}</Label>
+                  <Select
+                    value={String(weeklyDow)}
+                    onValueChange={(v) => setWeeklyDow(parseInt(v, 10))}
+                  >
+                    <SelectTrigger id="rr-dow">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {WEEKDAY_ORDER.map((dow) => (
+                        <SelectItem key={dow} value={String(dow)}>
+                          {t(`rule.weekdays.${dow}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {cadence === "MONTHLY" && (
+                <div>
+                  <Label htmlFor="rr-anchor">{t("rule.anchorDayLabel")}</Label>
+                  <Input
+                    id="rr-anchor"
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={cadenceAnchorRaw}
+                    onChange={(e) => setCadenceAnchorRaw(e.target.value)}
+                    onBlur={() => {
+                      const n = parseInt(cadenceAnchorRaw, 10);
+                      const clamped = Number.isFinite(n)
+                        ? Math.max(1, Math.min(31, n))
+                        : 1;
+                      setCadenceAnchorRaw(String(clamped));
+                    }}
+                  />
+                </div>
+              )}
+
+              {cadence === "YEARLY" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="rr-yearly-month">
+                      {t("rule.yearlyMonthLabel")}
+                    </Label>
+                    <Select
+                      value={String(yearlyMonth)}
+                      onValueChange={(v) => setYearlyMonth(parseInt(v, 10))}
+                    >
+                      <SelectTrigger id="rr-yearly-month">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => (
+                          <SelectItem key={m} value={String(m)}>
+                            {t(`rule.months.${m}`)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="rr-yearly-day">
+                      {t("rule.anchorDayLabel")}
+                    </Label>
+                    <Input
+                      id="rr-yearly-day"
+                      type="number"
+                      min={1}
+                      max={31}
+                      value={cadenceAnchorRaw}
+                      onChange={(e) => setCadenceAnchorRaw(e.target.value)}
+                      onBlur={() => {
+                        const n = parseInt(cadenceAnchorRaw, 10);
+                        const clamped = Number.isFinite(n)
+                          ? Math.max(1, Math.min(31, n))
+                          : 1;
+                        setCadenceAnchorRaw(String(clamped));
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* UAT round 17: shared DateInput renders the value as
+                  "13 Jul 2026" (locale-aware short month) via an overlay
+                  span and applies `color-scheme: dark` so the native
+                  calendar popover matches the app's dark canvas. The
+                  native input is the actual click target so mobile
+                  (iOS/Android) opens the calendar reliably. */}
+              <div>
+                <Label htmlFor="rr-firstdue">
+                  {/* On an EXISTING rule this is the NEXT occurrence — the
+                      field is bound to next_due_date, which moves forward
+                      every time one is generated. Calling it "first due date"
+                      there said the opposite: a yearly rule created in 2023
+                      showed 2026 and read as the day it began (user, 260809). */}
+                  {t(
+                    cadence === "ONCE"
+                      ? "rule.dateLabel"
+                      : mode === "edit"
+                        ? "rule.nextDueLabel"
+                        : "rule.firstDueLabel",
+                  )}
+                </Label>
+                <DateInput
+                  id="rr-firstdue"
+                  value={firstDueDate}
+                  onChange={(v) => {
+                    // A manual pick freezes the auto-follow.
+                    firstDueTouched.current = true;
+                    setFirstDueDate(v);
+                  }}
+                />
+              </div>
+
+              {/* Optional "last date": empty = no deadline; when set, drafts
+                  generate only up to and including it. `min` = first due so the
+                  native picker won't offer earlier days (submit also guards). */}
+              {/* A one-time payment's deadline IS its date — the service
+                  derives end_date from it, so offering the field would ask the
+                  same question twice (user, 260807). */}
+              {cadence !== "ONCE" && (
+                <div>
+                  <Label htmlFor="rr-lastdue">{t("rule.lastDueLabel")}</Label>
+                  <DateInput
+                    id="rr-lastdue"
+                    value={lastDate}
+                    min={firstDueDate}
+                    placeholder={t("rule.lastDuePlaceholder")}
+                    onChange={(v) => setLastDate(v)}
+                  />
+                </div>
+              )}
+            </>
+
+            {/* `Also apply to future occurrences` checkbox removed per
+                UAT-Phase6-Test7 retest — it's always true. */}
+          </div>
+
+          <SheetFooter className="px-6 py-4 mt-auto pt-4 flex gap-3 border-t border-[var(--hairline-dark)]">
+            {/* `h-14 text-base` per UAT-Phase6-Test7 retest #2 — the
+                h-12 height matched transaction-slider exactly but the
+                user wanted a chunkier tap target on iPhone (48 → 56px).
+                The transaction-slider was bumped in lockstep so both
+                sliders still feel identical on mobile. */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="h-14 text-base w-full sm:flex-1"
+            >
+              {t("rule.cancelButton")}
+            </Button>
+            <Button
+              type="submit"
+              disabled={
+                saving ||
+                !note?.trim() ||
+                // Budget-scoped rules MUST be categorised — the generated spending
+                // draft needs a column to land in. Gating on budgetId (not on
+                // categories.length) closes the race where the categories query
+                // hasn't resolved yet: without it, an empty list slipped through
+                // and a category-less rule was created.
+                (!!budgetId && !categoryId)
+              }
+              className="h-14 text-base w-full sm:flex-1 bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-active)]"
+            >
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("rule.saveButton")}
+            </Button>
+          </SheetFooter>
+        </form>
+      </SheetContent>
+    </Sheet>
+  );
+}

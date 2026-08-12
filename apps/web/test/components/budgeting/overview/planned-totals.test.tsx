@@ -353,3 +353,27 @@ describe("PlannedTotals", () => {
     expect(cell("spent").textContent).toBe("0 zl");
   });
 });
+
+/**
+ * A fractional divisor (user, 260810): the month still running counts as the
+ * days it has had. `BigInt(1.32)` throws, so the averaging cannot be integer
+ * division any more.
+ */
+describe("PlannedTotals — averaging over a part-month", () => {
+  it("divides by the fraction, not by a whole month", () => {
+    render(
+      <PlannedTotals
+        plannedCents="100000"
+        spentCents="100000"
+        withinLimitCents="100000"
+        reserveUsedCents="0"
+        overspentCents="0"
+        format={fmt}
+        months={1 + 10 / 31}
+      />,
+    );
+    // 1,000 over 1.323 months = 756.1 a month, not 1,000 and not a crash.
+    const avg = screen.getByTestId("planned-total-spent-avg").textContent ?? "";
+    expect(avg).toContain("756");
+  });
+});

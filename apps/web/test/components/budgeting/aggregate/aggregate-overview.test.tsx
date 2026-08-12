@@ -259,16 +259,16 @@ describe("AggregateOverview — remembered range", () => {
   it("opens on the stored range", () => {
     userPrefs.current = { overviewRange: ["last12Months"] };
     render(<AggregateOverview />);
-    expect(
-      screen.getByTestId("aggregate-range-value").textContent,
-    ).toBe("last12Months");
+    expect(screen.getByTestId("aggregate-range-value").textContent).toBe(
+      "last12Months",
+    );
   });
 
   it("opens on six months when nothing is stored", () => {
     render(<AggregateOverview />);
-    expect(
-      screen.getByTestId("aggregate-range-value").textContent,
-    ).toBe("last6Months");
+    expect(screen.getByTestId("aggregate-range-value").textContent).toBe(
+      "last6Months",
+    );
   });
 
   // Drawing before the stored pick lands would fetch a trend for the default
@@ -304,8 +304,74 @@ describe("AggregateOverview — offline with no stored range", () => {
     link.degraded = true;
     render(<AggregateOverview />);
     expect(screen.queryByTestId("aggregate-loading")).toBeNull();
-    expect(
-      screen.getByTestId("aggregate-range-value").textContent,
-    ).toBe("last6Months");
+    expect(screen.getByTestId("aggregate-range-value").textContent).toBe(
+      "last6Months",
+    );
+  });
+});
+
+/**
+ * The all-budgets "Available to spend" card (user, 260811).
+ *
+ * It called its lower line "Left", while the per-budget card calls the same
+ * quantity "Upcoming" — one number, two names. And it carried a green tick or a
+ * red alert, which reads as a verdict on money that has not happened yet.
+ * Across many budgets there is no single forecast to be right or wrong about,
+ * so the card states the figures and passes no judgement: no icon at all.
+ */
+describe("AggregateOverview — available to spend", () => {
+  beforeEach(() => {
+    dataRef.current = DATA;
+  });
+
+  it("calls the lower line 'upcoming', matching the per-budget card", () => {
+    render(<AggregateOverview />);
+    const card = screen.getByTestId("aggregate-card-available-to-spend");
+    expect(within(card).getByText("upcoming")).toBeTruthy();
+    expect(within(card).queryByText("left")).toBeNull();
+  });
+
+  it("goes green when every budget's forecast stays above water", () => {
+    dataRef.current = { ...DATA, forecast_status: "green" };
+    render(<AggregateOverview />);
+    const card = screen.getByTestId("aggregate-card-available-to-spend");
+    expect(within(card).getByTestId("aggregate-spend-good")).toBeTruthy();
+    expect(within(card).queryByTestId("aggregate-spend-warn")).toBeNull();
+    expect(within(card).queryByTestId("aggregate-spend-bad")).toBeNull();
+  });
+
+  it("goes yellow when a budget dips but the others could cover it", () => {
+    dataRef.current = { ...DATA, forecast_status: "yellow" };
+    render(<AggregateOverview />);
+    const card = screen.getByTestId("aggregate-card-available-to-spend");
+    expect(within(card).getByTestId("aggregate-spend-warn")).toBeTruthy();
+    expect(within(card).queryByTestId("aggregate-spend-good")).toBeNull();
+    expect(within(card).queryByTestId("aggregate-spend-bad")).toBeNull();
+  });
+
+  it("goes red when the holes are deeper than everything else together", () => {
+    dataRef.current = { ...DATA, forecast_status: "red" };
+    render(<AggregateOverview />);
+    const card = screen.getByTestId("aggregate-card-available-to-spend");
+    expect(within(card).getByTestId("aggregate-spend-bad")).toBeTruthy();
+    expect(within(card).queryByTestId("aggregate-spend-good")).toBeNull();
+  });
+
+  it("falls back to cash-vs-upcoming for a payload cached before forecasts", () => {
+    // Fixture cash 4,000 vs upcoming 800 → covered.
+    dataRef.current = DATA;
+    render(<AggregateOverview />);
+    const card = screen.getByTestId("aggregate-card-available-to-spend");
+    expect(within(card).getByTestId("aggregate-spend-good")).toBeTruthy();
+  });
+
+  it("…and shows red on that fallback when cash does not cover it", () => {
+    dataRef.current = {
+      ...DATA,
+      budgets: [makeBudget({ cash_cents: "10000", left_month_cents: "90000" })],
+    };
+    render(<AggregateOverview />);
+    const card = screen.getByTestId("aggregate-card-available-to-spend");
+    expect(within(card).getByTestId("aggregate-spend-bad")).toBeTruthy();
   });
 });
