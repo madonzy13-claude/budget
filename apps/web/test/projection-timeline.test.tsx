@@ -181,6 +181,29 @@ describe("ProjectionTimeline", () => {
     );
   });
 
+  // The sign carries the direction, not the amount: every figure in the block
+  // is one ink so the column scans as a column (user, 260812).
+  test("the sign is coloured, the amounts are not", async () => {
+    const { default: userEventDefault } =
+      await import("@testing-library/user-event");
+    const user = userEventDefault.setup();
+    renderIt(false);
+    // day 3 has both an income (+) and bills (−)
+    await user.hover(screen.getAllByTestId("projection-day")[2]);
+    const plus = screen.getByTestId("projection-income-term");
+    const minus = screen.getByTestId("projection-bill-total");
+    const signOf = (row: HTMLElement) =>
+      row.querySelector("span > span[aria-hidden]") as HTMLElement;
+    expect(signOf(plus).textContent).toBe("+");
+    expect(signOf(plus).style.color).toContain("--trading-up");
+    expect(signOf(minus).textContent).toBe("−");
+    expect(signOf(minus).style.color).toContain("--trading-down");
+    // amounts stay the neutral body ink
+    const amountOf = (row: HTMLElement) => row.lastElementChild as HTMLElement;
+    expect(amountOf(plus).className).toContain("text-[var(--body-on-dark)]");
+    expect(amountOf(plus).style.color).toBe("");
+  });
+
   test("a day with no planned burn omits the row", async () => {
     const { default: userEventDefault } =
       await import("@testing-library/user-event");

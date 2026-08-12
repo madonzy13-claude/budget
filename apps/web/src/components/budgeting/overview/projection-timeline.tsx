@@ -224,18 +224,19 @@ export function ProjectionTimeline({
   );
 }
 
-/** One term of the day's arithmetic: sign + label on the left, amount right. */
+/** One term of the day's arithmetic: sign + label on the left, amount right.
+ *  The SIGN carries the colour — green adds, red takes away — so the direction
+ *  reads down the column at a glance and the figures stay one uniform ink
+ *  (colouring the amounts made income the only loud number, user 260812). */
 function LedgerRow({
   sign,
   label,
   amount,
-  color,
   testId,
 }: {
   sign?: "+" | "−";
   label: string;
   amount: React.ReactNode;
-  color?: string;
   testId?: string;
 }) {
   return (
@@ -243,14 +244,21 @@ function LedgerRow({
       data-testid={testId}
       className="flex items-baseline justify-between gap-3"
     >
-      <span className="min-w-0 truncate text-[var(--muted-foreground)]">
-        {sign ? `${sign} ` : ""}
-        {label}
+      <span className="flex min-w-0 items-baseline gap-1 text-[var(--muted-foreground)]">
+        {sign && (
+          <span
+            aria-hidden="true"
+            className="shrink-0 font-semibold"
+            style={{
+              color: sign === "+" ? "var(--trading-up)" : "var(--trading-down)",
+            }}
+          >
+            {sign}
+          </span>
+        )}
+        <span className="min-w-0 truncate">{label}</span>
       </span>
-      <span
-        className="shrink-0 tabular-nums"
-        style={{ color: color ?? "var(--body-on-dark)" }}
-      >
+      <span className="shrink-0 tabular-nums text-[var(--body-on-dark)]">
         {amount}
       </span>
     </div>
@@ -370,7 +378,7 @@ function ProjectionTooltip({
             sign="+"
             label={t("income")}
             amount={money(day.income_cents)}
-            color="var(--trading-up)"
+            testId="projection-income-term"
           />
         )}
         {Number(day.bill_cents) > 0 && (
@@ -394,7 +402,7 @@ function ProjectionTooltip({
             sign="+"
             label={t("reserveUsed")}
             amount={money(day.reserve_covered_cents)}
-            color="var(--primary)"
+            testId="projection-reserve-term"
           />
         )}
       </div>
