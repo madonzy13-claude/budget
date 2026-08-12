@@ -65,6 +65,12 @@ export function registerOverviewProjectionRoutes(r: Hono, deps: BootedDeps) {
             category_id: x.categoryId,
             amount_cents: x.amountCents.toString(),
           })),
+          // What can leave the budget today with every dip still covered — the
+          // lowest point of a worst-case run (see simulate-cashflow-projection).
+          safe_to_withdraw: {
+            cents: p.safeToWithdraw.cents.toString(),
+            thinnest_date: p.safeToWithdraw.thinnestDate,
+          },
           summary: {
             first_yellow_date: p.summary.firstYellowDate,
             first_red_date: p.summary.firstRedDate,

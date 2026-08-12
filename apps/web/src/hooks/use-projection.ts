@@ -46,6 +46,13 @@ export interface ProjectionDTO {
     first_red_date: string | null;
     worst_shortfall_cents: string;
   };
+  /**
+   * What can leave the budget TODAY with every dip in the 92-day window still
+   * covered — the lowest point of a worst-case run (each month's plan spendable
+   * the moment the month opens). Negative = you are short by that much. Optional:
+   * an offline cache written by an older build has no such field.
+   */
+  safe_to_withdraw?: { cents: string; thinnest_date: string | null };
   /** "Available to spend" card health (dot + surplus/deficit). `good` is null and
    *  `surplus_deficit_cents` is null when there is no upcoming income (grey dot,
    *  card falls back to its "upcoming" figure). */

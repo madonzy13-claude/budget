@@ -50,6 +50,9 @@ const specOf = (r: CadenceRow): CadenceSpec => ({
 /** Backstop so a malformed cadence can never spin the projection loop forever. */
 export const MAX_PROJECTION_STEPS = 400;
 
+/** How far ahead the forecast looks: a rolling quarter (user, 260812). */
+export const PROJECTION_WINDOW_DAYS = 92;
+
 /**
  * Occurrence ISO dates strictly after `afterExclusive`, up to and including `end`,
  * following `spec` from `seed`. `seed` may be in the past (a scheduled rule's
@@ -99,13 +102,32 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
     const asOf = deps.now ? deps.now() : new Date();
     const today = Temporal.Now.plainDateISO();
     const startMonth = today.with({ day: 1 });
-    const nextMonthStart = startMonth.add({ months: 1 });
-    const windowEnd = nextMonthStart.with({ day: nextMonthStart.daysInMonth });
+    // 92 days — a rolling quarter (user, 260812). "To the end of next month" was
+    // a horizon that shrank as the month ran out: on the 30th it forecast one
+    // month, on the 1st two. A fixed span always looks the same distance ahead.
+    const windowEnd = today.add({ days: PROJECTION_WINDOW_DAYS - 1 });
     const thisMonthStartStr = startMonth.toString();
     const thisMonthEndStr = startMonth
       .with({ day: startMonth.daysInMonth })
       .toString();
-    const nextMonthStartStr = nextMonthStart.toString();
+
+    // Every month the window touches (up to four), and the date at which each
+    // one's limit is read: TODAY for the running month — a limit raised
+    // mid-month is in force now — and the 1st for the months after it.
+    const monthProbes: { key: string; asOfDate: string }[] = [];
+    for (
+      let m = startMonth;
+      Temporal.PlainDate.compare(m, windowEnd) <= 0;
+      m = m.add({ months: 1 })
+    ) {
+      const key = `${m.year}-${String(m.month).padStart(2, "0")}`;
+      monthProbes.push({
+        key,
+        asOfDate: monthProbes.length === 0 ? today.toString() : m.toString(),
+      });
+    }
+    const firstProbe = monthProbes[0]!.asOfDate;
+    const lastProbe = monthProbes[monthProbes.length - 1]!.asOfDate;
 
     // One read tx for all budget rows (read-only; no atomicity needed).
     const loaded = await withTenantTx(
@@ -124,13 +146,16 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
             .cushion_mode_enabled,
         );
 
+        // SPENDINGS only. Cushion money is not spendable where it sits — moving
+        // it into a spendings wallet is a deliberate act, and until the member
+        // makes it the forecast must not spend it for them (user, 260812).
         const wallets = await tx.execute(sql`
           SELECT (current_balance * 100)::bigint::text AS amount_cents, currency
             FROM budgeting.wallets
            WHERE tenant_id = ${input.tenantId}::uuid
              AND archived_at IS NULL
              AND current_balance >= 0
-             AND wallet_type IN ('SPENDINGS'${cushionMode ? sql`, 'CUSHION'` : sql``})`);
+             AND wallet_type = 'SPENDINGS'`);
 
         // Categories + this-month + next-month active limits (cushion vs normal).
         // POINT-IN-TIME predicates (limit effective ON a single date), NOT a
@@ -141,22 +166,27 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
         // → doubled budget. `tl` = limit effective today; `nl` = limit effective at
         // the first of next month. Mirrors get-income-vs-planned's effective-today.
         const cats = await tx.execute(sql`
-          SELECT c.id::text AS id, c.name AS name,
-                 COALESCE(tl.normal_amount, 0)::text AS this_normal,
-                 COALESCE(tl.cushion_amount, 0)::text AS this_cushion,
-                 COALESCE(nl.normal_amount, 0)::text AS next_normal,
-                 COALESCE(nl.cushion_amount, 0)::text AS next_cushion
+          SELECT c.id::text AS id, c.name AS name
             FROM budgeting.categories c
-            LEFT JOIN budgeting.category_limits tl
-              ON tl.category_id = c.id
-             AND tl.effective_from <= ${today.toString()}::date
-             AND (tl.effective_to IS NULL OR tl.effective_to > ${today.toString()}::date)
-            LEFT JOIN budgeting.category_limits nl
-              ON nl.category_id = c.id
-             AND nl.effective_from <= ${nextMonthStartStr}::date
-             AND (nl.effective_to IS NULL OR nl.effective_to > ${nextMonthStartStr}::date)
            WHERE c.tenant_id = ${input.tenantId}::uuid
              AND c.archived_at IS NULL`);
+
+        // Every limit in force at any of the month probes, resolved per month in
+        // JS. SCD-2 keeps the rows non-overlapping at an instant, so the
+        // point-in-time predicate below picks exactly one per category per probe
+        // — and it holds for reconstructed rows too, which close on the month's
+        // LAST day rather than the next month's first.
+        const limits = await tx.execute(sql`
+          SELECT cl.category_id::text AS category_id,
+                 cl.normal_amount::text AS normal_amount,
+                 cl.cushion_amount::text AS cushion_amount,
+                 cl.effective_from::text AS effective_from,
+                 cl.effective_to::text AS effective_to
+            FROM budgeting.category_limits cl
+            JOIN budgeting.categories c ON c.id = cl.category_id
+           WHERE c.tenant_id = ${input.tenantId}::uuid
+             AND cl.effective_from <= ${lastProbe}::date
+             AND (cl.effective_to IS NULL OR cl.effective_to > ${firstProbe}::date)`);
 
         const spend = await tx.execute(sql`
           SELECT category_id::text AS id, SUM(amount_converted_cents)::text AS spent
@@ -213,6 +243,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
           cushionMode,
           walletRows: wallets.rows,
           catRows: cats.rows,
+          limitRows: limits.rows,
           spendRows: spend.rows,
           pendingRows: pending.rows,
           incomeRows: incomes.rows,
@@ -266,16 +297,40 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
         BigInt((r as { spent: string }).spent),
       );
 
+    // The limit in force at each month probe, per category.
+    type LimitRow = {
+      category_id: string;
+      normal_amount: string;
+      cushion_amount: string;
+      effective_from: string;
+      effective_to: string | null;
+    };
+    const limitsByCat = new Map<string, LimitRow[]>();
+    for (const raw of L.limitRows as LimitRow[]) {
+      const arr = limitsByCat.get(raw.category_id) ?? [];
+      arr.push(raw);
+      limitsByCat.set(raw.category_id, arr);
+    }
+    const budgetAt = (categoryId: string, onDate: string): bigint => {
+      const row = (limitsByCat.get(categoryId) ?? []).find(
+        (l) =>
+          l.effective_from <= onDate &&
+          (l.effective_to === null || l.effective_to > onDate),
+      );
+      if (!row) return 0n;
+      return BigInt(L.cushionMode ? row.cushion_amount : row.normal_amount);
+    };
+
     const categories: CashflowCategoryInput[] = (
       L.catRows as Record<string, string>[]
     ).map((r) => {
-      const thisBudget = BigInt(L.cushionMode ? r.this_cushion : r.this_normal);
-      const nextBudget = BigInt(L.cushionMode ? r.next_cushion : r.next_normal);
+      const budgetByMonth: Record<string, bigint> = {};
+      for (const p of monthProbes)
+        budgetByMonth[p.key] = budgetAt(r.id, p.asOfDate);
       return {
         id: r.id,
         name: r.name,
-        budgetThisMonthCents: thisBudget,
-        budgetNextMonthCents: nextBudget,
+        budgetByMonth,
         spentSoFarCents: spentById.get(r.id) ?? 0n,
       };
     });
@@ -342,7 +397,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       amountCents: BigInt(r.amount_cents as string),
     }));
 
-    return simulateCashflow({
+    const simInput = {
       today: today.toString(),
       windowEnd: windowEnd.toString(),
       currency,
@@ -352,7 +407,19 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       incomePayments,
       bills,
       pendingDrafts,
+    };
+
+    // The LINE drips the plan evenly — that is the readable shape, and the one
+    // the tooltip explains. The WITHDRAWABLE figure comes from a second, pessimistic
+    // run where each month's plan is spendable the moment the month opens: you
+    // could genuinely spend it that fast, and only that reading gives an answer
+    // that doesn't drift upward every morning you underspend (user, 260812).
+    const line = simulateCashflow({ ...simInput, spendTiming: "even" });
+    const worstCase = simulateCashflow({
+      ...simInput,
+      spendTiming: "immediate",
     });
+    return { ...line, safeToWithdraw: worstCase.safeToWithdraw };
   };
 }
 

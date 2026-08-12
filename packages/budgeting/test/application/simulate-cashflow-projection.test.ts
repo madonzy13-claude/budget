@@ -17,8 +17,7 @@ function base(overrides: Partial<CashflowSimInput> = {}): CashflowSimInput {
       {
         id: "cat-food",
         name: "Food",
-        budgetThisMonthCents: 30_000n,
-        budgetNextMonthCents: 30_000n,
+        budgetByMonth: { "2026-07": 30_000n, "2026-08": 30_000n },
         spentSoFarCents: 0n,
       },
     ],
@@ -55,8 +54,8 @@ describe("simulateCashflow", () => {
           {
             id: "c",
             name: "Food",
-            budgetThisMonthCents: 300_000n, // big discretionary burn
-            budgetNextMonthCents: 300_000n,
+            // big discretionary burn
+            budgetByMonth: { "2026-07": 300_000n, "2026-08": 300_000n },
             spentSoFarCents: 0n,
           },
         ],
@@ -77,8 +76,8 @@ describe("simulateCashflow", () => {
           {
             id: "c",
             name: "Rent",
-            budgetThisMonthCents: 0n, // no discretionary — only the bill
-            budgetNextMonthCents: 0n,
+            // no discretionary — only the bill
+            budgetByMonth: { "2026-07": 0n, "2026-08": 0n },
             spentSoFarCents: 0n,
           },
         ],
@@ -113,8 +112,7 @@ describe("simulateCashflow", () => {
           {
             id: "c",
             name: "Rent",
-            budgetThisMonthCents: 0n,
-            budgetNextMonthCents: 0n,
+            budgetByMonth: { "2026-07": 0n, "2026-08": 0n },
             spentSoFarCents: 0n,
           },
         ],
@@ -148,8 +146,7 @@ describe("simulateCashflow", () => {
           {
             id: "c",
             name: "Rent",
-            budgetThisMonthCents: 0n,
-            budgetNextMonthCents: 0n,
+            budgetByMonth: { "2026-07": 0n, "2026-08": 0n },
             spentSoFarCents: 0n,
           },
         ],
@@ -179,8 +176,7 @@ describe("simulateCashflow", () => {
           {
             id: "c",
             name: "Rent",
-            budgetThisMonthCents: 0n,
-            budgetNextMonthCents: 0n,
+            budgetByMonth: { "2026-07": 0n, "2026-08": 0n },
             spentSoFarCents: 0n,
           },
         ],
@@ -228,8 +224,7 @@ describe("simulateCashflow — reserve only covers spending past the limit", () 
           {
             id: "cat-food",
             name: "Food",
-            budgetThisMonthCents: 100_000n,
-            budgetNextMonthCents: 0n,
+            budgetByMonth: { "2026-07": 100_000n, "2026-08": 0n },
             spentSoFarCents: 0n,
           },
         ],
@@ -260,8 +255,7 @@ describe("simulateCashflow — reserve only covers spending past the limit", () 
           {
             id: "cat-food",
             name: "Food",
-            budgetThisMonthCents: 30_000n,
-            budgetNextMonthCents: 0n,
+            budgetByMonth: { "2026-07": 30_000n, "2026-08": 0n },
             spentSoFarCents: 0n,
           },
         ],
@@ -292,8 +286,7 @@ describe("simulateCashflow — reserve only covers spending past the limit", () 
           {
             id: "cat-food",
             name: "Food",
-            budgetThisMonthCents: 30_000n,
-            budgetNextMonthCents: 0n,
+            budgetByMonth: { "2026-07": 30_000n, "2026-08": 0n },
             spentSoFarCents: 30_000n, // limit already used up
           },
         ],
@@ -323,8 +316,7 @@ describe("simulateCashflow — reserve only covers spending past the limit", () 
           {
             id: "cat-food",
             name: "Food",
-            budgetThisMonthCents: 0n,
-            budgetNextMonthCents: 0n,
+            budgetByMonth: { "2026-07": 0n, "2026-08": 0n },
             spentSoFarCents: 0n,
           },
         ],
@@ -402,8 +394,7 @@ describe("simulateCashflow — the day's arithmetic", () => {
           {
             id: "cat-food",
             name: "Food",
-            budgetThisMonthCents: 0n,
-            budgetNextMonthCents: 0n,
+            budgetByMonth: { "2026-07": 0n, "2026-08": 0n },
             spentSoFarCents: 0n,
           },
         ],
@@ -441,5 +432,185 @@ describe("simulateCashflow — the day's arithmetic", () => {
     expect(withPending.days.map((d) => d.availableCents)).toEqual(
       without.days.map((d) => d.availableCents),
     );
+  });
+});
+
+/**
+ * SAFE TO WITHDRAW (user, 260812).
+ *
+ * "Surplus" is the money you can take out of the budget today — to invest, say —
+ * and still cover every dip the forecast knows about, right to the end of the
+ * window. So it is the LOWEST point of the line, not the cash on some chosen
+ * day, and it must not move just because a day passed.
+ *
+ * Stability comes from the schedule: the remaining plan is assumed spendable
+ * IMMEDIATELY (`spendTiming: "immediate"`) rather than dripped evenly. That is
+ * the worst case, which is the only honest basis for "can I take this out?",
+ * and it does not depend on where today sits in the month.
+ */
+describe("simulateCashflow — safe to withdraw", () => {
+  const threeMonths = (over: Partial<CashflowSimInput> = {}) =>
+    base({
+      today: "2026-07-15",
+      windowEnd: "2026-10-14", // 92 days
+      startCashCents: 500_000n,
+      categories: [
+        {
+          id: "cat-food",
+          name: "Food",
+          budgetByMonth: {
+            "2026-07": 30_000n,
+            "2026-08": 30_000n,
+            "2026-09": 30_000n,
+            "2026-10": 30_000n,
+          },
+          spentSoFarCents: 0n,
+        },
+      ],
+      ...over,
+    });
+
+  test("the figure is the deepest point of the line", () => {
+    const p = simulateCashflow(
+      threeMonths({
+        spendTiming: "immediate",
+        bills: [
+          {
+            date: "2026-08-10",
+            name: "Rent",
+            amountCents: 100_000n,
+            categoryId: null,
+          },
+        ],
+      }),
+    );
+    const lowest = p.days.reduce(
+      (m, d) => (d.availableCents < m ? d.availableCents : m),
+      p.days[0]!.availableCents,
+    );
+    expect(p.safeToWithdraw.cents).toBe(lowest);
+    expect(p.safeToWithdraw.thinnestDate).toBe(
+      p.days.find((d) => d.availableCents === lowest)!.date,
+    );
+  });
+
+  test("a day passing with nothing spent does not move it", () => {
+    const at = (today: string) =>
+      simulateCashflow(threeMonths({ today, spendTiming: "immediate" }))
+        .safeToWithdraw.cents;
+    // Same wallets, same plan, same bills — only the calendar moved.
+    expect(at("2026-07-16")).toBe(at("2026-07-15"));
+    expect(at("2026-07-20")).toBe(at("2026-07-15"));
+  });
+
+  test("spending INSIDE the plan does not move it either", () => {
+    const plain = simulateCashflow(threeMonths({ spendTiming: "immediate" }))
+      .safeToWithdraw.cents;
+    const spent = simulateCashflow(
+      threeMonths({
+        spendTiming: "immediate",
+        startCashCents: 500_000n - 10_000n, // the money left the wallet…
+        categories: [
+          {
+            id: "cat-food",
+            name: "Food",
+            budgetByMonth: {
+              "2026-07": 30_000n,
+              "2026-08": 30_000n,
+              "2026-09": 30_000n,
+              "2026-10": 30_000n,
+            },
+            spentSoFarCents: 10_000n, // …against the plan that reserved it
+          },
+        ],
+      }),
+    ).safeToWithdraw.cents;
+    expect(spent).toBe(plain);
+  });
+
+  test("overspending DOES move it, złoty for złoty", () => {
+    const plain = simulateCashflow(threeMonths({ spendTiming: "immediate" }))
+      .safeToWithdraw.cents;
+    const over = simulateCashflow(
+      threeMonths({
+        spendTiming: "immediate",
+        startCashCents: 500_000n - 40_000n,
+        categories: [
+          {
+            id: "cat-food",
+            name: "Food",
+            budgetByMonth: {
+              "2026-07": 30_000n,
+              "2026-08": 30_000n,
+              "2026-09": 30_000n,
+              "2026-10": 30_000n,
+            },
+            spentSoFarCents: 40_000n, // 10_000 beyond July's plan
+          },
+        ],
+      }),
+    ).safeToWithdraw.cents;
+    expect(plain - over).toBe(10_000n);
+  });
+
+  test("withdrawing exactly that much leaves the line touching zero", () => {
+    const input = threeMonths({ spendTiming: "immediate" });
+    const safe = simulateCashflow(input).safeToWithdraw.cents;
+    const after = simulateCashflow({
+      ...input,
+      startCashCents: input.startCashCents - safe,
+    });
+    const lowest = after.days.reduce(
+      (m, d) => (d.availableCents < m ? d.availableCents : m),
+      after.days[0]!.availableCents,
+    );
+    expect(lowest).toBe(0n);
+  });
+
+  test("a reserve standing behind an over-limit bill keeps the figure up", () => {
+    // The case the household named (user, 260812): a scheduled payment lands
+    // that the category's remaining plan cannot absorb — a big one-off, or a
+    // limit already eaten before the bill arrived. Cash can't cover it either.
+    // That is exactly what the reserve is for, so the withdrawable figure may
+    // lean on it rather than reading the day as a hole.
+    const scenario = (reservePoolCents: bigint) =>
+      simulateCashflow(
+        threeMonths({
+          spendTiming: "immediate",
+          startCashCents: 40_000n,
+          reservePoolCents,
+          categories: [
+            {
+              id: "cat-food",
+              name: "Food",
+              // Nothing planned until the month the payment lands in.
+              budgetByMonth: { "2026-09": 30_000n },
+              spentSoFarCents: 0n,
+            },
+          ],
+          bills: [
+            {
+              date: "2026-09-10",
+              name: "Excess",
+              amountCents: 90_000n,
+              categoryId: "cat-food",
+            },
+          ],
+        }),
+      ).safeToWithdraw.cents;
+
+    // 90_000 bill: 30_000 sits inside the plan, 60_000 is beyond it. Cash pays
+    // 40_000 and runs out; of the 50_000 left, all of it is beyond-plan, so the
+    // pot covers it and the line bottoms out AT zero instead of below it.
+    expect(scenario(100_000n)).toBe(0n);
+    expect(scenario(0n)).toBe(-50_000n);
+  });
+
+  test("each month's own plan is charged — a 92-day window spans four of them", () => {
+    const p = simulateCashflow(threeMonths({ spendTiming: "immediate" }));
+    expect(p.days).toHaveLength(92);
+    // 4 monthly plans of 30_000 are charged across the window
+    const burned = p.days.reduce((a, d) => a + d.plannedBurnCents, 0n);
+    expect(burned).toBe(120_000n);
   });
 });

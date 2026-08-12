@@ -19,11 +19,11 @@ export type DayColor = "green" | "yellow" | "red";
 export interface CashflowCategoryInput {
   id: string;
   name: string;
-  /** Active budget (cushion vs normal, picked by the loader) for the current month. */
-  budgetThisMonthCents: bigint;
-  /** Active budget for next month. */
-  budgetNextMonthCents: bigint;
-  /** Confirmed spend so far this month (before today). */
+  /** 'YYYY-MM' → the active budget (cushion vs normal, picked by the loader) for
+   *  that month. The window is 92 days, so it spans up to FOUR of them; a month
+   *  with no entry has no plan. */
+  budgetByMonth: Record<string, bigint>;
+  /** Confirmed spend so far in the CURRENT month (before today). */
   spentSoFarCents: bigint;
 }
 
@@ -92,6 +92,15 @@ export interface CashflowProjection {
     categoryId: string | null;
     amountCents: bigint;
   }[];
+  /**
+   * The money that can leave the budget TODAY — to invest, say — with every dip
+   * in the window still covered: the LOWEST point the line reaches. Withdraw it
+   * and the thinnest day sits exactly on zero; withdraw a złoty more and it goes
+   * under. Negative means there is nothing to take and you are short by that
+   * much. Meaningful only from a `spendTiming: "immediate"` run — see that
+   * option for why (user, 260812).
+   */
+  safeToWithdraw: { cents: bigint; thinnestDate: string | null };
   summary: {
     firstYellowDate: string | null;
     firstRedDate: string | null;
@@ -115,13 +124,25 @@ export interface CashflowSimInput {
   bills: CashflowEvent[];
   /** Unconfirmed occurrences dated on or before today (see `pendingPoints`). */
   pendingDrafts?: CashflowEvent[];
+  /**
+   * WHEN the discretionary plan is assumed to be spent.
+   *
+   * `even` (default) — dripped equally across the days left in each month. The
+   * readable shape, and what the line draws.
+   *
+   * `immediate` — a month's whole remaining plan lands on its first day in the
+   * window. The WORST case, and the only honest basis for "how much can I take
+   * out and still be fine": you really could spend your month's plan tomorrow.
+   * It is also the only schedule whose answer doesn't drift — an even drip
+   * pushes more of the plan past each future date as today advances, so the
+   * same untouched budget quietly looks better every morning (user, 260812).
+   */
+  spendTiming?: "even" | "immediate";
 }
 
 export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
   const start = Temporal.PlainDate.from(input.today);
   const end = Temporal.PlainDate.from(input.windowEnd);
-  const startMonth = start.month;
-  const startYearMonth = `${start.year}-${start.month}`;
 
   // Group events by date for O(1) daily lookup.
   const incomeByDate = new Map<string, bigint>();
@@ -140,39 +161,68 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       (billTotalByDate.get(e.date) ?? 0n) + e.amountCents,
     );
 
-  // Per-category bill totals split by month (this vs next) for the discretionary burn.
   const nameById = new Map(input.categories.map((c) => [c.id, c.name]));
-  const billThisMonth = new Map<string, bigint>();
-  const billNextMonth = new Map<string, bigint>();
+  const monthKey = (d: Temporal.PlainDate) =>
+    `${d.year}-${String(d.month).padStart(2, "0")}`;
+  const startMonthKey = monthKey(start);
+
+  // Per-category bill totals per MONTH: a dated bill keeps its share of that
+  // month's plan, so only what is left over is discretionary.
+  const billByMonth = new Map<string, bigint>(); // `${month}|${categoryId}`
   for (const e of input.bills) {
     if (!e.categoryId) continue;
-    const m = Temporal.PlainDate.from(e.date).month;
-    const bucket = m === startMonth ? billThisMonth : billNextMonth;
-    bucket.set(e.categoryId, (bucket.get(e.categoryId) ?? 0n) + e.amountCents);
+    const k = `${e.date.slice(0, 7)}|${e.categoryId}`;
+    billByMonth.set(k, (billByMonth.get(k) ?? 0n) + e.amountCents);
   }
 
-  // Even discretionary daily burn per category, this month and next.
-  const daysLeftThisMonth =
-    start.with({ day: start.daysInMonth }).day - start.day + 1;
-  const nextMonthStart = start.with({ day: 1 }).add({ months: 1 });
-  const daysInNextMonth = nextMonthStart.daysInMonth;
-  const burnThis = new Map<string, bigint>();
-  const burnNext = new Map<string, bigint>();
-  for (const c of input.categories) {
-    const discThis =
-      c.budgetThisMonthCents -
-      c.spentSoFarCents -
-      (billThisMonth.get(c.id) ?? 0n);
-    burnThis.set(
-      c.id,
-      discThis > 0n ? discThis / BigInt(Math.max(daysLeftThisMonth, 1)) : 0n,
-    );
-    const discNext = c.budgetNextMonthCents - (billNextMonth.get(c.id) ?? 0n);
-    burnNext.set(
-      c.id,
-      discNext > 0n ? discNext / BigInt(Math.max(daysInNextMonth, 1)) : 0n,
-    );
+  // Every month the window touches, with the day it first appears on and how
+  // many days of that CALENDAR month remain from there. A 92-day window can
+  // start mid-month and end mid-month, and neither end owns a whole plan: the
+  // opening month has already spent part of itself, and the closing month is
+  // only entered — its plan drips at the month's own rate and simply stops when
+  // the window does.
+  interface MonthSlice {
+    key: string;
+    firstDay: string; // ISO of its first day inside the window
+    daysFromThere: number; // to the END of the calendar month
   }
+  const slices: MonthSlice[] = [];
+  for (
+    let d = start;
+    Temporal.PlainDate.compare(d, end) <= 0;
+    d = d.add({ days: 1 })
+  ) {
+    const k = monthKey(d);
+    if (slices.length === 0 || slices[slices.length - 1]!.key !== k) {
+      slices.push({
+        key: k,
+        firstDay: d.toString(),
+        daysFromThere: d.daysInMonth - d.day + 1,
+      });
+    }
+  }
+
+  // Discretionary money per category per month: plan − already spent (current
+  // month only) − the bills dated inside it. Clamped at zero: a category whose
+  // bills already exceed its plan has nothing left to drip.
+  const discByMonth = new Map<string, bigint>(); // `${month}|${categoryId}`
+  const burnByMonth = new Map<string, bigint>(); // even daily rate
+  for (const s of slices) {
+    for (const c of input.categories) {
+      const budget = c.budgetByMonth[s.key] ?? 0n;
+      const spent = s.key === startMonthKey ? c.spentSoFarCents : 0n;
+      const bills = billByMonth.get(`${s.key}|${c.id}`) ?? 0n;
+      const disc = budget - spent - bills;
+      const k = `${s.key}|${c.id}`;
+      discByMonth.set(k, disc > 0n ? disc : 0n);
+      burnByMonth.set(
+        k,
+        disc > 0n ? disc / BigInt(Math.max(s.daysFromThere, 1)) : 0n,
+      );
+    }
+  }
+  const firstDayOfSlice = new Map(slices.map((s) => [s.firstDay, s.key]));
+  const immediate = input.spendTiming === "immediate";
 
   // Mutable running state.
   let cash = input.startCashCents;
@@ -180,11 +230,15 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
   // is earmarked against limits being EXCEEDED, so this is what decides whether
   // an outflow may reach the pot at all (user, 260811).
   const remainingLimit = new Map<string, bigint>();
-  for (const c of input.categories) {
-    const left = c.budgetThisMonthCents - c.spentSoFarCents;
-    remainingLimit.set(c.id, left > 0n ? left : 0n);
-  }
-  let limitsRolled = false;
+  const rollLimitsTo = (month: string) => {
+    for (const c of input.categories) {
+      const budget = c.budgetByMonth[month] ?? 0n;
+      const spent = month === startMonthKey ? c.spentSoFarCents : 0n;
+      const left = budget - spent;
+      remainingLimit.set(c.id, left > 0n ? left : 0n);
+    }
+  };
+  rollLimitsTo(startMonthKey);
   // Reserve = one pot of emergency money (Σ per-category reserve, funded by the
   // RESERVE wallets). Cash-based model: spending is paid from cash; only what
   // cash can't cover dips into this pot, and it depletes as used (it does not
@@ -202,18 +256,11 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
     d = d.add({ days: 1 })
   ) {
     const iso = d.toString();
-    // Compare year+month, not the bare month, so the burn switches to next
-    // month's rate at the boundary (a 2-month window never repeats a month).
-    const inStartMonth = `${d.year}-${d.month}` === startYearMonth;
-    // A new month restores every plan in full.
-    if (!inStartMonth && !limitsRolled) {
-      for (const c of input.categories)
-        remainingLimit.set(
-          c.id,
-          c.budgetNextMonthCents > 0n ? c.budgetNextMonthCents : 0n,
-        );
-      limitsRolled = true;
-    }
+    const month = monthKey(d);
+    // A new month restores every plan in full — and, under worst-case timing,
+    // hands the whole of it over at once.
+    const opensAMonth = firstDayOfSlice.get(iso) === month;
+    if (opensAMonth && month !== startMonthKey) rollLimitsTo(month);
 
     // Cash entering the day — the figure the tooltip's equation starts from.
     const openingCents = cash;
@@ -274,7 +321,12 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
     }
     let plannedBurnCents = 0n;
     for (const c of input.categories) {
-      const burn = (inStartMonth ? burnThis : burnNext).get(c.id) ?? 0n;
+      const k = `${month}|${c.id}`;
+      const burn = immediate
+        ? opensAMonth
+          ? (discByMonth.get(k) ?? 0n)
+          : 0n
+        : (burnByMonth.get(k) ?? 0n);
       plannedBurnCents += burn;
       applyOutflow(c.id, burn);
     }
@@ -329,6 +381,7 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       categoryId: e.categoryId ?? null,
       amountCents: e.amountCents,
     })),
+    safeToWithdraw: troughOf(days),
     pendingPoints: (input.pendingDrafts ?? []).map((e) => ({
       date: e.date,
       name: e.name,
@@ -345,6 +398,17 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       incomePoints: input.incomePayments,
     }),
   };
+}
+
+/** The deepest the line goes, and the day it happens. Empty window → 0/null. */
+export function troughOf(days: Pick<DayCell, "date" | "availableCents">[]): {
+  cents: bigint;
+  thinnestDate: string | null;
+} {
+  if (days.length === 0) return { cents: 0n, thinnestDate: null };
+  let low = days[0]!;
+  for (const d of days) if (d.availableCents < low.availableCents) low = d;
+  return { cents: low.availableCents, thinnestDate: low.date };
 }
 
 /**

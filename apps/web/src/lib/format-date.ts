@@ -62,6 +62,23 @@ export function formatShortDate(isoDate: string, locale: string): string {
  * (uk "липня" not nominative "липень") and each locale's own day/month ordering.
  * Returns the raw input if it isn't a parseable YYYY-MM-DD.
  */
+/**
+ * The same date, abbreviated — "1 Nov", uk "1 лист.", pl "1 lis" — for places
+ * with no room for a full month name (the half-width Surplus card). Day and
+ * month go through ONE Intl call for the same reason as `formatDayMonth`: the
+ * inflected locales need the genitive that only the combined format produces.
+ */
+export function formatDayMonthShort(isoDate: string, locale: string): string {
+  const [y, m, d] = isoDate.split("-").map((s) => parseInt(s, 10));
+  if (![y, m, d].every((n) => Number.isFinite(n))) return isoDate;
+  const date = new Date(Date.UTC(y!, m! - 1, d!));
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(date);
+}
+
 export function formatDayMonth(isoDate: string, locale: string): string {
   const [y, m, d] = isoDate.split("-").map((s) => parseInt(s, 10));
   if (![y, m, d].every((n) => Number.isFinite(n))) return isoDate;
