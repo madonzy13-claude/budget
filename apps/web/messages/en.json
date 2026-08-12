@@ -1413,7 +1413,8 @@
           "cushionSaved": "Saved",
           "cushionNeeded": "Needed",
           "availableReserves": "Available reserves",
-          "realMonths": "real months"
+          "realMonths": "real months",
+          "lowestPoint": "Lowest point: {date}"
         },
         "range": {
           "previous": "Previous period",

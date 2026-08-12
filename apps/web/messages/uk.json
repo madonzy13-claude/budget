@@ -1436,7 +1436,8 @@
           "cushionSaved": "Зібрано",
           "cushionNeeded": "Потрібно",
           "availableReserves": "Доступні резерви",
-          "realMonths": "реальні місяці"
+          "realMonths": "реальні місяці",
+          "lowestPoint": "Найнижчий залишок: {date}"
         },
         "range": {
           "previous": "Попередній період",

@@ -15,6 +15,7 @@ vi.mock("next-intl", () => {
       "cards.spentThisMonth": "Spent",
       "cards.leftToSpend": "Upcoming",
       "cards.surplus": "Surplus",
+      "cards.lowestPoint": "Lowest point: {date}",
       "cards.deficit": "Deficit",
       "cards.spendNeutral": "No upcoming income",
       "cards.retirementRunway": "If you retire now",
@@ -225,12 +226,15 @@ describe("OverviewCards", () => {
     expect(row).not.toContain("$400");
   });
 
-  it("names the day the money is thinnest", () => {
+  // The card stays a number; the day it is measured at lives in the row's
+  // hover text, where it answers "why that size?" without spending a line of
+  // a half-width card on it (user, 260812).
+  it("keeps the thinnest day out of the card, in the hover text", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
     render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
-    expect(screen.getByTestId("spend-thinnest-date").textContent).toContain(
-      "15",
-    );
+    expect(screen.queryByTestId("spend-thinnest-date")).toBeNull();
+    const row = screen.getByTestId("spend-surplus-row");
+    expect(row.getAttribute("title")).toContain("15");
   });
 
   it("shows surplus (green) or deficit (red) from the nearest income", () => {

@@ -489,19 +489,23 @@ export function OverviewCards({
               </dd>
             </div>
             {surplusDeficit !== null ? (
-              <div className="flex items-center justify-between gap-2">
+              <div
+                data-testid="spend-surplus-row"
+                className="flex items-center justify-between gap-2"
+                // The day the figure is measured at — the forecast's lowest
+                // point. It explains the size, but it is not the number, so it
+                // stays out of a half-width card and lives here instead
+                // (user, 260812).
+                {...(thinnestDate
+                  ? {
+                      title: t("cards.lowestPoint", {
+                        date: formatDayMonthShort(thinnestDate, locale),
+                      }),
+                    }
+                  : {})}
+              >
                 <dt className="min-w-0 truncate">
                   {isDeficit ? t("cards.deficit") : t("cards.surplus")}
-                  {thinnestDate && (
-                    // The day the money is thinnest — the one the figure is
-                    // measured at, so it can be checked rather than trusted.
-                    <span
-                      data-testid="spend-thinnest-date"
-                      className="ml-1 text-[var(--muted-foreground)]"
-                    >
-                      · {formatDayMonthShort(thinnestDate, locale)}
-                    </span>
-                  )}
                 </dt>
                 {/* Inline color (tailwind-merge drops text-[var()] color): red
                     deficit (<0), white when exactly 0, green surplus (>0). */}
