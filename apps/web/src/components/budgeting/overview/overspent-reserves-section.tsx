@@ -47,6 +47,16 @@ export function OverspentReservesSection({
   const warm = useStagedWarmup(2, { now: reservesOpen });
 
   const categories = useCategories(budgetId).data ?? [];
+  // The one-off filter lists categories in the order the household arranged on
+  // the spendings tab — sorted here, as the grid does, rather than trusted from
+  // the wire (user, 260812).
+  const categoryOrder = [...categories]
+    .sort(
+      (a, b) =>
+        ((a.sortIndex as number | undefined) ?? 0) -
+        ((b.sortIndex as number | undefined) ?? 0),
+    )
+    .map((c) => c.id as string);
   const { data, isPending, isError } = useOverviewOverspent(budgetId, {
     from: range.from,
     to: range.to,
@@ -144,6 +154,7 @@ export function OverspentReservesSection({
                 </p>
                 <ReserveFitView
                   data={fit.data}
+                  categoryOrder={categoryOrder}
                   format={fmtTooltip}
                   formatExact={fmtExact}
                   onSave={(delta) => saveExclusions.mutate(delta)}

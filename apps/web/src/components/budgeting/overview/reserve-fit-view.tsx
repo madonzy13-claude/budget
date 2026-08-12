@@ -39,6 +39,7 @@ export function signedMoney(format: (cents: number) => string) {
 
 export function ReserveFitView({
   data,
+  categoryOrder = [],
   onSave,
   onRebalance,
   format,
@@ -47,6 +48,8 @@ export function ReserveFitView({
   scaleSwitch,
 }: {
   data: ReserveFitDTO;
+  /** Category ids in the spendings tab's order, for the one-off filter. */
+  categoryOrder?: string[];
   /** One save of the one-off dialog: what to set aside, what to count again. */
   onSave: (delta: { add: string[]; remove: string[] }) => void;
   /** Sets one category's reserve to `targetCents`; resolves with what the
@@ -78,15 +81,19 @@ export function ReserveFitView({
     );
   }
 
-  // The dialog reads across every category at once, so the per-row candidates
-  // are flattened and carry their category with them.
-  const candidates: OneOffCandidate[] = sized.flatMap((r) =>
-    r.candidates.map((c) => ({
-      ...c,
-      category_id: r.categoryId,
-      category_name: r.name,
-    })),
-  );
+  // The dialog reads across every category at once — including the ones with no
+  // reserve row, whose one-offs the per-row list cannot carry (user, 260812).
+  // Falls back to flattening the rows for a payload cached before the complete
+  // list existed.
+  const candidates: OneOffCandidate[] =
+    data.one_off_candidates ??
+    sized.flatMap((r) =>
+      r.candidates.map((c) => ({
+        ...c,
+        category_id: r.categoryId,
+        category_name: r.name,
+      })),
+    );
 
   return (
     <div className="flex flex-col gap-3">
@@ -131,6 +138,7 @@ export function ReserveFitView({
         <div data-testid="reserve-fit-corner">
           <ReserveFitOneOffs
             candidates={candidates}
+            categoryOrder={categoryOrder}
             onSave={onSave}
             format={format}
           />

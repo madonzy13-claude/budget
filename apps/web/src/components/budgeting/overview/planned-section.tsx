@@ -330,14 +330,19 @@ export function PlannedSection({
   // category has no reserve row, and without a figure this chart drew today's
   // limit against itself (user, 260812).
   const projected = projectedMonthlyMap(fit.data);
-  const oneOffCandidates: OneOffCandidate[] = (fit.data?.rows ?? []).flatMap(
-    (r) =>
+  // EVERY category's one-offs, not just the buffered ones: the rows carry no
+  // opted-out category, so a big spend inside one could never be ticked — the
+  // dialog did not know it existed (user, 260812). Falls back to the rows for a
+  // payload cached before the complete list existed.
+  const oneOffCandidates: OneOffCandidate[] =
+    fit.data?.one_off_candidates ??
+    (fit.data?.rows ?? []).flatMap((r) =>
       (r.large_transactions ?? []).map((c) => ({
         ...c,
         category_id: r.category_id,
         category_name: r.name,
       })),
-  );
+    );
 
   // Acting on the Future reading writes a needs/wants SPLIT, so the dialog
   // needs what each limit is split into TODAY — which is what the spendings
@@ -390,6 +395,17 @@ export function PlannedSection({
   // Every category the budget has, investments included (260803 user request):
   // the picker offers exactly what the charts count, and both start ticked.
   const categories = useCategories(budgetId).data ?? [];
+  // The spendings tab draws its columns in sortIndex order (the drag order the
+  // household set); the one-off dialog's filter follows the same list so the
+  // two never disagree (user, 260812). Sorted here rather than trusted from the
+  // wire, which is what the grid does too.
+  const categoryOrder = [...categories]
+    .sort(
+      (a, b) =>
+        ((a.sortIndex as number | undefined) ?? 0) -
+        ((b.sortIndex as number | undefined) ?? 0),
+    )
+    .map((c) => c.id as string);
 
   // The section's ONE category filter, resolved to the ids on screen. Empty
   // when everything is shown — effectiveCategoryIds returns undefined for both
@@ -827,6 +843,7 @@ export function PlannedSection({
                   <div data-testid="overview-planned-corner">
                     <ReserveFitOneOffs
                       candidates={oneOffCandidates}
+                      categoryOrder={categoryOrder}
                       onSave={(delta) => saveExclusions.mutate(delta)}
                       format={fmtTooltip}
                     />

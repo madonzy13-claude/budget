@@ -174,6 +174,22 @@ export interface ReserveFitDTO {
     category_id: string;
     projected_monthly_cents: string;
   }[];
+  /**
+   * Every large spend the household could set aside, from EVERY category —
+   * including the ones with no reserve row. The dialog used to read these off
+   * the rows, so a big spend inside an opted-out category could not be ticked:
+   * it was never offered (user, 260812).
+   */
+  one_off_candidates: {
+    ledger_id: string;
+    category_id: string;
+    category_name: string;
+    transaction_date: string;
+    note: string | null;
+    amount_cents: string;
+    scheduled_cadence: string | null;
+    excluded: boolean;
+  }[];
   /** Active scheduled rules with NO category. They are real commitments but
    *  belong to no buffer, so they can size nothing — the chart names them so the
    *  member can assign one rather than wonder why a charge is uncounted
@@ -342,6 +358,26 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           // one-offs, so there is nothing to credit.
           reserveHeldCents: positions.get(w.category_id)?.reserveCents ?? 0n,
         });
+      };
+
+      /**
+       * Half a typical month's limit — the bar a spend has to clear to be worth
+       * a decision, per category. Hoisted for the same reason as projectedFor:
+       * a category with no reserve row still has one-offs to offer, and they
+       * must be judged by the same rule as everyone else's (user, 260812).
+       */
+      const worthDecidingIn = (categoryId: string) => {
+        const months = [...(monthsByCat.get(categoryId) ?? [])].filter(
+          (m) => m !== nowMonth,
+        );
+        const avg =
+          months.length > 0
+            ? months.reduce(
+                (acc, m) => acc + (limitByCell.get(`${categoryId}|${m}`) ?? 0n),
+                0n,
+              ) / BigInt(months.length)
+            : 0n;
+        return (amount: bigint) => amount * 2n >= avg;
       };
 
       const rows: ReserveFitRowDTO[] = [];
@@ -632,6 +668,28 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           category_id: w.category_id,
           projected_monthly_cents: projectedFor(w).toString(),
         })),
+        // …and every large spend that could be set aside, from every category
+        // (see the DTO). Biggest first, as the dialog lists them.
+        one_off_candidates: (() => {
+          const nameOf = new Map(windows.map((w) => [w.category_id, w.name]));
+          return large
+            .filter(
+              (t) =>
+                nameOf.has(t.category_id) &&
+                worthDecidingIn(t.category_id)(t.amount_cents),
+            )
+            .sort((a, b) => (a.amount_cents < b.amount_cents ? 1 : -1))
+            .map((t) => ({
+              ledger_id: t.ledger_id,
+              category_id: t.category_id,
+              category_name: nameOf.get(t.category_id) ?? "",
+              transaction_date: t.transaction_date,
+              note: t.note,
+              amount_cents: t.amount_cents.toString(),
+              scheduled_cadence: t.scheduled_cadence,
+              excluded: t.excluded,
+            }));
+        })(),
         unassigned_scheduled: rules
           .filter((r) => !r.category_id && r.amount_cents > 0n)
           .map((r) => ({

@@ -73,6 +73,19 @@ export interface ReserveFitDTO {
     category_id: string;
     projected_monthly_cents: string;
   }[];
+  /** Every large spend that could be set aside, from EVERY category — the rows
+   *  carry only the buffered ones, so an opted-out category's spend was never
+   *  offered (user, 260812). Optional: older cached payloads lack it. */
+  one_off_candidates?: {
+    ledger_id: string;
+    category_id: string;
+    category_name: string;
+    transaction_date: string;
+    note: string | null;
+    amount_cents: string;
+    scheduled_cadence: string | null;
+    excluded: boolean;
+  }[];
   /** Active scheduled rules with no category — real commitments that belong to
    *  no buffer, so they size nothing. Optional: a payload cached before the
    *  field existed replays without it. */

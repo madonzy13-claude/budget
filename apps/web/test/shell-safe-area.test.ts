@@ -159,7 +159,10 @@ describe("PWA sheet displacement fixes (SHELL-R12)", () => {
     "utf8",
   );
   const scheduledPaymentForm = readFileSync(
-    resolve(__dirname, "../src/components/budgeting/scheduled-payment-form.tsx"),
+    resolve(
+      __dirname,
+      "../src/components/budgeting/scheduled-payment-form.tsx",
+    ),
     "utf8",
   );
   const viewportDebug = readFileSync(
@@ -481,7 +484,7 @@ describe("Round 5 — browser box extends UNDER the bar (SHELL-R15)", () => {
         /@media\s*\(display-mode:\s*browser\)\s*{([\s\S]*?)\n}/,
       )?.[1] ?? "";
     expect(browserBlock).toMatch(
-      /\[data-grid-tail-spacer\][^}]*height:\s*var\(--grid-tail-spacer-h/,
+      /\[data-grid-tail-spacer\][^}]*height:\s*var\(\s*--grid-tail-spacer-h/,
     );
   });
 
@@ -737,7 +740,7 @@ describe("Round 7 — grid box to physical screen bottom (SHELL-R17)", () => {
         /@media\s*\(display-mode:\s*browser\)\s*{([\s\S]*?)\n}/,
       )?.[1] ?? "";
     expect(browserBlock).toMatch(
-      /\[data-grid-tail-spacer\][^}]*height:\s*var\(--grid-tail-spacer-h,\s*calc\(env\(safe-area-inset-bottom[^)]*\)\s*\+\s*96px\)\)/,
+      /\[data-grid-tail-spacer\][^}]*height:\s*var\(\s*--grid-tail-spacer-h,\s*calc\(env\(safe-area-inset-bottom[^)]*\)\s*\+\s*96px\)\s*\)/,
     );
   });
 

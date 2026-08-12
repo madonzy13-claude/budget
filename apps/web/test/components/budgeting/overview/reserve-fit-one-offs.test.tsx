@@ -180,6 +180,60 @@ describe("ReserveFitOneOffs", () => {
     expect(details.textContent).not.toContain("YEARLY");
   });
 
+  /**
+   * The dropdown listed categories in whatever order the reserve rows came in,
+   * which is neither the spendings tab's order nor any order the household
+   * recognises — and a category with no reserve row (opted out of the buffer)
+   * was missing from it entirely (user, 260812).
+   */
+  it("lists the categories in the spendings order it is given", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReserveFitOneOffs
+        candidates={CANDIDATES}
+        // Sport is dragged last in the spendings tab, Car first.
+        categoryOrder={["car", "insurance", "sport"]}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    await user.click(screen.getByTestId("reserve-fit-open-one-offs"));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByTestId("reserve-fit-category-filter"));
+    const options = (await screen.findAllByTestId(/^reserve-fit-filter-/)).map(
+      (o) => o.getAttribute("data-testid"),
+    );
+    expect(options).toEqual([
+      "reserve-fit-filter-all",
+      "reserve-fit-filter-car",
+      "reserve-fit-filter-sport",
+    ]);
+  });
+
+  it("still lists a category the given order has never heard of", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReserveFitOneOffs
+        candidates={CANDIDATES}
+        categoryOrder={["car"]}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    await user.click(screen.getByTestId("reserve-fit-open-one-offs"));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByTestId("reserve-fit-category-filter"));
+    const options = (await screen.findAllByTestId(/^reserve-fit-filter-/)).map(
+      (o) => o.getAttribute("data-testid"),
+    );
+    // Known ones in the order given, the rest after — never dropped.
+    expect(options).toEqual([
+      "reserve-fit-filter-all",
+      "reserve-fit-filter-car",
+      "reserve-fit-filter-sport",
+    ]);
+  });
+
   it("filters the list down to one category", async () => {
     const { user } = setup();
     const dialog = await openDialog(user);

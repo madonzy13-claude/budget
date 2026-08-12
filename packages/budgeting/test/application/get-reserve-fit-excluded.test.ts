@@ -158,3 +158,61 @@ describe("what an excluded category will cost", () => {
     expect(fit.rows.map((r) => r.category_id)).toContain(FOOD);
   });
 });
+
+/**
+ * …and the same category's one-off spends must still be offered for ticking.
+ *
+ * "Which spend won't happen again" listed only categories that earn a reserve
+ * row, so a big spend inside an opted-out one could never be set aside — the
+ * dialog did not know it existed (user, 260812).
+ */
+describe("one-offs of an excluded category", () => {
+  const withLarge = (): GetReserveFitDeps => {
+    const base = deps();
+    return {
+      ...base,
+      exclusionsRepo: {
+        largeTransactions: async () => [
+          {
+            ledger_id: "tx-roof",
+            category_id: INSURANCE,
+            transaction_date: "2026-03-14",
+            note: "Roof",
+            amount_cents: zl(9000),
+            scheduled_cadence: null,
+            excluded: false,
+          },
+          {
+            ledger_id: "tx-food",
+            category_id: FOOD,
+            transaction_date: "2026-04-02",
+            note: "Freezer",
+            amount_cents: zl(4000),
+            scheduled_cadence: null,
+            excluded: false,
+          },
+        ],
+      } as unknown as GetReserveFitDeps["exclusionsRepo"],
+    };
+  };
+
+  test("are offered like anyone else's, with their category named", async () => {
+    const res = await getReserveFit(withLarge())({
+      tenantId: BUDGET,
+      budgetId: BUDGET,
+      from: "2025-09-01",
+      to: "2026-08-31",
+    });
+    if (res.isErr()) throw res.error;
+    const offered = res.value.one_off_candidates;
+    expect(offered.map((c) => c.ledger_id).sort()).toEqual([
+      "tx-food",
+      "tx-roof",
+    ]);
+    const roof = offered.find((c) => c.ledger_id === "tx-roof")!;
+    expect(roof.category_id).toBe(INSURANCE);
+    expect(roof.category_name).toBe("Insurance");
+    // …while the reserve chart still has no row for it.
+    expect(res.value.rows.map((r) => r.category_id)).not.toContain(INSURANCE);
+  });
+});

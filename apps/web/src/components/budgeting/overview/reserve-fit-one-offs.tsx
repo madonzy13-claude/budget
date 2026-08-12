@@ -56,10 +56,18 @@ export interface OneOffCandidate {
 
 export function ReserveFitOneOffs({
   candidates,
+  categoryOrder = [],
   onSave,
   format,
 }: {
   candidates: OneOffCandidate[];
+  /**
+   * Category ids in the order the household arranged them on the spendings
+   * tab. The filter used to list them in whatever order the reserve rows
+   * arrived in, which matched nothing on screen (user, 260812). Ids the list
+   * has never heard of keep their place at the end rather than disappearing.
+   */
+  categoryOrder?: string[];
   onSave: (delta: { add: string[]; remove: string[] }) => void;
   format: (cents: number) => string;
 }) {
@@ -86,9 +94,14 @@ export function ReserveFitOneOffs({
     );
   };
 
+  const rank = new Map(categoryOrder.map((id, i) => [id, i]));
   const categories = [
     ...new Map(candidates.map((c) => [c.category_id, c.category_name])),
-  ];
+  ].sort(([a], [b]) => {
+    const ra = rank.get(a) ?? Number.MAX_SAFE_INTEGER;
+    const rb = rank.get(b) ?? Number.MAX_SAFE_INTEGER;
+    return ra - rb;
+  });
   const shown = candidates
     .filter((c) => category === "all" || c.category_id === category)
     .sort((a, b) => Number(b.amount_cents) - Number(a.amount_cents));
