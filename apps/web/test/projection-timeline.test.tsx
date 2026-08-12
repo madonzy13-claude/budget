@@ -171,28 +171,30 @@ describe("ProjectionTimeline", () => {
     ).toEqual(["Jul", "Aug", "Sep"]);
   });
 
-  // A full-height divider and a 6px notch are both "a vertical mark on the
-  // band", and the household read the taller one as a bigger payment. They now
-  // hang from opposite edges: a month turns from the TOP, a payment cuts up
-  // from the BOTTOM, and neither spans the strip (user, 260812).
-  test("month dividers hang from the top, payment notches from the bottom", () => {
+  // A month boundary and a payment are both "a vertical mark on a 20px band",
+  // so they must not be the same KIND of mark. The boundary is dashed and runs
+  // the full height; a payment is a short solid notch off the bottom edge
+  // (user picked the dashed treatment, 260812).
+  test("a month boundary is dashed and spans the strip", () => {
     projectionData = { ...dto, days: runOfDays("2026-07-28", 40) };
-    const { unmount } = renderIt();
+    renderIt();
     const rule = screen.getAllByTestId("projection-month-rule")[0]!;
-    expect(rule.getAttribute("y")).toBe("0");
-    expect(Number(rule.getAttribute("height"))).toBeLessThan(20);
-    unmount();
+    expect(rule.tagName.toLowerCase()).toBe("line");
+    expect(rule.getAttribute("y1")).toBe("0");
+    expect(rule.getAttribute("y2")).toBe("100%");
+    expect(rule.getAttribute("stroke-dasharray")).toBeTruthy();
+  });
 
-    // The default fixture is the one carrying a payment.
-    projectionData = dto;
+  test("a payment stays a short solid notch on the bottom edge", () => {
     renderIt();
     const notch = screen.getAllByTestId("projection-bill-marker")[0]!;
-    // Whatever height it is tuned to, it hangs off the BOTTOM edge of the 20px
-    // strip — that is what keeps it a different language from the dividers.
+    expect(notch.tagName.toLowerCase()).toBe("rect");
+    expect(notch.getAttribute("stroke-dasharray")).toBeNull();
+    // Whatever height it is tuned to, it hangs off the BOTTOM of the 20px strip.
     const y = Number(notch.getAttribute("y"));
     const h = Number(notch.getAttribute("height"));
     expect(y + h).toBe(20);
-    expect(h).toBeLessThan(Number(rule.getAttribute("height")) + 20);
+    expect(h).toBeLessThan(20);
   });
 
   // A 1.5px line at a fractional x is spread over two device pixels by the
@@ -229,7 +231,7 @@ describe("ProjectionTimeline", () => {
       "--forecast-ink",
     );
     expect(
-      screen.getAllByTestId("projection-month-rule")[0]!.getAttribute("fill"),
+      screen.getAllByTestId("projection-month-rule")[0]!.getAttribute("stroke"),
     ).toContain("--forecast-rule");
     unmount();
 

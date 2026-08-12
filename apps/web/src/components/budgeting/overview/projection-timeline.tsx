@@ -172,14 +172,20 @@ export function ProjectionTimeline({
             className="absolute inset-0 h-full w-full"
           >
             {monthMarks.slice(1).map((m) => (
-              <rect
+              // A month turns: DASHED, down the whole strip. Solid, it was the
+              // heaviest mark on the band and got read as a huge payment; short,
+              // it was just another tick among the notches. Dashed says
+              // "boundary" in a language no payment speaks (user, 260812).
+              <line
                 key={`rule-${m.key}`}
                 data-testid="projection-month-rule"
-                x={`${m.pct}%`}
-                y="0"
-                width="1"
-                height="8"
-                fill="var(--forecast-rule)"
+                x1={`${m.pct}%`}
+                x2={`${m.pct}%`}
+                y1="0"
+                y2="100%"
+                stroke="var(--forecast-rule)"
+                strokeWidth="1"
+                strokeDasharray="3 2"
               />
             ))}
             {data.bill_points.map((b, i) => {
