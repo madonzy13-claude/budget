@@ -179,18 +179,31 @@ describe("ProjectionTimeline", () => {
     projectionData = { ...dto, days: runOfDays("2026-07-28", 40) };
     const { unmount } = renderIt();
     const rule = screen.getAllByTestId("projection-month-rule")[0]!;
-    expect(rule.style.top).toBe("0px");
-    expect(rule.style.bottom).toBe("");
-    // …and it no longer spans the whole 20px strip
-    expect(parseFloat(rule.style.height)).toBeLessThan(20);
+    expect(rule.getAttribute("y")).toBe("0");
+    expect(Number(rule.getAttribute("height"))).toBeLessThan(20);
     unmount();
 
     // The default fixture is the one carrying a payment.
     projectionData = dto;
     renderIt();
     const notch = screen.getAllByTestId("projection-bill-marker")[0]!;
-    expect(notch.className).toContain("bottom-0");
-    expect(notch.style.top).toBe("");
+    // 20px strip, 6px notch → it starts at 14 and reaches the bottom edge.
+    expect(notch.getAttribute("y")).toBe("14");
+    expect(notch.getAttribute("height")).toBe("6");
+  });
+
+  // A 1.5px line at a fractional x is spread over two device pixels by the
+  // antialiaser — so identical notches rendered as "two wide ones and a narrow
+  // one" (user, 260812). Drawn as SVG with crispEdges the browser snaps every
+  // mark to the pixel grid instead, and they come out the same.
+  test("the marks are drawn crisp, not antialiased", () => {
+    renderIt();
+    const layer = screen.getByTestId("projection-marks");
+    expect(layer.tagName.toLowerCase()).toBe("svg");
+    expect(layer.getAttribute("shape-rendering")).toBe("crispEdges");
+    const notch = screen.getAllByTestId("projection-bill-marker")[0]!;
+    expect(notch.tagName.toLowerCase()).toBe("rect");
+    expect(layer.contains(notch)).toBe(true);
   });
 
   test("the months live INSIDE the line, not under it", () => {
@@ -213,7 +226,7 @@ describe("ProjectionTimeline", () => {
       "--forecast-ink",
     );
     expect(
-      screen.getAllByTestId("projection-month-rule")[0]!.style.background,
+      screen.getAllByTestId("projection-month-rule")[0]!.getAttribute("fill"),
     ).toContain("--forecast-rule");
     unmount();
 
@@ -221,7 +234,7 @@ describe("ProjectionTimeline", () => {
     projectionData = dto;
     renderIt();
     expect(
-      screen.getAllByTestId("projection-bill-marker")[0]!.style.background,
+      screen.getAllByTestId("projection-bill-marker")[0]!.getAttribute("fill"),
     ).toContain("--forecast-notch");
   });
 
@@ -278,7 +291,7 @@ describe("ProjectionTimeline", () => {
     expect(notches).toHaveLength(1);
     const bar = screen.getByTestId("projection-line");
     expect(bar.contains(notches[0]!)).toBe(true);
-    expect(notches[0]!.style.background).toContain("--forecast-notch");
+    expect(notches[0]!.getAttribute("fill")).toContain("--forecast-notch");
     // income keeps its own mark below the band
     expect(screen.getAllByTestId("projection-income-marker")).toHaveLength(1);
   });

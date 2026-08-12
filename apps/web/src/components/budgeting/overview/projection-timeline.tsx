@@ -155,63 +155,74 @@ export function ProjectionTimeline({
           className="absolute inset-x-0 top-1/2 h-5 -translate-y-1/2 overflow-hidden rounded-full"
           style={{ background: gradient }}
         >
-          {monthMarks.map((m, i) => (
-            <span key={m.key}>
-              {i > 0 && (
-                <span
-                  data-testid="projection-month-rule"
-                  aria-hidden="true"
-                  className="absolute w-px"
-                  // Hangs from the TOP, and stops short of the payment notches
-                  // rising from the bottom. Full height made it the biggest mark
-                  // on the band, and it got read as a huge payment (user, 260812).
-                  style={{
-                    left: `${m.pct}%`,
-                    top: 0,
-                    height: "8px",
-                    background: "var(--forecast-rule)",
-                  }}
+          {/* Every mark on the band in ONE svg, drawn with crispEdges.
+              As HTML boxes these were antialiased: a 1.5px line at a fractional
+              x is spread over two device pixels, so identical notches rendered
+              as "two wide ones and a narrow one" (user, 260812). crispEdges
+              makes the browser snap each rect to the pixel grid instead — every
+              mark comes out the same, at the cost of up to half a pixel of
+              position, which on a 100-day strip is a couple of hours.
+              A month turns from the TOP, a payment rises from the BOTTOM, so
+              the two never share a band and can't be read as one language. */}
+          <svg
+            data-testid="projection-marks"
+            aria-hidden="true"
+            shapeRendering="crispEdges"
+            preserveAspectRatio="none"
+            className="absolute inset-0 h-full w-full"
+          >
+            {monthMarks.slice(1).map((m) => (
+              <rect
+                key={`rule-${m.key}`}
+                data-testid="projection-month-rule"
+                x={`${m.pct}%`}
+                y="0"
+                width="1"
+                height="8"
+                fill="var(--forecast-rule)"
+              />
+            ))}
+            {data.bill_points.map((b, i) => {
+              const pct = pctFor(b.date);
+              if (pct === null) return null;
+              return (
+                <rect
+                  key={`bill-${i}`}
+                  data-testid="projection-bill-marker"
+                  x={`${pct}%`}
+                  // 20px strip, 6px notch — sits on the bottom edge.
+                  y="14"
+                  // ONE whole CSS pixel: 1.5px is 4.5 device pixels on a phone,
+                  // which snapped to 4 or 5 depending on where the day fell —
+                  // the same payment rendering wider or narrower than its
+                  // neighbour (user, 260812). An integer width divides evenly at
+                  // every device ratio, so every mark is identical.
+                  width="1"
+                  height="6"
+                  // …centred on its day, and never clipped at the far end.
+                  transform="translate(-0.5)"
+                  fill="var(--forecast-notch)"
                 />
-              )}
-              <span
-                data-testid="projection-month"
-                aria-hidden="true"
-                className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] font-medium leading-none"
-                style={{
-                  left: `${m.pct}%`,
-                  // Clear of the rounded end on the left, of the divider elsewhere.
-                  marginLeft: i === 0 ? "8px" : "5px",
-                  color: "var(--forecast-ink)",
-                }}
-              >
-                {m.label}
-              </span>
+              );
+            })}
+          </svg>
+
+          {monthMarks.map((m, i) => (
+            <span
+              key={m.key}
+              data-testid="projection-month"
+              aria-hidden="true"
+              className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] font-medium leading-none"
+              style={{
+                left: `${m.pct}%`,
+                // Clear of the rounded end on the left, of the divider elsewhere.
+                marginLeft: i === 0 ? "8px" : "5px",
+                color: "var(--forecast-ink)",
+              }}
+            >
+              {m.label}
             </span>
           ))}
-
-          {/* Scheduled payments (money OUT): a notch in the strip's lower edge.
-              Two on neighbouring days merge into one thicker mark rather than
-              two overlapping shapes, which is what the ▼ wedges above the band
-              could not do (user, 260812). The scrubber's tooltip still itemises
-              every payment landing on the day you point at. */}
-          {data.bill_points.map((b, i) => {
-            const pct = pctFor(b.date);
-            if (pct === null) return null;
-            return (
-              <span
-                key={`bill-${i}`}
-                data-testid="projection-bill-marker"
-                aria-hidden="true"
-                className="absolute bottom-0 w-[1.5px] rounded-t-[1px]"
-                style={{
-                  left: `${pct}%`,
-                  height: "6px",
-                  transform: "translateX(-50%)",
-                  background: "var(--forecast-notch)",
-                }}
-              />
-            );
-          })}
         </div>
 
         {/* Income markers (money IN): green ▲ below the line, pointing up. */}
