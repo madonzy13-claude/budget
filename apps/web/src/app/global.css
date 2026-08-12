@@ -164,7 +164,10 @@
        flat grey is quiet against a dark card and hard against a light one. */
     --forecast-ink: color-mix(in oklab, var(--on-primary) 62%, transparent);
     --forecast-rule: color-mix(in oklab, var(--on-primary) 22%, transparent);
-    --forecast-marker: var(--muted-foreground);
+    /* …and it is DARKER than the text grey here, not lighter: on the dark card
+       #707a8a read as a row of hard wedges over a quiet band (user, 260812).
+       Same value the neutral bars take, for the same reason. */
+    --forecast-marker: #4d5663;
     /* Chart LINE/AREA series = the brand yellow (user: "I liked yellow for
        charts, bring it back" — round 25 item 1). BARS use a separate blue/teal
        (yellow bars were too loud, the brown replacement was disliked): --chart-bar-1
