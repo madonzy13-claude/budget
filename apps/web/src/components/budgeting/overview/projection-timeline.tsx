@@ -133,7 +133,7 @@ export function ProjectionTimeline({
 
   return (
     <div className={CARD} data-testid="projection-timeline">
-      <h3 className="mb-2 truncate text-caption text-[var(--muted-foreground)]">
+      <h3 className="mb-2.5 truncate text-caption text-[var(--muted-foreground)]">
         {t("title")}
       </h3>
 
