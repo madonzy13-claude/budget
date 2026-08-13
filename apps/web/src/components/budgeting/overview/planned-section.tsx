@@ -374,6 +374,16 @@ export function PlannedSection({
         "",
     );
 
+  // The section's ONE category filter, resolved to the ids on screen. Empty
+  // when everything is shown — effectiveCategoryIds returns undefined for both
+  // "none picked" and "all picked", and neither narrows anything.
+  const shownIds = new Set(
+    effectiveCategoryIds(
+      categoryIds,
+      categories.map((c) => c.id as string),
+    ) ?? [],
+  );
+
   // The dialog opens FROM the Future chart, so it proposes exactly what that
   // chart drew: what an average month ahead costs. The reserve walk's own
   // suggestion weighs the runway and what is already held — a different, and
@@ -387,6 +397,10 @@ export function PlannedSection({
     ([categoryId, split]) => {
       const expected = projected.get(categoryId);
       if (expected == null) return [];
+      // …and only what the filter is showing. The dialog opens FROM these
+      // bars, so acting on a category they hid is acting on something the
+      // member cannot see (user, 260813).
+      if (shownIds.size > 0 && !shownIds.has(categoryId)) return [];
       // A category whose limit is ALREADY right stays on the list, with its
       // button visibly inert — the same as the reserve dialog. Dropping it had
       // two faces: a settled category never appeared at all, and one you had
@@ -429,16 +443,6 @@ export function PlannedSection({
         ...i,
         category_name: nameById.get(i.category_id) ?? "",
       })),
-  );
-
-  // The section's ONE category filter, resolved to the ids on screen. Empty
-  // when everything is shown — effectiveCategoryIds returns undefined for both
-  // "none picked" and "all picked", and neither narrows anything.
-  const shownIds = new Set(
-    effectiveCategoryIds(
-      categoryIds,
-      categories.map((c) => c.id as string),
-    ) ?? [],
   );
 
   // EVERY category with a limit, not just the ones the reserve engine tracks

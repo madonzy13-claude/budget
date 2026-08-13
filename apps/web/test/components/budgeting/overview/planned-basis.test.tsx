@@ -1094,6 +1094,28 @@ describe("Spendings plan — one category filter for the section", () => {
     expect(chart().getAttribute("data-rows")).toBe("Food");
   });
 
+  it("narrows the rebalance dialog with them", async () => {
+    // The dialog opens FROM these bars and acts on what they show, so a
+    // category the filter hid has no business in it (user, 260813).
+    twoCategories();
+    fitDto.current = {
+      rows: [],
+      projected_by_category: [
+        { category_id: "c1", projected_monthly_cents: "120000" },
+        { category_id: "c2", projected_monthly_cents: "90000" },
+      ],
+    };
+    prefsDto.current = { "planned-categories": ["c1"] };
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    expect(
+      (limitRows.current as { categoryId: string }[]).map((r) => r.categoryId),
+    ).toEqual(["c1"]);
+  });
+
   it("narrows the meter with them", async () => {
     twoCategories();
     prefsDto.current = { "planned-categories": ["c1"] };
