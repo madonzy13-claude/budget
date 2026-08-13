@@ -40,6 +40,13 @@ export function signedMoney(format: (cents: number) => string) {
 export function ReserveFitView({
   data,
   categoryOrder = [],
+  categories,
+  oneOffs,
+  oneOffCategory,
+  onOneOffCategoryChange,
+  hasMoreOneOffs = false,
+  onLoadMoreOneOffs,
+  loadingMoreOneOffs = false,
   onSave,
   onRebalance,
   format,
@@ -50,6 +57,15 @@ export function ReserveFitView({
   data: ReserveFitDTO;
   /** Category ids in the spendings tab's order, for the one-off filter. */
   categoryOrder?: string[];
+  /** Every category, for that filter — the loaded rows are only a page. */
+  categories?: { id: string; name: string }[];
+  /** The one-off spends loaded so far, and how to ask for more (user, 260813). */
+  oneOffs?: OneOffCandidate[];
+  oneOffCategory?: string;
+  onOneOffCategoryChange?: (categoryId: string) => void;
+  hasMoreOneOffs?: boolean;
+  onLoadMoreOneOffs?: () => void;
+  loadingMoreOneOffs?: boolean;
   /** One save of the one-off dialog: what to set aside, what to count again. */
   onSave: (delta: { add: string[]; remove: string[] }) => void;
   /** Sets one category's reserve to `targetCents`; resolves with what the
@@ -137,8 +153,18 @@ export function ReserveFitView({
         {scaleSwitch}
         <div data-testid="reserve-fit-corner">
           <ReserveFitOneOffs
-            candidates={candidates}
+            candidates={oneOffs ?? candidates}
+            categories={categories}
             categoryOrder={categoryOrder}
+            {...(oneOffCategory !== undefined
+              ? { category: oneOffCategory }
+              : {})}
+            {...(onOneOffCategoryChange
+              ? { onCategoryChange: onOneOffCategoryChange }
+              : {})}
+            hasMore={hasMoreOneOffs}
+            {...(onLoadMoreOneOffs ? { onLoadMore: onLoadMoreOneOffs } : {})}
+            loadingMore={loadingMoreOneOffs}
             onSave={onSave}
             format={format}
           />

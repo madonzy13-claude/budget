@@ -56,7 +56,39 @@ export interface ExcludedSpendRow {
   cents: bigint;
 }
 
+/** One page of the "which spend won't happen again" list. */
+export interface OneOffPage {
+  items: {
+    ledger_id: string;
+    category_id: string;
+    transaction_date: string;
+    note: string | null;
+    amount_cents: bigint;
+    scheduled_cadence: string | null;
+    excluded: boolean;
+  }[];
+  /** Pass back to fetch the next page; null at the end of the list. */
+  next_cursor: string | null;
+}
+
 export interface ReserveFitRepo extends ReserveFitExclusionsRepo {
+  /**
+   * EVERY spend in the range, biggest first, a page at a time — the dialog
+   * used to offer a shortlist of five per category above a size bar, which hid
+   * most of the household's spending from a decision it is entitled to make
+   * (user, 260813). Repeating charges stay out: they are not one-offs.
+   *
+   * Keyset pagination on (amount DESC, ledger id) — stable while the member
+   * scrolls, and it does not slow down on page fifty the way OFFSET does.
+   */
+  oneOffPage(input: {
+    budgetId: string;
+    from: string;
+    to: string;
+    categoryId?: string | null;
+    cursor?: string | null;
+    limit: number;
+  }): Promise<OneOffPage>;
   excludedSpendByCategory(input: {
     budgetId: string;
     from: string;
@@ -73,6 +105,70 @@ export interface ReserveFitRepo extends ReserveFitExclusionsRepo {
 
 export function createReserveFitRepo(): ReserveFitRepo {
   return {
+    async oneOffPage({ budgetId, from, to, categoryId, cursor, limit }) {
+      // (amount DESC, id ASC): a total order, so the cursor can say exactly
+      // where the last page stopped without OFFSET's drift or its cost.
+      const [curAmount, curId] = cursor ? cursor.split("|") : [null, null];
+      return tx(budgetId, SYSTEM_USER_ID, async (t) => {
+        const res = await t.execute(sql`
+          SELECT l.id::text AS ledger_id,
+                 l.category_id::text AS category_id,
+                 to_char(l.transaction_date, 'YYYY-MM-DD') AS transaction_date,
+                 l.note,
+                 l.amount_converted_cents::text AS amount_cents,
+                 r.cadence AS scheduled_cadence,
+                 (x.ledger_id IS NOT NULL) AS excluded
+            FROM budgeting.expense_ledger l
+            LEFT JOIN budgeting.scheduled_payments r ON r.id = l.scheduled_payment_id
+            LEFT JOIN budgeting.reserve_fit_exclusions x
+                   ON x.ledger_id = l.id AND x.tenant_id = ${budgetId}::uuid
+           WHERE l.tenant_id = ${budgetId}::uuid
+             AND l.budget_id = ${budgetId}::uuid
+             AND l.kind = 'SPENDING'
+             AND l.category_id IS NOT NULL
+             AND l.confirmed_at IS NOT NULL
+             AND l.deleted_at IS NULL
+             AND l.transaction_date >= ${from}::date
+             AND l.transaction_date <= ${to}::date
+             -- A charge linked to a REPEATING rule will happen again, so it is
+             -- no candidate for "won't happen again" (user, 260813).
+             AND (r.id IS NULL OR r.cadence = 'ONCE')
+             ${categoryId ? sql`AND l.category_id = ${categoryId}::uuid` : sql``}
+             ${
+               curAmount && curId
+                 ? sql`AND (l.amount_converted_cents < ${curAmount}::bigint
+                        OR (l.amount_converted_cents = ${curAmount}::bigint
+                            AND l.id > ${curId}::uuid))`
+                 : sql``
+             }
+           ORDER BY l.amount_converted_cents DESC, l.id ASC
+           LIMIT ${limit + 1}`);
+
+        const rows = res.rows as Record<string, unknown>[];
+        // One extra row is fetched purely to answer "is there more?" — it is
+        // never returned, so the page size the caller asked for is the page
+        // size they get.
+        const hasMore = rows.length > limit;
+        const page = hasMore ? rows.slice(0, limit) : rows;
+        const last = page[page.length - 1];
+        return {
+          items: page.map((r) => ({
+            ledger_id: r.ledger_id as string,
+            category_id: r.category_id as string,
+            transaction_date: r.transaction_date as string,
+            note: (r.note as string | null) ?? null,
+            amount_cents: BigInt(r.amount_cents as string),
+            scheduled_cadence: (r.scheduled_cadence as string | null) ?? null,
+            excluded: Boolean(r.excluded),
+          })),
+          next_cursor:
+            hasMore && last
+              ? `${last.amount_cents as string}|${last.ledger_id as string}`
+              : null,
+        };
+      });
+    },
+
     async largeTransactions({ budgetId, from, to }) {
       return tx(budgetId, SYSTEM_USER_ID, async (t) => {
         const res = await t.execute(sql`

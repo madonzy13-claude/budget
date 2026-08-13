@@ -8,6 +8,7 @@
  * as the other half of "how did the plan go" — and shares this same payload.
  * By-category bars use each category's colorKey.
  */
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
@@ -27,6 +28,7 @@ import {
 import { useUpdateReserveAdjustment } from "@/hooks/use-update-reserve-adjustment";
 import { ReserveFitView } from "./reserve-fit-view";
 import { useCategories } from "@/hooks/use-budget-data";
+import { useOneOffCandidates } from "@/hooks/use-one-off-candidates";
 import { centsToRounded, centsToDisplayCompact } from "@/lib/cents-format";
 import { hexForColorKey } from "@/lib/category-colors";
 import type { OverviewRange } from "@/lib/overview-range";
@@ -57,6 +59,28 @@ export function OverspentReservesSection({
         ((b.sortIndex as number | undefined) ?? 0),
     )
     .map((c) => c.id as string);
+  const categoryList = [...categories]
+    .sort(
+      (a, b) =>
+        ((a.sortIndex as number | undefined) ?? 0) -
+        ((b.sortIndex as number | undefined) ?? 0),
+    )
+    .map((c) => ({ id: c.id as string, name: String(c.name ?? "") }));
+  // Every spend in the range, ten at a time — the same list the Planned
+  // section's dialog shows, from the same endpoint (user, 260813).
+  const [oneOffCategory, setOneOffCategory] = useState("all");
+  const oneOffs = useOneOffCandidates(
+    budgetId,
+    { from: range.from, to: range.to },
+    oneOffCategory === "all" ? null : oneOffCategory,
+  );
+  const nameById = new Map(categoryList.map((c) => [c.id, c.name]));
+  const oneOffRows = (oneOffs.data?.pages ?? []).flatMap((page) =>
+    page.items.map((i) => ({
+      ...i,
+      category_name: nameById.get(i.category_id) ?? "",
+    })),
+  );
   const { data, isPending, isError } = useOverviewOverspent(budgetId, {
     from: range.from,
     to: range.to,
@@ -155,6 +179,13 @@ export function OverspentReservesSection({
                 <ReserveFitView
                   data={fit.data}
                   categoryOrder={categoryOrder}
+                  categories={categoryList}
+                  oneOffs={oneOffRows}
+                  oneOffCategory={oneOffCategory}
+                  onOneOffCategoryChange={setOneOffCategory}
+                  hasMoreOneOffs={Boolean(oneOffs.hasNextPage)}
+                  onLoadMoreOneOffs={() => void oneOffs.fetchNextPage()}
+                  loadingMoreOneOffs={oneOffs.isFetchingNextPage}
                   format={fmtTooltip}
                   formatExact={fmtExact}
                   onSave={(delta) => saveExclusions.mutate(delta)}

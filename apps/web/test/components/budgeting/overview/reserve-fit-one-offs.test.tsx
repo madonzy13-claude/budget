@@ -265,6 +265,71 @@ describe("ReserveFitOneOffs", () => {
     ).toBeNull();
   });
 
+  /**
+   * The list is no longer a shortlist: every spend in the range is offered, ten
+   * at a time, and the button at the end asks for the next ten (user, 260813).
+   */
+  it("asks for more when the button is pressed", async () => {
+    const onLoadMore = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ReserveFitOneOffs
+        candidates={CANDIDATES}
+        hasMore
+        onLoadMore={onLoadMore}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    await user.click(screen.getByTestId("reserve-fit-open-one-offs"));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByTestId("reserve-fit-load-more"));
+    expect(onLoadMore).toHaveBeenCalled();
+  });
+
+  it("says nothing about more when there is no more", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReserveFitOneOffs
+        candidates={CANDIDATES}
+        hasMore={false}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    await user.click(screen.getByTestId("reserve-fit-open-one-offs"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByTestId("reserve-fit-load-more")).toBeNull();
+  });
+
+  // Filtering has to reach the SERVER now — a category's spends may sit on a
+  // page nobody has loaded, so narrowing the loaded rows would lie.
+  it("reports the chosen category instead of filtering what is loaded", async () => {
+    const onCategoryChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ReserveFitOneOffs
+        candidates={CANDIDATES}
+        categories={[
+          { id: "car", name: "Car" },
+          { id: "sport", name: "Sport" },
+          { id: "quiet", name: "Quiet" },
+        ]}
+        category="all"
+        onCategoryChange={onCategoryChange}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    await user.click(screen.getByTestId("reserve-fit-open-one-offs"));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByTestId("reserve-fit-category-filter"));
+    // …every category is offered, even one with nothing loaded against it.
+    expect(await screen.findByTestId("reserve-fit-filter-quiet")).toBeTruthy();
+    await user.click(screen.getByTestId("reserve-fit-filter-sport"));
+    expect(onCategoryChange).toHaveBeenCalledWith("sport");
+  });
+
   it("filters the list down to one category", async () => {
     const { user } = setup();
     const dialog = await openDialog(user);

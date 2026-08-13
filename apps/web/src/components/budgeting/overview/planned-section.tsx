@@ -62,6 +62,7 @@ import { useSetCategoryLimit } from "@/hooks/use-set-category-limit";
 import { ChartNeedsCompletedMonth } from "./chart-needs-completed-month";
 import { rangeHasCompletedMonth } from "@/lib/range-completed-month";
 import { useCategories } from "@/hooks/use-budget-data";
+import { useOneOffCandidates } from "@/hooks/use-one-off-candidates";
 import {
   centsToDisplayCompact,
   centsToRounded,
@@ -330,19 +331,16 @@ export function PlannedSection({
   // category has no reserve row, and without a figure this chart drew today's
   // limit against itself (user, 260812).
   const projected = projectedMonthlyMap(fit.data);
-  // EVERY category's one-offs, not just the buffered ones: the rows carry no
-  // opted-out category, so a big spend inside one could never be ticked — the
-  // dialog did not know it existed (user, 260812). Falls back to the rows for a
-  // payload cached before the complete list existed.
-  const oneOffCandidates: OneOffCandidate[] =
-    fit.data?.one_off_candidates ??
-    (fit.data?.rows ?? []).flatMap((r) =>
-      (r.large_transactions ?? []).map((c) => ({
-        ...c,
-        category_id: r.category_id,
-        category_name: r.name,
-      })),
-    );
+  // EVERY spend in the range, ten at a time (user, 260813). It used to be a
+  // shortlist computed inside the reserve payload — five per category, above a
+  // size bar — which hid most of the household's spending from a decision they
+  // are entitled to make.
+  const [oneOffCategory, setOneOffCategory] = useState("all");
+  const oneOffs = useOneOffCandidates(
+    budgetId,
+    { from: range.from, to: range.to },
+    oneOffCategory === "all" ? null : oneOffCategory,
+  );
 
   // Acting on the Future reading writes a needs/wants SPLIT, so the dialog
   // needs what each limit is split into TODAY — which is what the spendings
@@ -406,6 +404,21 @@ export function PlannedSection({
         ((b.sortIndex as number | undefined) ?? 0),
     )
     .map((c) => c.id as string);
+  const categoryList = [...categories]
+    .sort(
+      (a, b) =>
+        ((a.sortIndex as number | undefined) ?? 0) -
+        ((b.sortIndex as number | undefined) ?? 0),
+    )
+    .map((c) => ({ id: c.id as string, name: String(c.name ?? "") }));
+  const nameById = new Map(categoryList.map((c) => [c.id, c.name]));
+  const oneOffRows: OneOffCandidate[] = (oneOffs.data?.pages ?? []).flatMap(
+    (page) =>
+      page.items.map((i) => ({
+        ...i,
+        category_name: nameById.get(i.category_id) ?? "",
+      })),
+  );
 
   // The section's ONE category filter, resolved to the ids on screen. Empty
   // when everything is shown — effectiveCategoryIds returns undefined for both
@@ -842,8 +855,14 @@ export function PlannedSection({
                   />
                   <div data-testid="overview-planned-corner">
                     <ReserveFitOneOffs
-                      candidates={oneOffCandidates}
+                      candidates={oneOffRows}
+                      categories={categoryList}
                       categoryOrder={categoryOrder}
+                      category={oneOffCategory}
+                      onCategoryChange={setOneOffCategory}
+                      hasMore={Boolean(oneOffs.hasNextPage)}
+                      onLoadMore={() => void oneOffs.fetchNextPage()}
+                      loadingMore={oneOffs.isFetchingNextPage}
                       onSave={(delta) => saveExclusions.mutate(delta)}
                       format={fmtTooltip}
                     />

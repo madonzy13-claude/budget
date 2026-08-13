@@ -1565,7 +1565,6 @@
           "reviewOneOffs": "Review large spend",
           "excludedCount": "{count} set aside as one-offs",
           "oneOffsTitle": "Which spend won't happen again?",
-          "oneOffsExplainer": "Counted spend sizes the reserves. Set aside anything that was a one-off — a yearly charge should stay counted.",
           "filterByCategory": "Filter by category",
           "allCategories": "All categories",
           "excludedSection": "Set aside",
@@ -1594,7 +1593,10 @@
           "balanced": "Well balanced",
           "and": "and",
           "or": "or",
-          "setLimit": "Set the limit to"
+          "setLimit": "Set the limit to",
+          "loadMore": "Show more",
+          "loadingMore": "Loading…",
+          "oneOffsDescription": "Exclude one-off spendings you don’t want included in your analytics"
         },
         "needsCompletedMonth": {
           "title": "Nothing to judge yet",

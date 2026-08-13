@@ -1588,7 +1588,6 @@
           "reviewOneOffs": "Przejrzyj duże wydatki",
           "excludedCount": "Pominięto {count} jako jednorazowe",
           "oneOffsTitle": "Które wydatki się nie powtórzą?",
-          "oneOffsExplainer": "Liczone wydatki wyznaczają wielkość rezerw. Pomiń to, co było jednorazowe — coroczna opłata powinna zostać liczona.",
           "filterByCategory": "Filtruj po kategorii",
           "allCategories": "Wszystkie kategorie",
           "excludedSection": "Pominięte",
@@ -1617,7 +1616,10 @@
           "balanced": "Dobrze wyważone",
           "and": "i",
           "or": "albo",
-          "setLimit": "Ustaw limit na"
+          "setLimit": "Ustaw limit na",
+          "loadMore": "Pokaż więcej",
+          "loadingMore": "Ładowanie…",
+          "oneOffsDescription": "Wyklucz jednorazowe wydatki, których nie chcesz w swojej analityce"
         },
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",

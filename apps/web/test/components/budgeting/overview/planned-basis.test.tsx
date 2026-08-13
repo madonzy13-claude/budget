@@ -83,6 +83,17 @@ vi.mock("@/components/budgeting/overview/limit-rebalance", () => ({
   },
 }));
 const fitDto: { current: unknown } = { current: undefined };
+vi.mock("@/hooks/use-one-off-candidates", () => ({
+  // The one-off dialog pages its own list; these tests are about the charts.
+  useOneOffCandidates: () => ({
+    data: { pages: [] },
+    hasNextPage: false,
+    fetchNextPage: () => {},
+    isFetchingNextPage: false,
+    isPending: false,
+    isError: false,
+  }),
+}));
 vi.mock("@/hooks/use-reserve-fit", async (importOriginal) => ({
   // …keeping the real projectedMonthlyMap: it is the thing that turns this
   // payload into what the chart draws, so stubbing it would hollow out the test.
