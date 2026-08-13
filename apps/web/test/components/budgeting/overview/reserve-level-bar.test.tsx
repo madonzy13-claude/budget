@@ -418,12 +418,19 @@ describe("ReserveLevelBar — when held is exactly what is needed", () => {
     expect(over.className).not.toContain("rounded-full");
   });
 
-  // A few groszy is not a surplus. Everything else on the Overview treats a
-  // sub-unit difference as no difference; the shape has to agree, or a meter
-  // reading "exactly what is needed" can still draw a cut-off end (user,
-  // 260810).
-  it("reads a difference of groszy as exactly on target", () => {
-    const covered = bar(870840, 870800);
+  // A few groszy IS a difference now: the reserve dialog offers the move that
+  // closes it, so a meter reporting "exactly what is needed" over a chart
+  // reading −0.50 was the strip telling a different story from the bar under
+  // it (user screenshot, 260813). Callers whose figures are settled by
+  // construction — the limits half rounds before it gets here — hand in two
+  // equal numbers and still read whole.
+  it("reads a difference of groszy as a difference", () => {
+    const over = bar(870840, 870800);
+    expect(over.getAttribute("data-fit")).not.toBe("whole");
+  });
+
+  it("still reads whole when the two sides are equal", () => {
+    const covered = bar(870800, 870800);
     expect(covered.getAttribute("data-fit")).toBe("whole");
     expect(covered.className).toContain("rounded-full");
   });
