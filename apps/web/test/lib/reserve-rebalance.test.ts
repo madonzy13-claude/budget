@@ -12,6 +12,7 @@ import {
   rebalanceBand,
   rebalancePct,
   rebalanceButton,
+  rebalanceRowPct,
   sortRebalanceRows,
   parseTargetCents,
   type RebalanceRow,
@@ -63,9 +64,34 @@ describe("rebalancePct", () => {
   });
 });
 
+/**
+ * A row's colour and its button have to agree about whether there is anything
+ * to do. Sport held 1,775.50 against a target of 1,776: the button was
+ * correctly dead — nobody moves 50 groszy — and the row stayed RED, so the
+ * dialog showed a problem it refused to fix (user screenshot, 260813).
+ */
+describe("rebalanceRowPct", () => {
+  it("draws a sub-unit gap as level, exactly as the button reads it", () => {
+    const stuck = row({ currentCents: 177_550, targetCents: 177_600 });
+    expect(rebalanceButton(stuck)).toEqual({
+      kind: "rebalance",
+      disabled: true,
+    });
+    expect(rebalanceRowPct(stuck)).toBe(0);
+  });
+
+  it("still colours a gap worth moving", () => {
+    expect(
+      rebalanceRowPct(row({ currentCents: 10_000, targetCents: 50_000 })),
+    ).toBe(-80);
+  });
+});
+
 describe("rebalanceButton", () => {
   it("offers the move while the amounts differ", () => {
-    expect(rebalanceButton(row({ currentCents: 0, targetCents: 50_000 }))).toEqual({
+    expect(
+      rebalanceButton(row({ currentCents: 0, targetCents: 50_000 })),
+    ).toEqual({
       kind: "rebalance",
       disabled: false,
     });
@@ -133,10 +159,18 @@ describe("sortRebalanceRows", () => {
   // limit dialog is ordered the same way so the two read alike.
   it("leads with the biggest move, whichever direction it goes", () => {
     const rows = [
-      row({ categoryId: "small-short", currentCents: 9_000, targetCents: 10_000 }),
+      row({
+        categoryId: "small-short",
+        currentCents: 9_000,
+        targetCents: 10_000,
+      }),
       row({ categoryId: "big-fat", currentCents: 90_000, targetCents: 10_000 }),
       row({ categoryId: "big-short", currentCents: 0, targetCents: 80_000 }),
-      row({ categoryId: "small-fat", currentCents: 11_000, targetCents: 10_000 }),
+      row({
+        categoryId: "small-fat",
+        currentCents: 11_000,
+        targetCents: 10_000,
+      }),
     ];
     expect(sortRebalanceRows(rows).map((r) => r.categoryId)).toEqual([
       "big-fat",

@@ -21,7 +21,7 @@
 // same one — held against needed, with the member's target standing in for
 // needed once they change it.
 export { fitPct as rebalancePct } from "./reserve-fit-rows";
-import { fitPct } from "./reserve-fit-rows";
+import { fitPct, isSettled } from "./reserve-fit-rows";
 import { parseDecimal } from "./decimal";
 
 /** One whole currency unit, in cents. */
@@ -107,7 +107,17 @@ export function parseTargetCents(text: string): number | null {
   return parseDecimal(text);
 }
 
-/** Re-exported so callers reading a row's colour do not need both modules. */
+/**
+ * Re-exported so callers reading a row's colour do not need both modules.
+ *
+ * Settled first, on the SAME rule the button runs: a reserve within a whole
+ * unit of its target has nothing anyone can do about it. Colouring it from the
+ * raw percent showed Sport at 1,775.50 against 1,776 as a red row beside a
+ * dead button — a problem the dialog refused to fix (user screenshot, 260813).
+ * The chart has drawn it level since 260810; this is the same call.
+ */
 export function rebalanceRowPct(row: RebalanceRow): number {
-  return fitPct(row.currentCents, row.targetCents);
+  return isSettled(row.currentCents, row.targetCents)
+    ? 0
+    : fitPct(row.currentCents, row.targetCents);
 }
