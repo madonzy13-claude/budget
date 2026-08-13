@@ -216,3 +216,76 @@ describe("one-offs of an excluded category", () => {
     expect(res.value.rows.map((r) => r.category_id)).not.toContain(INSURANCE);
   });
 });
+
+/**
+ * A spend that repeats is not a one-off (user, 260813).
+ *
+ * The dialog asks "which spend won't happen again". A charge linked to a
+ * MONTHLY rule will happen again next month by construction, so ticking it is
+ * always wrong — and it was worse than useless: two of Insurance's five
+ * shortlist slots were taken by the same NN premium, crowding out the genuine
+ * one-offs underneath. A ONCE payment is a real single purchase and stays.
+ */
+describe("recurring payments are not one-off candidates", () => {
+  const withMixedSpends = (): GetReserveFitDeps => {
+    const base = deps();
+    return {
+      ...base,
+      exclusionsRepo: {
+        largeTransactions: async () => [
+          {
+            ledger_id: "tx-monthly",
+            category_id: INSURANCE,
+            transaction_date: "2026-03-27",
+            note: "NN premium",
+            amount_cents: zl(436),
+            scheduled_cadence: "MONTHLY",
+            excluded: false,
+          },
+          {
+            ledger_id: "tx-yearly",
+            category_id: INSURANCE,
+            transaction_date: "2026-02-14",
+            note: "Car insurance",
+            amount_cents: zl(3300),
+            scheduled_cadence: "YEARLY",
+            excluded: false,
+          },
+          {
+            ledger_id: "tx-once",
+            category_id: INSURANCE,
+            transaction_date: "2026-04-01",
+            note: "Sofa",
+            amount_cents: zl(2000),
+            scheduled_cadence: "ONCE",
+            excluded: false,
+          },
+          {
+            ledger_id: "tx-plain",
+            category_id: INSURANCE,
+            transaction_date: "2026-05-15",
+            note: "Roof",
+            amount_cents: zl(9000),
+            scheduled_cadence: null,
+            excluded: false,
+          },
+        ],
+      } as unknown as GetReserveFitDeps["exclusionsRepo"],
+    };
+  };
+
+  test("a repeating charge is never offered; a one-time one is", async () => {
+    const res = await getReserveFit(withMixedSpends())({
+      tenantId: BUDGET,
+      budgetId: BUDGET,
+      from: "2025-09-01",
+      to: "2026-08-31",
+    });
+    if (res.isErr()) throw res.error;
+    const offered = res.value.one_off_candidates.map((c) => c.ledger_id);
+    expect(offered).toContain("tx-plain");
+    expect(offered).toContain("tx-once");
+    expect(offered).not.toContain("tx-monthly");
+    expect(offered).not.toContain("tx-yearly");
+  });
+});

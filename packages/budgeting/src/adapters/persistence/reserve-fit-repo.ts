@@ -97,6 +97,12 @@ export function createReserveFitRepo(): ReserveFitRepo {
                AND l.deleted_at IS NULL
                AND l.transaction_date >= ${from}::date
                AND l.transaction_date <= ${to}::date
+               -- A charge linked to a REPEATING rule will happen again, so it
+               -- is no candidate for "won't happen again" — and leaving it in
+               -- spent shortlist slots on the same premium month after month,
+               -- hiding the genuine one-offs beneath it (user, 260813).
+               -- A ONCE rule is a single purchase and stays.
+               AND (r.id IS NULL OR r.cadence = 'ONCE')
           )
           SELECT ranked.id::text AS ledger_id,
                  ranked.category_id::text AS category_id,

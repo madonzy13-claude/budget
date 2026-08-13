@@ -361,6 +361,16 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       };
 
       /**
+       * "Which spend won't happen again" — so a charge that WILL is no
+       * candidate. A ledger row linked to a repeating rule recurs by
+       * construction; ticking it as a one-off is always wrong, and it used to
+       * take a shortlist slot from a genuine one (user, 260813). A ONCE rule is
+       * a real single purchase and stays.
+       */
+      const isOneOffish = (cadence: string | null) =>
+        cadence === null || cadence === "ONCE";
+
+      /**
        * Half a typical month's limit — the bar a spend has to clear to be worth
        * a decision, per category. Hoisted for the same reason as projectedFor:
        * a category with no reserve row still has one-offs to offer, and they
@@ -642,6 +652,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
             .filter(
               (t) =>
                 t.category_id === w.category_id &&
+                isOneOffish(t.scheduled_cadence) &&
                 worthDeciding(t.amount_cents),
             )
             .sort((a, b) => (a.amount_cents < b.amount_cents ? 1 : -1))
@@ -676,6 +687,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
             .filter(
               (t) =>
                 nameOf.has(t.category_id) &&
+                isOneOffish(t.scheduled_cadence) &&
                 worthDecidingIn(t.category_id)(t.amount_cents),
             )
             .sort((a, b) => (a.amount_cents < b.amount_cents ? 1 : -1))

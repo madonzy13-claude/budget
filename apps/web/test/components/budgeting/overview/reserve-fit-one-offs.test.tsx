@@ -234,6 +234,37 @@ describe("ReserveFitOneOffs", () => {
     ]);
   });
 
+  // Repeating charges no longer reach this dialog at all (they are not
+  // one-offs). What can still arrive with a cadence is a ONCE payment — a
+  // single planned purchase — and "repeats once" is nonsense (user, 260813).
+  it("does not claim a one-time payment repeats", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReserveFitOneOffs
+        candidates={[
+          {
+            ledger_id: "tx-sofa",
+            category_id: "home",
+            category_name: "Home",
+            transaction_date: "2026-04-01",
+            note: "Sofa",
+            amount_cents: "200000",
+            scheduled_cadence: "ONCE",
+            excluded: false,
+          },
+        ]}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    await user.click(screen.getByTestId("reserve-fit-open-one-offs"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByTestId("reserve-fit-row-tx-sofa")).toBeTruthy();
+    expect(
+      within(dialog).queryByTestId("reserve-fit-recurs-tx-sofa"),
+    ).toBeNull();
+  });
+
   it("filters the list down to one category", async () => {
     const { user } = setup();
     const dialog = await openDialog(user);

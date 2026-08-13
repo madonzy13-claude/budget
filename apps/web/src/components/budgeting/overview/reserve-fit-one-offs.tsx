@@ -126,7 +126,10 @@ export function ReserveFitOneOffs({
             <span className={off ? "text-num-sm opacity-50" : "text-num-sm"}>
               {format(Number(c.amount_cents))}
             </span>
-            {c.scheduled_cadence && (
+            {/* A repeating charge is no longer offered here at all — it is
+                not a one-off. What can still carry a cadence is a ONCE
+                payment, and "repeats once" says nothing (user, 260813). */}
+            {c.scheduled_cadence && c.scheduled_cadence !== "ONCE" && (
               <span
                 data-testid={`reserve-fit-recurs-${c.ledger_id}`}
                 className="shrink-0 text-caption text-[var(--primary)]"
