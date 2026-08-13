@@ -11,6 +11,7 @@
 import { useMemo, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { useProjection, type ProjectionDay } from "@/hooks/use-projection";
+import { useCategories } from "@/hooks/use-budget-data";
 import { centsToDisplayCompact } from "@/lib/cents-format";
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 import { formatShortDate } from "@/lib/format-date";
@@ -43,6 +44,18 @@ export function ProjectionTimeline({
   const t = useTranslations("bdp.tab.overview.projection");
   const locale = useLocale();
   const { data, isLoading, isError } = useProjection(budgetId);
+  // The card's category lists read in the order the household arranged on the
+  // spendings tab, which is the order they see everywhere else (user, 260813).
+  // Sorted here rather than trusted from the wire, exactly as the grid does it.
+  const categoryRank = new Map(
+    [...(useCategories(budgetId).data ?? [])]
+      .sort(
+        (a, b) =>
+          ((a.sortIndex as number | undefined) ?? 0) -
+          ((b.sortIndex as number | undefined) ?? 0),
+      )
+      .map((c, i) => [c.id as string, i]),
+  );
   const [active, setActive] = useState<number | null>(null);
 
   const n = data?.days.length ?? 0;
@@ -289,6 +302,7 @@ export function ProjectionTimeline({
             // ever match them. They belong to today — the first cell — which is
             // where they drift to until they are answered.
             pending={active === 0 ? (data.pending_points ?? []) : []}
+            categoryRank={categoryRank}
             leftPct={activePct}
             currency={data.currency}
             locale={locale}
@@ -307,11 +321,16 @@ export function ProjectionTimeline({
  *  (colouring the amounts made income the only loud number, user 260812). */
 function LedgerRow({
   sign,
+  signColor,
   label,
   amount,
   testId,
 }: {
   sign?: "+" | "−";
+  /** Overrides the sign's default ink. The reserve adds to the day without
+   *  being income — money coming IN is green, a buffer being spent down is the
+   *  yellow the reserve carries everywhere else (user, 260813). */
+  signColor?: string;
   label: string;
   amount: React.ReactNode;
   testId?: string;
@@ -327,7 +346,9 @@ function LedgerRow({
             aria-hidden="true"
             className="shrink-0 font-semibold"
             style={{
-              color: sign === "+" ? "var(--trading-up)" : "var(--trading-down)",
+              color:
+                signColor ??
+                (sign === "+" ? "var(--trading-up)" : "var(--trading-down)"),
             }}
           >
             {sign}
@@ -347,6 +368,7 @@ function ProjectionTooltip({
   bills,
   incomes,
   pending,
+  categoryRank,
   leftPct,
   currency,
   locale,
@@ -358,6 +380,9 @@ function ProjectionTooltip({
   incomes: { name: string; amount_cents: string }[];
   /** Unconfirmed occurrences, shown on the first (today) cell only — see below. */
   pending: { date: string; name: string; amount_cents: string }[];
+  /** categoryId → its place on the spendings tab. Anything the map has never
+   *  heard of keeps its place at the end rather than jumping to the front. */
+  categoryRank: Map<string, number>;
   leftPct: number;
   currency: string;
   locale: string;
@@ -379,9 +404,17 @@ function ProjectionTooltip({
         ? "var(--primary)"
         : "var(--trading-up)";
 
+  const byCategory = <T extends { category_id: string }>(rows: readonly T[]) =>
+    [...rows].sort(
+      (a, b) =>
+        (categoryRank.get(a.category_id) ?? Number.MAX_SAFE_INTEGER) -
+        (categoryRank.get(b.category_id) ?? Number.MAX_SAFE_INTEGER),
+    );
+
   // Grouped rows, in reading order: money in, money out, reserve used, uncovered.
   const sections = [
     {
+      key: "income",
       label: t("income"),
       color: "var(--trading-up)",
       rows: incomes.map((p, i) => ({
@@ -391,6 +424,7 @@ function ProjectionTooltip({
       })),
     },
     {
+      key: "bill",
       label: t("bill"),
       color: "var(--muted-foreground)",
       rows: bills.map((b, i) => ({
@@ -400,18 +434,20 @@ function ProjectionTooltip({
       })),
     },
     {
+      key: "reserve",
       label: t("reserveUsed"),
       color: "var(--primary)",
-      rows: day.drew_reserve.map((r, i) => ({
+      rows: byCategory(day.drew_reserve).map((r, i) => ({
         key: `d${i}`,
         name: r.name || t("bill"),
         amount: r.amount_cents,
       })),
     },
     {
+      key: "shortfall",
       label: t("cantCover"),
       color: "var(--trading-down)",
-      rows: day.shortfall.map((s, i) => ({
+      rows: byCategory(day.shortfall).map((s, i) => ({
         key: `s${i}`,
         name: s.name || t("bill"),
         amount: s.amount_cents,
@@ -477,6 +513,7 @@ function ProjectionTooltip({
         {Number(day.reserve_covered_cents) > 0 && (
           <LedgerRow
             sign="+"
+            signColor="var(--primary)"
             label={t("reserveUsed")}
             amount={money(day.reserve_covered_cents)}
             testId="projection-reserve-term"
@@ -545,6 +582,7 @@ function ProjectionTooltip({
           {sec.rows.map((r) => (
             <div
               key={r.key}
+              data-testid={`projection-row-${sec.key}`}
               className="flex items-baseline justify-between gap-3 py-px"
             >
               <span className="min-w-0 truncate text-[var(--body-on-dark)]">

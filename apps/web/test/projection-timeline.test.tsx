@@ -1,6 +1,6 @@
 // apps/web/test/projection-timeline.test.tsx
 import { describe, test, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { ProjectionTimeline } from "@/components/budgeting/overview/projection-timeline";
 import type { ProjectionDTO } from "@/hooks/use-projection";
@@ -100,6 +100,11 @@ const dto: ProjectionDTO = {
 
 // Swappable so a test can hand in a window that spans a month boundary.
 let projectionData: ProjectionDTO = dto;
+// The spendings tab's own order — what the tooltip's category lists follow.
+let categoryData: { id: string; name: string; sortIndex: number }[] = [];
+vi.mock("@/hooks/use-budget-data", () => ({
+  useCategories: () => ({ data: categoryData }),
+}));
 vi.mock("@/hooks/use-projection", () => ({
   useProjection: () => ({
     data: projectionData,
@@ -144,6 +149,92 @@ describe("ProjectionTimeline", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     projectionData = dto;
+    categoryData = [];
+  });
+
+  /**
+   * The categories in a day's card are the ones the household arranged on the
+   * spendings tab, so they read in that order here too — not alphabetically,
+   * and not in whatever order the walk happened to reach them (user, 260813).
+   */
+  test("lists what it can't cover in the spendings tab's order", () => {
+    categoryData = [
+      { id: "c-food", name: "Food", sortIndex: 0 },
+      { id: "c-car", name: "Car", sortIndex: 1 },
+      { id: "c-travel", name: "Travel", sortIndex: 2 },
+    ];
+    projectionData = {
+      ...dto,
+      days: [
+        {
+          ...dto.days[2]!,
+          // Handed over in the opposite order.
+          shortfall: [
+            { category_id: "c-travel", name: "Travel", amount_cents: "300" },
+            { category_id: "c-car", name: "Car", amount_cents: "200" },
+            { category_id: "c-food", name: "Food", amount_cents: "100" },
+          ],
+        },
+      ],
+    };
+    renderIt();
+    fireEvent.pointerEnter(screen.getAllByTestId("projection-day")[0]!);
+    expect(
+      screen
+        .getAllByTestId("projection-row-shortfall")
+        .map((el) => el.textContent?.replace(/[^A-Za-z ].*$/, "").trim()),
+    ).toEqual(["Food", "Car", "Travel"]);
+  });
+
+  test("orders the reserve it drew on the same way", () => {
+    categoryData = [
+      { id: "c-food", name: "Food", sortIndex: 0 },
+      { id: "c-car", name: "Car", sortIndex: 1 },
+    ];
+    projectionData = {
+      ...dto,
+      days: [
+        {
+          ...dto.days[1]!,
+          drew_reserve: [
+            { category_id: "c-car", name: "Car", amount_cents: "200" },
+            { category_id: "c-food", name: "Food", amount_cents: "100" },
+          ],
+        },
+      ],
+    };
+    renderIt();
+    fireEvent.pointerEnter(screen.getAllByTestId("projection-day")[0]!);
+    expect(
+      screen
+        .getAllByTestId("projection-row-reserve")
+        .map((el) => el.textContent?.replace(/[^A-Za-z ].*$/, "").trim()),
+    ).toEqual(["Food", "Car"]);
+  });
+
+  /**
+   * Reserve money is not income. Its "+" was drawn in the same green as money
+   * coming IN, which reads as a windfall rather than as a buffer being spent
+   * down — the colour the reserve carries everywhere else is the yellow accent
+   * (user, 260813).
+   */
+  test("marks the reserve term with the reserve's own colour", () => {
+    renderIt();
+    fireEvent.pointerEnter(screen.getAllByTestId("projection-day")[1]!);
+    const sign = screen
+      .getByTestId("projection-reserve-term")
+      .querySelector("span[aria-hidden]") as HTMLElement;
+    expect(sign.textContent).toBe("+");
+    expect(sign.style.color).toBe("var(--primary)");
+  });
+
+  test("leaves income's plus green", () => {
+    renderIt();
+    fireEvent.pointerEnter(screen.getAllByTestId("projection-day")[2]!);
+    const sign = screen
+      .getByTestId("projection-income-term")
+      .querySelector("span[aria-hidden]") as HTMLElement;
+    expect(sign.style.color).toBe("var(--trading-up)");
   });
 
   test("renders one band cell per day with the right color class", () => {
