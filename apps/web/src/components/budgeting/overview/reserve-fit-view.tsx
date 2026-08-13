@@ -42,6 +42,7 @@ export function ReserveFitView({
   categoryOrder = [],
   categories,
   oneOffs,
+  excludedOneOffTotal,
   oneOffCategory,
   onOneOffCategoryChange,
   hasMoreOneOffs = false,
@@ -61,6 +62,8 @@ export function ReserveFitView({
   categories?: { id: string; name: string }[];
   /** The one-off spends loaded so far, and how to ask for more (user, 260813). */
   oneOffs?: OneOffCandidate[];
+  /** How many spends the range holds set aside — see ReserveFitOneOffs. */
+  excludedOneOffTotal?: number;
   oneOffCategory?: string;
   onOneOffCategoryChange?: (categoryId: string) => void;
   hasMoreOneOffs?: boolean;
@@ -154,6 +157,9 @@ export function ReserveFitView({
         <div data-testid="reserve-fit-corner">
           <ReserveFitOneOffs
             candidates={oneOffs ?? candidates}
+            {...(excludedOneOffTotal !== undefined
+              ? { excludedTotal: excludedOneOffTotal }
+              : {})}
             categories={categories}
             categoryOrder={categoryOrder}
             {...(oneOffCategory !== undefined

@@ -856,6 +856,7 @@ export function PlannedSection({
                   <div data-testid="overview-planned-corner">
                     <ReserveFitOneOffs
                       candidates={oneOffRows}
+                      excludedTotal={oneOffs.data?.pages[0]?.excluded_total}
                       categories={categoryList}
                       categoryOrder={categoryOrder}
                       category={oneOffCategory}

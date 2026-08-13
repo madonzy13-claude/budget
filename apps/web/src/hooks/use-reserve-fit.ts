@@ -130,6 +130,17 @@ export function useReserveFit(
   });
 }
 
+/**
+ * The dialog's own list, whatever range or category filter is on it. Ticking a
+ * spend changes what that list says — which row is set aside, how many are —
+ * and the list is a separate query from the chart since it started paging
+ * (260813). Invalidating only the chart left a reopened dialog showing the old
+ * answer and a badge counting none of the new ticks (user).
+ */
+export function oneOffsKeyPrefix(budgetId: string) {
+  return ["budget", budgetId, "one-offs"] as const;
+}
+
 export function useSaveReserveFitExclusions(budgetId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -150,6 +161,7 @@ export function useSaveReserveFitExclusions(budgetId: string) {
     },
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: reserveFitKeyPrefix(budgetId) });
+      void qc.invalidateQueries({ queryKey: oneOffsKeyPrefix(budgetId) });
     },
   });
 }

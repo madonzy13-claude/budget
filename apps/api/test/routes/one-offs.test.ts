@@ -113,6 +113,17 @@ async function createFixture(): Promise<Fixture> {
         [budgetId, categoryId, date, `spend ${cents}`, cents, ruleId],
       );
     }
+    // Two of the SMALLEST spends are set aside — the 8 zł and the 100 zł. Both
+    // sit far down an amount-ordered list, which is exactly the case that broke:
+    // the member ticked them, reopened the dialog, and they were gone.
+    await client.query(
+      `INSERT INTO budgeting.reserve_fit_exclusions
+         (id, tenant_id, ledger_id, actor_user_id, created_at)
+       SELECT gen_random_uuid(), $1, id, $2, now()
+         FROM budgeting.expense_ledger
+        WHERE tenant_id = $1 AND amount_converted_cents IN (800, 10000)`,
+      [budgetId, userId],
+    );
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK");
@@ -165,6 +176,7 @@ interface Page {
     excluded: boolean;
   }[];
   next_cursor: string | null;
+  excluded_total: number;
 }
 
 describe("GET /budgets/:id/overview/one-offs", () => {
@@ -187,9 +199,40 @@ describe("GET /budgets/:id/overview/one-offs", () => {
   test("hands back ten at a time, biggest first", async () => {
     const page = await fetchPage("");
     expect(page.items).toHaveLength(10);
-    const amounts = page.items.map((i) => Number(i.amount_cents));
+    // Biggest first WITHIN the counted half — the set-aside rows lead the list
+    // whatever they cost (see below).
+    const amounts = page.items
+      .filter((i) => !i.excluded)
+      .map((i) => Number(i.amount_cents));
     expect([...amounts].sort((a, b) => b - a)).toEqual(amounts);
     expect(page.next_cursor).not.toBeNull();
+  });
+
+  test("what is already set aside leads the list, however small", async () => {
+    const page = await fetchPage("");
+    // Both ticked rows are 8 zł and 100 zł: bottom of the range by amount, and
+    // on page three of an amount-only order. The member who ticked them must
+    // find them on reopening (user, 260813).
+    expect(page.items.slice(0, 2).map((i) => Number(i.amount_cents))).toEqual([
+      10000, 800,
+    ]);
+    expect(page.items.slice(0, 2).every((i) => i.excluded)).toBe(true);
+    expect(page.items.slice(2).some((i) => i.excluded)).toBe(false);
+  });
+
+  test("counts every set-aside spend in range, not the loaded ones", async () => {
+    // The badge on the chart reads this. Counting the loaded rows made it say
+    // "1" the moment the list paged past the exclusions (user, 260813).
+    let cursor: string | null = null;
+    const totals: number[] = [];
+    do {
+      const page: Page = await fetchPage(
+        cursor ? `&cursor=${encodeURIComponent(cursor)}` : "",
+      );
+      totals.push(page.excluded_total);
+      cursor = page.next_cursor;
+    } while (cursor);
+    expect(totals.every((t) => t === 2)).toBe(true);
   });
 
   test("the cursor walks the whole range without repeating a row", async () => {

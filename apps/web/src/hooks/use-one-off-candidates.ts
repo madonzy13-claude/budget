@@ -25,6 +25,9 @@ export interface OneOffCandidateDTO {
 export interface OneOffPageDTO {
   items: OneOffCandidateDTO[];
   next_cursor: string | null;
+  /** Set aside across the whole range, counted server-side — the badge reads
+   *  this rather than the loaded rows (user, 260813). */
+  excluded_total: number;
 }
 
 export function useOneOffCandidates(

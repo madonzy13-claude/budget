@@ -56,6 +56,7 @@ export interface OneOffCandidate {
 
 export function ReserveFitOneOffs({
   candidates,
+  excludedTotal,
   categories: allCategories,
   categoryOrder = [],
   category: categoryProp,
@@ -68,6 +69,13 @@ export function ReserveFitOneOffs({
 }: {
   /** The spends loaded so far — every one in the range, ten at a time. */
   candidates: OneOffCandidate[];
+  /**
+   * How many spends the RANGE holds set aside, counted by the server. The
+   * badge counted the loaded rows, so it fell to "1" as soon as the list paged
+   * past the ticked ones (user, 260813). Absent = count what is loaded, which
+   * is right only for an unpaged list.
+   */
+  excludedTotal?: number;
   /**
    * Every category, for the filter. Derived from the loaded rows when absent,
    * which is only right for a list that is complete: with paging, a category
@@ -108,7 +116,7 @@ export function ReserveFitOneOffs({
   if (candidates.length === 0) return null;
 
   const isExcluded = (c: OneOffCandidate) => pending[c.ledger_id] ?? c.excluded;
-  const excludedCount = candidates.filter(isExcluded).length;
+  const excludedCount = excludedTotal ?? candidates.filter(isExcluded).length;
 
   const flip = (c: OneOffCandidate) => {
     const next = !isExcluded(c);
@@ -241,7 +249,16 @@ export function ReserveFitOneOffs({
         )}
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      {/* Closing drops the filter: the badge counts whatever the loaded query
+          counts, and leaving it narrowed to one category would leave the chart
+          reporting that category's ticks as the whole budget's. */}
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setCategory("all");
+        }}
+      >
         <DialogContent
           data-testid="reserve-fit-one-offs-dialog"
           // Radix focuses the first control otherwise, which IS the filter —

@@ -181,6 +181,7 @@ export function OverspentReservesSection({
                   categoryOrder={categoryOrder}
                   categories={categoryList}
                   oneOffs={oneOffRows}
+                  excludedOneOffTotal={oneOffs.data?.pages[0]?.excluded_total}
                   oneOffCategory={oneOffCategory}
                   onOneOffCategoryChange={setOneOffCategory}
                   hasMoreOneOffs={Boolean(oneOffs.hasNextPage)}

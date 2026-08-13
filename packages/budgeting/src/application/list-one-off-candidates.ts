@@ -35,6 +35,9 @@ export interface OneOffCandidateDTO {
 export interface OneOffPageDTO {
   items: OneOffCandidateDTO[];
   next_cursor: string | null;
+  /** Set aside across the whole range — what the chart's badge shows. Counting
+   *  the loaded rows made it read "1" as soon as the list paged past them. */
+  excluded_total: number;
 }
 
 /** Page size the dialog scrolls through. */
@@ -64,6 +67,7 @@ export function listOneOffCandidates(deps: ListOneOffCandidatesDeps) {
         amount_cents: i.amount_cents.toString(),
       })),
       next_cursor: page.next_cursor,
+      excluded_total: page.excluded_total,
     });
   };
 }

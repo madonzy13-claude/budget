@@ -103,6 +103,37 @@ describe("ReserveFitOneOffs", () => {
     expect(screen.getByTestId("reserve-fit-open-one-offs")).toBeTruthy();
   });
 
+  /**
+   * The list is paged, so what is loaded is not what is set aside: tick six
+   * spends, page past them, and a badge counting rows on screen reads "1"
+   * (user, 260813). The server counts the range; the badge shows THAT.
+   */
+  it("counts what the range holds, not what this page loaded", () => {
+    render(
+      <ReserveFitOneOffs
+        candidates={CANDIDATES}
+        excludedTotal={6}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    expect(screen.getByTestId("reserve-fit-one-offs-badge").textContent).toBe(
+      "6",
+    );
+  });
+
+  it("drops the badge when the range holds nothing set aside", () => {
+    render(
+      <ReserveFitOneOffs
+        candidates={CANDIDATES}
+        excludedTotal={0}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    expect(screen.queryByTestId("reserve-fit-one-offs-badge")).toBeNull();
+  });
+
   it("names itself for anyone who cannot see the icon", () => {
     setup();
     expect(

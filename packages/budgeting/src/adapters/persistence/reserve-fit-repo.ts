@@ -69,6 +69,9 @@ export interface OneOffPage {
   }[];
   /** Pass back to fetch the next page; null at the end of the list. */
   next_cursor: string | null;
+  /** How many spends in the whole range are set aside — NOT how many of them
+   *  this page happens to carry. The chart's badge reads it. */
+  excluded_total: number;
 }
 
 export interface ReserveFitRepo extends ReserveFitExclusionsRepo {
@@ -106,9 +109,17 @@ export interface ReserveFitRepo extends ReserveFitExclusionsRepo {
 export function createReserveFitRepo(): ReserveFitRepo {
   return {
     async oneOffPage({ budgetId, from, to, categoryId, cursor, limit }) {
-      // (amount DESC, id ASC): a total order, so the cursor can say exactly
-      // where the last page stopped without OFFSET's drift or its cost.
-      const [curAmount, curId] = cursor ? cursor.split("|") : [null, null];
+      // (set-aside first, then amount DESC, id ASC): a total order, so the
+      // cursor can say exactly where the last page stopped without OFFSET's
+      // drift or its cost.
+      //
+      // Set-aside leads because those rows are the member's own decisions, and
+      // an amount-only order buried them: tick three small spends, reopen, and
+      // the dialog showed none of them because they sat on page four (user,
+      // 260813).
+      const [curExcluded, curAmount, curId] = cursor
+        ? cursor.split("|")
+        : [null, null, null];
       return tx(budgetId, SYSTEM_USER_ID, async (t) => {
         const res = await t.execute(sql`
           SELECT l.id::text AS ledger_id,
@@ -136,13 +147,35 @@ export function createReserveFitRepo(): ReserveFitRepo {
              ${categoryId ? sql`AND l.category_id = ${categoryId}::uuid` : sql``}
              ${
                curAmount && curId
-                 ? sql`AND (l.amount_converted_cents < ${curAmount}::bigint
-                        OR (l.amount_converted_cents = ${curAmount}::bigint
-                            AND l.id > ${curId}::uuid))`
+                 ? sql`AND (((x.ledger_id IS NOT NULL) < ${curExcluded === "1"}::boolean)
+                        OR ((x.ledger_id IS NOT NULL) = ${curExcluded === "1"}::boolean
+                            AND (l.amount_converted_cents < ${curAmount}::bigint
+                                 OR (l.amount_converted_cents = ${curAmount}::bigint
+                                     AND l.id > ${curId}::uuid))))`
                  : sql``
              }
-           ORDER BY l.amount_converted_cents DESC, l.id ASC
+           ORDER BY (x.ledger_id IS NOT NULL) DESC,
+                    l.amount_converted_cents DESC, l.id ASC
            LIMIT ${limit + 1}`);
+
+        // The badge counts what is set aside in the RANGE, not on the page —
+        // same filters as the list, so the number and the rows agree.
+        const totalRes = await t.execute(sql`
+          SELECT COUNT(*)::text AS n
+            FROM budgeting.expense_ledger l
+            LEFT JOIN budgeting.scheduled_payments r ON r.id = l.scheduled_payment_id
+            JOIN budgeting.reserve_fit_exclusions x
+                 ON x.ledger_id = l.id AND x.tenant_id = ${budgetId}::uuid
+           WHERE l.tenant_id = ${budgetId}::uuid
+             AND l.budget_id = ${budgetId}::uuid
+             AND l.kind = 'SPENDING'
+             AND l.category_id IS NOT NULL
+             AND l.confirmed_at IS NOT NULL
+             AND l.deleted_at IS NULL
+             AND l.transaction_date >= ${from}::date
+             AND l.transaction_date <= ${to}::date
+             AND (r.id IS NULL OR r.cadence = 'ONCE')
+             ${categoryId ? sql`AND l.category_id = ${categoryId}::uuid` : sql``}`);
 
         const rows = res.rows as Record<string, unknown>[];
         // One extra row is fetched purely to answer "is there more?" — it is
@@ -163,8 +196,11 @@ export function createReserveFitRepo(): ReserveFitRepo {
           })),
           next_cursor:
             hasMore && last
-              ? `${last.amount_cents as string}|${last.ledger_id as string}`
+              ? `${last.excluded ? "1" : "0"}|${last.amount_cents as string}|${last.ledger_id as string}`
               : null,
+          excluded_total: Number(
+            (totalRes.rows[0]?.n as string | undefined) ?? "0",
+          ),
         };
       });
     },
