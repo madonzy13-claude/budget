@@ -83,7 +83,10 @@ function deps(limit: number, held: number): GetReserveFitDeps {
     fxProvider: {
       rateAsOf: async () => ({ rate: "1" }),
     } as unknown as GetReserveFitDeps["fxProvider"],
-    exclusionsRepo: { largeTransactions: async () => [] },
+    exclusionsRepo: {
+      largeTransactions: async () => [],
+      excludedSpendByCategory: async () => [],
+    },
     reservePositions: async () =>
       ok({
         positions: new Map([

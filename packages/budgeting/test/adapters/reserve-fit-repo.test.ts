@@ -2,9 +2,10 @@
  * reserve-fit-repo.test.ts — the one-off list against real Postgres.
  *
  * Covers what only a database can tell us: the shortlist really is the biggest
- * spends per category, a scheduled charge carries its cadence (so the member can
- * see it WILL come round again), the un-tick round-trips, and the annotation is
- * scoped to the budget rather than leaking across tenants.
+ * spends per category, a charge linked to a REPEATING rule is never offered (it
+ * will happen again by construction — user, 260813), the un-tick round-trips
+ * even for a spend the shortlist does not carry, and the annotation is scoped to
+ * the budget rather than leaking across tenants.
  *
  * DATABASE_URL_APP comes from the infisical wrapper.
  */
@@ -120,21 +121,20 @@ const list = () =>
 describe("reserve-fit exclusions repo", () => {
   test("lists the budget's spends, biggest first, none excluded yet", async () => {
     const rows = await list();
-    expect(rows.map((r) => r.ledger_id)).toEqual([
-      TX_INSURANCE,
-      TX_JUMP,
-      TX_SMALL,
-    ]);
+    // The 5,000 insurance charge is bigger than either, and absent: it is
+    // linked to a YEARLY rule (see below).
+    expect(rows.map((r) => r.ledger_id)).toEqual([TX_JUMP, TX_SMALL]);
     expect(rows.every((r) => !r.excluded)).toBe(true);
-    expect(rows[0]?.amount_cents).toBe(500000n);
-    expect(rows[1]?.note).toBe("Parachute jump");
+    expect(rows[0]?.amount_cents).toBe(480000n);
+    expect(rows[0]?.note).toBe("Parachute jump");
   });
 
-  test("a scheduled charge carries its cadence as evidence it will repeat", async () => {
+  test("a charge from a repeating rule is never offered as a one-off", async () => {
     const rows = await list();
-    expect(
-      rows.find((r) => r.ledger_id === TX_INSURANCE)?.scheduled_cadence,
-    ).toBe("YEARLY");
+    // "Which spend won't happen again" — a yearly premium will, so ticking it
+    // is always wrong and it used to eat a shortlist slot every year (user,
+    // 260813).
+    expect(rows.find((r) => r.ledger_id === TX_INSURANCE)).toBeUndefined();
     expect(
       rows.find((r) => r.ledger_id === TX_JUMP)?.scheduled_cadence,
     ).toBeNull();
@@ -172,12 +172,21 @@ describe("reserve-fit exclusions repo", () => {
       actorUserId: USER,
     });
     const rows = await list();
-    expect(
-      rows
-        .filter((r) => r.excluded)
-        .map((r) => r.ledger_id)
-        .sort(),
-    ).toEqual([TX_INSURANCE, TX_JUMP].sort());
+    expect(rows.filter((r) => r.excluded).map((r) => r.ledger_id)).toEqual([
+      TX_JUMP,
+    ]);
+    // The insurance tick landed even though the shortlist never carries that
+    // row — the exclusions table is the record, not the list (260813).
+    const summed = await repo.excludedSpendByCategory({
+      budgetId: TENANT,
+      from: "2026-01-01",
+      to: "2026-03-31",
+    });
+    expect(summed).toContainEqual({
+      category_id: CAT,
+      month: "2026-02",
+      cents: 500000n,
+    });
   });
 
   test("an empty batch changes nothing", async () => {
@@ -187,7 +196,7 @@ describe("reserve-fit exclusions repo", () => {
       remove: [],
       actorUserId: USER,
     });
-    expect((await list()).filter((r) => r.excluded).length).toBe(2);
+    expect((await list()).filter((r) => r.excluded).length).toBe(1);
   });
 
   test("restoring everything clears the annotations", async () => {

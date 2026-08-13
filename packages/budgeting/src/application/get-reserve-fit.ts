@@ -54,6 +54,21 @@ export interface ReserveFitExclusionsRepo {
     from: string;
     to: string;
   }): Promise<LargeTransactionRow[]>;
+  /**
+   * What the household has set aside, summed per (category, month) — from the
+   * exclusions TABLE, so a tick is honoured wherever the spend sits.
+   *
+   * The projection used to read the ticks off `largeTransactions`, which is a
+   * shortlist: five per category, over a size bar. Once the dialog started
+   * offering every spend in the range, small ticked charges were saved and
+   * then ignored by the arithmetic — Insurance read 808 a month against 798 of
+   * rules and nothing else (user, 260813).
+   */
+  excludedSpendByCategory(input: {
+    budgetId: string;
+    from: string;
+    to: string;
+  }): Promise<{ category_id: string; month: string; cents: bigint }[]>;
 }
 
 /** The FLOOR on how far ahead the walk carries known commitments. A year
@@ -210,32 +225,38 @@ export function getReserveFit(deps: GetReserveFitDeps) {
   ): Promise<Result<ReserveFitDTO, Error>> => {
     try {
       const { budgetId, from, to } = input;
-      const [meta, windows, planned, spend, large, rawRules, positionsResult] =
-        await Promise.all([
-          deps.metaReader.getBudgetMeta(budgetId),
-          deps.overviewRepo.categoryWindows(budgetId),
-          deps.overviewRepo.monthlyPlannedByCategory(budgetId, from, to),
-          deps.overviewRepo.monthlySpendByCategory(budgetId, from, to),
-          deps.exclusionsRepo.largeTransactions({ budgetId, from, to }),
-          deps.activeScheduledPayments(budgetId),
-          deps.reservePositions({
-            tenantId: input.tenantId,
-            budgetId,
-          }),
-        ]);
+      const [
+        meta,
+        windows,
+        planned,
+        spend,
+        large,
+        setAside,
+        rawRules,
+        positionsResult,
+      ] = await Promise.all([
+        deps.metaReader.getBudgetMeta(budgetId),
+        deps.overviewRepo.categoryWindows(budgetId),
+        deps.overviewRepo.monthlyPlannedByCategory(budgetId, from, to),
+        deps.overviewRepo.monthlySpendByCategory(budgetId, from, to),
+        deps.exclusionsRepo.largeTransactions({ budgetId, from, to }),
+        deps.exclusionsRepo.excludedSpendByCategory({ budgetId, from, to }),
+        deps.activeScheduledPayments(budgetId),
+        deps.reservePositions({
+          tenantId: input.tenantId,
+          budgetId,
+        }),
+      ]);
       if (positionsResult.isErr()) return err(positionsResult.error);
       const positions = positionsResult.value.positions;
 
-      // Spend to subtract, per (category, month) — only what the budget un-ticked.
+      // Spend to subtract, per (category, month) — everything the budget has
+      // un-ticked, straight from the exclusions table. Reading it off the
+      // shortlist meant only the five biggest per category could ever be
+      // subtracted, however many the member actually ticked (user, 260813).
       const excludedByCell = new Map<string, bigint>();
-      for (const t of large) {
-        if (!t.excluded) continue;
-        const key = `${t.category_id}|${t.transaction_date.slice(0, 7)}`;
-        excludedByCell.set(
-          key,
-          (excludedByCell.get(key) ?? 0n) + t.amount_cents,
-        );
-      }
+      for (const r of setAside)
+        excludedByCell.set(`${r.category_id}|${r.month}`, r.cents);
 
       const limitByCell = new Map<string, bigint>();
       for (const p of planned)

@@ -86,7 +86,10 @@ function deps(): GetReserveFitDeps {
     fxProvider: {
       rateAsOf: async () => ({ rate: "1" }),
     } as unknown as GetReserveFitDeps["fxProvider"],
-    exclusionsRepo: { largeTransactions: async () => [] },
+    exclusionsRepo: {
+      largeTransactions: async () => [],
+      excludedSpendByCategory: async () => [],
+    },
     reservePositions: async () =>
       ok({
         positions: new Map(
@@ -192,6 +195,7 @@ describe("one-offs of an excluded category", () => {
             excluded: false,
           },
         ],
+        excludedSpendByCategory: async () => [],
       } as unknown as GetReserveFitDeps["exclusionsRepo"],
     };
   };
@@ -270,6 +274,7 @@ describe("recurring payments are not one-off candidates", () => {
             excluded: false,
           },
         ],
+        excludedSpendByCategory: async () => [],
       } as unknown as GetReserveFitDeps["exclusionsRepo"],
     };
   };
