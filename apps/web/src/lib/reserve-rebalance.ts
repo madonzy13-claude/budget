@@ -21,21 +21,11 @@
 // same one — held against needed, with the member's target standing in for
 // needed once they change it.
 export { fitPct as rebalancePct } from "./reserve-fit-rows";
-import { fitPct, isSettled } from "./reserve-fit-rows";
+// The round-up lives with the chart now: it is what EVERY side measures
+// against, not a flourish of this dialog's (260813).
+export { roundUpUnit } from "./reserve-fit-rows";
+import { fitPct } from "./reserve-fit-rows";
 import { parseDecimal } from "./decimal";
-
-/** One whole currency unit, in cents. */
-const UNIT = 100;
-
-/**
- * A target the member can actually act on. The walk answers to the groszy —
- * 661.63 — but what someone is asked to MOVE is a whole figure, so the target
- * goes up to the next whole unit (user, 260808). Up rather than down, so the
- * buffer still covers what the history asked for.
- */
-export function roundUpUnit(cents: number): number {
-  return Math.ceil(cents / UNIT) * UNIT;
-}
 
 export type RebalanceBand = "short" | "surplus" | "even";
 
@@ -71,10 +61,11 @@ export function rebalanceButton(row: RebalanceRow): RebalanceButton {
   // A new target outranks the undo: the member is asking for a different move,
   // not to take the last one back.
   //
-  // Under a whole unit is not a move. Targets are whole now, so a reserve
-  // holding 1,720.01 against a target of 1,720 would otherwise offer a
-  // one-groszy transfer — the same rule the reserve tooltip runs (260808).
-  if (Math.abs(row.targetCents - row.currentCents) >= UNIT)
+  // ANY difference is a move, groszy included. It used to take a whole unit,
+  // which left a reserve holding 1,775.50 against a target of 1,776 stuck:
+  // red row, dead button, nothing anyone could do (user, 260813). The point of
+  // the move is to make the two sides equal, and fifty groszy is one press.
+  if (row.targetCents !== row.currentCents)
     return { kind: "rebalance", disabled: false };
   if (row.baselineCents !== null) return { kind: "undo", disabled: false };
   return { kind: "rebalance", disabled: true };
@@ -108,16 +99,10 @@ export function parseTargetCents(text: string): number | null {
 }
 
 /**
- * Re-exported so callers reading a row's colour do not need both modules.
- *
- * Settled first, on the SAME rule the button runs: a reserve within a whole
- * unit of its target has nothing anyone can do about it. Colouring it from the
- * raw percent showed Sport at 1,775.50 against 1,776 as a red row beside a
- * dead button — a problem the dialog refused to fix (user screenshot, 260813).
- * The chart has drawn it level since 260810; this is the same call.
+ * Re-exported so callers reading a row's colour do not need both modules. The
+ * gap it draws is the one the button offers to close, down to the groszy — the
+ * row goes level exactly when the move has been made.
  */
 export function rebalanceRowPct(row: RebalanceRow): number {
-  return isSettled(row.currentCents, row.targetCents)
-    ? 0
-    : fitPct(row.currentCents, row.targetCents);
+  return fitPct(row.currentCents, row.targetCents);
 }

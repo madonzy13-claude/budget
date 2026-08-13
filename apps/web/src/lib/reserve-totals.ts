@@ -10,7 +10,7 @@
  * whole"; the chart underneath is where you see which is which.
  */
 import type { ReserveFitRow } from "@/hooks/use-reserve-fit";
-import { isSettled } from "./reserve-fit-rows";
+import { roundUpUnit } from "./reserve-fit-rows";
 
 export interface ReserveTotals {
   heldCents: number;
@@ -29,19 +29,18 @@ export function reserveTotals(rows: readonly ReserveFitRow[]): ReserveTotals {
   let neededCents = 0;
   for (const r of rows) {
     const held = cents(r.held_cents);
-    const needed = cents(r.needed_cents);
-    heldCents += held;
-    // A row that is already the right size asks for exactly what it holds.
+    // What each reserve is ASKED to hold — the requirement rounded up to a
+    // whole unit, exactly as the chart draws it and the dialog proposes it.
     //
-    // Summing the raw requirement instead let every category's rounding residue
-    // pile up into a verdict of its own: five reserves each a few groszy above
-    // what their history asked for — because the rebalance dialog rounds every
-    // target UP to a whole unit — read as "3 zł more than needed" across a
-    // budget that had just been fully rebalanced (user, 260810). A deadband on
-    // the TOTAL cannot fix that; the residues are individually tiny and only
-    // the sum is large. So the total is built from the SETTLED figures, and the
-    // slack that comes out is the sum of the gaps a member can actually close.
-    neededCents += isSettled(held, needed) ? held : needed;
+    // Summing the raw groszy instead let every category's round-up pile into a
+    // verdict of its own: five reserves a few groszy above their requirement
+    // read as "3 zł more than needed" across a budget that had just been fully
+    // rebalanced (user, 260810). Asking for the same figure the member is
+    // offered makes that sum exactly zero, and every remaining zloty of slack
+    // one somebody can close.
+    const needed = roundUpUnit(cents(r.needed_cents));
+    heldCents += held;
+    neededCents += needed;
   }
   return { heldCents, neededCents, slackCents: heldCents - neededCents };
 }

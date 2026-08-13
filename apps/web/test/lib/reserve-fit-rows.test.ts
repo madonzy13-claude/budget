@@ -234,8 +234,9 @@ describe("reserveFitRows — measured at the limit in force", () => {
         suggested_needed_cents: "1871784",
       }),
     ]).sized;
-    expect(r?.neededCents).toBe(942584);
-    expect(r?.gapCents).toBe(788937);
+    // 9,425.84 asked for, 9,426.00 to hold — see roundUpUnit.
+    expect(r?.neededCents).toBe(942600);
+    expect(r?.gapCents).toBe(788921);
     expect(r?.short).toBe(false);
     // …and it still carries the forecast, for the sentence under the bar.
     expect(r?.suggestedNeededCents).toBe(1871784);
@@ -251,33 +252,41 @@ describe("reserveFitRows — measured at the limit in force", () => {
         suggested_needed_cents: null,
       }),
     ]).sized;
-    expect(r?.neededCents).toBe(942584);
-    expect(r?.gapCents).toBe(788937);
+    expect(r?.neededCents).toBe(942600);
+    expect(r?.gapCents).toBe(788921);
   });
 });
 
 /**
- * The bars beside the same verdict. Presents held 506.00 against a history
- * asking 505.08 — the 0.92 is the rebalance dialog's own round-up, and it was
- * drawn as a "+1 zł" bar the member could not clear: the dialog will not offer
- * a move smaller than a whole unit (user screenshot, 260810).
+ * The bar, the dialog's row and its button all measure against the SAME figure:
+ * the whole unit the member will be asked to hold. The walk answers to the
+ * groszy — 505.08 — and the dialog has always rounded that up to 506, so
+ * rounding it here is what lets a reserve land exactly on its target and stay
+ * there (user, 260813).
+ *
+ * This supersedes 260810, which drew a sub-unit gap as level because no move
+ * could clear it. The move is offered now, so the gap is real until it is made.
  */
-describe("reserveFitRows — a residue is not a discrepancy", () => {
-  it("draws nothing for a category settled within a whole unit", () => {
+describe("reserveFitRows — measured against the whole unit it will hold", () => {
+  it("is level once it holds the rounded figure its history asked for", () => {
     const [r] = reserveFitRows([
       row({ held_cents: "50600", needed_cents: "50508", gap_cents: "92" }),
     ]).sized;
+    expect(r?.neededCents).toBe(50600);
     expect(r?.gapCents).toBe(0);
     expect(r?.pct).toBe(0);
     expect(r?.short).toBe(false);
   });
 
-  it("does the same when the residue is on the short side", () => {
+  it("draws the groszy it is short of that figure", () => {
+    // Sport: holds 1,775.50, and 1,776 is what the dialog will ask it to hold.
     const [r] = reserveFitRows([
-      row({ held_cents: "177550", needed_cents: "177600", gap_cents: "-50" }),
+      row({ held_cents: "177550", needed_cents: "177550", gap_cents: "0" }),
     ]).sized;
-    expect(r?.gapCents).toBe(0);
-    expect(r?.short).toBe(false);
+    expect(r?.neededCents).toBe(177600);
+    expect(r?.gapCents).toBe(-50);
+    expect(r?.short).toBe(true);
+    expect(r?.pct).toBeLessThan(0);
   });
 
   it("still draws a gap of one whole unit — the smallest real move", () => {

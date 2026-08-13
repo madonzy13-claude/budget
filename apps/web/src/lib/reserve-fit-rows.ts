@@ -57,23 +57,24 @@ export function fitPct(heldCents: number, neededCents: number): number {
 export const UNIT = 100;
 
 /**
- * Is this reserve close enough to count as the right size?
+ * What a reserve is actually asked to hold.
  *
- * The walk answers to the groszy — 505.08 — but the rebalance dialog rounds
- * every target UP to a whole unit, because nobody is asked to move 92 groszy.
- * So a reserve that has just been rebalanced sits a little ABOVE what its
- * history asked for, permanently, by construction.
+ * The walk answers to the groszy — 505.08 — but nobody is asked to move 92 of
+ * them, so the figure put in front of a member is the next whole unit up. Up
+ * rather than down, so the buffer still covers what the history asked for.
  *
- * The chart used to draw that residue as a surplus. One is invisible; five of
- * them added up to "3 zł more than needed" over a budget whose every reserve
- * had just been put right — and no amount of rebalancing could clear it,
- * because the same dialog refuses to offer a move under a whole unit (user
- * screenshot, 260810). Anything the member cannot act on is not a discrepancy,
- * so this is the ONE rule both sides now run: `rebalanceButton` disables below
- * it, and the chart draws nothing below it.
+ * EVERYTHING measures against this: the chart's bar, the totals above it, the
+ * dialog's row colour and its button. That is the point — a reserve rounded on
+ * to its target then reads as level everywhere, and stays there.
+ *
+ * Two earlier attempts got here the long way round. 260808 rounded only inside
+ * the dialog, which left the chart drawing an unclearable residue; 260810
+ * declared a sub-unit gap settled everywhere, which hid a gap the member had
+ * asked to close (screenshot, 260813). Rounding the requirement itself needs
+ * neither dodge.
  */
-export function isSettled(heldCents: number, neededCents: number): boolean {
-  return Math.abs(heldCents - neededCents) < UNIT;
+export function roundUpUnit(cents: number): number {
+  return Math.ceil(cents / UNIT) * UNIT;
 }
 
 function toSized(r: ReserveFitRow): SizedReserveRow {
@@ -82,13 +83,12 @@ function toSized(r: ReserveFitRow): SizedReserveRow {
   // (user, 260809). A re-base onto the recommended limit was tried and reverted
   // the same day: the bar answers "where am I", and the suggestion beside it
   // answers "where should I go".
-  const needed = Number(r.needed_cents);
-  // A reserve within a whole unit of its target has nothing anyone can do about
-  // it — see isSettled. Draw it as level rather than as a bar that cannot be
-  // cleared.
-  const settled = isSettled(held, needed);
-  const gap = settled ? 0 : Number(r.gap_cents);
-  const pct = settled ? 0 : fitPct(held, needed);
+  // …rounded up to the whole unit the member will be asked to hold, which is
+  // the figure the rebalance dialog proposes. Drawing against the raw groszy
+  // instead left every rebalanced reserve permanently a few groszy "over".
+  const needed = roundUpUnit(Number(r.needed_cents));
+  const gap = held - needed;
+  const pct = fitPct(held, needed);
   return {
     categoryId: r.category_id,
     name: r.name,

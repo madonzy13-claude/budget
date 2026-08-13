@@ -66,24 +66,26 @@ describe("rebalancePct", () => {
 
 /**
  * A row's colour and its button have to agree about whether there is anything
- * to do. Sport held 1,775.50 against a target of 1,776: the button was
- * correctly dead — nobody moves 50 groszy — and the row stayed RED, so the
+ * to do. Sport held 1,775.50 against a target of 1,776: the button was dead
+ * because the move was under a whole unit, and the row stayed red, so the
  * dialog showed a problem it refused to fix (user screenshot, 260813).
+ *
+ * The answer is to make the move, not to hide the gap — the two sides end up
+ * equal and stay equal.
  */
 describe("rebalanceRowPct", () => {
-  it("draws a sub-unit gap as level, exactly as the button reads it", () => {
+  it("draws a sub-unit gap as the shortfall it is", () => {
     const stuck = row({ currentCents: 177_550, targetCents: 177_600 });
     expect(rebalanceButton(stuck)).toEqual({
       kind: "rebalance",
-      disabled: true,
+      disabled: false,
     });
-    expect(rebalanceRowPct(stuck)).toBe(0);
+    expect(rebalanceRowPct(stuck)).toBeLessThan(0);
   });
 
-  it("still colours a gap worth moving", () => {
-    expect(
-      rebalanceRowPct(row({ currentCents: 10_000, targetCents: 50_000 })),
-    ).toBe(-80);
+  it("goes level once the move has been made", () => {
+    const done = row({ currentCents: 177_600, targetCents: 177_600 });
+    expect(rebalanceRowPct(done)).toBe(0);
   });
 });
 
@@ -242,13 +244,15 @@ describe("roundUpUnit", () => {
   });
 });
 
-describe("a difference under one unit is not an instruction", () => {
-  // The targets are whole now, so a reserve holding 1,720.01 against a target
-  // of 1,720 would otherwise show a one-groszy move to make.
-  it("goes inert rather than offering a groszy", () => {
+describe("a difference under one unit is still an instruction", () => {
+  // It used to go inert here: a reserve holding 1,720.01 against a target of
+  // 1,720 was left one groszy off for ever, and the row went on reading as
+  // mis-sized. Landing it exactly on the target is one press, and then both
+  // sides agree — which is what the member asked for (260813).
+  it("offers the groszy that makes the two sides equal", () => {
     expect(
       rebalanceButton(row({ currentCents: 172001, targetCents: 172000 })),
-    ).toEqual({ kind: "rebalance", disabled: true });
+    ).toEqual({ kind: "rebalance", disabled: false });
   });
 
   it("still offers a real move", () => {
@@ -257,10 +261,12 @@ describe("a difference under one unit is not an instruction", () => {
     ).toEqual({ kind: "rebalance", disabled: false });
   });
 
-  it("still offers the undo on a row that was moved", () => {
+  // A move lands the reserve exactly ON its target, so that is where the undo
+  // is offered. A row still a groszy off has not been moved yet.
+  it("offers the undo once the row sits on its target", () => {
     expect(
       rebalanceButton(
-        row({ currentCents: 172001, targetCents: 172000, baselineCents: 0 }),
+        row({ currentCents: 172000, targetCents: 172000, baselineCents: 0 }),
       ),
     ).toEqual({ kind: "undo", disabled: false });
   });
