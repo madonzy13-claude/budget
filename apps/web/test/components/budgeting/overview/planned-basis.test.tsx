@@ -670,6 +670,42 @@ describe("How far off plan — each basis shows only its own baseline", () => {
     ).toBe("c1");
   });
 
+  it("offers a category that opted out of the reserve", async () => {
+    // The bars and the totals line read every category with a limit; the
+    // dialog read the reserve ROWS, which skip a category the household opted
+    // out of the buffer. Insurance was drawn 779 against 798 and there was no
+    // way to act on it (user, 260813).
+    fitDto.current = {
+      rows: [],
+      projected_by_category: [
+        { category_id: "c1", projected_monthly_cents: "120000" },
+      ],
+    };
+    catsDto.current = [{ id: "c1", name: "Insurance" }];
+    summaryDto.current = {
+      categories: [
+        {
+          categoryId: "c1",
+          plannedCents: "80000",
+          needsCents: "80000",
+          wantsCents: "0",
+          cushionCents: "0",
+        },
+      ],
+    };
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    expect(limitRows.current).toHaveLength(1);
+    expect(limitRows.current[0]).toMatchObject({
+      categoryId: "c1",
+      name: "Insurance",
+      suggestedLimitCents: 120000,
+    });
+  });
+
   it("FUTURE does not repeat the limit it will need beside the spend", async () => {
     // A category with nothing scheduled needs exactly what it keeps spending,
     // so the two rows printed the same figure twice (user screenshot, 260808).

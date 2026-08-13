@@ -364,15 +364,29 @@ export function PlannedSection({
   // What every limit adds up to, against what they should. Only the rows the
   // chart actually draws, so the line and the bars under it are the same set.
 
+  // Every category the budget has, investments included (260803 user request):
+  // the picker offers exactly what the charts count, and both start ticked.
+  const categories = useCategories(budgetId).data ?? [];
+  const nameFor = (categoryId: string) =>
+    String(
+      categories.find((c) => c.id === categoryId)?.name ??
+        fit.data?.rows.find((r) => r.category_id === categoryId)?.name ??
+        "",
+    );
+
   // The dialog opens FROM the Future chart, so it proposes exactly what that
   // chart drew: what an average month ahead costs. The reserve walk's own
   // suggestion weighs the runway and what is already held — a different, and
   // for this purpose contradictory, answer (user, 260808).
-  const limitCandidates: LimitCandidate[] = (fit.data?.rows ?? []).flatMap(
-    (r) => {
-      const split = splitById.get(r.category_id);
-      const expected = projected.get(r.category_id);
-      if (!split || expected == null) return [];
+  //
+  // Every category with a limit and a projection, which is the set the bars
+  // and the totals line already read. It used to walk the reserve ROWS, and
+  // those skip a category the household opted out of the buffer: Insurance was
+  // drawn 779 against 798 with no way to act on it (user, 260813).
+  const limitCandidates: LimitCandidate[] = [...splitById.entries()].flatMap(
+    ([categoryId, split]) => {
+      const expected = projected.get(categoryId);
+      if (expected == null) return [];
       // A category whose limit is ALREADY right stays on the list, with its
       // button visibly inert — the same as the reserve dialog. Dropping it had
       // two faces: a settled category never appeared at all, and one you had
@@ -380,8 +394,8 @@ export function PlannedSection({
       // acted on it (user, 260809).
       return [
         {
-          categoryId: r.category_id,
-          name: r.name,
+          categoryId,
+          name: nameFor(categoryId),
           needsCents: split.needsCents,
           wantsCents: split.wantsCents,
           suggestedLimitCents: expected,
@@ -390,9 +404,6 @@ export function PlannedSection({
     },
   );
 
-  // Every category the budget has, investments included (260803 user request):
-  // the picker offers exactly what the charts count, and both start ticked.
-  const categories = useCategories(budgetId).data ?? [];
   // The spendings tab draws its columns in sortIndex order (the drag order the
   // household set); the one-off dialog's filter follows the same list so the
   // two never disagree (user, 260812). Sorted here rather than trusted from the
