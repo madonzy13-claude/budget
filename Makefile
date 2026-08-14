@@ -13,6 +13,7 @@ INFISICAL := infisical run --env=$(ENV) --
 
 .PHONY: dev dev-build build-% stop down destroy logs ps build restart \
         perf-top perf-slow perf-window perf-reset \
+        obs-up obs-down obs-traces \
         migrate seed shell-db \
         test test-watch test-e2e test-clean ci-gate \
         lint typecheck fmt \
@@ -134,6 +135,25 @@ perf-window: ## How long pg_stat_statements has been accumulating
 perf-reset: ## Reset query stats — do this before a measured run
 	@docker exec budget-db-1 psql -U postgres -d budget -c "SELECT pg_stat_statements_reset();" >/dev/null
 	@echo "pg_stat_statements reset — stats now measure from this point"
+
+# ── Observability (opt-in) ────────────────────────────────────────────────────
+# Tracing is off unless OTEL_EXPORTER_OTLP_ENDPOINT is set, so these targets set
+# it AND recreate api/worker — an env change alone does not reach a running
+# container.
+OTEL_ENDPOINT ?= http://otel-collector:4318
+
+obs-up: ## Start the trace collector and restart api/worker with tracing ON
+	$(INFISICAL) $(COMPOSE) --profile obs up -d otel-collector
+	OTEL_EXPORTER_OTLP_ENDPOINT=$(OTEL_ENDPOINT) $(INFISICAL) $(COMPOSE) up -d --force-recreate api worker
+	@echo "tracing ON -> $(OTEL_ENDPOINT)  (make obs-traces to watch spans)"
+
+obs-down: ## Stop the collector and restart api/worker with tracing OFF
+	$(INFISICAL) $(COMPOSE) --profile obs stop otel-collector
+	$(INFISICAL) $(COMPOSE) up -d --force-recreate api worker
+	@echo "tracing OFF"
+
+obs-traces: ## Follow spans as the collector receives them
+	$(INFISICAL) $(COMPOSE) --profile obs logs -f otel-collector
 
 # ── Code quality ──────────────────────────────────────────────────────────────
 

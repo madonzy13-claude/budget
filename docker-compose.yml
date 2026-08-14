@@ -166,6 +166,7 @@ services:
       # `make dev` stack is untouched. Set it (compose profile `obs` provides
       # the collector) to start exporting spans.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_SERVICE_NAME: worker
       BUDGET_KEK: ${BUDGET_KEK}
       # Web push: the pg-boss notification worker signs/sends pushes via web-push.
       VAPID_SUBJECT: ${VAPID_SUBJECT}
@@ -186,3 +187,23 @@ services:
       db:
         condition: service_healthy
 
+
+  # ─── Observability (opt-in) ───────────────────────────────────────────────────
+  # Not started by `make dev`. Bring up with `make obs-up`, which also sets
+  # OTEL_EXPORTER_OTLP_ENDPOINT so api/worker begin exporting.
+  #
+  # This debug collector prints traces to its own log — it exists to verify the
+  # instrumentation (are pg spans nested under the request span?) without paying
+  # for ClickHouse. Point the same endpoint at SigNoz once that is proven.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.140.0
+    profiles: ["obs"]
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./infra/observability/otel-collector-debug.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      # Loopback only — an OTLP receiver on 0.0.0.0 accepts telemetry from
+      # anything that can reach the host.
+      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:4317:4317"

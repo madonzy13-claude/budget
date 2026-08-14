@@ -233,6 +233,7 @@
       },
       "devDependencies": {
         "@budget/db": "workspace:*",
+        "@opentelemetry/context-async-hooks": "^2.10.0",
         "@opentelemetry/sdk-trace-base": "^2.10.0",
         "@types/libsodium-wrappers": "^0.8.2",
         "@types/nodemailer": "^8.0.1",

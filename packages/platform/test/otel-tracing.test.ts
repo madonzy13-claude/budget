@@ -1,4 +1,5 @@
 import { describe, test, expect, afterEach } from "bun:test";
+import { trace } from "@opentelemetry/api";
 import {
   startTracing,
   isTracingEnabled,
@@ -18,6 +19,10 @@ const SERVICE = "OTEL_SERVICE_NAME";
 
 const saved = { ...process.env };
 afterEach(async () => {
+  // startTracing() registers a GLOBAL tracer provider. Left in place it hijacks
+  // every other test file in this process — otel-pg-tracing's spans would go to
+  // this SDK's OTLP exporter instead of its in-memory one.
+  trace.disable();
   process.env[ENDPOINT] = saved[ENDPOINT];
   process.env[SERVICE] = saved[SERVICE];
   if (saved[ENDPOINT] === undefined) delete process.env[ENDPOINT];
