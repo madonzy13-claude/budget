@@ -159,8 +159,9 @@
        notches ride ON the green/yellow/red band, so they need an ink that reads
        on all three. It was the brand's on-colour BLACK, softened again under
        the light theme because a dark mark on a saturated band is the loudest
-       thing on a pale card. It is WHITE now — the member picked the strongest
-       of four mockups (260813).
+       thing on a pale card. It is WHITE now — the member picked the middle of four
+       mockups: strong enough to lift off red and green, short of the near-white
+       that started competing with the tooltip's own figures (260814).
        ONE definition, no light override: the band's colours do not flip with
        the theme, so white ink stands in the same relation to them either way
        and there is nothing left for the light scope to soften. (Its weakest
@@ -172,9 +173,9 @@
        The three strengths are ordered on purpose — rules < notches < names: a
        month boundary is structure, a payment is texture, and the name is the
        thing you actually read (260812). */
-    --forecast-ink: color-mix(in oklab, #fff 95%, transparent);
-    --forecast-rule: color-mix(in oklab, #fff 55%, transparent);
-    --forecast-notch: color-mix(in oklab, #fff 60%, transparent);
+    --forecast-ink: color-mix(in oklab, #fff 80%, transparent);
+    --forecast-rule: color-mix(in oklab, #fff 42%, transparent);
+    --forecast-notch: color-mix(in oklab, #fff 45%, transparent);
     /* Chart LINE/AREA series = the brand yellow (user: "I liked yellow for
        charts, bring it back" — round 25 item 1). BARS use a separate blue/teal
        (yellow bars were too loud, the brown replacement was disliked): --chart-bar-1
