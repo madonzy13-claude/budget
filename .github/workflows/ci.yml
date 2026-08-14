@@ -332,6 +332,12 @@ jobs:
           # step — pass DATABASE_URL_APP explicitly. The step rewrites the
           # `@db:` compose hostname to `@localhost:` (db publishes 5432).
           DATABASE_URL_APP: postgresql://app_role:app_pwd@db:5432/budget
+          # The aggregate scenarios warm budgeting.fx_rates so the conversion
+          # never calls api.frankfurter.dev live — a cache miss put a
+          # third-party API in the critical path and timed the page out on
+          # 260814. That table belongs to the worker role; app_role has no
+          # INSERT on it and keeps none.
+          DATABASE_URL_WORKER: postgresql://worker_role:worker_pwd@db:5432/budget
         # Run from apps/web so bddgen + playwright pick up
         # apps/web/playwright.config.ts — the same config `make test-e2e`
         # uses. The repo-root playwright.config.ts only sees the tests/e2e

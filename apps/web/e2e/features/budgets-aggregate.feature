@@ -3,6 +3,10 @@ Feature: All-budgets aggregate overview
 
   Background:
     Given I am signed in as a fresh user
+    # These scenarios convert between currencies, and a cache MISS makes the
+    # aggregate endpoint call api.frankfurter.dev live. Warm it so CI does not
+    # depend on a third-party API being quick (260814).
+    And the FX cache is warm
 
   Scenario: Combined net worth sums budgets across currencies; excluding one drops the total
     Given I have a budget "Home" in "USD" with a wallet balance of 500000 cents

@@ -182,6 +182,60 @@ Given(
   },
 );
 
+/**
+ * Warm the FX cache for the pairs these scenarios convert between.
+ *
+ * FrankfurterFxProvider is cache-then-live: a MISS goes out to
+ * api.frankfurter.dev over the network, with no timeout of its own. A CI
+ * database is fresh, so every pair missed and the aggregate endpoint sat on a
+ * third-party API — the run of 260814 spent longer than the page's 10s wait
+ * and failed all four attempts, having passed everywhere the cache was warm.
+ *
+ * Seeding the exact date the read uses (UTC today) makes step 3 of that
+ * algorithm hit, so the conversion never leaves the box. The rates are
+ * arbitrary but must be > 1 so "combined net worth is greater than the USD
+ * budget alone" stays true for the right reason.
+ */
+async function seedFxRates(): Promise<void> {
+  const { Pool } = await import("pg");
+  // fx_rates is the WORKER's table — app_role has no INSERT on it, and should
+  // not: production writes it from the daily fetch job. Seed as the role that
+  // owns it rather than widening a grant for a test.
+  const dbUrl =
+    process.env.DATABASE_URL_WORKER?.replace("@db:", "@localhost:") ?? "";
+  if (!dbUrl) throw new Error("DATABASE_URL_WORKER not set — cannot seed FX");
+  const pool = new Pool({ connectionString: dbUrl });
+  // Yesterday too: a run that crosses midnight UTC would otherwise miss.
+  const days = [0, 1].map((back) =>
+    new Date(Date.now() - back * 86_400_000).toISOString().slice(0, 10),
+  );
+  const pairs: [string, string, string][] = [
+    ["EUR", "USD", "1.08"],
+    ["USD", "EUR", "0.92"],
+    ["PLN", "USD", "0.25"],
+    ["USD", "PLN", "4.00"],
+    ["EUR", "PLN", "4.32"],
+    ["PLN", "EUR", "0.23"],
+  ];
+  try {
+    for (const day of days)
+      for (const [base, quote, rate] of pairs) {
+        await pool.query(
+          `INSERT INTO budgeting.fx_rates (base, quote, date, rate, provider, fetched_at)
+           VALUES ($1, $2, $3::date, $4, 'e2e-seed', now())
+           ON CONFLICT DO NOTHING`,
+          [base, quote, day, rate],
+        );
+      }
+  } finally {
+    await pool.end();
+  }
+}
+
+Given("the FX cache is warm", async () => {
+  await seedFxRates();
+});
+
 When("I open the all-budgets view", async ({ page }) => {
   await page.goto("/en/?list=1");
   await page
