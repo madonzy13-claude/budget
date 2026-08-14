@@ -32,7 +32,7 @@ Multi-tenant SaaS that replaces an advanced personal Excel budget for households
 | FE↔BE wire | Hono RPC + Zod (NOT tRPC)                                               | API is separate Bun service                                                  |
 | ORM        | Drizzle (latest) + drizzle-kit                                          | First-class RLS via `pgPolicy()`                                             |
 | Auth       | Better Auth (1.4+)                                                      | Lucia deprecated; Drizzle adapter, organizations plugin → "family workspace" |
-| Validation | Zod v3                                                                  | Hono / Drizzle / AI SDK / Better Auth all integrate                          |
+| Validation | Zod v4                                                                  | Hono / Drizzle / AI SDK / Better Auth all integrate                          |
 | Money      | Dinero.js v2 (+ big.js for crypto)                                      | Domain `Money` value object wraps it                                         |
 | Date/time  | Temporal API via `temporal-polyfill`                                    | TZ-correct month boundaries, FX as-of-date                                   |
 | Jobs       | pg-boss v10                                                             | SKIP LOCKED, no Redis                                                        |
