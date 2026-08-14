@@ -55,6 +55,33 @@ Multi-tenant SaaS that replaces an advanced personal Excel budget for households
 - Drizzle types/queries live ONLY in `src/<context>/adapters/persistence/`. Domain entities are plain classes with no Drizzle imports.
 - `Money` value object converts to `{ amount_cents BIGINT, currency CHAR(3) }` at adapter boundary — never inside domain.
 
+### Held-back versions (do NOT bump without re-checking these gates)
+
+Both were attempted on 2026-08-14 and reverted with evidence. Neither is a
+"latest is scary" hold — each broke a specific gate.
+
+- **typescript stays 5.9.3** (latest is 7.0.2). All 12 workspaces typecheck on
+  TS 7, but `typescript-eslint` throws at parser load —
+  `Error: typescript-eslint does not support TS 7.0.` — so `bun run lint` exits
+  non-zero and `local/no-float-money` stops running. 8.67.0 still declares
+  `typescript: ">=4.8.4 <6.1.0"`. The documented workaround needs the TS 6 API,
+  and TS 6 is beta-only. Unblocks when typescript-eslint supports TS >= 7.1
+  (typescript-eslint#10940) or TS 6.0 goes stable.
+- **next stays 16.2.12** (latest is 16.3.1), as an exact pin *and* a root
+  `overrides` entry. 16.3.1 fails the **image** build while collecting page
+  data: `TypeError: Expected CommonJS module to have a function wrapper` →
+  `Failed to collect page data for /icon.svg`. Isolated by elimination — every
+  other dependency upgraded, only Next reverted, `docker compose build web`
+  exits 0.
+
+**Gate Next bumps on `make build-web`, not `bun run build`.** A host-side
+`next build` passes on 16.3.1; only the container reproduces the failure. The
+same trap produced the original 16.2.12 pin.
+
+Playwright bumps need `bunx playwright install chromium` — 1.62.1 wants
+`chromium-1234`, and a warm cache from an older Playwright makes every scenario
+die at `browserType.launch` rather than on a real assertion.
+
 ### What NOT to use
 
 Lucia (deprecated) · next-pwa (unmaintained) · Prisma (no native RLS) · NestJS (cold-start on Bun) · Yup/Joi/io-ts (use Zod) · moment.js / dayjs (use Temporal) · Express (use Hono) · node-cron in-process (loses jobs) · NodeMailer raw SMTP · iron-session (use Better Auth) · Auth0/Clerk (per-MAU pricing) · Float for money (use Dinero) · GraphQL for internal API (use Hono RPC + OpenAPI).
