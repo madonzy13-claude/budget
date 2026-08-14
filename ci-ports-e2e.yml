@@ -1,0 +1,12 @@
+# ci-ports-e2e.yml — layered ON TOP of ci-ports.yml when the local E2E run
+# includes docker-compose.override.yml (which is where mailpit and cloudflared
+# are defined). Keeps the dev mailpit ports free and the dev-only tunnel out of
+# the CI-equivalent project entirely.
+services:
+  mailpit:
+    ports: !override
+      - "127.0.0.1:11025:1025"
+      - "127.0.0.1:18025:8025"
+
+  cloudflared:
+    profiles: ["never"]
