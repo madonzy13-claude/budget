@@ -100,12 +100,19 @@ web on `main` also exits 0. Next 16.3.1 is the sole trigger.
 | `next build` | 17 routes compile |
 | `bun install --frozen-lockfile` (clean clone) | exit 0 — Docker builds resolve |
 | `make dev-build` | api, web, worker, migrator all built and healthy |
-| `make test-e2e` | see below |
-| `make ci-gate` | see below |
+| `make test-e2e` | **passed** — `test-results/.last-run.json` = `{"status":"passed","failedTests":[]}`, `make` exit 0 |
+| `make ci-gate` | 67 tenant-leak tests pass / 0 fail; runner exits non-zero on the global `coverageThreshold = 0.80` (running only the tenant-leak subset cannot clear it) — **`main` exits identically**, so pre-existing |
 
 Every failure count was compared against a `main` baseline run of the *same*
 command before being called pre-existing. No regression was accepted on the
 grounds that it "looked unrelated".
+
+The first E2E attempt was invalid, not failing: Playwright 1.62.1 wants
+`chromium-1234` and the local cache topped out at `1217`, so all 722 scenarios
+died at `browserType.launch`. `bunx playwright install chromium` fixed it and the
+re-run passed. CI is unaffected — its e2e job already runs
+`playwright install --with-deps chromium` — but any dev with a warm cache hits
+this once after the bump.
 
 ## Notes for next time
 
