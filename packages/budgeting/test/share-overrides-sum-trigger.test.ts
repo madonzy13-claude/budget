@@ -123,9 +123,9 @@ describe("category_share_overrides sum-100 deferred trigger", () => {
     // Trigger fires at commit → transaction fails
     expect(result.isErr()).toBe(true);
     // The error wraps the PG trigger message; check either the message or cause
+    const err = result._unsafeUnwrapErr();
     const errMsg =
-      result.error.message +
-      (result.error.cause ? JSON.stringify(result.error.cause) : "");
+      err.message + (err.cause ? JSON.stringify(err.cause) : "");
     const hasSumMsg =
       errMsg.includes("must sum to 100") || errMsg.includes("sum");
     expect(hasSumMsg || result.isErr()).toBe(true); // trigger did fire

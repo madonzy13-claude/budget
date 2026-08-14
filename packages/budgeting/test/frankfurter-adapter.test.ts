@@ -56,20 +56,22 @@ class FakeFxRateCacheRepo implements FxRateCacheRepo {
   }
 }
 
+// Bun's `typeof fetch` carries extra members (e.g. `preconnect`) that these
+// stubs deliberately do not implement, so each one is cast through `unknown`.
 function makeFetch(status: number, body: unknown): typeof fetch {
-  return async (_url: string | URL | Request) => {
+  return (async (_url: string | URL | Request) => {
     return {
       ok: status >= 200 && status < 300,
       status,
       json: async () => body,
     } as Response;
-  };
+  }) as unknown as typeof fetch;
 }
 
 function makeFailingFetch(): typeof fetch {
-  return async (_url: string | URL | Request) => {
+  return (async (_url: string | URL | Request) => {
     throw new Error("Network error");
-  };
+  }) as unknown as typeof fetch;
 }
 
 let cache: FakeFxRateCacheRepo;
@@ -86,7 +88,10 @@ describe("FrankfurterFxProvider", () => {
       fetchCalled = true;
       return {} as Response;
     };
-    const provider = new FrankfurterFxProvider(cache, fetchFn as typeof fetch);
+    const provider = new FrankfurterFxProvider(
+      cache,
+      fetchFn as unknown as typeof fetch,
+    );
     const result = await provider.rateAsOf("USD", "USD", TODAY);
     expect(result.rate).toBe("1");
     expect(result.isStale).toBe(false);

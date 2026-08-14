@@ -54,18 +54,21 @@ const overviewRepo: GetOverviewOverspentDeps["overviewRepo"] = {
         name: "Food",
         created_month: "2025-06",
         archived_month: null,
+        is_investment: false,
       },
       {
         category_id: "B",
         name: "Rent",
         created_month: "2025-06",
         archived_month: null,
+        is_investment: false,
       },
       {
         category_id: "C",
         name: "Daycare",
         created_month: "2025-06",
         archived_month: "2026-02", // archived after Feb → no March
+        is_investment: false,
       },
     ];
   },

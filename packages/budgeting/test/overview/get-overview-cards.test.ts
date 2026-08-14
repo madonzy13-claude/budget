@@ -43,7 +43,9 @@ const reservesDto = {
     internalCents: "5000",
     userDefinedCents: "5000",
     surplusCents: "0",
-    direction: "NONE" as const,
+    // Widened so the TOPUP/WITHDRAW variants below still satisfy
+    // `Result<typeof reservesDto, Error>`.
+    direction: "NONE" as "NONE" | "TOPUP" | "WITHDRAW",
     disabled: false,
   },
 };
@@ -69,6 +71,7 @@ const spendingsDto = {
       balanceCents: "0",
       iconKey: null,
       colorKey: null,
+      isInvestment: false,
       sortIndex: 0,
     },
     {
@@ -86,6 +89,7 @@ const spendingsDto = {
       balanceCents: "3000",
       iconKey: null,
       colorKey: null,
+      isInvestment: false,
       sortIndex: 1,
     },
     {
@@ -103,6 +107,7 @@ const spendingsDto = {
       balanceCents: "0",
       iconKey: null,
       colorKey: null,
+      isInvestment: false,
       sortIndex: 2,
     },
   ],
@@ -141,9 +146,6 @@ function deps(): GetOverviewCardsDeps {
         return 10000n;
       },
       async investmentCostBasisCents() {
-        return 0n;
-      },
-      async possessionsValueCents() {
         return 0n;
       },
     },

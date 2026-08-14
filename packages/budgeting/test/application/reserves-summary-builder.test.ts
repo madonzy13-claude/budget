@@ -23,6 +23,7 @@ function positions(): ReservePositionsResult {
           reserveCents: 130000n,
           usedCents: 140000n, // ALL TIME
           overspentCents: 0n,
+          reserveExcluded: false,
           byMonth: new Map([
             [
               "2026-06",
@@ -44,6 +45,7 @@ function positions(): ReservePositionsResult {
           reserveCents: 80000n,
           usedCents: 60000n,
           overspentCents: 0n,
+          reserveExcluded: false,
           byMonth: new Map(),
         },
       ],

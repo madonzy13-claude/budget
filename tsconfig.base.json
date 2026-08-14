@@ -15,6 +15,13 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
-    "lib": ["ES2024"]
+    "lib": ["ES2024"],
+    // TypeScript 7 no longer auto-includes @types/* found in an ancestor
+    // node_modules/@types, and @types/bun is hoisted to the repo root only.
+    // Naming it explicitly is what keeps `bun:test`, `Bun`, `console`,
+    // `process`, `TextEncoder` and `import.meta.dir` resolvable in every
+    // backend workspace. apps/web overrides this list — it is a browser
+    // target and must not pull in Bun's globals.
+    "types": ["bun"]
   }
 }

@@ -58,7 +58,7 @@ describe("Category domain", () => {
       const child = makeCategory({ id: "cat-child" });
       const result = child.canBeChild(parent);
       expect(result.isErr()).toBe(true);
-      expect(result.error.message).toContain("one level");
+      expect(result._unsafeUnwrapErr().message).toContain("one level");
     });
   });
 
@@ -75,7 +75,7 @@ describe("Category domain", () => {
       const cat = makeCategory({ archivedAt: new Date("2026-03-01") });
       const result = cat.archive();
       expect(result.isErr()).toBe(true);
-      expect(result.error.message).toContain("already archived");
+      expect(result._unsafeUnwrapErr().message).toContain("already archived");
     });
   });
 

@@ -126,8 +126,9 @@ describe("BudgetTemplate apply use case", () => {
       ],
     });
     expect(result.isOk()).toBe(true);
-    templateId = result.value!.id;
-    expect(result.value!.items).toHaveLength(3);
+    const template = result._unsafeUnwrap();
+    templateId = template.id;
+    expect(template.items).toHaveLength(3);
   });
 
   test("apply template to May 2026 — creates 3 category_limits rows with effective_from=2026-05-01", async () => {
@@ -162,8 +163,9 @@ describe("BudgetTemplate apply use case", () => {
   test("list templates for tenant", async () => {
     const result = await templateRepo.listTemplates(TEST_TENANT);
     expect(result.isOk()).toBe(true);
-    expect(result.value!.length).toBeGreaterThanOrEqual(1);
-    const found = result.value!.find((t) => t.id === templateId);
+    const templates = result._unsafeUnwrap();
+    expect(templates.length).toBeGreaterThanOrEqual(1);
+    const found = templates.find((t) => t.id === templateId);
     expect(found).toBeDefined();
     expect(found!.name).toBe("May 2026 Budget");
   });

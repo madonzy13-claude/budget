@@ -151,6 +151,7 @@ function makeDeps(overrides: {
     }
     const result: ReservePositionsResult = {
       positions,
+      openMonth: MONTH,
       internalCents: 0n,
       userDefinedCents: 0n,
       surplusCents: 0n,
@@ -558,6 +559,7 @@ describe("getSpendingsSummary", () => {
     ]);
     const result: ReservePositionsResult = {
       positions,
+      openMonth: MONTH,
       internalCents: 0n,
       userDefinedCents: 0n,
       surplusCents: 0n,
