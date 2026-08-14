@@ -131,7 +131,9 @@ async function seedCategory(
 
 Given(
   "the reserves golden fixture is seeded for {string}",
-  async ({ page, scenarioCtx }) => {
+  // The budget name is captured for readability in the feature file; the budget
+  // itself is resolved from scenarioCtx, which the preceding step populates.
+  async ({ page, scenarioCtx }, _budgetName: string) => {
     const ctx = scenarioCtx as unknown as Record<string, unknown>;
     const budgetId = budgetIdOf(ctx);
     // Order defines column order on the grid: Grocery first, Housing second.
