@@ -5,6 +5,7 @@ import {
   appPool,
   withInfraTx,
 } from "@budget/platform";
+import { startTracing } from "@budget/platform/otel";
 import { sql } from "drizzle-orm";
 import { handleOutboxTick } from "./handlers/outbox-dispatch";
 import { registerFxDailyFetch } from "./handlers/fx-daily-fetch";
@@ -184,6 +185,11 @@ const DEFAULT_INVESTMENT_UNIVERSE: InstrumentUpsert[] = [
 ];
 
 async function main() {
+  // Before getBoss(): pg-boss and the repos construct pg Pools, and
+  // PgInstrumentation must be registered first to patch node-postgres. No-op
+  // unless OTEL_EXPORTER_OTLP_ENDPOINT is set.
+  startTracing({ serviceName: "budget-worker" });
+
   const boss = await getBoss();
 
   // Outbox dispatcher

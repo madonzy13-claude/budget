@@ -62,6 +62,10 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL_APP: ${DATABASE_URL_APP}
+      # Tracing is opt-in: unset -> startTracing() is a no-op, so the default
+      # `make dev` stack is untouched. Set it (compose profile `obs` provides
+      # the collector) to start exporting spans.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       DATABASE_URL_WORKER: ${DATABASE_URL_WORKER}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL}
@@ -158,6 +162,10 @@ services:
       # and stale tasks never self-heal. The write-path inline hooks live in `api`;
       # this is the worker-side backstop. (worker is workerDb for its own jobs.)
       DATABASE_URL_APP: ${DATABASE_URL_APP}
+      # Tracing is opt-in: unset -> startTracing() is a no-op, so the default
+      # `make dev` stack is untouched. Set it (compose profile `obs` provides
+      # the collector) to start exporting spans.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       BUDGET_KEK: ${BUDGET_KEK}
       # Web push: the pg-boss notification worker signs/sends pushes via web-push.
       VAPID_SUBJECT: ${VAPID_SUBJECT}
