@@ -78,7 +78,10 @@ Feature: Spendings grid — desktop keyboard navigation (r40b)
     Given the budget has a category "Housing" with a monthly limit of 100000 cents
     And the budget has a category "Food & Home" with a monthly limit of 100000 cents
     When I open the spendings tab for the budget
-    And I type the letters "hom" in the grid
+    # Both categories above are seeded AFTER the user, so the grid's first
+    # render can predate them — letters typed then match no column at all.
+    Then the "food & home" quick input is present
+    When I type the letters "hom" in the grid
     Then the "food & home" quick input is focused
     When I type the letters "g" in the grid
     Then the "groceries" quick input is focused
