@@ -75,12 +75,15 @@
   --radius: 6px;
 
   /* ── Font stacks ────────────────────────────────────────────── */
-  --font-sans: var(--font-display, "Inter"), -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-numeric: var(--font-tabular, "IBM Plex Sans"), ui-monospace,
-    "SFMono-Regular", "Menlo", "Consolas", monospace;
-  --font-mono: var(--font-tabular, "IBM Plex Sans"), ui-monospace,
-    "SFMono-Regular", "Menlo", "Consolas", monospace;
+  --font-sans:
+    var(--font-display, "Inter"), -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-numeric:
+    var(--font-tabular, "IBM Plex Sans"), ui-monospace, "SFMono-Regular",
+    "Menlo", "Consolas", monospace;
+  --font-mono:
+    var(--font-tabular, "IBM Plex Sans"), ui-monospace, "SFMono-Regular",
+    "Menlo", "Consolas", monospace;
 
   /* ── Animations ─────────────────────────────────────────────── */
   /* Radix Accordion: animate the content's content-height var so open
@@ -152,6 +155,27 @@
        the text grey in dark and LIGHTER in light (user, 260811) — subdued on
        both, and always clear of the surface behind it. */
     --chart-bar-neutral: #4d5663;
+    /* Forecast strip interior. The month names, their dividers and the payment
+       notches ride ON the green/yellow/red band, so they need an ink that reads
+       on all three. It was the brand's on-colour BLACK, softened again under
+       the light theme because a dark mark on a saturated band is the loudest
+       thing on a pale card. It is WHITE now — the member picked the middle of four
+       mockups: strong enough to lift off red and green, short of the near-white
+       that started competing with the tooltip's own figures (260814).
+       ONE definition, no light override: the band's colours do not flip with
+       the theme, so white ink stands in the same relation to them either way
+       and there is nothing left for the light scope to soften. (Its weakest
+       moment is the yellow stretch, which is the price of the choice — dark ink
+       was the one that read equally on all three.)
+       --forecast-notch is a scheduled payment: a notch cut into the band's
+       lower edge rather than a ▼ floating above it, because over 100 days the
+       wedges collided on consecutive days and read as a mess.
+       The three strengths are ordered on purpose — rules < notches < names: a
+       month boundary is structure, a payment is texture, and the name is the
+       thing you actually read (260812). */
+    --forecast-ink: color-mix(in oklab, #fff 80%, transparent);
+    --forecast-rule: color-mix(in oklab, #fff 42%, transparent);
+    --forecast-notch: color-mix(in oklab, #fff 45%, transparent);
     /* Chart LINE/AREA series = the brand yellow (user: "I liked yellow for
        charts, bring it back" — round 25 item 1). BARS use a separate blue/teal
        (yellow bars were too loud, the brown replacement was disliked): --chart-bar-1
@@ -319,7 +343,11 @@
   }
 
   body {
-    font-feature-settings: "ss01" 1, "cv11" 1, "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "ss01" 1,
+      "cv11" 1,
+      "rlig" 1,
+      "calt" 1;
   }
 
   /* Disable iOS Safari double-tap-to-zoom across the app while keeping panning
@@ -337,8 +365,6 @@
     background-color: var(--primary);
     color: var(--on-primary);
   }
-
-
 
   /* See unlayered cursor rules below — moved out of @layer base in
      round 19 because CSS cascade layers invert !important order
@@ -371,14 +397,17 @@
     caret-color: transparent !important;
   }
   .date-input-overlay-host input[type="date"]::-webkit-datetime-edit,
-  .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+  .date-input-overlay-host
+    input[type="date"]::-webkit-datetime-edit-fields-wrapper,
   .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-text,
   .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-year-field,
-  .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-month-field,
+  .date-input-overlay-host
+    input[type="date"]::-webkit-datetime-edit-month-field,
   .date-input-overlay-host input[type="date"]::-webkit-datetime-edit-day-field {
     color: transparent !important;
   }
-  .date-input-overlay-host input[type="date"]::-webkit-calendar-picker-indicator {
+  .date-input-overlay-host
+    input[type="date"]::-webkit-calendar-picker-indicator {
     opacity: 0;
     width: 100%;
     height: 100%;
@@ -412,7 +441,9 @@
   .num {
     font-family: var(--font-numeric);
     font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1, "lnum" 1;
+    font-feature-settings:
+      "tnum" 1,
+      "lnum" 1;
   }
 
   /* DESIGN.md §Display roles → utilities so call sites stay declarative */
@@ -643,7 +674,10 @@ button:disabled,
      Standalone keeps the JSX fallback env+64 (user-approved, untouched).
      Unlayered so it beats the Tailwind h-[calc(...)] utility (@layer). */
   [data-grid-tail-spacer] {
-    height: var(--grid-tail-spacer-h, calc(env(safe-area-inset-bottom, 0px) + 96px));
+    height: var(
+      --grid-tail-spacer-h,
+      calc(env(safe-area-inset-bottom, 0px) + 96px)
+    );
   }
 }
 
@@ -673,14 +707,14 @@ button:disabled,
 }
 
 input:where(
-    [type="text"],
-    [type="email"],
-    [type="tel"],
-    [type="url"],
-    [type="search"],
-    [type="password"],
-    [type="number"]
-  ),
+  [type="text"],
+  [type="email"],
+  [type="tel"],
+  [type="url"],
+  [type="search"],
+  [type="password"],
+  [type="number"]
+),
 input:not([type]),
 textarea,
 [role="textbox"],
@@ -886,4 +920,3 @@ html.is-server-down
     --mobile-offset-bottom: 60px !important;
   }
 }
-

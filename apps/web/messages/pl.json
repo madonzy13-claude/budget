@@ -1436,7 +1436,8 @@
           "cushionSaved": "Zebrano",
           "cushionNeeded": "Potrzeba",
           "availableReserves": "Dostępne rezerwy",
-          "realMonths": "realne miesiące"
+          "realMonths": "realne miesiące",
+          "lowestPoint": "Najniższy stan: {date}"
         },
         "range": {
           "previous": "Poprzedni okres",
@@ -1562,10 +1563,7 @@
           "reserveFit": "Brak rezerw do oceny."
         },
         "projection": {
-          "title": "Prognoza pieniędzy do końca przyszłego miesiąca",
-          "allFine": "Wszystko wygląda dobrze",
-          "mightRunShort": "Pieniędzy może zabraknąć już {date}",
-          "shortBy": "brakuje {amount}",
+          "title": "Prognoza pieniędzy na najbliższe 100 dni",
           "empty": "Dodaj dochód lub zaplanowane płatności, aby zobaczyć prognozę",
           "available": "Dostępne",
           "reserveShrinking": "Kurczy się rezerwa",
@@ -1573,7 +1571,12 @@
           "reserveUsed": "Użyto rezerwy",
           "cantCover": "Nie starcza na",
           "income": "Dochód",
-          "bill": "Zaplanowane płatności"
+          "bill": "Zaplanowane płatności",
+          "opening": "Na początek dnia",
+          "plannedSpend": "Planowane wydatki",
+          "left": "Zostaje",
+          "pending": "Jeszcze niepotwierdzone",
+          "pendingHint": "Nadal liczone w planie, dopóki nie potwierdzisz lub nie odrzucisz"
         },
         "reserveFit": {
           "title": "Czy każda rezerwa ma właściwą wielkość?",
@@ -1585,7 +1588,6 @@
           "reviewOneOffs": "Przejrzyj duże wydatki",
           "excludedCount": "Pominięto {count} jako jednorazowe",
           "oneOffsTitle": "Które wydatki się nie powtórzą?",
-          "oneOffsExplainer": "Liczone wydatki wyznaczają wielkość rezerw. Pomiń to, co było jednorazowe — coroczna opłata powinna zostać liczona.",
           "filterByCategory": "Filtruj po kategorii",
           "allCategories": "Wszystkie kategorie",
           "excludedSection": "Pominięte",
@@ -1614,7 +1616,10 @@
           "balanced": "Dobrze wyważone",
           "and": "i",
           "or": "albo",
-          "setLimit": "Ustaw limit na"
+          "setLimit": "Ustaw limit na",
+          "loadMore": "Pokaż więcej",
+          "loadingMore": "Ładowanie…",
+          "oneOffsDescription": "Wyklucz jednorazowe wydatki, których nie chcesz w swojej analityce"
         },
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",

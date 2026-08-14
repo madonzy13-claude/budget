@@ -18,6 +18,8 @@ import {
 } from "../../../../src/components/budgeting/charts/pie-chart";
 import {
   amountTicks,
+  moneyAxisTicks,
+  moneyDomain,
   OverviewDivergingBarChart,
   labelPlacement,
   reserveFitColor,
@@ -865,6 +867,63 @@ describe("tooltipPayloadFor", () => {
     expect(entry!.value).toBeUndefined();
     // …but the row itself still reaches the box, so its own rows still render.
     expect(entry!.payload).toEqual({ name: "X", __pct: "nope" });
+  });
+});
+
+/**
+ * Every tick written on the axis has to sit ON the axis (user screenshot,
+ * 260813). A reserve chart whose only bar was −0.50 zł had a domain of
+ * [−0.56, +0.06] while amountTicks — which never steps finer than a whole unit
+ * — produced ±1 zł. recharts places a tick outside the domain by extrapolating
+ * it, so the "−1 zł" gridline was drawn left of the plot area, straight across
+ * the category labels.
+ *
+ * Two halves of one rule: the domain gives a side that carries data room for
+ * its first tick, and the axis draws only the ticks that fall inside.
+ */
+describe("moneyDomain + moneyAxisTicks", () => {
+  const cases = [
+    [-50, 0, 0],
+    [0, 0],
+    [-4000, 12000, 0],
+    [250],
+    [-1, 5_000_000],
+  ];
+
+  it("draws no tick outside the plot", () => {
+    for (const values of cases) {
+      const [min, max] = moneyDomain(values);
+      for (const t of moneyAxisTicks(min, max)) {
+        expect(t).toBeGreaterThanOrEqual(min);
+        expect(t).toBeLessThanOrEqual(max);
+      }
+    }
+  });
+
+  it("keeps zero inside, so the centre line always has somewhere to sit", () => {
+    for (const values of cases) {
+      const [min, max] = moneyDomain(values);
+      expect(min).toBeLessThanOrEqual(0);
+      expect(max).toBeGreaterThanOrEqual(0);
+      expect(moneyAxisTicks(min, max)).toContain(0);
+    }
+  });
+
+  it("still says what the scale is on the side the data is on", () => {
+    // Half a złoty short: the axis has to reach the −1 zł that names it.
+    const [min, max] = moneyDomain([-50, 0, 0]);
+    const ticks = moneyAxisTicks(min, max);
+    expect(ticks.some((t) => t < 0)).toBe(true);
+    expect(min).toBeLessThanOrEqual(-100);
+    // …and it does not invent room on the side with nothing on it.
+    expect(max).toBeLessThan(100);
+  });
+
+  it("leaves a chart with real spread alone", () => {
+    const [min, max] = moneyDomain([-4000, 12000]);
+    expect(min).toBeLessThan(-4000);
+    expect(min).toBeGreaterThan(-10000);
+    expect(max).toBeGreaterThan(12000);
   });
 });
 

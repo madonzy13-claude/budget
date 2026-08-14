@@ -64,6 +64,7 @@ import { computeCashflowProjection } from "@budget/budgeting/src/application/com
 import { createOverviewCardsRepo } from "@budget/budgeting/src/adapters/persistence/overview-cards-repo";
 import { getOverviewPlanned } from "@budget/budgeting/src/application/get-overview-planned";
 import { getReserveFit } from "@budget/budgeting/src/application/get-reserve-fit";
+import { listOneOffCandidates } from "@budget/budgeting/src/application/list-one-off-candidates";
 import { createReserveFitRepo } from "@budget/budgeting/src/adapters/persistence/reserve-fit-repo";
 import { getOverviewOverspent } from "@budget/budgeting/src/application/get-overview-overspent";
 import { getOverviewWealth } from "@budget/budgeting/src/application/get-overview-wealth";
@@ -126,13 +127,15 @@ export interface BootedDeps {
     getOverviewOverspent: ReturnType<typeof getOverviewOverspent>;
     /** 260804: reserve sizing — held vs what the history asked for, per category. */
     getReserveFit: ReturnType<typeof getReserveFit>;
+    /** "Which spend won't happen again", a page at a time (260813). */
+    listOneOffCandidates: ReturnType<typeof listOneOffCandidates>;
     /** 260804: save the one-off decisions for the reserve-fit chart (per budget). */
     setReserveFitExclusions: ReturnType<
       typeof createReserveFitRepo
     >["setExclusions"];
     /** Phase 11 (11-06): Financial-Wealth section (snapshot series + live point + pie). */
     getOverviewWealth: ReturnType<typeof getOverviewWealth>;
-    /** Overview projection timeline (today → end of next month). */
+    /** Overview projection timeline (today → 100 days out). */
     getCashflowProjection: ReturnType<typeof computeCashflowProjection>;
     /** Task 7: GET /budgets/aggregate — cross-budget "all budgets" rollup. */
     getAllBudgetsAggregate: ReturnType<typeof getAllBudgetsAggregate>;
@@ -515,6 +518,9 @@ export async function boot(): Promise<BootedDeps> {
       // 430 of limit, not 100 (260809).
       fxProvider: baseBudgeting.fxProvider,
     }),
+    // Every spend in the range, ten at a time — the dialog's own list, no
+    // longer a by-product of the reserve rows (user, 260813).
+    listOneOffCandidates: listOneOffCandidates({ reserveFitRepo }),
     setReserveFitExclusions: reserveFitRepo.setExclusions,
     // Phase 11 (11-06): Financial-Wealth section. 3h snapshot series + a live
     // current point from computeBudgetWealthNow (same numbers as the cards/cron);
@@ -583,7 +589,7 @@ export async function boot(): Promise<BootedDeps> {
         return byMonth;
       },
     }),
-    // Overview cash-flow projection timeline (today → end of next month).
+    // Overview cash-flow projection timeline (today → 100 days out).
     getCashflowProjection: computeCashflowProjection({
       fxProvider: baseBudgeting.fxProvider,
       reservePositions: baseBudgeting.reservePositions,

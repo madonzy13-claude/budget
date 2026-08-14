@@ -169,7 +169,12 @@ Given(
     // seeded history reaches further back than the presets do.
     await po.rangePill("All").click();
     await po.expandSection("reserves");
-    await expect(po.rebalanceTrigger()).toBeVisible();
+    // expandSection waits for the section BODY, which mounts immediately with a
+    // skeleton — the trigger appears only once the reserve-fit query resolves.
+    // Under a loaded box that fetch outruns the default expect timeout, which
+    // is what failed this Background in two long runs (260814): the dialog was
+    // never opened, so every step after it had nothing to act on.
+    await expect(po.rebalanceTrigger()).toBeVisible({ timeout: 20_000 });
     await po.rebalanceTrigger().click();
     await expect(po.rebalanceDialog()).toBeVisible();
   },
@@ -227,7 +232,6 @@ Then(
     expect(new Set(lefts).size).toBe(1);
   },
 );
-
 
 Then(
   /^the reserve ledger for "(.+?)" holds a delta of (-?\d+) cents$/,

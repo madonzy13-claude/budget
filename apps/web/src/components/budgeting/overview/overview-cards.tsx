@@ -12,7 +12,7 @@
  * dark and light themes — no hardcoded hex.
  */
 import { useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { Temporal } from "temporal-polyfill";
 import {
   TrendingUp,
@@ -29,6 +29,7 @@ import { useProjection } from "@/hooks/use-projection";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { centsToDisplayCompact, centsToRounded } from "@/lib/cents-format";
 import { dayCloseDelta } from "@/lib/day-close-delta";
+import { formatDayMonthShort } from "@/lib/format-date";
 import { useAnimatedNumber } from "@/lib/use-animated-number";
 import { cn } from "@/lib/utils";
 
@@ -129,6 +130,7 @@ export function OverviewCards({
   amountPrivacyEnabled?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
+  const locale = useLocale();
   const tz = useUserTimezone();
   const { data, isError, isPending } = useOverviewCards(budgetId);
   // Available-to-spend health (dot + surplus/deficit) comes from the cash-flow
@@ -244,9 +246,16 @@ export function OverviewCards({
   // "upcoming" figure. `good`/value are null with no income.
   const spendHealth = projection?.spend_health;
   const spendGood = spendHealth ? spendHealth.good : null;
-  const sdRaw = spendHealth?.surplus_deficit_cents ?? null;
+  // The figure is what can be TAKEN OUT today and still cover every dip in the
+  // window — the lowest point of a worst-case run (user, 260812). It needs no
+  // upcoming income to mean something, unlike the cash-before-payday proxy it
+  // replaced, so the row no longer disappears on a budget with no pay-day.
+  // `spend_health` remains the fallback for a payload cached by an older build.
+  const safe = projection?.safe_to_withdraw;
+  const sdRaw = safe?.cents ?? spendHealth?.surplus_deficit_cents ?? null;
   const surplusDeficit = sdRaw !== null ? BigInt(sdRaw) : null;
   const isDeficit = surplusDeficit !== null && surplusDeficit < 0n;
+  const thinnestDate = safe?.thinnest_date ?? null;
   // Reserves-note amount (short → missing, surplus → extra). The OK note names
   // no figure at all since 260804 — nothing is owed, so restating the target
   // read like a bill still to pay. Lifted out so it feeds BOTH the rendered text
@@ -480,8 +489,24 @@ export function OverviewCards({
               </dd>
             </div>
             {surplusDeficit !== null ? (
-              <div className="flex items-center justify-between gap-2">
-                <dt>{isDeficit ? t("cards.deficit") : t("cards.surplus")}</dt>
+              <div
+                data-testid="spend-surplus-row"
+                className="flex items-center justify-between gap-2"
+                // The day the figure is measured at — the forecast's lowest
+                // point. It explains the size, but it is not the number, so it
+                // stays out of a half-width card and lives here instead
+                // (user, 260812).
+                {...(thinnestDate
+                  ? {
+                      title: t("cards.lowestPoint", {
+                        date: formatDayMonthShort(thinnestDate, locale),
+                      }),
+                    }
+                  : {})}
+              >
+                <dt className="min-w-0 truncate">
+                  {isDeficit ? t("cards.deficit") : t("cards.surplus")}
+                </dt>
                 {/* Inline color (tailwind-merge drops text-[var()] color): red
                     deficit (<0), white when exactly 0, green surplus (>0). */}
                 <dd

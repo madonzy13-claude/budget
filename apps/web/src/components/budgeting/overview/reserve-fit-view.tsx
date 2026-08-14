@@ -39,6 +39,15 @@ export function signedMoney(format: (cents: number) => string) {
 
 export function ReserveFitView({
   data,
+  categoryOrder = [],
+  categories,
+  oneOffs,
+  excludedOneOffTotal,
+  oneOffCategory,
+  onOneOffCategoryChange,
+  hasMoreOneOffs = false,
+  onLoadMoreOneOffs,
+  loadingMoreOneOffs = false,
   onSave,
   onRebalance,
   format,
@@ -47,6 +56,19 @@ export function ReserveFitView({
   scaleSwitch,
 }: {
   data: ReserveFitDTO;
+  /** Category ids in the spendings tab's order, for the one-off filter. */
+  categoryOrder?: string[];
+  /** Every category, for that filter — the loaded rows are only a page. */
+  categories?: { id: string; name: string }[];
+  /** The one-off spends loaded so far, and how to ask for more (user, 260813). */
+  oneOffs?: OneOffCandidate[];
+  /** How many spends the range holds set aside — see ReserveFitOneOffs. */
+  excludedOneOffTotal?: number;
+  oneOffCategory?: string;
+  onOneOffCategoryChange?: (categoryId: string) => void;
+  hasMoreOneOffs?: boolean;
+  onLoadMoreOneOffs?: () => void;
+  loadingMoreOneOffs?: boolean;
   /** One save of the one-off dialog: what to set aside, what to count again. */
   onSave: (delta: { add: string[]; remove: string[] }) => void;
   /** Sets one category's reserve to `targetCents`; resolves with what the
@@ -78,15 +100,19 @@ export function ReserveFitView({
     );
   }
 
-  // The dialog reads across every category at once, so the per-row candidates
-  // are flattened and carry their category with them.
-  const candidates: OneOffCandidate[] = sized.flatMap((r) =>
-    r.candidates.map((c) => ({
-      ...c,
-      category_id: r.categoryId,
-      category_name: r.name,
-    })),
-  );
+  // The dialog reads across every category at once — including the ones with no
+  // reserve row, whose one-offs the per-row list cannot carry (user, 260812).
+  // Falls back to flattening the rows for a payload cached before the complete
+  // list existed.
+  const candidates: OneOffCandidate[] =
+    data.one_off_candidates ??
+    sized.flatMap((r) =>
+      r.candidates.map((c) => ({
+        ...c,
+        category_id: r.categoryId,
+        category_name: r.name,
+      })),
+    );
 
   return (
     <div className="flex flex-col gap-3">
@@ -97,7 +123,10 @@ export function ReserveFitView({
       <ReserveLevelBar
         heldCents={totals.heldCents}
         neededCents={totals.neededCents}
-        format={format}
+        // Exact, like the bars and the dialog below it: rounding both sides to
+        // whole units printed "Held 2,682 · Needed 2,682" over a chart reading
+        // −0.50 (user screenshot, 260813).
+        format={formatExact}
         testId="reserve-bar"
       />
 
@@ -130,7 +159,21 @@ export function ReserveFitView({
         {scaleSwitch}
         <div data-testid="reserve-fit-corner">
           <ReserveFitOneOffs
-            candidates={candidates}
+            candidates={oneOffs ?? candidates}
+            {...(excludedOneOffTotal !== undefined
+              ? { excludedTotal: excludedOneOffTotal }
+              : {})}
+            categories={categories}
+            categoryOrder={categoryOrder}
+            {...(oneOffCategory !== undefined
+              ? { category: oneOffCategory }
+              : {})}
+            {...(onOneOffCategoryChange
+              ? { onCategoryChange: onOneOffCategoryChange }
+              : {})}
+            hasMore={hasMoreOneOffs}
+            {...(onLoadMoreOneOffs ? { onLoadMore: onLoadMoreOneOffs } : {})}
+            loadingMore={loadingMoreOneOffs}
             onSave={onSave}
             format={format}
           />
@@ -156,7 +199,9 @@ export function ReserveFitView({
           valueKey={scale === "amount" ? "gapCents" : "pct"}
           // Signed, like the percent labels: the bar is a GAP, so "+4,600" reads
           // as slack and "−320" as a shortfall (user, 260804).
-          formatValue={scale === "amount" ? signedMoney(format) : undefined}
+          formatValue={
+            scale === "amount" ? signedMoney(formatExact) : undefined
+          }
           formatTooltip={format}
           // Short is red at any size, fat is amber — the same amber the meter
           // above uses for "Can withdraw" — and exactly right is grey.
@@ -179,14 +224,20 @@ export function ReserveFitView({
             // here too was the same decision in two places, and every
             // disagreement between them — the rounding, the basis, the and/or
             // — came out of keeping both.
+            //
+            // EXACT figures, not whole ones. A reserve holding 1,775.50
+            // against a target of 1,776 printed both sides as "1,776 zł" over
+            // a bar reading "−1 zł" — three roundings giving three answers
+            // (user screenshot, 260813). The groszy are the whole point here:
+            // they are what the move about to be offered will close.
             return [
               {
                 label: t("reserveFit.held"),
-                value: format(Number(row.heldCents)),
+                value: formatExact(Number(row.heldCents)),
               },
               {
                 label: t("reserveFit.needed"),
-                value: format(Number(row.neededCents)),
+                value: formatExact(Number(row.neededCents)),
               },
               // Three states, and every one of them is either an action or an
               // explicit "nothing to do" (user, 260807). "Ahead of schedule"
@@ -194,9 +245,11 @@ export function ReserveFitView({
               // out either way — the difference was only how much could go
               // wrong afterwards, which nobody acted on differently.
               //
-              // A difference under a whole unit is not an instruction, so it
-              // reads as balanced rather than as a withdrawal of thirty groszy.
-              Math.abs(gap) < 100
+              // Balanced means EQUAL, down to the groszy — the move that gets
+              // there is offered however small it is (260813). A whole-unit
+              // deadband here was the last place still calling a gap the
+              // member can close "nothing to do".
+              gap === 0
                 ? {
                     label: t("reserveFit.balanced"),
                     value: "",
@@ -205,7 +258,7 @@ export function ReserveFitView({
                 : gap < 0
                   ? {
                       label: t("reserveFit.addToReserve"),
-                      value: format(-gap),
+                      value: formatExact(-gap),
                       section: true,
                       cta: true,
                       // Money that has to go IN is a shortfall, and reads in
@@ -214,7 +267,7 @@ export function ReserveFitView({
                     }
                   : {
                       label: t("reserveFit.withdraw"),
-                      value: format(gap),
+                      value: formatExact(gap),
                       section: true,
                       cta: true,
                     },

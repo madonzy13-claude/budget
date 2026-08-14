@@ -64,6 +64,28 @@ export interface ReserveFitRow {
 export interface ReserveFitDTO {
   currency: string;
   rows: ReserveFitRow[];
+  /** What EVERY category costs in an average month, including the ones with no
+   *  reserve row (opted out of the buffer, or untracked). The rows alone left
+   *  those without a figure and the Future chart drew today's limit against
+   *  itself (user, 260812). Optional: a payload cached before it existed
+   *  replays without it. */
+  projected_by_category?: {
+    category_id: string;
+    projected_monthly_cents: string;
+  }[];
+  /** Every large spend that could be set aside, from EVERY category — the rows
+   *  carry only the buffered ones, so an opted-out category's spend was never
+   *  offered (user, 260812). Optional: older cached payloads lack it. */
+  one_off_candidates?: {
+    ledger_id: string;
+    category_id: string;
+    category_name: string;
+    transaction_date: string;
+    note: string | null;
+    amount_cents: string;
+    scheduled_cadence: string | null;
+    excluded: boolean;
+  }[];
   /** Active scheduled rules with no category — real commitments that belong to
    *  no buffer, so they size nothing. Optional: a payload cached before the
    *  field existed replays without it. */
@@ -108,6 +130,17 @@ export function useReserveFit(
   });
 }
 
+/**
+ * The dialog's own list, whatever range or category filter is on it. Ticking a
+ * spend changes what that list says — which row is set aside, how many are —
+ * and the list is a separate query from the chart since it started paging
+ * (260813). Invalidating only the chart left a reopened dialog showing the old
+ * answer and a badge counting none of the new ticks (user).
+ */
+export function oneOffsKeyPrefix(budgetId: string) {
+  return ["budget", budgetId, "one-offs"] as const;
+}
+
 export function useSaveReserveFitExclusions(budgetId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -128,6 +161,40 @@ export function useSaveReserveFitExclusions(budgetId: string) {
     },
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: reserveFitKeyPrefix(budgetId) });
+      void qc.invalidateQueries({ queryKey: oneOffsKeyPrefix(budgetId) });
     },
   });
+}
+
+/**
+ * categoryId → what an average month ahead costs, in cents.
+ *
+ * Prefers the per-category list, which covers every category; falls back to the
+ * reserve ROWS, which only exist for categories the buffer tracks — that gap is
+ * what made a reserve-excluded category read "expected = current limit"
+ * (user, 260812). A category with no figure is left out rather than guessed at.
+ */
+export function projectedMonthlyMap(
+  data:
+    | {
+        projected_by_category?: {
+          category_id: string;
+          projected_monthly_cents: string;
+        }[];
+        rows?: {
+          category_id: string;
+          projected_monthly_cents?: string | null;
+        }[];
+      }
+    | undefined,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const r of data?.rows ?? []) {
+    if (r.projected_monthly_cents == null) continue;
+    out.set(r.category_id, Number(r.projected_monthly_cents));
+  }
+  for (const p of data?.projected_by_category ?? []) {
+    out.set(p.category_id, Number(p.projected_monthly_cents));
+  }
+  return out;
 }

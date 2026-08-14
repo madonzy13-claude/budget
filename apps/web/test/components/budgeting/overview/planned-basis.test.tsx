@@ -83,7 +83,21 @@ vi.mock("@/components/budgeting/overview/limit-rebalance", () => ({
   },
 }));
 const fitDto: { current: unknown } = { current: undefined };
-vi.mock("@/hooks/use-reserve-fit", () => ({
+vi.mock("@/hooks/use-one-off-candidates", () => ({
+  // The one-off dialog pages its own list; these tests are about the charts.
+  useOneOffCandidates: () => ({
+    data: { pages: [] },
+    hasNextPage: false,
+    fetchNextPage: () => {},
+    isFetchingNextPage: false,
+    isPending: false,
+    isError: false,
+  }),
+}));
+vi.mock("@/hooks/use-reserve-fit", async (importOriginal) => ({
+  // …keeping the real projectedMonthlyMap: it is the thing that turns this
+  // payload into what the chart draws, so stubbing it would hollow out the test.
+  ...(await importOriginal<typeof import("@/hooks/use-reserve-fit")>()),
   useReserveFit: () => ({ data: fitDto.current }),
   useSaveReserveFitExclusions: () => ({ mutate: () => {} }),
 }));
@@ -656,6 +670,42 @@ describe("How far off plan — each basis shows only its own baseline", () => {
     ).toBe("c1");
   });
 
+  it("offers a category that opted out of the reserve", async () => {
+    // The bars and the totals line read every category with a limit; the
+    // dialog read the reserve ROWS, which skip a category the household opted
+    // out of the buffer. Insurance was drawn 779 against 798 and there was no
+    // way to act on it (user, 260813).
+    fitDto.current = {
+      rows: [],
+      projected_by_category: [
+        { category_id: "c1", projected_monthly_cents: "120000" },
+      ],
+    };
+    catsDto.current = [{ id: "c1", name: "Insurance" }];
+    summaryDto.current = {
+      categories: [
+        {
+          categoryId: "c1",
+          plannedCents: "80000",
+          needsCents: "80000",
+          wantsCents: "0",
+          cushionCents: "0",
+        },
+      ],
+    };
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    expect(limitRows.current).toHaveLength(1);
+    expect(limitRows.current[0]).toMatchObject({
+      categoryId: "c1",
+      name: "Insurance",
+      suggestedLimitCents: 120000,
+    });
+  });
+
   it("FUTURE does not repeat the limit it will need beside the spend", async () => {
     // A category with nothing scheduled needs exactly what it keeps spending,
     // so the two rows printed the same figure twice (user screenshot, 260808).
@@ -1044,6 +1094,28 @@ describe("Spendings plan — one category filter for the section", () => {
     expect(chart().getAttribute("data-rows")).toBe("Food");
   });
 
+  it("narrows the rebalance dialog with them", async () => {
+    // The dialog opens FROM these bars and acts on what they show, so a
+    // category the filter hid has no business in it (user, 260813).
+    twoCategories();
+    fitDto.current = {
+      rows: [],
+      projected_by_category: [
+        { category_id: "c1", projected_monthly_cents: "120000" },
+        { category_id: "c2", projected_monthly_cents: "90000" },
+      ],
+    };
+    prefsDto.current = { "planned-categories": ["c1"] };
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    expect(
+      (limitRows.current as { categoryId: string }[]).map((r) => r.categoryId),
+    ).toEqual(["c1"]);
+  });
+
   it("narrows the meter with them", async () => {
     twoCategories();
     prefsDto.current = { "planned-categories": ["c1"] };
@@ -1215,9 +1287,10 @@ describe("scheduled payments per year, by category", () => {
       ],
     };
     render(<PlannedSection budgetId="b1" range={RANGE as never} />);
-    const rows = JSON.parse(
-      yearChart()!.getAttribute("data-tooltip")!,
-    ) as { label: string; value: string }[];
+    const rows = JSON.parse(yearChart()!.getAttribute("data-tooltip")!) as {
+      label: string;
+      value: string;
+    }[];
     expect(rows.map((r) => r.label)).toEqual(["Domain", "Netflix"]);
     // 40 a month × 12 = 480 a year.
     expect(rows[1]!.value).toContain("× 12");

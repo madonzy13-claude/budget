@@ -1,0 +1,25 @@
+# ci-ports.yml — port + data overrides for the LOCAL CI-equivalent stack.
+#
+# ci.yml boots plain `docker compose -f docker-compose.yml`, which binds the dev
+# ports and the dev database. Running that here would fight the live dev stack,
+# so the CI-equivalent run uses a separate compose project plus this file:
+#
+#   docker compose -p budgetci --env-file .env.ci.local \
+#     -f docker-compose.yml -f ci-ports.yml up -d --wait
+#
+# `!override` is required: compose MERGES list fields, so a plain `ports:` entry
+# would try to bind BOTH the dev port and the CI one and fail with "port is
+# already allocated".
+#
+# Only services from docker-compose.yml belong here. mailpit and cloudflared are
+# defined in docker-compose.override.yml, so naming them in a base-only run
+# fails with "has neither an image nor a build context" — they live in
+# ci-ports-e2e.yml, which is layered on top when the override is included.
+services:
+  db:
+    ports: !override
+      - "127.0.0.1:55432:5432"
+
+  web:
+    ports: !override
+      - "127.0.0.1:3100:3000"

@@ -301,6 +301,48 @@ export function amountTicks(min: number, max: number): number[] {
     .sort((a, b) => a - b);
 }
 
+/**
+ * Axis range for the MONEY reading, and the ticks that may be drawn on it.
+ *
+ * These two used to be worked out independently, and on a small chart they
+ * disagreed: a reserve list whose only bar was −0.50 zł got a domain of
+ * [−0.56, +0.06] while amountTicks — which never steps finer than a whole unit
+ * — produced ±1 zł. recharts places a tick outside the domain by extrapolating
+ * it, so the "−1 zł" gridline was drawn left of the plot area, straight across
+ * the category labels (user screenshot, 260813).
+ *
+ * The rule, in two halves:
+ *
+ *   the DOMAIN gives a side that carries data room for its first tick, so the
+ *   axis can still say what the scale is — otherwise a chart of small change
+ *   would be an unlabelled smear. It does NOT open up the other side: this axis
+ *   is asymmetric on purpose (260731), and inventing room where there is
+ *   nothing to show would squash the bars that exist.
+ *
+ *   the TICKS are then clipped to that domain. amountTicks deliberately reaches
+ *   a step past each end so a bar near the edge still has a label beyond it;
+ *   those outriders are what recharts drew outside the plot.
+ */
+export function moneyDomain(values: number[]): [number, number] {
+  const finite = values.filter((v) => Number.isFinite(v));
+  const lo = Math.min(0, ...finite);
+  const hi = Math.max(0, ...finite);
+  const pad = Math.max(1, (hi - lo) * AXIS_PAD);
+  let min = lo - pad;
+  let max = hi + pad;
+  const ticks = amountTicks(min, max);
+  const below = ticks.filter((t) => t < 0);
+  const above = ticks.filter((t) => t > 0);
+  if (lo < 0 && below.length > 0) min = Math.min(min, Math.max(...below));
+  if (hi > 0 && above.length > 0) max = Math.max(max, Math.min(...above));
+  return [min, max];
+}
+
+/** The ticks of that axis — every one of them ON it. */
+export function moneyAxisTicks(min: number, max: number): number[] {
+  return amountTicks(min, max).filter((t) => t >= min && t <= max);
+}
+
 const fmtPct = (n: number) => {
   const rounded = Math.round(n);
   const sign = rounded > 0 ? "+" : rounded < 0 ? "−" : "";
@@ -495,15 +537,7 @@ export function OverviewDivergingBarChart({
   const values = data.map((r) => Number(r[valueKey]));
   const money = typeof formatValue === "function";
   const fmtValue = formatValue ?? fmtPct;
-  const [min, max] = money
-    ? (() => {
-        const finite = values.filter((v) => Number.isFinite(v));
-        const lo = Math.min(0, ...finite);
-        const hi = Math.max(0, ...finite);
-        const pad = Math.max(1, (hi - lo) * AXIS_PAD);
-        return [lo - pad, hi + pad] as [number, number];
-      })()
-    : divergingDomain(values);
+  const [min, max] = money ? moneyDomain(values) : divergingDomain(values);
   // The axis is drawn in SYMLOG space (see symlog above): bars, domain and ticks
   // are all transformed, and every user-facing number is inverted back with
   // symexp — so labels and the tooltip always speak real percent.
@@ -576,7 +610,7 @@ export function OverviewDivergingBarChart({
             type="number"
             domain={[symlog(min), symlog(max)]}
             ticks={(money
-              ? amountTicks(min, max)
+              ? moneyAxisTicks(min, max)
               : divergingTicks(min, max)
             ).map(symlog)}
             tickFormatter={(t: number) => fmtValue(symexp(t))}

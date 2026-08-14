@@ -41,7 +41,19 @@ vi.mock("@/hooks/use-spendings-summary", () => ({
 vi.mock("@/hooks/use-set-category-limit", () => ({
   useSetCategoryLimit: () => ({ mutateAsync: async () => {} }),
 }));
-vi.mock("@/hooks/use-reserve-fit", () => ({
+vi.mock("@/hooks/use-one-off-candidates", () => ({
+  // The one-off dialog pages its own list; these tests are about the charts.
+  useOneOffCandidates: () => ({
+    data: { pages: [] },
+    hasNextPage: false,
+    fetchNextPage: () => {},
+    isFetchingNextPage: false,
+    isPending: false,
+    isError: false,
+  }),
+}));
+vi.mock("@/hooks/use-reserve-fit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-reserve-fit")>()),
   useReserveFit: () => ({ data: undefined, isPending: false, isError: false }),
   useSaveReserveFitExclusions: () => ({ mutate: () => {} }),
 }));

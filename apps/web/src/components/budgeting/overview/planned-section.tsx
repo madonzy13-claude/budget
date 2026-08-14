@@ -16,6 +16,7 @@ import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { CategoryMultiSelect } from "./category-multi-select";
 import {
   effectiveCategoryIds,
+  narrowedCategoryCount,
   PLANNED_BASIS_PREF,
   PLANNED_TIMELINE_PREF,
   decodeBasis,
@@ -47,6 +48,7 @@ import { useOverviewPlanned } from "@/hooks/use-overview-planned";
 import {
   useReserveFit,
   useSaveReserveFitExclusions,
+  projectedMonthlyMap,
 } from "@/hooks/use-reserve-fit";
 import {
   ReserveFitOneOffs,
@@ -60,6 +62,7 @@ import { useSetCategoryLimit } from "@/hooks/use-set-category-limit";
 import { ChartNeedsCompletedMonth } from "./chart-needs-completed-month";
 import { rangeHasCompletedMonth } from "@/lib/range-completed-month";
 import { useCategories } from "@/hooks/use-budget-data";
+import { useOneOffCandidates } from "@/hooks/use-one-off-candidates";
 import {
   centsToDisplayCompact,
   centsToRounded,
@@ -324,25 +327,19 @@ export function PlannedSection({
   /** categoryId → what an average month ahead costs: the habit plus every
    *  recurring payment at its monthly rate (260808). This is what the FUTURE
    *  reading measures today's limit against. */
-  const projected = new Map<string, number>(
-    (fit.data?.rows ?? []).flatMap((r) =>
-      r.projected_monthly_cents == null
-        ? []
-        : [
-            [r.category_id, Number(r.projected_monthly_cents)] as [
-              string,
-              number,
-            ],
-          ],
-    ),
-  );
-  const oneOffCandidates: OneOffCandidate[] = (fit.data?.rows ?? []).flatMap(
-    (r) =>
-      (r.large_transactions ?? []).map((c) => ({
-        ...c,
-        category_id: r.category_id,
-        category_name: r.name,
-      })),
+  // Every category, not just the ones the reserve engine tracks: an opted-out
+  // category has no reserve row, and without a figure this chart drew today's
+  // limit against itself (user, 260812).
+  const projected = projectedMonthlyMap(fit.data);
+  // EVERY spend in the range, ten at a time (user, 260813). It used to be a
+  // shortlist computed inside the reserve payload — five per category, above a
+  // size bar — which hid most of the household's spending from a decision they
+  // are entitled to make.
+  const [oneOffCategory, setOneOffCategory] = useState("all");
+  const oneOffs = useOneOffCandidates(
+    budgetId,
+    { from: range.from, to: range.to },
+    oneOffCategory === "all" ? null : oneOffCategory,
   );
 
   // Acting on the Future reading writes a needs/wants SPLIT, so the dialog
@@ -367,35 +364,15 @@ export function PlannedSection({
   // What every limit adds up to, against what they should. Only the rows the
   // chart actually draws, so the line and the bars under it are the same set.
 
-  // The dialog opens FROM the Future chart, so it proposes exactly what that
-  // chart drew: what an average month ahead costs. The reserve walk's own
-  // suggestion weighs the runway and what is already held — a different, and
-  // for this purpose contradictory, answer (user, 260808).
-  const limitCandidates: LimitCandidate[] = (fit.data?.rows ?? []).flatMap(
-    (r) => {
-      const split = splitById.get(r.category_id);
-      const expected = projected.get(r.category_id);
-      if (!split || expected == null) return [];
-      // A category whose limit is ALREADY right stays on the list, with its
-      // button visibly inert — the same as the reserve dialog. Dropping it had
-      // two faces: a settled category never appeared at all, and one you had
-      // just rebalanced became settled and vanished from under the finger that
-      // acted on it (user, 260809).
-      return [
-        {
-          categoryId: r.category_id,
-          name: r.name,
-          needsCents: split.needsCents,
-          wantsCents: split.wantsCents,
-          suggestedLimitCents: expected,
-        },
-      ];
-    },
-  );
-
   // Every category the budget has, investments included (260803 user request):
   // the picker offers exactly what the charts count, and both start ticked.
   const categories = useCategories(budgetId).data ?? [];
+  const nameFor = (categoryId: string) =>
+    String(
+      categories.find((c) => c.id === categoryId)?.name ??
+        fit.data?.rows.find((r) => r.category_id === categoryId)?.name ??
+        "",
+    );
 
   // The section's ONE category filter, resolved to the ids on screen. Empty
   // when everything is shown — effectiveCategoryIds returns undefined for both
@@ -405,6 +382,67 @@ export function PlannedSection({
       categoryIds,
       categories.map((c) => c.id as string),
     ) ?? [],
+  );
+
+  // The dialog opens FROM the Future chart, so it proposes exactly what that
+  // chart drew: what an average month ahead costs. The reserve walk's own
+  // suggestion weighs the runway and what is already held — a different, and
+  // for this purpose contradictory, answer (user, 260808).
+  //
+  // Every category with a limit and a projection, which is the set the bars
+  // and the totals line already read. It used to walk the reserve ROWS, and
+  // those skip a category the household opted out of the buffer: Insurance was
+  // drawn 779 against 798 with no way to act on it (user, 260813).
+  const limitCandidates: LimitCandidate[] = [...splitById.entries()].flatMap(
+    ([categoryId, split]) => {
+      const expected = projected.get(categoryId);
+      if (expected == null) return [];
+      // …and only what the filter is showing. The dialog opens FROM these
+      // bars, so acting on a category they hid is acting on something the
+      // member cannot see (user, 260813).
+      if (shownIds.size > 0 && !shownIds.has(categoryId)) return [];
+      // A category whose limit is ALREADY right stays on the list, with its
+      // button visibly inert — the same as the reserve dialog. Dropping it had
+      // two faces: a settled category never appeared at all, and one you had
+      // just rebalanced became settled and vanished from under the finger that
+      // acted on it (user, 260809).
+      return [
+        {
+          categoryId,
+          name: nameFor(categoryId),
+          needsCents: split.needsCents,
+          wantsCents: split.wantsCents,
+          suggestedLimitCents: expected,
+        },
+      ];
+    },
+  );
+
+  // The spendings tab draws its columns in sortIndex order (the drag order the
+  // household set); the one-off dialog's filter follows the same list so the
+  // two never disagree (user, 260812). Sorted here rather than trusted from the
+  // wire, which is what the grid does too.
+  const categoryOrder = [...categories]
+    .sort(
+      (a, b) =>
+        ((a.sortIndex as number | undefined) ?? 0) -
+        ((b.sortIndex as number | undefined) ?? 0),
+    )
+    .map((c) => c.id as string);
+  const categoryList = [...categories]
+    .sort(
+      (a, b) =>
+        ((a.sortIndex as number | undefined) ?? 0) -
+        ((b.sortIndex as number | undefined) ?? 0),
+    )
+    .map((c) => ({ id: c.id as string, name: String(c.name ?? "") }));
+  const nameById = new Map(categoryList.map((c) => [c.id, c.name]));
+  const oneOffRows: OneOffCandidate[] = (oneOffs.data?.pages ?? []).flatMap(
+    (page) =>
+      page.items.map((i) => ({
+        ...i,
+        category_name: nameById.get(i.category_id) ?? "",
+      })),
   );
 
   // EVERY category with a limit, not just the ones the reserve engine tracks
@@ -832,7 +870,15 @@ export function PlannedSection({
                   />
                   <div data-testid="overview-planned-corner">
                     <ReserveFitOneOffs
-                      candidates={oneOffCandidates}
+                      candidates={oneOffRows}
+                      excludedTotal={oneOffs.data?.pages[0]?.excluded_total}
+                      categories={categoryList}
+                      categoryOrder={categoryOrder}
+                      category={oneOffCategory}
+                      onCategoryChange={setOneOffCategory}
+                      hasMore={Boolean(oneOffs.hasNextPage)}
+                      onLoadMore={() => void oneOffs.fetchNextPage()}
+                      loadingMore={oneOffs.isFetchingNextPage}
                       onSave={(delta) => saveExclusions.mutate(delta)}
                       format={fmtTooltip}
                     />
@@ -1112,7 +1158,21 @@ export function PlannedSection({
             }
             ringLabel={(key) => t(`planned.ring.${key}`)}
             title={t("planned.avgPie")}
-            allLabel={t("planned.allCategories")}
+            // The centre keeps saying "All categories" only while that is true —
+            // dropping Investments alone still counts as all, since its money is
+            // not planned spending (user, 260812).
+            allLabel={(() => {
+              const narrowed = narrowedCategoryCount(
+                categoryIds,
+                categories.map((c) => ({
+                  id: c.id as string,
+                  isInvestment: Boolean(c.isInvestment),
+                })),
+              );
+              return narrowed === null
+                ? t("planned.allCategories")
+                : t("planned.categoriesPicked", { count: narrowed });
+            })()}
             formatValue={fmtTooltip}
             // Same call as the metrics above: planned spend stays readable.
           />

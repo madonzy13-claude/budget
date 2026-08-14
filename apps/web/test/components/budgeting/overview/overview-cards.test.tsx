@@ -15,6 +15,7 @@ vi.mock("next-intl", () => {
       "cards.spentThisMonth": "Spent",
       "cards.leftToSpend": "Upcoming",
       "cards.surplus": "Surplus",
+      "cards.lowestPoint": "Lowest point: {date}",
       "cards.deficit": "Deficit",
       "cards.spendNeutral": "No upcoming income",
       "cards.retirementRunway": "If you retire now",
@@ -83,7 +84,10 @@ vi.mock("@/hooks/use-overview-wealth", () => ({
 // Projection drives the available-to-spend dot + surplus/deficit. Default: green,
 // $400 surplus (matches the old "Upcoming $400" figure so amount assertions hold).
 const mockProjection = vi.fn(() => ({
-  data: { spend_health: { good: true, surplus_deficit_cents: "40000" } },
+  data: {
+    spend_health: { good: true, surplus_deficit_cents: "40000" },
+    safe_to_withdraw: { cents: "40000", thinnest_date: "2026-08-15" },
+  },
 }));
 vi.mock("@/hooks/use-projection", () => ({
   useProjection: () => mockProjection(),
@@ -133,7 +137,10 @@ describe("OverviewCards", () => {
   // different projection set a sticky mockReturnValue (deterministic across renders).
   beforeEach(() => {
     mockProjection.mockReturnValue({
-      data: { spend_health: { good: true, surplus_deficit_cents: "40000" } },
+      data: {
+        spend_health: { good: true, surplus_deficit_cents: "40000" },
+        safe_to_withdraw: { cents: "40000", thinnest_date: "2026-08-15" },
+      },
     });
   });
 
@@ -172,7 +179,10 @@ describe("OverviewCards", () => {
 
     // A projection shortfall (good:false) flips the dot to red.
     mockProjection.mockReturnValue({
-      data: { spend_health: { good: false, surplus_deficit_cents: "-5000" } },
+      data: {
+        spend_health: { good: false, surplus_deficit_cents: "-5000" },
+        safe_to_withdraw: { cents: "-5000", thinnest_date: "2026-09-02" },
+      },
     });
     render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     expect(screen.getByTestId("spend-bad")).toBeTruthy();
@@ -181,7 +191,10 @@ describe("OverviewCards", () => {
   it("shows NO dot at all + the old 'upcoming' figure when there's no income", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
     mockProjection.mockReturnValue({
-      data: { spend_health: { good: null, surplus_deficit_cents: null } },
+      data: {
+        spend_health: { good: null, surplus_deficit_cents: null },
+        safe_to_withdraw: { cents: "40000", thinnest_date: "2026-08-15" },
+      },
     });
     render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     // A grey circle said "there is a verdict here, and it is neutral" — there
@@ -190,10 +203,38 @@ describe("OverviewCards", () => {
     expect(screen.queryByTestId("spend-neutral")).toBeNull();
     expect(screen.queryByTestId("spend-good")).toBeNull();
     expect(screen.queryByTestId("spend-bad")).toBeNull();
-    // Falls back to the original "Upcoming" line ($400 = left_cents), no surplus row.
-    expect(screen.getByText("Upcoming")).toBeTruthy();
-    expect(screen.getByText("$400")).toBeTruthy();
-    expect(screen.queryByTestId("spend-surplus-deficit")).toBeNull();
+    // The withdrawable figure needs no income to mean something — it is the
+    // lowest point of the forecast, so the row stays even with no pay-day in
+    // sight (user, 260812). Only the verdict dot is withheld.
+    expect(screen.getByTestId("spend-surplus-deficit")).toBeTruthy();
+  });
+
+  // "Surplus" is what you can take OUT of the budget today and still cover
+  // every dip the forecast knows about — the lowest point of a worst-case run,
+  // not the cash on the day before payday (user, 260812).
+  it("takes the surplus from safe_to_withdraw, not from spend_health", () => {
+    mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    mockProjection.mockReturnValue({
+      data: {
+        spend_health: { good: true, surplus_deficit_cents: "40000" },
+        safe_to_withdraw: { cents: "1500", thinnest_date: "2026-08-15" },
+      },
+    });
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+    const row = screen.getByTestId("spend-surplus-deficit").textContent!;
+    expect(row).toContain("$15");
+    expect(row).not.toContain("$400");
+  });
+
+  // The card stays a number; the day it is measured at lives in the row's
+  // hover text, where it answers "why that size?" without spending a line of
+  // a half-width card on it (user, 260812).
+  it("keeps the thinnest day out of the card, in the hover text", () => {
+    mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+    expect(screen.queryByTestId("spend-thinnest-date")).toBeNull();
+    const row = screen.getByTestId("spend-surplus-row");
+    expect(row.getAttribute("title")).toContain("15");
   });
 
   it("shows surplus (green) or deficit (red) from the nearest income", () => {
@@ -210,7 +251,10 @@ describe("OverviewCards", () => {
 
     // Negative → Deficit label, magnitude shown (sign conveyed by red color).
     mockProjection.mockReturnValue({
-      data: { spend_health: { good: false, surplus_deficit_cents: "-25000" } },
+      data: {
+        spend_health: { good: false, surplus_deficit_cents: "-25000" },
+        safe_to_withdraw: { cents: "-25000", thinnest_date: "2026-09-02" },
+      },
     });
     render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     expect(screen.getByText("Deficit")).toBeTruthy();

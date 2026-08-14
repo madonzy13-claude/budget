@@ -40,6 +40,27 @@ export function effectiveCategoryIds(
   return live.length === allIds.length ? undefined : live;
 }
 
+/**
+ * How many categories the pie is actually showing, or `null` when it is showing
+ * the lot. The centre used to read "All categories" whatever the picker said —
+ * true only when nothing is dropped, OR when the only thing dropped is the
+ * investment category: investments are not planned spending (they ride the outer
+ * ring, not the slices), so hiding that one narrows nothing (user, 260812).
+ */
+export function narrowedCategoryCount(
+  selected: string[],
+  categories: { id: string; isInvestment?: boolean }[],
+): number | null {
+  const allIds = categories.map((c) => c.id);
+  const live = prunePlannedCategories(selected, allIds);
+  if (live.length === 0 || live.length === allIds.length) return null;
+  const picked = new Set(live);
+  const everyRealOneKept = categories
+    .filter((c) => !c.isInvestment)
+    .every((c) => picked.has(c.id));
+  return everyRealOneKept ? null : live.length;
+}
+
 /** Keep only ids the budget still has, in the order the categories are listed. */
 export function prunePlannedCategories(
   selected: string[],

@@ -32,6 +32,9 @@ export function registerOverviewProjectionRoutes(r: Hono, deps: BootedDeps) {
             date: d.date,
             color: d.color,
             available_cents: d.availableCents.toString(),
+            opening_cents: d.openingCents.toString(),
+            planned_burn_cents: d.plannedBurnCents.toString(),
+            reserve_covered_cents: d.reserveCoveredCents.toString(),
             income_cents: d.incomeCents.toString(),
             bill_cents: d.billCents.toString(),
             drew_reserve: d.drewReserve.map((x) => ({
@@ -56,6 +59,18 @@ export function registerOverviewProjectionRoutes(r: Hono, deps: BootedDeps) {
             category_id: x.categoryId,
             amount_cents: x.amountCents.toString(),
           })),
+          pending_points: p.pendingPoints.map((x) => ({
+            date: x.date,
+            name: x.name,
+            category_id: x.categoryId,
+            amount_cents: x.amountCents.toString(),
+          })),
+          // What can leave the budget today with every dip still covered — the
+          // lowest point of a worst-case run (see simulate-cashflow-projection).
+          safe_to_withdraw: {
+            cents: p.safeToWithdraw.cents.toString(),
+            thinnest_date: p.safeToWithdraw.thinnestDate,
+          },
           summary: {
             first_yellow_date: p.summary.firstYellowDate,
             first_red_date: p.summary.firstRedDate,

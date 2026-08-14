@@ -180,7 +180,9 @@ const view = (onSave = vi.fn(), onRebalance = vi.fn(async () => 0)) => {
       onSave={onSave}
       onRebalance={onRebalance}
       format={(c: number) => `${Math.round(c / 100)} zl`}
-      formatExact={(c: number) => `${(c / 100).toFixed(2)} zl`}
+      formatExact={(c: number) =>
+        c % 100 === 0 ? `${c / 100} zl` : `${(c / 100).toFixed(2)} zl`
+      }
     />,
   );
   return onSave;
@@ -303,6 +305,7 @@ describe("ReserveFitView", () => {
         data={DTO}
         onSave={vi.fn()}
         format={(c: number) => `${c}`}
+        formatExact={(c: number) => `${c}`}
         scale="amount"
       />,
     );
@@ -320,6 +323,7 @@ describe("ReserveFitView", () => {
         data={DTO}
         onSave={vi.fn()}
         format={(c: number) => `${c} zl`}
+        formatExact={(c: number) => `${c} zl`}
         scale="amount"
       />,
     );
@@ -337,6 +341,7 @@ describe("ReserveFitView", () => {
         data={DTO}
         onSave={vi.fn()}
         format={(c: number) => `${c}`}
+        formatExact={(c: number) => `${c}`}
         scaleSwitch={<span data-testid="the-switch" />}
       />,
     );
@@ -361,6 +366,7 @@ describe("ReserveFitView", () => {
         data={data}
         onSave={vi.fn()}
         format={(c: number) => `${c}`}
+        formatExact={(c: number) => `${c}`}
       />,
     );
     // percent: Car (−80%) leads, Tiny (+300%) sinks to the bottom
@@ -373,6 +379,7 @@ describe("ReserveFitView", () => {
         data={data}
         onSave={vi.fn()}
         format={(c: number) => `${c}`}
+        formatExact={(c: number) => `${c}`}
         scale="amount"
       />,
     );
@@ -389,6 +396,7 @@ describe("ReserveFitView", () => {
         data={DTO}
         onSave={vi.fn()}
         format={(c: number) => `${c}`}
+        formatExact={(c: number) => `${c}`}
         scaleSwitch={<span data-testid="the-switch" />}
       />,
     );
@@ -429,6 +437,7 @@ describe("ReserveFitView", () => {
         data={{ currency: "PLN", rows: [] }}
         onSave={vi.fn()}
         format={(c: number) => `${c}`}
+        formatExact={(c: number) => `${c}`}
       />,
     );
     expect(screen.queryByTestId("fit-chart")).toBeNull();
@@ -467,7 +476,9 @@ describe("ReserveFitView — what the tooltip tells you to do", () => {
         onSave={vi.fn()}
         onRebalance={vi.fn(async () => 0)}
         format={(c: number) => `${Math.round(c / 100)} zl`}
-        formatExact={(c: number) => `${(c / 100).toFixed(2)} zl`}
+        formatExact={(c: number) =>
+          c % 100 === 0 ? `${c / 100} zl` : `${(c / 100).toFixed(2)} zl`
+        }
       />,
     );
 
@@ -517,6 +528,26 @@ describe("ReserveFitView — what the tooltip tells you to do", () => {
     expect(labels("Newborn")).toContain("reserveFit.balanced");
   });
 
+  /**
+   * Sport holding 1,775.50 against a target of 1,776: the bar read "−1 zł"
+   * over a card saying Held 1,776, Needed 1,776, "Well balanced" (user
+   * screenshot, 260813). Three roundings, three different answers.
+   *
+   * The figures are exact, so the two sides can be SEEN to differ, and the
+   * verdict follows the same gap the bar is drawn from.
+   */
+  it("shows the groszy rather than two equal-looking figures", () => {
+    renderWith(
+      withSuggestion("car", { held_cents: "177550", needed_cents: "177550" }),
+    );
+    const rows = tooltipFor("Car");
+    expect(rows[0]!.value).toBe("1775.50 zl");
+    expect(rows[1]!.value).toBe("1776 zl");
+    expect(rows.map((r) => r.label)).not.toContain("reserveFit.balanced");
+    const add = rows.find((r) => r.label === "reserveFit.addToReserve")!;
+    expect(add.value).toBe("0.50 zl");
+  });
+
   it("never mentions the runway", () => {
     renderWith(DTO);
     for (const row of tooltipFor("Car")) {
@@ -526,7 +557,9 @@ describe("ReserveFitView — what the tooltip tells you to do", () => {
   });
 
   // A difference under a whole unit is not an instruction (260808).
-  it("reads a difference of groszy as balanced", () => {
+  // It used to call a groszy "balanced": nothing could close it, so nothing
+  // was offered. The move is offered now, so the card names it (260813).
+  it("offers even a groszy, rather than calling it balanced", () => {
     renderWith(
       withSuggestion("sport", {
         held_cents: "172001",
@@ -534,7 +567,11 @@ describe("ReserveFitView — what the tooltip tells you to do", () => {
         gap_cents: "1",
       }),
     );
-    expect(labels("Sport")).toContain("reserveFit.balanced");
+    // 1,720.01 held against a target of 1,720 — a penny to take out.
+    expect(labels("Sport")).not.toContain("reserveFit.balanced");
+    expect(
+      tooltipFor("Sport").find((r) => r.label === "reserveFit.withdraw")!.value,
+    ).toBe("0.01 zl");
   });
 });
 
@@ -562,7 +599,9 @@ describe("ReserveFitView — the action reads as an action", () => {
         onSave={vi.fn()}
         onRebalance={vi.fn(async () => 0)}
         format={(c: number) => `${Math.round(c / 100)} zl`}
-        formatExact={(c: number) => `${(c / 100).toFixed(2)} zl`}
+        formatExact={(c: number) =>
+          c % 100 === 0 ? `${c / 100} zl` : `${(c / 100).toFixed(2)} zl`
+        }
       />,
     );
 

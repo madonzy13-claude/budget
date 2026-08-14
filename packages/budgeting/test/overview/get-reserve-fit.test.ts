@@ -118,6 +118,12 @@ function deps(over: Partial<Parameters<typeof getReserveFit>[0]> = {}) {
       async largeTransactions() {
         return largeTxns;
       },
+      // The ticks themselves live in the exclusions table, not on the
+      // shortlist above — a spend can be set aside without ever making it
+      // (260813). Nothing is set aside by default.
+      async excludedSpendByCategory() {
+        return [];
+      },
     },
     activeScheduledPayments: async () => [],
     // After the range: both months are closed, so the walk counts both. Tests
@@ -232,7 +238,14 @@ describe("a monthly rule the limit already covers", () => {
           }));
         },
       },
-      exclusionsRepo: { async largeTransactions() { return []; } },
+      exclusionsRepo: {
+        async largeTransactions() {
+          return [];
+        },
+        async excludedSpendByCategory() {
+          return [];
+        },
+      },
       activeScheduledPayments: async () => [
         {
           category_id: CAT,
@@ -328,7 +341,14 @@ describe("projected monthly cost", () => {
           }));
         },
       },
-      exclusionsRepo: { async largeTransactions() { return []; } },
+      exclusionsRepo: {
+        async largeTransactions() {
+          return [];
+        },
+        async excludedSpendByCategory() {
+          return [];
+        },
+      },
       activeScheduledPayments: async () => rules,
       reservePositions: async () =>
         ok({
@@ -485,6 +505,10 @@ describe("getReserveFit", () => {
             t.ledger_id === "tx-jump" ? { ...t, excluded: true } : t,
           );
         },
+        // …and the tick is recorded where the arithmetic reads it.
+        async excludedSpendByCategory() {
+          return [{ category_id: CAT_SPORT, month: "2026-02", cents: 480000n }];
+        },
       },
     } as never);
     const sport = await rowFor(CAT_SPORT, d);
@@ -526,6 +550,9 @@ describe("getReserveFit", () => {
               excluded: false,
             },
           ];
+        },
+        async excludedSpendByCategory() {
+          return [];
         },
       },
     } as never);
@@ -1314,9 +1341,9 @@ describe("getReserveFit — the limit that would fund the buffer", () => {
     } as unknown as Partial<Parameters<typeof getReserveFit>[0]>);
     const withLumpRow = await rowFor(CAT_FOOD, withLump);
     const plain = await rowFor(CAT_FOOD);
-    expect(
-      BigInt(withLumpRow!.suggested_limit_cents!),
-    ).toBeGreaterThan(BigInt(plain!.suggested_limit_cents!));
+    expect(BigInt(withLumpRow!.suggested_limit_cents!)).toBeGreaterThan(
+      BigInt(plain!.suggested_limit_cents!),
+    );
   });
 });
 

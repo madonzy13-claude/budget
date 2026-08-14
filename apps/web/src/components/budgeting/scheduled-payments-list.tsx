@@ -125,17 +125,17 @@ export function ScheduledPaymentsList({
           rule.cadence === "ONCE"
             ? t("list.once")
             : rule.cadence === "MONTHLY"
-            ? t("list.monthlyOnDay", { day: rule.cadenceAnchor ?? 1 })
-            : rule.cadence === "WEEKLY"
-              ? t("list.weeklyOnDow", {
-                  weekday: t(`rule.weekdays.${rule.weeklyDow ?? 1}`),
-                })
-              : rule.cadence === "YEARLY"
-                ? t("list.yearlyOn", {
-                    month: t(`rule.months.${rule.yearlyMonth ?? 1}`),
-                    day: rule.cadenceAnchor ?? 1,
+              ? t("list.monthlyOnDay", { day: rule.cadenceAnchor ?? 1 })
+              : rule.cadence === "WEEKLY"
+                ? t("list.weeklyOnDow", {
+                    weekday: t(`rule.weekdays.${rule.weeklyDow ?? 1}`),
                   })
-                : t("list.daily");
+                : rule.cadence === "YEARLY"
+                  ? t("list.yearlyOn", {
+                      month: t(`rule.months.${rule.yearlyMonth ?? 1}`),
+                      day: rule.cadenceAnchor ?? 1,
+                    })
+                  : t("list.daily");
         // Over, not gone: a one-time payment keeps its place at the bottom and
         // reads as spent rather than as something still coming.
         //
@@ -148,8 +148,8 @@ export function ScheduledPaymentsList({
           <li
             key={rule.id}
             data-retired={retired ? "true" : undefined}
-            className={`flex items-center justify-between px-4 py-3${
-              retired ? " opacity-50" : ""
+            className={`flex items-center justify-between px-4 py-3 ${
+              retired ? "opacity-50" : ""
             }`}
           >
             <div className="space-y-0.5 min-w-0">

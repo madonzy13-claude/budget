@@ -103,6 +103,37 @@ describe("ReserveFitOneOffs", () => {
     expect(screen.getByTestId("reserve-fit-open-one-offs")).toBeTruthy();
   });
 
+  /**
+   * The list is paged, so what is loaded is not what is set aside: tick six
+   * spends, page past them, and a badge counting rows on screen reads "1"
+   * (user, 260813). The server counts the range; the badge shows THAT.
+   */
+  it("counts what the range holds, not what this page loaded", () => {
+    render(
+      <ReserveFitOneOffs
+        candidates={CANDIDATES}
+        excludedTotal={6}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    expect(screen.getByTestId("reserve-fit-one-offs-badge").textContent).toBe(
+      "6",
+    );
+  });
+
+  it("drops the badge when the range holds nothing set aside", () => {
+    render(
+      <ReserveFitOneOffs
+        candidates={CANDIDATES}
+        excludedTotal={0}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    expect(screen.queryByTestId("reserve-fit-one-offs-badge")).toBeNull();
+  });
+
   it("names itself for anyone who cannot see the icon", () => {
     setup();
     expect(
@@ -178,6 +209,156 @@ describe("ReserveFitOneOffs", () => {
       .getByTestId("reserve-fit-row-tx-ins")
       .querySelector(".truncate")!;
     expect(details.textContent).not.toContain("YEARLY");
+  });
+
+  /**
+   * The dropdown listed categories in whatever order the reserve rows came in,
+   * which is neither the spendings tab's order nor any order the household
+   * recognises — and a category with no reserve row (opted out of the buffer)
+   * was missing from it entirely (user, 260812).
+   */
+  it("lists the categories in the spendings order it is given", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReserveFitOneOffs
+        candidates={CANDIDATES}
+        // Sport is dragged last in the spendings tab, Car first.
+        categoryOrder={["car", "insurance", "sport"]}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    await user.click(screen.getByTestId("reserve-fit-open-one-offs"));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByTestId("reserve-fit-category-filter"));
+    const options = (await screen.findAllByTestId(/^reserve-fit-filter-/)).map(
+      (o) => o.getAttribute("data-testid"),
+    );
+    expect(options).toEqual([
+      "reserve-fit-filter-all",
+      "reserve-fit-filter-car",
+      "reserve-fit-filter-sport",
+    ]);
+  });
+
+  it("still lists a category the given order has never heard of", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReserveFitOneOffs
+        candidates={CANDIDATES}
+        categoryOrder={["car"]}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    await user.click(screen.getByTestId("reserve-fit-open-one-offs"));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByTestId("reserve-fit-category-filter"));
+    const options = (await screen.findAllByTestId(/^reserve-fit-filter-/)).map(
+      (o) => o.getAttribute("data-testid"),
+    );
+    // Known ones in the order given, the rest after — never dropped.
+    expect(options).toEqual([
+      "reserve-fit-filter-all",
+      "reserve-fit-filter-car",
+      "reserve-fit-filter-sport",
+    ]);
+  });
+
+  // Repeating charges no longer reach this dialog at all (they are not
+  // one-offs). What can still arrive with a cadence is a ONCE payment — a
+  // single planned purchase — and "repeats once" is nonsense (user, 260813).
+  it("does not claim a one-time payment repeats", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReserveFitOneOffs
+        candidates={[
+          {
+            ledger_id: "tx-sofa",
+            category_id: "home",
+            category_name: "Home",
+            transaction_date: "2026-04-01",
+            note: "Sofa",
+            amount_cents: "200000",
+            scheduled_cadence: "ONCE",
+            excluded: false,
+          },
+        ]}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    await user.click(screen.getByTestId("reserve-fit-open-one-offs"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByTestId("reserve-fit-row-tx-sofa")).toBeTruthy();
+    expect(
+      within(dialog).queryByTestId("reserve-fit-recurs-tx-sofa"),
+    ).toBeNull();
+  });
+
+  /**
+   * The list is no longer a shortlist: every spend in the range is offered, ten
+   * at a time, and the button at the end asks for the next ten (user, 260813).
+   */
+  it("asks for more when the button is pressed", async () => {
+    const onLoadMore = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ReserveFitOneOffs
+        candidates={CANDIDATES}
+        hasMore
+        onLoadMore={onLoadMore}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    await user.click(screen.getByTestId("reserve-fit-open-one-offs"));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByTestId("reserve-fit-load-more"));
+    expect(onLoadMore).toHaveBeenCalled();
+  });
+
+  it("says nothing about more when there is no more", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReserveFitOneOffs
+        candidates={CANDIDATES}
+        hasMore={false}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    await user.click(screen.getByTestId("reserve-fit-open-one-offs"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByTestId("reserve-fit-load-more")).toBeNull();
+  });
+
+  // Filtering has to reach the SERVER now — a category's spends may sit on a
+  // page nobody has loaded, so narrowing the loaded rows would lie.
+  it("reports the chosen category instead of filtering what is loaded", async () => {
+    const onCategoryChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ReserveFitOneOffs
+        candidates={CANDIDATES}
+        categories={[
+          { id: "car", name: "Car" },
+          { id: "sport", name: "Sport" },
+          { id: "quiet", name: "Quiet" },
+        ]}
+        category="all"
+        onCategoryChange={onCategoryChange}
+        onSave={vi.fn()}
+        format={(c: number) => `${c}`}
+      />,
+    );
+    await user.click(screen.getByTestId("reserve-fit-open-one-offs"));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByTestId("reserve-fit-category-filter"));
+    // …every category is offered, even one with nothing loaded against it.
+    expect(await screen.findByTestId("reserve-fit-filter-quiet")).toBeTruthy();
+    await user.click(screen.getByTestId("reserve-fit-filter-sport"));
+    expect(onCategoryChange).toHaveBeenCalledWith("sport");
   });
 
   it("filters the list down to one category", async () => {

@@ -12,6 +12,7 @@ import {
   rebalanceBand,
   rebalancePct,
   rebalanceButton,
+  rebalanceRowPct,
   sortRebalanceRows,
   parseTargetCents,
   type RebalanceRow,
@@ -63,9 +64,36 @@ describe("rebalancePct", () => {
   });
 });
 
+/**
+ * A row's colour and its button have to agree about whether there is anything
+ * to do. Sport held 1,775.50 against a target of 1,776: the button was dead
+ * because the move was under a whole unit, and the row stayed red, so the
+ * dialog showed a problem it refused to fix (user screenshot, 260813).
+ *
+ * The answer is to make the move, not to hide the gap — the two sides end up
+ * equal and stay equal.
+ */
+describe("rebalanceRowPct", () => {
+  it("draws a sub-unit gap as the shortfall it is", () => {
+    const stuck = row({ currentCents: 177_550, targetCents: 177_600 });
+    expect(rebalanceButton(stuck)).toEqual({
+      kind: "rebalance",
+      disabled: false,
+    });
+    expect(rebalanceRowPct(stuck)).toBeLessThan(0);
+  });
+
+  it("goes level once the move has been made", () => {
+    const done = row({ currentCents: 177_600, targetCents: 177_600 });
+    expect(rebalanceRowPct(done)).toBe(0);
+  });
+});
+
 describe("rebalanceButton", () => {
   it("offers the move while the amounts differ", () => {
-    expect(rebalanceButton(row({ currentCents: 0, targetCents: 50_000 }))).toEqual({
+    expect(
+      rebalanceButton(row({ currentCents: 0, targetCents: 50_000 })),
+    ).toEqual({
       kind: "rebalance",
       disabled: false,
     });
@@ -133,10 +161,18 @@ describe("sortRebalanceRows", () => {
   // limit dialog is ordered the same way so the two read alike.
   it("leads with the biggest move, whichever direction it goes", () => {
     const rows = [
-      row({ categoryId: "small-short", currentCents: 9_000, targetCents: 10_000 }),
+      row({
+        categoryId: "small-short",
+        currentCents: 9_000,
+        targetCents: 10_000,
+      }),
       row({ categoryId: "big-fat", currentCents: 90_000, targetCents: 10_000 }),
       row({ categoryId: "big-short", currentCents: 0, targetCents: 80_000 }),
-      row({ categoryId: "small-fat", currentCents: 11_000, targetCents: 10_000 }),
+      row({
+        categoryId: "small-fat",
+        currentCents: 11_000,
+        targetCents: 10_000,
+      }),
     ];
     expect(sortRebalanceRows(rows).map((r) => r.categoryId)).toEqual([
       "big-fat",
@@ -208,13 +244,15 @@ describe("roundUpUnit", () => {
   });
 });
 
-describe("a difference under one unit is not an instruction", () => {
-  // The targets are whole now, so a reserve holding 1,720.01 against a target
-  // of 1,720 would otherwise show a one-groszy move to make.
-  it("goes inert rather than offering a groszy", () => {
+describe("a difference under one unit is still an instruction", () => {
+  // It used to go inert here: a reserve holding 1,720.01 against a target of
+  // 1,720 was left one groszy off for ever, and the row went on reading as
+  // mis-sized. Landing it exactly on the target is one press, and then both
+  // sides agree — which is what the member asked for (260813).
+  it("offers the groszy that makes the two sides equal", () => {
     expect(
       rebalanceButton(row({ currentCents: 172001, targetCents: 172000 })),
-    ).toEqual({ kind: "rebalance", disabled: true });
+    ).toEqual({ kind: "rebalance", disabled: false });
   });
 
   it("still offers a real move", () => {
@@ -223,10 +261,12 @@ describe("a difference under one unit is not an instruction", () => {
     ).toEqual({ kind: "rebalance", disabled: false });
   });
 
-  it("still offers the undo on a row that was moved", () => {
+  // A move lands the reserve exactly ON its target, so that is where the undo
+  // is offered. A row still a groszy off has not been moved yet.
+  it("offers the undo once the row sits on its target", () => {
     expect(
       rebalanceButton(
-        row({ currentCents: 172001, targetCents: 172000, baselineCents: 0 }),
+        row({ currentCents: 172000, targetCents: 172000, baselineCents: 0 }),
       ),
     ).toEqual({ kind: "undo", disabled: false });
   });

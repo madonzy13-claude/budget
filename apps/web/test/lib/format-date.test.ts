@@ -5,7 +5,11 @@
  * times in different zones, and an unparseable value yields "".
  */
 import { describe, it, expect } from "vitest";
-import { formatTimestamp } from "../../src/lib/format-date";
+import {
+  formatDayMonth,
+  formatDayMonthShort,
+  formatTimestamp,
+} from "../../src/lib/format-date";
 
 // 2026-02-13T09:44:00Z → 10:44 in Warsaw (UTC+1 in Feb), 09:44 in UTC.
 const INSTANT = "2026-02-13T09:44:00Z";
@@ -40,5 +44,30 @@ describe("formatTimestamp", () => {
 
   it("returns an empty string for an unparseable value", () => {
     expect(formatTimestamp("not-a-date", "en", "UTC")).toBe("");
+  });
+});
+
+/**
+ * The "Surplus · <day>" line on a half-width card has no room for a full month
+ * name, so the compact form abbreviates it — still formatted day+month TOGETHER
+ * in ONE Intl call, or Ukrainian and Polish come out nominative instead of the
+ * genitive the date demands (feedback_intl_genitive_month).
+ */
+describe("formatDayMonthShort", () => {
+  it("abbreviates the month and keeps it shorter than the long form", () => {
+    expect(formatDayMonthShort("2026-11-01", "en")).toMatch(/Nov/);
+    expect(formatDayMonthShort("2026-11-01", "en").length).toBeLessThan(
+      formatDayMonth("2026-11-01", "en").length,
+    );
+  });
+
+  it("keeps the genitive case in uk and pl", () => {
+    // uk: "1 лист." — the genitive stem, NOT the nominative "листопад".
+    expect(formatDayMonthShort("2026-11-01", "uk")).not.toMatch(/листопад$/);
+    expect(formatDayMonthShort("2026-11-01", "pl")).toMatch(/lis/);
+  });
+
+  it("returns the input unchanged when it isn't a date", () => {
+    expect(formatDayMonthShort("nope", "en")).toBe("nope");
   });
 });

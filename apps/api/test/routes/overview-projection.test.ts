@@ -92,7 +92,7 @@ describe("GET /budgets/:id/overview/projection", () => {
     fix = await createFixture();
   });
 
-  test("returns a day series spanning today → end of next month", async () => {
+  test("returns a day series spanning the forecast window", async () => {
     const app = await buildApp({
       userId: fix.userId,
       allowedTenantIds: [fix.budgetId],
@@ -117,11 +117,72 @@ describe("GET /budgets/:id/overview/projection", () => {
     expect(typeof body.days[0].available_cents).toBe("string");
     expect(body.summary).toHaveProperty("worst_shortfall_cents");
     expect(["green", "yellow", "red"]).toContain(body.days[0].color);
-    // Available-to-spend health rides the projection. Bare budget has NO income →
-    // neutral: grey dot (good null) + no surplus/deficit figure (null).
+    // Available-to-spend health rides the projection. Since 260811 the verdict is
+    // "any red day in the window", income or not — a bare budget with nothing to
+    // spend never goes red, so it reads good. The figure beside it still needs an
+    // income to have a day to report, so it stays null here.
     expect(body).toHaveProperty("spend_health");
-    expect(body.spend_health.good).toBeNull();
+    expect(body.spend_health.good).toBe(true);
     expect(body.spend_health.surplus_deficit_cents).toBeNull();
+  });
+
+  test("the window is a rolling 100 days and carries a withdrawable figure", async () => {
+    const app = await buildApp({
+      userId: fix.userId,
+      allowedTenantIds: [fix.budgetId],
+    });
+    const res = await app.request(
+      `/budgets/${fix.budgetId}/overview/projection`,
+    );
+    const body = (await res.json()) as {
+      days: { date: string }[];
+      safe_to_withdraw: { cents: string; thinnest_date: string | null };
+    };
+    // 100 days ahead, not "to the end of next month" — a horizon that used to
+    // shrink to 30 days by the 30th and stretch to 61 on the 1st.
+    expect(body.days).toHaveLength(100);
+    expect(typeof body.safe_to_withdraw.cents).toBe("string");
+    // Bare budget: no wallets, no plan → nothing to take out, nothing missing.
+    expect(BigInt(body.safe_to_withdraw.cents)).toBe(0n);
+    expect(body.safe_to_withdraw.thinnest_date).toBe(body.days[0]!.date);
+  });
+
+  test("each day carries the terms the tooltip reads out", async () => {
+    const app = await buildApp({
+      userId: fix.userId,
+      allowedTenantIds: [fix.budgetId],
+    });
+    const res = await app.request(
+      `/budgets/${fix.budgetId}/overview/projection`,
+    );
+    const body = (await res.json()) as {
+      days: {
+        available_cents: string;
+        opening_cents: string;
+        planned_burn_cents: string;
+        reserve_covered_cents: string;
+        income_cents: string;
+        bill_cents: string;
+      }[];
+      pending_points: { date: string; amount_cents: string }[];
+    };
+    const d = body.days[0]!;
+    for (const k of [
+      "opening_cents",
+      "planned_burn_cents",
+      "reserve_covered_cents",
+    ] as const) {
+      expect(typeof d[k]).toBe("string");
+    }
+    // available = opening + income − bills − burn + reserveCovered
+    expect(BigInt(d.available_cents)).toBe(
+      BigInt(d.opening_cents) +
+        BigInt(d.income_cents) -
+        BigInt(d.bill_cents) -
+        BigInt(d.planned_burn_cents) +
+        BigInt(d.reserve_covered_cents),
+    );
+    expect(Array.isArray(body.pending_points)).toBe(true);
   });
 
   test("unknown budget → 404 (IDOR guard)", async () => {

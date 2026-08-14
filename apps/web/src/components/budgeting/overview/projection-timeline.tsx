@@ -1,19 +1,20 @@
 "use client";
 /**
  * projection-timeline.tsx — Overview cash-flow projection banner. A fluent
- * colour-flowing line (green→yellow→red) from today → end of next month: a single
+ * colour-flowing line (green→yellow→red) over the next 100 days: a single
  * horizontal CSS gradient whose stops are the per-day zone colours (no discrete
- * segments). Income (▲) and scheduled-bill (●) markers sit on the timeline. A
- * scrubber (pointer hover + touch finger-slide) shows a tooltip ABOVE the line so
- * the finger never covers it. The danger-date summary is a caption under the line;
- * the header is a single-line title.
+ * segments) carrying the month names inside it. A payment is a notch cut into
+ * the strip, income a dot under it. A scrubber (pointer hover + touch
+ * finger-slide) shows a tooltip ABOVE the line so the finger never covers it —
+ * which is where every date, name and amount lives.
  */
 import { useMemo, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { useProjection, type ProjectionDay } from "@/hooks/use-projection";
+import { useCategories } from "@/hooks/use-budget-data";
 import { centsToDisplayCompact } from "@/lib/cents-format";
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
-import { formatShortDate, formatDayMonth } from "@/lib/format-date";
+import { formatShortDate } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 
 const CARD =
@@ -43,6 +44,18 @@ export function ProjectionTimeline({
   const t = useTranslations("bdp.tab.overview.projection");
   const locale = useLocale();
   const { data, isLoading, isError } = useProjection(budgetId);
+  // The card's category lists read in the order the household arranged on the
+  // spendings tab, which is the order they see everywhere else (user, 260813).
+  // Sorted here rather than trusted from the wire, exactly as the grid does it.
+  const categoryRank = new Map(
+    [...(useCategories(budgetId).data ?? [])]
+      .sort(
+        (a, b) =>
+          ((a.sortIndex as number | undefined) ?? 0) -
+          ((b.sortIndex as number | undefined) ?? 0),
+      )
+      .map((c, i) => [c.id as string, i]),
+  );
   const [active, setActive] = useState<number | null>(null);
 
   const n = data?.days.length ?? 0;
@@ -73,14 +86,30 @@ export function ProjectionTimeline({
     return (i / (n - 1)) * 100;
   };
 
-  const headline = useMemo(() => {
-    if (!data) return "";
-    // Only RED days count as a problem; yellow (dipping into reserve) is fine.
-    const firstRed = data.summary.first_red_date;
-    return firstRed
-      ? t("mightRunShort", { date: formatDayMonth(firstRed, locale) })
-      : t("allFine");
-  }, [data, t, locale]);
+  /**
+   * Where each month begins, as a % across the window. 100 days of colour say
+   * nothing about WHEN, and months are the unit the household already reads
+   * dates in — so the strip carries them itself (see the line below).
+   *
+   * A month opening in the last sliver of the window is skipped: naming a
+   * segment three days wide crowds the one before it for nothing (user, 260812).
+   */
+  const monthMarks = useMemo(() => {
+    if (!data || data.days.length === 0) return [];
+    const span = Math.max(data.days.length - 1, 1);
+    const monthName = (iso: string) =>
+      new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" })
+        .format(new Date(`${iso}T00:00:00Z`))
+        .replace(/\.$/, "");
+    return data.days.flatMap((d, i) => {
+      const opensAMonth = i === 0 || d.date.endsWith("-01");
+      if (!opensAMonth) return [];
+      const pct = (i / span) * 100;
+      // …and it must have room to be worth printing.
+      if (i > 0 && pct > 92) return [];
+      return [{ key: d.date, pct, label: monthName(d.date) }];
+    });
+  }, [data, locale]);
 
   if (isLoading) {
     return <div className={cn(CARD, "h-[104px] animate-pulse")} aria-hidden />;
@@ -104,50 +133,121 @@ export function ProjectionTimeline({
   };
 
   const activePct = active === null || n <= 1 ? 0 : (active / (n - 1)) * 100;
+  // The band is the strip plus, when there is any, the row the income dots sit
+  // in. With no income it stopped at the strip and the card kept a strip of
+  // empty space anyway (user, 260812).
+  const hasIncome = data.income_points.length > 0;
 
   return (
     <div className={CARD} data-testid="projection-timeline">
-      <h3 className="mb-3 truncate text-caption text-[var(--muted-foreground)]">
+      <h3 className="mb-2.5 truncate text-caption text-[var(--muted-foreground)]">
         {t("title")}
       </h3>
 
       <div
         data-testid="projection-band"
-        className="relative h-11 touch-none select-none"
+        // 20px strip + the income row under it, when there is income.
+        className={cn(
+          "relative touch-none select-none",
+          hasIncome ? "h-[30px]" : "h-5",
+        )}
         onPointerLeave={() => setActive(null)}
         onPointerMove={(e) => selectFromClientX(e.clientX, e.currentTarget)}
         onPointerDown={(e) => selectFromClientX(e.clientX, e.currentTarget)}
       >
-        {/* Fluent colour line (visual). */}
+        {/* Fluent colour line — and the calendar itself. The months live INSIDE
+            it: a divider where each turns, its name in the segment that follows,
+            in the same dark ink the brand uses on top of a colour. A row of
+            labels under the bar read as a separate chart; here the strip simply
+            IS the three months (user, 260812). Tall enough (20px) to hold 10px
+            text without crowding it, and clipped by its own rounded ends. */}
         <div
-          className="absolute inset-x-0 top-1/2 h-3 -translate-y-1/2 rounded-full"
+          data-testid="projection-line"
+          className="absolute inset-x-0 top-0 h-5 overflow-hidden rounded-full"
           style={{ background: gradient }}
-        />
+        >
+          {/* Every mark on the band in ONE svg, drawn with crispEdges.
+              As HTML boxes these were antialiased: a 1.5px line at a fractional
+              x is spread over two device pixels, so identical notches rendered
+              as "two wide ones and a narrow one" (user, 260812). crispEdges
+              makes the browser snap each rect to the pixel grid instead — every
+              mark comes out the same, at the cost of up to half a pixel of
+              position, which on a 100-day strip is a couple of hours.
+              A month turns from the TOP, a payment rises from the BOTTOM, so
+              the two never share a band and can't be read as one language. */}
+          <svg
+            data-testid="projection-marks"
+            aria-hidden="true"
+            shapeRendering="crispEdges"
+            preserveAspectRatio="none"
+            className="absolute inset-0 h-full w-full"
+          >
+            {monthMarks.slice(1).map((m) => (
+              // A month turns: DASHED, down the whole strip. Solid, it was the
+              // heaviest mark on the band and got read as a huge payment; short,
+              // it was just another tick among the notches. Dashed says
+              // "boundary" in a language no payment speaks (user, 260812).
+              <line
+                key={`rule-${m.key}`}
+                data-testid="projection-month-rule"
+                x1={`${m.pct}%`}
+                x2={`${m.pct}%`}
+                y1="0"
+                y2="100%"
+                stroke="var(--forecast-rule)"
+                strokeWidth="1"
+                strokeDasharray="3 2"
+              />
+            ))}
+            {data.bill_points.map((b, i) => {
+              const pct = pctFor(b.date);
+              if (pct === null) return null;
+              return (
+                <rect
+                  key={`bill-${i}`}
+                  data-testid="projection-bill-marker"
+                  x={`${pct}%`}
+                  // 20px strip, 5px notch — sits on the bottom edge.
+                  y="15"
+                  // ONE whole CSS pixel: 1.5px is 4.5 device pixels on a phone,
+                  // which snapped to 4 or 5 depending on where the day fell —
+                  // the same payment rendering wider or narrower than its
+                  // neighbour (user, 260812). An integer width divides evenly at
+                  // every device ratio, so every mark is identical.
+                  width="1"
+                  height="5"
+                  // …centred on its day, and never clipped at the far end.
+                  transform="translate(-0.5)"
+                  fill="var(--forecast-notch)"
+                />
+              );
+            })}
+          </svg>
 
-        {/* Scheduled-bill markers (money OUT): red ▼ above the line, pointing at
-            it. Inline-styled colour so a Tailwind arbitrary-value ambiguity can't
-            drop it. */}
-        {data.bill_points.map((b, i) => {
-          const pct = pctFor(b.date);
-          if (pct === null) return null;
-          return (
+          {monthMarks.map((m, i) => (
             <span
-              key={`bill-${i}`}
-              data-testid="projection-bill-marker"
-              aria-hidden
-              className="absolute z-[2] size-0 -translate-x-1/2"
+              key={m.key}
+              data-testid="projection-month"
+              aria-hidden="true"
+              className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] font-medium leading-none"
               style={{
-                left: `${pct}%`,
-                bottom: "calc(50% + 10px)",
-                borderLeft: "5px solid transparent",
-                borderRight: "5px solid transparent",
-                borderTop: "7px solid var(--muted-foreground)",
+                left: `${m.pct}%`,
+                // Clear of the rounded end on the left, of the divider elsewhere.
+                marginLeft: i === 0 ? "8px" : "5px",
+                color: "var(--forecast-ink)",
               }}
-            />
-          );
-        })}
+            >
+              {m.label}
+            </span>
+          ))}
+        </div>
 
-        {/* Income markers (money IN): green ▲ below the line, pointing up. */}
+        {/* Income (money IN): a green dot under the band. It was a literal "$",
+            which a złoty or hryvnia budget got too; a dot says "money lands
+            here" in every currency and the tooltip carries the amount (user
+            picked it from the mockups, 260812). Below the band rather than
+            inside it, so income reads as arriving AT the line while payments
+            are cut OUT of it. */}
         {data.income_points.map((p, i) => {
           const pct = pctFor(p.date);
           if (pct === null) return null;
@@ -156,15 +256,13 @@ export function ProjectionTimeline({
               key={`inc-${i}`}
               data-testid="projection-income-marker"
               aria-hidden
-              className="absolute z-[2] -translate-x-1/2 text-[11px] font-bold leading-none"
+              className="absolute z-[2] size-[5px] -translate-x-1/2 rounded-full"
               style={{
                 left: `${pct}%`,
-                top: "calc(50% + 10px)",
-                color: "var(--trading-up)",
+                top: "24px",
+                background: "var(--trading-up)",
               }}
-            >
-              $
-            </span>
+            />
           );
         })}
 
@@ -172,8 +270,8 @@ export function ProjectionTimeline({
         {active !== null && (
           <span
             aria-hidden
-            className="absolute top-1/2 z-[2] h-5 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded bg-[var(--body-on-dark)]"
-            style={{ left: `${activePct}%` }}
+            className="absolute z-[2] h-6 w-0.5 -translate-x-1/2 rounded bg-[var(--body-on-dark)]"
+            style={{ left: `${activePct}%`, top: "-2px" }}
           />
         )}
 
@@ -200,6 +298,11 @@ export function ProjectionTimeline({
             incomes={data.income_points.filter(
               (p) => p.date === data.days[active]!.date,
             )}
+            // Pending occurrences have dates in the PAST, so no day cell would
+            // ever match them. They belong to today — the first cell — which is
+            // where they drift to until they are answered.
+            pending={active === 0 ? (data.pending_points ?? []) : []}
+            categoryRank={categoryRank}
             leftPct={activePct}
             currency={data.currency}
             locale={locale}
@@ -208,14 +311,54 @@ export function ProjectionTimeline({
           />
         )}
       </div>
+    </div>
+  );
+}
 
-      {/* Danger-date summary caption (one line, under the line). */}
-      <p
-        data-testid="projection-headline"
-        className="mt-2 truncate text-xs text-[var(--muted-foreground)]"
-      >
-        {headline}
-      </p>
+/** One term of the day's arithmetic: sign + label on the left, amount right.
+ *  The SIGN carries the colour — green adds, red takes away — so the direction
+ *  reads down the column at a glance and the figures stay one uniform ink
+ *  (colouring the amounts made income the only loud number, user 260812). */
+function LedgerRow({
+  sign,
+  signColor,
+  label,
+  amount,
+  testId,
+}: {
+  sign?: "+" | "−";
+  /** Overrides the sign's default ink. The reserve adds to the day without
+   *  being income — money coming IN is green, a buffer being spent down is the
+   *  yellow the reserve carries everywhere else (user, 260813). */
+  signColor?: string;
+  label: string;
+  amount: React.ReactNode;
+  testId?: string;
+}) {
+  return (
+    <div
+      data-testid={testId}
+      className="flex items-baseline justify-between gap-3"
+    >
+      <span className="flex min-w-0 items-baseline gap-1 text-[var(--muted-foreground)]">
+        {sign && (
+          <span
+            aria-hidden="true"
+            className="shrink-0 font-semibold"
+            style={{
+              color:
+                signColor ??
+                (sign === "+" ? "var(--trading-up)" : "var(--trading-down)"),
+            }}
+          >
+            {sign}
+          </span>
+        )}
+        <span className="min-w-0 truncate">{label}</span>
+      </span>
+      <span className="shrink-0 tabular-nums text-[var(--body-on-dark)]">
+        {amount}
+      </span>
     </div>
   );
 }
@@ -224,6 +367,8 @@ function ProjectionTooltip({
   day,
   bills,
   incomes,
+  pending,
+  categoryRank,
   leftPct,
   currency,
   locale,
@@ -233,6 +378,11 @@ function ProjectionTooltip({
   day: ProjectionDay;
   bills: { name: string; category_id: string | null; amount_cents: string }[];
   incomes: { name: string; amount_cents: string }[];
+  /** Unconfirmed occurrences, shown on the first (today) cell only — see below. */
+  pending: { date: string; name: string; amount_cents: string }[];
+  /** categoryId → its place on the spendings tab. Anything the map has never
+   *  heard of keeps its place at the end rather than jumping to the front. */
+  categoryRank: Map<string, number>;
   leftPct: number;
   currency: string;
   locale: string;
@@ -254,9 +404,17 @@ function ProjectionTooltip({
         ? "var(--primary)"
         : "var(--trading-up)";
 
+  const byCategory = <T extends { category_id: string }>(rows: readonly T[]) =>
+    [...rows].sort(
+      (a, b) =>
+        (categoryRank.get(a.category_id) ?? Number.MAX_SAFE_INTEGER) -
+        (categoryRank.get(b.category_id) ?? Number.MAX_SAFE_INTEGER),
+    );
+
   // Grouped rows, in reading order: money in, money out, reserve used, uncovered.
   const sections = [
     {
+      key: "income",
       label: t("income"),
       color: "var(--trading-up)",
       rows: incomes.map((p, i) => ({
@@ -266,6 +424,7 @@ function ProjectionTooltip({
       })),
     },
     {
+      key: "bill",
       label: t("bill"),
       color: "var(--muted-foreground)",
       rows: bills.map((b, i) => ({
@@ -275,18 +434,20 @@ function ProjectionTooltip({
       })),
     },
     {
+      key: "reserve",
       label: t("reserveUsed"),
       color: "var(--primary)",
-      rows: day.drew_reserve.map((r, i) => ({
+      rows: byCategory(day.drew_reserve).map((r, i) => ({
         key: `d${i}`,
         name: r.name || t("bill"),
         amount: r.amount_cents,
       })),
     },
     {
+      key: "shortfall",
       label: t("cantCover"),
       color: "var(--trading-down)",
-      rows: day.shortfall.map((s, i) => ({
+      rows: byCategory(day.shortfall).map((s, i) => ({
         key: `s${i}`,
         name: s.name || t("bill"),
         amount: s.amount_cents,
@@ -314,10 +475,57 @@ function ProjectionTooltip({
         </span>
       </div>
 
-      {/* Available — the headline figure */}
-      <div className="mt-2 flex items-baseline justify-between gap-4">
-        <span className="text-[var(--muted-foreground)]">{t("available")}</span>
+      {/* The day as ONE subtraction. The line's first cell sits a day's burn
+          below the "available to spend" card, which reads as a mismatch until
+          the arithmetic is spelled out (user, 260812):
+            start of day  + income − scheduled − planned spend
+            (+ whatever the reserve covered, which never touches cash) = left */}
+      <div className="mt-2 space-y-px">
+        <LedgerRow
+          label={t("opening")}
+          amount={money(day.opening_cents)}
+          testId="projection-opening"
+        />
+        {Number(day.income_cents) > 0 && (
+          <LedgerRow
+            sign="+"
+            label={t("income")}
+            amount={money(day.income_cents)}
+            testId="projection-income-term"
+          />
+        )}
+        {Number(day.bill_cents) > 0 && (
+          <LedgerRow
+            sign="−"
+            label={t("bill")}
+            amount={money(day.bill_cents)}
+            testId="projection-bill-total"
+          />
+        )}
+        {Number(day.planned_burn_cents) > 0 && (
+          <LedgerRow
+            sign="−"
+            label={t("plannedSpend")}
+            amount={money(day.planned_burn_cents)}
+            testId="projection-planned-burn"
+          />
+        )}
+        {Number(day.reserve_covered_cents) > 0 && (
+          <LedgerRow
+            sign="+"
+            signColor="var(--primary)"
+            label={t("reserveUsed")}
+            amount={money(day.reserve_covered_cents)}
+            testId="projection-reserve-term"
+          />
+        )}
+      </div>
+
+      {/* …and the result of it. */}
+      <div className="mt-1.5 flex items-baseline justify-between gap-4 border-t border-[var(--hairline-dark)] pt-1.5">
+        <span className="text-[var(--muted-foreground)]">{t("left")}</span>
         <span
+          data-testid="projection-left"
           className="shrink-0 text-sm font-semibold tabular-nums"
           style={{
             color:
@@ -327,6 +535,38 @@ function ProjectionTooltip({
           {money(day.available_cents)}
         </span>
       </div>
+
+      {/* Occurrences whose date passed with no answer. Their money is already
+          inside the daily planned spend above — this section only says so, and
+          keeps saying it every day until the payment is confirmed or rejected
+          (user, 260812). Anchored to the first cell, which is today. */}
+      {pending.length > 0 && (
+        <div className="mt-2 border-t border-[var(--hairline-dark)] pt-2">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+            {t("pending")}
+          </div>
+          {pending.map((p, i) => (
+            <div
+              key={`p${i}`}
+              data-testid="projection-pending-row"
+              className="flex items-baseline justify-between gap-3 py-px"
+            >
+              <span className="min-w-0 truncate text-[var(--body-on-dark)]">
+                {p.name || t("bill")}{" "}
+                <span className="text-[var(--muted-foreground)]">
+                  · {formatShortDate(p.date, locale)}
+                </span>
+              </span>
+              <span className="shrink-0 tabular-nums text-[var(--muted-foreground)]">
+                {money(p.amount_cents)}
+              </span>
+            </div>
+          ))}
+          <div className="mt-1 text-[10px] leading-snug text-[var(--muted-foreground)]">
+            {t("pendingHint")}
+          </div>
+        </div>
+      )}
 
       {sections.map((sec) => (
         <div
@@ -342,6 +582,7 @@ function ProjectionTooltip({
           {sec.rows.map((r) => (
             <div
               key={r.key}
+              data-testid={`projection-row-${sec.key}`}
               className="flex items-baseline justify-between gap-3 py-px"
             >
               <span className="min-w-0 truncate text-[var(--body-on-dark)]">

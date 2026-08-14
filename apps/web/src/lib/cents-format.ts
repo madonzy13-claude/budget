@@ -55,7 +55,11 @@ function formatCurrency(
     .filter((p) => p.type !== "currency")
     .map((p) => p.value)
     .join("")
-    .trim();
+    .trim()
+    // Lifting the currency out of the middle leaves behind the space that
+    // separated it from the number — and with a leading minus that space lands
+    // between the sign and the amount: "- 3,209 zł" (user, 260812).
+    .replace(/^([-−+])[\s  ]+/u, "$1");
   return `${rest} ${sign}`;
 }
 
@@ -188,7 +192,13 @@ export function centsToRounded(
   const abs = neg ? -big : big;
   let units = abs / 100n;
   if (abs % 100n >= 50n) units += 1n;
-  return formatCurrency(Number(neg ? -units : units), currency, locale, narrow, {
-    maximumFractionDigits: 0,
-  });
+  return formatCurrency(
+    Number(neg ? -units : units),
+    currency,
+    locale,
+    narrow,
+    {
+      maximumFractionDigits: 0,
+    },
+  );
 }

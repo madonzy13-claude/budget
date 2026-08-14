@@ -56,17 +56,59 @@ export interface OneOffCandidate {
 
 export function ReserveFitOneOffs({
   candidates,
+  excludedTotal,
+  categories: allCategories,
+  categoryOrder = [],
+  category: categoryProp,
+  onCategoryChange,
+  hasMore = false,
+  onLoadMore,
+  loadingMore = false,
   onSave,
   format,
 }: {
+  /** The spends loaded so far — every one in the range, ten at a time. */
   candidates: OneOffCandidate[];
+  /**
+   * How many spends the RANGE holds set aside, counted by the server. The
+   * badge counted the loaded rows, so it fell to "1" as soon as the list paged
+   * past the ticked ones (user, 260813). Absent = count what is loaded, which
+   * is right only for an unpaged list.
+   */
+  excludedTotal?: number;
+  /**
+   * Every category, for the filter. Derived from the loaded rows when absent,
+   * which is only right for a list that is complete: with paging, a category
+   * whose spends sit on an unloaded page would simply be missing (user,
+   * 260813).
+   */
+  categories?: { id: string; name: string }[];
+  /**
+   * Category ids in the order the household arranged them on the spendings
+   * tab. The filter used to list them in whatever order the reserve rows
+   * arrived in, which matched nothing on screen (user, 260812). Ids the list
+   * has never heard of keep their place at the end rather than disappearing.
+   */
+  categoryOrder?: string[];
+  /** Controlled when the caller pages server-side; uncontrolled otherwise. */
+  category?: string;
+  onCategoryChange?: (categoryId: string) => void;
+  /** There are more pages behind this one. */
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  loadingMore?: boolean;
   onSave: (delta: { add: string[]; remove: string[] }) => void;
   format: (cents: number) => string;
 }) {
   const t = useTranslations("bdp.tab.overview");
   const locale = useLocale();
   const [open, setOpen] = React.useState(false);
-  const [category, setCategory] = React.useState("all");
+  const [ownCategory, setOwnCategory] = React.useState("all");
+  const category = categoryProp ?? ownCategory;
+  const setCategory = (next: string) => {
+    setOwnCategory(next);
+    onCategoryChange?.(next);
+  };
   // Flips are written immediately; this only keeps the row in place until the
   // refetched payload catches up, so it never flickers back under the finger.
   const [pending, setPending] = React.useState<Record<string, boolean>>({});
@@ -74,7 +116,7 @@ export function ReserveFitOneOffs({
   if (candidates.length === 0) return null;
 
   const isExcluded = (c: OneOffCandidate) => pending[c.ledger_id] ?? c.excluded;
-  const excludedCount = candidates.filter(isExcluded).length;
+  const excludedCount = excludedTotal ?? candidates.filter(isExcluded).length;
 
   const flip = (c: OneOffCandidate) => {
     const next = !isExcluded(c);
@@ -86,11 +128,24 @@ export function ReserveFitOneOffs({
     );
   };
 
-  const categories = [
-    ...new Map(candidates.map((c) => [c.category_id, c.category_name])),
-  ];
+  const rank = new Map(categoryOrder.map((id, i) => [id, i]));
+  const categories = (
+    allCategories
+      ? allCategories.map((c) => [c.id, c.name] as [string, string])
+      : [...new Map(candidates.map((c) => [c.category_id, c.category_name]))]
+  ).sort(([a], [b]) => {
+    const ra = rank.get(a) ?? Number.MAX_SAFE_INTEGER;
+    const rb = rank.get(b) ?? Number.MAX_SAFE_INTEGER;
+    return ra - rb;
+  });
   const shown = candidates
-    .filter((c) => category === "all" || c.category_id === category)
+    .filter(
+      (c) =>
+        // Controlled = the caller asked the server for this category already.
+        categoryProp !== undefined ||
+        category === "all" ||
+        c.category_id === category,
+    )
     .sort((a, b) => Number(b.amount_cents) - Number(a.amount_cents));
   const setAside = shown.filter(isExcluded);
   const counted = shown.filter((c) => !isExcluded(c));
@@ -113,7 +168,10 @@ export function ReserveFitOneOffs({
             <span className={off ? "text-num-sm opacity-50" : "text-num-sm"}>
               {format(Number(c.amount_cents))}
             </span>
-            {c.scheduled_cadence && (
+            {/* A repeating charge is no longer offered here at all — it is
+                not a one-off. What can still carry a cadence is a ONCE
+                payment, and "repeats once" says nothing (user, 260813). */}
+            {c.scheduled_cadence && c.scheduled_cadence !== "ONCE" && (
               <span
                 data-testid={`reserve-fit-recurs-${c.ledger_id}`}
                 className="shrink-0 text-caption text-[var(--primary)]"
@@ -191,7 +249,16 @@ export function ReserveFitOneOffs({
         )}
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      {/* Closing drops the filter: the badge counts whatever the loaded query
+          counts, and leaving it narrowed to one category would leave the chart
+          reporting that category's ticks as the whole budget's. */}
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setCategory("all");
+        }}
+      >
         <DialogContent
           data-testid="reserve-fit-one-offs-dialog"
           // Radix focuses the first control otherwise, which IS the filter —
@@ -202,7 +269,7 @@ export function ReserveFitOneOffs({
           <DialogHeader>
             <DialogTitle>{t("reserveFit.oneOffsTitle")}</DialogTitle>
             <DialogDescription>
-              {t("reserveFit.oneOffsExplainer")}
+              {t("reserveFit.oneOffsDescription")}
             </DialogDescription>
           </DialogHeader>
 
@@ -241,6 +308,24 @@ export function ReserveFitOneOffs({
             title={t("reserveFit.countedSection")}
             rows={counted}
           />
+          {/* The end of the loaded list: press for the next ten. An
+              intersection observer was tried and dropped — the ref never
+              attached through the dialog's portal, and a button the member can
+              see and reach by keyboard beats a gesture that silently does
+              nothing (user, 260813). */}
+          {hasMore && (
+            <button
+              type="button"
+              data-testid="reserve-fit-load-more"
+              onClick={() => onLoadMore?.()}
+              disabled={loadingMore}
+              className="mt-2 w-full rounded-[var(--radius-md)] py-2 text-caption text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)] disabled:opacity-60"
+            >
+              {loadingMore
+                ? t("reserveFit.loadingMore")
+                : t("reserveFit.loadMore")}
+            </button>
+          )}
         </DialogContent>
       </Dialog>
     </>

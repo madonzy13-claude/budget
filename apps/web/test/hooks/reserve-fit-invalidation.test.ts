@@ -14,6 +14,7 @@
 import { describe, it, expect } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import {
+  oneOffsKeyPrefix,
   reserveFitKeyPrefix,
   reserveFitQueryKey,
 } from "../../src/hooks/use-reserve-fit";
@@ -34,6 +35,42 @@ describe("the reserve-fit query and the mutation that refreshes it", () => {
     const other = reserveFitQueryKey("b2", ...RANGE);
     qc.setQueryData(other, { rows: [] });
     await qc.invalidateQueries({ queryKey: reserveFitKeyPrefix("b1") });
+    expect(qc.getQueryState(other)?.isInvalidated).toBe(false);
+  });
+
+  /**
+   * The dialog's list is its OWN query now — paged off /overview/one-offs
+   * rather than carved out of the reserve-fit payload (260813). So a tick has
+   * two things to refresh, and refreshing only the chart left the reopened
+   * dialog showing the old ticks and a badge counting none of them.
+   */
+  it("also refreshes the list the dialog is reading", async () => {
+    const qc = new QueryClient();
+    const list = [
+      "budget",
+      "b1",
+      "one-offs",
+      "2026-01-01",
+      "2026-01-31",
+      "all",
+    ];
+    qc.setQueryData(list, { pages: [] });
+    await qc.invalidateQueries({ queryKey: oneOffsKeyPrefix("b1") });
+    expect(qc.getQueryState(list)?.isInvalidated).toBe(true);
+  });
+
+  it("leaves another budget's list alone", async () => {
+    const qc = new QueryClient();
+    const other = [
+      "budget",
+      "b2",
+      "one-offs",
+      "2026-01-01",
+      "2026-01-31",
+      "all",
+    ];
+    qc.setQueryData(other, { pages: [] });
+    await qc.invalidateQueries({ queryKey: oneOffsKeyPrefix("b1") });
     expect(qc.getQueryState(other)?.isInvalidated).toBe(false);
   });
 

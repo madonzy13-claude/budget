@@ -54,6 +54,21 @@ export interface ReserveFitExclusionsRepo {
     from: string;
     to: string;
   }): Promise<LargeTransactionRow[]>;
+  /**
+   * What the household has set aside, summed per (category, month) — from the
+   * exclusions TABLE, so a tick is honoured wherever the spend sits.
+   *
+   * The projection used to read the ticks off `largeTransactions`, which is a
+   * shortlist: five per category, over a size bar. Once the dialog started
+   * offering every spend in the range, small ticked charges were saved and
+   * then ignored by the arithmetic — Insurance read 808 a month against 798 of
+   * rules and nothing else (user, 260813).
+   */
+  excludedSpendByCategory(input: {
+    budgetId: string;
+    from: string;
+    to: string;
+  }): Promise<{ category_id: string; month: string; cents: bigint }[]>;
 }
 
 /** The FLOOR on how far ahead the walk carries known commitments. A year
@@ -161,6 +176,35 @@ export interface ReserveFitRowDTO {
 export interface ReserveFitDTO {
   currency: string;
   rows: ReserveFitRowDTO[];
+  /**
+   * What EVERY category will cost in an average month — including the ones with
+   * no reserve row: opted out of the buffer, or not tracked by the engine at
+   * all. Sizing a reserve is none of their business; what they will cost is a
+   * different question, asked by the Future chart, and it has an answer for all
+   * of them. Without it that chart fell back to drawing today's limit against
+   * itself, so Insurance read "current 779 / expected 779" while its two
+   * monthly payments came to 798 (user, 260812).
+   */
+  projected_by_category: {
+    category_id: string;
+    projected_monthly_cents: string;
+  }[];
+  /**
+   * Every large spend the household could set aside, from EVERY category —
+   * including the ones with no reserve row. The dialog used to read these off
+   * the rows, so a big spend inside an opted-out category could not be ticked:
+   * it was never offered (user, 260812).
+   */
+  one_off_candidates: {
+    ledger_id: string;
+    category_id: string;
+    category_name: string;
+    transaction_date: string;
+    note: string | null;
+    amount_cents: string;
+    scheduled_cadence: string | null;
+    excluded: boolean;
+  }[];
   /** Active scheduled rules with NO category. They are real commitments but
    *  belong to no buffer, so they can size nothing — the chart names them so the
    *  member can assign one rather than wonder why a charge is uncounted
@@ -181,32 +225,38 @@ export function getReserveFit(deps: GetReserveFitDeps) {
   ): Promise<Result<ReserveFitDTO, Error>> => {
     try {
       const { budgetId, from, to } = input;
-      const [meta, windows, planned, spend, large, rawRules, positionsResult] =
-        await Promise.all([
-          deps.metaReader.getBudgetMeta(budgetId),
-          deps.overviewRepo.categoryWindows(budgetId),
-          deps.overviewRepo.monthlyPlannedByCategory(budgetId, from, to),
-          deps.overviewRepo.monthlySpendByCategory(budgetId, from, to),
-          deps.exclusionsRepo.largeTransactions({ budgetId, from, to }),
-          deps.activeScheduledPayments(budgetId),
-          deps.reservePositions({
-            tenantId: input.tenantId,
-            budgetId,
-          }),
-        ]);
+      const [
+        meta,
+        windows,
+        planned,
+        spend,
+        large,
+        setAside,
+        rawRules,
+        positionsResult,
+      ] = await Promise.all([
+        deps.metaReader.getBudgetMeta(budgetId),
+        deps.overviewRepo.categoryWindows(budgetId),
+        deps.overviewRepo.monthlyPlannedByCategory(budgetId, from, to),
+        deps.overviewRepo.monthlySpendByCategory(budgetId, from, to),
+        deps.exclusionsRepo.largeTransactions({ budgetId, from, to }),
+        deps.exclusionsRepo.excludedSpendByCategory({ budgetId, from, to }),
+        deps.activeScheduledPayments(budgetId),
+        deps.reservePositions({
+          tenantId: input.tenantId,
+          budgetId,
+        }),
+      ]);
       if (positionsResult.isErr()) return err(positionsResult.error);
       const positions = positionsResult.value.positions;
 
-      // Spend to subtract, per (category, month) — only what the budget un-ticked.
+      // Spend to subtract, per (category, month) — everything the budget has
+      // un-ticked, straight from the exclusions table. Reading it off the
+      // shortlist meant only the five biggest per category could ever be
+      // subtracted, however many the member actually ticked (user, 260813).
       const excludedByCell = new Map<string, bigint>();
-      for (const t of large) {
-        if (!t.excluded) continue;
-        const key = `${t.category_id}|${t.transaction_date.slice(0, 7)}`;
-        excludedByCell.set(
-          key,
-          (excludedByCell.get(key) ?? 0n) + t.amount_cents,
-        );
-      }
+      for (const r of setAside)
+        excludedByCell.set(`${r.category_id}|${r.month}`, r.cents);
 
       const limitByCell = new Map<string, bigint>();
       for (const p of planned)
@@ -291,6 +341,75 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       const forwardWindow = Array.from({ length: windowMonths }, (_, i) =>
         addMonths(forwardFrom, i),
       );
+
+      /**
+       * What one category will cost in an average month ahead — see
+       * projected-monthly.ts for the three rules. Hoisted out of the row loop
+       * because a category with NO reserve row still has an answer here: the
+       * Future chart asks every category, not just the buffered ones (user,
+       * 260812).
+       */
+      const projectedFor = (w: (typeof windows)[number]): bigint => {
+        const scope: string[] = [];
+        for (
+          let m = from.slice(0, 7);
+          m <= to.slice(0, 7);
+          m = addMonths(m, 1)
+        ) {
+          if (m === nowMonth) continue;
+          if (w.created_month !== null && m < w.created_month) continue;
+          if (w.archived_month !== null && m > w.archived_month) continue;
+          scope.push(m);
+        }
+        return projectedMonthly({
+          windowMonths: scope,
+          spentByMonth: new Map(
+            scope.map((m) => {
+              const key = `${w.category_id}|${m}`;
+              const ordinary =
+                (spendByCell.get(key) ?? 0n) -
+                (excludedByCell.get(key) ?? 0n) -
+                (scheduledByCell.get(key) ?? 0n);
+              return [m, ordinary > 0n ? ordinary : 0n];
+            }),
+          ),
+          rules: rules.filter((r) => r.category_id === w.category_id),
+          fromMonth: nowMonth,
+          // An excluded or untracked category holds nothing against its
+          // one-offs, so there is nothing to credit.
+          reserveHeldCents: positions.get(w.category_id)?.reserveCents ?? 0n,
+        });
+      };
+
+      /**
+       * "Which spend won't happen again" — so a charge that WILL is no
+       * candidate. A ledger row linked to a repeating rule recurs by
+       * construction; ticking it as a one-off is always wrong, and it used to
+       * take a shortlist slot from a genuine one (user, 260813). A ONCE rule is
+       * a real single purchase and stays.
+       */
+      const isOneOffish = (cadence: string | null) =>
+        cadence === null || cadence === "ONCE";
+
+      /**
+       * Half a typical month's limit — the bar a spend has to clear to be worth
+       * a decision, per category. Hoisted for the same reason as projectedFor:
+       * a category with no reserve row still has one-offs to offer, and they
+       * must be judged by the same rule as everyone else's (user, 260812).
+       */
+      const worthDecidingIn = (categoryId: string) => {
+        const months = [...(monthsByCat.get(categoryId) ?? [])].filter(
+          (m) => m !== nowMonth,
+        );
+        const avg =
+          months.length > 0
+            ? months.reduce(
+                (acc, m) => acc + (limitByCell.get(`${categoryId}|${m}`) ?? 0n),
+                0n,
+              ) / BigInt(months.length)
+            : 0n;
+        return (amount: bigint) => amount * 2n >= avg;
+      };
 
       const rows: ReserveFitRowDTO[] = [];
       for (const w of windows) {
@@ -404,37 +523,14 @@ export function getReserveFit(deps: GetReserveFitDeps) {
               BigInt(months.length)
             : 0n;
 
-        // What an average month ahead costs — see projected-monthly.ts for the
-        // three rules. The window is every month of the RANGE this category has
-        // existed for, so a category given to twice in a year reads as a
-        // twelfth of those gifts and not half of them (user, 260808); the
-        // running month is left out for the same reason the walk drops it.
+        // What an average month ahead costs (projectedFor, above): the ordinary
+        // habit over every month of the RANGE this category existed for, plus
+        // each recurring rule once at its monthly size, less whatever its
+        // reserve already holds against a one-off.
         const categoryRules = rules.filter(
           (r) => r.category_id === w.category_id,
         );
-        const projected = projectedMonthly({
-          windowMonths: scopeMonths,
-          // ORDINARY spend: the month's total, less the one-offs the household
-          // set aside, less what the ledger LINKS to a scheduled payment. The
-          // rules are then added once each, from the rules themselves.
-          spentByMonth: new Map(
-            scopeMonths.map((m) => {
-              const key = `${w.category_id}|${m}`;
-              const ordinary =
-                (spendByCell.get(key) ?? 0n) -
-                (excludedByCell.get(key) ?? 0n) -
-                (scheduledByCell.get(key) ?? 0n);
-              return [m, ordinary > 0n ? ordinary : 0n];
-            }),
-          ),
-          rules: categoryRules,
-          fromMonth: nowMonth,
-          // What this category has ALREADY set aside. Without it the suggested
-          // limit spread a trip the reserve is holding the money for over the
-          // months to it — funding it twice, and leaving the reserve looking
-          // spare enough to empty (user, 260809).
-          reserveHeldCents: position.reserveCents,
-        });
+        const projected = projectedFor(w);
 
         // The rules in full: the baseline above has had them taken out of
         // every month, whether the ledger named them or not, so counting them
@@ -577,6 +673,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
             .filter(
               (t) =>
                 t.category_id === w.category_id &&
+                isOneOffish(t.scheduled_cadence) &&
                 worthDeciding(t.amount_cents),
             )
             .sort((a, b) => (a.amount_cents < b.amount_cents ? 1 : -1))
@@ -597,6 +694,35 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       return ok({
         currency: meta?.default_currency ?? "EUR",
         rows,
+        // …and what every category costs in an average month, whether or not it
+        // earned a reserve row (see the DTO).
+        projected_by_category: windows.map((w) => ({
+          category_id: w.category_id,
+          projected_monthly_cents: projectedFor(w).toString(),
+        })),
+        // …and every large spend that could be set aside, from every category
+        // (see the DTO). Biggest first, as the dialog lists them.
+        one_off_candidates: (() => {
+          const nameOf = new Map(windows.map((w) => [w.category_id, w.name]));
+          return large
+            .filter(
+              (t) =>
+                nameOf.has(t.category_id) &&
+                isOneOffish(t.scheduled_cadence) &&
+                worthDecidingIn(t.category_id)(t.amount_cents),
+            )
+            .sort((a, b) => (a.amount_cents < b.amount_cents ? 1 : -1))
+            .map((t) => ({
+              ledger_id: t.ledger_id,
+              category_id: t.category_id,
+              category_name: nameOf.get(t.category_id) ?? "",
+              transaction_date: t.transaction_date,
+              note: t.note,
+              amount_cents: t.amount_cents.toString(),
+              scheduled_cadence: t.scheduled_cadence,
+              excluded: t.excluded,
+            }));
+        })(),
         unassigned_scheduled: rules
           .filter((r) => !r.category_id && r.amount_cents > 0n)
           .map((r) => ({

@@ -98,14 +98,13 @@ export function ReserveLevelBar({
   const scale = Math.max(held, needed);
   if (scale <= 0) return null;
 
-  // A few groszy is not a surplus and not a shortfall. Every other figure on
-  // the Overview treats a sub-unit difference as no difference — the bars, the
-  // totals, the rebalance buttons — and the SHAPE has to agree, or a meter
-  // reading "exactly what is needed" can still draw an end cut off square
-  // (user, 260810).
-  const UNIT = 100;
-  const raw = held - needed;
-  const slack = Math.abs(raw) < UNIT ? 0 : raw;
+  // No deadband: the meter draws the difference it is handed, groszy included.
+  // It used to swallow anything under a whole unit, which since 260813 says
+  // "exactly what is needed" over a chart drawing −0.50 — a gap the rebalance
+  // dialog now offers to close. Callers whose figures are settled by
+  // construction (the limits half rounds before it gets here) hand in two equal
+  // numbers and still read whole.
+  const slack = held - needed;
   const covered = Math.min(held, needed);
   const surplus = Math.max(0, slack);
   const missing = Math.max(0, -slack);

@@ -1413,7 +1413,8 @@
           "cushionSaved": "Saved",
           "cushionNeeded": "Needed",
           "availableReserves": "Available reserves",
-          "realMonths": "real months"
+          "realMonths": "real months",
+          "lowestPoint": "Lowest point: {date}"
         },
         "range": {
           "previous": "Previous period",
@@ -1539,10 +1540,7 @@
           "reserveFit": "No reserves to size yet."
         },
         "projection": {
-          "title": "Money forecast to the end of next month",
-          "allFine": "Everything looks fine",
-          "mightRunShort": "Money may run short as early as {date}",
-          "shortBy": "short {amount}",
+          "title": "Money forecast for the next 100 days",
           "empty": "Add income or scheduled payments to see your forecast",
           "available": "Available",
           "reserveShrinking": "Reserve shrinking",
@@ -1550,7 +1548,12 @@
           "reserveUsed": "Reserve used",
           "cantCover": "Can't cover",
           "income": "Income",
-          "bill": "Scheduled payments"
+          "bill": "Scheduled payments",
+          "opening": "Start of day",
+          "plannedSpend": "Planned spend",
+          "left": "Left",
+          "pending": "Not confirmed yet",
+          "pendingHint": "Still counted in your plan until you confirm or reject it"
         },
         "reserveFit": {
           "title": "Is each reserve the right size?",
@@ -1562,7 +1565,6 @@
           "reviewOneOffs": "Review large spend",
           "excludedCount": "{count} set aside as one-offs",
           "oneOffsTitle": "Which spend won't happen again?",
-          "oneOffsExplainer": "Counted spend sizes the reserves. Set aside anything that was a one-off — a yearly charge should stay counted.",
           "filterByCategory": "Filter by category",
           "allCategories": "All categories",
           "excludedSection": "Set aside",
@@ -1591,7 +1593,10 @@
           "balanced": "Well balanced",
           "and": "and",
           "or": "or",
-          "setLimit": "Set the limit to"
+          "setLimit": "Set the limit to",
+          "loadMore": "Show more",
+          "loadingMore": "Loading…",
+          "oneOffsDescription": "Exclude one-off spendings you don’t want included in your analytics"
         },
         "needsCompletedMonth": {
           "title": "Nothing to judge yet",

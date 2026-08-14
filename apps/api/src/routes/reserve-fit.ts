@@ -2,6 +2,7 @@
  * reserve-fit.ts — the reserve-sizing chart (260804).
  *
  *   GET /budgets/:id/overview/reserve-fit?from&to   held vs needed, per category
+ *   GET /budgets/:id/overview/one-offs?from&to      every spend, a page at a time
  *   PUT /budgets/:id/reserve-fit/exclusions         tick a spend off as a one-off
  *
  * Same shape as the other overview routes: Zod-validate the range before any SQL,
@@ -40,6 +41,53 @@ export function registerReserveFitRoutes(r: Hono, deps: BootedDeps) {
   const bodySchema = z.object({
     add: z.array(z.string().uuid()),
     remove: z.array(z.string().uuid()),
+  });
+
+  /**
+   * Every spend in the range, biggest first, ten at a time. The dialog used to
+   * be handed a shortlist of five per category above a size bar, which hid most
+   * of the household's spending from a decision they are entitled to make
+   * (user, 260813). Keyset cursor, so page fifty costs what page one costs.
+   */
+  const pageSchema = querySchema.and(
+    z.object({
+      category: z.string().uuid().optional(),
+      cursor: z.string().max(80).optional(),
+    }),
+  );
+
+  r.get("/:id/overview/one-offs", async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+
+    const budgetId = c.req.param("id");
+    const tenantIds = c.get("tenantIds") as string[] | undefined;
+    if (!tenantIds || !tenantIds.includes(budgetId)) {
+      return c.json({ error: "not_found" }, 404);
+    }
+
+    const parsed = pageSchema.safeParse({
+      from: c.req.query("from"),
+      to: c.req.query("to"),
+      category: c.req.query("category"),
+      cursor: c.req.query("cursor"),
+    });
+    if (!parsed.success) return c.json({ error: "invalid_range" }, 400);
+
+    try {
+      const result = await deps.budgeting.listOneOffCandidates({
+        budgetId,
+        from: parsed.data.from,
+        to: parsed.data.to,
+        categoryId: parsed.data.category ?? null,
+        cursor: parsed.data.cursor ?? null,
+      });
+      if (result.isErr())
+        return serverError(c, "one_offs_failed", result.error);
+      return c.json(result.value, 200);
+    } catch (e) {
+      return serverError(c, "one_offs_failed", e as Error);
+    }
   });
 
   r.get("/:id/overview/reserve-fit", async (c) => {

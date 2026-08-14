@@ -96,6 +96,19 @@ Then(/^the "(.+?)" quick input is focused$/, async ({ page }, name: string) => {
   await expect(page.getByTestId(`quick-entry-${name}`)).toBeFocused();
 });
 
+/**
+ * The grid's columns are its type-ahead targets, so a scenario that seeds a
+ * category and types at it must first know the column is THERE. Categories
+ * added after sign-up arrive on a later render: letters typed before it matched
+ * nothing and focus never moved (~1 mobile run in 3, standalone — not load).
+ * Same settle the pill and focus steps above already do.
+ */
+Then(/^the "(.+?)" quick input is present$/, async ({ page }, name: string) => {
+  await page
+    .getByTestId(`quick-entry-${name.toLowerCase()}`)
+    .waitFor({ state: "attached", timeout: 10000 });
+});
+
 Then("a transaction row is focused", async ({ page }) => {
   await expect
     .poll(() =>
