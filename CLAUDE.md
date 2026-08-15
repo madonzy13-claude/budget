@@ -55,6 +55,51 @@ Multi-tenant SaaS that replaces an advanced personal Excel budget for households
 - Drizzle types/queries live ONLY in `src/<context>/adapters/persistence/`. Domain entities are plain classes with no Drizzle imports.
 - `Money` value object converts to `{ amount_cents BIGINT, currency CHAR(3) }` at adapter boundary — never inside domain.
 
+### Performance & tracing
+
+Two layers, both opt-in and both off by default.
+
+**Postgres query stats** — always collecting. `make perf-top` (where the DB
+spends its life), `make perf-slow` (the individually expensive query),
+`make perf-window`, `make perf-reset` (zero it before a measured run).
+`auto_explain` logs the PLAN alongside any statement over 200ms.
+
+- `pg_stat_statements` is preloaded in `infra/postgres/postgresql.conf`, but the
+  readable VIEW comes from `CREATE EXTENSION` in
+  `infra/postgres/init/04-extensions.sql`. Preloading alone collects counters
+  nobody can read — that was the state for 16 days.
+- On a dev box these counters include E2E traffic. Read totals accordingly.
+
+**Distributed tracing** — `make obs-up` / `obs-traces` / `obs-down`. Off unless
+`OTEL_EXPORTER_OTLP_ENDPOINT` is set, so `make dev`, CI and bun:test are
+untouched.
+
+Two Bun facts, both verified against a live collector on 2026-08-15, not assumed:
+
+- **`@opentelemetry/instrumentation-pg` does NOT work under Bun.** It patches
+  node-postgres through require-in-the-middle, which Bun's module loader never
+  triggers — it loads without error and silently emits nothing. DB spans come
+  from `instrumentPool()` in `packages/platform/src/otel/pg-tracing.ts`, which
+  wraps `Pool.query` explicitly. Do not "simplify" that back to the
+  auto-instrumentation.
+- **`Bun.serve()` is not auto-instrumented.** apps/api is served via
+  `export default { fetch: app.fetch }`, so server spans come from
+  `tracingMiddleware` in `apps/api/src/middleware/tracing.ts`, registered FIRST
+  in `createApp`. Without it, DB spans arrive with no parent request.
+
+Verified trace shape (one trace id, five levels):
+`POST /auth/*` → `POST /sign-in/email` → `handler /sign-in/email` →
+`db findOne user` → `SELECT`.
+
+Gotchas that all look like "tracing is broken":
+- api/worker run from PREBUILT images — `--force-recreate` alone reruns the OLD
+  code. Rebuild (`make build-api`) after touching instrumentation.
+- `startTracing()` registers a GLOBAL tracer provider; the OTel API refuses to
+  replace one. Tests must `trace.disable()` before installing their own, or
+  spans silently route to the other suite's exporter.
+- Query PARAMETERS are deliberately never recorded — in this app they are
+  people's money and PII.
+
 ### Held-back versions (do NOT bump without re-checking these gates)
 
 Both were attempted on 2026-08-14 and reverted with evidence. Neither is a
