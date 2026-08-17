@@ -11,11 +11,32 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { NoFxRateAvailable } from "@budget/budgeting/src/adapters/fx/frankfurter";
+import type { Currency } from "@budget/shared-kernel";
 import type { BootedDeps } from "../boot";
 
+/**
+ * The Currency union, not a loose /^[A-Z]{2,10}$/. The old regex accepted codes
+ * the domain cannot represent (e.g. "ZZZ"), which only typechecked because the
+ * route was talking to a concrete adapter whose signature took `string`. Now it
+ * talks to the FxProvider PORT, which takes Currency — so the boundary has to
+ * actually validate. A rejected code is a 400 here instead of nonsense deeper in.
+ */
+const CURRENCIES = [
+  "USD",
+  "EUR",
+  "PLN",
+  "GBP",
+  "UAH",
+  "CHF",
+  "NOK",
+  "SEK",
+  "BTC",
+  "ETH",
+] as const satisfies readonly Currency[];
+
 const rateQuerySchema = z.object({
-  from: z.string().regex(/^[A-Z]{2,10}$/, "from must be an ISO currency code"),
-  to: z.string().regex(/^[A-Z]{2,10}$/, "to must be an ISO currency code"),
+  from: z.enum(CURRENCIES),
+  to: z.enum(CURRENCIES),
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),

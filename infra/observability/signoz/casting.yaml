@@ -1,0 +1,18 @@
+# SigNoz self-hosted, rendered by foundryctl into pours/ (gitignored).
+#
+# Deliberately NOT part of the project's docker-compose.yml: SigNoz brings its
+# own ClickHouse, ClickHouse Keeper and Postgres, and coupling that to the app
+# stack would mean `make dev` drags ~3GB of telemetry infrastructure with it.
+# It runs as a separate compose project and receives OTLP over the shared bridge.
+apiVersion: v1alpha1
+kind: Installation
+metadata:
+  name: signoz
+spec:
+  deployment:
+    flavor: compose
+    mode: docker
+  # Lets Claude query traces/metrics directly instead of reading charts back.
+  mcp:
+    spec:
+      enabled: true

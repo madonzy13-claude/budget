@@ -99,7 +99,10 @@ describe("GET /fx/rate", () => {
     const app = new Hono();
     app.route("/fx", createFxRoute(buildDeps(fxProvider)));
 
-    const res = await app.request("/fx/rate?from=JPY&to=PLN&date=2026-05-09");
+    // UAH/PLN: both supported currencies, simply no rate stored. (This used to
+    // be JPY/PLN — JPY is not in the Currency union at all, so the route was
+    // forwarding a code the domain cannot represent. It is a 400 now.)
+    const res = await app.request("/fx/rate?from=UAH&to=PLN&date=2026-05-09");
     expect(res.status).toBe(503);
     const body = (await res.json()) as any;
     expect(body.error).toBe("no_fx_rate_available");
@@ -114,5 +117,26 @@ describe("GET /fx/rate", () => {
     // Invalid date format
     const res = await app.request("/fx/rate?from=USD&to=EUR&date=not-a-date");
     expect(res.status).toBe(400);
+  });
+});
+
+describe("GET /fx/rate — currency validation", () => {
+  test("rejects a currency the domain cannot represent, before reaching the provider", async () => {
+    let reached = false;
+    const fxProvider = {
+      rateAsOf: async () => {
+        reached = true;
+        return { rate: "1", provider: "x", isStale: false };
+      },
+    };
+    const app = new Hono();
+    app.route("/fx", createFxRoute(buildDeps(fxProvider as never)));
+
+    // JPY is not in the Currency union. The old /^[A-Z]{2,10}$/ regex waved it
+    // through; a code the domain has no representation for is a client error.
+    const res = await app.request("/fx/rate?from=JPY&to=PLN&date=2026-05-09");
+
+    expect(res.status).toBe(400);
+    expect(reached).toBe(false);
   });
 });
