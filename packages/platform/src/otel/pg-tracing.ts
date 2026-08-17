@@ -43,17 +43,26 @@ function statementOf(query: unknown): string {
  * Idempotent — a second call on the same pool is ignored, so re-instrumenting a
  * singleton pool cannot double-report.
  */
-export function instrumentPool(pool: Pool, poolName: string): Pool {
-  const marker = "__budgetOtelInstrumented";
-  const tagged = pool as Pool & { [marker]?: boolean };
-  if (tagged[marker]) return pool;
-  tagged[marker] = true;
+const QUERY_MARKER = "__budgetOtelQueryWrapped";
+const CONNECT_MARKER = "__budgetOtelConnectWrapped";
 
-  const original = pool.query.bind(pool) as (...args: unknown[]) => unknown;
+type Queryable = { query: (...args: unknown[]) => unknown };
 
-  (pool as { query: unknown }).query = function tracedQuery(
-    ...args: unknown[]
-  ) {
+/**
+ * Wraps .query on anything that has one — a Pool, or a Client checked out via
+ * pool.connect(). Idempotent: pg reuses Client objects across checkouts, so
+ * re-wrapping on every connect() would stack wrappers and report one query
+ * several times.
+ */
+function wrapQueryable<T extends object>(target: T, poolName: string): T {
+  const tagged = target as T & { [QUERY_MARKER]?: boolean };
+  if (tagged[QUERY_MARKER]) return target;
+  tagged[QUERY_MARKER] = true;
+
+  const q = target as unknown as Queryable;
+  const original = q.query.bind(q) as (...args: unknown[]) => unknown;
+
+  q.query = function tracedQuery(...args: unknown[]) {
     const statement = statementOf(args[0]);
 
     const span = trace.getTracer(TRACER_NAME).startSpan(operationOf(statement), {
@@ -104,6 +113,43 @@ export function instrumentPool(pool: Pool, poolName: string): Pool {
       throw err;
     }
   };
+
+  return target;
+}
+
+/**
+ * Instruments a pool AND every connection it hands out.
+ *
+ * Wrapping only pool.query is not enough: withTenantTx / withInfraTx go through
+ * appDb().transaction(), which calls pool.connect() and runs every statement on
+ * the returned Client. Since most of this application's DB work is
+ * transactional, that left the majority of queries untraced — measured
+ * 2026-08-17, GET /budgets/:id/overview/projection reported 1078ms with only
+ * 173ms of session spans beneath it and 905ms unaccounted for.
+ */
+export function instrumentPool(pool: Pool, poolName: string): Pool {
+  wrapQueryable(pool, poolName);
+
+  const tagged = pool as Pool & { [CONNECT_MARKER]?: boolean };
+  if (!tagged[CONNECT_MARKER] && typeof pool.connect === "function") {
+    tagged[CONNECT_MARKER] = true;
+    const originalConnect = pool.connect.bind(pool) as (
+      ...a: unknown[]
+    ) => unknown;
+
+    (pool as { connect: unknown }).connect = function tracedConnect(
+      ...args: unknown[]
+    ) {
+      // Callback form: hand it straight back rather than half-support it.
+      if (args.length > 0) return originalConnect(...args);
+      return Promise.resolve(originalConnect()).then((client) => {
+        if (client && typeof (client as Queryable).query === "function") {
+          wrapQueryable(client as object, poolName);
+        }
+        return client;
+      });
+    };
+  }
 
   return pool;
 }

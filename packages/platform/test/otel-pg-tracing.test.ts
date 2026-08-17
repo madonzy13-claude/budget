@@ -133,3 +133,77 @@ describe("pg query spans", () => {
     expect(exporter.getFinishedSpans()).toHaveLength(1);
   });
 });
+
+describe("pg spans inside transactions", () => {
+  /**
+   * Most of this application's DB work happens inside withTenantTx, which uses
+   * appDb().transaction() -> pool.connect() -> client.query(). Wrapping only
+   * pool.query left every transactional query untraced: GET
+   * /budgets/:id/overview/projection showed 1078ms with 173ms of session spans
+   * and 905ms of nothing, because all its real work was inside a transaction.
+   */
+  function poolWithClient() {
+    const calls: string[] = [];
+    const client = {
+      query: async (config: unknown) => {
+        calls.push(
+          typeof config === "string"
+            ? config
+            : ((config as { text?: string }).text ?? ""),
+        );
+        return { rows: [], rowCount: 0, command: "SELECT", fields: [] };
+      },
+      release: () => {},
+    };
+    const pool = {
+      query: async () => ({ rows: [], rowCount: 0, command: "SELECT", fields: [] }),
+      connect: async () => client,
+    } as unknown as Pool;
+    return { pool, client, calls };
+  }
+
+  test("a query on a connect()-ed client produces a span", async () => {
+    const { pool } = poolWithClient();
+    instrumentPool(pool, "app");
+
+    const client = await pool.connect();
+    await client.query("SELECT 1 FROM budgeting.categories");
+
+    const span = exporter.getFinishedSpans().find((s) => s.name === "SELECT");
+    expect(span).toBeDefined();
+    expect(span!.attributes["db.statement"]).toBe(
+      "SELECT 1 FROM budgeting.categories",
+    );
+  });
+
+  test("client spans nest under the active span, so tx work joins its request", async () => {
+    const { pool } = poolWithClient();
+    instrumentPool(pool, "app");
+    const parent = trace.getTracer("test").startSpan("GET /overview/projection");
+
+    await context.with(trace.setSpan(context.active(), parent), async () => {
+      const client = await pool.connect();
+      await client.query("SELECT 1");
+    });
+    parent.end();
+
+    const spans = exporter.getFinishedSpans();
+    const child = spans.find((s) => s.name === "SELECT")!;
+    const root = spans.find((s) => s.name === "GET /overview/projection")!;
+    expect(child.parentSpanContext?.spanId).toBe(root.spanContext().spanId);
+  });
+
+  test("a client handed out twice is not double-wrapped", async () => {
+    // pg reuses Client objects across checkouts; wrapping on every connect()
+    // would stack wrappers and report one query N times.
+    const { pool } = poolWithClient();
+    instrumentPool(pool, "app");
+
+    const a = await pool.connect();
+    await a.query("SELECT 1");
+    const b = await pool.connect();
+    await b.query("SELECT 1");
+
+    expect(exporter.getFinishedSpans().filter((s) => s.name === "SELECT")).toHaveLength(2);
+  });
+});
