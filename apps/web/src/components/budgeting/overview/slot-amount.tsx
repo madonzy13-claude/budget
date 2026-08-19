@@ -197,6 +197,11 @@ export function SlotAmount({
         // the padding was indenting "22,216 zł" ~0.22em right of "Capitalization".
         // The blur room still lives inside the (now outset) padding box.
         marginInlineStart: `-${blurEm}em`,
+        // …and the END padding likewise: on a RIGHT-aligned stack it held the
+        // last glyph 0.22em short of the box, so the day P/L sat visibly left of
+        // the plain-text "since yesterday" beneath it (user, 260819). Measured
+        // 353.48 vs 357 before this line.
+        marginInlineEnd: `-${blurEm}em`,
         overflow: "visible",
         // NOTE: proportional figures (no tabular-nums) so the real "1" is narrow
         // and matches its "I" mask; the medium-letter masks match the wider digits.
