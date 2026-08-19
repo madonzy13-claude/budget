@@ -27,9 +27,14 @@ import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { useOverviewWealth } from "@/hooks/use-overview-wealth";
 import { useProjection } from "@/hooks/use-projection";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
-import { centsToDisplayCompact, centsToRounded } from "@/lib/cents-format";
+import {
+  centsToDisplayCompact,
+  centsToPlAmount,
+  centsToRounded,
+} from "@/lib/cents-format";
 import { dayCloseDelta } from "@/lib/day-close-delta";
 import { formatDayMonthShort } from "@/lib/format-date";
+import { PL_TONE_CLASS, plPctDecimals, plSign, plTone } from "@/lib/pl-tone";
 import { useAnimatedNumber } from "@/lib/use-animated-number";
 import { cn } from "@/lib/utils";
 
@@ -177,6 +182,10 @@ export function OverviewCards({
     () => (plSeries ? dayCloseDelta(plSeries, tz, Date.now()) : undefined),
     [plSeries, tz],
   );
+  const plDir = plTone(pl?.delta_cents);
+  // A +17 gr night is a real gain that one decimal printed as "+0.0%" — the
+  // figures gain precision so they can show what the colour claims (user, 260819).
+  const plDecimals = plPctDecimals(pl?.delta_pct);
 
   if (isPending) {
     return (
@@ -224,6 +233,17 @@ export function OverviewCards({
       <AnimatedFigure
         value={Number(cents)}
         format={(n) => fmtRounded(String(Math.round(n)))}
+      />
+    </Redactable>
+  );
+  // Day P/L keeps its cents under 100 units (a +17 gr night must not print
+  // "0 zł"), and stays redactable like every other money figure on the card.
+  const fmtPl = (cents: string) => centsToPlAmount(cents, ccy, "en", true);
+  const animPl = (cents: string) => (
+    <Redactable enabled={amountPrivacyEnabled} mask={fmtPl(cents)}>
+      <AnimatedFigure
+        value={Number(cents)}
+        format={(n) => fmtPl(String(Math.round(n)))}
       />
     </Redactable>
   );
@@ -378,18 +398,19 @@ export function OverviewCards({
                         // Tight P/L stack (%, $, "since"), vertically centred
                         // against the hero number (the row is items-center).
                         "text-caption flex shrink-0 flex-col items-end gap-0.5 text-right",
-                        Number(pl.delta_cents) >= 0
-                          ? "text-[var(--trading-up)]"
-                          : "text-[var(--trading-down)]",
+                        // Three-state: an unchanged day is 0, and 0 is neither a
+                        // gain nor a loss — no colour, no arrow, no sign.
+                        PL_TONE_CLASS[plDir],
                       )}
                     >
                       <span className="num flex items-center gap-1">
-                        {Number(pl.delta_cents) >= 0 ? (
+                        {plDir === "up" && (
                           <TrendingUp
                             className="size-3.5 shrink-0"
                             aria-hidden="true"
                           />
-                        ) : (
+                        )}
+                        {plDir === "down" && (
                           <TrendingDown
                             className="size-3.5 shrink-0"
                             aria-hidden="true"
@@ -397,17 +418,17 @@ export function OverviewCards({
                         )}
                         <Redactable
                           enabled={amountPrivacyEnabled}
-                          mask={`${pl.delta_pct >= 0 ? "+" : ""}${pl.delta_pct.toFixed(1)}%`}
+                          mask={`${plSign(plDir, "")}${pl.delta_pct.toFixed(plDecimals)}%`}
                         >
                           <AnimatedFigure
                             value={pl.delta_pct}
                             format={(n) =>
-                              `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`
+                              `${plSign(plDir, "")}${n.toFixed(plDecimals)}%`
                             }
                           />
                         </Redactable>
                       </span>
-                      <span className="num">{animRounded(pl.delta_cents)}</span>
+                      <span className="num">{animPl(pl.delta_cents)}</span>
                       <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">
                         {t("cards.sinceYesterday")}
                       </span>

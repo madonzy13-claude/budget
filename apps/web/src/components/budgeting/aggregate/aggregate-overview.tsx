@@ -33,7 +33,8 @@ import {
   SlotAmount,
   SlotRevealProvider,
 } from "@/components/budgeting/overview/slot-amount";
-import { centsToRounded } from "@/lib/cents-format";
+import { centsToPlAmount, centsToRounded } from "@/lib/cents-format";
+import { PL_TONE_CLASS, plPctDecimals, plSign, plTone } from "@/lib/pl-tone";
 import { AggregateTrend } from "@/components/budgeting/aggregate/aggregate-trend";
 import { AggregateBudgetsTasks } from "@/components/budgeting/aggregate/aggregate-budgets-tasks";
 import { RangeSelector } from "@/components/budgeting/overview/range-selector";
@@ -261,8 +262,12 @@ export function AggregateOverview() {
   };
 
   const plGrow = pl.data && pl.data.series.length > 0 ? pl.data.grow : null;
-  const plUp = plGrow ? Number(plGrow.delta_cents) >= 0 : false;
-  const PlIcon = plUp ? TrendingUp : TrendingDown;
+  // Three-state: an unchanged window is exactly 0, which is neither gain nor
+  // loss — muted, no arrow, no sign.
+  const plDir = plTone(plGrow?.delta_cents);
+  // Enough decimals for the percent to show the move its colour claims.
+  const plDecimals = plPctDecimals(plGrow?.delta_pct);
+  const PlIcon = plDir === "up" ? TrendingUp : plDir === "down" ? TrendingDown : null;
 
   return (
     <SlotRevealProvider>
@@ -326,24 +331,24 @@ export function AggregateOverview() {
                   <div
                     className={cn(
                       "text-caption flex shrink-0 flex-col items-end gap-0.5 text-right",
-                      plUp
-                        ? "text-[var(--trading-up)]"
-                        : "text-[var(--trading-down)]",
+                      PL_TONE_CLASS[plDir],
                     )}
                     data-testid="aggregate-hero-pl"
                   >
                     <span className="num flex items-center gap-1">
-                      <PlIcon
-                        className="size-3.5 shrink-0"
-                        aria-hidden="true"
-                      />
+                      {PlIcon && (
+                        <PlIcon
+                          className="size-3.5 shrink-0"
+                          aria-hidden="true"
+                        />
+                      )}
                       <SlotAmount
-                        value={`${plUp ? "+" : ""}${plGrow.delta_pct.toFixed(1)}%`}
+                        value={`${plSign(plDir, "")}${plGrow.delta_pct.toFixed(plDecimals)}%`}
                       />
                     </span>
                     <span className="num">
                       <SlotAmount
-                        value={`${plUp ? "+" : ""}${fmt(plGrow.delta_cents)}`}
+                        value={`${plSign(plDir, "")}${centsToPlAmount(plGrow.delta_cents, ccy, "en", true)}`}
                       />
                     </span>
                     <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">

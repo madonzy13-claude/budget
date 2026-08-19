@@ -17,6 +17,7 @@ import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PL_TONE_CLASS, plPctDecimals, plSign, plTone } from "@/lib/pl-tone";
 import { useAggregateWealth } from "@/hooks/use-budgets-aggregate";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { seriesGrowth } from "@/lib/series-growth";
@@ -49,27 +50,25 @@ type WealthView = "capitalization" | "investments";
 
 /** label + arrow + signed % (capitalization avg-change, no amount). */
 function PctStat({ label, pct }: { label: string; pct: number | null }) {
-  const up = pct !== null && pct >= 0;
-  const down = pct !== null && pct < 0;
-  const Arrow = up ? ArrowUp : ArrowDown;
+  // Three-state: no movement is 0, which is neither a gain nor a loss.
+  const dir = plTone(pct);
+  const Arrow = dir === "up" ? ArrowUp : dir === "down" ? ArrowDown : null;
   return (
     <div className="flex flex-col items-center gap-0.5">
       <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
       <span
         className={cn(
           "num inline-flex items-center gap-1 text-num-md",
-          up && "text-[var(--trading-up)]",
-          down && "text-[var(--trading-down)]",
-          pct === null && "text-[var(--muted-foreground)]",
+          PL_TONE_CLASS[dir],
         )}
       >
         {pct === null ? (
           "—"
         ) : (
           <>
-            <Arrow className="size-3.5" aria-hidden="true" />
+            {Arrow && <Arrow className="size-3.5" aria-hidden="true" />}
             <SlotAmount
-              value={`${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`}
+              value={`${plSign(dir, "−")}${Math.abs(pct).toFixed(plPctDecimals(pct))}%`}
             />
           </>
         )}
@@ -89,23 +88,20 @@ function CombinedStat({
   pct: number | null;
   amount: string;
 }) {
-  const up = pct !== null && pct >= 0;
-  const down = pct !== null && pct < 0;
-  const Arrow = up ? ArrowUp : ArrowDown;
-  const color = up
-    ? "text-[var(--trading-up)]"
-    : down
-      ? "text-[var(--trading-down)]"
-      : "text-[var(--muted-foreground)]";
+  const dir = plTone(pct);
+  const Arrow = dir === "up" ? ArrowUp : dir === "down" ? ArrowDown : null;
+  const color = PL_TONE_CLASS[dir];
   const pctStr =
-    pct === null ? "—" : `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`;
+    pct === null
+      ? "—"
+      : `${plSign(dir, "−")}${Math.abs(pct).toFixed(plPctDecimals(pct))}%`;
   return (
     <div className="flex flex-col items-center gap-0.5">
       <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
       <span
         className={cn("num inline-flex items-center gap-1 text-num-md", color)}
       >
-        {pct !== null && <Arrow className="size-3.5" aria-hidden="true" />}
+        {Arrow && <Arrow className="size-3.5" aria-hidden="true" />}
         <SlotAmount value={pctStr} />
       </span>
       <span className="num text-caption text-[var(--muted-foreground)]">

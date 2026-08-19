@@ -14,6 +14,7 @@ import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PL_TONE_CLASS, plPctDecimals, plSign, plTone } from "@/lib/pl-tone";
 import { capitalizationBuckets } from "@/lib/cap-buckets";
 import { OverviewSection } from "./overview-section";
 import { CombinedStat } from "./combined-stat";
@@ -56,27 +57,27 @@ function PctStat({
   pct: number | null;
   mask?: boolean;
 }) {
-  const up = pct !== null && pct >= 0;
-  const down = pct !== null && pct < 0;
-  const Arrow = up ? ArrowUp : ArrowDown;
+  // Three-state: no movement is 0, which is neither a gain nor a loss.
+  const dir = plTone(pct);
+  const Arrow = dir === "up" ? ArrowUp : dir === "down" ? ArrowDown : null;
   const pctStr =
-    pct === null ? "" : `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`;
+    pct === null
+      ? ""
+      : `${plSign(dir, "−")}${Math.abs(pct).toFixed(plPctDecimals(pct))}%`;
   return (
     <div className="flex flex-col items-center gap-0.5">
       <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
       <span
         className={cn(
           "num inline-flex items-center gap-1 text-num-md",
-          up && "text-[var(--trading-up)]",
-          down && "text-[var(--trading-down)]",
-          pct === null && "text-[var(--muted-foreground)]",
+          PL_TONE_CLASS[dir],
         )}
       >
         {pct === null ? (
           "—"
         ) : (
           <>
-            <Arrow className="size-3.5" aria-hidden="true" />
+            {Arrow && <Arrow className="size-3.5" aria-hidden="true" />}
             {mask ? <SlotAmount value={pctStr} /> : pctStr}
           </>
         )}

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   centsToBare,
   centsToDisplayCompact,
+  centsToPlAmount,
   centsToRounded,
   roundsToZero,
 } from "../../src/lib/cents-format";
@@ -127,5 +128,31 @@ describe("roundsToZero", () => {
   it("takes bigints as well as numbers", () => {
     expect(roundsToZero(49n)).toBe(true);
     expect(roundsToZero(-50n)).toBe(false);
+  });
+});
+
+/**
+ * P/L amounts: a night that moved +17 gr printed "0 zł", which reads as no
+ * movement (user, 260819). Under 100 units the cents carry the whole story, so
+ * they stay; above it they are noise against a four-figure number.
+ */
+describe("centsToPlAmount", () => {
+  it("keeps cents under 100 units", () => {
+    expect(norm(centsToPlAmount("17", "PLN", "en", true))).toBe("0.17 zł");
+    expect(norm(centsToPlAmount("-17", "PLN", "en", true))).toBe("-0.17 zł");
+    expect(norm(centsToPlAmount("5750", "USD", "en", true))).toBe("$57.50");
+  });
+
+  it("drops a whole-unit .00 rather than padding it", () => {
+    expect(norm(centsToPlAmount("5700", "USD", "en", true))).toBe("$57");
+  });
+
+  it("rounds to whole units from 100 up — cents add width, not meaning", () => {
+    expect(norm(centsToPlAmount("10000", "USD", "en", true))).toBe("$100");
+    expect(norm(centsToPlAmount("123456", "PLN", "en", true))).toBe("1,235 zł");
+  });
+
+  it("survives a non-numeric amount instead of crashing the card", () => {
+    expect(norm(centsToPlAmount("NaN", "USD", "en", true))).toBe("$0");
   });
 });
