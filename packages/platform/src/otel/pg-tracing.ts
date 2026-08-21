@@ -121,9 +121,10 @@ function wrapQueryable<T extends object>(target: T, poolName: string): T {
  * Instruments a pool AND every connection it hands out.
  *
  * Wrapping only pool.query is not enough: withTenantTx / withInfraTx go through
- * appDb().transaction(), which calls pool.connect() and runs every statement on
- * the returned Client. Since most of this application's DB work is
- * transactional, that left the majority of queries untraced — measured
+ * the Drizzle transaction helper in tx.ts, which takes a connection out of the
+ * pool and runs every statement on the returned Client. Since most of this
+ * application's DB work is transactional, that left the majority of queries
+ * untraced — measured
  * 2026-08-17, GET /budgets/:id/overview/projection reported 1078ms with only
  * 173ms of session spans beneath it and 905ms unaccounted for.
  */
