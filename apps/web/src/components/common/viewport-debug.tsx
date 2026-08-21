@@ -14,7 +14,7 @@ import { computeScreenExtension } from "@/lib/grid-screen-anchor";
 
 // Bump per deploy round — a screenshot showing an old marker means the
 // device is still serving cached assets, not that the fix failed.
-const BUILD_MARKER = "BLACKAREA-R1";
+const BUILD_MARKER = "BLACKAREA-R2";
 
 const FLAG_KEY = "vpdbg";
 
@@ -97,6 +97,26 @@ interface GridMetrics {
   spacerDynH: number;
 }
 
+/**
+ * The OVERVIEW's own inner scroller (`data-testid="overview-tab"`), which the
+ * grid probe never saw. Every black-band round on this box has been diagnosed
+ * from a device screenshot, and until R2 the screenshot said nothing about it.
+ */
+interface OverviewMetrics {
+  ovTop: number;
+  ovMaxH: string;
+  ovClientH: number;
+  ovScrollH: number;
+  /** window bottom − box bottom. >0 = black strip under the box (the bug). */
+  ovBoxGap: number;
+  /** …the same against the VISUAL viewport, which is the one that disagreed. */
+  ovBoxVvGap: number;
+  /** The two candidate fills, side by side: layout vs visual. */
+  ovLayoutH: number;
+  ovVisualH: number;
+  ovSpacerH: number;
+}
+
 interface Metrics {
   innerH: number;
   vvH: number;
@@ -137,6 +157,31 @@ interface Metrics {
   peakShellGap: number;
   sheet: SheetMetrics | null;
   grid: GridMetrics | null;
+  overview: OverviewMetrics | null;
+}
+
+function probeOverviewMetrics(): OverviewMetrics | null {
+  const box = document.querySelector<HTMLElement>(
+    '[data-testid="overview-tab"]',
+  );
+  if (!box) return null;
+  const rect = box.getBoundingClientRect();
+  const vv = window.visualViewport;
+  const vvBottom = (vv?.offsetTop ?? 0) + (vv?.height ?? window.innerHeight);
+  const spacer = box.querySelector<HTMLElement>("[data-grid-tail-spacer]");
+  return {
+    ovTop: Math.round(rect.top),
+    // Consumed as a FIXED height (h-, not max-h-), so computed maxHeight reads
+    // "none" — report the var the effect actually wrote.
+    ovMaxH: box.style.getPropertyValue("--grid-max-h") || "(unset)",
+    ovClientH: box.clientHeight,
+    ovScrollH: box.scrollHeight,
+    ovBoxGap: Math.round(window.innerHeight - rect.bottom),
+    ovBoxVvGap: Math.round(vvBottom - rect.bottom),
+    ovLayoutH: document.documentElement.clientHeight,
+    ovVisualH: Math.round((vv?.height ?? 0) * (vv?.scale || 1)),
+    ovSpacerH: spacer ? spacer.offsetHeight : -1,
+  };
 }
 
 function probeEnvInset(side: "top" | "bottom"): number {
@@ -396,6 +441,7 @@ function readMetrics(): Metrics {
     lastRowGap,
     sheet: probeOpenSheet(),
     grid: probeGridMetrics(),
+    overview: probeOverviewMetrics(),
   };
 }
 
@@ -510,6 +556,26 @@ export function ViewportDebug() {
         shellRootClientH {m.shellRootClientH} · shellRootMinH {m.shellRootMinH}
       </div>
       <div>ptrBlurClientH {m.ptrBlurClientH}</div>
+      {m.overview && (
+        <>
+          <div className="mt-1 border-t border-yellow-600/40 pt-1 text-yellow-200">
+            [overview]
+          </div>
+          <div>
+            top {m.overview.ovTop} · maxH {m.overview.ovMaxH}
+          </div>
+          <div>
+            client {m.overview.ovClientH} / scroll {m.overview.ovScrollH} ·
+            spacer {m.overview.ovSpacerH}
+          </div>
+          <div>
+            boxGap {m.overview.ovBoxGap} · boxVvGap {m.overview.ovBoxVvGap}
+          </div>
+          <div>
+            layoutH {m.overview.ovLayoutH} · visualH {m.overview.ovVisualH}
+          </div>
+        </>
+      )}
       {m.grid && (
         <>
           <div className="mt-1 border-t border-yellow-600/40 pt-1 text-yellow-200">

@@ -767,4 +767,18 @@ describe("Round 7 — grid box to physical screen bottom (SHELL-R17)", () => {
     expect(viewportDebug).toMatch(/screenExt|gridExtension|ext/);
     expect(viewportDebug).toMatch(/spacerDynH|gridSpacerDyn|dynH/);
   });
+
+  // The Overview owns its own inner scroller, and every black-band round on it
+  // has been diagnosed from a device screenshot — but the overlay only ever
+  // probed the SPENDINGS grid, so the one box in question reported nothing.
+  // Three rounds of 260821 were spent inferring its height instead of reading
+  // it. It gets the same treatment as the grid: box top, the height the effect
+  // wrote, and how far its bottom falls short of the window.
+  it("R8-A: overlay probes the OVERVIEW box, not only the spendings grid", () => {
+    expect(viewportDebug).toMatch(/overview-tab/);
+    expect(viewportDebug).toMatch(/ovMaxH|overviewMaxH/);
+    expect(viewportDebug).toMatch(/ovBoxGap|overviewBoxGap/);
+    // …and the two viewport readings that disagreed on device, side by side.
+    expect(viewportDebug).toMatch(/ovLayoutH|layoutH/);
+  });
 });

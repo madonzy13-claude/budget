@@ -1,11 +1,14 @@
 /**
- * use-viewport-fill-height.test.tsx — sizing the Overview's scroll box (260802).
+ * use-viewport-fill-height.test.tsx — sizing the Overview's scroll box.
  *
- * The hook writes a PIXEL height. Page zoom scales every px length the element
- * carries, while visualViewport keeps reporting screen pixels — so a box sized
- * "viewport minus my top" came out zoom× too tall and pushed a black band of
- * empty document below the shell (user report). The written value has to be in
- * the element's OWN space.
+ * The box fills from its own top to the bottom of the SMALL viewport. Only the
+ * top is measured; the viewport half is a CSS unit, so the browser resolves it
+ * and no script can hand it a stale or borrowed number. That division of labour
+ * is what these tests protect — two black-band sagas came from measuring the
+ * viewport in JS (page zoom, 260802; another app's keyboard, 260805 + 260821).
+ *
+ * The measured half still has to be right: `top` is written as a px length the
+ * ELEMENT carries, so it is taken unscrolled and divided by the page zoom.
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
@@ -65,6 +68,31 @@ const withPointer = (coarse: boolean) => {
     }) as unknown as MediaQueryList) as typeof window.matchMedia;
   return () => {
     window.matchMedia = original;
+  };
+};
+
+/**
+ * The LAYOUT viewport — the frame the box is laid out in, and the one the iOS
+ * keyboard never touches. This is what the box sizes to.
+ */
+const withLayoutViewport = (height: number) => {
+  const original = Object.getOwnPropertyDescriptor(
+    Object.getPrototypeOf(document.documentElement),
+    "clientHeight",
+  );
+  Object.defineProperty(document.documentElement, "clientHeight", {
+    configurable: true,
+    value: height,
+  });
+  return () => {
+    delete (document.documentElement as unknown as Record<string, unknown>)
+      .clientHeight;
+    if (original)
+      Object.defineProperty(
+        Object.getPrototypeOf(document.documentElement),
+        "clientHeight",
+        original,
+      );
   };
 };
 
@@ -135,7 +163,7 @@ const setVisibility = (state: "hidden" | "visible") => {
 const sizeOf = (el: HTMLElement) => el.style.getPropertyValue("--grid-max-h");
 
 /** What the hook writes: the measured height, in the element's own pixels. */
-const filled = (_top: number, px: number) => `max(160px, ${px}px)`;
+const filled = (px: number) => `max(160px, ${px}px)`;
 
 afterEach(() => {
   document.body.innerHTML = "";
@@ -143,25 +171,25 @@ afterEach(() => {
 });
 
 describe("useViewportFillHeight (fitVisible)", () => {
-  it("fills from its top to the bottom of an unzoomed viewport", () => {
+  it("fills from its own top to the bottom of the layout viewport", () => {
     const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 1280 });
-    const restore = withViewport(900);
+    const layout = withLayoutViewport(900);
     const pointer = withPointer(false);
     renderHook(() => {
       const ref = useRef(el);
       useViewportFillHeight(ref, { fitVisible: true });
     });
-    expect(sizeOf(el)).toBe(filled(114, 786));
+    expect(sizeOf(el)).toBe(filled(786));
     pointer();
-    restore();
+    layout();
   });
 
   it("writes the height in the element's OWN pixels when the page is zoomed", () => {
     // At 1.5× the box renders 1.5× whatever it is told, and a rect reads 1.5×
     // its own box — so the screen-space 730px came out 1095px in a 900px
-    // viewport, leaving 450px of black document below the shell.
+    // viewport, leaving 450px of black document below the shell (user, 260802).
     const el = zoomedEl({ zoom: 1.5, localTop: 114, localWidth: 1280 });
-    const restore = withViewport(900);
+    const layout = withLayoutViewport(900);
     const pointer = withPointer(false);
     renderHook(() => {
       const ref = useRef(el);
@@ -169,9 +197,9 @@ describe("useViewportFillHeight (fitVisible)", () => {
     });
     // 900/1.5 − 114 = 486 local px → 729 on screen; 171 + 729 = 900, exactly
     // the viewport, with nothing left over to scroll.
-    expect(sizeOf(el)).toBe(filled(114, 486));
+    expect(sizeOf(el)).toBe(filled(486));
     pointer();
-    restore();
+    layout();
   });
 
   it("keeps its size when the page under it is scrolled", () => {
@@ -186,33 +214,35 @@ describe("useViewportFillHeight (fitVisible)", () => {
       localWidth: 1280,
       scrolledBy: 114,
     });
-    const restore = withViewport(900);
+    const layout = withLayoutViewport(900);
     const pointer = withPointer(false);
     renderHook(() => {
       const ref = useRef(el);
       useViewportFillHeight(ref, { fitVisible: true });
     });
-    expect(sizeOf(el)).toBe(filled(114, 786));
+    expect(sizeOf(el)).toBe(filled(786));
     pointer();
-    restore();
+    layout();
   });
 
-  it("fills the LAYOUT viewport when the page is pinch-zoomed", () => {
+  it("is not moved by a pinch-zoomed visual viewport", () => {
     // Real numbers from the user's console at the zoom level that showed the
     // band: layout viewport 1759x516, visual viewport 1102.67x323.47 — a page
-    // scale of 1.595. The box lives in LAYOUT pixels, so sizing it to the
-    // visible 323 left 193px of bare canvas under it, more the further they
-    // zoomed. Scale is 1 unless the page is pinched, so nothing else moves.
+    // scale of 1.595. The box lives in LAYOUT pixels; sizing it to the visible
+    // 323 left 193px of bare canvas under it (260802). Reading the layout
+    // viewport directly puts a pinch out of reach — there is no scale to undo.
     const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 1759 });
+    const layout = withLayoutViewport(516);
     const restore = withViewport(323.4664306640625, 1.595);
     const pointer = withPointer(false);
     renderHook(() => {
       const ref = useRef(el);
       useViewportFillHeight(ref, { fitVisible: true });
     });
-    expect(sizeOf(el)).toBe(filled(114, 402));
+    expect(sizeOf(el)).toBe(filled(402));
     pointer();
     restore();
+    layout();
   });
 
   // Leave the app with another one's keyboard up and come back, and iOS hands
@@ -221,114 +251,92 @@ describe("useViewportFillHeight (fitVisible)", () => {
   // band of bare canvas where the keyboard had been (user report, 260805).
   it("ignores a viewport measured while the app was in the background", () => {
     const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
+    const layout = withLayoutViewport(900);
     const vv = liveViewport(900);
     const pointer = withPointer(true);
     renderHook(() => {
       const ref = useRef(el);
       useViewportFillHeight(ref, { fitVisible: true });
     });
-    expect(sizeOf(el)).toBe(filled(114, 786));
+    expect(sizeOf(el)).toBe(filled(786));
 
     setVisibility("hidden");
     vv.setHeight(500); // the other app's keyboard, reserved
     vv.fireResize();
-    expect(sizeOf(el)).toBe(filled(114, 786));
+    expect(sizeOf(el)).toBe(filled(786));
 
     setVisibility("visible");
     pointer();
     vv.restore();
+    layout();
   });
 
-  // Guarding the hidden reading alone still let the band FLASH: the shrunken
-  // viewport is what iOS reports for the first few hundred ms AFTER the app is
-  // visible again, so re-measuring on resume wrote a short box, showed the
-  // band, and corrected it a moment later (user video, 260805).
+  // The band that would not go away (user, 260821). Switch to another app with
+  // its keyboard up, come back, and iOS keeps reporting a viewport short by that
+  // keyboard — not for the few hundred ms the settling window assumed, but until
+  // the app is killed. A settling window cannot win that race: whatever it does
+  // when the window closes, it acts on a reading that is still a lie, and the
+  // short box then stays because nothing else ever resizes.
   //
-  // So nothing is written at all while it settles. The box keeps the height it
-  // had while away — which is what it should be anyway — and every lie iOS
-  // tells in that window is simply not acted on. Doing nothing is the only
-  // option that cannot go wrong in EITHER direction: writing the short reading
-  // flashes a band under the shell, and refusing to shrink instead pins the box
-  // too tall, which lets the document scroll past the shell into the same black
-  // (user screenshot, 260805).
-  it("writes nothing at all while the viewport is settling after a resume", () => {
+  // So the box stops reading it. It fills to the LAYOUT viewport, which the
+  // keyboard never touches, and the whole resume dance goes with it.
+  it("keeps its size when the viewport is still short by another app's keyboard", () => {
     vi.useFakeTimers();
     const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
+    const layout = withLayoutViewport(900);
     const vv = liveViewport(900);
     const pointer = withPointer(true);
     renderHook(() => {
       const ref = useRef(el);
       useViewportFillHeight(ref, { fitVisible: true });
     });
-    expect(sizeOf(el)).toBe(filled(114, 786));
+    const before = sizeOf(el);
 
     setVisibility("hidden");
     setVisibility("visible");
-    // iOS is still holding the keyboard's space, and says so more than once.
-    vv.setHeight(500);
+    vv.setHeight(500); // the other app's keyboard — and iOS keeps it
     vv.fireResize();
-    vi.advanceTimersByTime(200);
+    vi.advanceTimersByTime(5000);
     vv.fireResize();
 
-    expect(sizeOf(el)).toBe(filled(114, 786));
+    expect(sizeOf(el)).toBe(before);
+    expect(before).toBe(filled(786)); // …and the RIGHT size, not a frozen wrong one
     pointer();
     vv.restore();
+    layout();
     vi.useRealTimers();
   });
 
-  // …and once the window is over it takes the viewport as it finds it, whichever
-  // way that went — a device rotated while the app was away has to be picked up.
-  it("takes the viewport as it finds it once settled", () => {
-    vi.useFakeTimers();
+  // The other direction, and the one that made the first fix wrong (user,
+  // 260821): in the installed PWA the LAYOUT viewport comes back short of the
+  // window — svh did the same — so a box sized off it alone left a permanent
+  // strip of black under the last card on every view of the Overview, while
+  // page-scrolled tabs reached the screen edge.
+  //
+  // Whichever of the two is TALLER is the one to fill, because the failures are
+  // one-directional and opposite: a keyboard only ever SHRINKS the visual
+  // viewport, so it can never win a max(); and only the visual viewport knows
+  // about space the layout viewport is not being told about.
+  it("fills the visual viewport when the layout one comes back short", () => {
     const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
-    const vv = liveViewport(900);
+    const layout = withLayoutViewport(806); // what the PWA reported
+    const restore = withViewport(852); // …of a 852-tall window
     const pointer = withPointer(true);
     renderHook(() => {
       const ref = useRef(el);
       useViewportFillHeight(ref, { fitVisible: true });
     });
-
-    setVisibility("hidden");
-    setVisibility("visible");
-    vv.setHeight(700);
-    vi.advanceTimersByTime(1000);
-
-    expect(sizeOf(el)).toBe(filled(114, 586));
+    expect(sizeOf(el)).toBe(filled(738));
     pointer();
-    vv.restore();
-    vi.useRealTimers();
+    restore();
+    layout();
   });
 
-  // The box is never pinned TALLER than the viewport: that is what let the
-  // document scroll past the shell and show black under it (user, 260805).
-  it("never leaves the box taller than the viewport once settled", () => {
-    vi.useFakeTimers();
-    const el = zoomedEl({ zoom: 1, localTop: 114, localWidth: 390 });
-    const vv = liveViewport(900);
-    const pointer = withPointer(true);
-    renderHook(() => {
-      const ref = useRef(el);
-      useViewportFillHeight(ref, { fitVisible: true });
-    });
-
-    setVisibility("hidden");
-    setVisibility("visible");
-    vv.setHeight(1000);
-    vi.advanceTimersByTime(500);
-    expect(sizeOf(el)).toBe(filled(114, 886));
-
-    // …and back down again, with no floor holding it up.
-    vv.setHeight(800);
-    vv.fireResize();
-    expect(sizeOf(el)).toBe(filled(114, 686));
-
-    pointer();
-    vv.restore();
-    vi.useRealTimers();
-  });
-
-  it("falls back to the window when there is no visualViewport", () => {
+  it("sizes the same when there is no visualViewport at all", () => {
+    // Nothing to fall back FROM any more — the box never reads it. This stands
+    // guard: reintroduce a visualViewport read and it throws or diverges here.
     const el = zoomedEl({ zoom: 1, localTop: 100, localWidth: 1280 });
+    const layout = withLayoutViewport(900);
     const restore = withViewport(0);
     const pointer = withPointer(true);
     Object.defineProperty(window, "visualViewport", {
@@ -339,9 +347,9 @@ describe("useViewportFillHeight (fitVisible)", () => {
       const ref = useRef(el);
       useViewportFillHeight(ref, { fitVisible: true });
     });
-    // innerHeight is the same screen space, so the box still lands right.
-    expect(sizeOf(el)).toBe(filled(100, window.innerHeight - 100));
+    expect(sizeOf(el)).toBe(filled(800));
     pointer();
     restore();
+    layout();
   });
 });

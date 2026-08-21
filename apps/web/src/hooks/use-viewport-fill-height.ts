@@ -16,14 +16,14 @@ import { useEffect, type RefObject } from "react";
 import { computeScreenExtension } from "@/lib/grid-screen-anchor";
 
 /**
- * @param opts.fitVisible size the box to the CURRENTLY-VISIBLE viewport (100svh,
- *   no under-bar extension) instead of 100lvh+ext. Use for pure-vertical inner
- *   scrollers (Overview): the lvh+ext box spills `ext` px past the shell on iOS
- *   Safari, giving the document a second scrollbar on top of the box's own — the
- *   "two scrollers" bug. svh (bar-expanded height) is always ≤ visible, so the box
- *   never spills → single scroll. Stable (not dvh) to avoid resize-jank mid-scroll;
- *   the bar-collapsed gap below is invisible on the dark canvas. The grid keeps the
- *   lvh+ext extension (its scroll surface is meant to run under the bar).
+ * @param opts.fitVisible size the box to the LAYOUT viewport instead of
+ *   100lvh+ext. Use for pure-vertical inner scrollers (Overview): the lvh+ext
+ *   box spills `ext` px past the shell on iOS Safari, giving the document a
+ *   second scrollbar on top of the box's own — the "two scrollers" bug. The
+ *   layout viewport is exactly the frame the box lives in, so it never spills
+ *   and never falls short, and — unlike visualViewport — no keyboard can move
+ *   it (see the branch for both black-band sagas). The grid keeps the lvh+ext
+ *   extension (its scroll surface is meant to run under the bar).
  */
 export function useViewportFillHeight(
   ref: RefObject<HTMLElement | null>,
@@ -85,57 +85,59 @@ export function useViewportFillHeight(
       return top;
     }
 
-    /** True from the moment the app comes back until iOS stops lying (below). */
-    let settling = false;
-
     function update() {
       if (!el || isKeyboardEditing()) return;
-      // Coming back from the background, iOS keeps reporting the viewport short
-      // by the keyboard of the app you just left — for a few hundred ms AFTER
-      // this one is visible again. Every measurement in that window is a lie, so
-      // none of them are written: the box simply keeps the height it had while
-      // away, which is what it should be anyway. Doing nothing is the only
-      // option that cannot go wrong in either direction — writing the short
-      // reading flashes a black band under the shell, and refusing to shrink
-      // instead pins the box too TALL, which lets the document scroll past the
-      // shell into the same black (three rounds of this, 260805).
-      if (settling) return;
-      // A viewport measured while the app is in the BACKGROUND is a reading for
-      // a window nobody is looking at. Leave the app with another one's keyboard
-      // up and iOS hands the PWA a visualViewport still short by that keyboard;
-      // sizing the box to it left a black band of bare canvas exactly where the
-      // keyboard had been, and it stayed until something else resized (user
-      // report, 260805). Coming back to the front re-measures — see below.
+      // Nothing is measured for a window nobody is looking at. Neither branch
+      // reads the viewport imperatively any more, but a backgrounded page can
+      // still report a rect of zeros, and a `top` of 0 would size the box to the
+      // whole screen and let the document scroll past the shell.
       if (typeof document !== "undefined" && document.hidden) return;
       const zoom = zoomFactor(el);
       const top = Math.max(0, Math.round(unscrolledTop(el) / zoom));
       if (fitVisible) {
-        // Track the CURRENTLY-VISIBLE viewport so the box always fills exactly from
-        // its top to the visible bottom — no under-bar spill (would give the
-        // document a 2nd scrollbar) and no gap. iOS collapses the Safari toolbar on
-        // ANY scroll (incl. this inner box), which grows visualViewport.height and
-        // fires vv resize → we recompute. A static unit can't do this: svh gaps when
-        // the bar collapses, lvh spills when it's shown. Fallback to 100svh (no vv).
-        // Both readings are SCREEN pixels, so the subtraction happens there and
+        // The LAYOUT viewport — `documentElement.clientHeight` — which is the
+        // frame this box is laid out in, and the only viewport the iOS keyboard
+        // does not touch. That separation is the entire reason visualViewport
+        // exists as a distinct thing.
+        //
+        // This box used to read `visualViewport.height` so it could follow iOS
+        // Safari collapsing its toolbar. But that is exactly the reading the
+        // KEYBOARD moves, and iOS hands a resumed PWA one still short by the
+        // keyboard of the app you just left — for as long as it likes. Two
+        // rounds of settling windows tried to out-wait it (260805) and could
+        // not: whatever they write when the window closes comes from the same
+        // lie, and the short box then stays, because nothing resizes again. The
+        // user's black band survived until the app was killed (260821).
+        //
+        // …but the layout viewport ALONE is not enough either. In the installed
+        // PWA it comes back short of the window, and a box sized off it left a
+        // permanent strip of black under the last card on every view of the
+        // Overview while page-scrolled tabs reached the screen edge (user,
+        // 260821). `100svh` was tried first and did exactly the same thing —
+        // same short number, so do not reach for it again.
+        //
+        // Take whichever of the two is TALLER. The two failures are
+        // one-directional and opposite: a keyboard can only ever SHRINK the
+        // visual viewport, so a stale one can never win a max(); and only the
+        // visual viewport knows about space the layout viewport is not being
+        // told about. This is NOT the "grow but never shrink" ratchet that
+        // failed in 260805 — both readings are live, and the box follows them
+        // down again the moment they drop.
+        //
+        // All of them are SCREEN pixels, so the subtraction happens there and
         // the result is converted into the element's own space — a px length it
         // carries is multiplied by the zoom on the way back out. Getting this
         // wrong sized the box zoom× too tall and left a black band of bare
         // document under the shell (user report, 260802).
-        //
-        // visualViewport is the VISIBLE window onto the layout viewport, and
-        // pinch/page-scale zoom shrinks it while the layout viewport — the frame
-        // this box is laid out in — stays put. Multiplying by the page scale
-        // reads it back in layout pixels. Without it a page scaled 1.595× sized
-        // the box 209px inside a 516px-tall layout viewport and left 193px of
-        // bare canvas beneath it, more the further the user zoomed (their own
-        // console numbers, 260802). Unpinched the scale is 1, so the iOS
-        // bar-collapse tracking below is untouched.
+        const layoutH =
+          document.documentElement.clientHeight || window.innerHeight;
         const vv = window.visualViewport;
-        const vvh = vv ? vv.height * (vv.scale || 1) : window.innerHeight;
+        const visualH = vv ? vv.height * (vv.scale || 1) : 0;
+        const fillH = Math.max(layoutH, visualH);
         el.style.setProperty(
           "--grid-max-h",
-          vvh > 0
-            ? `max(160px, ${Math.round(vvh / zoom - top)}px)`
+          fillH > 0
+            ? `max(160px, ${Math.round(fillH / zoom - top)}px)`
             : `max(160px, calc(100svh - ${top}px))`,
         );
         return;
@@ -168,29 +170,11 @@ export function useViewportFillHeight(
     const onFocusOut = () => requestAnimationFrame(update);
     el.addEventListener("focusout", onFocusOut);
 
-    // Coming back to the front: hold everything still until the keyboard's
-    // dismissal animation is over, then take whatever the viewport says — in
-    // either direction, so a device rotated while the app was away is picked up
-    // too. The second pass covers iOS not always sending a resize when it
-    // finally lets that space go.
-    let timers: ReturnType<typeof setTimeout>[] = [];
-    const onVisible = () => {
-      if (document.hidden) return;
-      // Flick between apps a few times and each resume would otherwise leave
-      // its own timers behind.
-      timers.forEach(clearTimeout);
-      timers = [];
-      settling = true;
-      timers.push(
-        setTimeout(() => {
-          settling = false;
-          update();
-        }, 450),
-        setTimeout(update, 900),
-      );
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("pageshow", onVisible);
+    // No resume handler: there is nothing to re-take. Both branches are CSS
+    // viewport units plus a measured top, and a rotation while the app was away
+    // changes the element's width, which the ResizeObserver above already
+    // catches. The settling window this replaces existed only to out-wait a
+    // visualViewport reading neither branch takes any more (260821).
 
     return () => {
       ro.disconnect();
@@ -198,9 +182,6 @@ export function useViewportFillHeight(
       vv?.removeEventListener("resize", update);
       vv?.removeEventListener("scroll", update);
       el.removeEventListener("focusout", onFocusOut);
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("pageshow", onVisible);
-      timers.forEach(clearTimeout);
     };
   }, [ref, fitVisible]);
 }
