@@ -525,3 +525,67 @@ describe("Overview cards", () => {
     expect(dto.overspent.total_cents).toBe(2000n); // inv's 99999 excluded
   });
 });
+
+// 0083 (user, 260820): the retirement runway is a forever-projection. A
+// No-limit category's plannedCents is what it SPENT, which is history, not a
+// standing cost — so the runway must burn its scheduled payments instead, and
+// only the ones still standing.
+describe("Overview cards — retirement burn for a No-limit category", () => {
+  const unboundedSpendings = {
+    ...spendingsDto,
+    categories: [
+      {
+        ...spendingsDto.categories[0],
+        categoryId: "u",
+        name: "House",
+        archived: false,
+        // it spent 14,630 this month…
+        spentCents: "1463000",
+        plannedCents: "1463000",
+        activeBudgetCents: "1463000",
+        cushionCents: "0",
+        overspentCents: "0",
+        noLimit: true,
+        isInvestment: false,
+      },
+    ],
+  };
+
+  const withScheduled = (rate: Map<string, bigint>): GetOverviewCardsDeps => ({
+    ...deps(),
+    spendingsSummary: async () =>
+      ok(unboundedSpendings) as Result<typeof spendingsDto, Error>,
+    scheduledMonthlyByCategory: async () => rate,
+  });
+
+  test("burns its standing payments, not what it happened to spend", async () => {
+    // …but only 4,062.71 of it is a standing commitment.
+    const dto = (
+      await getOverviewCards(withScheduled(new Map([["u", 406271n]])))(input)
+    )._unsafeUnwrap();
+    expect(dto.monthly_planned_cents).toBe(406271n);
+  });
+
+  test("burns nothing when every standing payment has ended", async () => {
+    const dto = (
+      await getOverviewCards(withScheduled(new Map()))(input)
+    )._unsafeUnwrap();
+    expect(dto.monthly_planned_cents).toBe(0n);
+    // No forward cost at all → the pot lasts forever.
+    expect(dto.retirement_months).toBeNull();
+  });
+
+  test("a limited category still burns its plan", async () => {
+    const dto = (
+      await getOverviewCards({
+        ...deps(),
+        scheduledMonthlyByCategory: async () => new Map([["a", 999n]]),
+      })(input)
+    )._unsafeUnwrap();
+    // The default fixture is all limited categories — unchanged by any of this.
+    expect(dto.monthly_planned_cents).toBe(
+      (await getOverviewCards(deps())(input))._unsafeUnwrap()
+        .monthly_planned_cents,
+    );
+  });
+});

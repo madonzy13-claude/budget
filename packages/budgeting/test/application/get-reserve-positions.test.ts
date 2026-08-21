@@ -63,8 +63,8 @@ function goldenInputs(
       [
         OPEN,
         new Map([
-          [G, { plannedCents: 40000n, cushionCents: 30000n }],
-          [H, { plannedCents: 100000n, cushionCents: 25000n }],
+          [G, { plannedCents: 40000n, cushionCents: 30000n , noLimit: false}],
+          [H, { plannedCents: 100000n, cushionCents: 25000n , noLimit: false}],
         ]),
       ],
     ]),
@@ -248,8 +248,8 @@ describe("getReservePositions — replay orchestrator", () => {
     const inputs: ReserveEventInputs = {
       spendByCategoryByMonth: new Map([["Fk", new Map([["2026-06", 10000n]])]]),
       limitsByMonth: new Map([
-        ["2026-05", new Map([["Fk", { plannedCents: 0n, cushionCents: 0n }]])],
-        ["2026-06", new Map([["Fk", { plannedCents: 0n, cushionCents: 0n }]])],
+        ["2026-05", new Map([["Fk", { plannedCents: 0n, cushionCents: 0n , noLimit: false}]])],
+        ["2026-06", new Map([["Fk", { plannedCents: 0n, cushionCents: 0n , noLimit: false}]])],
       ]),
       cushionHistory: [],
       adjustmentsByCategory: new Map([
@@ -300,8 +300,8 @@ describe("getReservePositions — replay orchestrator", () => {
         ],
       ]),
       limitsByMonth: new Map([
-        ["2026-05", new Map([["Fk", { plannedCents: 0n, cushionCents: 0n }]])],
-        ["2026-06", new Map([["Fk", { plannedCents: 0n, cushionCents: 0n }]])],
+        ["2026-05", new Map([["Fk", { plannedCents: 0n, cushionCents: 0n , noLimit: false}]])],
+        ["2026-06", new Map([["Fk", { plannedCents: 0n, cushionCents: 0n , noLimit: false}]])],
       ]),
       cushionHistory: [],
       adjustmentsByCategory: new Map([
@@ -355,8 +355,8 @@ describe("getReservePositions — replay orchestrator", () => {
     //     R 0; June stays locked at 1400/200 (NOT retro-covered).
     //   internal = 100 (G) + 0 (H) = 100, userDefined 3000, surplus 2900.
     const julyLimits = new Map([
-      [G, { plannedCents: 40000n, cushionCents: 30000n }],
-      [H, { plannedCents: 100000n, cushionCents: 25000n }],
+      [G, { plannedCents: 40000n, cushionCents: 30000n , noLimit: false}],
+      [H, { plannedCents: 100000n, cushionCents: 25000n , noLimit: false}],
     ]);
     const inputs: ReserveEventInputs = {
       spendByCategoryByMonth: new Map([
@@ -373,8 +373,8 @@ describe("getReservePositions — replay orchestrator", () => {
         [
           "2026-06",
           new Map([
-            [G, { plannedCents: 40000n, cushionCents: 30000n }],
-            [H, { plannedCents: 100000n, cushionCents: 25000n }],
+            [G, { plannedCents: 40000n, cushionCents: 30000n , noLimit: false}],
+            [H, { plannedCents: 100000n, cushionCents: 25000n , noLimit: false}],
           ]),
         ],
         ["2026-07", julyLimits],
@@ -471,8 +471,8 @@ describe("getReservePositions — replay orchestrator", () => {
         ],
       ]),
       limitsByMonth: new Map([
-        ["2026-05", new Map([[G, { plannedCents: 0n, cushionCents: 0n }]])],
-        ["2026-06", new Map([[G, { plannedCents: 0n, cushionCents: 0n }]])],
+        ["2026-05", new Map([[G, { plannedCents: 0n, cushionCents: 0n , noLimit: false}]])],
+        ["2026-06", new Map([[G, { plannedCents: 0n, cushionCents: 0n , noLimit: false}]])],
       ]),
       cushionHistory: [],
       adjustmentsByCategory: new Map([
@@ -549,9 +549,9 @@ describe("mapInputsToEvents — chronological mapping", () => {
       limitsByMonth: new Map([
         [
           "2026-05",
-          new Map([[G, { plannedCents: 20000n, cushionCents: 20000n }]]),
+          new Map([[G, { plannedCents: 20000n, cushionCents: 20000n , noLimit: false}]]),
         ],
-        [OPEN, new Map([[G, { plannedCents: 40000n, cushionCents: 30000n }]])],
+        [OPEN, new Map([[G, { plannedCents: 40000n, cushionCents: 30000n , noLimit: false}]])],
       ]),
       adjustmentsByCategory: new Map(),
     });

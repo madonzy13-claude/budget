@@ -575,6 +575,13 @@
       "when": 1782739201009,
       "tag": "0082_member_amount_privacy",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1782739201010,
+      "tag": "0083_category_limit_no_limit",
+      "breakpoints": true
     }
   ]
 }

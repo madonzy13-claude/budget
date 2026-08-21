@@ -805,7 +805,7 @@
     "months": "{count, plural, one {# month} other {# months}}",
     "and": "and",
     "retire_label": "If you retire now, your money will last for",
-    "retire_inflation": "incl. {pct}% annual inflation",
+    "retire_inflation": "incl. {pct}% annual inflation · possessions excluded",
     "avg_change": "Average change",
     "contributions": "Contributions",
     "profit": "Profit",
@@ -1376,7 +1376,7 @@
           "deficit": "Deficit",
           "retirementRunway": "If you retire now, your money will last for",
           "retirementSub": "at your normal planned spending",
-          "retirementInflation": "incl. {pct}% annual inflation",
+          "retirementInflation": "incl. {pct}% annual inflation · possessions excluded",
           "flipToRetirement": "Capitalization — tap to see your retirement runway",
           "privacyShow": "Show amounts",
           "privacyHide": "Hide amounts",
@@ -1702,7 +1702,15 @@
             "teal": "Teal",
             "sky": "Sky",
             "indigo": "Indigo",
-            "pink": "Pink"
+            "pink": "Pink",
+            "orange": "Orange",
+            "lime": "Lime",
+            "emerald": "Emerald",
+            "cyan": "Cyan",
+            "blue": "Blue",
+            "violet": "Violet",
+            "rose": "Rose",
+            "slate": "Slate"
           }
         },
         "toast": {
@@ -1823,7 +1831,9 @@
         "wants": "Wants",
         "plannedTotal": "Planned",
         "cushionValue": "Cushion: {amount}",
-        "cushionResult": "Cushion"
+        "cushionResult": "Cushion",
+        "noLimitHint": "Spending is recorded but never counts as overspent, and nothing is left over for reserves.",
+        "limitMode": "Monthly limit"
       },
       "deleteBlockedTooltip": "Cannot delete category with existing transactions",
       "deleteConfirmBody": "This will permanently delete the category.",
@@ -1838,6 +1848,10 @@
         "needs_wants": "Needs + Wants",
         "needs_only": "Needs only",
         "custom": "Custom"
+      },
+      "limitMode": {
+        "fixed": "Set a limit",
+        "none": "No limit"
       }
     },
     "expensesTitle": "Expenses",

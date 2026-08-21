@@ -23,6 +23,7 @@ import {
   prunePlannedCategories,
 } from "@/lib/planned-category-filter";
 import { useMemberUiPrefs } from "@/hooks/use-member-ui-prefs";
+import { futureExpectedCents } from "@/lib/future-expected";
 import { useTranslations, useLocale } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import {
@@ -355,8 +356,18 @@ export function PlannedSection({
         needsCents: Number(c.needsCents ?? c.plannedCents),
         wantsCents: Number(c.wantsCents ?? 0),
         cushionCents: Number(c.cushionCents ?? 0),
+        // 0083: the Future reading has nothing to propose for an unbounded
+        // category — there is no limit to raise (user, 260820).
+        noLimit: c.noLimit === true,
       },
     ]),
+  );
+  // 0083: unbounded categories, by id — the bars read the chart's own rows and
+  // so cannot reach splitById's flag.
+  const noLimitIds = new Set(
+    (summary.data?.categories ?? [])
+      .filter((c) => c.noLimit === true)
+      .map((c) => c.categoryId),
   );
   // Only categories the walk actually wants moved, and only once their current
   // split is known — a row proposing a change from an unknown starting point
@@ -395,7 +406,11 @@ export function PlannedSection({
   // drawn 779 against 798 with no way to act on it (user, 260813).
   const limitCandidates: LimitCandidate[] = [...splitById.entries()].flatMap(
     ([categoryId, split]) => {
-      const expected = projected.get(categoryId);
+      const expected = futureExpectedCents({
+        projected: projected.get(categoryId),
+        currentCents: split.needsCents + split.wantsCents,
+        noLimit: split.noLimit,
+      });
       if (expected == null) return [];
       // …and only what the filter is showing. The dialog opens FROM these
       // bars, so acting on a category they hid is acting on something the
@@ -455,8 +470,12 @@ export function PlannedSection({
     (acc, [categoryId, split]) => {
       // Only what the section's filter is showing (user, 260810).
       if (shownIds.size > 0 && !shownIds.has(categoryId)) return acc;
-      const expected = projected.get(categoryId) ?? null;
       const current = split.needsCents + split.wantsCents;
+      const expected = futureExpectedCents({
+        projected: projected.get(categoryId),
+        currentCents: current,
+        noLimit: split.noLimit,
+      });
       // Counted the way the BARS count it: a difference under a whole unit is
       // not a change, so it must not be one here either. Summing the raw
       // groszy instead had eight settled categories add up to "3 zł more than
@@ -598,6 +617,7 @@ export function PlannedSection({
                 down with "Something went wrong" (260803). */}
             <PlannedTotals
               plannedCents={data.rangeTotals?.planned_cents ?? "0"}
+              plannedUnbounded={data.rangeTotals?.planned_unbounded ?? false}
               spentCents={data.rangeTotals?.spent_cents ?? "0"}
               withinLimitCents={data.rangeTotals?.within_limit_cents ?? "0"}
               reserveUsedCents={data.rangeTotals?.reserve_used_cents ?? "0"}
@@ -914,8 +934,11 @@ export function PlannedSection({
                       // the formula that gave those rows the largest bars on
                       // the chart (audit, 260807); it is gone.
                       const expected =
-                        projected.get(c.category_id) ??
-                        (basis === "future" ? current : real);
+                        futureExpectedCents({
+                          projected: projected.get(c.category_id),
+                          currentCents: current,
+                          noLimit: noLimitIds.has(c.category_id),
+                        }) ?? (basis === "future" ? current : real);
                       const planned = basis === "future" ? current : avg;
                       const rawGap =
                         basis === "future"

@@ -60,6 +60,7 @@ import { confirmDraft } from "@budget/budgeting/src/application/confirm-draft";
 import { getSpendingsSummary } from "@budget/budgeting/src/application/get-spendings-summary";
 import { getOverviewCards } from "@budget/budgeting/src/application/get-overview-cards";
 import { computeUpcomingByCategory } from "@budget/budgeting/src/application/compute-upcoming-by-category";
+import { computeScheduledMonthly } from "@budget/budgeting/src/application/compute-scheduled-monthly";
 import { computeCashflowProjection } from "@budget/budgeting/src/application/compute-cashflow-projection";
 import { createOverviewCardsRepo } from "@budget/budgeting/src/adapters/persistence/overview-cards-repo";
 import { getOverviewPlanned } from "@budget/budgeting/src/application/get-overview-planned";
@@ -474,6 +475,11 @@ export async function boot(): Promise<BootedDeps> {
       spendingsSummary: getSpendingsSummaryService,
       reservesSummary: baseBudgeting.getReservesSummary,
       upcomingByCategory: computeUpcomingByCategory({
+        fxProvider: baseBudgeting.fxProvider,
+      }),
+      // 0083: standing monthly cost per category — the retirement runway's
+      // burn for an unbounded one.
+      scheduledMonthlyByCategory: computeScheduledMonthly({
         fxProvider: baseBudgeting.fxProvider,
       }),
     }),

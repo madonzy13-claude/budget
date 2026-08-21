@@ -25,7 +25,10 @@ export interface ReserveEventInputs {
    */
   limitsByMonth: Map<
     string,
-    Map<string, { plannedCents: bigint; cushionCents: bigint }>
+    Map<
+      string,
+      { plannedCents: bigint; cushionCents: bigint; noLimit: boolean }
+    >
   >;
   /**
    * Ordered cushion-mode segments ascending by month:

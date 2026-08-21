@@ -25,6 +25,11 @@ export interface CashflowCategoryInput {
   budgetByMonth: Record<string, bigint>;
   /** Confirmed spend so far in the CURRENT month (before today). */
   spentSoFarCents: bigint;
+  /** 0083: unbounded ("No limit"). It has no plan to stay inside, but unlike an
+   *  uncategorised outflow that does NOT make its spend overspend — a category
+   *  that cannot be overspent must not draw the reserve pot in the forecast
+   *  either, or the projection contradicts the reserve engine. */
+  noLimit?: boolean;
 }
 
 export interface CashflowEvent {
@@ -237,6 +242,9 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
   // What each category may still spend inside its plan this month. Reserve money
   // is earmarked against limits being EXCEEDED, so this is what decides whether
   // an outflow may reach the pot at all (user, 260811).
+  const unbounded = new Set(
+    input.categories.filter((c) => c.noLimit === true).map((c) => c.id),
+  );
   const remainingLimit = new Map<string, bigint>();
   const rollLimitsTo = (month: string) => {
     for (const c of input.categories) {
@@ -297,7 +305,10 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       // counts as beyond one.
       const remaining = remainingLimit.get(catId) ?? 0n;
       const withinLimit = amt < remaining ? amt : remaining;
-      const overspend = amt - withinLimit;
+      // 0083: an unbounded category's spend is never overspend, so it never
+      // reaches the reserve pot. Its plan is 0, so the generic path above would
+      // otherwise class the whole outflow as beyond-plan.
+      const overspend = unbounded.has(catId) ? 0n : amt - withinLimit;
       remainingLimit.set(catId, remaining - withinLimit);
 
       // Pay from cash first (cash never funds below 0)...

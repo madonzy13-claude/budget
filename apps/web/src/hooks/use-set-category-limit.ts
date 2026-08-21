@@ -23,6 +23,9 @@ export interface SetCategoryLimitInput {
   wantsCents: number;
   /** Left as it was — the limit dialog does not touch the cushion. */
   cushionCents: number;
+  /** 0083: unbounded. Amounts go out as 0 — the flag, not a number, is what
+   *  says "no limit", so nothing downstream has to read 0 as meaningful. */
+  noLimit?: boolean;
 }
 
 export function useSetCategoryLimit(budgetId: string, month: string) {
@@ -37,15 +40,25 @@ export function useSetCategoryLimit(budgetId: string, month: string) {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            normalAmount: String(
-              Math.round(input.needsCents) + Math.round(input.wantsCents),
-            ),
-            cushionAmount: String(Math.round(input.cushionCents)),
-            needsAmount: String(Math.round(input.needsCents)),
-            wantsAmount: String(Math.round(input.wantsCents)),
-            effectiveFrom: `${month}-01`,
-          }),
+          body: JSON.stringify(
+            input.noLimit
+              ? {
+                  normalAmount: "0",
+                  cushionAmount: "0",
+                  noLimit: true,
+                  effectiveFrom: `${month}-01`,
+                }
+              : {
+                  normalAmount: String(
+                    Math.round(input.needsCents) + Math.round(input.wantsCents),
+                  ),
+                  cushionAmount: String(Math.round(input.cushionCents)),
+                  needsAmount: String(Math.round(input.needsCents)),
+                  wantsAmount: String(Math.round(input.wantsCents)),
+                  noLimit: false,
+                  effectiveFrom: `${month}-01`,
+                },
+          ),
         },
       );
       if (!res.ok) throw new Error("set_limit_failed");

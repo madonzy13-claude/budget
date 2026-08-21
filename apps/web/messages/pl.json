@@ -805,7 +805,7 @@
     "months": "{count, plural, one {# miesiąc} few {# miesiące} many {# miesięcy} other {# miesiąca}}",
     "and": "i",
     "retire_label": "Jeśli przejdziesz na emeryturę teraz, pieniędzy starczy na",
-    "retire_inflation": "z {pct}% roczną inflacją",
+    "retire_inflation": "w tym {pct}% rocznej inflacji · bez rzeczy osobistych",
     "avg_change": "Średnia zmiana",
     "contributions": "Wpłaty",
     "profit": "Zysk",
@@ -1399,7 +1399,7 @@
           "deficit": "Deficyt",
           "retirementRunway": "Jeśli przejdziesz na emeryturę teraz, pieniędzy starczy na",
           "retirementSub": "przy normalnym planowanym wydatku",
-          "retirementInflation": "z {pct}% roczną inflacją",
+          "retirementInflation": "w tym {pct}% rocznej inflacji · bez rzeczy osobistych",
           "flipToRetirement": "Kapitalizacja — dotknij, aby zobaczyć ile starczy na emeryturze",
           "privacyShow": "Pokaż kwoty",
           "privacyHide": "Ukryj kwoty",
@@ -1725,7 +1725,15 @@
             "teal": "Morski",
             "sky": "Błękitny",
             "indigo": "Indygo",
-            "pink": "Różowy"
+            "pink": "Różowy",
+            "orange": "Pomarańczowy",
+            "lime": "Limonkowy",
+            "emerald": "Szmaragdowy",
+            "cyan": "Cyjan",
+            "blue": "Niebieski",
+            "violet": "Fioletowy",
+            "rose": "Różany",
+            "slate": "Grafitowy"
           }
         },
         "toast": {
@@ -1846,7 +1854,9 @@
         "wants": "Zachcianki",
         "plannedTotal": "Plan",
         "cushionValue": "Poduszka: {amount}",
-        "cushionResult": "Poduszka"
+        "cushionResult": "Poduszka",
+        "noLimitHint": "Wydatki są zapisywane, ale nigdy nie liczą się jako przekroczenie i nic nie zostaje na rezerwy.",
+        "limitMode": "Limit miesięczny"
       },
       "deleteBlockedTooltip": "Nie można usunąć kategorii z istniejącymi transakcjami",
       "deleteConfirmBody": "Ta operacja trwale usunie kategorię.",
@@ -1861,6 +1871,10 @@
         "needs_wants": "Potrzeby + Zachcianki",
         "needs_only": "Tylko potrzeby",
         "custom": "Własna"
+      },
+      "limitMode": {
+        "fixed": "Ustaw limit",
+        "none": "Bez limitu"
       }
     },
     "expensesTitle": "Wydatki",

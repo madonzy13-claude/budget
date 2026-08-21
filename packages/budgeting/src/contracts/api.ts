@@ -101,11 +101,32 @@ export type SetBalanceInput = z.infer<typeof setBalanceSchema>;
 // Category schemas (BDGT-01..06) — scope dropped in Plan 01-02 (D-13)
 // ---------------------------------------------------------------------------
 
-// 260613-v1p: the 8 deliberate per-category palette keys (DESIGN.md categorization
+// 260613-v1p: the deliberate per-category palette keys (8, then 20 on 260820) (DESIGN.md categorization
 // exception). Constrains colorKey at the API boundary; .nullable().optional() so an
 // omitted field stores null (no color → no accent bar).
 export const categoryColorKeySchema = z
-  .enum(["yellow", "green", "blue", "red", "orange", "purple", "pink", "gray"])
+  .enum([
+    "yellow",
+    "green",
+    "blue",
+    "red",
+    "orange",
+    "purple",
+    "pink",
+    "gray",
+    "cyan",
+    "lime",
+    "indigo",
+    "teal",
+    "amber",
+    "brown",
+    "magenta",
+    "olive",
+    "navy",
+    "coral",
+    "mint",
+    "slate",
+  ])
   .nullable()
   .optional();
 
@@ -155,6 +176,11 @@ export interface CategoryDto {
 
 export const setLimitSchema = z.object({
   normalAmount: z.string().regex(/^\d{1,15}$/), // bigint cents as string
+  // 0083: "No limit" — the category is unbounded for the months this segment
+  // covers. Optional and additive; absent means a normal limited row, so every
+  // existing client keeps working. Amounts are still required by the schema and
+  // are written as 0 when this is true.
+  noLimit: z.boolean().optional(),
   // 0061: the needs/wants split of normalAmount (= needs + wants). Optional —
   // the slider sends them so the split survives reopen; omitted → columns NULL.
   needsAmount: z
@@ -196,6 +222,8 @@ export interface CategoryLimitDto {
   cushionCurrency: string;
   needsAmount: string | null;
   wantsAmount: string | null;
+  /** 0083: unbounded for the months this segment covers. */
+  noLimit: boolean;
   effectiveFrom: string;
   effectiveTo: string | null;
   createdAt: string;

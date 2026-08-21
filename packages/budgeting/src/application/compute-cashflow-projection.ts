@@ -47,11 +47,11 @@ const specOf = (r: CadenceRow): CadenceSpec => ({
   yearlyMonth: r.yearly_month ?? undefined,
 });
 
-/** Backstop so a malformed cadence can never spin the projection loop forever. */
-export const MAX_PROJECTION_STEPS = 400;
-
 /** How far ahead the forecast looks: a rolling 100 days (user, 260812). */
 export const PROJECTION_WINDOW_DAYS = 100;
+
+/** Backstop so a malformed cadence can never spin the projection loop forever. */
+export const MAX_PROJECTION_STEPS = 400;
 
 /**
  * Occurrence ISO dates strictly after `afterExclusive`, up to and including `end`,
@@ -84,6 +84,7 @@ export function enumerateOccurrences(
   }
   return out;
 }
+
 
 export interface ComputeCashflowProjectionDeps {
   fxProvider: FxProvider;
@@ -190,6 +191,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
           SELECT cl.category_id::text AS category_id,
                  cl.normal_amount::text AS normal_amount,
                  cl.cushion_amount::text AS cushion_amount,
+                 cl.no_limit AS no_limit,
                  cl.effective_from::text AS effective_from,
                  cl.effective_to::text AS effective_to
             FROM budgeting.category_limits cl
@@ -324,6 +326,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       category_id: string;
       normal_amount: string;
       cushion_amount: string;
+      no_limit?: boolean;
       effective_from: string;
       effective_to: string | null;
     };
@@ -342,6 +345,15 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       if (!row) return 0n;
       return BigInt(L.cushionMode ? row.cushion_amount : row.normal_amount);
     };
+    // 0083: unbounded means no discretionary drip (its stored amounts are 0, so
+    // budgetAt already returns 0) AND no reserve draw — the latter needs saying
+    // explicitly, or the simulator reads a plan of 0 as "all of it is overspend".
+    const noLimitAt = (categoryId: string, onDate: string): boolean =>
+      (limitsByCat.get(categoryId) ?? []).find(
+        (l) =>
+          l.effective_from <= onDate &&
+          (l.effective_to === null || l.effective_to > onDate),
+      )?.no_limit === true;
 
     const categories: CashflowCategoryInput[] = (
       L.catRows as Record<string, string>[]
@@ -354,6 +366,10 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
         name: r.name,
         budgetByMonth,
         spentSoFarCents: spentById.get(r.id) ?? 0n,
+        // Any probed month unbounded → treat the window as unbounded. The flag
+        // is effective-dated but a 100-day window rarely straddles a flip, and
+        // erring this way keeps the forecast agreeing with the reserve engine.
+        noLimit: monthProbes.some((p) => noLimitAt(r.id, p.asOfDate)),
       };
     });
 

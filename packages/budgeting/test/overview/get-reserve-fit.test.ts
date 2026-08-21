@@ -397,21 +397,24 @@ describe("projected monthly cost", () => {
   });
 
   test("a yearly charge the history cannot account for is added", async () => {
-    // 12,000 every January is 1,000 a month of limit. A category that spends
-    // nothing else has nothing for it to hide inside, so the whole share is
-    // new money.
+    // 12,000 every January is 1,000 a month of what it COSTS. Read in March
+    // with an empty buffer there are ten months to the next one, so 1,000 a
+    // month does not get there — the limit has to carry 1,200 until the
+    // reserve exists (user, 260821; see "two routes to one place" below).
+    // With the buffer filled it is the 1,000 again.
     const row = await rowFor(CAT, projDeps([rule(1200000n, "YEARLY")], 0n));
-    expect(row?.projected_monthly_cents).toBe("100000");
+    expect(row?.projected_monthly_cents).toBe("120000");
   });
 
   test("…and its own charge is out of the habit, so it is not doubled", async () => {
     // The January it landed in is linked, so it never reached the habit; the
-    // monthly share is added once, from the rule.
+    // monthly share is added once, from the rule — and then carried over the
+    // ten months to the renewal, as above, because nothing is put by.
     const row = await rowFor(
       CAT,
       projDeps([rule(1200000n, "YEARLY")], 200000n, 250000n, 200000n),
     );
-    expect(row?.projected_monthly_cents).toBe("100000");
+    expect(row?.projected_monthly_cents).toBe("120000");
   });
 
   test("habit on top of the schedule adds up", async () => {
@@ -454,8 +457,12 @@ describe("projected monthly cost", () => {
       CAT,
       projDeps([{ ...rule(120000n, "YEARLY"), currency: "EUR" }], 0n, 0n),
     );
-    // 1,200 EUR once a year is 5,160 PLN — 430 a month of limit.
-    expect(yearly?.projected_monthly_cents).toBe("43000");
+    // 1,200 EUR once a year is 5,160 PLN — 430 a month of what it costs, and
+    // 516 a month of limit while there are only ten months to the renewal and
+    // nothing in the buffer (see "two routes to one place" below). What the
+    // conversion is being pinned here is the 5,160: an unconverted rule would
+    // read 1,200 PLN and ask for a tenth of that.
+    expect(yearly?.projected_monthly_cents).toBe("51600");
   });
 
   test("…and the RESERVE is sized in the budget's money too", async () => {
@@ -478,6 +485,133 @@ describe("projected monthly cost", () => {
       projDeps([rule(900000n, "ONCE", { next_due_date: "2026-06-10" })]),
     );
     expect(row?.projected_monthly_cents).toBe("500000");
+  });
+});
+
+/**
+ * Two levers, one place (user, 260821).
+ *
+ * A category is made safe either by putting money into its reserve or by
+ * raising its limit so the accrual fills the reserve month by month. They fund
+ * the same bills, so following EITHER piece of advice has to satisfy the other
+ * — otherwise the two screens argue. They did: a household added a 1,500 zł
+ * one-off to Car, the Future tab asked for 89 zł more limit, they gave it, and
+ * reserve-fit still said the buffer was 610 zł short. Future was answering a
+ * different question ("what does this cost me a month?") and the reserve was
+ * never in it.
+ *
+ * So the number Future shows is the habit projection RAISED, when it has to
+ * be, to the smallest limit at which the reserve requirement is no longer more
+ * than the reserve already holds. Never lowered by a surplus: what is spare in
+ * the buffer is a separate decision, and the same row already reports it.
+ */
+describe("the limit and the reserve are two routes to one place", () => {
+  const CAT = "cat-levers";
+
+  const leverDeps = (heldCents: bigint, rules: unknown[]) =>
+    deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return [
+            {
+              category_id: CAT,
+              name: "Levers",
+              created_month: "2025-01",
+              archived_month: null,
+              is_investment: false,
+            },
+          ];
+        },
+        async monthlyPlannedByCategory() {
+          return ["2026-01", "2026-02"].map((month) => ({
+            category_id: CAT,
+            month,
+            planned_cents: 20000n,
+            needs_cents: 20000n,
+          }));
+        },
+        async monthlySpendByCategory() {
+          return ["2026-01", "2026-02"].map((month) => ({
+            category_id: CAT,
+            month,
+            spent_cents: 20000n,
+            scheduled_cents: 0n,
+          }));
+        },
+      },
+      exclusionsRepo: {
+        async largeTransactions() {
+          return [];
+        },
+        async excludedSpendByCategory() {
+          return [];
+        },
+      },
+      activeScheduledPayments: async () => rules,
+      reservePositions: async () =>
+        ok({
+          positions: new Map(position(CAT, heldCents)),
+          openMonth: "2026-03",
+          internalCents: 0n,
+          userDefinedCents: 0n,
+          surplusCents: 0n,
+          direction: "NONE" as const,
+        }) as unknown as Result<never, Error>,
+    } as never);
+
+  /**
+   * 200 a month of habit against a 200 limit, and 1,200 of insurance every
+   * September. Read in March: six months to the renewal, twelve months of
+   * runway. The habit projection saves a TWELFTH of it a month (100), which is
+   * the honest monthly cost — and six of those twelfths do not pay a bill due
+   * in six months. The buffer covers that gap, and here there is no buffer.
+   */
+  const YEARLY_SEPT = [
+    {
+      category_id: CAT,
+      name: "Insurance",
+      amount_cents: 120000n,
+      currency: "PLN",
+      cadence: "YEARLY",
+      yearly_month: 9,
+      next_due_date: "2026-09-01",
+    },
+  ];
+
+  test("raises the limit until the reserve needs nothing more", async () => {
+    // 1,200 due in six months with nothing put by: the limit has to carry
+    // 200 a month of it on top of the 200 of habit. A twelfth (100) is what
+    // the bill costs; a sixth is what it costs to be READY for it.
+    const row = await rowFor(CAT, leverDeps(0n, YEARLY_SEPT));
+    expect(row?.projected_monthly_cents).toBe("40000");
+  });
+
+  test("following the Future number leaves the buffer covered", async () => {
+    // The invariant the whole change exists for. Whatever the arithmetic, the
+    // requirement AT the suggested limit can never exceed what is held — or
+    // the household does what one screen says and the other still complains.
+    const row = await rowFor(CAT, leverDeps(0n, YEARLY_SEPT));
+    expect(
+      BigInt(row!.suggested_needed_cents!) <= BigInt(row!.held_cents),
+    ).toBe(true);
+  });
+
+  test("filling the reserve instead brings the limit back to the habit", async () => {
+    // The other route. 1,200 in the buffer covers the renewal outright, so
+    // there is nothing left for the limit to save early: the projection is the
+    // honest monthly cost again, 200 of habit plus a twelfth of the bill.
+    const row = await rowFor(CAT, leverDeps(120000n, YEARLY_SEPT));
+    expect(row?.projected_monthly_cents).toBe("30000");
+    expect(
+      BigInt(row!.suggested_needed_cents!) <= BigInt(row!.held_cents),
+    ).toBe(true);
+  });
+
+  test("a surplus in the buffer does not pull the number below the habit", async () => {
+    // Money spare in the reserve is a separate question — held against needed,
+    // which the same row reports. It must not read as "this category is cheap".
+    const rich = await rowFor(CAT, leverDeps(5000000n, YEARLY_SEPT));
+    expect(rich?.projected_monthly_cents).toBe("30000");
   });
 });
 
@@ -1470,5 +1604,50 @@ describe("getReserveFit — what a surplus row would need at the suggested limit
     expect(held - Number(food!.suggested_needed_cents)).toBeLessThanOrEqual(
       held - Number(food!.needed_cents),
     );
+  });
+});
+
+// 0083 (user, 260820): House was told to hold 128,640 zł it can never need. An
+// unbounded category cannot be overspent, so no amount of reserve is ever
+// "needed" for it — but its stored limit is 0, and the trough walk reads a
+// limit of 0 as "every zloty of spend was overage".
+describe("getReserveFit — a No-limit category", () => {
+  // Food, not Sport: Sport's requirement is already 0 in this fixture, so
+  // flipping it would prove nothing.
+  const unboundedPlanned = planned.map((p) =>
+    p.category_id === CAT_FOOD
+      ? { ...p, planned_cents: 0n, needs_cents: 0n, no_limit: true }
+      : p,
+  );
+  const unboundedDeps = () =>
+    deps({
+      overviewRepo: {
+        async categoryWindows() {
+          return windows;
+        },
+        async monthlyPlannedByCategory() {
+          return unboundedPlanned;
+        },
+        async monthlySpendByCategory() {
+          return spend;
+        },
+      },
+    } as never);
+
+  test("needs no reserve at all", async () => {
+    const row = await rowFor(CAT_FOOD, unboundedDeps());
+    expect(row).toBeTruthy();
+    expect(row?.needed_cents).toBe("0");
+  });
+
+  test("proposes no limit to change to", async () => {
+    const row = await rowFor(CAT_FOOD, unboundedDeps());
+    expect(row?.suggested_limit_cents).toBeNull();
+  });
+
+  test("with its real limit the same category DOES need one", async () => {
+    // The control: same spend, same months, limit restored → non-zero.
+    const row = await rowFor(CAT_FOOD);
+    expect(row?.needed_cents).not.toBe("0");
   });
 });

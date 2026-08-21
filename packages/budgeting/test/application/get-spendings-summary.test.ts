@@ -61,7 +61,10 @@ function makeDeps(overrides: {
   categories?: any[];
   meta?: ReturnType<typeof makeMeta> | null;
   spend?: Map<string, bigint>;
-  limits?: Map<string, { planned: bigint; cushion: bigint }>;
+  limits?: Map<
+    string,
+    { planned: bigint; cushion: bigint; noLimit?: boolean }
+  >;
   /** Per-month SCD-2 limits keyed by 'YYYY-MM' — lets a test give May and June
    *  different budgets. Falls back to `limits` for unlisted months. */
   limitsByMonth?: Map<
@@ -596,5 +599,68 @@ describe("getSpendingsSummary", () => {
       expect(r.value.categories[0].reserveUsedCents).toBe("10000");
       expect(r.value.categories[0].overspentCents).toBe("20000");
     }
+  });
+});
+
+
+// 0083 (user, 260820): a No-limit category's implicit plan is WHAT IT SPENT,
+// counted entirely as needs. Earlier it was the category's scheduled payments;
+// that was reversed because the scheduled total is not what the month cost.
+describe("getSpendingsSummary — a No-limit category", () => {
+  const unbounded = () =>
+    makeDeps({
+      categories: [makeCategory(CAT_A, 0)],
+      spend: new Map([[CAT_A, 1463000n]]), // 14,630.00
+      limits: new Map([
+        [CAT_A, { planned: 0n, cushion: 0n, noLimit: true }],
+      ]),
+    });
+
+  it("plans exactly what it spent", async () => {
+    const r = await getSpendingsSummary(unbounded())({
+      tenantId: TENANT,
+      budgetId: BUDGET,
+      month: MONTH,
+    });
+    expect(r.isOk()).toBe(true);
+    if (!r.isOk()) return;
+    const c = r.value.categories[0];
+    expect(c.noLimit).toBe(true);
+    expect(c.plannedCents).toBe("1463000");
+    expect(c.spentCents).toBe("1463000");
+  });
+
+  it("counts all of it as needs, none as wants", async () => {
+    const r = await getSpendingsSummary(unbounded())({
+      tenantId: TENANT,
+      budgetId: BUDGET,
+      month: MONTH,
+    });
+    if (!r.isOk()) throw new Error("expected ok");
+    const c = r.value.categories[0];
+    expect(c.needsCents).toBe("1463000");
+    expect(c.wantsCents).toBe("0");
+  });
+
+  it("cannot be overspent", async () => {
+    const r = await getSpendingsSummary(unbounded())({
+      tenantId: TENANT,
+      budgetId: BUDGET,
+      month: MONTH,
+    });
+    if (!r.isOk()) throw new Error("expected ok");
+    expect(r.value.categories[0].overspentCents).toBe("0");
+  });
+
+  it("a limited category is unaffected", async () => {
+    const r = await getSpendingsSummary(
+      makeDeps({
+        categories: [makeCategory(CAT_A, 0)],
+        spend: new Map([[CAT_A, 5000n]]),
+        limits: new Map([[CAT_A, { planned: 10000n, cushion: 0n }]]),
+      }),
+    )({ tenantId: TENANT, budgetId: BUDGET, month: MONTH });
+    if (!r.isOk()) throw new Error("expected ok");
+    expect(r.value.categories[0].plannedCents).toBe("10000");
   });
 });

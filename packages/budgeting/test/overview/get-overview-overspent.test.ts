@@ -264,3 +264,58 @@ describe("getOverviewOverspent", () => {
     ]);
   });
 });
+
+// 0083: a "No limit" category is unbounded on purpose. The engine already
+// refuses to call its spend overage; this chart reads planned straight from the
+// repo, so without an explicit skip it computes spent − 0 − 0 and reports the
+// WHOLE spend as overspent — on the Overview home screen.
+describe("getOverviewOverspent — No-limit categories", () => {
+  const unbounded = (): GetOverviewOverspentDeps => {
+    const base = deps();
+    return {
+      ...base,
+      overviewRepo: {
+        ...base.overviewRepo,
+        async monthlySpendByCategory() {
+          return [{ category_id: "N", month: "2026-01", spent_cents: 500000n }];
+        },
+        async monthlyPlannedByCategory() {
+          return [
+            {
+              category_id: "N",
+              month: "2026-01",
+              planned_cents: 0n,
+              needs_cents: 0n,
+              no_limit: true,
+            },
+          ];
+        },
+        async categoryWindows() {
+          return [
+            {
+              category_id: "N",
+              name: "Gifts",
+              created_month: "2025-06",
+              archived_month: null,
+              is_investment: false,
+            },
+          ];
+        },
+      },
+    };
+  };
+
+  test("contribute nothing, however much was spent", async () => {
+    const dto = (
+      await getOverviewOverspent(unbounded())({
+        tenantId: "b1",
+        budgetId: "b1",
+        from: "2026-01-01",
+        to: "2026-03-31",
+      })
+    )._unsafeUnwrap();
+
+    expect(dto.overspent_by_category).toEqual([]);
+    expect(dto.overspent_total_cents).toBe("0");
+  });
+});

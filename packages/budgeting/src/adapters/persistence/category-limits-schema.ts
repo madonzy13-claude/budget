@@ -12,6 +12,7 @@ import {
   pgPolicy,
   uuid,
   bigint,
+  boolean,
   char,
   date,
   timestamp,
@@ -36,6 +37,11 @@ export const categoryLimits = budgeting.table(
     // category edit slider can prefill the split instead of collapsing to Needs.
     needsAmount: bigint("needs_amount", { mode: "bigint" }),
     wantsAmount: bigint("wants_amount", { mode: "bigint" }),
+    // 0083: unbounded for the months this segment covers — cannot be overspent,
+    // accrues nothing to the reserve. normal/cushion are 0 and unused while true.
+    // On the SCD-2 row, not on the category, so a month that ran with a real
+    // limit keeps its overspend when the flag is later toggled.
+    noLimit: boolean("no_limit").notNull().default(false),
     effectiveFrom: date("effective_from").notNull(),
     effectiveTo: date("effective_to"),
     actorUserId: uuid("actor_user_id").notNull(),

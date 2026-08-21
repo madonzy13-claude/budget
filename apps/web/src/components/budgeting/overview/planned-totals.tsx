@@ -119,6 +119,7 @@ function Figure({
 
 export function PlannedTotals({
   plannedCents,
+  plannedUnbounded,
   spentCents,
   withinLimitCents,
   reserveUsedCents,
@@ -130,6 +131,9 @@ export function PlannedTotals({
   months = 1,
 }: {
   plannedCents: string;
+  /** 0083: every selected category is unbounded, so "planned" is not a cap —
+   *  the figure renders as ∞ and the over/under comparison drops out. */
+  plannedUnbounded?: boolean;
   spentCents: string;
   withinLimitCents: string;
   reserveUsedCents: string;
@@ -192,7 +196,10 @@ export function PlannedTotals({
   const diff = spent - planned;
   // Under plan reads negative and green, over reads positive and red — the same
   // sign and colour the "How far off plan" bars use.
-  const pct = planned > 0n ? (Number(diff) / Number(planned)) * 100 : null;
+  const pct =
+    !plannedUnbounded && planned > 0n
+      ? (Number(diff) / Number(planned)) * 100
+      : null;
   const sign = diff > 0n ? "+" : diff < 0n ? "−" : "";
   const absDiff = diff < 0n ? -diff : diff;
 
@@ -216,8 +223,10 @@ export function PlannedTotals({
     {
       key: "planned",
       label: t("planned.totalPlanned"),
-      value: format(planned),
-      perMonth: per(planned),
+      // ∞ reuses the "no bound" glyph the retirement runway already renders for
+      // a null months value — the codebase should have exactly one such idiom.
+      value: plannedUnbounded ? "\u221E" : format(planned),
+      perMonth: plannedUnbounded ? undefined : per(planned),
     },
   ];
 
@@ -287,11 +296,13 @@ export function PlannedTotals({
           // The label names the direction rather than leaving the reader to work
           // it out from a sign (user, 260805); a dead heat is neither.
           label={t(
-            diff > 0n
-              ? "planned.overPlan"
-              : diff < 0n
-                ? "planned.underPlan"
-                : "planned.difference",
+            plannedUnbounded
+              ? "planned.difference"
+              : diff > 0n
+                ? "planned.overPlan"
+                : diff < 0n
+                  ? "planned.underPlan"
+                  : "planned.difference",
           )}
           // Level with the two totals beside it: leading a size up made this
           // column taller than the row (user, 260805).
@@ -300,7 +311,14 @@ export function PlannedTotals({
           pct={pct}
           // The AMOUNT is monthly like its neighbours; the percent is a ratio,
           // identical either way, so it stays as it was (user, 260805).
-          amount={`${sign}${format(months > 1 ? perMonth(absDiff) : absDiff)}`}
+          // 0083: nothing to be over or under. Quoting a difference against a
+          // plan that is not a cap invited exactly the misread in the user's
+          // screenshot — "Over plan —" with "+25,053 zł" sitting beneath it.
+          amount={
+            plannedUnbounded
+              ? "\u2014"
+              : `${sign}${format(months > 1 ? perMonth(absDiff) : absDiff)}`
+          }
           mask={maskValue}
           // Only while the range is this month alone: five days in, being under
           // says nothing. Reach back further and the colour returns (260803).

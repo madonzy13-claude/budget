@@ -372,3 +372,50 @@ describe("ColumnHeader", () => {
     });
   });
 });
+
+// 0083 (user, 260820): House showed "4,485 / ∞" for a month holding 14,630 of
+// spend — the "limit used" numerator clamps at plannedCents, and an unbounded
+// category has no cap to clamp to. The clamp must be skipped outright rather
+// than relying on plannedCents happening to equal the spend.
+describe("ColumnHeader — a No-limit category", () => {
+  const unbounded = {
+    ...summary,
+    // a stale/smaller plan must not clamp the numerator
+    plannedCents: "448500",
+    cushionCents: "450000",
+    activeBudgetCents: "448500",
+    spentCents: "1463000", // 14,630 — well past the scheduled total
+    noLimit: true,
+  };
+
+  it("counts ALL spend against the limit, not just the scheduled part", () => {
+    renderHeader({ summary: unbounded });
+    const row = screen.getByTestId("column-header-groceries-planned");
+    expect(row.textContent).toContain("14,630");
+    expect(row.textContent).not.toContain("4,485");
+  });
+
+  it("shows ∞ as the denominator", () => {
+    renderHeader({ summary: unbounded });
+    expect(
+      screen.getByTestId("column-header-groceries-planned").textContent,
+    ).toContain("∞");
+  });
+
+  it("dashes overspent and reserves-used", () => {
+    renderHeader({ summary: unbounded });
+    expect(
+      screen.getByTestId("column-header-groceries-overspent").textContent,
+    ).toBe("—");
+    expect(
+      screen.getByTestId("column-header-groceries-reserves-used").textContent,
+    ).toBe("—");
+  });
+
+  it("a limited category still clamps at its limit", () => {
+    renderHeader({ summary: { ...summary, spentCents: "50000" } });
+    const row = screen.getByTestId("column-header-groceries-planned");
+    // limit 100.00, spent 500.00 → "100 / 100", never "500 / 100"
+    expect(row.textContent).not.toContain("500");
+  });
+});

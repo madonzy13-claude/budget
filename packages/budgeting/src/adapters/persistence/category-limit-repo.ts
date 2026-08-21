@@ -22,6 +22,7 @@ function rowToDto(row: {
   cushion_currency: string;
   needs_amount?: string | bigint | null;
   wants_amount?: string | bigint | null;
+  no_limit?: boolean | null;
   effective_from: string | Date;
   effective_to: string | Date | null;
   actor_user_id: string;
@@ -43,6 +44,7 @@ function rowToDto(row: {
     cushionCurrency: row.cushion_currency,
     needsAmount: row.needs_amount == null ? null : String(row.needs_amount),
     wantsAmount: row.wants_amount == null ? null : String(row.wants_amount),
+    noLimit: row.no_limit === true,
     effectiveFrom: toDateStr(row.effective_from)!,
     effectiveTo: toDateStr(row.effective_to),
     actorUserId: row.actor_user_id,
@@ -86,6 +88,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
                 cushion_currency = ${input.cushionCurrency},
                 needs_amount = ${input.needsAmount ?? null}::bigint,
                 wants_amount = ${input.wantsAmount ?? null}::bigint,
+                no_limit = ${input.noLimit ?? false}::boolean,
                 actor_user_id = ${input.actorUserId}::uuid
             WHERE category_id = ${input.categoryId}::uuid AND effective_to IS NULL
           `);
@@ -101,12 +104,13 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
           await tx.execute(sql`
             INSERT INTO budgeting.category_limits
               (tenant_id, category_id, normal_amount, normal_currency,
-               cushion_amount, cushion_currency, needs_amount, wants_amount,
+               cushion_amount, cushion_currency, needs_amount, wants_amount, no_limit,
                effective_from, actor_user_id)
             VALUES (${input.tenantId}::uuid, ${input.categoryId}::uuid,
                     ${input.normalAmount}::bigint, ${input.normalCurrency},
                     ${input.cushionAmount}::bigint, ${input.cushionCurrency},
                     ${input.needsAmount ?? null}::bigint, ${input.wantsAmount ?? null}::bigint,
+                  ${input.noLimit ?? false}::boolean,
                     ${input.effectiveFrom}::date, ${input.actorUserId}::uuid)
           `);
         }
@@ -115,12 +119,13 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         await tx.execute(sql`
           INSERT INTO budgeting.category_limits
             (tenant_id, category_id, normal_amount, normal_currency,
-             cushion_amount, cushion_currency, needs_amount, wants_amount,
+             cushion_amount, cushion_currency, needs_amount, wants_amount, no_limit,
              effective_from, actor_user_id)
           VALUES (${input.tenantId}::uuid, ${input.categoryId}::uuid,
                   ${input.normalAmount}::bigint, ${input.normalCurrency},
                   ${input.cushionAmount}::bigint, ${input.cushionCurrency},
                   ${input.needsAmount ?? null}::bigint, ${input.wantsAmount ?? null}::bigint,
+                  ${input.noLimit ?? false}::boolean,
                   ${input.effectiveFrom}::date, ${input.actorUserId}::uuid)
         `);
       }
@@ -174,6 +179,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         cushionCurrency: input.cushionCurrency,
         needsAmount: input.needsAmount,
         wantsAmount: input.wantsAmount,
+        noLimit: input.noLimit,
         effectiveFrom: input.monthStart,
         actorUserId: input.actorUserId,
       });
@@ -198,6 +204,9 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         cushion_amount: string;
         normal_currency: string;
         cushion_currency: string;
+        needs_amount: string | null;
+        wants_amount: string | null;
+        no_limit: boolean;
         eff_to: string | null;
         from_before: boolean;
         is_exact: boolean;
@@ -206,6 +215,10 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         SELECT id,
                normal_amount::text, cushion_amount::text,
                normal_currency, cushion_currency,
+               -- 0061 split: the resume-INSERTs below rewrite the segment that
+               -- extends past this month, so they must carry it or a past-month
+               -- edit silently NULLs the LATER segment's needs/wants.
+               needs_amount::text, wants_amount::text, no_limit,
                effective_to::text AS eff_to,
                (effective_from < ${m}::date) AS from_before,
                (effective_from = ${m}::date
@@ -230,12 +243,13 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         tx.execute(sql`
           INSERT INTO budgeting.category_limits
             (tenant_id, category_id, normal_amount, normal_currency,
-             cushion_amount, cushion_currency, needs_amount, wants_amount,
+             cushion_amount, cushion_currency, needs_amount, wants_amount, no_limit,
              effective_from, effective_to, actor_user_id)
           VALUES (${input.tenantId}::uuid, ${input.categoryId}::uuid,
                   ${normal}::bigint, ${normalCur},
                   ${cushion}::bigint, ${cushionCur},
                   ${input.needsAmount ?? null}::bigint, ${input.wantsAmount ?? null}::bigint,
+                  ${input.noLimit ?? false}::boolean,
                   ${m}::date, (${m}::date + INTERVAL '1 month' - INTERVAL '1 day'), ${input.actorUserId}::uuid)
         `);
 
@@ -257,6 +271,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
               cushion_currency = ${input.cushionCurrency},
               needs_amount = ${input.needsAmount ?? null}::bigint,
               wants_amount = ${input.wantsAmount ?? null}::bigint,
+              no_limit = ${input.noLimit ?? false}::boolean,
               actor_user_id = ${input.actorUserId}::uuid
           WHERE id = ${S.id}::uuid
         `);
@@ -273,20 +288,24 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
             await tx.execute(sql`
               INSERT INTO budgeting.category_limits
                 (tenant_id, category_id, normal_amount, normal_currency,
-                 cushion_amount, cushion_currency, effective_from, actor_user_id)
+                 cushion_amount, cushion_currency, needs_amount, wants_amount, no_limit,
+                 effective_from, actor_user_id)
               VALUES (${input.tenantId}::uuid, ${input.categoryId}::uuid,
                       ${S.normal_amount}::bigint, ${S.normal_currency},
                       ${S.cushion_amount}::bigint, ${S.cushion_currency},
+                      ${S.needs_amount}::bigint, ${S.wants_amount}::bigint, ${S.no_limit}::boolean,
                       (${m}::date + INTERVAL '1 month'), ${input.actorUserId}::uuid)
             `);
           } else {
             await tx.execute(sql`
               INSERT INTO budgeting.category_limits
                 (tenant_id, category_id, normal_amount, normal_currency,
-                 cushion_amount, cushion_currency, effective_from, effective_to, actor_user_id)
+                 cushion_amount, cushion_currency, needs_amount, wants_amount, no_limit,
+                 effective_from, effective_to, actor_user_id)
               VALUES (${input.tenantId}::uuid, ${input.categoryId}::uuid,
                       ${S.normal_amount}::bigint, ${S.normal_currency},
                       ${S.cushion_amount}::bigint, ${S.cushion_currency},
+                      ${S.needs_amount}::bigint, ${S.wants_amount}::bigint, ${S.no_limit}::boolean,
                       (${m}::date + INTERVAL '1 month'), ${S.eff_to}::date, ${input.actorUserId}::uuid)
             `);
           }
@@ -357,7 +376,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         SELECT id, tenant_id::text, category_id::text,
                normal_amount::text, normal_currency,
                cushion_amount::text, cushion_currency,
-               needs_amount::text, wants_amount::text,
+               needs_amount::text, wants_amount::text, no_limit,
                effective_from, effective_to,
                actor_user_id::text, created_at
         FROM budgeting.category_limits
@@ -387,6 +406,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         cushion: bigint;
         needs: bigint | null;
         wants: bigint | null;
+        noLimit: boolean;
       }
     >
   > {
@@ -401,9 +421,10 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         cushion_amount: string;
         needs_amount: string | null;
         wants_amount: string | null;
+        no_limit: boolean;
       }>(sql`
         SELECT category_id::text, normal_amount::text, cushion_amount::text,
-               needs_amount::text, wants_amount::text
+               needs_amount::text, wants_amount::text, no_limit
           FROM budgeting.category_limits
          WHERE tenant_id = ${tenantId}::uuid
            AND effective_from <= ${monthStart}::date
@@ -420,6 +441,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         cushion: bigint;
         needs: bigint | null;
         wants: bigint | null;
+        noLimit: boolean;
       }
     >();
     for (const row of r.value) {
@@ -428,6 +450,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         cushion: BigInt(row.cushion_amount),
         needs: row.needs_amount == null ? null : BigInt(row.needs_amount),
         wants: row.wants_amount == null ? null : BigInt(row.wants_amount),
+        noLimit: row.no_limit === true,
       });
     }
     return m;
@@ -457,7 +480,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         SELECT id, tenant_id::text, category_id::text,
                normal_amount::text, normal_currency,
                cushion_amount::text, cushion_currency,
-               needs_amount::text, wants_amount::text,
+               needs_amount::text, wants_amount::text, no_limit,
                effective_from, effective_to,
                actor_user_id::text, created_at
         FROM budgeting.category_limits

@@ -910,6 +910,9 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       // mig 0061: persisted needs/wants split prefills the slider's split exactly.
       needsCents: s?.needsCents ?? null,
       wantsCents: s?.wantsCents ?? null,
+      // 0083: so reopening the editor shows the category as it stands rather
+      // than defaulting the toggle off and inviting a silent re-limiting.
+      noLimit: s?.noLimit ?? false,
       // 260613-v1p: iconKey dropped from the slider initial (icon picker removed).
       colorKey: cat.colorKey,
       // mig 0059: persisted cushion mode prefills the slider's Cushion selector.

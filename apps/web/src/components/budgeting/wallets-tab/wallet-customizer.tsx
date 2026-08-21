@@ -35,6 +35,8 @@ import {
   Watch,
   Bike,
   Ship,
+  Gift,
+  Smartphone,
 } from "lucide-react";
 import {
   Popover,
@@ -62,6 +64,15 @@ const PALETTE: { key: string; value: string }[] = [
   { key: "sky", value: "#4cc9f0" },
   { key: "indigo", value: "#5a67d8" },
   { key: "pink", value: "#e879f9" },
+  // 260820: eight more, so the row of eight becomes two full rows.
+  { key: "orange", value: "#fb8500" },
+  { key: "lime", value: "#80b918" },
+  { key: "emerald", value: "#2d6a4f" },
+  { key: "cyan", value: "#48cae4" },
+  { key: "blue", value: "#3a86ff" },
+  { key: "violet", value: "#8338ec" },
+  { key: "rose", value: "#ff006e" },
+  { key: "slate", value: "#6c757d" },
 ];
 
 export interface IconOption {
@@ -95,6 +106,9 @@ const ICONS: IconOption[] = [
   { name: "watch", Icon: Watch },
   { name: "bike", Icon: Bike },
   { name: "boat", Icon: Ship },
+  // 260820: two more to square the 6-wide grid off at four full rows.
+  { name: "gift", Icon: Gift },
+  { name: "phone", Icon: Smartphone },
 ];
 
 export function iconByName(name: string | null | undefined) {

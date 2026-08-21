@@ -133,8 +133,16 @@ export function getOverviewOverspent(deps: GetOverviewOverspentDeps) {
       for (const s of spend)
         spentKey.set(`${s.category_id}|${s.month}`, s.spent_cents);
       const plannedKey = new Map<string, bigint>();
-      for (const p of planned)
+      // 0083: months the category ran unbounded. Tracked separately because a
+      // no-limit row stores planned 0, and `spent − 0 − used` would report the
+      // whole spend as overspent — the loudest possible wrong number, on the
+      // home screen. Per MONTH, not per category: the flag is effective-dated,
+      // so a month that ran with a real limit keeps its overspend.
+      const noLimitKey = new Set<string>();
+      for (const p of planned) {
         plannedKey.set(`${p.category_id}|${p.month}`, p.planned_cents);
+        if (p.no_limit === true) noLimitKey.add(`${p.category_id}|${p.month}`);
+      }
 
       // reserve_used per (category, month) from the engine cells.
       const reserveUsed = (catId: string, month: string): bigint =>
@@ -154,6 +162,7 @@ export function getOverviewOverspent(deps: GetOverviewOverspentDeps) {
           );
           let over = 0n;
           for (const m of activeMonths) {
+            if (noLimitKey.has(`${w.category_id}|${m}`)) continue; // unbounded
             const spent = spentKey.get(`${w.category_id}|${m}`) ?? 0n;
             const activeLimit = plannedKey.get(`${w.category_id}|${m}`) ?? 0n;
             const used = reserveUsed(w.category_id, m);
