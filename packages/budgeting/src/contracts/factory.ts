@@ -3,6 +3,8 @@
  * Wires adapters to ports. Plans 02-04..02-09 extend this incrementally.
  */
 import { FrankfurterFxProvider } from "../adapters/fx/frankfurter";
+import { CacheOnlyFxProvider } from "../adapters/fx/cache-only";
+import type { FxProvider } from "@budget/shared-kernel";
 import { DrizzleAccountRepo } from "../adapters/persistence/account-repo";
 import { DrizzleCategoryRepo } from "../adapters/persistence/category-repo";
 import { DrizzleCategoryLimitRepo } from "../adapters/persistence/category-limit-repo";
@@ -72,10 +74,22 @@ import { createReserveEventLoaderRepo } from "../adapters/persistence/reserve-ev
 
 export interface BudgetingDeps {
   fxCache: FxRateCacheRepo;
+  /**
+   * Opt in to LIVE FX fetching. Only the worker may set this.
+   *
+   * Default is cache-only, on purpose: FrankfurterFxProvider falls back to
+   * https://api.frankfurter.dev on a cache miss, and this factory hands its
+   * fxProvider to every API use case — so leaving live fetch as the default put
+   * a third-party HTTP call inside user requests. Rates are refreshed hourly by
+   * the worker; everything else reads what the worker stored.
+   */
+  liveFx?: boolean;
 }
 
 export interface BudgetingModule {
-  fxProvider: FrankfurterFxProvider;
+  // The PORT, not a concrete adapter: the API gets CacheOnlyFxProvider and the
+  // worker gets FrankfurterFxProvider, and no consumer should care which.
+  fxProvider: FxProvider;
   // Wallet methods (renamed from account in Plan 01-02/01-03)
   createWallet: ReturnType<typeof createWallet>;
   archiveWallet: ReturnType<typeof archiveWallet>;
@@ -185,7 +199,10 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
   const transactionRepo = new DrizzleTransactionRepo(repo, projectionRepo);
   const scheduledPaymentRepo = new DrizzleScheduledPaymentRepo();
   const scheduledDraftRepo = new ExpenseLedgerDraftRepo();
-  const fxProvider = new FrankfurterFxProvider(deps.fxCache);
+  // Cache-only unless the caller explicitly asks to fetch (worker only).
+  const fxProvider = deps.liveFx
+    ? new FrankfurterFxProvider(deps.fxCache)
+    : new CacheOnlyFxProvider(deps.fxCache);
   // Plan 05-03: new repos
   const adjustmentsRepo = new DrizzleCategoryReserveAdjustmentsRepo();
   const reservesSummaryRepo = new DrizzleReservesSummaryRepo();

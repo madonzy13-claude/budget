@@ -188,6 +188,136 @@ describe("CategoryLimit SCD-2 effective-dated logic", () => {
     expect(result.rows[0].count).toBe("1");
   });
 
+  test("past-month edit preserves the needs/wants split on the RESUMED segment", async () => {
+    // Its own category: the tests above share one and mutate it in sequence.
+    const splitCat = crypto.randomUUID();
+    const r = await withTenantTx(
+      TenantId(TEST_TENANT),
+      UserId(TEST_USER),
+      async (tx) => {
+        await tx.execute(sql`
+          INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id)
+          VALUES (${splitCat}::uuid, ${TEST_TENANT}::uuid, 'Split', now(), ${TEST_USER}::uuid)
+        `);
+      },
+    );
+    if (r.isErr()) throw r.error;
+
+    // One open segment from Jan, planned 1000 = needs 600 + wants 400.
+    await limitRepo.setLimit({
+      tenantId: TEST_TENANT,
+      categoryId: splitCat,
+      normalAmount: "100000",
+      normalCurrency: "EUR",
+      cushionAmount: "80000",
+      cushionCurrency: "EUR",
+      needsAmount: "60000",
+      wantsAmount: "40000",
+      effectiveFrom: "2026-01-01",
+      actorUserId: TEST_USER,
+    });
+
+    // Edit MARCH only. Jan–Feb and Apr-onward must keep the original values —
+    // including their split, which the resume-INSERT currently drops.
+    await limitRepo.setLimitForMonth({
+      tenantId: TEST_TENANT,
+      categoryId: splitCat,
+      monthStart: "2026-03-01",
+      normalAmount: "50000",
+      normalCurrency: "EUR",
+      cushionAmount: "40000",
+      cushionCurrency: "EUR",
+      needsAmount: "30000",
+      wantsAmount: "20000",
+      actorUserId: TEST_USER,
+      carryForward: false,
+    });
+
+    const march = await limitRepo.getEffectiveLimit(
+      TEST_TENANT,
+      splitCat,
+      "2026-03-15",
+    );
+    expect(march!.normalAmount).toBe("50000");
+    expect(march!.needsAmount).toBe("30000");
+    expect(march!.wantsAmount).toBe("20000");
+
+    // The resumed segment (Apr onward) — the regression lives here.
+    const april = await limitRepo.getEffectiveLimit(
+      TEST_TENANT,
+      splitCat,
+      "2026-04-15",
+    );
+    expect(april!.normalAmount).toBe("100000");
+    expect(april!.needsAmount).toBe("60000");
+    expect(april!.wantsAmount).toBe("40000");
+  });
+
+  test("a No-limit segment round-trips and survives a past-month split", async () => {
+    const cat = crypto.randomUUID();
+    const r = await withTenantTx(
+      TenantId(TEST_TENANT),
+      UserId(TEST_USER),
+      async (tx) => {
+        await tx.execute(sql`
+          INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id)
+          VALUES (${cat}::uuid, ${TEST_TENANT}::uuid, 'Gifts', now(), ${TEST_USER}::uuid)
+        `);
+      },
+    );
+    if (r.isErr()) throw r.error;
+
+    // Unbounded from January. Amounts are 0 and unused while the flag is on.
+    await limitRepo.setLimit({
+      tenantId: TEST_TENANT,
+      categoryId: cat,
+      normalAmount: "0",
+      normalCurrency: "EUR",
+      cushionAmount: "0",
+      cushionCurrency: "EUR",
+      noLimit: true,
+      effectiveFrom: "2026-01-01",
+      actorUserId: TEST_USER,
+    });
+    const jan = await limitRepo.getEffectiveLimit(
+      TEST_TENANT,
+      cat,
+      "2026-01-15",
+    );
+    expect(jan!.noLimit).toBe(true);
+
+    // Give MARCH a real limit, that month only.
+    await limitRepo.setLimitForMonth({
+      tenantId: TEST_TENANT,
+      categoryId: cat,
+      monthStart: "2026-03-01",
+      normalAmount: "50000",
+      normalCurrency: "EUR",
+      cushionAmount: "40000",
+      cushionCurrency: "EUR",
+      noLimit: false,
+      actorUserId: TEST_USER,
+      carryForward: false,
+    });
+
+    const march = await limitRepo.getEffectiveLimit(
+      TEST_TENANT,
+      cat,
+      "2026-03-15",
+    );
+    expect(march!.noLimit).toBe(false);
+    expect(march!.normalAmount).toBe("50000");
+
+    // April must RESUME being unbounded. If the resume-INSERT drops the flag the
+    // category silently gets a hard limit of 0 and every later spend is overspend.
+    const april = await limitRepo.getEffectiveLimit(
+      TEST_TENANT,
+      cat,
+      "2026-04-15",
+    );
+    expect(april!.noLimit).toBe(true);
+  });
+
   test("property: for any date in history, exactly one row matches PIT predicate", async () => {
     const testDates = [
       "2026-01-01",

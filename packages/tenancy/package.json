@@ -17,12 +17,12 @@
     "@budget/platform": "workspace:*",
     "@budget/identity": "workspace:*",
     "big.js": "^7.0.1",
-    "nanoid": "^5",
-    "better-auth": "^1.6.25",
+    "nanoid": "^6",
+    "better-auth": "1.6.28",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
     "@budget/db": "workspace:*",
-    "@types/big.js": "^6.2.2"
+    "@types/big.js": "^7.0.0"
   }
 }

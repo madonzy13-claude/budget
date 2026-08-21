@@ -5,9 +5,14 @@ import {
   appPool,
   withInfraTx,
 } from "@budget/platform";
+import { startTracing } from "@budget/platform/otel";
 import { sql } from "drizzle-orm";
 import { handleOutboxTick } from "./handlers/outbox-dispatch";
-import { registerFxDailyFetch } from "./handlers/fx-daily-fetch";
+import {
+  registerFxDailyFetch,
+  FX_FETCH_QUEUE,
+  FX_FETCH_CRON,
+} from "./handlers/fx-daily-fetch";
 import { registerIdempotencyCleanup } from "./handlers/idempotency-cleanup";
 import { registerScheduledEngine } from "./handlers/scheduled-payment-engine";
 import { registerBudgetingReconciliation } from "./handlers/budgeting-reconciliation";
@@ -184,6 +189,11 @@ const DEFAULT_INVESTMENT_UNIVERSE: InstrumentUpsert[] = [
 ];
 
 async function main() {
+  // Before getBoss(): pg-boss and the repos construct pg Pools, and
+  // PgInstrumentation must be registered first to patch node-postgres. No-op
+  // unless OTEL_EXPORTER_OTLP_ENDPOINT is set.
+  startTracing({ serviceName: "budget-worker" });
+
   const boss = await getBoss();
 
   // Outbox dispatcher
@@ -197,13 +207,18 @@ async function main() {
   );
   await boss.schedule("outbox-dispatch", "*/1 * * * *");
 
-  // FX daily fetcher — 17:00 Europe/Berlin (after Frankfurter publishes ~16:00 CET)
+  // FX fetcher — hourly. The API is cache-only now, so anything this job has
+  // not stored is served as a stale-flagged prior rate.
   const fxCache = new DrizzleFxRateCacheRepo(workerPool());
-  const { fxProvider, reservePositions } = createBudgetingModule({ fxCache });
-  await boss.createQueue("fx-daily-fetch");
-  await boss.schedule("fx-daily-fetch", "0 17 * * *", null, {
-    tz: "Europe/Berlin",
+  // liveFx: the WORKER is the only process allowed to fetch rates upstream.
+  // Everything else (the API) gets CacheOnlyFxProvider and reads what this job
+  // stored — no third-party HTTP call inside a user request.
+  const { fxProvider, reservePositions } = createBudgetingModule({
+    fxCache,
+    liveFx: true,
   });
+  await boss.createQueue(FX_FETCH_QUEUE);
+  await boss.schedule(FX_FETCH_QUEUE, FX_FETCH_CRON, null, { tz: "UTC" });
   registerFxDailyFetch(
     boss as unknown as Parameters<typeof registerFxDailyFetch>[0],
     fxProvider,
@@ -474,7 +489,7 @@ async function main() {
   });
 
   console.log(
-    `[worker] booted; outbox-dispatch polling=5s schedule=*/1m; fx-daily-fetch schedule=0 17 * * * Europe/Berlin; scheduled-payment-engine schedule=0 6 * * * UTC; budgeting-reconciliation schedule=0 * * * * UTC; instrument-price-scan schedule=${PRICE_SCAN_CRON} UTC; instruments-daily-seed schedule=0 18 * * * Europe/Berlin; investment-snapshot-daily schedule=30 17 * * * Europe/Berlin`,
+    `[worker] booted; outbox-dispatch polling=5s schedule=*/1m; fx-daily-fetch schedule=${FX_FETCH_CRON} UTC; scheduled-payment-engine schedule=0 6 * * * UTC; budgeting-reconciliation schedule=0 * * * * UTC; instrument-price-scan schedule=${PRICE_SCAN_CRON} UTC; instruments-daily-seed schedule=0 18 * * * Europe/Berlin; investment-snapshot-daily schedule=30 17 * * * Europe/Berlin`,
   );
 
   process.on("SIGTERM", async () => {

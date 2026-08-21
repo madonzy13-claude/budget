@@ -127,3 +127,21 @@ describe("Overview amount privacy (per-figure slot reveal, r41)", () => {
     expect(heroNum.textContent ?? "").toMatch(/\d/);
   });
 });
+
+/**
+ * The slot pads itself by the blur radius so the fuzzy edges of the outer
+ * characters are not clipped. That padding is layout, and on a RIGHT-aligned
+ * stack it pushed the number 0.22em left of the plain-text label beside it —
+ * the day P/L read visibly out of line with "since yesterday" (user, 260819).
+ * The start side has been cancelled since 260723; the end side must match.
+ */
+describe("SlotAmount padding does not shift the amount out of alignment", () => {
+  it("cancels BOTH the leading and trailing blur padding with negative margins", () => {
+    renderCards();
+    const slot = heroSlot()!;
+    const pad = slot.style.paddingInline;
+    expect(pad).toBeTruthy();
+    expect(slot.style.marginInlineStart).toBe(`-${pad}`);
+    expect(slot.style.marginInlineEnd).toBe(`-${pad}`);
+  });
+});

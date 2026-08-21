@@ -14,6 +14,9 @@ export interface SetLimitInput {
   // omitted → columns left NULL (legacy: needs = normal, wants = 0).
   needsAmount?: string;
   wantsAmount?: string;
+  // 0083: unbounded — cannot be overspent, accrues nothing. Amounts are written
+  // as 0 and unused while true. Optional; absent means a normal limited row.
+  noLimit?: boolean;
   effectiveFrom: string; // YYYY-MM-DD
   actorUserId: string;
 }
@@ -28,6 +31,7 @@ export interface CategoryLimitRow {
   cushionCurrency: string;
   needsAmount: string | null;
   wantsAmount: string | null;
+  noLimit: boolean;
   effectiveFrom: string;
   effectiveTo: string | null;
   actorUserId: string;
@@ -44,6 +48,7 @@ export interface SetLimitForMonthInput {
   cushionCurrency: string;
   needsAmount?: string;
   wantsAmount?: string;
+  noLimit?: boolean;
   actorUserId: string;
   /**
    * true  → carry forward from this month (current/latest-month edit): the value
@@ -88,6 +93,8 @@ export interface CategoryLimitRepo {
         cushion: bigint;
         needs: bigint | null;
         wants: bigint | null;
+        /** 0083: unbounded this month — planned/cushion are 0 and meaningless. */
+        noLimit: boolean;
       }
     >
   >;

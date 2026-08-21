@@ -259,8 +259,15 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         excludedByCell.set(`${r.category_id}|${r.month}`, r.cents);
 
       const limitByCell = new Map<string, bigint>();
-      for (const p of planned)
+      // 0083: months the category ran unbounded. It stores a limit of 0, and
+      // the trough walk below reads a limit of 0 as "every zloty of spend was
+      // overage" — House was quoted 128,640 zł of reserve it can never need
+      // (user, 260820).
+      const noLimitByCell = new Map<string, boolean>();
+      for (const p of planned) {
         limitByCell.set(`${p.category_id}|${p.month}`, p.planned_cents);
+        noLimitByCell.set(`${p.category_id}|${p.month}`, p.no_limit === true);
+      }
       const spendByCell = new Map<string, bigint>();
       const scheduledByCell = new Map<string, bigint>();
       for (const s of spend) {
@@ -412,6 +419,11 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       };
 
       const rows: ReserveFitRowDTO[] = [];
+      /** The figure each row settled on, so the Future chart draws the same one
+       *  the reserve tooltip does — the whole point of there being ONE number.
+       *  A category with no row here holds no reserve to be short of, so its
+       *  habit projection IS its answer. */
+      const projectedByCat = new Map<string, bigint>();
       for (const w of windows) {
         const position = positions.get(w.category_id);
         // No position at all = the engine does not track it (archived before the
@@ -445,6 +457,17 @@ export function getReserveFit(deps: GetReserveFitDeps) {
             .filter((v): v is bigint => v !== undefined)
             .pop() ??
           0n;
+        // 0083: unbounded TODAY — same "current" rule as currentLimit above. A
+        // category that cannot be overspent can never need a reserve, whatever
+        // its history looks like against a stored limit of 0.
+        const isUnbounded =
+          noLimitByCell.get(`${w.category_id}|${nowMonth}`) ??
+          [...all]
+            .sort()
+            .map((m) => noLimitByCell.get(`${w.category_id}|${m}`))
+            .filter((v): v is boolean => v !== undefined)
+            .pop() ??
+          false;
         // Half a month of spend against a whole month of limit fakes a surplus
         // that refills the walk, so the month still running is left out — unless
         // it is the only month there is, when a weak signal beats none at all
@@ -530,7 +553,10 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         const categoryRules = rules.filter(
           (r) => r.category_id === w.category_id,
         );
-        const projected = projectedFor(w);
+        // …the HABIT half of it. What the limit must also carry while the
+        // buffer is short is added once the requirement below can be walked
+        // (see `sufficientLimit`).
+        const habitProjection = projectedFor(w);
 
         // The rules in full: the baseline above has had them taken out of
         // every month, whether the ledger named them or not, so counting them
@@ -546,7 +572,9 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // a category whose own limit comfortably funds its future still read as
         // short (user, 260807). Counting the accrual the current limit already
         // produces makes this and the suggestion below one function: the
-        // suggested limit is exactly the limit at which this equals `held`.
+        // suggested limit is the smallest limit at which this is no more than
+        // `held` (see `sufficientLimit`), so "add the money" and "raise the
+        // limit" are two routes to one place rather than two verdicts.
         //
         // …with a FLOOR: whatever the projection above stopped asking the limit
         // to save for, because this reserve is already holding it, the reserve
@@ -568,6 +596,8 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // lib/reserve-fit-rows.ts); the DTO reports both, and history is
         // re-walked for the second because it moves with the limit too.
         const neededAt = (limitCents: bigint): bigint => {
+          // Nothing to cover: no cap means no overspend, in history or ahead.
+          if (isUnbounded) return 0n;
           const walked = reserveNeededToday({
             baselineSpendCents: baselineSpend,
             commitmentsByMonth: forward,
@@ -580,6 +610,46 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           });
           return walked > earmarked ? walked : earmarked;
         };
+
+        // TWO LEVERS, ONE PLACE (user, 260821). A category is made safe either
+        // by putting money into its reserve or by raising its limit so the
+        // accrual fills the reserve month by month. They fund the same bills,
+        // so following EITHER piece of advice has to satisfy the other. It did
+        // not: a household added a 1,500 one-off to Car, the Future tab asked
+        // for 89 more limit, they gave it, and reserve-fit still said the
+        // buffer was 610 short. Future was answering a different question —
+        // what does this cost me a month? — and the reserve was never in it.
+        //
+        // So the habit projection is a FLOOR, not the answer: raise it, when it
+        // has to be raised, to the smallest limit whose accrual leaves the
+        // requirement no bigger than what is already held. Never lower it: what
+        // is spare in the buffer is a separate decision, and the same row
+        // already reports it as held-against-needed.
+        //
+        // `neededAt` is non-increasing in the limit — more accrual, and a
+        // shallower historical trough — so a bisection finds that limit. It
+        // always exists: an accrual as large as everything the runway owes
+        // clears the walk in its first month, and below that `neededAt` settles
+        // at `earmarked`, which can never exceed what is held.
+        const sufficientLimit = (floor: bigint): bigint => {
+          const held = position.reserveCents;
+          if (neededAt(floor) <= held) return floor;
+          const cap =
+            baselineSpend +
+            forward.reduce((acc, c) => acc + c, 0n) +
+            past.neededCents +
+            1n;
+          let lo = floor;
+          let hi = cap > floor ? cap : floor;
+          while (lo < hi) {
+            const mid = lo + (hi - lo) / 2n;
+            if (neededAt(mid) <= held) hi = mid;
+            else lo = mid + 1n;
+          }
+          return lo;
+        };
+        const projected = sufficientLimit(habitProjection);
+        projectedByCat.set(w.category_id, projected);
         // No current limit means nothing to suggest a change TO — the row is
         // already being judged on its own history (see currentLimit above).
         //
@@ -597,15 +667,15 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // while the Future chart drew a different X from the projection — two
         // numbers for one decision, on two screens a tap apart.
         //
-        // The projection is the one that survives, because it is the answer to
-        // the question the household actually asks: what does this category
-        // cost me a month? The walk's extra input was what the reserve already
-        // holds, and that is a separate question — held against needed, which
-        // the same row still reports.
+        // The projection is the one that survives — but it is the SOLVENT
+        // projection (see `sufficientLimit`): the habit, raised while the
+        // buffer is short of what the runway needs. One number, and following
+        // it settles both screens (user, 260821).
         // …and nothing at all when today's limit already IS it: a suggestion
         // that changes nothing is noise on every row of the chart. Under a
         // whole unit is not a change.
         const suggestionWorthMaking =
+          !isUnbounded &&
           hasClosedMonth &&
           scopeMonths.length > 0 &&
           (projected - currentLimit > 99n || currentLimit - projected > 99n);
@@ -698,7 +768,9 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // earned a reserve row (see the DTO).
         projected_by_category: windows.map((w) => ({
           category_id: w.category_id,
-          projected_monthly_cents: projectedFor(w).toString(),
+          projected_monthly_cents: (
+            projectedByCat.get(w.category_id) ?? projectedFor(w)
+          ).toString(),
         })),
         // …and every large spend that could be set aside, from every category
         // (see the DTO). Biggest first, as the dialog lists them.

@@ -160,6 +160,7 @@ export function mapInputsToEvents(
           month,
           normalCents: lim.plannedCents,
           cushionCents: lim.cushionCents,
+          noLimit: lim.noLimit,
         });
       }
     }

@@ -174,6 +174,33 @@ export function roundsToZero(cents: number | bigint): boolean {
   return abs < 50n;
 }
 
+/**
+ * P/L amount — cents kept below 100 units, whole units above.
+ *
+ * A night that moved +17 gr printed "0 zł" next to a green arrow: the card
+ * claimed a gain and showed none (user, 260819). Small P/L IS the cents; large
+ * P/L sits beside a four-figure hero number where cents are only width.
+ */
+const PL_CENTS_THRESHOLD = 10_000n; // 100 units
+
+export function centsToPlAmount(
+  cents: string | bigint,
+  currency: string,
+  locale = "en",
+  narrow = false,
+): string {
+  let big: bigint;
+  try {
+    big = typeof cents === "string" ? BigInt(cents) : cents;
+  } catch {
+    big = 0n;
+  }
+  const abs = big < 0n ? -big : big;
+  return abs < PL_CENTS_THRESHOLD
+    ? centsToDisplayCompact(big, currency, locale, narrow)
+    : centsToRounded(big, currency, locale, narrow);
+}
+
 export function centsToRounded(
   cents: string | bigint,
   currency: string,

@@ -12,6 +12,8 @@ COMPOSE := docker compose --env-file .env $(ENV_FILE_LOCAL)
 INFISICAL := infisical run --env=$(ENV) --
 
 .PHONY: dev dev-build build-% stop down destroy logs ps build restart \
+        perf-top perf-slow perf-window perf-reset \
+        obs-up obs-down obs-traces \
         migrate seed shell-db \
         test test-watch test-e2e test-clean ci-gate \
         lint typecheck fmt \
@@ -100,6 +102,58 @@ ci-gate: ## Run tenant-leak CI gate (needs local postgres)
 test-clean: ## Remove leaked test postgres containers (orphans from killed test runs)
 	@$(INFISICAL) sh -c 'docker ps -aq --filter "label=budget-testcontainer=1" | xargs -r docker rm -fv'
 	@echo "leaked testcontainers removed"
+
+# ── Performance ───────────────────────────────────────────────────────────────
+# One command for "what is slow". Reads pg_stat_statements, which collects
+# cluster-wide since the last reset — on a dev box that includes E2E traffic, so
+# read TOTAL time for "where does the DB spend its life" and MEAN for "which
+# single query is expensive". PERF_LIMIT=n to widen.
+PERF_LIMIT ?= 15
+
+perf-top: ## Top queries by TOTAL execution time (pg_stat_statements)
+	@docker exec budget-db-1 psql -U postgres -d budget -c "\
+	  SELECT round(total_exec_time::numeric/1000,1) AS total_s, calls, \
+	         round(mean_exec_time::numeric,1) AS mean_ms, \
+	         left(regexp_replace(query,'\s+',' ','g'),90) AS query \
+	  FROM pg_stat_statements \
+	  WHERE query NOT LIKE '%pg_stat_statements%' \
+	  ORDER BY total_exec_time DESC LIMIT $(PERF_LIMIT);"
+
+perf-slow: ## Slowest queries per call, min 20 calls (pg_stat_statements)
+	@docker exec budget-db-1 psql -U postgres -d budget -c "\
+	  SELECT round(mean_exec_time::numeric,1) AS mean_ms, calls, \
+	         round(total_exec_time::numeric/1000,1) AS total_s, \
+	         left(regexp_replace(query,'\s+',' ','g'),90) AS query \
+	  FROM pg_stat_statements \
+	  WHERE calls >= 20 AND query NOT LIKE '%pg_stat_statements%' \
+	  ORDER BY mean_exec_time DESC LIMIT $(PERF_LIMIT);"
+
+perf-window: ## How long pg_stat_statements has been accumulating
+	@docker exec budget-db-1 psql -U postgres -d budget -c \
+	  "SELECT stats_reset, now()-stats_reset AS age FROM pg_stat_statements_info;"
+
+perf-reset: ## Reset query stats — do this before a measured run
+	@docker exec budget-db-1 psql -U postgres -d budget -c "SELECT pg_stat_statements_reset();" >/dev/null
+	@echo "pg_stat_statements reset — stats now measure from this point"
+
+# ── Observability (opt-in) ────────────────────────────────────────────────────
+# Tracing is off unless OTEL_EXPORTER_OTLP_ENDPOINT is set, so these targets set
+# it AND recreate api/worker — an env change alone does not reach a running
+# container.
+OTEL_ENDPOINT ?= http://otel-collector:4318
+
+obs-up: ## Start the trace collector and restart api/worker with tracing ON
+	$(INFISICAL) $(COMPOSE) --profile obs up -d otel-collector
+	OTEL_EXPORTER_OTLP_ENDPOINT=$(OTEL_ENDPOINT) $(INFISICAL) $(COMPOSE) up -d --force-recreate api worker
+	@echo "tracing ON -> $(OTEL_ENDPOINT)  (make obs-traces to watch spans)"
+
+obs-down: ## Stop the collector and restart api/worker with tracing OFF
+	$(INFISICAL) $(COMPOSE) --profile obs stop otel-collector
+	$(INFISICAL) $(COMPOSE) up -d --force-recreate api worker
+	@echo "tracing OFF"
+
+obs-traces: ## Follow spans as the collector receives them
+	$(INFISICAL) $(COMPOSE) --profile obs logs -f otel-collector
 
 # ── Code quality ──────────────────────────────────────────────────────────────
 

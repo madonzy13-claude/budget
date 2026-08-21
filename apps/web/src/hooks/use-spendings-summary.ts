@@ -46,6 +46,9 @@ export interface SpendingsSummaryDTO {
     /** r33: THE Investments category — green overinvested row + smart/manual edit. */
     isInvestment?: boolean;
     investmentLimitMode?: string | null;
+    /** 0083: unbounded this month — the grid dashes overspent + reserve-used,
+     *  and plannedCents holds its scheduled payments instead of a typed limit. */
+    noLimit?: boolean;
   }>;
 }
 

@@ -13,6 +13,7 @@
  */
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { plPctDecimals, plSign, plTone } from "@/lib/pl-tone";
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 
 export function CombinedStat({
@@ -43,8 +44,11 @@ export function CombinedStat({
   /** Measures the LABEL's own width, for a caller lining something up with it. */
   labelRef?: React.Ref<HTMLSpanElement>;
 }) {
-  const up = pct !== null && pct >= 0;
-  const down = pct !== null && pct < 0;
+  // Three-state. A metric that did not move is 0, and 0 is neither a gain nor a
+  // loss — it took the green up-arrow "+0.0%" until 260819.
+  const dir = plTone(pct);
+  // Enough decimals for the figure to show what its colour claims.
+  const pctDecimals = plPctDecimals(pct);
   // Inline, never a class. cn() is tailwind-merge, which reads an arbitrary
   // text-[…] as a FONT SIZE and therefore dropped the size class sitting beside
   // it — the ongoing month, the one range that takes this neutral colour, kept
@@ -52,15 +56,17 @@ export function CombinedStat({
   const toneColor =
     tone === "plain"
       ? "var(--body-on-dark)"
-      : up
+      : dir === "up"
         ? "var(--trading-up)"
-        : down
+        : dir === "down"
           ? "var(--trading-down)"
           : "var(--muted-foreground)";
   const resolved = tone !== "plain" && color !== undefined ? color : toneColor;
-  const Arrow = up ? ArrowUp : ArrowDown;
+  const Arrow = dir === "up" ? ArrowUp : dir === "down" ? ArrowDown : null;
   const pctStr =
-    pct === null ? "—" : `${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(1)}%`;
+    pct === null
+      ? "—"
+      : `${plSign(dir, "−")}${Math.abs(pct).toFixed(pctDecimals)}%`;
   return (
     <div
       className="flex flex-col items-center gap-0.5 text-center"
@@ -77,7 +83,7 @@ export function CombinedStat({
         style={{ color: resolved }}
         data-testid={testId ? `${testId}-pct` : undefined}
       >
-        {pct !== null && <Arrow className="size-3.5" aria-hidden="true" />}
+        {Arrow && <Arrow className="size-3.5" aria-hidden="true" />}
         {mask ? <SlotAmount value={pctStr} /> : pctStr}
       </span>
       <span className="num text-caption whitespace-nowrap text-[var(--muted-foreground)]">

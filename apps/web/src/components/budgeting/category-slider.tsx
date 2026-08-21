@@ -65,6 +65,8 @@ export interface CategorySliderProps {
     colorKey: string | null;
     /** persisted cushion config (mig 0059) — prefills the mode. */
     cushionMode?: string | null;
+    /** 0083: unbounded — prefills the No-limit toggle on reopen. */
+    noLimit?: boolean | null;
   };
   txnsCount?: number;
   /**
@@ -102,6 +104,9 @@ const schema = z.object({
   wants: amountOrEmpty,
   cushionMode: z.enum(CUSHION_MODES),
   customCushion: amountOrEmpty,
+  // 0083: "No limit" — the category is unbounded. It cannot be overspent and
+  // never accrues to the reserve; its plan becomes its scheduled payments.
+  noLimit: z.boolean(),
   // 260613-v1p: iconKey removed (icon picker gone). colorKey persists.
   colorKey: z.string().nullable(),
 });
@@ -175,11 +180,13 @@ export function prefillFromInitial(initial?: {
   wantsCents?: string | null;
   /** Persisted cushion config (mig 0059) — wins over the amount-based inference. */
   cushionMode?: string | null;
+  noLimit?: boolean | null;
 }): {
   needs: string;
   wants: string;
   cushionMode: CushionMode;
   customCushion: string;
+  noLimit: boolean;
 } {
   const planned = initial?.plannedCents ?? "";
   const cushion = initial?.cushionCents ?? "";
@@ -213,6 +220,7 @@ export function prefillFromInitial(initial?: {
     wants,
     cushionMode,
     customCushion: cushionMode === "custom" ? centsToDecimal(cushion) : "",
+    noLimit: initial?.noLimit === true,
   };
 }
 
@@ -282,6 +290,14 @@ export function CategorySlider({
   const wantsW = form.watch("wants");
   const cushionModeW = form.watch("cushionMode");
   const customW = form.watch("customCushion");
+  const noLimitW = form.watch("noLimit");
+  // Ticking "No limit" while a derived cushion mode is selected would leave the
+  // picker showing nothing selected; fall back to the one that means "no cushion".
+  useEffect(() => {
+    if (noLimitW && cushionModeW !== "none" && cushionModeW !== "custom") {
+      form.setValue("cushionMode", "none", { shouldValidate: true });
+    }
+  }, [noLimitW, cushionModeW]);
   const preview = computeSliderAmounts({
     needs: needsW,
     wants: wantsW,
@@ -334,7 +350,14 @@ export function CategorySlider({
       cushionMode: values.cushionMode,
       custom: values.customCushion,
     });
-    const normalAmount = derived.normalAmount;
+    // 0083: unbounded — the flag carries the meaning, so the amounts go out as
+    // 0 rather than as a limit anything downstream might read. Cushion goes too:
+    // a cushion IS a cap, and a category with no cap cannot have a smaller one.
+    const noLimit = values.noLimit === true;
+    const normalAmount = noLimit ? "0" : derived.normalAmount;
+    // The cushion survives: it is a target to hold, not a cap, so an unbounded
+    // category can still carry a custom one (user, 260819). Only the two modes
+    // that DERIVE it from the limit are withdrawn, in the picker below.
     const cushionAmount = cushionEnabled ? derived.cushionAmount : "0";
     // 0061: persist the needs/wants SPLIT (normalAmount = needs + wants) so the
     // editor prefills it on reopen instead of collapsing to needs = planned.
@@ -377,8 +400,8 @@ export function CategorySlider({
             body: JSON.stringify({
               normalAmount,
               cushionAmount,
-              needsAmount,
-              wantsAmount,
+              ...(noLimit ? {} : { needsAmount, wantsAmount }),
+              noLimit,
               effectiveFrom,
             }),
           },
@@ -413,8 +436,8 @@ export function CategorySlider({
               body: JSON.stringify({
                 normalAmount,
                 cushionAmount,
-                needsAmount,
-                wantsAmount,
+                ...(noLimit ? {} : { needsAmount, wantsAmount }),
+                noLimit,
                 effectiveFrom,
                 singleMonth,
               }),
@@ -546,51 +569,99 @@ export function CategorySlider({
                 )}
               />
 
-              {/* Planned = Needs + Wants (both editable), in one row with the
-                  short-currency total on the right. */}
+              {/* 0083: a two-way choice, not an opt-out checkbox (user,
+                  260819). Reuses the segmented Button pair the cushion picker
+                  below already uses, so the two decisions on this form look and
+                  behave alike. The amount fields stay VISIBLE but disabled —
+                  the household should see what it is turning off, and the
+                  numbers come back untouched when the choice is reversed. */}
               <FormItem>
                 <FormLabel className="text-sm text-[var(--muted-foreground)]">
-                  {t("catSlider.field.planned")}
+                  {t("catSlider.field.limitMode")}
                 </FormLabel>
-                <div className="flex items-center gap-2">
-                  <AmountInput
-                    value={needsW}
-                    onChange={(v) =>
-                      form.setValue("needs", v, { shouldValidate: true })
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    data-testid="cat-slider-limit-fixed"
+                    variant={!noLimitW ? "primary" : "outline"}
+                    aria-pressed={!noLimitW}
+                    onClick={() =>
+                      form.setValue("noLimit", false, { shouldValidate: true })
                     }
-                    placeholder={t("catSlider.field.needs")}
-                    className="flex-1 min-w-0"
-                    id="cat-slider-needs"
-                  />
-                  <span
-                    aria-hidden
-                    className="text-[var(--muted-foreground)] shrink-0"
                   >
-                    +
-                  </span>
-                  <AmountInput
-                    value={wantsW}
-                    onChange={(v) =>
-                      form.setValue("wants", v, { shouldValidate: true })
+                    {t("catSlider.limitMode.fixed")}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    data-testid="cat-slider-no-limit"
+                    variant={noLimitW ? "primary" : "outline"}
+                    aria-pressed={noLimitW}
+                    onClick={() =>
+                      form.setValue("noLimit", true, { shouldValidate: true })
                     }
-                    placeholder={t("catSlider.field.wants")}
-                    className="flex-1 min-w-0"
-                    id="cat-slider-wants"
-                  />
-                  <span
-                    aria-hidden
-                    className="text-[var(--muted-foreground)] shrink-0"
                   >
-                    =
-                  </span>
-                  <span
-                    data-testid="cat-slider-planned-readout"
-                    className="shrink-0 whitespace-nowrap text-num-sm font-semibold text-[var(--body-on-dark)]"
-                  >
-                    {plannedPreview}
-                  </span>
+                    {t("catSlider.limitMode.none")}
+                  </Button>
                 </div>
+                {noLimitW && (
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    {t("catSlider.field.noLimitHint")}
+                  </p>
+                )}
               </FormItem>
+
+              {/* Planned = Needs + Wants (both editable), in one row with the
+                  short-currency total on the right. HIDDEN, not disabled, when
+                  the category is unbounded (user, 260820): a greyed-out row of
+                  amount fields still reads as "a limit you could set", and there
+                  is nothing here to set. The values are held in form state and
+                  come back untouched if the choice is reversed. */}
+              {!noLimitW && (
+                <FormItem>
+                  <div className="flex items-center gap-2">
+                    <AmountInput
+                      value={needsW}
+                      onChange={(v) =>
+                        form.setValue("needs", v, { shouldValidate: true })
+                      }
+                      placeholder={t("catSlider.field.needs")}
+                      className="flex-1 min-w-0"
+                      id="cat-slider-needs"
+                      disabled={noLimitW}
+                    />
+                    <span
+                      aria-hidden
+                      className="text-[var(--muted-foreground)] shrink-0"
+                    >
+                      +
+                    </span>
+                    <AmountInput
+                      value={wantsW}
+                      onChange={(v) =>
+                        form.setValue("wants", v, { shouldValidate: true })
+                      }
+                      placeholder={t("catSlider.field.wants")}
+                      className="flex-1 min-w-0"
+                      id="cat-slider-wants"
+                      disabled={noLimitW}
+                    />
+                    <span
+                      aria-hidden
+                      className="text-[var(--muted-foreground)] shrink-0"
+                    >
+                      =
+                    </span>
+                    <span
+                      data-testid="cat-slider-planned-readout"
+                      className="shrink-0 whitespace-nowrap text-num-sm font-semibold text-[var(--body-on-dark)]"
+                    >
+                      {plannedPreview}
+                    </span>
+                  </div>
+                </FormItem>
+              )}
 
               {/* Cushion — chosen by mode, with a prominent resulting amount. */}
               {cushionEnabled && (
@@ -599,7 +670,14 @@ export function CategorySlider({
                     {t("catSlider.field.cushion")}
                   </FormLabel>
                   <div className="grid grid-cols-2 gap-2">
-                    {CUSHION_MODES.map((m) => (
+                    {/* 0083: "Needs + wants" and "Needs only" both derive the
+                        cushion FROM the limit, and an unbounded category has no
+                        limit to derive one from. A flat custom amount still
+                        makes sense, so those two are the ones that go. */}
+                    {(noLimitW
+                      ? (["none", "custom"] as const)
+                      : CUSHION_MODES
+                    ).map((m) => (
                       <Button
                         key={m}
                         type="button"
@@ -638,7 +716,10 @@ export function CategorySlider({
                     </span>
                     <span
                       data-testid="cat-slider-cushion-readout"
-                      className="text-num-sm font-semibold text-[var(--primary)]"
+                      // The accent yellow sits on a pale surface in light mode
+                      // and all but disappears (user, 260820). Grey reads in
+                      // both themes; the weight is what carries the emphasis.
+                      className="text-num-sm font-semibold text-[var(--muted-foreground)]"
                     >
                       {cushionPreview}
                     </span>
@@ -656,7 +737,12 @@ export function CategorySlider({
                     <FormLabel className="text-sm text-[var(--muted-foreground)]">
                       {t("catSlider.field.color")}
                     </FormLabel>
-                    <div className="flex gap-2 flex-wrap">
+                    {/* Ten to a row, filling the form's width exactly: with
+                        twenty swatches a fixed 32px circle either wrapped
+                        raggedly or overflowed a narrow phone. The grid divides
+                        the width it is given and each swatch squares off its
+                        own cell (user, 260820). */}
+                    <div className="grid grid-cols-10 gap-1.5">
                       {CATEGORY_COLORS.map(({ key, hex }) => (
                         <button
                           key={key}
@@ -666,7 +752,7 @@ export function CategorySlider({
                             field.onChange(field.value === key ? null : key)
                           }
                           className={cn(
-                            "flex h-8 w-8 rounded-full border-2 transition-all",
+                            "w-full aspect-square rounded-full border-2 transition-all",
                             field.value === key
                               ? "border-[var(--body-on-dark)] scale-110"
                               : "border-transparent",

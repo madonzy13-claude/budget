@@ -64,6 +64,7 @@ function fakePositions(opts: {
       reserveCents,
       usedCents: opts.usedByCat?.[categoryId] ?? 0n,
       overspentCents: opts.overspentByCat?.[categoryId] ?? 0n,
+      reserveExcluded: false,
       byMonth: new Map(),
     });
   }
@@ -73,6 +74,7 @@ function fakePositions(opts: {
   const surplusCents = userDefinedCents - internalCents;
   return {
     positions,
+    openMonth: "2026-06",
     internalCents,
     userDefinedCents,
     surplusCents,

@@ -48,6 +48,8 @@ interface ReservesSummaryLike {
 
 /** Subset of get-spendings-summary's DTO this service consumes. */
 interface SpendingsCategoryLike {
+  /** 0083: unbounded — cannot be overspent. */
+  noLimit?: boolean;
   categoryId: string;
   name: string;
   archived: boolean;
@@ -100,6 +102,18 @@ export interface GetOverviewCardsDeps {
     tenantId: string;
     budgetId: string;
     month: string;
+    currency: string;
+  }) => Promise<Map<string, bigint>>;
+  /**
+   * 0083: per-category STANDING monthly cost — scheduled payments at their
+   * monthly rate, end_date respected. Only the retirement runway reads it, and
+   * only for No-limit categories: their plannedCents is what they spent, which
+   * is history, not a forward commitment (user, 260820). Optional; absent means
+   * such a category burns nothing.
+   */
+  scheduledMonthlyByCategory?: (input: {
+    tenantId: string;
+    budgetId: string;
     currency: string;
   }) => Promise<Map<string, bigint>>;
   /** Clock; defaults to new Date(). */
@@ -235,6 +249,17 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
       if (reservesRes.isErr()) return err(reservesRes.error);
       const cushion = cushionRes.value;
       const spendings = spendingsRes.value;
+      // Only fetched when something is actually unbounded, so most budgets
+      // never pay for it.
+      const standingMonthly =
+        deps.scheduledMonthlyByCategory &&
+        spendings.categories.some((c) => c.noLimit === true)
+          ? await deps.scheduledMonthlyByCategory({
+              tenantId: input.tenantId,
+              budgetId: input.budgetId,
+              currency: meta.default_currency,
+            })
+          : new Map<string, bigint>();
       const reserves = reservesRes.value;
 
       // SPENDINGS / RESERVE partial sums (FX→default_ccy). r36: when the current
@@ -296,11 +321,19 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
         spentThisMonth += BigInt(c.spentCents);
         // Retirement spend EXCLUDES the Investments category: once retired there's
         // no income, so you stop investing — its planned amount isn't a cost.
-        if (!c.isInvestment) monthlyPlanned += BigInt(c.plannedCents);
+        // 0083: an unbounded category has no plan to burn. Retirement is a
+        // forever-projection, so what it costs from here is its STANDING
+        // payments — not the spend that happens to sit in plannedCents.
+        const retirementCost = c.noLimit
+          ? (standingMonthly.get(c.categoryId) ?? 0n)
+          : BigInt(c.plannedCents);
+        if (!c.isInvestment) monthlyPlanned += retirementCost;
         // Effective planned = active budget (cushion amount in cushion mode, else
         // planned) — the money-runway burn rate. Also excludes Investments.
         if (!c.isInvestment)
-          monthlyEffectivePlanned += BigInt(c.activeBudgetCents);
+          monthlyEffectivePlanned += c.noLimit
+            ? retirementCost
+            : BigInt(c.activeBudgetCents);
         // A SMART investments limit is not a bill — it is "whatever income is
         // left when every other limit is paid", so carrying it here made "Left"
         // read as the whole month's income and the card was permanently short
@@ -356,7 +389,11 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
         // retirement-runway "Excludes Investments" filter above).
         .filter(
           (c) =>
-            !c.archived && !c.isInvestment && BigInt(c.overspentCents) > 0n,
+            !c.archived &&
+            !c.isInvestment &&
+            // 0083: unbounded — it cannot be overspent, so it never belongs here.
+            !c.noLimit &&
+            BigInt(c.overspentCents) > 0n,
         )
         .sort((a, b) =>
           BigInt(b.overspentCents) > BigInt(a.overspentCents)

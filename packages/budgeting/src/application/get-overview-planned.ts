@@ -34,6 +34,10 @@ export interface MonthlyPlannedRow {
   /** The cushion (essential/"needs") portion of the planned limit; wants =
    *  planned − needs. Defaults to 0 for callers/tests that omit it. */
   needs_cents?: bigint;
+  /** 0083: this month was unbounded. planned_cents/needs_cents are 0 and carry
+   *  no meaning — the category's real plan is its scheduled payments, and it
+   *  cannot be overspent. Absent = a normal limited month. */
+  no_limit?: boolean;
 }
 export interface MonthlySpendRow {
   category_id: string;
@@ -203,6 +207,9 @@ export interface OverviewPlannedDTO {
     /** True when any month was scaled — the plan is a forecast to the range's
      *  last day rather than a full-month budget. */
     planned_is_partial: boolean;
+    /** 0083: every selected category is unbounded, so the plan is not a cap —
+     *  the card renders ∞ rather than a number. */
+    planned_unbounded?: boolean;
     /** The whole range sits inside the month still running, so the gap is not a
      *  verdict yet — anything reaching further back is mostly finished history
      *  and is (260803 user decision). */
@@ -429,8 +436,28 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
       //
       // Income carries no history, so the CURRENT monthly income is applied to
       // every month in range; the "everything else" side is each month's own.
+      // 0083: a No-limit category stores planned 0, but it is still planned
+      // against — its implicit plan for a month is WHAT IT SPENT there, counted
+      // entirely as needs (user, 260820). Substituted HERE, at the single point
+      // the rows enter, so every chart, every total and the smart investments
+      // residual below all read one corrected figure instead of eight call
+      // sites each remembering to ask.
+      const spentPerCatMonth = new Map<string, bigint>();
+      for (const sp of spend)
+        spentPerCatMonth.set(
+          `${sp.category_id}|${sp.month}`,
+          (spentPerCatMonth.get(`${sp.category_id}|${sp.month}`) ?? 0n) +
+            sp.spent_cents,
+        );
+      const plannedResolved = planned.map((p) => {
+        if (p.no_limit !== true) return p;
+        const spentHere =
+          spentPerCatMonth.get(`${p.category_id}|${p.month}`) ?? 0n;
+        return { ...p, planned_cents: spentHere, needs_cents: spentHere };
+      });
+
       const investWindow = windows.find((w) => w.is_investment);
-      let plannedRows = planned;
+      let plannedRows = plannedResolved;
       if (investWindow?.investment_limit_mode === "smart") {
         let monthlyIncome = 0n;
         if (deps.incomeRepo) {
@@ -447,7 +474,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           );
         }
         const otherPlannedByMonth = new Map<string, bigint>();
-        for (const p of planned) {
+        for (const p of plannedResolved) {
           if (p.category_id === investWindow.category_id) continue;
           otherPlannedByMonth.set(
             p.month,
@@ -459,7 +486,14 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         // the category existed it drew a full-height band across empty history.
         const from = startOf(investWindow);
         plannedRows = [
-          ...planned.filter((p) => p.category_id !== investWindow.category_id),
+          // plannedResolved, NOT planned: rebuilding from the raw rows here
+          // silently discarded the No-limit substitution above, so an unbounded
+          // category fell back to a plan of 0 and drew as pure overspend — but
+          // only in budgets that have a SMART Investments category, which is why
+          // the grid looked right and the charts did not (user, 260819).
+          ...plannedResolved.filter(
+            (p) => p.category_id !== investWindow.category_id,
+          ),
           ...monthsInRange(input.from, input.to)
             .filter((month) => month >= from)
             .map((month) => ({
@@ -490,11 +524,27 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
       const withinByMonth = new Map<string, bigint>();
       const reserveUsedByMonth = new Map<string, bigint>();
       const overspentByMonth = new Map<string, bigint>();
+      // 0083: months a category ran unbounded. All of its spend is "within
+      // plan" — there is no cap for any of it to be beyond, so it must not draw
+      // the overspent band or consume reserve here either. Without this an
+      // unbounded category paints the whole month red against a plan of 0.
+      const noLimitPerCatMonth = new Set<string>();
+      for (const p of plannedRows)
+        if (p.no_limit === true)
+          noLimitPerCatMonth.add(`${p.category_id}|${p.month}`);
+
       for (const s of spend) {
         if (!inCat(s.category_id)) continue;
+        const unbounded = noLimitPerCatMonth.has(
+          `${s.category_id}|${s.month}`,
+        );
         const limit =
           plannedPerCatMonth.get(`${s.category_id}|${s.month}`) ?? 0n;
-        const within = s.spent_cents < limit ? s.spent_cents : limit;
+        const within = unbounded
+          ? s.spent_cents
+          : s.spent_cents < limit
+            ? s.spent_cents
+            : limit;
         const overage = s.spent_cents - within;
         const drawn =
           reservePositions?.get(s.category_id)?.byMonth.get(s.month)
@@ -541,8 +591,17 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
       const rangeWithinRunningMonth =
         input.from.slice(0, 7) === asOfMonth &&
         input.to.slice(0, 7) === asOfMonth;
+      // 0083: the whole selection is unbounded, so "planned" is not a cap and
+      // this card renders it as ∞. Only when EVERY selected category is
+      // unbounded — a mixed selection still has a real total to compare against.
+      const selectedPlanned = plannedRows.filter((p) => inCat(p.category_id));
+      const plannedUnbounded =
+        selectedPlanned.length > 0 &&
+        selectedPlanned.every((p) => p.no_limit === true);
+
       const rangeTotals = {
         planned_cents: plannedInRange.toString(),
+        planned_unbounded: plannedUnbounded,
         planned_is_partial: plannedIsPartial,
         range_within_running_month: rangeWithinRunningMonth,
         within_limit_cents: sumOf(withinByMonth).toString(),

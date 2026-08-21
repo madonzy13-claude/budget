@@ -153,11 +153,18 @@ export function createOverviewRepo(): OverviewPlannedRepo {
                        ELSE LEAST(cl.cushion_amount,
                                   CASE WHEN ma.mode = 'CUSHION' THEN cl.cushion_amount
                                        ELSE cl.normal_amount END)
-                  END)::text AS needs_cents
+                  END)::text AS needs_cents,
+                 -- 0083: kept as a COLUMN rather than filtered here. A no-limit
+                 -- row still exists, so the LATERAL below still matches and the
+                 -- category stays in the result; each consumer then decides
+                 -- (Planned charts its scheduled payments instead, Overspent
+                 -- skips it entirely).
+                 cl.no_limit AS no_limit
             FROM cat_month cm
             JOIN mode_at ma ON ma.month_start = cm.month_start
             JOIN LATERAL (
-              SELECT cl.normal_amount, cl.cushion_amount, cl.needs_amount
+              SELECT cl.normal_amount, cl.cushion_amount, cl.needs_amount,
+                     cl.no_limit
                 FROM budgeting.category_limits cl
                WHERE cl.tenant_id = ${budgetId}::uuid
                  AND cl.category_id = cm.category_id
@@ -179,6 +186,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
           month: r.month as string,
           planned_cents: BigInt(r.planned_cents as string),
           needs_cents: BigInt(r.needs_cents as string),
+          no_limit: r.no_limit === true,
         }));
       });
     },

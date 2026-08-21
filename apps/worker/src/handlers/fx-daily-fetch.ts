@@ -1,7 +1,15 @@
 /**
- * fx-daily-fetch handler — daily pg-boss job to pre-populate budgeting.fx_rates.
- * Scheduled at 0 17 * * * (17:00 CET/CEST, Europe/Berlin tz) so rates are fresh
- * after Frankfurter publishes (~16:00 CET on trading days).
+ * fx-daily-fetch handler — pg-boss job that pre-populates budgeting.fx_rates.
+ *
+ * Runs HOURLY. It used to run once a day at 17:00 Europe/Berlin, which was
+ * enough while the API could fetch a missing rate itself. It no longer can:
+ * the API uses CacheOnlyFxProvider, so anything this job has not stored is
+ * served as a stale-flagged prior rate. Hourly keeps that window small and
+ * still costs ~24 upstream calls a day per pair.
+ *
+ * The queue NAME stays "fx-daily-fetch" despite the schedule change: pg-boss
+ * keys schedules by queue name and persists them, so renaming would strand the
+ * old daily row in the database and keep running it alongside the new one.
  *
  * Algorithm:
  * 1. Collect all distinct (currency_orig, currency_default) pairs from expense_ledger.
@@ -15,6 +23,12 @@ import type { FxProvider } from "@budget/shared-kernel";
 import { withInfraTx } from "@budget/platform";
 import { sql } from "drizzle-orm";
 
+/** Queue name — unchanged on purpose; see the note above. */
+export const FX_FETCH_QUEUE = "fx-daily-fetch";
+
+/** Top of every hour, UTC. */
+export const FX_FETCH_CRON = "0 * * * *";
+
 // PgBoss type hint — pg-boss has no default export type we can use directly
 interface PgBossLike {
   work(
@@ -24,7 +38,7 @@ interface PgBossLike {
 }
 
 export function registerFxDailyFetch(boss: PgBossLike, fxProvider: FxProvider) {
-  boss.work("fx-daily-fetch", async () => {
+  boss.work(FX_FETCH_QUEUE, async () => {
     // Collect distinct (base, quote) pairs from expense_ledger
     let pairs: Array<{ base: string; quote: string }> = [];
     const result = await withInfraTx(async (tx) => {

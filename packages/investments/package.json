@@ -43,12 +43,12 @@
     "drizzle-orm": "^0.45.2",
     "neverthrow": "^8.0.0",
     "big.js": "^7.0.1",
-    "zod": "^3.25.0",
-    "temporal-polyfill": "^0.3.2"
+    "zod": "^4.4.3",
+    "temporal-polyfill": "^1.0.4"
   },
   "devDependencies": {
-    "@types/big.js": "^6.2.2",
-    "typescript": "^5.6.0",
-    "fast-check": "^3.20.0"
+    "@types/big.js": "^7.0.0",
+    "typescript": "^5.9.3",
+    "fast-check": "^4.9.0"
   }
 }

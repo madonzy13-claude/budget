@@ -30,6 +30,8 @@ export interface ColumnHeaderProps {
     reserveUsedCents: string;
     reserveAvailableCents: string;
     reserveExcluded?: boolean;
+    /** 0083: unbounded — cannot be overspent, accrues nothing. */
+    noLimit?: boolean;
     overspentCents: string;
     balanceCents: string;
     /** r33: THE Investments category — greens the "overinvested" row + dashes reserve. */
@@ -70,6 +72,10 @@ export function ColumnHeader({
   const reserveUsedCents = BigInt(summary.reserveUsedCents);
   // When the category is excluded from reserves NOW, the "available" side is a dash.
   const reserveExcluded = summary.reserveExcluded ?? false;
+  // 0083: a No-limit category cannot be overspent and never accrues, so both
+  // figures are structurally 0. Showing "0 zł" would read as a measurement —
+  // that it came in exactly on budget — when there was no budget to come in on.
+  const noLimit = summary.noLimit ?? false;
   // r33: THE Investments category — overspend reads "overinvested" (green, good),
   // and the reserve section is always a single dash (no reserves for investments).
   const isInvestment = summary.isInvestment ?? false;
@@ -86,8 +92,12 @@ export function ColumnHeader({
     (showCushionValue ? summary.cushionCents : summary.plannedCents) || "0",
   );
   const spentSoFar = BigInt(summary.spentCents || "0");
+  // 0083: the clamp below exists because a limit cannot be used more than once
+  // over. An unbounded category has no limit to clamp to — and its plannedCents
+  // holds only its SCHEDULED payments, so clamping there showed 4,485 of a
+  // 14,630 month and hid every ordinary expense (user, 260820).
   const usedAgainstLimit = (
-    spentSoFar > limitOnShow ? limitOnShow : spentSoFar
+    noLimit ? spentSoFar : spentSoFar > limitOnShow ? limitOnShow : spentSoFar
   ).toString();
   // "Left" never shows negative — overspend is surfaced by the overspent row.
 
@@ -285,10 +295,19 @@ export function ColumnHeader({
             </span>
             <span className="text-[var(--muted-foreground)]">
               {" / "}
-              {centsToBare(
-                showCushionValue ? summary.cushionCents : summary.plannedCents,
-                locale,
-              )}
+              {/* 0083: the denominator is a CAP, and an unbounded category has
+                  none. Showing its scheduled total here read as a limit it had
+                  exactly reached — "4,062.71 / 4,062.71" (user, 260819). The
+                  scheduled figure still drives the Planned charts, where it is
+                  a plan rather than a ceiling. */}
+              {noLimit
+                ? "\u221E"
+                : centsToBare(
+                    showCushionValue
+                      ? summary.cushionCents
+                      : summary.plannedCents,
+                    locale,
+                  )}
             </span>
           </span>
         </div>
@@ -308,7 +327,9 @@ export function ColumnHeader({
               category is excluded NOW: available is a dash (—); if it also used no
               reserve this month, the whole cell is a single dash. */}
             <span className="text-sm tabular-nums whitespace-nowrap">
-              {isInvestment || (reserveExcluded && reserveUsedCents === 0n) ? (
+              {isInvestment ||
+              noLimit ||
+              (reserveExcluded && reserveUsedCents === 0n) ? (
                 <span
                   data-testid={`column-header-${category.name.toLowerCase()}-reserves-used`}
                   className="text-[var(--muted-foreground)]"
@@ -363,7 +384,9 @@ export function ColumnHeader({
             }`}
             className={cn(
               "text-sm tabular-nums",
-              overspentCents > 0n
+              noLimit
+                ? "text-[var(--muted-foreground)]"
+                : overspentCents > 0n
                 ? // Overinvesting is GOOD → green; overspending is bad → red.
                   isInvestment
                   ? "text-[var(--trading-up,#26a69a)]"
@@ -371,7 +394,7 @@ export function ColumnHeader({
                 : "text-[var(--muted-foreground)]",
             )}
           >
-            {centsToBare(summary.overspentCents, locale)}
+            {noLimit ? "—" : centsToBare(summary.overspentCents, locale)}
           </span>
         </div>
 

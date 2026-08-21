@@ -487,6 +487,77 @@ describe("OverviewCards", () => {
     expect(screen.getByText("since yesterday")).toBeTruthy();
   });
 
+  it("shows a zero day P/L as flat — no green, no arrow, no + sign", () => {
+    mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    const today = new Date().toISOString().slice(0, 10);
+    const yday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    // Carry-forward filled series with no movement since midnight — the common
+    // case when no wealth snapshot has landed yet today. Δ is exactly 0.
+    mockWealth.mockReturnValueOnce({
+      data: {
+        series: [
+          { label: `${yday}T23`, value_cents: "7575000" },
+          { label: `${today}T05`, value_cents: "7575000" },
+        ],
+      },
+    });
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+
+    const pct = screen.getByText("0.0%"); // NOT "+0.0%" — zero is not a gain
+    const stack = pct.closest("div")!;
+    expect(stack.className).toContain("--muted-foreground");
+    expect(stack.className).not.toContain("--trading-up");
+    expect(stack.querySelector("svg")).toBeNull(); // no trend arrow either
+  });
+
+  it("shows a sub-unit day P/L precisely, and still as a gain", () => {
+    mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    const today = new Date().toISOString().slice(0, 10);
+    const yday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    // Mój Budżet, 260819: +17 cents on 239,290 = +0.0071%. A real gain that one
+    // decimal and whole-unit money both hid — the figures gain precision, the
+    // colour stays.
+    mockWealth.mockReturnValueOnce({
+      data: {
+        series: [
+          { label: `${yday}T23`, value_cents: "239290" },
+          { label: `${today}T05`, value_cents: "239307" },
+        ],
+      },
+    });
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+
+    const pct = screen.getByText("+0.007%");
+    const stack = pct.closest("div")!;
+    expect(stack.className).toContain("--trading-up");
+    expect(stack.querySelector("svg")).toBeTruthy(); // up arrow
+    expect(screen.getByText("$0.17")).toBeTruthy(); // cents kept under 100
+  });
+
+  it("hides the day P/L amount under privacy, like every other figure", () => {
+    // The amount is money: with privacy ON it must scramble like the rest of the
+    // card. It briefly rendered as plain text when the formatter changed (260819).
+    mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    const today = new Date().toISOString().slice(0, 10);
+    const yday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    mockWealth.mockReturnValueOnce({
+      data: {
+        series: [
+          { label: `${yday}T23`, value_cents: "239290" },
+          { label: `${today}T05`, value_cents: "239307" },
+        ],
+      },
+    });
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled />);
+
+    expect(screen.queryByText("$0.17")).toBeNull(); // not readable
+    // Percent AND amount both go through the tap-to-reveal slot.
+    const stack = screen.getByText("since yesterday").closest("div")!;
+    expect(stack.querySelectorAll('[data-testid="slot-amount"]')).toHaveLength(
+      2,
+    );
+  });
+
   it("keeps the capitalization hero row inline (nowrap) so the P/L never drops below", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
     render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);

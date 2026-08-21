@@ -190,12 +190,13 @@ export function createReserveEventLoaderRepo(
           );
           const mapped = new Map<
             string,
-            { plannedCents: bigint; cushionCents: bigint }
+            { plannedCents: bigint; cushionCents: bigint; noLimit: boolean }
           >();
           for (const [catId, v] of limits) {
             mapped.set(catId, {
               plannedCents: v.planned,
               cushionCents: v.cushion,
+              noLimit: v.noLimit,
             });
           }
           return [m, mapped] as const;

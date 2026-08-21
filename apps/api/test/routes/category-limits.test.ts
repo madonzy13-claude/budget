@@ -401,3 +401,72 @@ describe("needs/wants split persistence (mig 0061)", () => {
     expect(eff.normalAmount).toBe("15000");
   });
 });
+
+// 0083: "No limit" — a deliberately unbounded category. The flag rides the
+// SCD-2 row, so it is a per-month fact and must survive the round trip.
+describe("No limit (mig 0083)", () => {
+  it("POST noLimit → GET effective returns it", async () => {
+    const t = await createTestUser();
+    const app = await buildApp(t.userId, t.tenantId);
+    const cat = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Gifts" }),
+      })
+    ).json();
+
+    const res = await app.request(`/categories/${cat.category.id}/limits`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        normalAmount: "0",
+        cushionAmount: "0",
+        normalCurrency: "EUR",
+        cushionCurrency: "EUR",
+        noLimit: true,
+        effectiveFrom: "2026-07-01",
+      }),
+    });
+    expect(res.status).toBe(201);
+
+    const eff = await (
+      await app.request(
+        `/categories/${cat.category.id}/limits/effective?date=2026-07-15`,
+      )
+    ).json();
+    expect(eff.noLimit).toBe(true);
+    expect(eff.normalAmount).toBe("0");
+  });
+
+  it("omitting noLimit leaves a normal limited row (existing clients)", async () => {
+    const t = await createTestUser();
+    const app = await buildApp(t.userId, t.tenantId);
+    const cat = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Food" }),
+      })
+    ).json();
+
+    await app.request(`/categories/${cat.category.id}/limits`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        normalAmount: "10000",
+        cushionAmount: "0",
+        normalCurrency: "EUR",
+        cushionCurrency: "EUR",
+        effectiveFrom: "2026-07-01",
+      }),
+    });
+
+    const eff = await (
+      await app.request(
+        `/categories/${cat.category.id}/limits/effective?date=2026-07-15`,
+      )
+    ).json();
+    expect(eff.noLimit).toBe(false);
+  });
+});

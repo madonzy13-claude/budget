@@ -1,6 +1,10 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { configureNumericParsers } from "./numeric-parser";
+// Query spans are wrapped here rather than left to instrumentation-pg:
+// its require-in-the-middle patching never fires under Bun (verified against a
+// live collector — zero db spans while hand-written spans came through).
+import { instrumentPool } from "../otel/pg-tracing";
 
 configureNumericParsers();
 
@@ -33,7 +37,7 @@ export function appPool(): Pool {
       max: 25,
     });
   }
-  return _appPool;
+  return instrumentPool(_appPool, "app");
 }
 
 /**
@@ -60,7 +64,7 @@ export function betterAuthPool(): Pool {
       max: 10,
     });
   }
-  return _betterAuthPool;
+  return instrumentPool(_betterAuthPool, "better-auth");
 }
 
 export function workerPool(): Pool {
@@ -70,7 +74,7 @@ export function workerPool(): Pool {
       application_name: "budget-worker",
     });
   }
-  return _workerPool;
+  return instrumentPool(_workerPool, "worker");
 }
 
 export function migratorPool(): Pool {
@@ -80,7 +84,7 @@ export function migratorPool(): Pool {
       application_name: "budget-migrator",
     });
   }
-  return _migratorPool;
+  return instrumentPool(_migratorPool, "migrator");
 }
 
 /** Reset pool singletons — used in tests to pick up new DATABASE_URL_* after testcontainer starts. */

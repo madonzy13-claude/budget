@@ -84,6 +84,14 @@ export interface SpendingsSummaryCategoryDTO {
   reserveAvailableCents: string;
   /** reserve_excluded NOW — the grid renders "available" as a dash when true. */
   reserveExcluded: boolean;
+  /** 0083: unbounded THIS month. The grid renders overspent + reserve-used as a
+   *  dash — such a category cannot be overspent and accrues nothing, so the 0s
+   *  those fields carry are true but meaningless, and "0 zł" reads as a real
+   *  measurement. Same shape as reserveExcluded above: the numbers stay honest
+   *  for every other consumer, and only the display changes.
+   *  plannedCents/needsCents/wantsCents hold the category's scheduled payments
+   *  due this month — its implicit plan — rather than a typed limit. */
+  noLimit: boolean;
   /** Archived "keep history" (archived_from set) — the grid renders this column
    *  greyed + read-only (no quick entry / edit). Hidden entirely in future months. */
   archived: boolean;
@@ -235,10 +243,18 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
             cushion: 0n,
             needs: null,
             wants: null,
+            noLimit: false,
           };
           const isInvestment = Boolean((c as any).isInvestment);
-          const planned =
-            isInvestment && investmentPlannedOverride !== null
+          const spent = perCatSpend.get(c.id) ?? 0n;
+          // 0083: a No-limit category's implicit plan is WHAT IT SPENT, counted
+          // entirely as needs (user, 260820). It was the category's scheduled
+          // payments until then; the scheduled total is not what the month cost,
+          // so the charts showed a plan the household never recognised.
+          const noLimit = limits.noLimit === true;
+          const planned = noLimit
+            ? spent
+            : isInvestment && investmentPlannedOverride !== null
               ? investmentPlannedOverride
               : limits.planned;
           // Investments has no cushion → 0. In cushion mode its limit therefore
@@ -254,8 +270,11 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           // "planned 500" over "overspent 450" with a cushion limit of zero.
           // No fallback between the two figures in either direction (user rule):
           // the mode picks one, and that is the limit.
-          const active = monthCushionMode ? cushion : planned;
-          const spent = perCatSpend.get(c.id) ?? 0n;
+          // A No-limit category has no cushion figure either (both amounts are
+          // 0 on the row), so in a cushion month the plain ternary would hand
+          // back 0 and the runway would read it as costing nothing. Its plan is
+          // its scheduled payments in either mode.
+          const active = noLimit ? planned : monthCushionMode ? cushion : planned;
 
           // Engine cell for THIS month → used + overspent + the free reserve at the
           // month's end. When the engine emitted no cell (no activity it tracked),
@@ -267,11 +286,17 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           // category_limits value the reserve engine used, so its engine overage
           // is wrong (spent − stored 0 = full spend). Derive overinvested from the
           // OVERRIDE limit here instead. It's reserve-excluded → no reserve to net.
-          const overage = isInvestment
-            ? spent > active
-              ? spent - active
-              : 0n
-            : (cell?.overageCents ?? (spent > active ? spent - active : 0n));
+          // A No-limit category cannot be overspent. The engine already says so,
+          // but the `??` fallback below fires when the engine emitted no cell —
+          // and `spent − implicitPlan` would then invent an overspend out of the
+          // scheduled figure, which is a plan, not a cap.
+          const overage = noLimit
+            ? 0n
+            : isInvestment
+              ? spent > active
+                ? spent - active
+                : 0n
+              : (cell?.overageCents ?? (spent > active ? spent - active : 0n));
           const rawUsed = cell?.usedCents ?? 0n;
           // "Reserve available to this month" = used + free reserve at month's end
           // (clamped ≥ 0). Used is then clamped ≤ available so we never display
@@ -297,13 +322,22 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
             cushionCents: cushion.toString(),
             // 0061: the persisted needs/wants split (null when never set → the
             // editor falls back to needs = planned, wants = 0).
-            needsCents: limits.needs != null ? limits.needs.toString() : null,
-            wantsCents: limits.wants != null ? limits.wants.toString() : null,
+            needsCents: noLimit
+              ? planned.toString()
+              : limits.needs != null
+                ? limits.needs.toString()
+                : null,
+            wantsCents: noLimit
+              ? "0"
+              : limits.wants != null
+                ? limits.wants.toString()
+                : null,
             activeBudgetCents: active.toString(),
             spentCents: spent.toString(),
             reserveUsedCents: reserveUsed.toString(),
             reserveAvailableCents: reserveAvailable.toString(),
             reserveExcluded,
+            noLimit,
             archived: (c as any).archivedFrom != null,
             overspentCents: overspent.toString(),
             balanceCents: balance.toString(),

@@ -27,6 +27,7 @@ function makeRepo(impl: Partial<TaskRepo> = {}): TaskRepo {
     emitConfirmDraft: async () => {},
     emitCushionBelowTarget: async () => {},
     emitInvestmentDelisted: async () => {},
+    emitIncomeUnderPlanned: async () => {},
     resolveByKindAndBudget: async () => {},
     resolveConfirmDraftByDraftId: async () => {},
     resolveInvestmentDelistedForHoldings: async () => 0,

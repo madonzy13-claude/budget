@@ -1,6 +1,6 @@
 /**
- * category-colors.ts — single source of truth for the 8 per-category palette
- * colors (260613-v1p).
+ * category-colors.ts — single source of truth for the 20 per-category palette
+ * colors (8 original, 260613-v1p; 12 added 260820 on user request).
  *
  * DESIGN.md note: the per-category color bar is a DELIBERATE multi-color
  * exception scoped to categorization only (a 4px card-edge strip). The yellow
@@ -23,6 +23,22 @@ export const CATEGORY_COLORS = [
   { key: "purple", hex: "#7C4DFF" },
   { key: "pink", hex: "#EC407A" },
   { key: "gray", hex: "#78909C" },
+  // 260820: twelve more, so the picker fills two whole rows of ten. Kept to the
+  // same mid-saturation register as the originals — these sit behind a category
+  // NAME on a 4px strip, so they only need to be distinguishable from each
+  // other, not legible on their own.
+  { key: "cyan", hex: "#00ACC1" },
+  { key: "lime", hex: "#9CCC65" },
+  { key: "indigo", hex: "#5C6BC0" },
+  { key: "teal", hex: "#009688" },
+  { key: "amber", hex: "#FFB300" },
+  { key: "brown", hex: "#8D6E63" },
+  { key: "magenta", hex: "#D81B60" },
+  { key: "olive", hex: "#827717" },
+  { key: "navy", hex: "#3949AB" },
+  { key: "coral", hex: "#FF7043" },
+  { key: "mint", hex: "#4DB6AC" },
+  { key: "slate", hex: "#546E7A" },
 ] as const;
 
 export type CategoryColorKey = (typeof CATEGORY_COLORS)[number]["key"];

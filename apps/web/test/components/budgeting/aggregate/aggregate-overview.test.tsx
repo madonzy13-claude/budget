@@ -226,6 +226,31 @@ describe("AggregateOverview", () => {
     });
   });
 
+  it("renders a zero day P/L as flat — not a green gain", async () => {
+    // No movement since the window opened: the hero P/L must read as neutral,
+    // not as an up-arrow "+0.0%" gain.
+    wealthRef.current = {
+      display_currency: "USD",
+      series: [{ label: "a", value_cents: "100" }],
+      grow: { delta_cents: "0", delta_pct: 0 },
+    };
+    render(<AggregateOverview />);
+    const pl = screen.getByTestId("aggregate-hero-pl");
+
+    expect(pl.className).toContain("--muted-foreground");
+    expect(pl.className).not.toContain("--trading-up");
+    expect(pl.querySelector("svg")).toBeNull();
+
+    fireEvent.click(within(pl).getAllByTestId("slot-amount")[0]);
+    await waitFor(() => {
+      const labels = within(pl)
+        .getAllByTestId("slot-amount")
+        .map((s) => s.getAttribute("aria-label"))
+        .join(" ");
+      expect(labels).not.toContain("+");
+    });
+  });
+
   it("fx_unavailable budget is excluded from the hero sum", async () => {
     dataRef.current = {
       display_currency: "USD",

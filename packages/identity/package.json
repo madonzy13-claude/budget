@@ -15,7 +15,7 @@
   "dependencies": {
     "@budget/shared-kernel": "workspace:*",
     "@budget/platform": "workspace:*",
-    "better-auth": "^1.6.25",
+    "better-auth": "1.6.28",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {

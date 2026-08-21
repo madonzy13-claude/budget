@@ -2132,3 +2132,78 @@ describe("a category whose only month is the one still running", () => {
     expect(row?.planned_avg_cents).toBe("100000");
   });
 });
+
+// 0083 (user, 260820): a No-limit category's implicit plan is WHAT IT SPENT,
+// counted entirely as needs. Its whole spend is therefore within plan — it can
+// never draw the overspent band — and the card reports the plan as unbounded.
+describe("getOverviewPlanned — a No-limit category", () => {
+  const unboundedRepo: GetOverviewPlannedDeps["repo"] = {
+    async monthlyPlannedByCategory() {
+      // stored amounts are 0 and meaningless while no_limit is set
+      return [
+        {
+          category_id: "H",
+          month: "2026-01",
+          planned_cents: 0n,
+          needs_cents: 0n,
+          no_limit: true,
+        },
+      ];
+    },
+    async monthlySpendByCategory() {
+      return [{ category_id: "H", month: "2026-01", spent_cents: 1463000n }];
+    },
+    async categoryWindows() {
+      return [
+        {
+          category_id: "H",
+          name: "House",
+          created_month: "2026-01",
+          archived_month: null,
+          is_investment: false,
+        },
+      ];
+    },
+    async dailySpend() {
+      return [];
+    },
+    async activeScheduledPayments() {
+      return [];
+    },
+  };
+
+  const run = () =>
+    getOverviewPlanned({
+      repo: unboundedRepo,
+      metaReader: {
+        async getBudgetMeta() {
+          return { default_currency: "USD" };
+        },
+      },
+      fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+    })({
+      tenantId: "b1",
+      budgetId: "b1",
+      from: "2026-01-01",
+      to: "2026-01-31",
+    });
+
+  test("plans exactly what it spent", async () => {
+    const dto = (await run())._unsafeUnwrap();
+    const h = dto.plannedAvgVsReal.find((c) => c.category_id === "H")!;
+    expect(h).toBeTruthy();
+    expect(h.planned_total_cents).toBe("1463000");
+    expect(h.real_total_cents).toBe("1463000");
+  });
+
+  test("never draws the overspent band", async () => {
+    const dto = (await run())._unsafeUnwrap();
+    expect(dto.rangeTotals.overspent_cents).toBe("0");
+    expect(dto.rangeTotals.within_limit_cents).toBe("1463000");
+  });
+
+  test("reports the plan as unbounded", async () => {
+    const dto = (await run())._unsafeUnwrap();
+    expect(dto.rangeTotals.planned_unbounded).toBe(true);
+  });
+});

@@ -45,10 +45,17 @@ import { budgetArchiveRoutesFactory } from "./routes/budget-archive";
 import { onboardingRoutesFactory } from "./routes/onboarding";
 import { createTestClockRoute } from "./routes/test-clock";
 import { testClockEnabled } from "@budget/shared-kernel";
+import { tracingMiddleware } from "./middleware/tracing";
 import type { BootedDeps } from "./boot";
 
 export function createApp(deps: BootedDeps) {
   const app = new Hono();
+
+  // 0. Server span — MUST be first so it wraps every other middleware and their
+  //    DB work nests inside the request. Bun.serve() is not auto-instrumented,
+  //    so without this the pg spans arrive with no parent. No-op cost when
+  //    tracing is off: the global tracer returns non-recording spans.
+  app.use(tracingMiddleware());
 
   // 1. Error handler — wraps everything
   app.use(errorMiddleware);

@@ -161,7 +161,10 @@ describe("getBudgetHomeSummary", () => {
   });
 
   it("Test 5: passes useCushion=true when budget.cushion_mode_enabled is true", async () => {
-    let capturedUseCushion: boolean | null = null;
+    // Held on an object rather than a bare `let`: control-flow analysis narrows
+    // a `let` to its initializer type, and the only write happens inside the
+    // repo callback, so the later expect() would compare against `null`.
+    const captured: { useCushion?: boolean } = {};
     const svc = getBudgetHomeSummary({
       summaryRepo: makeRepo({
         getBudgetMeta: async () => ({
@@ -171,7 +174,7 @@ describe("getBudgetHomeSummary", () => {
           cushion_mode_enabled: true,
         }),
         topOverspentCategories: async (_b, _s, _e, useCushion) => {
-          capturedUseCushion = useCushion;
+          captured.useCushion = useCushion;
           return [];
         },
       }),
@@ -180,7 +183,7 @@ describe("getBudgetHomeSummary", () => {
     });
     const r = await svc({ budgetId: BUDGET_ID, userId: USER_ID, now: NOW });
     expect(r.isOk()).toBe(true);
-    expect(capturedUseCushion).toBe(true);
+    expect(captured.useCushion).toBe(true);
   });
 
   it("Test 6: returns Err('budget_not_found') when getBudgetMeta returns null", async () => {

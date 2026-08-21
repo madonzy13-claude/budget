@@ -329,7 +329,20 @@ describe("reserveEngine — operations", () => {
   // …and a late spend that genuinely exceeds the closed month's limit draws the
   // reserve it had, before anything counts as overspent.
   test("a closed month's overspend draws its reserve before going over", () => {
+    // The reserve it draws has to come from an EARLIER month. Seeding it from
+    // this month's own accrual — as this test used to — banks a leftover and
+    // then spends it from the very month that produced it, which is the double
+    // count the whole model exists to prevent; a month's leftover is the NEXT
+    // month's money. Event order is the loader's (spend, then accrual).
     const r = run([
+      {
+        type: "setLimit",
+        categoryId: "c",
+        month: "2026-04",
+        normalCents: 50000n,
+        cushionCents: 50000n,
+      },
+      { type: "accrual", categoryId: "c", month: "2026-04" }, // banks 500
       {
         type: "setLimit",
         categoryId: "c",
@@ -337,12 +350,16 @@ describe("reserveEngine — operations", () => {
         normalCents: 50000n,
         cushionCents: 50000n,
       },
-      { type: "accrual", categoryId: "c", month: CLOSED },
       { type: "spendDelta", categoryId: "c", month: CLOSED, deltaCents: 60000n },
+      { type: "accrual", categoryId: "c", month: CLOSED },
     ]);
-    // 600 against a 500 limit → 100 over, covered by the 500 that had accrued.
+    // 600 against a 500 limit → 100 over, covered by April's 500.
     expect(cell(r, "c", CLOSED).overageCents).toBe(10000n);
+    expect(cell(r, "c", CLOSED).usedCents).toBe(10000n);
     expect(cell(r, "c", CLOSED).overspentCents).toBe(0n);
+    expect(r.states.get("c")!.reserveCents, "400 of April's 500 is left").toBe(
+      40000n,
+    );
   });
 
   // …and spending UNDER the limit must not touch the reserve at all.
@@ -704,5 +721,269 @@ describe("reserveEngine — month-end reserve snapshot (used / available)", () =
       expect(c.usedCents >= 0n, `used ${c.month} >= 0`).toBe(true);
       expect(c.endReserveCents >= 0n, `endReserve ${c.month} >= 0`).toBe(true);
     }
+  });
+});
+
+// A "No limit" category (category_limits.no_limit) is unbounded on purpose: it
+// cannot be overspent, and it never accrues leftover into the reserve. Both fall
+// out of one rule — its effective limit IS its spend — so overage and left are
+// structurally 0 rather than clamped after the fact.
+describe("reserveEngine — a No-limit category", () => {
+  const run = (events: ReserveEngineEvent[]) =>
+    reserveEngine({ events, openMonth: OPEN, reservesEnabled: true });
+  const cell = (r: ReserveEngineResult, id: string, month: string = OPEN) =>
+    r.cells.find((c) => c.categoryId === id && c.month === month)!;
+  const noLimit = (
+    categoryId: string,
+    month: string = OPEN,
+  ): ReserveEngineEvent => ({
+    type: "setLimit",
+    categoryId,
+    month,
+    normalCents: 0n,
+    cushionCents: 0n,
+    noLimit: true,
+  });
+
+  test("cannot be overspent, however much lands in it", () => {
+    const r = run([
+      noLimit("c"),
+      { type: "spendDelta", categoryId: "c", month: OPEN, deltaCents: 50000n },
+    ]);
+    const k = cell(r, "c");
+    expect(k.overageCents).toBe(0n);
+    expect(k.leftCents).toBe(0n);
+    expect(k.usedCents).toBe(0n);
+    expect(k.overspentCents).toBe(0n);
+    expect(r.states.get("c")!.reserveCents).toBe(0n);
+  });
+
+  test("stays unbounded in a CUSHION month — the flag beats the cushion limit", () => {
+    // Ordering guard. effLimit resolves cushion-vs-normal FIRST, and a no-limit
+    // row stores cushion 0 — so a check placed after that branch would read a
+    // threshold of 0 and turn the whole spend into overage, draining the reserve.
+    const r = run([
+      { type: "cushion", month: OPEN, on: true },
+      noLimit("c"),
+      { type: "spendDelta", categoryId: "c", month: OPEN, deltaCents: 50000n },
+    ]);
+    expect(cell(r, "c").overageCents).toBe(0n);
+    expect(cell(r, "c").overspentCents).toBe(0n);
+  });
+
+  test("accrues nothing at month close, however little was spent", () => {
+    const r = run([
+      noLimit("c", CLOSED),
+      { type: "spendDelta", categoryId: "c", month: CLOSED, deltaCents: 1000n },
+      { type: "accrual", categoryId: "c", month: CLOSED },
+    ]);
+    expect(r.states.get("c")!.reserveCents).toBe(0n);
+    expect(cell(r, "c", CLOSED).leftCents).toBe(0n);
+  });
+
+  test("a limited category is untouched by the flag's existence", () => {
+    const r = run([
+      {
+        type: "setLimit",
+        categoryId: "c",
+        month: OPEN,
+        normalCents: 10000n,
+        cushionCents: 10000n,
+      },
+      { type: "spendDelta", categoryId: "c", month: OPEN, deltaCents: 15000n },
+    ]);
+    expect(cell(r, "c").overageCents).toBe(5000n);
+    expect(cell(r, "c").overspentCents).toBe(5000n);
+  });
+});
+
+// A category with reserve_excluded set does not take part in the reserve AT ALL
+// (user, 260820). Until now the flag only hid the category from the pooled
+// `internal` total, so an excluded category still banked its own leftovers and
+// still spent them on its own overspend — which is how Insurance came to report
+// "reserves used 19" for a category that was never meant to hold any.
+//
+// Both halves matter and they are separate code paths: nothing goes IN (op4
+// accrual, op3 adjust) and nothing comes OUT (op1 draw).
+describe("reserveEngine — a reserve-EXCLUDED category", () => {
+  const X = "Excluded";
+  const limit = (month: string): ReserveEngineEvent => ({
+    type: "setLimit",
+    categoryId: X,
+    month,
+    normalCents: 100000n,
+    cushionCents: 100000n,
+  });
+  const spend = (month: string, cents: bigint): ReserveEngineEvent => ({
+    type: "spendDelta",
+    categoryId: X,
+    month,
+    deltaCents: cents,
+  });
+  const close = (month: string): ReserveEngineEvent => ({
+    type: "accrual",
+    categoryId: X,
+    month,
+  });
+  // The loader appends exclude/archive AFTER every month's events, so the flag
+  // arriving last is the REAL shape — the engine must not depend on its position.
+  const excluded: ReserveEngineEvent = {
+    type: "exclude",
+    categoryId: X,
+    excluded: true,
+  };
+  const at = (r: ReserveEngineResult, month: string) =>
+    r.cells.find((c) => c.categoryId === X && c.month === month)!;
+
+  // May is 400 under its limit; June is 200 over it.
+  const history: ReserveEngineEvent[] = [
+    limit("2026-05"),
+    spend("2026-05", 60000n),
+    close("2026-05"),
+    limit(OPEN),
+    spend(OPEN, 120000n),
+  ];
+
+  test("banks nothing: a closed month's leftover never reaches the reserve", () => {
+    const r = reserveEngine({
+      events: [...history, excluded],
+      openMonth: OPEN,
+    });
+    expect(at(r, "2026-05").leftCents, "May still shows its 400 left").toBe(
+      40000n,
+    );
+    expect(r.states.get(X)!.reserveCents, "but none of it was banked").toBe(0n);
+  });
+
+  test("draws nothing: an overspent month stays fully overspent", () => {
+    const r = reserveEngine({
+      events: [...history, excluded],
+      openMonth: OPEN,
+    });
+    expect(at(r, OPEN).overageCents).toBe(20000n);
+    expect(at(r, OPEN).usedCents, "no reserve to use").toBe(0n);
+    expect(at(r, OPEN).overspentCents, "the whole overage is overspent").toBe(
+      20000n,
+    );
+    expect(at(r, OPEN).endReserveCents).toBe(0n);
+  });
+
+  test("a manual reserve adjustment cannot give it one either", () => {
+    // Insurance's "+19 CSVIMPORT-JULY" pin, on a category excluded from reserves.
+    const r = reserveEngine({
+      events: [
+        ...history,
+        { type: "adjust", categoryId: X, deltaCents: 1900n, month: OPEN },
+        excluded,
+      ],
+      openMonth: OPEN,
+    });
+    expect(at(r, OPEN).usedCents, "the pin covers nothing").toBe(0n);
+    expect(at(r, OPEN).overspentCents).toBe(20000n);
+    expect(r.states.get(X)!.reserveCents).toBe(0n);
+  });
+
+  test("gates the whole history no matter where the flag arrives", () => {
+    const first = reserveEngine({
+      events: [excluded, ...history],
+      openMonth: OPEN,
+    });
+    const last = reserveEngine({
+      events: [...history, excluded],
+      openMonth: OPEN,
+    });
+    expect(at(first, OPEN).overspentCents).toBe(at(last, OPEN).overspentCents);
+    expect(first.states.get(X)!.reserveCents).toBe(
+      last.states.get(X)!.reserveCents,
+    );
+  });
+
+  test("an INCLUDED category with the same history still accrues and draws", () => {
+    // The control: without the flag these numbers are 400 banked, 200 drawn.
+    const r = reserveEngine({ events: history, openMonth: OPEN });
+    expect(at(r, OPEN).usedCents).toBe(20000n);
+    expect(at(r, OPEN).overspentCents).toBe(0n);
+    expect(r.states.get(X)!.reserveCents).toBe(20000n);
+  });
+});
+
+// A month may use the SMALLER of two amounts (user, 260820):
+//   A — what the pot actually held at that month's close, and
+//   B — how much of it still exists: today's balance plus whatever the months
+//       AFTER it took (later months are last in line and give theirs back).
+// B was already honoured by the displayed figure. It was NOT honoured by the
+// draw, so a withdrawal made after the fact left a month still spending money
+// that had since been taken out — the same 400 both used and withdrawn.
+describe("reserveEngine — a month cannot use reserve that has been withdrawn", () => {
+  const C = "Food";
+  const limit = (month: string): ReserveEngineEvent => ({
+    type: "setLimit",
+    categoryId: C,
+    month,
+    normalCents: 100000n,
+    cushionCents: 100000n,
+  });
+  const spend = (month: string, cents: bigint): ReserveEngineEvent => ({
+    type: "spendDelta",
+    categoryId: C,
+    month,
+    deltaCents: cents,
+  });
+  const close = (month: string): ReserveEngineEvent => ({
+    type: "accrual",
+    categoryId: C,
+    month,
+  });
+  const at = (r: ReserveEngineResult, month: string) =>
+    r.cells.find((c) => c.categoryId === C && c.month === month)!;
+
+  // May banks 400. June closes level. In July the whole 400 is withdrawn.
+  // Then a 400 receipt is back-dated into June.
+  const events: ReserveEngineEvent[] = [
+    limit("2026-05"),
+    spend("2026-05", 60000n),
+    close("2026-05"),
+    limit("2026-06"),
+    spend("2026-06", 140000n),
+    close("2026-06"),
+    limit("2026-07"),
+    { type: "adjust", categoryId: C, deltaCents: -40000n, month: "2026-07" },
+  ];
+
+  test("the withdrawn 400 cannot also be spent by June", () => {
+    const r = reserveEngine({ events, openMonth: "2026-07" });
+    expect(at(r, "2026-06").overageCents).toBe(40000n);
+    expect(at(r, "2026-06").usedCents, "withdrawn — nothing to use").toBe(0n);
+    expect(at(r, "2026-06").overspentCents).toBe(40000n);
+  });
+
+  test("Σ used never exceeds what was banked minus what was withdrawn", () => {
+    const r = reserveEngine({ events, openMonth: "2026-07" });
+    const totalUsed = r.cells
+      .filter((c) => c.categoryId === C)
+      .reduce((a, c) => a + c.usedCents, 0n);
+    expect(totalUsed, "banked 400 − withdrawn 400 = 0 spendable").toBe(0n);
+    expect(r.states.get(C)!.reserveCents, "never displays negative").toBe(0n);
+  });
+
+  test("without the withdrawal June draws its full 400 (the control)", () => {
+    const r = reserveEngine({
+      events: events.filter((e) => e.type !== "adjust"),
+      openMonth: "2026-07",
+    });
+    expect(at(r, "2026-06").usedCents).toBe(40000n);
+    expect(at(r, "2026-06").overspentCents).toBe(0n);
+  });
+
+  test("a PARTIAL withdrawal leaves the rest usable", () => {
+    // Withdraw only 150 of the 400 → June may still use 250.
+    const r = reserveEngine({
+      events: events.map((e) =>
+        e.type === "adjust" ? { ...e, deltaCents: -15000n } : e,
+      ),
+      openMonth: "2026-07",
+    });
+    expect(at(r, "2026-06").usedCents).toBe(25000n);
+    expect(at(r, "2026-06").overspentCents).toBe(15000n);
   });
 });

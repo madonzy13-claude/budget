@@ -47,6 +47,10 @@ export type ReserveEngineEvent =
       month: string; // 'YYYY-MM' — SCD-2 effective limit for this month onward
       normalCents: bigint;
       cushionCents: bigint;
+      /** category_limits.no_limit — the category is unbounded this month, so it
+       *  can't be overspent and leaves nothing to accrue. Optional: absent is a
+       *  normal limited month, which is every pre-existing caller and fixture. */
+      noLimit?: boolean;
     }
   | {
       type: "spendDelta";
@@ -122,6 +126,7 @@ interface Cat {
   archived: "all" | "current_future" | null;
   normal: Map<string, bigint>; // month → normal limit
   cushion: Map<string, bigint>; // month → cushion limit
+  noLimit: Map<string, boolean>; // month → unbounded ("No limit")
   spent: Map<string, bigint>; // month → Σ txns
   overageApplied: Map<string, bigint>; // month → overage already folded into R/used
   endR: Map<string, bigint>; // month → R balance at that month's END (snapshot during the fold)
@@ -136,6 +141,7 @@ function newCat(): Cat {
     archived: null,
     normal: new Map(),
     cushion: new Map(),
+    noLimit: new Map(),
     spent: new Map(),
     overageApplied: new Map(),
     endR: new Map(),
@@ -160,10 +166,19 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
     return c;
   };
 
+  // A "No limit" month is unbounded: its effective limit IS its spend, so
+  // overage = max0(spent − spent) = 0 and left = 0 — no overspend, nothing to
+  // accrue — everywhere those are derived, without clamping each site.
+  //
+  // This MUST be tested before the cushion branch below: a no-limit row stores
+  // cushion 0, so resolving cushion-vs-normal first would hand back a threshold
+  // of 0 in a cushion month and turn the whole spend into overage.
   const effLimit = (c: Cat, month: string): bigint =>
-    ((cushionOn.get(month) ?? false)
-      ? c.cushion.get(month)
-      : c.normal.get(month)) ?? 0n;
+    c.noLimit.get(month) === true
+      ? (c.spent.get(month) ?? 0n)
+      : (((cushionOn.get(month) ?? false)
+          ? c.cushion.get(month)
+          : c.normal.get(month)) ?? 0n);
 
   const overageOf = (c: Cat, month: string): bigint =>
     max0((c.spent.get(month) ?? 0n) - effLimit(c, month));
@@ -186,16 +201,22 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
   // overspent (added to THAT month's used); the rest becomes available R. A closed
   // month's overspent is never retro-covered. Lowering just reduces available R.
   const applyAdjustDelta = (c: Cat, d: bigint, month: string): void => {
+    if (c.excluded) return; // no reserve to set, raise or lower
     if (d >= 0n) {
       const cover = min(d, monthOverspent(c, month));
       c.used.set(month, usedOf(c, month) + cover);
       c.R += d - cover;
     } else {
-      // Reserve can't go below zero — a reduction larger than the available
-      // buffer floors at 0. Without this, op1's min(Δ, R) draws a NEGATIVE
-      // amount on the next overspend and a month's used goes negative (the
-      // reported "-30 / 0").
-      c.R = max0(c.R + d);
+      // A withdrawal larger than the free buffer is NOT discarded: the money it
+      // asks for has been taken out for real, and if an earlier month is holding
+      // it, that month has to give it back. Carrying the shortfall as a negative
+      // R is how that reaches the output stage, which settles it against the
+      // months that used reserve, newest first.
+      //
+      // Nothing downstream sees the negative: op1's draw is guarded by max0(c.R)
+      // (the reported "-30 / 0"), and both the reserve balance and the per-month
+      // free figure are floored when they are emitted.
+      c.R += d;
     }
   };
 
@@ -206,8 +227,10 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
     const delta = newOver - oldOver;
     if (delta > 0n) {
       // op1: draw available reserve to cover this month's increase. max0 guards
-      // against a transiently-negative R ever yielding a negative draw.
-      const draw = min(delta, max0(c.R));
+      // against a transiently-negative R ever yielding a negative draw. An
+      // excluded category has no reserve to draw on — its overage is overspent,
+      // all of it (user, 260820).
+      const draw = c.excluded ? 0n : min(delta, max0(c.R));
       c.R -= draw;
       c.used.set(month, usedOf(c, month) + draw);
     } else if (delta < 0n) {
@@ -254,6 +277,14 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
     for (const c of cats.values()) c.endR.set(foldMonth, c.R);
   };
 
+  // Exclusion is a property of the CATEGORY, not of any month, and it gates both
+  // accrual and draws — so it has to be known before the first month is folded.
+  // The loader appends these events after every month's, so read them up front
+  // rather than letting the answer depend on where they happen to sit.
+  for (const ev of events) {
+    if (ev.type === "exclude") getCat(ev.categoryId).excluded = ev.excluded;
+  }
+
   for (const ev of events) {
     const evMonth =
       "month" in ev ? (ev as { month?: string }).month : undefined;
@@ -266,6 +297,7 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
         const c = getCat(ev.categoryId);
         c.normal.set(ev.month, ev.normalCents);
         c.cushion.set(ev.month, ev.cushionCents);
+        c.noLimit.set(ev.month, ev.noLimit === true);
         reapplyMonth(c, ev.month);
         break;
       }
@@ -284,6 +316,7 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
         // reserve. `left` only exists when there is NO overage, so accrual never
         // covers overspent; it is a pure R += left.
         const c = getCat(ev.categoryId);
+        if (c.excluded) break; // excluded: the leftover stays leftover, unbanked
         const left = max0(
           effLimit(c, ev.month) - (c.spent.get(ev.month) ?? 0n),
         );
@@ -355,6 +388,18 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
       return { month, overage, left, realUsed, accruedHere, forwardExcl };
     });
 
+    // Settle any over-withdrawal (R below zero) against the months that are
+    // holding reserve, NEWEST first: the oldest month is first in line for the
+    // pot, so the youngest is the first to give it back. What it gives back
+    // stops being `used` and becomes overspent.
+    const finalR = max0(c.R); // the settled balance: an over-withdrawal is 0, not negative
+    let shortfall = max0(-c.R);
+    for (let i = derived.length - 1; i >= 0 && shortfall > 0n; i--) {
+      const give = min(shortfall, derived[i].realUsed);
+      derived[i].realUsed -= give;
+      shortfall -= give;
+    }
+
     // Backward free reserve still claimable by month m, anchored at the FINAL
     // reserve: backwardExcl[m] = R_final + Σ_{k>m} used[k] − Σ_{k≥m} accrued[k].
     // A LATER reserve REMOVAL lowers R_final → backwardExcl binds → a past
@@ -365,7 +410,7 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
     let carry = 0n; // Σ over months strictly after the cursor of (used − accrued)
     for (let i = derived.length - 1; i >= 0; i--) {
       const d = derived[i];
-      const backwardExcl = c.R + carry - d.accruedHere;
+      const backwardExcl = finalR + carry - d.accruedHere;
       endReserveByMonth.set(d.month, max0(min(d.forwardExcl, backwardExcl)));
       carry += d.realUsed - d.accruedHere;
     }
@@ -393,8 +438,8 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
       });
     }
 
-    states.set(id, { reserveCents: c.R, usedCents: totalUsed });
-    if (reservesEnabled && active) internal += c.R;
+    states.set(id, { reserveCents: finalR, usedCents: totalUsed });
+    if (reservesEnabled && active) internal += finalR;
   }
 
   const internalOut = reservesEnabled ? internal : 0n;

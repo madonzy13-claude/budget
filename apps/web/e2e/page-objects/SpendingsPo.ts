@@ -111,6 +111,18 @@ export class SpendingsPo {
     );
   }
 
+  /** The overspent (or "overinvested") figure in a category column header. */
+  columnOverspent(categoryName: string): Locator {
+    return this.page.getByTestId(
+      `column-header-${categoryName.toLowerCase()}-overspent`,
+    );
+  }
+
+  /** The "No limit" segment of the limit-mode picker (mig 0083). */
+  catSliderNoLimit(): Locator {
+    return this.page.getByTestId("cat-slider-no-limit");
+  }
+
   /**
    * The reserves-available indicator in a category column header.
    * Shows the remaining available reserve after auto-deduct.

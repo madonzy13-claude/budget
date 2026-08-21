@@ -9,10 +9,12 @@
     "noEmit": true,
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
-    "baseUrl": ".",
+    // TypeScript 7 removed `baseUrl`; `paths` entries are now resolved
+    // relative to this tsconfig, which is what "./src/*" already assumed.
     "paths": {
       "@/*": ["./src/*"]
     },
+    "types": ["node", "react", "react-dom"],
     "plugins": [
       {
         "name": "next"

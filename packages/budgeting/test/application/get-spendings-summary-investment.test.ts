@@ -63,7 +63,7 @@ function makeDeps(opts: {
       new Map(
         [...opts.limits].map(([k, v]) => [
           k,
-          { ...v, needs: null, wants: null },
+          { ...v, needs: null, wants: null, noLimit: false },
         ]),
       ),
   };

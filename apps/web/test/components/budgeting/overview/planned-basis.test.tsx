@@ -203,6 +203,7 @@ const base = {
 const RANGE = { preset: "last3Months", from: "2025-11-01", to: "2026-01-31" };
 
 beforeEach(() => {
+  summaryDto.current = undefined;
   savedPrefs.length = 0;
   prefsDto.current = {};
   catsDto.current = [{ id: "c1", name: "Food" }];
@@ -1313,5 +1314,92 @@ describe("scheduled payments per year, by category", () => {
       render(<PlannedSection budgetId="b1" range={RANGE as never} />),
     ).not.toThrow();
     expect(yearChart()).toBeNull();
+  });
+});
+
+// 0083 (user, 260820): the Future switch must read 0 for a No-limit category.
+// There is nothing to add to a limit that does not exist, so the gap has to be
+// zero by construction — not because the projection happens to match.
+describe("Future reading — a No-limit category", () => {
+  const unbounded = () => {
+    summaryDto.current = {
+      categories: [
+        {
+          categoryId: "c1",
+          plannedCents: "80000",
+          needsCents: "80000",
+          wantsCents: "0",
+          cushionCents: "0",
+          noLimit: true,
+        },
+      ],
+    };
+    // The walk still has an opinion — it is what the bar would otherwise draw.
+    fitDto.current = {
+      rows: [
+        {
+          category_id: "c1",
+          projected_monthly_cents: "120000",
+          suggested_limit_cents: "120000",
+          suggested_delta_cents: "40000",
+        },
+      ],
+    };
+  };
+
+  it("draws no gap, however far the projection is from the limit", async () => {
+    unbounded();
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    // A limited category here would read 40000 (1,200 projected − 800 limit).
+    expect(chart().getAttribute("data-gap")).toBe("0");
+  });
+
+  it("proposes no change in the limit dialog", async () => {
+    unbounded();
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    const row = (limitRows.current as { categoryId: string }[]).find(
+      (r) => r.categoryId === "c1",
+    ) as { suggestedLimitCents: number } | undefined;
+    // Present but inert: suggesting its own current figure changes nothing.
+    expect(row?.suggestedLimitCents).toBe(80000);
+  });
+
+  it("a limited category still shows its shortfall", async () => {
+    summaryDto.current = {
+      categories: [
+        {
+          categoryId: "c1",
+          plannedCents: "80000",
+          needsCents: "80000",
+          wantsCents: "0",
+          cushionCents: "0",
+          noLimit: false,
+        },
+      ],
+    };
+    fitDto.current = {
+      rows: [
+        {
+          category_id: "c1",
+          projected_monthly_cents: "120000",
+          suggested_limit_cents: "120000",
+          suggested_delta_cents: "40000",
+        },
+      ],
+    };
+    const user = userEvent.setup();
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    await user.click(
+      screen.getByRole("button", { name: "planned.basisFuture" }),
+    );
+    expect(chart().getAttribute("data-gap")).toBe("40000");
   });
 });
