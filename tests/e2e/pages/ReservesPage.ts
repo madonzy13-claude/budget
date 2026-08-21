@@ -95,17 +95,43 @@ export class ReservesPage {
   // ── Drag between sections ───────────────────────────────────────────────────
 
   async dragToExcluded(categoryId: string): Promise<void> {
-    await this._dndKitDrag(
-      this.row(categoryId).getByRole("button", { name: /drag|move/i }),
-      this.excludedSection(),
-    );
+    await this._dragInto(categoryId, this.excludedSection());
   }
 
   async dragToActive(categoryId: string): Promise<void> {
-    await this._dndKitDrag(
-      this.row(categoryId).getByRole("button", { name: /drag|move/i }),
-      this.activeSection(),
-    );
+    await this._dragInto(categoryId, this.activeSection());
+  }
+
+  /**
+   * Drag a row into a section, and CONFIRM it landed.
+   *
+   * dnd-kit resolves the drop target from the pointer position observed on a
+   * RENDERED frame, not from the mouseup. Two rounds of hardening (measure the
+   * target mid-drag; an extra move plus a 60ms grace before the release) cut the
+   * loss rate but could not remove it: under load a frame can take longer than
+   * any fixed grace, and when none lands `over` is still null at mouseup and the
+   * drop is DISCARDED — silently. No error, no request, the row simply stays put
+   * and the next step waits 15s for something that was never going to arrive
+   * (~1 run in 5, measured 260821 with retries off).
+   *
+   * A discarded drop is a harness artefact, not a product failure — a real
+   * finger always crosses several frames — so the fix is to notice and drag
+   * again rather than to wait longer and hope. Bounded at three attempts: if the
+   * row genuinely cannot be moved, this still fails, and fails with the row's
+   * real absence rather than with a timeout inside an unrelated Then step.
+   */
+  private async _dragInto(
+    categoryId: string,
+    target: import("@playwright/test").Locator,
+  ): Promise<void> {
+    const landed = target.locator(`[data-category-id="${categoryId}"]`);
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      await this._dndKitDrag(
+        this.row(categoryId).getByRole("button", { name: /drag|move/i }),
+        target,
+      );
+      if ((await landed.count()) > 0) return;
+    }
   }
 
   /** dnd-kit drag using page.mouse — PointerSensor requires pointer events on document. */
