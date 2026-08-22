@@ -15,6 +15,9 @@ vi.mock("next-intl", () => {
       "cards.spentThisMonth": "Spent",
       "cards.leftToSpend": "Upcoming",
       "cards.freeToMove": "Free to move",
+      "cards.spendBalanced": "Everything is planned for",
+      "cards.deficit": "Deficit",
+      "cards.shortFrom": "Short from {date}",
       "cards.lowestPoint": "Lowest point: {date}",
       "cards.spendNeutral": "No upcoming income",
       "cards.retirementRunway": "If you retire now",
@@ -242,65 +245,95 @@ describe("OverviewCards", () => {
   // called a negative one a shortfall of MONEY, which it never was: the forecast
   // can be 100 green days and the figure still negative, because it answers
   // "what can I take out?", not "will I run out?" (user, 260822).
-  it("names the row Free to move, whichever side of zero it falls", () => {
+  it("names the row Free to move when there is something to move", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
-    const { unmount } = render(
-      <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />,
-    );
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     expect(screen.getByText("Free to move")).toBeTruthy();
     expect(screen.getByTestId("spend-surplus-deficit").textContent).toContain(
       "$400",
     );
-    unmount();
-
-    mockProjection.mockReturnValue({
-      data: {
-        spend_health: { good: false, surplus_deficit_cents: "-25000" },
-        safe_to_withdraw: { cents: "-25000", thinnest_date: "2026-09-02" },
-      },
-    });
-    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
-    expect(screen.getByText("Free to move")).toBeTruthy();
+    expect(screen.getByTestId("spend-surplus-deficit").style.color).toBe(
+      "var(--trading-up)",
+    );
   });
 
-  // You cannot move minus 250 dollars. Below zero the honest answer to "how much
-  // is free" is nothing, so the row says nothing — the magnitude of the
-  // shortfall is a different question and this row does not ask it.
-  it("shows nothing free rather than a negative amount", () => {
+  // "Free to move $0" was a number that said nothing — and you cannot move minus
+  // 250 either. When the forecast holds up but there is nothing spare, the row
+  // says so in words, like the reserves card's own note (user, 260822).
+  it("says the budget is fully planned instead of showing a zero", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
-    mockProjection.mockReturnValue({
-      data: {
-        spend_health: { good: false, surplus_deficit_cents: "-25000" },
-        safe_to_withdraw: { cents: "-25000", thinnest_date: "2026-09-02" },
-      },
-    });
-    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
-    const value = screen.getByTestId("spend-surplus-deficit").textContent!;
-    expect(value).toContain("$0");
-    expect(value).not.toContain("250");
-  });
-
-  it("colors the value: green when there IS something to move, white otherwise", () => {
-    mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
-    const cases: [string, string][] = [
-      ["40000", "var(--trading-up)"], // something to move → green
-      ["0", "var(--body-on-dark)"], // nothing to move → white
-      // …and a negative reads as nothing to move, so it is white too. Red said
-      // money was missing; none is (user, 260822).
-      ["-25000", "var(--body-on-dark)"],
-    ];
-    for (const [cents, color] of cases) {
+    for (const cents of ["0", "-25000"]) {
       mockProjection.mockReturnValue({
-        data: { spend_health: { good: true, surplus_deficit_cents: cents } },
+        data: {
+          spend_health: { good: true, surplus_deficit_cents: cents },
+          safe_to_withdraw: { cents, thinnest_date: "2026-09-02" },
+          summary: {
+            first_yellow_date: null,
+            first_red_date: null,
+            worst_shortfall_cents: "0",
+          },
+        },
       });
       const { unmount } = render(
         <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />,
       );
-      expect(screen.getByTestId("spend-surplus-deficit").style.color).toBe(
-        color,
+      expect(screen.getByTestId("spend-balanced-note").textContent).toContain(
+        "Everything is planned for",
       );
+      expect(screen.queryByTestId("spend-surplus-deficit")).toBeNull();
       unmount();
     }
+  });
+
+  // A REAL deficit — a day the forecast actually goes under, after the reserve
+  // pot is exhausted too. That is the one state worth red, and it is the same
+  // red the band below paints on the same day, from the same run. The old red
+  // came from a different simulation entirely and could sit above 100 green
+  // days (user, 260822).
+  it("shows the forecast's deepest shortfall, in red, when a day goes under", () => {
+    mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    mockProjection.mockReturnValue({
+      data: {
+        spend_health: { good: false, surplus_deficit_cents: "40000" },
+        safe_to_withdraw: { cents: "40000", thinnest_date: "2026-09-02" },
+        summary: {
+          first_yellow_date: "2026-10-01",
+          first_red_date: "2026-10-14",
+          worst_shortfall_cents: "120000",
+        },
+      },
+    });
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+    expect(screen.getByText("Deficit")).toBeTruthy();
+    const value = screen.getByTestId("spend-surplus-deficit");
+    expect(value.textContent).toContain("$1,200");
+    expect(value.style.color).toBe("var(--trading-down)");
+    // …and the day it starts, not the day the other run is thinnest.
+    expect(screen.getByTestId("spend-surplus-row").getAttribute("title")).toContain(
+      "14",
+    );
+  });
+
+  // The deficit wins over anything free to move: money you could withdraw is a
+  // pointless thing to offer on a budget that goes under before the window ends.
+  it("prefers the deficit over the withdrawable figure", () => {
+    mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    mockProjection.mockReturnValue({
+      data: {
+        spend_health: { good: false, surplus_deficit_cents: "40000" },
+        safe_to_withdraw: { cents: "40000", thinnest_date: "2026-09-02" },
+        summary: {
+          first_yellow_date: null,
+          first_red_date: "2026-10-14",
+          worst_shortfall_cents: "120000",
+        },
+      },
+    });
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+    expect(screen.queryByText("Free to move")).toBeNull();
+    expect(
+      screen.getByTestId("spend-surplus-deficit").textContent,
+    ).not.toContain("$400");
   });
 
   it("shows the reserves ok/short/surplus indicator (item 3)", () => {

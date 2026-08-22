@@ -275,10 +275,22 @@ export function OverviewCards({
   const sdRaw = safe?.cents ?? spendHealth?.surplus_deficit_cents ?? null;
   const surplusDeficit = sdRaw !== null ? BigInt(sdRaw) : null;
   // Below zero there is nothing to move, and "minus 590" is not an amount anyone
-  // can move — so the row says nothing rather than a negative (user, 260822).
-  // The shortfall itself is a different question and this row does not ask it.
+  // can move — so the row never shows a negative (user, 260822).
   const freeToMove =
     surplusDeficit !== null && surplusDeficit > 0n ? surplusDeficit : 0n;
+  // A REAL deficit: a day the forecast line actually goes under, after the
+  // reserve pot is exhausted too. It comes from the EVEN run — the same one the
+  // band below draws — so red here and red there are the same day, the same
+  // arithmetic, the same fact. The red this replaces came from the pessimistic
+  // run and could sit above a band of 100 green days (user, 260822).
+  //
+  // A reserve-covered dip is yellow in the band and stays out of this: the
+  // reserve doing its job is not a deficit.
+  const summary = projection?.summary;
+  const shortfallCents =
+    summary?.first_red_date != null
+      ? BigInt(summary.worst_shortfall_cents)
+      : null;
   const thinnestDate = safe?.thinnest_date ?? null;
   // Reserves-note amount (short → missing, surplus → extra). The OK note names
   // no figure at all since 260804 — nothing is owed, so restating the target
@@ -513,7 +525,44 @@ export function OverviewCards({
                 {animRounded(data.spendings.spent_cents)}
               </dd>
             </div>
-            {surplusDeficit !== null ? (
+            {/* Three states, in the order they matter.
+                1. The forecast goes under → the DEEPEST shortfall in the
+                   window, in red. Deepest, not the sum: consecutive red days
+                   are the same missing money counted again, so a sum grows
+                   with how LONG the hole lasts instead of how bad it is. Find
+                   this much and no day in the window goes under.
+                2. Something could leave the budget → how much, in green.
+                3. Neither → a plain note. "Free to move 0" was a number that
+                   said nothing (user, 260822). */}
+            {shortfallCents !== null ? (
+              <div
+                data-testid="spend-surplus-row"
+                className="flex items-center justify-between gap-2"
+                {...(summary?.first_red_date
+                  ? {
+                      title: t("cards.shortFrom", {
+                        date: formatDayMonthShort(
+                          summary.first_red_date,
+                          locale,
+                        ),
+                      }),
+                    }
+                  : {})}
+              >
+                <dt className="min-w-0 truncate">{t("cards.deficit")}</dt>
+                {/* The band below paints its red days with this same token, and
+                    this figure comes from that same run — so the card is
+                    echoing the chart rather than inventing an alarm of its own
+                    (DESIGN.md:647 on not repurposing the trading tokens). */}
+                <dd
+                  data-testid="spend-surplus-deficit"
+                  className="num"
+                  style={{ color: "var(--trading-down)" }}
+                >
+                  {animRounded(String(shortfallCents))}
+                </dd>
+              </div>
+            ) : surplusDeficit !== null && freeToMove > 0n ? (
               <div
                 data-testid="spend-surplus-row"
                 className="flex items-center justify-between gap-2"
@@ -529,31 +578,23 @@ export function OverviewCards({
                     }
                   : {})}
               >
-                {/* ONE label, whichever side of zero the figure falls on. The
-                    old Surplus / Deficit pair split one measurement into two
-                    things and called the negative side a shortfall of MONEY —
-                    which it never was. The forecast can be 100 green days with
-                    this figure still under water, because it answers "what can
-                    I take out today?", not "will I run out?" (user, 260822). */}
+                {/* Names what the figure is FOR — money that could go to
+                    investments or elsewhere — rather than "Surplus", which
+                    sounds like leftover budget and sat contradicting the
+                    Available-to-spend figure right above it. */}
                 <dt className="min-w-0 truncate">{t("cards.freeToMove")}</dt>
-                {/* Inline color (tailwind-merge drops text-[var()] color):
-                    green when there IS something to move, white when there is
-                    not. No red — nothing is missing, there is simply nothing
-                    spare, and red sent people looking for a problem the
-                    forecast says does not exist. */}
                 <dd
                   data-testid="spend-surplus-deficit"
                   className="num"
-                  style={{
-                    color:
-                      freeToMove > 0n
-                        ? "var(--trading-up)"
-                        : "var(--body-on-dark)",
-                  }}
+                  style={{ color: "var(--trading-up)" }}
                 >
                   {/* Whole units only — no cents (parity with the hero figures). */}
                   {animRounded(String(freeToMove))}
                 </dd>
+              </div>
+            ) : surplusDeficit !== null ? (
+              <div data-testid="spend-balanced-note" className="flex gap-2">
+                <dd className="min-w-0">{t("cards.spendBalanced")}</dd>
               </div>
             ) : (
               // No upcoming income → keep the original "upcoming" figure.
