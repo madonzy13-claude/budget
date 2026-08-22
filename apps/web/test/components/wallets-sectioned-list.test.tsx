@@ -231,6 +231,52 @@ describe("WalletsSectionedList", () => {
     expect(ids).toContain("w3");
   });
 
+  // Every section reports what it holds, in BUDGET currency, on the header row
+  // (user, 260822). The point is the mixed-currency section: five cushion
+  // wallets in four currencies read as one figure. The server enriches each
+  // wallet with `currentBalanceInBudgetCurrencyCents`; the sum already existed
+  // to drive the Share column and is now shown.
+  describe("section totals", () => {
+    it("totals each section in the budget currency", () => {
+      renderWithQuery([
+        {
+          id: "c1",
+          name: "Cash USD",
+          walletType: "CUSHION",
+          currency: "USD",
+          currentBalanceCents: "125100",
+          currentBalanceInBudgetCurrencyCents: "455000",
+          archivedAt: null,
+        },
+        {
+          id: "c2",
+          name: "Cash CHF",
+          walletType: "CUSHION",
+          currency: "CHF",
+          currentBalanceCents: "470000",
+          currentBalanceInBudgetCurrencyCents: "2045000",
+          archivedAt: null,
+        },
+      ] as WalletDto[]);
+      // 4,550 + 20,450 = 25,000 — neither wallet's own number.
+      expect(
+        screen.getByTestId("section-total-CUSHION").textContent,
+      ).toContain("25,000");
+      expect(
+        screen.getByTestId("section-total-currency-CUSHION").textContent,
+      ).toBe("EUR");
+    });
+
+    // Without the FX figure the raw balance is all there is — a fixture or a
+    // caller that bypasses the route layer must still add up, not blank out.
+    it("falls back to the raw balance when FX has not enriched a wallet", () => {
+      renderWithQuery();
+      expect(
+        screen.getByTestId("section-total-SPENDINGS").textContent,
+      ).toContain("50");
+    });
+  });
+
   it("renders DashedAddButton for each section", () => {
     renderWithQuery();
     expect(screen.getByTestId("add-wallet-spendings")).toBeInTheDocument();

@@ -538,16 +538,6 @@ export function OverviewCards({
               <div
                 data-testid="spend-surplus-row"
                 className="flex items-center justify-between gap-2"
-                {...(summary?.first_red_date
-                  ? {
-                      title: t("cards.shortFrom", {
-                        date: formatDayMonthShort(
-                          summary.first_red_date,
-                          locale,
-                        ),
-                      }),
-                    }
-                  : {})}
               >
                 <dt className="min-w-0 truncate">{t("cards.deficit")}</dt>
                 {/* The band below paints its red days with this same token, and

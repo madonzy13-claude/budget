@@ -15,9 +15,8 @@ vi.mock("next-intl", () => {
       "cards.spentThisMonth": "Spent",
       "cards.leftToSpend": "Upcoming",
       "cards.freeToMove": "Free to move",
-      "cards.spendBalanced": "Everything is planned for",
+      "cards.spendBalanced": "Plan looks solid",
       "cards.deficit": "Deficit",
-      "cards.shortFrom": "Short from {date}",
       "cards.lowestPoint": "Lowest point: {date}",
       "cards.spendNeutral": "No upcoming income",
       "cards.retirementRunway": "If you retire now",
@@ -278,7 +277,7 @@ describe("OverviewCards", () => {
         <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />,
       );
       expect(screen.getByTestId("spend-balanced-note").textContent).toContain(
-        "Everything is planned for",
+        "Plan looks solid",
       );
       expect(screen.queryByTestId("spend-surplus-deficit")).toBeNull();
       unmount();
@@ -308,10 +307,6 @@ describe("OverviewCards", () => {
     const value = screen.getByTestId("spend-surplus-deficit");
     expect(value.textContent).toContain("$1,200");
     expect(value.style.color).toBe("var(--trading-down)");
-    // …and the day it starts, not the day the other run is thinnest.
-    expect(screen.getByTestId("spend-surplus-row").getAttribute("title")).toContain(
-      "14",
-    );
   });
 
   // The deficit wins over anything free to move: money you could withdraw is a

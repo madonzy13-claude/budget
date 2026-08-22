@@ -685,8 +685,31 @@ export function InvestmentsSection({
       data-testid="investments-section"
       className="flex flex-col gap-2 rounded-[var(--radius-lg)] p-2"
     >
-      <h3 className="flex items-center gap-1 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
-        {t("section.title")}
+      {/* Like every wallet section, the header reports what this one holds in
+          BUDGET currency (user, 260822). The columns it has to line up with are
+          the INVESTMENT row's, which differ from a wallet row's: a P/L gutter,
+          then currency tight to the amount on `gap-1`, then the trash. Matching
+          the row's own `gap-2 px-3` is what puts the two numbers on one axis. */}
+      <h3 className="flex items-center gap-2 px-3 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
+        <span className="min-w-0 flex-1 truncate">{t("section.title")}</span>
+        {/* P/L gutter — desktop only, exactly as the rows reserve it. */}
+        <span className="hidden w-24 shrink-0 sm:block" aria-hidden="true" />
+        <span className="flex shrink-0 items-baseline gap-1 tracking-normal">
+          <span
+            data-testid="section-total-currency-INVESTMENTS"
+            className="text-num-sm"
+          >
+            {budgetCurrency}
+          </span>
+          <span
+            data-testid="section-total-INVESTMENTS"
+            className="text-right text-num-md tabular-nums text-[var(--body-on-dark)]"
+            style={{ minWidth: `${maxAmountChars + 1}ch` }}
+          >
+            {centsToBare(String(Math.round(totalBudgetCents)), locale)}
+          </span>
+        </span>
+        <span className="hidden w-7 shrink-0 sm:block" aria-hidden="true" />
       </h3>
 
       <DndContext
