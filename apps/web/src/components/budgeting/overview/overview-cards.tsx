@@ -274,7 +274,11 @@ export function OverviewCards({
   const safe = projection?.safe_to_withdraw;
   const sdRaw = safe?.cents ?? spendHealth?.surplus_deficit_cents ?? null;
   const surplusDeficit = sdRaw !== null ? BigInt(sdRaw) : null;
-  const isDeficit = surplusDeficit !== null && surplusDeficit < 0n;
+  // Below zero there is nothing to move, and "minus 590" is not an amount anyone
+  // can move — so the row says nothing rather than a negative (user, 260822).
+  // The shortfall itself is a different question and this row does not ask it.
+  const freeToMove =
+    surplusDeficit !== null && surplusDeficit > 0n ? surplusDeficit : 0n;
   const thinnestDate = safe?.thinnest_date ?? null;
   // Reserves-note amount (short → missing, surplus → extra). The OK note names
   // no figure at all since 260804 — nothing is owed, so restating the target
@@ -525,25 +529,30 @@ export function OverviewCards({
                     }
                   : {})}
               >
-                <dt className="min-w-0 truncate">
-                  {isDeficit ? t("cards.deficit") : t("cards.surplus")}
-                </dt>
-                {/* Inline color (tailwind-merge drops text-[var()] color): red
-                    deficit (<0), white when exactly 0, green surplus (>0). */}
+                {/* ONE label, whichever side of zero the figure falls on. The
+                    old Surplus / Deficit pair split one measurement into two
+                    things and called the negative side a shortfall of MONEY —
+                    which it never was. The forecast can be 100 green days with
+                    this figure still under water, because it answers "what can
+                    I take out today?", not "will I run out?" (user, 260822). */}
+                <dt className="min-w-0 truncate">{t("cards.freeToMove")}</dt>
+                {/* Inline color (tailwind-merge drops text-[var()] color):
+                    green when there IS something to move, white when there is
+                    not. No red — nothing is missing, there is simply nothing
+                    spare, and red sent people looking for a problem the
+                    forecast says does not exist. */}
                 <dd
                   data-testid="spend-surplus-deficit"
                   className="num"
                   style={{
                     color:
-                      surplusDeficit < 0n
-                        ? "var(--trading-down)"
-                        : surplusDeficit === 0n
-                          ? "var(--body-on-dark)"
-                          : "var(--trading-up)",
+                      freeToMove > 0n
+                        ? "var(--trading-up)"
+                        : "var(--body-on-dark)",
                   }}
                 >
                   {/* Whole units only — no cents (parity with the hero figures). */}
-                  {animRounded(String(surplusDeficit))}
+                  {animRounded(String(freeToMove))}
                 </dd>
               </div>
             ) : (

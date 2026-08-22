@@ -14,9 +14,8 @@ vi.mock("next-intl", () => {
       "cards.availableToSpend": "Available to spend",
       "cards.spentThisMonth": "Spent",
       "cards.leftToSpend": "Upcoming",
-      "cards.surplus": "Surplus",
+      "cards.freeToMove": "Free to move",
       "cards.lowestPoint": "Lowest point: {date}",
-      "cards.deficit": "Deficit",
       "cards.spendNeutral": "No upcoming income",
       "cards.retirementRunway": "If you retire now",
       "cards.retirementSub": "at your normal planned spending",
@@ -237,19 +236,23 @@ describe("OverviewCards", () => {
     expect(row.getAttribute("title")).toContain("15");
   });
 
-  it("shows surplus (green) or deficit (red) from the nearest income", () => {
+  // ONE label, and it names what the figure is FOR: money that could leave the
+  // budget today — to invest, to move elsewhere — with every dip in the forecast
+  // still covered. "Surplus / Deficit" split one measurement into two things and
+  // called a negative one a shortfall of MONEY, which it never was: the forecast
+  // can be 100 green days and the figure still negative, because it answers
+  // "what can I take out?", not "will I run out?" (user, 260822).
+  it("names the row Free to move, whichever side of zero it falls", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
-    // Default: income exists, +$400 surplus.
     const { unmount } = render(
       <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />,
     );
-    expect(screen.getByText("Surplus")).toBeTruthy();
+    expect(screen.getByText("Free to move")).toBeTruthy();
     expect(screen.getByTestId("spend-surplus-deficit").textContent).toContain(
       "$400",
     );
     unmount();
 
-    // Negative → Deficit label, magnitude shown (sign conveyed by red color).
     mockProjection.mockReturnValue({
       data: {
         spend_health: { good: false, surplus_deficit_cents: "-25000" },
@@ -257,18 +260,34 @@ describe("OverviewCards", () => {
       },
     });
     render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
-    expect(screen.getByText("Deficit")).toBeTruthy();
-    expect(screen.getByTestId("spend-surplus-deficit").textContent).toContain(
-      "250",
-    );
+    expect(screen.getByText("Free to move")).toBeTruthy();
   });
 
-  it("colors the surplus/deficit value: green >0, white =0, red <0", () => {
+  // You cannot move minus 250 dollars. Below zero the honest answer to "how much
+  // is free" is nothing, so the row says nothing — the magnitude of the
+  // shortfall is a different question and this row does not ask it.
+  it("shows nothing free rather than a negative amount", () => {
+    mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    mockProjection.mockReturnValue({
+      data: {
+        spend_health: { good: false, surplus_deficit_cents: "-25000" },
+        safe_to_withdraw: { cents: "-25000", thinnest_date: "2026-09-02" },
+      },
+    });
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+    const value = screen.getByTestId("spend-surplus-deficit").textContent!;
+    expect(value).toContain("$0");
+    expect(value).not.toContain("250");
+  });
+
+  it("colors the value: green when there IS something to move, white otherwise", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
     const cases: [string, string][] = [
-      ["40000", "var(--trading-up)"], // surplus > 0 → green
-      ["0", "var(--body-on-dark)"], // exactly 0 → white
-      ["-25000", "var(--trading-down)"], // deficit < 0 → red
+      ["40000", "var(--trading-up)"], // something to move → green
+      ["0", "var(--body-on-dark)"], // nothing to move → white
+      // …and a negative reads as nothing to move, so it is white too. Red said
+      // money was missing; none is (user, 260822).
+      ["-25000", "var(--body-on-dark)"],
     ];
     for (const [cents, color] of cases) {
       mockProjection.mockReturnValue({
