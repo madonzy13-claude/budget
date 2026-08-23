@@ -341,7 +341,15 @@ describe("OverviewCards", () => {
       mockUse.mockReturnValue({
         data: {
           ...DTO,
-          cushion: { ...DTO.cushion, total_cents: total, required_cents: required },
+          cushion: {
+            ...DTO.cushion,
+            total_cents: total,
+            required_cents: required,
+            // Derived exactly as the server derives it
+            // (get-overview-cards.ts: `actualCents >= requiredCents`), so the
+            // icon in this fixture tells the same story as the numbers.
+            covered: BigInt(total) >= BigInt(required),
+          },
         },
         isError: false,
         isPending: false,
@@ -354,15 +362,19 @@ describe("OverviewCards", () => {
       const note = screen.getByTestId("cushion-note");
       expect(note.textContent).toContain("Not enough");
       expect(note.textContent).toContain("$9,000");
-      expect(note.style.color).not.toBe("var(--trading-up)");
+      expect(screen.getByTestId("cushion-short")).toBeTruthy();
     });
 
-    it("says what is extra when over, in green", () => {
+    it("says what is extra when over, and leaves the green to the icon", () => {
       withCushion("2000000", "1800000"); // $2,000 over
       const note = screen.getByTestId("cushion-note");
       expect(note.textContent).toContain("More than needed");
       expect(note.textContent).toContain("$2,000");
-      expect(note.style.color).toBe("var(--trading-up)");
+      // The check beside the runway is the green one — `covered` is
+      // `saved >= required`, so a surplus already turns it on. Colouring the
+      // sentence too says the same thing twice (user, 260823).
+      expect(note.style.color).toBe("");
+      expect(screen.getByTestId("cushion-covered")).toBeTruthy();
     });
 
     it("congratulates when it lands exactly", () => {

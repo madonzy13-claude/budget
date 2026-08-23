@@ -764,18 +764,13 @@ export function OverviewCards({
             {/* One sentence instead of Saved-over-Needed, in the reserves
                 card's own register: the pair listed two figures and left the
                 subtraction to the reader (user, 260823).
-                GREEN when there is more than needed — that is good news, and
-                the muted grey the reserves card uses for its surplus reads as
-                a warning here, next to a card whose whole point is "are you
-                safe yet". */}
+                The note stays muted in every state — the green already lives
+                on the check beside the runway, which `covered` turns on the
+                moment savings reach the requirement, surplus included. Two
+                greens for one fact is one too many (user, 260823). */}
             <p
               data-testid="cushion-note"
               className="text-caption mt-1.5 text-[var(--muted-foreground)]"
-              style={
-                cushionState === "surplus"
-                  ? { color: "var(--trading-up)" }
-                  : undefined
-              }
             >
               {t.rich(
                 cushionState === "surplus"
