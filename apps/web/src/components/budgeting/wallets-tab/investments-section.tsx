@@ -714,7 +714,7 @@ export function InvestmentsSection({
           // header sits flush. Without it the header code sat 13px left of
           // every row's, which is visible the moment you look for it (user
           // screenshot, 260823).
-          className="w-[44px] shrink-0 text-left text-num-sm tracking-normal sm:w-[96px] md:w-[224px] md:pl-[13px]"
+          className="w-[44px] shrink-0 text-center text-num-sm tracking-normal sm:w-[96px] md:w-[224px] md:pl-[13px] md:text-left"
         >
           {budgetCurrency}
         </span>
@@ -723,7 +723,10 @@ export function InvestmentsSection({
           className="shrink-0 text-right text-num-md tabular-nums tracking-normal"
           style={{ minWidth: `${maxAmountChars + 1}ch` }}
         >
-          {centsToBare(String(Math.round(totalBudgetCents)), locale)}
+          {centsToBare(
+            String(Math.round(totalBudgetCents / 100) * 100),
+            locale,
+          )}
         </span>
         <span
           data-testid="section-share-INVESTMENTS"

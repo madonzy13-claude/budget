@@ -168,14 +168,14 @@ export function WalletSection({
             column is worth more than that one pairing. */}
         <span
           data-testid={`section-total-currency-${type}`}
-          // md:pl-[13px] puts the three letters exactly under the row's three
-          // letters. From md up the row's picker is a bordered SelectTrigger
-          // (1px border + px-3), so its code starts 13px into the cell; below
-          // md the picker is a bare inline cell with no padding at all and the
-          // header sits flush. Without it the header code sat 13px left of
-          // every row's, which is visible the moment you look for it (user
-          // screenshot, 260823).
-          className="w-[44px] shrink-0 text-left text-num-sm tracking-normal sm:w-[96px] md:w-[224px] md:pl-[13px]"
+          // Two different alignments, because the row shows two different
+          // things. From md up the picker is a bordered SelectTrigger
+          // ("PLN  Polish Zloty  zł") whose code starts 13px into the cell —
+          // `md:pl-[13px] md:text-left` puts three letters under three letters.
+          // Below md the picker collapses to a small box with a single
+          // truncated glyph, so there are no letters to align to and the code
+          // is CENTRED over that box instead (user, 260823).
+          className="w-[44px] shrink-0 text-center text-num-sm tracking-normal sm:w-[96px] md:w-[224px] md:pl-[13px] md:text-left"
         >
           {budgetCurrency}
         </span>
@@ -184,7 +184,10 @@ export function WalletSection({
           className="shrink-0 text-right text-num-md tabular-nums tracking-normal"
           style={{ minWidth: `${maxAmountChars + 1}ch` }}
         >
-          {centsToBare(String(sectionTotalBudgetCents), locale)}
+          {centsToBare(
+            String(Math.round(sectionTotalBudgetCents / 100) * 100),
+            locale,
+          )}
         </span>
         {/* The rows keep a share column on sm+; the header fills it with this
             section's share of ALL assets. Reserving it is also what keeps the

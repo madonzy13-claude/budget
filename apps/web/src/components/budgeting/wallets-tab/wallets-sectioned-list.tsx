@@ -377,8 +377,14 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   // wallet's own balance, and every holding's. Whichever is longest sets it.
   const amountChars = Math.max(
     4,
-    ...sectionTotals.map((c) => centsToBare(String(Math.round(c))).length),
-    centsToBare(String(Math.round(investmentsTotalBudgetCents))).length,
+    // Totals render ROUNDED to whole units (user, 260823), so measure them the
+    // way they are shown — sizing the column for cents nobody sees would leave
+    // a gap the figures never fill.
+    ...sectionTotals.map(
+      (c) => centsToBare(String(Math.round(c / 100) * 100)).length,
+    ),
+    centsToBare(String(Math.round(investmentsTotalBudgetCents / 100) * 100))
+      .length,
     ...wallets.map((w) => centsToBare(w.currentBalanceCents).length),
     ...investmentHoldings.map((h) => centsToBare(h.valueCents).length),
   );
