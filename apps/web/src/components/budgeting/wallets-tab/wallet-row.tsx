@@ -747,10 +747,13 @@ function PersistedRow({
           data-nav-field="currency"
         >
           {isReserveSection ? (
-            // Match the investments-row currency: small + grey, right-aligned so it
-            // sits tight to the amount instead of floating mid-column (r31 item 3).
+            // LEFT, on the same inset as every picker section's code — the
+            // section headers now carry a total in this column, and a Reserve
+            // row that hugged its amount sat 185px right of its own header
+            // (user, 260823). This reverses r31 item 3, which pulled it tight
+            // to the amount back when nothing above it defined a column.
             <span
-              className="block w-full text-right text-num-sm text-[var(--muted-foreground)]"
+              className="block w-full text-left text-num-sm text-[var(--muted-foreground)] md:pl-[13px]"
               aria-label={t("currencyReadOnlyAria", { ccy: wallet.currency })}
             >
               {wallet.currency}
