@@ -168,14 +168,21 @@ export function WalletSection({
             column is worth more than that one pairing. */}
         <span
           data-testid={`section-total-currency-${type}`}
-          // Two different alignments, because the row shows two different
-          // things. From md up the picker is a bordered SelectTrigger
-          // ("PLN  Polish Zloty  zł") whose code starts 13px into the cell —
-          // `md:pl-[13px] md:text-left` puts three letters under three letters.
-          // Below md the picker collapses to a small box with a single
-          // truncated glyph, so there are no letters to align to and the code
-          // is CENTRED over that box instead (user, 260823).
-          className="w-[44px] shrink-0 text-center text-num-sm tracking-normal sm:w-[96px] md:w-[224px] md:pl-[13px] md:text-left"
+          // Left in both, with a 13px inset from md up.
+          //
+          // From md the row's picker is a bordered SelectTrigger
+          // ("PLN  Polish Zloty  zł") whose code starts 1px border + px-3 into
+          // the cell, so the header needs the same inset to put three letters
+          // under three letters. Below md a TOUCH device renders the picker as
+          // a bare `<select>` with `p-0 border-0` — plain left-aligned text —
+          // so the header sits flush and they line up exactly.
+          //
+          // Careful when verifying this: a non-touch browser at 390px renders
+          // the bordered trigger instead, so a desktop-Chrome screenshot at a
+          // phone width shows a control no phone ever displays. Centring the
+          // header on that box looked right in Playwright and was plainly
+          // wrong on the device (user, 260823). Emulate touch.
+          className="w-[44px] shrink-0 text-left text-num-sm tracking-normal sm:w-[96px] md:w-[224px] md:pl-[13px]"
         >
           {budgetCurrency}
         </span>
