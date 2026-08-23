@@ -36,6 +36,13 @@ interface WalletSectionProps {
   // UAT-PH5-T3-22: true when a drag is in progress and the pointer is over
   // anywhere in this section (background, an internal row, or the +Add CTA).
   isDropEligible?: boolean;
+  /** Amount-column width shared by EVERY section on the tab, so the currency
+   *  codes and figures line up down the whole page and not merely inside one
+   *  section (user, 260823). Falls back to this section's own longest amount. */
+  amountChars?: number;
+  /** Every asset on the tab, in budget currency — the denominator for the
+   *  header's share. Share BETWEEN sections, not within one (user, 260823). */
+  assetsTotalBudgetCents?: number;
   onUpdate: (
     id: string,
     patch: {
@@ -73,6 +80,8 @@ export function WalletSection({
   budgetCurrency,
   draft,
   isDropEligible,
+  amountChars,
+  assetsTotalBudgetCents,
   onUpdate,
   onArchive,
   onAdd,
@@ -111,11 +120,20 @@ export function WalletSection({
   // dollars), and if the column were sized without it the header's number would
   // widen past the rows' and the two would stop lining up — which is the whole
   // point of putting it on this column (user, 260822).
-  const maxAmountChars = Math.max(
-    4,
-    centsToBare(String(sectionTotalBudgetCents)).length,
-    ...wallets.map((w) => centsToBare(w.currentBalanceCents).length),
-  );
+  const maxAmountChars =
+    amountChars ??
+    Math.max(
+      4,
+      centsToBare(String(sectionTotalBudgetCents)).length,
+      ...wallets.map((w) => centsToBare(w.currentBalanceCents).length),
+    );
+  // Share of EVERY asset on the tab, not of this section — a section's share of
+  // itself is always 100% and says nothing (user, 260823). Desktop only, in the
+  // column the rows already keep for their own within-section share.
+  const sectionSharePct =
+    assetsTotalBudgetCents && assetsTotalBudgetCents > 0
+      ? Math.round((sectionTotalBudgetCents / assetsTotalBudgetCents) * 100)
+      : null;
 
   return (
     <section
@@ -138,39 +156,45 @@ export function WalletSection({
           `tracking-normal` on the figures: the header's `tracking-wider` is for
           the uppercase label and looks wrong stretched across digits. */}
       <h3 className="flex items-center gap-2 px-3 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
-        {/* Drag-handle gutter (RowDragHandle is h-4 w-4). */}
-        <span className="w-4 shrink-0" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate">
           {t(`section.${sectionKey}`)}
         </span>
-        {/* Where the code sits INSIDE the currency column differs by section:
-            the picker puts it at the left ("PLN  Polish Zloty  zł"), while a
-            Reserve row has no picker and right-aligns its code tight to the
-            amount. Follow whichever this section's own rows do — right-aligning
-            everywhere put EUR at the far edge of a 224px column with PLN at the
-            other end of it, which is not "currency under currency" at all. */}
+        {/* Always LEFT, in every section — the headers are read as a column of
+            their own down the page, so they have to agree with each other first.
+            Reserve rows are the exception that proves it: they have no currency
+            picker and right-align their code tight to the amount, and following
+            that put Reserve's EUR 200px off every other section's (user,
+            260823). Its own row now sits right of its header; the tab-wide
+            column is worth more than that one pairing. */}
         <span
           data-testid={`section-total-currency-${type}`}
-          className={[
-            "w-[44px] shrink-0 text-num-sm tracking-normal sm:w-[96px] md:w-[224px]",
-            type === "RESERVE" ? "text-right" : "text-left",
-          ].join(" ")}
+          // md:pl-[13px] puts the three letters exactly under the row's three
+          // letters. From md up the row's picker is a bordered SelectTrigger
+          // (1px border + px-3), so its code starts 13px into the cell; below
+          // md the picker is a bare inline cell with no padding at all and the
+          // header sits flush. Without it the header code sat 13px left of
+          // every row's, which is visible the moment you look for it (user
+          // screenshot, 260823).
+          className="w-[44px] shrink-0 text-left text-num-sm tracking-normal sm:w-[96px] md:w-[224px] md:pl-[13px]"
         >
           {budgetCurrency}
         </span>
         <span
           data-testid={`section-total-${type}`}
-          className="shrink-0 text-right text-num-md tabular-nums tracking-normal text-[var(--body-on-dark)]"
+          className="shrink-0 text-right text-num-md tabular-nums tracking-normal"
           style={{ minWidth: `${maxAmountChars + 1}ch` }}
         >
           {centsToBare(String(sectionTotalBudgetCents), locale)}
         </span>
-        {/* Share + trash gutters — present on sm+ in every row, so the columns
-            above only line up if the header reserves them too. */}
+        {/* The rows keep a share column on sm+; the header fills it with this
+            section's share of ALL assets. Reserving it is also what keeps the
+            columns to its left lined up with the rows. */}
         <span
-          className="hidden w-[64px] shrink-0 sm:block sm:w-[80px]"
-          aria-hidden="true"
-        />
+          data-testid={`section-share-${type}`}
+          className="hidden w-[64px] shrink-0 text-right text-num-sm tabular-nums tracking-normal sm:block sm:w-[80px]"
+        >
+          {sectionSharePct === null ? "" : `${sectionSharePct}%`}
+        </span>
         <span className="hidden w-7 shrink-0 sm:block" aria-hidden="true" />
       </h3>
 

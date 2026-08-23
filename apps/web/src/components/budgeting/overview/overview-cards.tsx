@@ -583,7 +583,9 @@ export function OverviewCards({
                 </dd>
               </div>
             ) : surplusDeficit !== null ? (
-              <div data-testid="spend-balanced-note" className="flex gap-2">
+              // A note, not a figure — it wants a little air above it rather
+              // than sitting on the `Spent` row's own 2px gap (user, 260823).
+              <div data-testid="spend-balanced-note" className="mt-1.5 flex">
                 <dd className="min-w-0">{t("cards.spendBalanced")}</dd>
               </div>
             ) : (

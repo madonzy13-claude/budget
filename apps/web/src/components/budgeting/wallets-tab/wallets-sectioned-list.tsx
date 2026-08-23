@@ -34,6 +34,7 @@ import { nextHighlightIndex } from "@/lib/roving-index";
 import { toast } from "sonner";
 import { useTranslations, useLocale } from "next-intl";
 import { useWallets, type WalletDto } from "@/hooks/use-wallets";
+import { useInvestments } from "@/hooks/use-investments";
 import { useBudget } from "@/hooks/use-budget-data";
 import { WalletsSkeleton } from "@/components/budgeting/wallets-tab/wallets-skeleton";
 import { isRestoreComplete } from "@/lib/query-persist";
@@ -163,6 +164,9 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   // IDB; offline → IDB), so the document stays light and the data is cached as
   // small JSON. The hook itself writes the IDB cache now (no island effect).
   const walletsQuery = useWallets(budgetId);
+  // Same query the investments section runs — react-query dedupes it. Needed
+  // here for the tab-wide total and column width (see below).
+  const investmentsQuery = useInvestments(budgetId);
   const wallets = walletsQuery.data ?? [];
   const updateMut = useUpdateWallet(budgetId);
   const createMut = useCreateWallet(budgetId);
@@ -339,6 +343,46 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
     OTHER: wallets.filter((w) => w.walletType === "OTHER").sort(bySort),
   };
 
+  // ── Tab-wide figures (user, 260823) ───────────────────────────────────────
+  // Both of these have to be known ABOVE the sections, because both are about
+  // how sections compare with each other:
+  //
+  //  • ONE amount-column width for the whole tab. Sized per-section, every
+  //    header put its currency code at a different x down the page — Reserve's
+  //    PLN sat 60px right of Investments'. Aligning a header with its own rows
+  //    was never enough; the headers are read as a column of their own.
+  //  • The denominator for each header's share. A section's share OF ITSELF is
+  //    always 100%, so the only useful share is of every asset on the tab.
+  //
+  // Investments live in their own component but come from the same query, and
+  // react-query dedupes the call — reading it here costs no extra request.
+  // Possessions share the holdings endpoint and render as wallets, so they are
+  // filtered out exactly as the investments section filters them.
+  const investmentHoldings = (investmentsQuery.data ?? []).filter(
+    (h) => h.holdingType !== "possession",
+  );
+  const investmentsTotalBudgetCents = investmentHoldings.reduce(
+    (sum, h) => sum + Number(h.valueInBudgetCents || 0),
+    0,
+  );
+  const inBudgetCcyCents = (w: WalletDto) =>
+    Number(w.currentBalanceInBudgetCurrencyCents ?? w.currentBalanceCents);
+  const sectionTotals = (Object.keys(grouped) as WalletType[]).map((t) =>
+    grouped[t].reduce((sum, w) => sum + inBudgetCcyCents(w), 0),
+  );
+  const assetsTotalBudgetCents =
+    sectionTotals.reduce((a, b) => a + b, 0) +
+    (investmentsEnabled ? investmentsTotalBudgetCents : 0);
+  // Every figure that has to fit the column: each section's total, every
+  // wallet's own balance, and every holding's. Whichever is longest sets it.
+  const amountChars = Math.max(
+    4,
+    ...sectionTotals.map((c) => centsToBare(String(Math.round(c))).length),
+    centsToBare(String(Math.round(investmentsTotalBudgetCents))).length,
+    ...wallets.map((w) => centsToBare(w.currentBalanceCents).length),
+    ...investmentHoldings.map((h) => centsToBare(h.valueCents).length),
+  );
+
   // ── W-4 staged-add handlers ───────────────────────────────────────────────
 
   /**
@@ -469,6 +513,8 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
       type={type}
       budgetCurrency={budgetCurrency}
       wallets={grouped[type]}
+      amountChars={amountChars}
+      assetsTotalBudgetCents={assetsTotalBudgetCents}
       draft={drafts[type] ?? null}
       // UAT-PH5-T3-22 / T3-23: highlight only on cross-section drags.
       // Within the same section reordering is shown by neighbour rows
@@ -555,6 +601,8 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
           <InvestmentsSection
             budgetId={budgetId}
             budgetCurrency={budgetCurrency}
+            amountChars={amountChars}
+            assetsTotalBudgetCents={assetsTotalBudgetCents}
           />
         )}
         {/* Possessions and Other sit BELOW investments (user, 260803): they are
