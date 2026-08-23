@@ -338,65 +338,61 @@ export function InvestmentRow({
         >
           {plMoney ?? ""}
         </span>
-        {/* Currency in the SAME column every wallet section uses, not tight to
-            the amount (reverses D-#3): the section headers carry a total in
-            that column now, and a code hugging its own number sat far right of
-            it (user, 260823). On mobile-expanded it is re-rendered inside the
-            middle row, so it hides here. */}
-        <span
-          className={[
-            "w-[44px] shrink-0 text-left text-num-sm text-[var(--muted-foreground)] sm:w-[96px] md:w-[224px] md:pl-[13px]",
-            expanded ? "hidden sm:block" : "block",
-          ].join(" ")}
-        >
-          {currency}
-        </span>
+        {/* Currency tight to the amount (gap-1, D-#3). On mobile-expanded it's
+            re-rendered inside the middle row (P/L or day), so hide it here;
+            desktop (sm) + mobile-collapsed keep it on the right. */}
         <div
           className={[
-            "shrink-0 text-right tabular-nums",
-            expanded ? "hidden sm:block" : "block",
+            "shrink-0 items-baseline gap-1",
+            expanded ? "hidden sm:flex" : "flex",
           ].join(" ")}
-          style={{ minWidth: `${(maxAmountChars ?? 4) + 1}ch` }}
-          // The whole row body is a click target (expand / open sheet); a click
-          // meant for the inline editor must not also fire that.
-          onClick={valueIsManual ? (e) => e.stopPropagation() : undefined}
         >
-          {valueIsManual ? (
-            <InlineEditCell
-              value={centsToBare(holding.valueCents).replace(/[^0-9.-]/g, "")}
-              ariaLabel={t("row.amountAria", { name: holding.name })}
-              testId={`holding-amount-${holding.id}`}
-              render={() => <span className="text-num-md">{value}</span>}
-              renderEditor={(draft, onChange) => (
-                <Input
-                  autoFocus
-                  type="text"
-                  inputMode="decimal"
-                  defaultValue={draft}
-                  onChange={(e) => onChange(e.target.value)}
-                  className="ml-auto h-9 w-[10ch] max-w-full px-2 text-right"
-                />
-              )}
-              onSave={async (v) => {
-                await onValueChange?.(v);
-              }}
-            />
-          ) : (
-            <span
-              className={[
-                "text-num-md",
-                delisted
-                  ? "text-[var(--muted-strong)]"
-                  : "text-[var(--body-on-dark)]",
-              ].join(" ")}
-            >
-              {value}
-            </span>
-          )}
+          <span className="text-num-sm text-[var(--muted-foreground)]">
+            {currency}
+          </span>
+          <div
+            className="text-right tabular-nums"
+            style={{ minWidth: `${(maxAmountChars ?? 4) + 1}ch` }}
+            // The whole row body is a click target (expand / open sheet); a click
+            // meant for the inline editor must not also fire that.
+            onClick={valueIsManual ? (e) => e.stopPropagation() : undefined}
+          >
+            {valueIsManual ? (
+              <InlineEditCell
+                value={centsToBare(holding.valueCents).replace(/[^0-9.-]/g, "")}
+                ariaLabel={t("row.amountAria", { name: holding.name })}
+                testId={`holding-amount-${holding.id}`}
+                render={() => <span className="text-num-md">{value}</span>}
+                renderEditor={(draft, onChange) => (
+                  <Input
+                    autoFocus
+                    type="text"
+                    inputMode="decimal"
+                    defaultValue={draft}
+                    onChange={(e) => onChange(e.target.value)}
+                    className="ml-auto h-9 w-[10ch] max-w-full px-2 text-right"
+                  />
+                )}
+                onSave={async (v) => {
+                  await onValueChange?.(v);
+                }}
+              />
+            ) : (
+              <span
+                className={[
+                  "text-num-md",
+                  delisted
+                    ? "text-[var(--muted-strong)]"
+                    : "text-[var(--body-on-dark)]",
+                ].join(" ")}
+              >
+                {value}
+              </span>
+            )}
+          </div>
         </div>
-        {/* Desktop: weight% last. Same width as a wallet row's share column, or
-            every column to its left drifts by the difference. */}
-        <span className="hidden w-[64px] shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block sm:w-[80px]">
+        {/* Desktop: weight% last. */}
+        <span className="hidden w-16 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block">
           {weight}
         </span>
       </div>

@@ -237,33 +237,29 @@ export function InvestmentGroupHeader({
         >
           {plMoney ?? ""}
         </span>
-        {/* Currency in the SAME column every wallet section uses, not tight to
-            the amount — the section headers carry a total in that column now,
-            and a code hugging its own number sat far right of it (user,
-            260823). On mobile the sum-up re-renders it on its first line
-            (mirrors the row), so it hides here when the sum-up is open. */}
-        <span
-          className={[
-            "w-[44px] shrink-0 text-left text-num-sm text-[var(--muted-foreground)] md:pl-[13px] sm:w-[96px] md:w-[224px] ",
-            showSum ? "hidden sm:block" : "block",
-          ].join(" ")}
-        >
-          {budgetCurrency}
-        </span>
+        {/* Currency tight to amount (gap-1). On mobile the sum-up re-renders it on
+            the right of its first line (mirrors the row), so hide it here when the
+            sum-up is open; desktop + mobile-collapsed keep it on the right (UAT #1). */}
         <div
           className={[
-            "shrink-0 text-right tabular-nums",
-            showSum ? "hidden sm:block" : "block",
+            "shrink-0 items-baseline gap-1",
+            showSum ? "hidden sm:flex" : "flex",
           ].join(" ")}
-          style={{ minWidth: `${(maxAmountChars ?? 4) + 1}ch` }}
         >
-          <span className="text-num-md text-[var(--body-on-dark)]">
-            {amount}
+          <span className="text-num-sm text-[var(--muted-foreground)]">
+            {budgetCurrency}
           </span>
+          <div
+            className="text-right tabular-nums"
+            style={{ minWidth: `${(maxAmountChars ?? 4) + 1}ch` }}
+          >
+            <span className="text-num-md text-[var(--body-on-dark)]">
+              {amount}
+            </span>
+          </div>
         </div>
-        {/* Desktop: portfolio weight% last. Same width as a wallet row's share
-            column, or every column to its left drifts by the difference. */}
-        <span className="hidden w-[64px] shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block sm:w-[80px]">
+        {/* Desktop: portfolio weight% last. */}
+        <span className="hidden w-16 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block">
           {portfolio}
         </span>
       </div>

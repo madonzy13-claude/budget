@@ -14,7 +14,7 @@ import { computeScreenExtension } from "@/lib/grid-screen-anchor";
 
 // Bump per deploy round — a screenshot showing an old marker means the
 // device is still serving cached assets, not that the fix failed.
-const BUILD_MARKER = "ASSETSALIGN-R1";
+const BUILD_MARKER = "BLACKAREA-R2";
 
 const FLAG_KEY = "vpdbg";
 
@@ -117,22 +117,6 @@ interface OverviewMetrics {
   ovSpacerH: number;
 }
 
-/**
- * The Assets tab's currency column: where the section header's code sits versus
- * the first row's. They measured identical in Chromium touch emulation and were
- * visibly apart on device — the real picker renders a native <select> whose
- * min-content width can push its cell wider than the class says, and only the
- * device shows that. Reports both text origins and both cell widths so the
- * difference is a number, not a guess (260823).
- */
-interface AssetsMetrics {
-  ccyHeaderX: number;
-  ccyRowX: number;
-  ccyDelta: number;
-  ccyHeaderW: number;
-  ccyRowW: number;
-}
-
 interface Metrics {
   innerH: number;
   vvH: number;
@@ -174,42 +158,6 @@ interface Metrics {
   sheet: SheetMetrics | null;
   grid: GridMetrics | null;
   overview: OverviewMetrics | null;
-  assets: AssetsMetrics | null;
-}
-
-/** x of the first non-empty TEXT inside an element — the glyph origin the eye
- *  compares, not the box the class asks for. */
-function textX(el: Element | null): number {
-  if (!el) return -1;
-  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-  let n: Node | null = walk.nextNode();
-  while (n && !n.textContent?.trim()) n = walk.nextNode();
-  if (!n) return -1;
-  const r = document.createRange();
-  r.selectNodeContents(n);
-  return Math.round(r.getBoundingClientRect().x);
-}
-
-function probeAssetsMetrics(): AssetsMetrics | null {
-  const header = document.querySelector<HTMLElement>(
-    '[data-testid^="section-total-currency-"]',
-  );
-  if (!header) return null;
-  const type = header
-    .getAttribute("data-testid")!
-    .replace("section-total-currency-", "");
-  const rowCell = document.querySelector<HTMLElement>(
-    `[data-testid="wallet-section-${type}"] [data-nav-field="currency"]`,
-  );
-  const h = textX(header);
-  const r = textX(rowCell);
-  return {
-    ccyHeaderX: h,
-    ccyRowX: r,
-    ccyDelta: h >= 0 && r >= 0 ? h - r : -1,
-    ccyHeaderW: Math.round(header.getBoundingClientRect().width),
-    ccyRowW: rowCell ? Math.round(rowCell.getBoundingClientRect().width) : -1,
-  };
 }
 
 function probeOverviewMetrics(): OverviewMetrics | null {
@@ -494,7 +442,6 @@ function readMetrics(): Metrics {
     sheet: probeOpenSheet(),
     grid: probeGridMetrics(),
     overview: probeOverviewMetrics(),
-    assets: probeAssetsMetrics(),
   };
 }
 
@@ -609,20 +556,6 @@ export function ViewportDebug() {
         shellRootClientH {m.shellRootClientH} · shellRootMinH {m.shellRootMinH}
       </div>
       <div>ptrBlurClientH {m.ptrBlurClientH}</div>
-      {m.assets && (
-        <>
-          <div className="mt-1 border-t border-yellow-600/40 pt-1 text-yellow-200">
-            [assets ccy]
-          </div>
-          <div>
-            headerX {m.assets.ccyHeaderX} · rowX {m.assets.ccyRowX} · delta{" "}
-            {m.assets.ccyDelta}
-          </div>
-          <div>
-            headerW {m.assets.ccyHeaderW} · rowW {m.assets.ccyRowW}
-          </div>
-        </>
-      )}
       {m.overview && (
         <>
           <div className="mt-1 border-t border-yellow-600/40 pt-1 text-yellow-200">

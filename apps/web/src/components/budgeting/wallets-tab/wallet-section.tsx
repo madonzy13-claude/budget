@@ -14,10 +14,10 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { DashedAddButton } from "@/components/common/dashed-add-button";
 import { WalletRow } from "./wallet-row";
-import { centsToBare } from "@/lib/cents-format";
+import { centsToBare, centsToRounded } from "@/lib/cents-format";
 import type { WalletDto } from "@/hooks/use-wallets";
 
 type WalletType = WalletDto["walletType"];
@@ -36,10 +36,6 @@ interface WalletSectionProps {
   // UAT-PH5-T3-22: true when a drag is in progress and the pointer is over
   // anywhere in this section (background, an internal row, or the +Add CTA).
   isDropEligible?: boolean;
-  /** Amount-column width shared by EVERY section on the tab, so the currency
-   *  codes and figures line up down the whole page and not merely inside one
-   *  section (user, 260823). Falls back to this section's own longest amount. */
-  amountChars?: number;
   /** Every asset on the tab, in budget currency — the denominator for the
    *  header's share. Share BETWEEN sections, not within one (user, 260823). */
   assetsTotalBudgetCents?: number;
@@ -80,7 +76,6 @@ export function WalletSection({
   budgetCurrency,
   draft,
   isDropEligible,
-  amountChars,
   assetsTotalBudgetCents,
   onUpdate,
   onArchive,
@@ -89,7 +84,6 @@ export function WalletSection({
   onDiscardDraft,
 }: WalletSectionProps) {
   const t = useTranslations("bdp.tab.wallets");
-  const locale = useLocale();
   const { setNodeRef, isOver } = useDroppable({ id: `section-${type}` });
   const sectionKey = SECTION_KEY_MAP[type];
   // UAT-PH5-T3-22: highlight the section when the pointer is over either
@@ -120,13 +114,10 @@ export function WalletSection({
   // dollars), and if the column were sized without it the header's number would
   // widen past the rows' and the two would stop lining up — which is the whole
   // point of putting it on this column (user, 260822).
-  const maxAmountChars =
-    amountChars ??
-    Math.max(
-      4,
-      centsToBare(String(sectionTotalBudgetCents)).length,
-      ...wallets.map((w) => centsToBare(w.currentBalanceCents).length),
-    );
+  const maxAmountChars = Math.max(
+    4,
+    ...wallets.map((w) => centsToBare(w.currentBalanceCents).length),
+  );
   // Share of EVERY asset on the tab, not of this section — a section's share of
   // itself is always 100% and says nothing (user, 260823). Desktop only, in the
   // column the rows already keep for their own within-section share.
@@ -148,57 +139,31 @@ export function WalletSection({
         .filter(Boolean)
         .join(" ")}
     >
-      {/* The header carries the section's total, on the SAME columns the rows
-          use — currency under currency, amount under amount (user, 260822).
-          That means matching WalletRow's `gap-2` and `px-3` and every trailing
-          cell width exactly; miss one and the two numbers sit a few pixels
-          apart, which reads worse than not aligning at all.
-          `tracking-normal` on the figures: the header's `tracking-wider` is for
-          the uppercase label and looks wrong stretched across digits. */}
+      {/* The section's total, formatted exactly as the Overview cards format
+          money: rounded to whole units, with the SHORT currency sign (zł, $,
+          грн) placed on whichever side the locale puts it (user, 260823).
+          One string, so there is no currency column to align against the rows
+          — four rounds went into trying to align one, and the rows read better
+          with their own tight currency-to-amount pairing anyway. */}
       <h3 className="flex items-center gap-2 px-3 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
         <span className="min-w-0 flex-1 truncate">
           {t(`section.${sectionKey}`)}
         </span>
-        {/* Always LEFT, in every section — the headers are read as a column of
-            their own down the page, so they have to agree with each other first.
-            Reserve rows are the exception that proves it: they have no currency
-            picker and right-align their code tight to the amount, and following
-            that put Reserve's EUR 200px off every other section's (user,
-            260823). Its own row now sits right of its header; the tab-wide
-            column is worth more than that one pairing. */}
-        <span
-          data-testid={`section-total-currency-${type}`}
-          // Left in both, with a 13px inset from md up.
-          //
-          // From md the row's picker is a bordered SelectTrigger
-          // ("PLN  Polish Zloty  zł") whose code starts 1px border + px-3 into
-          // the cell, so the header needs the same inset to put three letters
-          // under three letters. Below md a TOUCH device renders the picker as
-          // a bare `<select>` with `p-0 border-0` — plain left-aligned text —
-          // so the header sits flush and they line up exactly.
-          //
-          // Careful when verifying this: a non-touch browser at 390px renders
-          // the bordered trigger instead, so a desktop-Chrome screenshot at a
-          // phone width shows a control no phone ever displays. Centring the
-          // header on that box looked right in Playwright and was plainly
-          // wrong on the device (user, 260823). Emulate touch.
-          className="w-[44px] shrink-0 text-left text-num-sm tracking-normal sm:w-[96px] md:w-[224px] md:pl-[13px]"
-        >
-          {budgetCurrency}
-        </span>
         <span
           data-testid={`section-total-${type}`}
-          className="shrink-0 text-right text-num-md tabular-nums tracking-normal"
-          style={{ minWidth: `${maxAmountChars + 1}ch` }}
+          // normal-case: the h3 is uppercase for its LABEL, and that was
+          // turning the currency sign into "ZŁ" (user, 260823).
+          className="shrink-0 text-caption normal-case tabular-nums tracking-normal"
         >
-          {centsToBare(
-            String(Math.round(sectionTotalBudgetCents / 100) * 100),
-            locale,
+          {centsToRounded(
+            String(Math.round(sectionTotalBudgetCents)),
+            budgetCurrency,
+            "en",
+            true,
           )}
         </span>
         {/* The rows keep a share column on sm+; the header fills it with this
-            section's share of ALL assets. Reserving it is also what keeps the
-            columns to its left lined up with the rows. */}
+            section's share of ALL assets. */}
         <span
           data-testid={`section-share-${type}`}
           className="hidden w-[64px] shrink-0 text-right text-num-sm tabular-nums tracking-normal sm:block sm:w-[80px]"

@@ -51,7 +51,7 @@ import { toast } from "sonner";
 import { useLocale, useTranslations } from "next-intl";
 import { DashedAddButton } from "@/components/common/dashed-add-button";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
-import { centsToBare } from "@/lib/cents-format";
+import { centsToBare, centsToRounded } from "@/lib/cents-format";
 import { useBudget } from "@/hooks/use-budget-data";
 import { useInvestments, type HoldingDto } from "@/hooks/use-investments";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
@@ -79,9 +79,6 @@ import { HoldingSheet } from "./holding-sheet";
 interface InvestmentsSectionProps {
   budgetId: string;
   budgetCurrency?: string;
-  /** Amount-column width shared with every wallet section, so the figures line
-   *  up down the whole tab and not merely inside this one (user, 260823). */
-  amountChars?: number;
   /** Every asset on the tab, in budget currency — denominator for the header's
    *  share. Share BETWEEN sections, not within one (user, 260823). */
   assetsTotalBudgetCents?: number;
@@ -224,7 +221,6 @@ function midY(rect: { top: number; height: number } | null | undefined) {
 export function InvestmentsSection({
   budgetId,
   budgetCurrency: budgetCurrencyProp,
-  amountChars,
   assetsTotalBudgetCents,
 }: InvestmentsSectionProps) {
   const t = useTranslations("budget.investments");
@@ -333,7 +329,6 @@ export function InvestmentsSection({
   // every holding's native amount) → drives the dynamic amount-column width so
   // the currency codes line up in a column (mirrors wallet-row, D-#align).
   const maxAmountChars = useMemo(() => {
-    if (amountChars != null) return amountChars;
     let max = 4;
     for (const h of liveHoldings)
       max = Math.max(max, centsToBare(h.valueCents, locale).length);
@@ -699,38 +694,26 @@ export function InvestmentsSection({
           the INVESTMENT row's, which differ from a wallet row's: a P/L gutter,
           then currency tight to the amount on `gap-1`, then the trash. Matching
           the row's own `gap-2 px-3` is what puts the two numbers on one axis. */}
-      {/* Same header geometry as every wallet section — the whole point is that
-          the section summaries read as ONE column down the tab, so this cannot
-          use the investment ROW's tighter currency spacing (user, 260823). The
-          amount column width arrives from the parent for the same reason. */}
+      {/* Same treatment as every wallet section: one formatted string with the
+          short currency sign, so nothing has to align against the rows. */}
       <h3 className="flex items-center gap-2 px-3 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
         <span className="min-w-0 flex-1 truncate">{t("section.title")}</span>
         <span
-          data-testid="section-total-currency-INVESTMENTS"
-          // md:pl-[13px] puts the three letters exactly under the row's three
-          // letters. From md up the row's picker is a bordered SelectTrigger
-          // (1px border + px-3), so its code starts 13px into the cell; below
-          // md the picker is a bare inline cell with no padding at all and the
-          // header sits flush. Without it the header code sat 13px left of
-          // every row's, which is visible the moment you look for it (user
-          // screenshot, 260823).
-          className="w-[44px] shrink-0 text-left text-num-sm tracking-normal sm:w-[96px] md:w-[224px] md:pl-[13px]"
-        >
-          {budgetCurrency}
-        </span>
-        <span
           data-testid="section-total-INVESTMENTS"
-          className="shrink-0 text-right text-num-md tabular-nums tracking-normal"
-          style={{ minWidth: `${maxAmountChars + 1}ch` }}
+          // normal-case: the h3 is uppercase for its LABEL, and that was
+          // turning the currency sign into "ZŁ" (user, 260823).
+          className="shrink-0 text-caption normal-case tabular-nums tracking-normal"
         >
-          {centsToBare(
-            String(Math.round(totalBudgetCents / 100) * 100),
-            locale,
+          {centsToRounded(
+            String(Math.round(totalBudgetCents)),
+            budgetCurrency,
+            "en",
+            true,
           )}
         </span>
         <span
           data-testid="section-share-INVESTMENTS"
-          className="hidden w-[64px] shrink-0 text-right text-num-sm tabular-nums tracking-normal sm:block sm:w-[80px]"
+          className="hidden w-16 shrink-0 text-right text-num-sm tabular-nums tracking-normal sm:block"
         >
           {assetsTotalBudgetCents && assetsTotalBudgetCents > 0
             ? `${Math.round((totalBudgetCents / assetsTotalBudgetCents) * 100)}%`

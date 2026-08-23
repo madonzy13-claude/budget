@@ -257,7 +257,7 @@ function DraftRow({
         // NOTE: keep a space before `${` — Tailwind's scanner does not extract a
         // class glued to an interpolation, and md:w-[224px] silently vanished
         // from the CSS bundle (260812-dgf).
-        className={`w-[44px] min-w-0 shrink-0 rounded sm:w-[96px] md:w-[224px] ${
+        className={`w-[44px] shrink-0 rounded sm:w-[96px] md:w-[224px] ${
           currencyOpen ? "ring-1 ring-[var(--primary)]" : ""
         }`}
         data-nav-field="currency"
@@ -740,20 +740,17 @@ function PersistedRow({
           onSelect directly. */}
         <div
           // Space before `${` is load-bearing — see the draft row above.
-          className={`w-[44px] min-w-0 shrink-0 rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[224px] ${
+          className={`w-[44px] rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[224px] ${
             currencyOpen ? "ring-1 ring-[var(--primary)]" : ""
           }`}
           data-inline-cell
           data-nav-field="currency"
         >
           {isReserveSection ? (
-            // LEFT, on the same inset as every picker section's code — the
-            // section headers now carry a total in this column, and a Reserve
-            // row that hugged its amount sat 185px right of its own header
-            // (user, 260823). This reverses r31 item 3, which pulled it tight
-            // to the amount back when nothing above it defined a column.
+            // Match the investments-row currency: small + grey, right-aligned so it
+            // sits tight to the amount instead of floating mid-column (r31 item 3).
             <span
-              className="block w-full text-left text-num-sm text-[var(--muted-foreground)] md:pl-[13px]"
+              className="block w-full text-right text-num-sm text-[var(--muted-foreground)]"
               aria-label={t("currencyReadOnlyAria", { ccy: wallet.currency })}
             >
               {wallet.currency}

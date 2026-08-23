@@ -258,13 +258,15 @@ describe("WalletsSectionedList", () => {
           archivedAt: null,
         },
       ] as WalletDto[]);
-      // 4,550 + 20,450 = 25,000 — neither wallet's own number.
+      // 4,550 + 20,450 = 25,000 — neither wallet's own number — carrying the
+      // SHORT currency sign the Overview cards use, on whichever side the
+      // locale puts it (user, 260823). There is no separate currency column.
+      const total = screen.getByTestId("section-total-CUSHION").textContent!;
+      expect(total).toContain("25,000");
+      expect(total).toMatch(/€/);
       expect(
-        screen.getByTestId("section-total-CUSHION").textContent,
-      ).toContain("25,000");
-      expect(
-        screen.getByTestId("section-total-currency-CUSHION").textContent,
-      ).toBe("EUR");
+        screen.queryByTestId("section-total-currency-CUSHION"),
+      ).toBeNull();
     });
 
     // Without the FX figure the raw balance is all there is — a fixture or a

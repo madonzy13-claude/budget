@@ -782,13 +782,4 @@ describe("Round 7 — grid box to physical screen bottom (SHELL-R17)", () => {
     expect(viewportDebug).toMatch(/ovLayoutH|layoutH/);
   });
 
-  // The Assets header currency kept landing a few px off the rows' on DEVICE
-  // while measuring 0.0 in Chromium touch emulation — the native <select> the
-  // real picker renders is wider there, so the cell it sits in is not the width
-  // the emulator shows. Three rounds were spent inferring that from JPEGs.
-  it("R8-B: overlay probes the Assets currency column (header vs row)", () => {
-    expect(viewportDebug).toMatch(/section-total-currency|assetsCcy/);
-    expect(viewportDebug).toMatch(/ccyHeaderX|assetsHeaderX/);
-    expect(viewportDebug).toMatch(/ccyRowX|assetsRowX/);
-  });
 });
