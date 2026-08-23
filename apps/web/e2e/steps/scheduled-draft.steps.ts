@@ -81,14 +81,27 @@ When(
     // hover-reveal only exists above the `sm` breakpoint).
     await row.click();
     const confirmBtn = spendings.draftConfirmButton();
-    await expect(confirmBtn).toBeVisible({ timeout: 8000 });
-    // dispatchEvent('click') instead of .click(): confirming fires
-    // useConfirmDraft, which removes the draft and UNMOUNTS this row. Playwright's
-    // normal .click() re-checks actionability and sees the element detach
-    // mid-gesture, then retries until the 30s test timeout (deterministic hang on
-    // a slower CI-chromium re-render; passes locally). A dispatched click fires
-    // the React onClick directly, no hover/stability dance to lose the element to.
-    await confirmBtn.dispatchEvent("click");
+    // The reveal tap can land on the CONFIRM BUTTON itself. When the actions
+    // are already showing — which they are once the runner is slow enough for a
+    // re-render to sit between the row mounting and this click — that click
+    // confirms the draft outright, and the button unmounts with it. Waiting for
+    // it to come back then burns the entire 60s test timeout: it failed 8/8
+    // across two CI runs while passing locally, and the trace showed no draft
+    // row and a real "Rent" expense already in the grid (260823).
+    //
+    // So: confirm it if it is still there, and otherwise prove it went. Either
+    // way the draft ends up confirmed, which is what the scenario is about.
+    if (await confirmBtn.isVisible().catch(() => false)) {
+      // dispatchEvent('click') instead of .click(): confirming fires
+      // useConfirmDraft, which removes the draft and UNMOUNTS this row.
+      // Playwright's normal .click() re-checks actionability and sees the
+      // element detach mid-gesture, then retries until the test timeout. A
+      // dispatched click fires the React onClick directly, with no
+      // hover/stability dance to lose the element to.
+      await confirmBtn.dispatchEvent("click");
+    } else {
+      await expect(row).toBeHidden({ timeout: 8000 });
+    }
   },
 );
 
