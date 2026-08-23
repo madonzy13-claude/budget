@@ -29,14 +29,14 @@
  * shortfall_cents > 0 → --trading-down; shortfall_cents ≤ 0 → --trading-up.
  */
 import { useEffect, useState } from "react";
-import { useTranslations, useLocale } from "next-intl";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api-client";
 import { clientApiFetch } from "@/lib/budget-fetch";
-import { centsToDisplayCompact } from "@/lib/cents-format";
+import { centsToRounded } from "@/lib/cents-format";
 
 export interface CushionSectionProps {
   budgetId: string;
@@ -67,7 +67,6 @@ export function CushionSection({
   budgetCurrency,
 }: CushionSectionProps) {
   const t = useTranslations("settings");
-  const locale = useLocale();
   const [enabled, setEnabled] = useState(cushionEnabled);
   const [mode, setMode] = useState(cushionModeEnabled);
   const [savingFlag, setSavingFlag] = useState(false);
@@ -279,44 +278,69 @@ export function CushionSection({
     if (BigInt(cushionSummary.required_cents) === 0n) return null;
     const currency = cushionSummary.currency || budgetCurrency || "USD";
     const shortfall = BigInt(cushionSummary.shortfall_cents);
-    const positive = shortfall > 0n;
+    const met = shortfall <= 0n;
+    const actual = BigInt(cushionSummary.actual_cents);
+    const required = BigInt(cushionSummary.required_cents);
+    // Percentage of the target that is saved. Two extra digits of bigint before
+    // the divide, so the rounding happens at the end: plain integer division
+    // truncates 55.55% to 55, and a progress figure that always rounds DOWN
+    // reads as slower progress than there is.
+    const pct =
+      required > 0n
+        ? Math.round(Number((actual * 10000n) / required) / 100)
+        : 0;
     return (
-      <span
-        className={
-          positive ? "text-[var(--trading-down)]" : "text-[var(--trading-up)]"
-        }
-      >
-        {positive
-          ? t("cushion.preview", {
-              actual: centsToDisplayCompact(
-                cushionSummary.actual_cents,
-                currency,
-                locale,
-              ),
-              required: centsToDisplayCompact(
+      <div className="space-y-1.5">
+        {/* A bar you can judge without reading, then the figures. The sentence
+            this replaces put two full-precision amounts mid-phrase — "Have PLN
+            95,913.76 of PLN 79,888 — target met" — which is a lot of characters
+            to answer "am I there yet" (user, 260823). */}
+        <div
+          className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-elevated-dark)]"
+          role="progressbar"
+          aria-valuenow={pct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div
+            data-testid="cushion-progress-fill"
+            className="h-full rounded-full transition-[width] duration-500"
+            style={{
+              // CAPPED at the track. A fill that overshoots its own container
+              // either clips or stretches the row; the percentage beside it
+              // already says 120% out loud.
+              width: `${Math.min(100, Math.max(0, pct))}%`,
+              backgroundColor: met
+                ? "var(--trading-up)"
+                : "var(--trading-down)",
+            }}
+          />
+        </div>
+        <div className="flex items-baseline justify-between gap-2 text-caption">
+          {/* Rounded, with the short sign — the same money formatting the
+              Overview cards and the Assets totals use. */}
+          <span className="num text-[var(--body)]">
+            {centsToRounded(cushionSummary.actual_cents, currency, "en", true)}
+            <span className="text-[var(--muted-foreground)]">
+              {" / "}
+              {centsToRounded(
                 cushionSummary.required_cents,
                 currency,
-                locale,
-              ),
-              shortfall: centsToDisplayCompact(
-                cushionSummary.shortfall_cents,
-                currency,
-                locale,
-              ),
-            })
-          : t("cushion.previewMet", {
-              actual: centsToDisplayCompact(
-                cushionSummary.actual_cents,
-                currency,
-                locale,
-              ),
-              required: centsToDisplayCompact(
-                cushionSummary.required_cents,
-                currency,
-                locale,
-              ),
-            })}
-      </span>
+                "en",
+                true,
+              )}
+            </span>
+          </span>
+          <span
+            className="num shrink-0"
+            style={{
+              color: met ? "var(--trading-up)" : "var(--trading-down)",
+            }}
+          >
+            {pct}%
+          </span>
+        </div>
+      </div>
     );
   };
 

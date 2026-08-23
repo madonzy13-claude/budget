@@ -237,9 +237,19 @@ describe("CushionSection (Phase 7-09) cushion_target_months + preview", () => {
       isError: false,
     });
     renderCushionSection();
+    // A sentence with two full-precision figures in it ("Have PLN 95,913.76 of
+    // PLN 79,888 — target met") is hard to read and harder to scan. It is a
+    // meter now: a bar you can judge at a glance, the two rounded figures, and
+    // the percentage (user, 260823).
+    const fill = document.querySelector<HTMLElement>(
+      '[data-testid="cushion-progress-fill"]',
+    );
+    expect(fill).toBeTruthy();
+    // 1,000 of 1,800 — the bar shows how far along, not how far short.
+    expect(fill!.style.width).toBe("56%");
+    expect(fill!.style.backgroundColor).toBe("var(--trading-down)");
     const preview = document.getElementById("cushion-preview");
-    expect(preview?.textContent).toMatch(/cushion\.preview/);
-    expect(preview?.innerHTML).toContain("trading-down");
+    expect(preview?.textContent).toContain("56%");
   });
 
   it("preview shows shortfall≤0 with trading-up styling (preview met)", () => {
@@ -256,9 +266,16 @@ describe("CushionSection (Phase 7-09) cushion_target_months + preview", () => {
       isError: false,
     });
     renderCushionSection();
-    const preview = document.getElementById("cushion-preview");
-    expect(preview?.textContent).toMatch(/cushion\.previewMet/);
-    expect(preview?.innerHTML).toContain("trading-up");
+    const fill = document.querySelector<HTMLElement>(
+      '[data-testid="cushion-progress-fill"]',
+    );
+    // 1,200 of 1,000 is 120% — the BAR caps at full, because a bar that runs
+    // past its own track says nothing a number cannot say better.
+    expect(fill!.style.width).toBe("100%");
+    expect(fill!.style.backgroundColor).toBe("var(--trading-up)");
+    expect(document.getElementById("cushion-preview")?.textContent).toContain(
+      "120%",
+    );
   });
 
   it("preview renders NOTHING when required_cents===0 (no cushion requirement configured)", () => {

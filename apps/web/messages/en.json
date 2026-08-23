@@ -267,8 +267,6 @@
       "targetMonthsLabel": "Target months",
       "targetMonthsError": "Months must be between 1 and 60.",
       "saved": "Cushion target saved",
-      "preview": "Have {actual} of {required} — short by {shortfall}",
-      "previewMet": "Have {actual} of {required} — target met",
       "previewError": "Could not load cushion summary."
     },
     "scheduled": {
