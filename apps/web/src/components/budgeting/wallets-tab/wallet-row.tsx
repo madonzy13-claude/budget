@@ -257,7 +257,7 @@ function DraftRow({
         // NOTE: keep a space before `${` — Tailwind's scanner does not extract a
         // class glued to an interpolation, and md:w-[224px] silently vanished
         // from the CSS bundle (260812-dgf).
-        className={`w-[44px] shrink-0 rounded sm:w-[96px] md:w-[224px] ${
+        className={`w-[44px] min-w-0 shrink-0 rounded sm:w-[96px] md:w-[224px] ${
           currencyOpen ? "ring-1 ring-[var(--primary)]" : ""
         }`}
         data-nav-field="currency"
@@ -740,7 +740,7 @@ function PersistedRow({
           onSelect directly. */}
         <div
           // Space before `${` is load-bearing — see the draft row above.
-          className={`w-[44px] rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[224px] ${
+          className={`w-[44px] min-w-0 shrink-0 rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[224px] ${
             currencyOpen ? "ring-1 ring-[var(--primary)]" : ""
           }`}
           data-inline-cell

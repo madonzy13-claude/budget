@@ -347,12 +347,14 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   // Both of these have to be known ABOVE the sections, because both are about
   // how sections compare with each other:
   //
-  //  • ONE amount-column width for the whole tab. Sized per-section, every
-  //    header put its currency code at a different x down the page — Reserve's
-  //    PLN sat 60px right of Investments'. Aligning a header with its own rows
-  //    was never enough; the headers are read as a column of their own.
-  //  • The denominator for each header's share. A section's share OF ITSELF is
-  //    always 100%, so the only useful share is of every asset on the tab.
+  // The denominator for each header's share: a section's share OF ITSELF is
+  // always 100%, so the only useful share is of every asset on the tab.
+  //
+  // A tab-wide amount-column width lived here too, briefly, to line the section
+  // headers' currency codes up with each other. It is gone: the column is sized
+  // per SECTION again (user, 260823) because a shared width gives a section of
+  // small numbers a column far wider than it needs, and the gap between its
+  // currency and its amount is what the eye actually reads.
   //
   // Investments live in their own component but come from the same query, and
   // react-query dedupes the call — reading it here costs no extra request.
@@ -373,21 +375,6 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   const assetsTotalBudgetCents =
     sectionTotals.reduce((a, b) => a + b, 0) +
     (investmentsEnabled ? investmentsTotalBudgetCents : 0);
-  // Every figure that has to fit the column: each section's total, every
-  // wallet's own balance, and every holding's. Whichever is longest sets it.
-  const amountChars = Math.max(
-    4,
-    // Totals render ROUNDED to whole units (user, 260823), so measure them the
-    // way they are shown — sizing the column for cents nobody sees would leave
-    // a gap the figures never fill.
-    ...sectionTotals.map(
-      (c) => centsToBare(String(Math.round(c / 100) * 100)).length,
-    ),
-    centsToBare(String(Math.round(investmentsTotalBudgetCents / 100) * 100))
-      .length,
-    ...wallets.map((w) => centsToBare(w.currentBalanceCents).length),
-    ...investmentHoldings.map((h) => centsToBare(h.valueCents).length),
-  );
 
   // ── W-4 staged-add handlers ───────────────────────────────────────────────
 
@@ -519,7 +506,6 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
       type={type}
       budgetCurrency={budgetCurrency}
       wallets={grouped[type]}
-      amountChars={amountChars}
       assetsTotalBudgetCents={assetsTotalBudgetCents}
       draft={drafts[type] ?? null}
       // UAT-PH5-T3-22 / T3-23: highlight only on cross-section drags.
@@ -607,7 +593,6 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
           <InvestmentsSection
             budgetId={budgetId}
             budgetCurrency={budgetCurrency}
-            amountChars={amountChars}
             assetsTotalBudgetCents={assetsTotalBudgetCents}
           />
         )}
