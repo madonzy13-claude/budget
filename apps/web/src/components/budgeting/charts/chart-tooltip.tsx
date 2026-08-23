@@ -5,7 +5,7 @@
  * which value maps to which chart line (UAT round 13/14: the default tooltip rendered
  * every row in one text colour with no marker). `formatY` formats the value.
  */
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import { CHART_THEME, type ChartSeries } from "./chart-theme";
 
 interface TooltipEntry {
@@ -288,25 +288,54 @@ export function ChartTooltipContent({
           textAlign: "right" as const,
           whiteSpace: "nowrap" as const,
         };
-        // The name is the ONE cell allowed to give way. It sits in the
-        // minmax(0,1fr) column, so once the row wants more than the tooltip's
-        // max-width the column is squeezed towards nothing — and `nowrap` then
-        // painted the full name straight over the value beside it
-        // ("Capitalization" through "1,553,413 zł", user screenshots 260810).
-        // Wrapping costs a line of height; overlapping costs the reading.
+        // The name may wrap (260810: `nowrap` painted "Capitalization" straight
+        // over the value beside it). But wrapping alone has a floor — with a
+        // seven-figure amount AND two suffix cells there was nothing left of the
+        // name column and it came out one letter per line (user, 260823). So the
+        // name and its amount take a line of their own, spanning the grid, and
+        // the percent + delta drop underneath. The suffix cells keep their own
+        // columns, so they still align down the tooltip.
         const nameStyle = {
           color: CHART_THEME.axis,
           minWidth: 0,
           overflowWrap: "anywhere" as const,
         };
         const cols = Array.from({ length: nCells });
+        /** Name + amount on one full-width line: a flex, so the name takes
+         *  whatever is left after the amount instead of sharing a track with
+         *  the suffix columns. */
+        const line = (
+          key: string,
+          markerNode: ReactNode,
+          nameNode: ReactNode,
+          valueNode: ReactNode,
+        ) => (
+          <div
+            key={key}
+            data-testid="tooltip-series-line"
+            style={{
+              gridColumn: "1 / -1",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              minWidth: 0,
+            }}
+          >
+            {markerNode}
+            {nameNode}
+            <span style={{ marginLeft: "auto" }} />
+            {valueNode}
+          </div>
+        );
         return (
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: `auto minmax(0,1fr) max-content${" max-content".repeat(
-                nCells,
-              )}`,
+              // Only the suffix columns are tracks now — the name/amount line
+              // spans them. `justifyContent: end` hugs them to the right edge,
+              // where they sit under the amount they qualify.
+              gridTemplateColumns: `repeat(${Math.max(nCells, 1)}, max-content)`,
+              justifyContent: "end",
               columnGap: 10,
               rowGap: 2,
               alignItems: "center",
@@ -315,20 +344,23 @@ export function ChartTooltipContent({
           >
             {rows.map((r, i) => (
               <Fragment key={i}>
-                {marker(r.color, r.dashed)}
-                <span data-testid="tooltip-series-name" style={nameStyle}>
-                  {r.name ?? ""}
-                </span>
-                <span
-                  data-testid="tooltip-series-value"
-                  style={{
-                    fontWeight: 600,
-                    textAlign: "right",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {r.value}
-                </span>
+                {line(
+                  `line-${i}`,
+                  marker(r.color, r.dashed),
+                  <span data-testid="tooltip-series-name" style={nameStyle}>
+                    {r.name ?? ""}
+                  </span>,
+                  <span
+                    data-testid="tooltip-series-value"
+                    style={{
+                      fontWeight: 600,
+                      textAlign: "right",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {r.value}
+                  </span>,
+                )}
                 {cols.map((_, c) => (
                   <span key={c} style={cellStyle}>
                     {r.cells[c] ?? ""}
@@ -350,19 +382,22 @@ export function ChartTooltipContent({
                     marginBottom: summaryRow.plain ? 0 : 2,
                   }}
                 />
-                <span aria-hidden />
-                <span data-testid="tooltip-summary-label" style={nameStyle}>
-                  {summaryRow.label}
-                </span>
-                <span
-                  style={{
-                    fontWeight: 600,
-                    textAlign: "right",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {summaryRow.value}
-                </span>
+                {line(
+                  "summary-line",
+                  <span aria-hidden style={{ width: 18, flexShrink: 0 }} />,
+                  <span data-testid="tooltip-summary-label" style={nameStyle}>
+                    {summaryRow.label}
+                  </span>,
+                  <span
+                    style={{
+                      fontWeight: 600,
+                      textAlign: "right",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {summaryRow.value}
+                  </span>,
+                )}
                 {(() => {
                   const sc = toCells(summaryRow.suffix);
                   return cols.map((_, c) => (
