@@ -34,8 +34,9 @@ vi.mock("next-intl", () => {
       "cards.reservesOkNote": "All reserves are in place",
       "cards.reservesShortNote": "Not enough. {amount} is missing",
       "cards.reservesSurplusNote": "Too much. {amount} extra",
-      "cards.cushionSaved": "Saved",
-      "cards.cushionNeeded": "Needed",
+      "cards.cushionShortNote": "Not enough. {amount} is missing",
+      "cards.cushionSurplusNote": "More than needed. {amount} extra",
+      "cards.cushionOkNote": "Fully covered — nice work",
       "cards.capitalization": "Capitalization",
       "cards.capitalizationSub": "incl. investments {amount}",
       "cards.overspent": "Overspent this month",
@@ -329,6 +330,62 @@ describe("OverviewCards", () => {
     expect(
       screen.getByTestId("spend-surplus-deficit").textContent,
     ).not.toContain("$400");
+  });
+
+  // The cushion card listed Saved and Needed and left the arithmetic to the
+  // reader. It now says the one thing that matters, in the reserves card's own
+  // register — and green when there is MORE than needed, because that is good
+  // news, not a warning (user, 260823).
+  describe("cushion note", () => {
+    const withCushion = (total: string, required: string) => {
+      mockUse.mockReturnValue({
+        data: {
+          ...DTO,
+          cushion: { ...DTO.cushion, total_cents: total, required_cents: required },
+        },
+        isError: false,
+        isPending: false,
+      });
+      return render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+    };
+
+    it("says what is missing when short", () => {
+      withCushion("900000", "1800000"); // $9,000 saved of $18,000
+      const note = screen.getByTestId("cushion-note");
+      expect(note.textContent).toContain("Not enough");
+      expect(note.textContent).toContain("$9,000");
+      expect(note.style.color).not.toBe("var(--trading-up)");
+    });
+
+    it("says what is extra when over, in green", () => {
+      withCushion("2000000", "1800000"); // $2,000 over
+      const note = screen.getByTestId("cushion-note");
+      expect(note.textContent).toContain("More than needed");
+      expect(note.textContent).toContain("$2,000");
+      expect(note.style.color).toBe("var(--trading-up)");
+    });
+
+    it("congratulates when it lands exactly", () => {
+      withCushion("1800000", "1800000");
+      expect(screen.getByTestId("cushion-note").textContent).toContain(
+        "Fully covered",
+      );
+    });
+
+    // A 40-grosz gap renders as "0 extra", which reads as a surplus of nothing.
+    // The comparison happens at the precision the note DISPLAYS.
+    it("treats a sub-unit gap as covered, not as a surplus of zero", () => {
+      withCushion("1800040", "1800000");
+      expect(screen.getByTestId("cushion-note").textContent).toContain(
+        "Fully covered",
+      );
+    });
+
+    it("drops the Saved/Needed pair it replaces", () => {
+      withCushion("900000", "1800000");
+      expect(screen.queryByText("Saved")).toBeNull();
+      expect(screen.queryByText("Needed")).toBeNull();
+    });
   });
 
   it("shows the reserves ok/short/surplus indicator (item 3)", () => {

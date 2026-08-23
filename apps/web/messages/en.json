@@ -1411,8 +1411,9 @@
           "cushionOff": "Cushion off",
           "cushionCovered": "Cushion covers the required limit",
           "cushionShort": "Cushion is below the required limit",
-          "cushionSaved": "Saved",
-          "cushionNeeded": "Needed",
+          "cushionShortNote": "Not enough. <amt>{amount}</amt> is missing",
+          "cushionSurplusNote": "More than needed. <amt>{amount}</amt> extra",
+          "cushionOkNote": "Fully covered — nice work",
           "availableReserves": "Available reserves",
           "realMonths": "real months",
           "lowestPoint": "Lowest point: {date}"

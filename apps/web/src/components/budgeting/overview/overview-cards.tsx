@@ -296,6 +296,27 @@ export function OverviewCards({
   // no figure at all since 260804 — nothing is owed, so restating the target
   // read like a bill still to pay. Lifted out so it feeds BOTH the rendered text
   // and the privacy mask length.
+  // Cushion: short / exactly covered / over, and by how much. Compared at the
+  // precision the note DISPLAYS — a 40-grosz gap formats as "0 extra", which
+  // reads as a surplus of nothing, so anything that rounds to zero is covered.
+  const cushionGapCents = (() => {
+    try {
+      return (
+        BigInt(data.cushion.total_cents) - BigInt(data.cushion.required_cents)
+      );
+    } catch {
+      return 0n;
+    }
+  })();
+  const cushionGapAbs =
+    cushionGapCents < 0n ? -cushionGapCents : cushionGapCents;
+  const cushionRoundsToZero = cushionGapAbs < 50n;
+  const cushionState: "short" | "surplus" | "ok" = cushionRoundsToZero
+    ? "ok"
+    : cushionGapCents < 0n
+      ? "short"
+      : "surplus";
+  const cushionNoteAmount = fmtRounded(String(cushionGapAbs));
   const reservesNoteAmount = centsToDisplayCompact(
     data.reserves.status === "surplus"
       ? (
@@ -740,21 +761,41 @@ export function OverviewCards({
                 })()}
               </span>
             </p>
-            {/* Have vs needed to cover the threshold (item 5). */}
-            <dl className="text-caption mt-1.5 flex flex-col gap-0.5 text-[var(--muted-foreground)]">
-              <div className="flex items-center justify-between gap-2">
-                <dt>{t("cards.cushionSaved")}</dt>
-                <dd className="num text-[var(--body-on-dark)]">
-                  {animRounded(data.cushion.total_cents)}
-                </dd>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <dt>{t("cards.cushionNeeded")}</dt>
-                <dd className="num text-[var(--body-on-dark)]">
-                  {animRounded(data.cushion.required_cents)}
-                </dd>
-              </div>
-            </dl>
+            {/* One sentence instead of Saved-over-Needed, in the reserves
+                card's own register: the pair listed two figures and left the
+                subtraction to the reader (user, 260823).
+                GREEN when there is more than needed — that is good news, and
+                the muted grey the reserves card uses for its surplus reads as
+                a warning here, next to a card whose whole point is "are you
+                safe yet". */}
+            <p
+              data-testid="cushion-note"
+              className="text-caption mt-1.5 text-[var(--muted-foreground)]"
+              style={
+                cushionState === "surplus"
+                  ? { color: "var(--trading-up)" }
+                  : undefined
+              }
+            >
+              {t.rich(
+                cushionState === "surplus"
+                  ? "cards.cushionSurplusNote"
+                  : cushionState === "short"
+                    ? "cards.cushionShortNote"
+                    : "cards.cushionOkNote",
+                {
+                  amount: cushionNoteAmount,
+                  amt: (chunks) => (
+                    <Redactable
+                      enabled={amountPrivacyEnabled}
+                      mask={cushionNoteAmount}
+                    >
+                      {chunks}
+                    </Redactable>
+                  ),
+                },
+              )}
+            </p>
           </section>
         )}
       </div>

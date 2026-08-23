@@ -1434,8 +1434,9 @@
           "cushionOff": "Подушку вимкнено",
           "cushionCovered": "Подушка покриває потрібний ліміт",
           "cushionShort": "Подушка нижча за потрібний ліміт",
-          "cushionSaved": "Зібрано",
-          "cushionNeeded": "Потрібно",
+          "cushionShortNote": "Недостатньо. Бракує <amt>{amount}</amt>",
+          "cushionSurplusNote": "Більше ніж потрібно. <amt>{amount}</amt> надлишку",
+          "cushionOkNote": "Повністю покрито — гарна робота",
           "availableReserves": "Доступні резерви",
           "realMonths": "реальні місяці",
           "lowestPoint": "Найнижчий залишок: {date}"

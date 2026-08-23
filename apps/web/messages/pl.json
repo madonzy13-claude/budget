@@ -1434,8 +1434,9 @@
           "cushionOff": "Poduszka wyłączona",
           "cushionCovered": "Poduszka pokrywa wymagany limit",
           "cushionShort": "Poduszka jest poniżej wymaganego limitu",
-          "cushionSaved": "Zebrano",
-          "cushionNeeded": "Potrzeba",
+          "cushionShortNote": "Za mało. Brakuje <amt>{amount}</amt>",
+          "cushionSurplusNote": "Więcej niż trzeba. <amt>{amount}</amt> nadwyżki",
+          "cushionOkNote": "W pełni pokryta — dobra robota",
           "availableReserves": "Dostępne rezerwy",
           "realMonths": "realne miesiące",
           "lowestPoint": "Najniższy stan: {date}"
