@@ -274,12 +274,49 @@ export function OverviewCards({
   const safe = projection?.safe_to_withdraw;
   const sdRaw = safe?.cents ?? spendHealth?.surplus_deficit_cents ?? null;
   const surplusDeficit = sdRaw !== null ? BigInt(sdRaw) : null;
-  const isDeficit = surplusDeficit !== null && surplusDeficit < 0n;
+  // Below zero there is nothing to move, and "minus 590" is not an amount anyone
+  // can move — so the row never shows a negative (user, 260822).
+  const freeToMove =
+    surplusDeficit !== null && surplusDeficit > 0n ? surplusDeficit : 0n;
+  // A REAL deficit: a day the forecast line actually goes under, after the
+  // reserve pot is exhausted too. It comes from the EVEN run — the same one the
+  // band below draws — so red here and red there are the same day, the same
+  // arithmetic, the same fact. The red this replaces came from the pessimistic
+  // run and could sit above a band of 100 green days (user, 260822).
+  //
+  // A reserve-covered dip is yellow in the band and stays out of this: the
+  // reserve doing its job is not a deficit.
+  const summary = projection?.summary;
+  const shortfallCents =
+    summary?.first_red_date != null
+      ? BigInt(summary.worst_shortfall_cents)
+      : null;
   const thinnestDate = safe?.thinnest_date ?? null;
   // Reserves-note amount (short → missing, surplus → extra). The OK note names
   // no figure at all since 260804 — nothing is owed, so restating the target
   // read like a bill still to pay. Lifted out so it feeds BOTH the rendered text
   // and the privacy mask length.
+  // Cushion: short / exactly covered / over, and by how much. Compared at the
+  // precision the note DISPLAYS — a 40-grosz gap formats as "0 extra", which
+  // reads as a surplus of nothing, so anything that rounds to zero is covered.
+  const cushionGapCents = (() => {
+    try {
+      return (
+        BigInt(data.cushion.total_cents) - BigInt(data.cushion.required_cents)
+      );
+    } catch {
+      return 0n;
+    }
+  })();
+  const cushionGapAbs =
+    cushionGapCents < 0n ? -cushionGapCents : cushionGapCents;
+  const cushionRoundsToZero = cushionGapAbs < 50n;
+  const cushionState: "short" | "surplus" | "ok" = cushionRoundsToZero
+    ? "ok"
+    : cushionGapCents < 0n
+      ? "short"
+      : "surplus";
+  const cushionNoteAmount = fmtRounded(String(cushionGapAbs));
   const reservesNoteAmount = centsToDisplayCompact(
     data.reserves.status === "surplus"
       ? (
@@ -509,7 +546,34 @@ export function OverviewCards({
                 {animRounded(data.spendings.spent_cents)}
               </dd>
             </div>
-            {surplusDeficit !== null ? (
+            {/* Three states, in the order they matter.
+                1. The forecast goes under → the DEEPEST shortfall in the
+                   window, in red. Deepest, not the sum: consecutive red days
+                   are the same missing money counted again, so a sum grows
+                   with how LONG the hole lasts instead of how bad it is. Find
+                   this much and no day in the window goes under.
+                2. Something could leave the budget → how much, in green.
+                3. Neither → a plain note. "Free to move 0" was a number that
+                   said nothing (user, 260822). */}
+            {shortfallCents !== null ? (
+              <div
+                data-testid="spend-surplus-row"
+                className="flex items-center justify-between gap-2"
+              >
+                <dt className="min-w-0 truncate">{t("cards.deficit")}</dt>
+                {/* The band below paints its red days with this same token, and
+                    this figure comes from that same run — so the card is
+                    echoing the chart rather than inventing an alarm of its own
+                    (DESIGN.md:647 on not repurposing the trading tokens). */}
+                <dd
+                  data-testid="spend-surplus-deficit"
+                  className="num"
+                  style={{ color: "var(--trading-down)" }}
+                >
+                  {animRounded(String(shortfallCents))}
+                </dd>
+              </div>
+            ) : surplusDeficit !== null && freeToMove > 0n ? (
               <div
                 data-testid="spend-surplus-row"
                 className="flex items-center justify-between gap-2"
@@ -525,26 +589,25 @@ export function OverviewCards({
                     }
                   : {})}
               >
-                <dt className="min-w-0 truncate">
-                  {isDeficit ? t("cards.deficit") : t("cards.surplus")}
-                </dt>
-                {/* Inline color (tailwind-merge drops text-[var()] color): red
-                    deficit (<0), white when exactly 0, green surplus (>0). */}
+                {/* Names what the figure is FOR — money that could go to
+                    investments or elsewhere — rather than "Surplus", which
+                    sounds like leftover budget and sat contradicting the
+                    Available-to-spend figure right above it. */}
+                <dt className="min-w-0 truncate">{t("cards.freeToMove")}</dt>
                 <dd
                   data-testid="spend-surplus-deficit"
                   className="num"
-                  style={{
-                    color:
-                      surplusDeficit < 0n
-                        ? "var(--trading-down)"
-                        : surplusDeficit === 0n
-                          ? "var(--body-on-dark)"
-                          : "var(--trading-up)",
-                  }}
+                  style={{ color: "var(--trading-up)" }}
                 >
                   {/* Whole units only — no cents (parity with the hero figures). */}
-                  {animRounded(String(surplusDeficit))}
+                  {animRounded(String(freeToMove))}
                 </dd>
+              </div>
+            ) : surplusDeficit !== null ? (
+              // A note, not a figure — it wants a little air above it rather
+              // than sitting on the `Spent` row's own 2px gap (user, 260823).
+              <div data-testid="spend-balanced-note" className="mt-1.5 flex">
+                <dd className="min-w-0">{t("cards.spendBalanced")}</dd>
               </div>
             ) : (
               // No upcoming income → keep the original "upcoming" figure.
@@ -698,21 +761,36 @@ export function OverviewCards({
                 })()}
               </span>
             </p>
-            {/* Have vs needed to cover the threshold (item 5). */}
-            <dl className="text-caption mt-1.5 flex flex-col gap-0.5 text-[var(--muted-foreground)]">
-              <div className="flex items-center justify-between gap-2">
-                <dt>{t("cards.cushionSaved")}</dt>
-                <dd className="num text-[var(--body-on-dark)]">
-                  {animRounded(data.cushion.total_cents)}
-                </dd>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <dt>{t("cards.cushionNeeded")}</dt>
-                <dd className="num text-[var(--body-on-dark)]">
-                  {animRounded(data.cushion.required_cents)}
-                </dd>
-              </div>
-            </dl>
+            {/* One sentence instead of Saved-over-Needed, in the reserves
+                card's own register: the pair listed two figures and left the
+                subtraction to the reader (user, 260823).
+                The note stays muted in every state — the green already lives
+                on the check beside the runway, which `covered` turns on the
+                moment savings reach the requirement, surplus included. Two
+                greens for one fact is one too many (user, 260823). */}
+            <p
+              data-testid="cushion-note"
+              className="text-caption mt-1.5 text-[var(--muted-foreground)]"
+            >
+              {t.rich(
+                cushionState === "surplus"
+                  ? "cards.cushionSurplusNote"
+                  : cushionState === "short"
+                    ? "cards.cushionShortNote"
+                    : "cards.cushionOkNote",
+                {
+                  amount: cushionNoteAmount,
+                  amt: (chunks) => (
+                    <Redactable
+                      enabled={amountPrivacyEnabled}
+                      mask={cushionNoteAmount}
+                    >
+                      {chunks}
+                    </Redactable>
+                  ),
+                },
+              )}
+            </p>
           </section>
         )}
       </div>

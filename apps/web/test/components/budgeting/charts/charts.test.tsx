@@ -512,6 +512,34 @@ describe("Overview charts", () => {
       expect(label.style.overflowWrap).toBe("anywhere");
     });
 
+    // Wrapping the NAME was the 260810 answer to a name running over its value.
+    // It has a floor: with a seven-figure amount AND two suffix cells there is
+    // nothing left for the name column, and "Capitalization" came out one
+    // letter per line (user screenshots, 260823). Give the name the row to
+    // itself and drop the percent + delta to a second line under it.
+    it("puts the name and amount on their own line, above the delta cells", () => {
+      const c = renderGrid();
+      const nameRow = c.querySelector(
+        '[data-testid="tooltip-series-line"]',
+      ) as HTMLElement;
+      expect(nameRow).not.toBeNull();
+      // The line spans the whole grid, so the name is not competing with the
+      // suffix columns for width.
+      expect(nameRow.style.gridColumn).toBe("1 / -1");
+      // …and it carries the name AND that series' own amount.
+      expect(nameRow.textContent).toContain("Contributions");
+      expect(nameRow.textContent).toContain("645731");
+      // The summary gets the same treatment — its label had the same problem.
+      const lines = c.querySelectorAll('[data-testid="tooltip-series-line"]');
+      const summary = lines[lines.length - 1] as HTMLElement;
+      expect(summary.textContent).toContain("Total");
+      expect(summary.textContent).toContain("933,989 zł");
+      // The percent + delta are NOT on those lines; they sit in their own
+      // aligned columns underneath.
+      expect(nameRow.textContent).not.toContain("+11.0%");
+      expect(summary.textContent).not.toContain("+26.6%");
+    });
+
     it("keeps the figures on one line — only the name may wrap", () => {
       const c = renderGrid();
       const value = c.querySelector(

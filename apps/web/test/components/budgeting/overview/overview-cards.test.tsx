@@ -14,9 +14,10 @@ vi.mock("next-intl", () => {
       "cards.availableToSpend": "Available to spend",
       "cards.spentThisMonth": "Spent",
       "cards.leftToSpend": "Upcoming",
-      "cards.surplus": "Surplus",
-      "cards.lowestPoint": "Lowest point: {date}",
+      "cards.freeToMove": "Free to move",
+      "cards.spendBalanced": "Plan looks solid",
       "cards.deficit": "Deficit",
+      "cards.lowestPoint": "Lowest point: {date}",
       "cards.spendNeutral": "No upcoming income",
       "cards.retirementRunway": "If you retire now",
       "cards.retirementSub": "at your normal planned spending",
@@ -33,8 +34,9 @@ vi.mock("next-intl", () => {
       "cards.reservesOkNote": "All reserves are in place",
       "cards.reservesShortNote": "Not enough. {amount} is missing",
       "cards.reservesSurplusNote": "Too much. {amount} extra",
-      "cards.cushionSaved": "Saved",
-      "cards.cushionNeeded": "Needed",
+      "cards.cushionShortNote": "Not enough. {amount} is missing",
+      "cards.cushionSurplusNote": "More than needed. {amount} extra",
+      "cards.cushionOkNote": "Fully covered — nice work",
       "cards.capitalization": "Capitalization",
       "cards.capitalizationSub": "incl. investments {amount}",
       "cards.overspent": "Overspent this month",
@@ -237,51 +239,165 @@ describe("OverviewCards", () => {
     expect(row.getAttribute("title")).toContain("15");
   });
 
-  it("shows surplus (green) or deficit (red) from the nearest income", () => {
+  // ONE label, and it names what the figure is FOR: money that could leave the
+  // budget today — to invest, to move elsewhere — with every dip in the forecast
+  // still covered. "Surplus / Deficit" split one measurement into two things and
+  // called a negative one a shortfall of MONEY, which it never was: the forecast
+  // can be 100 green days and the figure still negative, because it answers
+  // "what can I take out?", not "will I run out?" (user, 260822).
+  it("names the row Free to move when there is something to move", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
-    // Default: income exists, +$400 surplus.
-    const { unmount } = render(
-      <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />,
-    );
-    expect(screen.getByText("Surplus")).toBeTruthy();
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+    expect(screen.getByText("Free to move")).toBeTruthy();
     expect(screen.getByTestId("spend-surplus-deficit").textContent).toContain(
       "$400",
     );
-    unmount();
-
-    // Negative → Deficit label, magnitude shown (sign conveyed by red color).
-    mockProjection.mockReturnValue({
-      data: {
-        spend_health: { good: false, surplus_deficit_cents: "-25000" },
-        safe_to_withdraw: { cents: "-25000", thinnest_date: "2026-09-02" },
-      },
-    });
-    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
-    expect(screen.getByText("Deficit")).toBeTruthy();
-    expect(screen.getByTestId("spend-surplus-deficit").textContent).toContain(
-      "250",
+    expect(screen.getByTestId("spend-surplus-deficit").style.color).toBe(
+      "var(--trading-up)",
     );
   });
 
-  it("colors the surplus/deficit value: green >0, white =0, red <0", () => {
+  // "Free to move $0" was a number that said nothing — and you cannot move minus
+  // 250 either. When the forecast holds up but there is nothing spare, the row
+  // says so in words, like the reserves card's own note (user, 260822).
+  it("says the budget is fully planned instead of showing a zero", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
-    const cases: [string, string][] = [
-      ["40000", "var(--trading-up)"], // surplus > 0 → green
-      ["0", "var(--body-on-dark)"], // exactly 0 → white
-      ["-25000", "var(--trading-down)"], // deficit < 0 → red
-    ];
-    for (const [cents, color] of cases) {
+    for (const cents of ["0", "-25000"]) {
       mockProjection.mockReturnValue({
-        data: { spend_health: { good: true, surplus_deficit_cents: cents } },
+        data: {
+          spend_health: { good: true, surplus_deficit_cents: cents },
+          safe_to_withdraw: { cents, thinnest_date: "2026-09-02" },
+          summary: {
+            first_yellow_date: null,
+            first_red_date: null,
+            worst_shortfall_cents: "0",
+          },
+        },
       });
       const { unmount } = render(
         <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />,
       );
-      expect(screen.getByTestId("spend-surplus-deficit").style.color).toBe(
-        color,
+      expect(screen.getByTestId("spend-balanced-note").textContent).toContain(
+        "Plan looks solid",
       );
+      expect(screen.queryByTestId("spend-surplus-deficit")).toBeNull();
       unmount();
     }
+  });
+
+  // A REAL deficit — a day the forecast actually goes under, after the reserve
+  // pot is exhausted too. That is the one state worth red, and it is the same
+  // red the band below paints on the same day, from the same run. The old red
+  // came from a different simulation entirely and could sit above 100 green
+  // days (user, 260822).
+  it("shows the forecast's deepest shortfall, in red, when a day goes under", () => {
+    mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    mockProjection.mockReturnValue({
+      data: {
+        spend_health: { good: false, surplus_deficit_cents: "40000" },
+        safe_to_withdraw: { cents: "40000", thinnest_date: "2026-09-02" },
+        summary: {
+          first_yellow_date: "2026-10-01",
+          first_red_date: "2026-10-14",
+          worst_shortfall_cents: "120000",
+        },
+      },
+    });
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+    expect(screen.getByText("Deficit")).toBeTruthy();
+    const value = screen.getByTestId("spend-surplus-deficit");
+    expect(value.textContent).toContain("$1,200");
+    expect(value.style.color).toBe("var(--trading-down)");
+  });
+
+  // The deficit wins over anything free to move: money you could withdraw is a
+  // pointless thing to offer on a budget that goes under before the window ends.
+  it("prefers the deficit over the withdrawable figure", () => {
+    mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    mockProjection.mockReturnValue({
+      data: {
+        spend_health: { good: false, surplus_deficit_cents: "40000" },
+        safe_to_withdraw: { cents: "40000", thinnest_date: "2026-09-02" },
+        summary: {
+          first_yellow_date: null,
+          first_red_date: "2026-10-14",
+          worst_shortfall_cents: "120000",
+        },
+      },
+    });
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+    expect(screen.queryByText("Free to move")).toBeNull();
+    expect(
+      screen.getByTestId("spend-surplus-deficit").textContent,
+    ).not.toContain("$400");
+  });
+
+  // The cushion card listed Saved and Needed and left the arithmetic to the
+  // reader. It now says the one thing that matters, in the reserves card's own
+  // register — and green when there is MORE than needed, because that is good
+  // news, not a warning (user, 260823).
+  describe("cushion note", () => {
+    const withCushion = (total: string, required: string) => {
+      mockUse.mockReturnValue({
+        data: {
+          ...DTO,
+          cushion: {
+            ...DTO.cushion,
+            total_cents: total,
+            required_cents: required,
+            // Derived exactly as the server derives it
+            // (get-overview-cards.ts: `actualCents >= requiredCents`), so the
+            // icon in this fixture tells the same story as the numbers.
+            covered: BigInt(total) >= BigInt(required),
+          },
+        },
+        isError: false,
+        isPending: false,
+      });
+      return render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+    };
+
+    it("says what is missing when short", () => {
+      withCushion("900000", "1800000"); // $9,000 saved of $18,000
+      const note = screen.getByTestId("cushion-note");
+      expect(note.textContent).toContain("Not enough");
+      expect(note.textContent).toContain("$9,000");
+      expect(screen.getByTestId("cushion-short")).toBeTruthy();
+    });
+
+    it("says what is extra when over, and leaves the green to the icon", () => {
+      withCushion("2000000", "1800000"); // $2,000 over
+      const note = screen.getByTestId("cushion-note");
+      expect(note.textContent).toContain("More than needed");
+      expect(note.textContent).toContain("$2,000");
+      // The check beside the runway is the green one — `covered` is
+      // `saved >= required`, so a surplus already turns it on. Colouring the
+      // sentence too says the same thing twice (user, 260823).
+      expect(note.style.color).toBe("");
+      expect(screen.getByTestId("cushion-covered")).toBeTruthy();
+    });
+
+    it("congratulates when it lands exactly", () => {
+      withCushion("1800000", "1800000");
+      expect(screen.getByTestId("cushion-note").textContent).toContain(
+        "Fully covered",
+      );
+    });
+
+    // A 40-grosz gap renders as "0 extra", which reads as a surplus of nothing.
+    // The comparison happens at the precision the note DISPLAYS.
+    it("treats a sub-unit gap as covered, not as a surplus of zero", () => {
+      withCushion("1800040", "1800000");
+      expect(screen.getByTestId("cushion-note").textContent).toContain(
+        "Fully covered",
+      );
+    });
+
+    it("drops the Saved/Needed pair it replaces", () => {
+      withCushion("900000", "1800000");
+      expect(screen.queryByText("Saved")).toBeNull();
+      expect(screen.queryByText("Needed")).toBeNull();
+    });
   });
 
   it("shows the reserves ok/short/surplus indicator (item 3)", () => {

@@ -781,4 +781,5 @@ describe("Round 7 — grid box to physical screen bottom (SHELL-R17)", () => {
     // …and the two viewport readings that disagreed on device, side by side.
     expect(viewportDebug).toMatch(/ovLayoutH|layoutH/);
   });
+
 });

@@ -354,6 +354,43 @@ describe("ProjectionTimeline", () => {
     expect(parseFloat(aug!.style.left)).toBeCloseTo((4 / 39) * 100, 1);
   });
 
+  // The mirror case, and the one the tail guard missed: the window OPENS three
+  // days before a month turns. "Aug" sits at 0% and "Sep" at ~3%, which is ~10px
+  // on a phone — Sep lands on top of Aug. The sliver is the one not worth
+  // naming, exactly as at the tail (user, 260823; live on 29 August).
+  test("drops the opening label when the next month turns immediately", () => {
+    projectionData = { ...dto, days: runOfDays("2026-08-29", 100) };
+    renderIt();
+    expect(
+      screen.getAllByTestId("projection-month").map((el) => el.textContent),
+    ).toEqual(["Sep", "Oct", "Nov"]);
+  });
+
+  // Dropping a NAME must not drop the divider: Sep still turns three days in,
+  // and the strip has to show where. Rules come from every month open; only the
+  // labels are filtered.
+  test("keeps the divider for a month whose name was dropped", () => {
+    projectionData = { ...dto, days: runOfDays("2026-08-29", 100) };
+    renderIt();
+    // 100 days from Aug 29 runs to Dec 6, so four months turn inside the
+    // window: Sep, Oct, Nov, Dec. All four get a divider. Only three get a
+    // name — Aug loses its at the head (3 days), Dec at the tail (6 days), and
+    // this single case exercises both ends of the rule.
+    expect(screen.getAllByTestId("projection-month-rule")).toHaveLength(4);
+    expect(
+      screen.getAllByTestId("projection-month").map((el) => el.textContent),
+    ).toEqual(["Sep", "Oct", "Nov"]);
+  });
+
+  // …but a first month with room keeps its name.
+  test("keeps the opening label when its segment is wide enough", () => {
+    projectionData = { ...dto, days: runOfDays("2026-08-01", 100) };
+    renderIt();
+    expect(
+      screen.getAllByTestId("projection-month")[0]!.textContent,
+    ).toBe("Aug");
+  });
+
   test("drops a label with no room left to earn it", () => {
     // A month opening in the last few days of the window would print its name
     // half outside the card for the sake of three days.

@@ -38,8 +38,26 @@ export function SafeAreaTopSync() {
       document.body.appendChild(probe);
       const h = Math.round(probe.getBoundingClientRect().height);
       probe.remove();
-      if (h > 0) {
+      // A zero reading means one of two opposite things, and they have to be
+      // told apart:
+      //
+      //  • PORTRAIT — iOS has not resolved the inset yet (the cold-launch
+      //    frames this island exists for). Writing the 0 would produce the
+      //    exact 0→59 header drop it was written to kill, so it is ignored.
+      //  • LANDSCAPE — the notch is on the SIDE, so 0 is the truth. Ignoring
+      //    it left the header padded by the PORTRAIT notch after a rotation:
+      //    a ~59px empty band above the app (user, 260823).
+      //
+      // Orientation is the discriminator, and a physical one: a top inset that
+      // large cannot exist on a landscape phone.
+      const landscape = window.innerWidth > window.innerHeight;
+      if (h > 0 || landscape) {
         document.documentElement.style.setProperty("--safe-top", `${h}px`);
+      }
+      // Only ever PERSIST a real inset. The stored value pre-paints the next
+      // cold launch, which is overwhelmingly portrait; storing a landscape 0
+      // would reintroduce the drop on the launch after.
+      if (h > 0) {
         try {
           window.localStorage.setItem(SAT_KEY, String(h));
         } catch {
@@ -49,13 +67,24 @@ export function SafeAreaTopSync() {
     };
 
     // Measure now and after a frame (the inset can resolve a tick after mount),
-    // then keep it current across orientation / viewport changes.
+    // then keep it current across orientation / viewport changes. iOS does not
+    // reliably settle the inset by the time `resize` fires on a rotation, so
+    // orientationchange re-measures again a beat later.
     measure();
     const raf = requestAnimationFrame(measure);
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    const onOrientation = () => {
+      measure();
+      clearTimeout(settle);
+      settle = setTimeout(measure, 300);
+    };
     window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", onOrientation);
     return () => {
       cancelAnimationFrame(raf);
+      clearTimeout(settle);
       window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", onOrientation);
     };
   }, []);
 

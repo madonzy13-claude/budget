@@ -267,8 +267,6 @@
       "targetMonthsLabel": "Target months",
       "targetMonthsError": "Months must be between 1 and 60.",
       "saved": "Cushion target saved",
-      "preview": "Have {actual} of {required} — short by {shortfall}",
-      "previewMet": "Have {actual} of {required} — target met",
       "previewError": "Could not load cushion summary."
     },
     "scheduled": {
@@ -1372,7 +1370,8 @@
           "availableToSpend": "Available to spend",
           "spentThisMonth": "Spent",
           "leftToSpend": "Upcoming",
-          "surplus": "Surplus",
+          "freeToMove": "Free to move",
+          "spendBalanced": "Plan looks solid",
           "deficit": "Deficit",
           "retirementRunway": "If you retire now, your money will last for",
           "retirementSub": "at your normal planned spending",
@@ -1410,8 +1409,9 @@
           "cushionOff": "Cushion off",
           "cushionCovered": "Cushion covers the required limit",
           "cushionShort": "Cushion is below the required limit",
-          "cushionSaved": "Saved",
-          "cushionNeeded": "Needed",
+          "cushionShortNote": "Not enough. <amt>{amount}</amt> is missing",
+          "cushionSurplusNote": "More than needed. <amt>{amount}</amt> extra",
+          "cushionOkNote": "Fully covered — nice work",
           "availableReserves": "Available reserves",
           "realMonths": "real months",
           "lowestPoint": "Lowest point: {date}"

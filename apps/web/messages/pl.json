@@ -267,8 +267,6 @@
       "targetMonthsLabel": "Docelowe miesiące",
       "targetMonthsError": "Liczba miesięcy musi być między 1 a 60.",
       "saved": "Cel poduszki zapisany",
-      "preview": "Masz {actual} z {required} — brakuje {shortfall}",
-      "previewMet": "Masz {actual} z {required} — cel osiągnięty",
       "previewError": "Nie udało się załadować podsumowania poduszki."
     },
     "scheduled": {
@@ -1395,7 +1393,8 @@
           "availableToSpend": "Dostępne do wydania",
           "spentThisMonth": "Wydano",
           "leftToSpend": "Przyszłe",
-          "surplus": "Nadwyżka",
+          "freeToMove": "Wolne środki",
+          "spendBalanced": "Plan wygląda solidnie",
           "deficit": "Deficyt",
           "retirementRunway": "Jeśli przejdziesz na emeryturę teraz, pieniędzy starczy na",
           "retirementSub": "przy normalnym planowanym wydatku",
@@ -1433,8 +1432,9 @@
           "cushionOff": "Poduszka wyłączona",
           "cushionCovered": "Poduszka pokrywa wymagany limit",
           "cushionShort": "Poduszka jest poniżej wymaganego limitu",
-          "cushionSaved": "Zebrano",
-          "cushionNeeded": "Potrzeba",
+          "cushionShortNote": "Za mało. Brakuje <amt>{amount}</amt>",
+          "cushionSurplusNote": "Więcej niż trzeba. <amt>{amount}</amt> nadwyżki",
+          "cushionOkNote": "W pełni pokryta — dobra robota",
           "availableReserves": "Dostępne rezerwy",
           "realMonths": "realne miesiące",
           "lowestPoint": "Najniższy stan: {date}"

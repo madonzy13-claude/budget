@@ -91,8 +91,17 @@ export function ProjectionTimeline({
    * nothing about WHEN, and months are the unit the household already reads
    * dates in — so the strip carries them itself (see the line below).
    *
-   * A month opening in the last sliver of the window is skipped: naming a
-   * segment three days wide crowds the one before it for nothing (user, 260812).
+   * A label is printed only where there is room for it: a segment narrower
+   * than MIN_LABEL_PCT of the strip is left unnamed, because its name would
+   * land on its neighbour's.
+   *
+   * That cuts BOTH ends. The tail was the original case — a month opening in
+   * the last few days would print half outside the card (user, 260812). The
+   * head is the same problem mirrored, and it arrives every month-end: on 29
+   * August the window opens with three days of Aug and then turns, putting
+   * "Aug" at 0% and "Sep" at ~3% — about 10px apart on a phone, so Sep is drawn
+   * on top of Aug (user, 260823). Either way the sliver is the one that loses
+   * its name; the wide segment beside it keeps its own.
    */
   const monthMarks = useMemo(() => {
     if (!data || data.days.length === 0) return [];
@@ -101,13 +110,19 @@ export function ProjectionTimeline({
       new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" })
         .format(new Date(`${iso}T00:00:00Z`))
         .replace(/\.$/, "");
-    return data.days.flatMap((d, i) => {
-      const opensAMonth = i === 0 || d.date.endsWith("-01");
-      if (!opensAMonth) return [];
-      const pct = (i / span) * 100;
-      // …and it must have room to be worth printing.
-      if (i > 0 && pct > 92) return [];
-      return [{ key: d.date, pct, label: monthName(d.date) }];
+    // Every month boundary in the window, before any is dropped.
+    const opens = data.days.flatMap((d, i) =>
+      i === 0 || d.date.endsWith("-01")
+        ? [{ key: d.date, pct: (i / span) * 100, label: monthName(d.date) }]
+        : [],
+    );
+    // 8% of a ~330px phone strip is ~26px — about the width of "Aug" at 10px,
+    // which is the measure that matters.
+    const MIN_LABEL_PCT = 8;
+    return opens.map((m, i) => {
+      const next = opens[i + 1];
+      const room = (next ? next.pct : 100) - m.pct;
+      return { ...m, labelled: room >= MIN_LABEL_PCT };
     });
   }, [data, locale]);
 
@@ -224,22 +239,27 @@ export function ProjectionTimeline({
             })}
           </svg>
 
-          {monthMarks.map((m, i) => (
-            <span
-              key={m.key}
-              data-testid="projection-month"
-              aria-hidden="true"
-              className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] font-medium leading-none"
-              style={{
-                left: `${m.pct}%`,
-                // Clear of the rounded end on the left, of the divider elsewhere.
-                marginLeft: i === 0 ? "8px" : "5px",
-                color: "var(--forecast-ink)",
-              }}
-            >
-              {m.label}
-            </span>
-          ))}
+          {monthMarks
+            .filter((m) => m.labelled)
+            .map((m) => (
+              <span
+                key={m.key}
+                data-testid="projection-month"
+                aria-hidden="true"
+                className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] font-medium leading-none"
+                style={{
+                  left: `${m.pct}%`,
+                  // Clear of the rounded end at the strip's start, of the divider
+                  // anywhere else. Keyed on the POSITION, not the array index —
+                  // the first PRINTED label is no longer necessarily the first
+                  // month, now that a narrow opening segment goes unnamed.
+                  marginLeft: m.pct === 0 ? "8px" : "5px",
+                  color: "var(--forecast-ink)",
+                }}
+              >
+                {m.label}
+              </span>
+            ))}
         </div>
 
         {/* Income (money IN): a green dot under the band. It was a literal "$",

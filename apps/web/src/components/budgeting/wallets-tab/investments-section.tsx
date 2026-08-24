@@ -51,7 +51,7 @@ import { toast } from "sonner";
 import { useLocale, useTranslations } from "next-intl";
 import { DashedAddButton } from "@/components/common/dashed-add-button";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
-import { centsToBare } from "@/lib/cents-format";
+import { centsToBare, centsToRounded } from "@/lib/cents-format";
 import { useBudget } from "@/hooks/use-budget-data";
 import { useInvestments, type HoldingDto } from "@/hooks/use-investments";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
@@ -79,6 +79,9 @@ import { HoldingSheet } from "./holding-sheet";
 interface InvestmentsSectionProps {
   budgetId: string;
   budgetCurrency?: string;
+  /** Every asset on the tab, in budget currency — denominator for the header's
+   *  share. Share BETWEEN sections, not within one (user, 260823). */
+  assetsTotalBudgetCents?: number;
 }
 
 /**
@@ -218,6 +221,7 @@ function midY(rect: { top: number; height: number } | null | undefined) {
 export function InvestmentsSection({
   budgetId,
   budgetCurrency: budgetCurrencyProp,
+  assetsTotalBudgetCents,
 }: InvestmentsSectionProps) {
   const t = useTranslations("budget.investments");
   const tToast = useTranslations("budget.investments.toast");
@@ -685,8 +689,37 @@ export function InvestmentsSection({
       data-testid="investments-section"
       className="flex flex-col gap-2 rounded-[var(--radius-lg)] p-2"
     >
-      <h3 className="flex items-center gap-1 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
-        {t("section.title")}
+      {/* Like every wallet section, the header reports what this one holds in
+          BUDGET currency (user, 260822). The columns it has to line up with are
+          the INVESTMENT row's, which differ from a wallet row's: a P/L gutter,
+          then currency tight to the amount on `gap-1`, then the trash. Matching
+          the row's own `gap-2 px-3` is what puts the two numbers on one axis. */}
+      {/* Same treatment as every wallet section: one formatted string with the
+          short currency sign, so nothing has to align against the rows. */}
+      <h3 className="flex items-center gap-2 px-3 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
+        <span className="min-w-0 flex-1 truncate">{t("section.title")}</span>
+        <span
+          data-testid="section-total-INVESTMENTS"
+          // normal-case: the h3 is uppercase for its LABEL, and that was
+          // turning the currency sign into "ZŁ" (user, 260823).
+          className="shrink-0 text-caption normal-case tabular-nums tracking-normal"
+        >
+          {centsToRounded(
+            String(Math.round(totalBudgetCents)),
+            budgetCurrency,
+            "en",
+            true,
+          )}
+        </span>
+        <span
+          data-testid="section-share-INVESTMENTS"
+          className="hidden w-16 shrink-0 text-right text-num-sm tabular-nums tracking-normal sm:block"
+        >
+          {assetsTotalBudgetCents && assetsTotalBudgetCents > 0
+            ? `${Math.round((totalBudgetCents / assetsTotalBudgetCents) * 100)}%`
+            : ""}
+        </span>
+        <span className="hidden w-7 shrink-0 sm:block" aria-hidden="true" />
       </h3>
 
       <DndContext

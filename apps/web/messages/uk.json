@@ -267,8 +267,6 @@
       "targetMonthsLabel": "Цільові місяці",
       "targetMonthsError": "Кількість місяців має бути від 1 до 60.",
       "saved": "Цільову подушку збережено",
-      "preview": "Є {actual} з {required} — бракує {shortfall}",
-      "previewMet": "Є {actual} з {required} — ціль досягнуто",
       "previewError": "Не вдалося завантажити підсумок подушки."
     },
     "scheduled": {
@@ -1395,7 +1393,8 @@
           "availableToSpend": "Доступно для витрат",
           "spentThisMonth": "Витрачено",
           "leftToSpend": "Майбутні",
-          "surplus": "Надлишок",
+          "freeToMove": "Вільні кошти",
+          "spendBalanced": "План виглядає надійним",
           "deficit": "Дефіцит",
           "retirementRunway": "Якщо вийти на пенсію зараз, грошей вистачить на",
           "retirementSub": "за звичайних запланованих витрат",
@@ -1433,8 +1432,9 @@
           "cushionOff": "Подушку вимкнено",
           "cushionCovered": "Подушка покриває потрібний ліміт",
           "cushionShort": "Подушка нижча за потрібний ліміт",
-          "cushionSaved": "Зібрано",
-          "cushionNeeded": "Потрібно",
+          "cushionShortNote": "Недостатньо. Бракує <amt>{amount}</amt>",
+          "cushionSurplusNote": "Більше ніж потрібно. <amt>{amount}</amt> надлишку",
+          "cushionOkNote": "Повністю покрито — гарна робота",
           "availableReserves": "Доступні резерви",
           "realMonths": "реальні місяці",
           "lowestPoint": "Найнижчий залишок: {date}"
