@@ -2,7 +2,10 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import { ProjectionTimeline } from "@/components/budgeting/overview/projection-timeline";
+import {
+  ProjectionTimeline,
+  minLabelPct,
+} from "@/components/budgeting/overview/projection-timeline";
 import type { ProjectionDTO } from "@/hooks/use-projection";
 
 const messages = {
@@ -573,5 +576,42 @@ describe("ProjectionTimeline", () => {
     expect(tip.textContent).toContain("Transport");
     // the day's income is itemised by name
     expect(tip.textContent).toContain("Salary");
+  });
+});
+
+// A month name is drawn in PIXELS on a strip measured in PERCENT, so the rule
+// that decides whether it fits has to convert between the two. A fixed
+// percentage cannot: 12% is the right answer on a 326px phone and four times
+// more room than the glyphs need on a 1280px desktop, where it silently drops
+// names that had space (the trade-off taken on 260824 and reversed here at the
+// user's ask — measure the strip, scale the threshold).
+describe("minLabelPct", () => {
+  test("spends the same pixels whatever the strip is wide", () => {
+    // The budget is a constant number of pixels; only its share of the strip
+    // moves. Twice the strip, half the percentage.
+    expect(minLabelPct(652)).toBeCloseTo(minLabelPct(326) / 2, 5);
+  });
+
+  test("a phone pays about an eighth of its strip for a name", () => {
+    // 326px is the strip at a 390px viewport — the narrowest that ships.
+    // ~40px of it (lead-in + the widest short month a locale prints + a gap)
+    // is the ~12% that was hard-coded before this.
+    expect(minLabelPct(326)).toBeGreaterThan(11);
+    expect(minLabelPct(326)).toBeLessThan(14);
+  });
+
+  test("a desktop strip asks far less, so a sliver keeps its name", () => {
+    // ~978px inside a 1280px window: the same 40px is now ~4%, so a month
+    // opening six days into a 100-day window is named instead of dropped.
+    expect(minLabelPct(978)).toBeLessThan(5);
+  });
+
+  test("an unmeasured strip assumes a phone rather than no limit", () => {
+    // First commit, SSR, or a browser with no ResizeObserver: width reads 0.
+    // Dividing by it would yield Infinity (drop everything) or, if guarded the
+    // lazy way, 0 (print everything on top of each other). Assume the narrow
+    // case — the one that collides — until measurement says otherwise.
+    expect(minLabelPct(0)).toBe(minLabelPct(326));
+    expect(Number.isFinite(minLabelPct(0))).toBe(true);
   });
 });

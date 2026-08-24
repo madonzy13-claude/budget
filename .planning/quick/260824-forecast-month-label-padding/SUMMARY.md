@@ -49,3 +49,38 @@ second rule.
 12% is deliberately sized for the phone, so a desktop card wide enough to fit a
 short month in an 8% segment now drops that name too. The divider still marks
 the turn. Erring the other way costs every phone a collision.
+
+---
+
+# Round 2 — measure the strip, scale the threshold (user's ask)
+
+The flat 12% was the right cost of a name on a phone and ~4× the glyphs' needs
+on a desktop, so a desktop dropped names it had room for. Replaced with a pixel
+budget converted per render:
+
+- `MIN_LABEL_PX = 40` (8px lead-in + widest short month + trailing gap) and
+  `FALLBACK_STRIP_PX = 326` (narrowest strip that ships).
+- Exported pure `minLabelPct(stripPx)` — unit-testable without a layout engine.
+- Strip width measured by a **callback ref + ResizeObserver**, not an effect:
+  callback refs run in the commit phase, so the first frame is already measured
+  and no label pops in after paint. React 19 disconnects via the returned
+  cleanup. Guarded for environments with no `ResizeObserver`.
+- Unmeasured (SSR, first commit, hidden tab) reads 0 → assume a phone, the case
+  where names collide, rather than dividing by zero.
+
+## Evidence
+
+- 4 new `minLabelPct` tests, red before the helper existed, green after. The 29
+  existing component tests pass **unchanged** — happy-dom reports `clientWidth:
+  0`, so they now exercise the fallback, which is the old 12% by construction.
+- Full web suite: 2318 passed, 34 skipped, 0 failed.
+- E2E, both projects, instrumented against the live stack on 24 Aug (Sep turns
+  on day 8 = 8.08%):
+  - **1280px** — strip 1198px → threshold 3.3% → labels `[Aug, Sep, Oct, Nov]`.
+    Aug is now KEPT and clears its divider.
+  - **390px** — strip 324px → threshold 12.3% → labels `[Sep, Oct, Nov]`.
+    Aug still dropped, as it must be.
+  - Same invariant assertion passes on both. 6/6 green.
+- `eslint --max-warnings=0`, `tsc --noEmit` clean.
+
+The 260824 trade-off note above is now void: no width pays for another's limit.

@@ -8,7 +8,7 @@
  * finger-slide) shows a tooltip ABOVE the line so the finger never covers it —
  * which is where every date, name and amount lives.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { useProjection, type ProjectionDay } from "@/hooks/use-projection";
 import { useCategories } from "@/hooks/use-budget-data";
@@ -29,6 +29,38 @@ const COLOR_VAR: Record<ProjectionDay["color"], string> = {
 /** Clamp helper. */
 const clamp = (n: number, lo: number, hi: number) =>
   n < lo ? lo : n > hi ? hi : n;
+
+/**
+ * What one month name costs the strip, in CSS pixels: its 8px lead-in off the
+ * divider it follows, the widest short month a locale prints (uk and pl run
+ * four characters, ~24px at 10px), and a gap before the NEXT divider so the two
+ * never touch.
+ *
+ * ponytail: a constant, not a measurement of the actual glyphs. Measuring would
+ * mean rendering every name to size it before deciding which to keep — exact
+ * across locales and fonts, and worth doing only if a locale ever overruns this.
+ */
+const MIN_LABEL_PX = 40;
+
+/** The narrowest strip that ships: a 390px viewport, less the page and card
+ *  padding. Assumed until the real one has been measured. */
+const FALLBACK_STRIP_PX = 326;
+
+/**
+ * The pixel budget above, expressed as the share of THIS strip it takes up.
+ *
+ * A month name is drawn in pixels; the strip positions everything in percent.
+ * A fixed percentage has to pick one width to be right about and is wrong
+ * everywhere else — 12% is the honest cost of a name on a phone and four times
+ * the glyphs' needs on a desktop, where it drops names that had ample room
+ * (user, 260824). Scaling with the measured strip is the same rule stated in
+ * the unit the label actually occupies.
+ *
+ * An unmeasured strip (first commit, SSR, no ResizeObserver) reads 0. Assume
+ * the narrow case — the one where names collide — rather than dividing by it.
+ */
+export const minLabelPct = (stripPx: number): number =>
+  (MIN_LABEL_PX / (stripPx > 0 ? stripPx : FALLBACK_STRIP_PX)) * 100;
 
 /** Round cents to whole units so amounts render without decimals. */
 const roundToUnit = (cents: string): string =>
@@ -57,6 +89,24 @@ export function ProjectionTimeline({
       .map((c, i) => [c.id as string, i]),
   );
   const [active, setActive] = useState<number | null>(null);
+
+  // The strip's own width, so a month name can be priced in the pixels it
+  // occupies rather than in a percentage guessed for one device (see
+  // minLabelPct). A callback ref rather than an effect: it runs in the commit
+  // phase, before the browser paints, so the first frame is already measured
+  // and no label pops in afterwards. React 19 disconnects the observer through
+  // the returned cleanup.
+  const [stripPx, setStripPx] = useState(0);
+  const measureStrip = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return;
+    setStripPx(el.clientWidth);
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => {
+      if (entry) setStripPx(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const n = data?.days.length ?? 0;
 
@@ -91,9 +141,9 @@ export function ProjectionTimeline({
    * nothing about WHEN, and months are the unit the household already reads
    * dates in — so the strip carries them itself (see the line below).
    *
-   * A label is printed only where there is room for it: a segment narrower
-   * than MIN_LABEL_PCT of the strip is left unnamed, because its name would
-   * land on its neighbour's.
+   * A label is printed only where there is room for it: a segment with less
+   * than minLabelPct of the strip to itself is left unnamed, because its name
+   * would land on its neighbour's.
    *
    * That cuts BOTH ends. The tail was the original case — a month opening in
    * the last few days would print half outside the card (user, 260812). The
@@ -116,21 +166,17 @@ export function ProjectionTimeline({
         ? [{ key: d.date, pct: (i / span) * 100, label: monthName(d.date) }]
         : [],
     );
-    // A pixel budget wearing a percentage, sized for the NARROWEST strip that
-    // ships — ~336px on a phone, where 12% is ~40px. The name has to pay for all
-    // three of: its 8px lead-in off the divider, the widest short month a locale
-    // prints (uk/pl run four characters, ~24px at 10px), and a gap before the
-    // NEXT divider so the two never touch. Counting the glyphs alone put this at
-    // 8, which "Aug" then cleared by 0.08% and printed flush against the Sep
-    // rule (user, 260824). Erring wide costs a sliver its name on a desktop that
-    // had room; erring narrow costs every phone a collision.
-    const MIN_LABEL_PCT = 12;
+    // What a name costs THIS strip. Counting the glyphs alone once put it at a
+    // flat 8%, which "Aug" cleared by 0.08% and then printed flush against the
+    // Sep rule (user, 260824); a flat 12% paid for the whole label but only on a
+    // phone, and made a desktop drop names it had room for.
+    const minPct = minLabelPct(stripPx);
     return opens.map((m, i) => {
       const next = opens[i + 1];
       const room = (next ? next.pct : 100) - m.pct;
-      return { ...m, labelled: room >= MIN_LABEL_PCT };
+      return { ...m, labelled: room >= minPct };
     });
-  }, [data, locale]);
+  }, [data, locale, stripPx]);
 
   if (isLoading) {
     return <div className={cn(CARD, "h-[104px] animate-pulse")} aria-hidden />;
@@ -184,6 +230,7 @@ export function ProjectionTimeline({
             text without crowding it, and clipped by its own rounded ends. */}
         <div
           data-testid="projection-line"
+          ref={measureStrip}
           className="absolute inset-x-0 top-0 h-5 overflow-hidden rounded-full"
           style={{ background: gradient }}
         >
