@@ -66,7 +66,12 @@ case "$TARGET" in
   *) die "refusing to touch a database not named restore_check_*" ;;
 esac
 
+# KEEP_RESTORED_DB hands the restored database to a caller that wants to run
+# deeper checks against it — `make restore-drill` verifies KEK-keyed email
+# hashes, which needs application code and cannot run inside this container.
+# The caller becomes responsible for dropping it.
 cleanup_db() {
+  [ -n "${KEEP_RESTORED_DB:-}" ] && return 0
   psql -d postgres -q -c "DROP DATABASE IF EXISTS \"$TARGET\";" >/dev/null 2>&1 || true
 }
 trap 'cleanup_db; rm -rf "$TMP"' EXIT
@@ -103,5 +108,9 @@ done
 # user_keys is the one that decides whether the restore is USABLE: it holds the
 # per-user DEKs wrapped by BUDGET_KEK. Without that key these rows restore
 # perfectly and decrypt to nothing.
-log "reminder: this data needs BUDGET_KEK to be readable — escrow it offline"
 log "PASS — $NEWEST restores clean"
+
+# Machine-readable handle for `make restore-drill`, which continues from here
+# with the checks that need application code.
+[ -n "${KEEP_RESTORED_DB:-}" ] && echo "RESTORED_DB=$TARGET"
+exit 0

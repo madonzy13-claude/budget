@@ -85,6 +85,19 @@ backup-now: ## Take one backup immediately (outside the hourly schedule)
 restore-check: ## Restore the newest backup into a throwaway DB and assert it carries data
 	$(INFISICAL) $(COMPOSE) run --rm -e BACKUP_AGE_PRIVATE_KEY backup restore-check.sh
 
+# restore-check proves the BYTES came back. This proves the SYSTEM came back:
+# it keeps the restored database and recomputes KEK-keyed email hashes against
+# it, which is the difference between "the dump restores" and "people can still
+# sign in". Drops the scratch database whether the check passes or fails.
+restore-drill: ## Full drill — restore, then prove BUDGET_KEK still matches the data
+	@set -e; \
+	db=$$($(INFISICAL) $(COMPOSE) run --rm -T \
+	        -e BACKUP_AGE_PRIVATE_KEY -e KEEP_RESTORED_DB=1 \
+	        backup restore-check.sh | tee /dev/stderr | grep '^RESTORED_DB=' | cut -d= -f2 | tr -d '\r'); \
+	test -n "$$db" || { echo "restore-check did not report a database"; exit 1; }; \
+	trap "$(INFISICAL) $(COMPOSE) exec -T db psql -U postgres -q -c \"DROP DATABASE IF EXISTS \\\"$$db\\\";\" >/dev/null 2>&1 || true" EXIT; \
+	$(INFISICAL) sh -c "PGPASSWORD=\$$POSTGRES_PASSWORD bun scripts/verify-restored-kek.ts $$db"
+
 backup-status: ## Show what is actually in the bucket, per tier
 	$(INFISICAL) $(COMPOSE) run --rm --entrypoint sh backup -c '\
 	  export RCLONE_CONFIG_R2_TYPE=s3 RCLONE_CONFIG_R2_PROVIDER=Cloudflare \

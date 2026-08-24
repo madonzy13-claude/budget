@@ -21,9 +21,43 @@ db --pg_dump--> age(public key) --> R2 (EU) --> restore-check
 ```bash
 make backup-now      # take one now, outside the schedule
 make restore-check   # restore the newest backup, assert it carries data
+make restore-drill   # ALSO prove BUDGET_KEK still matches that data
 make backup-status   # what is actually in the bucket, per tier
 make logs-backup     # follow the sidecar
 ```
+
+## How do you know the backups work?
+
+Three levels, in increasing strength. Only the third is proof.
+
+**1. `make backup-status`** — objects exist and the newest is recent. Says
+nothing about whether they open.
+
+**2. `make restore-check`** — downloads the newest object, decrypts it,
+`pg_restore`s it into a throwaway database, and asserts five core tables are
+non-empty. Fails on a stale schedule (freshness limit), a wrong age key, or a
+truncated object. This is the one to run monthly.
+
+**3. `make restore-drill`** — everything above, then keeps the restored database
+and runs `scripts/verify-restored-kek.ts` against it: recomputes KEK-keyed email
+hashes and compares them to the restored bytes, and unwraps user DEKs. This is
+the difference between *"the dump restores"* and *"people can still sign in"*.
+
+Both checks were verified to FAIL before being trusted — a wrong age key stops
+`restore-check`, a wrong `BUDGET_KEK` stops the drill at `0/10 DEKs unwrapped`.
+An assertion that has never been red is decoration.
+
+```
+[kek-check] 25/25 email hashes recomputed correctly
+[kek-check] 10/10 user DEKs unwrapped
+[kek-check] PASS — this backup + this BUDGET_KEK is a working system
+```
+
+**What none of them cover:** a real disaster is a *new host*. These run against
+the existing cluster, so they do not exercise provisioning, role bootstrap from
+`infra/postgres/init`, DNS, or the tunnel. The honest full test is to restore
+onto a clean machine with nothing but the bucket and the two escrowed keys —
+worth doing once, deliberately, before you need it.
 
 ## The two keys — read this part
 
@@ -32,8 +66,18 @@ ciphertext and your data, and both live in Infisical today:
 
 | Secret | Without it |
 |---|---|
-| `BACKUP_AGE_PRIVATE_KEY` | the `.age` files cannot be decrypted at all |
-| `BUDGET_KEK` | the dump restores, but every per-user DEK in `shared_kernel.user_keys` stays wrapped — encrypted columns decrypt to nothing |
+| `BACKUP_AGE_PRIVATE_KEY` | the `.age` files cannot be decrypted at all — total loss |
+| `BUDGET_KEK` | the dump restores fully, but `identity.users.email_hash` is BLAKE2b **keyed by the KEK**, so sign-in cannot find its user (239 rows today) |
+
+Measured on 260824, so the second row is not a guess: `email_encrypted` is
+populated for **0 of 2233** users — the D-16 PII-at-rest columns were scaffolded
+and never wired up, and `user_keys` wraps 671 DEKs that nothing currently
+decrypts. So losing the KEK today costs **login lookup**, not data, and is even
+recoverable: plaintext `email` is still stored and `recomputeEmailHash()` exists
+to rebuild the hashes under a new key.
+
+That changes the moment anything starts writing `email_encrypted`. Escrow it
+now — it is free, and this footnote is one feature-flag away from being wrong.
 
 **Both must exist somewhere that is not this server and not Infisical.** If the
 box dies and Infisical is unreachable on the same day, backups you have been
