@@ -77,31 +77,36 @@ When(
     const spendings = new SpendingsPo(page);
     const row = spendings.draftRow(ruleName);
     await expect(row).toBeVisible({ timeout: 8000 });
-    // Reveal the action buttons via tap-reveal (works on all viewports;
-    // hover-reveal only exists above the `sm` breakpoint).
-    await row.click();
     const confirmBtn = spendings.draftConfirmButton();
-    // The reveal tap can land on the CONFIRM BUTTON itself. When the actions
-    // are already showing — which they are once the runner is slow enough for a
-    // re-render to sit between the row mounting and this click — that click
-    // confirms the draft outright, and the button unmounts with it. Waiting for
-    // it to come back then burns the entire 60s test timeout: it failed 8/8
-    // across two CI runs while passing locally, and the trace showed no draft
-    // row and a real "Rent" expense already in the grid (260823).
+    // Do NOT tap the row when the actions are already showing.
     //
-    // So: confirm it if it is still there, and otherwise prove it went. Either
-    // way the draft ends up confirmed, which is what the scenario is about.
-    if (await confirmBtn.isVisible().catch(() => false)) {
-      // dispatchEvent('click') instead of .click(): confirming fires
-      // useConfirmDraft, which removes the draft and UNMOUNTS this row.
-      // Playwright's normal .click() re-checks actionability and sees the
-      // element detach mid-gesture, then retries until the test timeout. A
-      // dispatched click fires the React onClick directly, with no
-      // hover/stability dance to lose the element to.
-      await confirmBtn.dispatchEvent("click");
-    } else {
-      await expect(row).toBeHidden({ timeout: 8000 });
+    // The tap exists to reveal them (hover-reveal only exists above `sm`). But
+    // the confirm button lives INSIDE the row, so once the actions are already
+    // out — which they are on a slower runner, where a re-render lands between
+    // the row mounting and this step — the reveal tap hits confirm itself. The
+    // draft is then confirmed and the button unmounted before anything can be
+    // dispatched to it, and the wait burns the full 60s test timeout: 8/8
+    // across two CI runs, then 4/4 again on main (260823-24).
+    //
+    // A previous attempt guarded only the DISPATCH, which cannot work: the row
+    // tap had already fired, and `isVisible()` is a point-in-time answer that
+    // goes stale the moment the mutation lands. The tap itself is what has to
+    // be conditional.
+    if (!(await confirmBtn.isVisible().catch(() => false))) {
+      await row.click();
+      await expect(confirmBtn).toBeVisible({ timeout: 8000 });
     }
+    // dispatchEvent('click') instead of .click(): confirming fires
+    // useConfirmDraft, which removes the draft and UNMOUNTS this row.
+    // Playwright's normal .click() re-checks actionability and sees the element
+    // detach mid-gesture, then retries until the test timeout. A dispatched
+    // click fires the React onClick directly, with no hover/stability dance to
+    // lose the element to.
+    //
+    // Still tolerated: the button may have gone anyway, because a tap we did
+    // fire is settling. The outcome is asserted below either way.
+    await confirmBtn.dispatchEvent("click").catch(() => {});
+    await expect(row).toBeHidden({ timeout: 10000 });
   },
 );
 
