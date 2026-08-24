@@ -251,12 +251,12 @@ describe("ProjectionTimeline", () => {
   test("labels the opening month and each month that begins in the window", () => {
     projectionData = {
       ...dto,
-      days: runOfDays("2026-07-28", 40), // Jul 28 → Sep 5
+      days: runOfDays("2026-07-15", 100), // Jul 15 → Oct 22
     };
     renderIt();
     expect(
       screen.getAllByTestId("projection-month").map((el) => el.textContent),
-    ).toEqual(["Jul", "Aug", "Sep"]);
+    ).toEqual(["Jul", "Aug", "Sep", "Oct"]);
   });
 
   // A month boundary and a payment are both "a vertical mark on a 20px band",
@@ -264,7 +264,7 @@ describe("ProjectionTimeline", () => {
   // the full height; a payment is a short solid notch off the bottom edge
   // (user picked the dashed treatment, 260812).
   test("a month boundary is dashed and spans the strip", () => {
-    projectionData = { ...dto, days: runOfDays("2026-07-28", 40) };
+    projectionData = { ...dto, days: runOfDays("2026-07-15", 100) };
     renderIt();
     const rule = screen.getAllByTestId("projection-month-rule")[0]!;
     expect(rule.tagName.toLowerCase()).toBe("line");
@@ -326,7 +326,7 @@ describe("ProjectionTimeline", () => {
   // carry the difference, so the component must not name a colour itself
   // (user, 260812).
   test("the strip's ink comes from theme tokens, not hardcoded", () => {
-    projectionData = { ...dto, days: runOfDays("2026-07-28", 40) };
+    projectionData = { ...dto, days: runOfDays("2026-07-15", 100) };
     const { unmount } = renderIt();
     expect(screen.getAllByTestId("projection-month")[1]!.style.color).toContain(
       "--forecast-ink",
@@ -345,13 +345,13 @@ describe("ProjectionTimeline", () => {
   });
 
   test("a month label sits where that month starts", () => {
-    projectionData = { ...dto, days: runOfDays("2026-07-28", 40) };
+    projectionData = { ...dto, days: runOfDays("2026-07-15", 100) };
     renderIt();
     const [jul, aug] = screen.getAllByTestId("projection-month");
-    // The opening month is pinned to the left edge; August begins on day 4 of
-    // 40, so its label sits at that fraction of the width.
+    // The opening month is pinned to the left edge; August begins on day 18 of
+    // 100, so its label sits at that fraction of the width.
     expect(jul!.style.left).toBe("0%");
-    expect(parseFloat(aug!.style.left)).toBeCloseTo((4 / 39) * 100, 1);
+    expect(parseFloat(aug!.style.left)).toBeCloseTo((17 / 99) * 100, 1);
   });
 
   // The mirror case, and the one the tail guard missed: the window OPENS three
@@ -377,6 +377,18 @@ describe("ProjectionTimeline", () => {
     // name — Aug loses its at the head (3 days), Dec at the tail (6 days), and
     // this single case exercises both ends of the rule.
     expect(screen.getAllByTestId("projection-month-rule")).toHaveLength(4);
+    expect(
+      screen.getAllByTestId("projection-month").map((el) => el.textContent),
+    ).toEqual(["Sep", "Oct", "Nov"]);
+  });
+
+  // The threshold is a PIXEL budget wearing a percentage: it has to pay for the
+  // label's 8px lead-in and a gap before the divider, not just the glyphs. At 8%
+  // this window cleared the guard by 0.08 and printed "Aug" hard against the Sep
+  // rule (user, 260824 — iPhone, 24 Aug, Sep turns on day 8 of 100 = 8.08%).
+  test("drops the opening label when its segment has no room to spare", () => {
+    projectionData = { ...dto, days: runOfDays("2026-08-24", 100) };
+    renderIt();
     expect(
       screen.getAllByTestId("projection-month").map((el) => el.textContent),
     ).toEqual(["Sep", "Oct", "Nov"]);

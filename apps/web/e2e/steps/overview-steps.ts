@@ -211,3 +211,9 @@ When("I hover the last day of the projection band", async ({ page }) => {
 Then("I see the projection tooltip", async ({ page }) => {
   await new ProjectionTimelinePo(page).expectTooltip();
 });
+
+Then("every month name on the projection strip clears its divider", async ({
+  page,
+}) => {
+  await new ProjectionTimelinePo(page).expectMonthLabelsClearDividers();
+});

@@ -116,9 +116,15 @@ export function ProjectionTimeline({
         ? [{ key: d.date, pct: (i / span) * 100, label: monthName(d.date) }]
         : [],
     );
-    // 8% of a ~330px phone strip is ~26px — about the width of "Aug" at 10px,
-    // which is the measure that matters.
-    const MIN_LABEL_PCT = 8;
+    // A pixel budget wearing a percentage, sized for the NARROWEST strip that
+    // ships — ~336px on a phone, where 12% is ~40px. The name has to pay for all
+    // three of: its 8px lead-in off the divider, the widest short month a locale
+    // prints (uk/pl run four characters, ~24px at 10px), and a gap before the
+    // NEXT divider so the two never touch. Counting the glyphs alone put this at
+    // 8, which "Aug" then cleared by 0.08% and printed flush against the Sep
+    // rule (user, 260824). Erring wide costs a sliver its name on a desktop that
+    // had room; erring narrow costs every phone a collision.
+    const MIN_LABEL_PCT = 12;
     return opens.map((m, i) => {
       const next = opens[i + 1];
       const room = (next ? next.pct : 100) - m.pct;
