@@ -2,6 +2,10 @@
 registry = "https://registry.npmjs.org/"
 
 [test]
+# Registers a global afterAll that removes every @example.com / @test.local
+# account the run created. 68 integration test files share the DEV database and
+# only one of them cleaned up after itself; see test/global-teardown.ts.
+preload = ["./test/global-teardown.ts"]
 coverage = true
 # Integration tests use testcontainers which need extra time to start Postgres
 # (Docker pull + role/schema bootstrap + drizzle migrate). 120s gives ample margin.
