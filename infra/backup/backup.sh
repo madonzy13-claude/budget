@@ -82,9 +82,21 @@ tier() {
 [ "$(date -u +%H)" = "00" ] && [ "$(date -u +%d)" = "01" ] && tier monthly
 
 # Retention is rclone's `--min-age`, not hand-rolled date arithmetic.
+#
+# A prune that FAILS must say so. Counting "Deleted" lines out of a pipeline
+# yields 0 both when there was nothing to delete and when rclone could not talk
+# to R2 at all — and the second case grows the bucket forever, silently, until
+# the free tier is gone. Check the exit status, then count.
+#
+# Never fatal: the backup itself already succeeded and is verified on R2, which
+# matters more than housekeeping. Loud, but not a reason to fail the run.
 prune() {
-  n=$(rclone delete "${DEST}/$1/" --min-age "$2" --verbose 2>&1 |
-    grep -c "Deleted" || true)
+  if ! out=$(rclone delete "${DEST}/$1/" --min-age "$2" --verbose 2>&1); then
+    log "WARNING: prune of $1/ FAILED — retention is not being applied"
+    echo "$out" | tail -3
+    return 0
+  fi
+  n=$(echo "$out" | grep -c ": Deleted" || true)
   [ "$n" -gt 0 ] && log "pruned $n from $1/ older than $2" || true
 }
 prune hourly "${RETAIN_HOURLY:-2d}"
