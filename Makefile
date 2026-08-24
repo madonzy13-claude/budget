@@ -73,6 +73,31 @@ seed: ## Seed dev data via HTTP API
 shell-db: ## Open psql in db container
 	$(INFISICAL) $(COMPOSE) exec db psql -U postgres budget
 
+# ── Backups ───────────────────────────────────────────────────────────────────
+# Hourly pg_dump → age → Cloudflare R2 (EU). See docs/runbooks/backup-and-restore.md.
+
+backup-now: ## Take one backup immediately (outside the hourly schedule)
+	$(INFISICAL) $(COMPOSE) run --rm backup backup.sh
+
+# The age PRIVATE key is passed through ONLY here — never in the compose service
+# definition, so the long-running sidecar can write backups it cannot read.
+# `-e VAR` with no value forwards it from the Infisical-injected environment.
+restore-check: ## Restore the newest backup into a throwaway DB and assert it carries data
+	$(INFISICAL) $(COMPOSE) run --rm -e BACKUP_AGE_PRIVATE_KEY backup restore-check.sh
+
+backup-status: ## Show what is actually in the bucket, per tier
+	$(INFISICAL) $(COMPOSE) run --rm --entrypoint sh backup -c '\
+	  export RCLONE_CONFIG_R2_TYPE=s3 RCLONE_CONFIG_R2_PROVIDER=Cloudflare \
+	         RCLONE_S3_NO_CHECK_BUCKET=true \
+	         RCLONE_CONFIG_R2_ACCESS_KEY_ID="$$R2_ACCESS_KEY_ID" \
+	         RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$$R2_SECRET_ACCESS_KEY" \
+	         RCLONE_CONFIG_R2_ENDPOINT="https://$$R2_ACCOUNT_ID.$${R2_JURISDICTION:-eu.}r2.cloudflarestorage.com"; \
+	  for t in hourly daily weekly monthly; do \
+	    printf "%-8s %s objects, newest %s\n" "$$t" \
+	      "$$(rclone lsf r2:$$R2_BUCKET/$$t/ 2>/dev/null | wc -l)" \
+	      "$$(rclone lsf r2:$$R2_BUCKET/$$t/ 2>/dev/null | sort | tail -1)"; \
+	  done'
+
 # ── Testing ───────────────────────────────────────────────────────────────────
 
 test: ## Run backend unit tests

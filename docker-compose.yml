@@ -207,3 +207,30 @@ services:
       # anything that can reach the host.
       - "127.0.0.1:4318:4318"
       - "127.0.0.1:4317:4317"
+
+  # ─── Backups (hourly pg_dump → age → Cloudflare R2) ──────────────────────────
+  # Holds the age PUBLIC key only: this container writes backups it cannot read.
+  # The private half is injected at run time by `make restore-check` and never
+  # lives in a long-running process.
+  backup:
+    build:
+      context: ./infra/backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: budget
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_BUCKET: ${R2_BUCKET}
+      # EU-jurisdiction buckets answer ONLY at the .eu. host; the global one
+      # returns 403 AccessDenied, which looks exactly like a bad token.
+      R2_JURISDICTION: ${R2_JURISDICTION:-eu.}
+      BACKUP_AGE_PUBLIC_KEY: ${BACKUP_AGE_PUBLIC_KEY}
+      BACKUP_CRON: ${BACKUP_CRON:-0 * * * *}
+      BACKUP_ALERT_WEBHOOK: ${BACKUP_ALERT_WEBHOOK:-}
