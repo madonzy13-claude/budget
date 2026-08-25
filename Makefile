@@ -120,8 +120,12 @@ backup-status: ## Show what is actually in the bucket, per tier
 # and because the process never exits, the global afterAll in
 # test/global-teardown.ts never fires and the run's data is never cleaned up.
 # Web components are covered by `cd apps/web && bunx vitest run`.
+# --timeout, not bunfig: bun 1.3.12 ignores a `timeout` key in bunfig.toml, so
+# every test ran on the 5000ms default. Integration tests here talk to a real,
+# shared Postgres (and testcontainers pull + migrate), so they intermittently
+# blew that bound — a different test each run, always at ~5002ms.
 test: ## Run backend unit + integration tests (NOT apps/web — that is Vitest)
-	$(INFISICAL) bun test packages apps/api/test tests
+	$(INFISICAL) bun test --timeout 120000 packages apps/api/test tests
 
 test-watch: ## Run tests in watch mode
 	bun test --watch
