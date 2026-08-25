@@ -51,3 +51,15 @@ Feature: Budget Overview tab
     And I switch the wealth view to "Investments"
     Then the wealth view "Investments" is active
     And the wealth pie region is visible
+
+  # The grid sized its two rows independently, so the Cushion note wrapping to a
+  # second line left the row above it visibly shorter (user screenshot, 260825).
+  # The cushion surplus is what makes that note two lines on a phone — without it
+  # every card holds one line of note and the rows match by accident.
+  Scenario: The four summary cards share one height
+    Given I am on a 320px-wide viewport
+    And the budget has a CUSHION wallet holding 999999900 cents
+    When I open the BDP for "My E2E Budget"
+    And I click the "Overview" tab pill
+    Then the five overview summary cards are visible
+    And the four summary cards are all the same height

@@ -52,11 +52,12 @@ Given("amounts are shown in full", async ({ freshUser }) => {
   });
 });
 
-/** Opening cash. SPENDINGS only — the forecast will not spend cushion or
- *  reserve money where it sits. */
+/** A wallet of a named type. SPENDINGS is the forecast's opening cash — it will
+ *  not spend cushion or reserve money where it sits — while CUSHION money with
+ *  no requirement behind it puts the cushion card into its surplus note. */
 Given(
-  /^the budget has a SPENDINGS wallet holding (\d+) cents$/,
-  async ({ freshUser }, balanceCents: string) => {
+  /^the budget has a (SPENDINGS|CUSHION|RESERVE) wallet holding (\d+) cents$/,
+  async ({ freshUser }, walletType: string, balanceCents: string) => {
     await withTenant(freshUser.budgetId, freshUser.userId, async (q) => {
       const b = (await q(
         `SELECT default_currency FROM tenancy.budgets WHERE id = $1::uuid`,
@@ -70,8 +71,15 @@ Given(
       await q(
         `INSERT INTO budgeting.wallets
            (id, tenant_id, name, currency, current_balance, actor_user_id, wallet_type)
-         VALUES (gen_random_uuid(), $1::uuid, 'Cash', $2, $3::numeric, $4::uuid, 'SPENDINGS')`,
-        [freshUser.budgetId, ccy, major, freshUser.userId],
+         VALUES (gen_random_uuid(), $1::uuid, $5, $2, $3::numeric, $4::uuid, $6)`,
+        [
+          freshUser.budgetId,
+          ccy,
+          major,
+          freshUser.userId,
+          walletType,
+          walletType,
+        ],
       );
     });
   },
@@ -149,3 +157,32 @@ Then("the card says nothing about spare money", async ({ page }) => {
   await expect(overview.freeToMove()).toHaveCount(0);
   await expect(page.getByTestId("spend-balanced-note")).toHaveCount(0);
 });
+
+/** The 2x2 grid sized its two rows independently, so a card whose note wrapped
+ *  to a second line made its whole row taller than the one above (user
+ *  screenshot, 260825). Measured, not eyeballed: only a real layout engine can
+ *  settle a question about resolved pixel heights. */
+Then("the four summary cards are all the same height", async ({ page }) => {
+  const overview = new OverviewPo(page);
+  await expect(overview.card("cushion")).toBeVisible({ timeout: 15000 });
+  // The heights settle as the projection and wealth queries land and notes
+  // reflow, so poll rather than measuring the first paint.
+  await expect
+    .poll(
+      async () => {
+        const h = await overview.gridCardHeights();
+        return Math.max(...h) - Math.min(...h);
+      },
+      { timeout: 15000 },
+    )
+    .toBe(0);
+});
+
+/** An explicit width, so a scenario about wrapping states the width it wraps
+ *  at instead of inheriting one. */
+Given(
+  /^I am on a (\d+)px-wide viewport$/,
+  async ({ page }, width: string | number) => {
+    await page.setViewportSize({ width: Number(width), height: 800 });
+  },
+);

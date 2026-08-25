@@ -40,6 +40,28 @@ export class OverviewPo {
     return this.page.getByTestId("spend-surplus-deficit");
   }
 
+  /** The four cards of the 2x2 grid, in DOM order. The capitalization hero
+   *  above them is full-width and sits outside it. */
+  gridCardNames() {
+    return [
+      "available-to-spend",
+      "available-reserves",
+      "overspent",
+      "cushion",
+    ] as const;
+  }
+
+  /** Their rendered heights, as the layout engine actually resolved them. */
+  async gridCardHeights(): Promise<number[]> {
+    const out: number[] = [];
+    for (const name of this.gridCardNames()) {
+      const box = await this.card(name).boundingBox();
+      if (!box) throw new Error(`card not laid out: ${name}`);
+      out.push(box.height);
+    }
+    return out;
+  }
+
   rangeSelector() {
     return this.page.getByTestId("overview-range-selector");
   }

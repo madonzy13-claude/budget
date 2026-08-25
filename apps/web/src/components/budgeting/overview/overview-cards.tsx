@@ -503,7 +503,11 @@ export function OverviewCards({
         );
       })()}
 
-      <div className="grid grid-cols-2 gap-3">
+      {/* auto-rows-fr: the two rows are sized TOGETHER, so a note that wraps to a
+          second line lifts every card rather than only its own row. Without it
+          the grid sized each row to its own content and the top row sat visibly
+          shorter than the bottom one (user screenshot, 260825). */}
+      <div className="grid auto-rows-fr grid-cols-2 gap-3">
         {/* Available to spend (item 1): wallet cash on top with a good/bad dot.
             The dot + surplus/deficit come from the cash-flow projection, so they
             account for upcoming income through the last pay-day of the window
@@ -605,8 +609,7 @@ export function OverviewCards({
                 </dd>
               </div>
             ) : surplusDeficit !==
-              null ? // same thing whether the forecast sat comfortably clear of zero or a // solid"), which read as praise the card had not earned: it said the // Nothing at all. The row used to carry a note here ("Plan looks
-            // złoty above it (user, 260825). Silence is the honest version of
+              null ? // złoty above it (user, 260825). Silence is the honest version of // same thing whether the forecast sat comfortably clear of zero or a // solid"), which read as praise the card had not earned: it said the // Nothing at all. The row used to carry a note here ("Plan looks
             // "there is nothing spare to tell you about".
             //
             // Explicitly null rather than deleted: falling through to the branch

@@ -102,3 +102,22 @@ markers, untouched).
 | After the change              | overview-cards 33 pass                          |
 | Full web suite                | **2318 passed, 34 skipped, 0 failed**           |
 | eslint --max-warnings=0 / tsc | clean                                           |
+
+## Follow-up — the two card rows now share a height (user, 260825)
+
+The 2x2 summary grid sized its rows independently, so the Cushion note wrapping
+to a second line left the top row visibly shorter. One class on the grid —
+`auto-rows-fr` — sizes both rows together.
+
+Finding a RED took three attempts, and that is the point: a fresh user's cards
+are equal by accident (all four 121.39px, every note one line), so the first two
+versions of the scenario passed against the broken build and proved nothing. The
+wrap only appears with a long note in a narrow column, so the scenario now states
+both: a 320px viewport and a cushion surplus large enough to wrap.
+
+| Step                 | Result                                                 |
+| -------------------- | ------------------------------------------------------ |
+| Measured, unfixed    | `[138.19, 138.19, 154.98, 154.98]` — a **16.80px** gap |
+| Scenario RED         | `Expected: 0  Received: 16.796875`                     |
+| After `auto-rows-fr` | E2E `@overview\|@projection` **15 passed, 0 failed**   |
+| Full web suite / tsc | 2318 passed, tsc clean                                 |
