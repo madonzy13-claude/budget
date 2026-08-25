@@ -317,6 +317,17 @@ describe("/scheduled-payments", () => {
     // historical anchor (e.g. salary that started last month). The
     // service back-fills the missed periods inline so drafts appear
     // immediately instead of waiting for the nightly engine pass.
+    //
+    // The anchor is THREE MONTHS BACK, not a fixed 2020-01-01. Back-fill is
+    // inline and one INSERT per missed period, so a hardcoded 2020 anchor grew
+    // by a month every month — ~80 periods by August 2026 — and finally crossed
+    // the 5s bound under full-suite load. Three periods prove the same
+    // behaviour and cannot rot. (The unbounded inline back-fill itself is a
+    // product question: a user typing 2015 still gets ~130 synchronous inserts.)
+    const anchor = new Date();
+    anchor.setUTCMonth(anchor.getUTCMonth() - 3, 1);
+    const firstDueDate = anchor.toISOString().slice(0, 10);
+
     const app = await buildApp(testUserId, testTenantId);
     const res = await app.request("/scheduled-payments", {
       method: "POST",
@@ -329,7 +340,7 @@ describe("/scheduled-payments", () => {
         currency: "USD",
         cadence: "MONTHLY",
         cadence_anchor: 1,
-        first_due_date: "2020-01-01",
+        first_due_date: firstDueDate,
       }),
     });
     expect(res.status).toBe(201);

@@ -14,16 +14,45 @@ timeout = 120000
 # parallel test files that share the same Postgres connection pool.
 smaxConcurrency = 4
 coverageThreshold = 0.80
-# PC-23: narrow 80% threshold to domain code only — adapter/application/contract/port layers
-# are integration-tested separately and are not the locus of business invariants.
+# PC-23: narrow the 80% threshold to domain code only — adapter/application/
+# contract/port layers are integration-tested separately and are not the locus of
+# business invariants.
+#
+# These MUST be globs. Bun matches each pattern as a glob against the file path,
+# so a bare directory prefix like "apps/" or a trailing-slash form like
+# "packages/*/src/application/" matches nothing at all — silently. Every pattern
+# here was written that way, so PC-23 had never actually been in effect: the 80%
+# gate was being applied to routes, adapters and application services it was
+# explicitly written to exclude. 63 files sat under it, `make test` exited
+# non-zero on a fully passing suite, and the exit code stopped meaning anything.
+# Verified by probe on bun 1.3.12 — "apps/" leaves apps/api/src/routes/wallets.ts
+# in the report, "**/apps/**" removes it.
 coveragePathIgnorePatterns = [
-  "test/",
-  "node_modules/",
-  "dist/",
-  "apps/",
-  "packages/*/src/adapters/",
-  "packages/*/src/application/",
-  "packages/*/src/contracts/",
-  "packages/*/src/ports/"
+  "**/test/**",
+  "**/node_modules/**",
+  "**/dist/**",
+  "**/apps/**",
+  "**/tests/**",
+  "packages/*/src/adapters/**",
+  "packages/*/src/application/**",
+  "packages/*/src/contracts/**",
+  "packages/*/src/ports/**",
+  # Drizzle table declarations. They contain no branch to take and no invariant
+  # to break — "covering" one means importing it.
+  "**/*-schema.ts",
+  "**/schema.ts",
+  # Same thing under a name that breaks the convention: a Drizzle table
+  # declaration, not logic. Its siblings in that directory (tx.ts, pool.ts,
+  # rls.ts) ARE logic and stay measured, so the folder cannot be excluded.
+  "packages/platform/src/db/expense-ledger.ts",
+  # @budget/platform is the infrastructure package: it organises by concern
+  # (email/, jobs/, push/) rather than under an adapters/ folder, so the rule
+  # above misses it. These three wrap SMTP, pg-boss and web-push and are proven
+  # against the real services, not by unit coverage — the same PC-23 rationale.
+  # crypto/ and otel/ are deliberately NOT excluded: key wrapping and tracing
+  # carry real logic and stay measured.
+  "packages/platform/src/email/**",
+  "packages/platform/src/jobs/**",
+  "packages/platform/src/push/**"
 ]
 coverageReporter = ["text", "lcov"]

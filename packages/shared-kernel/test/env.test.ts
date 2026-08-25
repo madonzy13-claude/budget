@@ -1,5 +1,10 @@
 import { test, expect } from "bun:test";
-import { parseEnv, parseWorkerEnv } from "../src/env";
+import {
+  parseEnv,
+  parseWorkerEnv,
+  loadEnv,
+  loadWorkerEnv,
+} from "../src/env";
 
 const valid = {
   DATABASE_URL_APP: "postgresql://app_role:pw@db:5432/budget",
@@ -77,4 +82,21 @@ test("parseWorkerEnv missing BUDGET_KEK throws", () => {
   expect(() =>
     parseWorkerEnv({ DATABASE_URL_WORKER: workerValid.DATABASE_URL_WORKER }),
   ).toThrow();
+});
+
+// The lazy singletons. Worth pinning beyond coverage: every consumer calls
+// loadEnv() per use (LibsodiumKeyStore does it on every kekBytes()), so if the
+// cache ever stopped holding, a hot path would re-parse and re-validate the whole
+// environment on each call.
+test("loadEnv caches — repeated calls return the very same object", () => {
+  const a = loadEnv();
+  const b = loadEnv();
+  expect(a).toBe(b);
+});
+
+test("loadWorkerEnv caches independently of loadEnv", () => {
+  const a = loadWorkerEnv();
+  const b = loadWorkerEnv();
+  expect(a).toBe(b);
+  expect(a as unknown).not.toBe(loadEnv() as unknown);
 });
