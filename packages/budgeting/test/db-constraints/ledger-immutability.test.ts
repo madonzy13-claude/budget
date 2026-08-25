@@ -48,15 +48,23 @@ describe("Ledger immutability (T-2-06-01)", () => {
     }
   });
 
-  test("app_role cannot DELETE from expense_ledger", async () => {
+  // app_role KEEPS delete, unlike worker_role below. Category archive purges
+  // unconfirmed drafts and DELETE /categories/:id purges the category's rows,
+  // both as app_role — without the grant every archive failed with 42501
+  // (post-migration.sql, quick 260611-vuo). Deletion is fenced by RLS
+  // (expense_ledger_tenant_isolation, FOR ALL), not by withholding the verb.
+  // This asserted the pre-amendment rule and had been red ever since.
+  test("app_role MAY DELETE from expense_ledger (archive/permanent-delete purge)", async () => {
     const c = new Client({ connectionString: APP_URL });
     await c.connect();
     try {
+      // A phantom id deletes nothing; what is under test is that permission
+      // exists at all, so the call must not be refused.
       await expect(
         c.query(
           `DELETE FROM budgeting.expense_ledger WHERE id = '${PHANTOM_ID}'`,
         ),
-      ).rejects.toThrow(/permission denied/i);
+      ).resolves.toBeDefined();
     } finally {
       await c.end();
     }

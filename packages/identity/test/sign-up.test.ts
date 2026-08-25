@@ -61,11 +61,18 @@ test("signUp persists DEK row in shared_kernel.user_keys (PC-09)", async () => {
     const pool = appPool();
     const client = await pool.connect();
     try {
+      // SET LOCAL is a no-op outside a transaction block — Postgres warns and
+      // moves on. So app.current_user_id was never set, and shared_kernel.
+      // user_keys is under FORCE RLS with a policy keyed on exactly that GUC
+      // (user_keys_owner_only): the row was written correctly and simply could
+      // not be seen. The assertion failed on the read, not on the write.
+      await client.query("BEGIN");
       await client.query(`SET LOCAL app.current_user_id = '${r.value.userId}'`);
       const row = await client.query(
         `SELECT cipher_dek, nonce FROM shared_kernel.user_keys WHERE user_id = $1`,
         [r.value.userId],
       );
+      await client.query("COMMIT");
       expect(row.rows.length).toBe(1);
       expect(row.rows[0].cipher_dek).toBeTruthy();
       expect(row.rows[0].nonce).toBeTruthy();
