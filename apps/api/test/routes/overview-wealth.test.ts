@@ -171,7 +171,15 @@ async function buildApp(opts: { userId: string; allowedTenantIds: string[] }) {
     computeWealthNow: computeBudgetWealthNow({
       walletRepo: createOverviewCardsRepo(),
       // Stubbed: live investment value = 0 (no holdings); pie below is the stub.
-      holdingsValuation: { investmentValueCents: async () => 0n },
+      // investmentCostBasisCents joined the holdingsValuation port with the
+      // per-snapshot cost basis (mig 0062 — "Excl" reads value minus stored
+      // cost). compute-budget-wealth-now calls both, so a stub with only
+      // investmentValueCents made every request 500 before it reached an
+      // assertion. 0n keeps the pie deterministic, as the header explains.
+      holdingsValuation: {
+        investmentValueCents: async () => 0n,
+        investmentCostBasisCents: async () => 0n,
+      },
       fxProvider,
     }),
     holdingsByType: {
@@ -232,22 +240,28 @@ describe("GET /budgets/:id/overview/wealth", () => {
     };
     expect(body.currency).toBe("USD");
     expect(body.view).toBe("capitalization");
-    expect(body.bucket).toBe("monthly");
-    expect(body.series.map((p) => p.label)).toEqual([ym(d2), ym(d1), ym(d0)]);
-    // prev2 100000, prev1 110000, current = live 200000 (wallet) overrides 150000
-    expect(body.series.map((p) => p.value_cents)).toEqual([
-      "100000",
-      "110000",
-      "200000",
-    ]);
+    // The series is no longer three monthly points. Values are bucketed by TIME
+    // (1h ≤1mo, 12h ~3mo, 24h 6mo+) and zero-filled across the whole range,
+    // while the monthly granularity this once asserted moved to a separate,
+    // coarser dynamicsBucket. Both are checked here; the per-bucket arithmetic
+    // belongs to packages/budgeting/test/overview/get-overview-wealth.test.ts,
+    // which owns it properly — this test's job is that the route wires the DTO
+    // through, not to re-derive the maths at the HTTP layer.
+    expect(body.bucket).toBe("12h");
+    expect((body as unknown as { dynamicsBucket: string }).dynamicsBucket).toBe(
+      "monthly",
+    );
+    expect(body.series.length).toBeGreaterThan(0);
+    // …and the final point is the LIVE wallet value, overriding the 150000
+    // snapshot — the one series behaviour that is this route's to prove.
+    expect(body.series[body.series.length - 1]!.value_cents).toBe("200000");
     expect(body.grow.delta_cents).toBe("100000");
     expect(body.grow.delta_pct).toBeCloseTo(100.0, 4);
-    expect(body.dynamics[0]!.pct).toBeCloseTo(10.0, 4);
-    expect(body.dynamics[1]!.pct).toBeCloseTo((90 / 110) * 100, 3);
-    expect(body.monthly_avg_grow_pct).toBeCloseTo(
-      (10 + (90 / 110) * 100) / 2,
-      3,
-    );
+    // Per-bucket dynamics percentages and monthly_avg_grow_pct are asserted in
+    // the unit test against a fixture built for the current bucketing. Repeating
+    // them here meant re-deriving that arithmetic from a seeded database, which
+    // is how these drifted: they still described the pre-rework monthly series.
+    expect(body.dynamics.length).toBeGreaterThan(0);
     expect(body.pie).toBeNull();
   });
 
@@ -266,9 +280,15 @@ describe("GET /budgets/:id/overview/wealth", () => {
       pie: { holding_type: string; value_cents: string }[] | null;
     };
     expect(body.view).toBe("investments");
-    // prev2 40000, prev1 44000 (current = live inv 0 with no holdings)
-    expect(body.series[0]!.value_cents).toBe("40000");
-    expect(body.series[1]!.value_cents).toBe("44000");
+    // The series is zero-filled from the start of the range, so index 0 is a
+    // filler point, not the first snapshot — 40000/44000 land at their own
+    // timestamps now. What this route must prove is that the investments view
+    // reads investment_value_cents at all (the seeded values appear) and that
+    // the per-type pie is passed through; the placement of each point is the
+    // unit test's business.
+    const values = body.series.map((p) => p.value_cents);
+    expect(values).toContain("40000");
+    expect(values).toContain("44000");
     expect(body.pie).toEqual([{ holding_type: "STOCK", value_cents: "12345" }]);
   });
 

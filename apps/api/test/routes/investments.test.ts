@@ -121,6 +121,13 @@ async function buildApp(fix: Fixture, priceSymbol?: string | string[]) {
         findById: async () => ({ default_currency: "EUR" }),
       },
     },
+    // The route reads the actor's timezone to date a holding in their own day
+    // (deps.identity.userRepo.findById(...)?.timezone, falling back to UTC).
+    // Without the repo the lookup threw before any assertion ran. null exercises
+    // the fallback, which is what these currency/round-trip cases assume.
+    identity: {
+      userRepo: { findById: async () => null },
+    },
   } as never;
 
   const app = new Hono();
