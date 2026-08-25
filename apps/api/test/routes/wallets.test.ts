@@ -78,6 +78,11 @@ async function buildApp(userId: string, tenantId: string) {
       setWalletBalance: setWalletBalance({ repo }),
       listWallets: listWallets({ repo }),
       findWalletById: findWalletById({ repo }),
+      // r36: creating a wallet or overwriting its balance shifts the
+      // income-vs-planned total, so the route recomputes the
+      // INCOME_UNDER_PLANNED task. boot.ts wires the real runner; the stub only
+      // has to exist for these wallet assertions to be reached at all.
+      recomputeIncomeUnderPlannedRunner: async () => {},
     },
     // GET /wallets and the cross-currency share endpoint now read budget
     // metadata via workspaceRepo.findById (default_currency drives FX
@@ -229,8 +234,11 @@ describe("Wallets route (renamed from accounts)", () => {
     const getRes = await app.request(`/wallets/${wallet.id}`);
     expect(getRes.status).toBe(200);
     const fresh = (await getRes.json()) as any;
-    // WalletDto.currentBalance is a string (Money serialized at adapter boundary)
-    expect(parseFloat(fresh.currentBalance)).toBeCloseTo(1234.56, 2);
+    // The DTO carries currentBalanceCents — a STRING of minor units, per the
+    // Money-at-the-adapter-boundary rule — not a decimal `currentBalance`.
+    // That older field is long gone, so this read `undefined`, parseFloat made
+    // it NaN, and the test failed against a balance that was correct all along.
+    expect(fresh.currentBalanceCents).toBe("123456");
 
     // A second PUT overwrites (does NOT add to previous)
     const setRes2 = await app.request(`/wallets/${wallet.id}/balance`, {
@@ -241,7 +249,7 @@ describe("Wallets route (renamed from accounts)", () => {
     expect(setRes2.status).toBe(200);
     const getRes2 = await app.request(`/wallets/${wallet.id}`);
     const fresh2 = (await getRes2.json()) as any;
-    expect(parseFloat(fresh2.currentBalance)).toBeCloseTo(50, 2); // overwritten, NOT 1284.56
+    expect(fresh2.currentBalanceCents).toBe("5000"); // overwritten, NOT 128456
   });
 
   it("PUT /wallets/:id/balance rejects mismatched currency (immutable per WALT-04)", async () => {

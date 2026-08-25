@@ -90,6 +90,13 @@ async function buildApp(userId: string, tenantId: string) {
       listWallets: listWallets({ repo }),
       findWalletById: findWalletById({ repo }),
       updateWallet: updateWallet({ repo, budgetCurrencyOf }),
+      // r36: creating or re-balancing a wallet moves the income-vs-planned
+      // total, so the route recomputes the INCOME_UNDER_PLANNED task. boot.ts
+      // wires the real runner (makeRecomputeIncomeUnderPlannedTask); this stub
+      // only has to exist — every assertion here is about the wallet, not the
+      // task. Without it the route threw and all ten cases failed in setup on a
+      // 500, never reaching the PATCH they were written to exercise.
+      recomputeIncomeUnderPlannedRunner: async () => {},
     },
   } as any;
 
