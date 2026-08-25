@@ -52,6 +52,15 @@ export class FirstDueDateInPastError extends Error {
   }
 }
 
+/**
+ * How far back a newly-created rule will generate drafts. A household seeding a
+ * rule from a past anchor wants the recent misses, not an archive: twelve months
+ * covers a full year of any cadence, and everything older is history that will
+ * never be confirmed. Also what keeps rule creation O(1)-ish instead of growing
+ * by one inline INSERT every month the anchor recedes (user, 260825).
+ */
+const BACKFILL_MAX_MONTHS = 12;
+
 export function createScheduledPayment(deps: {
   ruleRepo: ScheduledPaymentRepo;
   fxProvider: FxProviderLike;
@@ -150,6 +159,33 @@ export function createScheduledPayment(deps: {
         const budgetCurrency =
           (budgetRow.rows[0]?.default_currency as string | undefined) ??
           input.currency;
+        // Bound the history. Back-fill is one INSERT per missed period and it
+        // runs INSIDE the request the user is waiting on, so an anchor of
+        // 2020-01-01 meant ~80 synchronous inserts, 2015 about 130, and one more
+        // every month for ever. Nobody reconciles drafts from years ago; the
+        // rule keeps its true first_due_date, only the drafts are capped.
+        //
+        // Fast-forwarded THROUGH the cadence rather than clamped to the floor
+        // date: a MONTHLY rule anchored on the 1st must keep landing on the 1st,
+        // and clamping would put the first draft on whatever day the cutoff
+        // happens to be. Pure date maths, no DB — skipping 24 periods is free.
+        const backfillFloor = today.subtract({ months: BACKFILL_MAX_MONTHS });
+        while (
+          Temporal.PlainDate.compare(dueDate, backfillFloor) < 0 &&
+          Temporal.PlainDate.compare(dueDate, today) <= 0 &&
+          !isRuleExhausted(dueDate.toString(), endDate)
+        ) {
+          dueDate = nextOccurrence(
+            {
+              cadence: input.cadence as Cadence,
+              anchorDay: input.cadenceAnchor ?? undefined,
+              weeklyDow: input.weeklyDow ?? undefined,
+              yearlyMonth: input.yearlyMonth ?? undefined,
+            },
+            dueDate,
+          );
+        }
+
         // Cap the catch-up at end_date (inclusive) as well as today: a rule
         // with a past end_date only back-fills up to that date.
         while (

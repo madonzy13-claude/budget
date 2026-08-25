@@ -950,3 +950,150 @@ describe("/scheduled-payments — what 'not running' means for a rhythm", () => 
     expect((await listed(ruleId))!.hasConfirmedDraft).toBe(false);
   });
 });
+
+/** Drafts a rule has put in the ledger, oldest first. Read under the same GUC
+ *  bootstrap the other helpers use — expense_ledger is under FORCE RLS. */
+async function fetchRuleDrafts(
+  ruleId: string,
+  tenantId: string,
+  userId: string,
+) {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `SELECT set_config('app.current_user_id', '${userId}', true)`,
+    );
+    await client.query(
+      `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
+    );
+    const res = await client.query(
+      `SELECT id, transaction_date::text AS transaction_date, confirmed_at
+         FROM budgeting.expense_ledger
+        WHERE scheduled_payment_id = $1 AND deleted_at IS NULL
+        ORDER BY transaction_date ASC`,
+      [ruleId],
+    );
+    await client.query("COMMIT");
+    return res.rows as {
+      id: string;
+      transaction_date: string;
+      confirmed_at: string | null;
+    }[];
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+/** Stamp a draft confirmed in place (see the note at its call site). */
+async function markDraftConfirmed(
+  draftId: string,
+  tenantId: string,
+  userId: string,
+) {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `SELECT set_config('app.current_user_id', '${userId}', true)`,
+    );
+    await client.query(
+      `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
+    );
+    await client.query(
+      `UPDATE budgeting.expense_ledger SET confirmed_at = now() WHERE id = $1`,
+      [draftId],
+    );
+    await client.query("COMMIT");
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+function monthsBackISO(n: number): string {
+  const d = new Date();
+  d.setUTCMonth(d.getUTCMonth() - n, 1);
+  return d.toISOString().slice(0, 10);
+}
+
+describe("/scheduled-payments — a long-past anchor does not flood the ledger", () => {
+  it("back-fills at most the last 12 months, however old first_due_date is", async () => {
+    // Back-fill is one INLINE insert per missed period, inside the request the
+    // user is waiting on. Anchored three years back that is ~36 drafts today and
+    // one more every month — for periods nobody is going to reconcile. The rule
+    // still records its true first_due_date; only the drafts are bounded.
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request("/scheduled-payments", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        amount: "10.00",
+        currency: "USD",
+        cadence: "MONTHLY",
+        cadence_anchor: 1,
+        first_due_date: monthsBackISO(36),
+      }),
+    });
+    expect(res.status).toBe(201);
+    const { ruleId } = (await res.json()) as { ruleId: string };
+
+    const drafts = await fetchRuleDrafts(ruleId, testTenantId, testUserId);
+    expect(drafts.length).toBeGreaterThan(0);
+    // 12 months of history plus the current period — never three years of it.
+    expect(drafts.length).toBeLessThanOrEqual(13);
+    expect(drafts[0]!.transaction_date >= monthsBackISO(13)).toBe(true);
+  });
+});
+
+describe("/scheduled-payments — deleting a rule takes its drafts with it", () => {
+  it("removes unconfirmed drafts but keeps anything already confirmed", async () => {
+    const app = await buildApp(testUserId, testTenantId);
+    const createRes = await app.request("/scheduled-payments", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        amount: "42.00",
+        currency: "USD",
+        cadence: "MONTHLY",
+        cadence_anchor: 1,
+        first_due_date: monthsBackISO(3),
+      }),
+    });
+    expect(createRes.status).toBe(201);
+    const { ruleId } = (await createRes.json()) as { ruleId: string };
+
+    const before = await fetchRuleDrafts(ruleId, testTenantId, testUserId);
+    expect(before.length).toBeGreaterThanOrEqual(2);
+
+    // Confirm the oldest one: that draft is now real money the household spent.
+    // Stamped directly rather than through POST /drafts/:id/confirm — that route
+    // needs deps this fixture does not build (confirmDraft is wired in boot.ts,
+    // not the budgeting factory) and it has its own test file. What is under
+    // test here is what DELETE does to a confirmed row, not how it got confirmed.
+    const confirmed = before[0]!;
+    await markDraftConfirmed(confirmed.id, testTenantId, testUserId);
+
+    const delRes = await app.request(`/scheduled-payments/${ruleId}`, {
+      method: "DELETE",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+    });
+    expect(delRes.status).toBe(204);
+
+    const after = await fetchRuleDrafts(ruleId, testTenantId, testUserId);
+    // Deleting the rule retires the plan, not the history: every UNCONFIRMED
+    // draft goes (they describe a rule that no longer exists and would keep
+    // appearing in the grid and the Tasks queue), and the confirmed row stays.
+    expect(after.filter((d) => d.confirmed_at === null)).toHaveLength(0);
+    expect(after.map((d) => d.id)).toContain(confirmed.id);
+  });
+});

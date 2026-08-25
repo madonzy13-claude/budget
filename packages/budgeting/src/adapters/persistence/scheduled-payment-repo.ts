@@ -246,6 +246,24 @@ export class DrizzleScheduledPaymentRepo implements ScheduledPaymentRepo {
            SET active = false, deleted_at = now(), updated_at = now()
          WHERE id = ${ruleId}::uuid AND tenant_id = ${tenantId}::uuid
       `);
+
+        // …and take the rule's UNCONFIRMED drafts with it, in the same
+        // transaction. They describe a plan that no longer exists: left behind
+        // they keep showing in the spendings grid and keep a CONFIRM_DRAFT task
+        // in the queue, asking the household to confirm a payment they just
+        // deleted. Mirrors what category archive already does
+        // (category-repo.ts) and relies on the same app_role DELETE grant
+        // (migration 0033).
+        //
+        // confirmed_at IS NULL is the whole guard: once confirmed, a draft is
+        // money the household actually spent, and deleting the RULE says
+        // nothing about it. Deleting the plan must never rewrite the history.
+        await drizzleTx.execute(sql`
+        DELETE FROM budgeting.expense_ledger
+         WHERE scheduled_payment_id = ${ruleId}::uuid
+           AND tenant_id = ${tenantId}::uuid
+           AND confirmed_at IS NULL
+      `);
         await writeAudit(tx, {
           tenantId: TenantId(tenantId),
           actorUserId: UserId(actorUserId),
