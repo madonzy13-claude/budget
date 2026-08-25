@@ -1553,7 +1553,7 @@
           "plannedSpend": "Planned spend",
           "left": "Left",
           "pending": "Not confirmed yet",
-          "pendingHint": "Still counted in your plan until you confirm or reject it"
+          "pendingHint": "Already taken off what you have, until you confirm or reject it"
         },
         "reserveFit": {
           "title": "Is each reserve the right size?",

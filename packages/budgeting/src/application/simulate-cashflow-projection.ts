@@ -179,6 +179,34 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
     `${d.year}-${String(d.month).padStart(2, "0")}`;
   const startMonthKey = monthKey(start);
 
+  // An occurrence whose date has passed with no answer yet is money the
+  // household still HOLDS and has already COMMITTED. Wallet balances are
+  // hand-maintained (`setBalance`; no ledger trigger writes them), so the złoty
+  // is still inside `startCashCents` — and the bill is still owed. It comes off
+  // the opening cash below, and off the plan it has already consumed, or the
+  // same money gets charged twice.
+  //
+  // Only a START-month occurrence consumes a plan. An older one is owed in
+  // full: the month whose plan would have paid it is behind us.
+  //
+  // Before this the input reached `pendingPoints` and nothing else, so an
+  // occurrence in an UNBOUNDED category — no plan, therefore no burn to hide
+  // inside — was represented nowhere at all, and "free to move" offered money
+  // that was already spent (user, 260825).
+  const pendingByCat = new Map<string, bigint>();
+  let pendingTotalCents = 0n;
+  for (const e of input.pendingDrafts ?? []) {
+    pendingTotalCents += e.amountCents;
+    if (!e.categoryId || e.date.slice(0, 7) !== startMonthKey) continue;
+    pendingByCat.set(
+      e.categoryId,
+      (pendingByCat.get(e.categoryId) ?? 0n) + e.amountCents,
+    );
+  }
+  /** This month's plan already used up: confirmed spend + unanswered occurrences. */
+  const consumedThisMonth = (c: CashflowCategoryInput): bigint =>
+    c.spentSoFarCents + (pendingByCat.get(c.id) ?? 0n);
+
   // Per-category bill totals per MONTH: a dated bill keeps its share of that
   // month's plan, so only what is left over is discretionary.
   const billByMonth = new Map<string, bigint>(); // `${month}|${categoryId}`
@@ -223,7 +251,7 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
   for (const s of slices) {
     for (const c of input.categories) {
       const budget = c.budgetByMonth[s.key] ?? 0n;
-      const spent = s.key === startMonthKey ? c.spentSoFarCents : 0n;
+      const spent = s.key === startMonthKey ? consumedThisMonth(c) : 0n;
       const bills = billByMonth.get(`${s.key}|${c.id}`) ?? 0n;
       const disc = budget - spent - bills;
       const k = `${s.key}|${c.id}`;
@@ -238,7 +266,7 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
   const immediate = input.spendTiming === "immediate";
 
   // Mutable running state.
-  let cash = input.startCashCents;
+  let cash = input.startCashCents - pendingTotalCents;
   // What each category may still spend inside its plan this month. Reserve money
   // is earmarked against limits being EXCEEDED, so this is what decides whether
   // an outflow may reach the pot at all (user, 260811).
@@ -249,7 +277,7 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
   const rollLimitsTo = (month: string) => {
     for (const c of input.categories) {
       const budget = c.budgetByMonth[month] ?? 0n;
-      const spent = month === startMonthKey ? c.spentSoFarCents : 0n;
+      const spent = month === startMonthKey ? consumedThisMonth(c) : 0n;
       const left = budget - spent;
       remainingLimit.set(c.id, left > 0n ? left : 0n);
     }

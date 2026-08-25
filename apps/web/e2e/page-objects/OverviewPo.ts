@@ -2,10 +2,7 @@ import type { Page } from "@playwright/test";
 import { BdpPo } from "./BdpPo";
 
 export type OverviewSectionSlug =
-  | "planned"
-  | "overspent"
-  | "reserves"
-  | "wealth";
+  "planned" | "overspent" | "reserves" | "wealth";
 
 /**
  * OverviewPo — Page Object for the Budget Overview tab (Phase 11).
@@ -34,6 +31,13 @@ export class OverviewPo {
       | "cushion",
   ) {
     return this.bdp.overviewCard(name);
+  }
+
+  /** The "Free to move" figure on the available-to-spend card — the money that
+   *  can leave the budget today with every dip in the window still covered.
+   *  Absent when there is nothing to move (the balanced note takes its place). */
+  freeToMove() {
+    return this.page.getByTestId("spend-surplus-deficit");
   }
 
   rangeSelector() {

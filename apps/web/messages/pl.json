@@ -1576,7 +1576,7 @@
           "plannedSpend": "Planowane wydatki",
           "left": "Zostaje",
           "pending": "Jeszcze niepotwierdzone",
-          "pendingHint": "Nadal liczone w planie, dopóki nie potwierdzisz lub nie odrzucisz"
+          "pendingHint": "Już odjęte od tego, co masz, dopóki nie potwierdzisz lub nie odrzucisz"
         },
         "reserveFit": {
           "title": "Czy każda rezerwa ma właściwą wielkość?",

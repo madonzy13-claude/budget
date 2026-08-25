@@ -424,7 +424,7 @@ describe("simulateCashflow — the day's arithmetic", () => {
     expect(d.availableCents).toBe(0n);
   });
 
-  test("pending unconfirmed drafts ride along without moving cash", () => {
+  test("a pending draft with no category comes straight off the cash", () => {
     const pending = [
       { date: "2026-07-05", name: "T-Mobile", amountCents: 3_000n },
     ];
@@ -438,10 +438,13 @@ describe("simulateCashflow — the day's arithmetic", () => {
         amountCents: 3_000n,
       },
     ]);
-    // Its money is already inside the discretionary burn — counting it again
-    // would draw the same payment twice.
+    // No category means no plan standing behind it — the same reading
+    // applyOutflow already gives an uncategorised bill — so there is no burn for
+    // it to hide inside and every złoty of it is owed on top. This test used to
+    // assert the opposite; that assumption is what let "free to move" offer
+    // money already spent (user, 260825).
     expect(withPending.days.map((d) => d.availableCents)).toEqual(
-      without.days.map((d) => d.availableCents),
+      without.days.map((d) => d.availableCents - 3_000n),
     );
   });
 });
@@ -780,5 +783,89 @@ describe("simulateCashflow — a category may only draw its OWN reserve", () => 
       }),
     );
     expect(dayOn(p, "2026-07-20").drewReserve).toEqual([]);
+  });
+});
+
+// An occurrence whose date has passed with no answer yet is money the household
+// still holds and has already committed: wallet balances are hand-maintained, so
+// the złoty is still inside startCashCents, and the bill is still owed. It has to
+// come off the opening cash — and off the plan it consumed, or the same money is
+// charged twice (user, 260825: "Free to move" offered 3,473 zł with 4,062.71 zł
+// of unconfirmed House occurrences sitting in the ledger).
+describe("simulateCashflow — unconfirmed occurrences are already committed", () => {
+  const window100 = (over: Partial<CashflowSimInput> = {}) =>
+    base({
+      today: "2026-07-15",
+      windowEnd: "2026-10-22",
+      startCashCents: 500_000n,
+      spendTiming: "immediate",
+      ...over,
+    });
+
+  const draft = (
+    amountCents: bigint,
+    date = "2026-07-15",
+    categoryId: string | null = "cat-food",
+  ) => ({ date, name: "Rent", categoryId, amountCents });
+
+  test("an unbounded category's pending occurrence still leaves the budget", () => {
+    // no_limit → plan 0 → no burn at all, so today NOTHING represents it.
+    const unbounded = [
+      {
+        id: "cat-house",
+        name: "House",
+        budgetByMonth: {},
+        spentSoFarCents: 0n,
+        noLimit: true,
+      },
+    ];
+    const without = simulateCashflow(window100({ categories: unbounded }))
+      .safeToWithdraw.cents;
+    const withDraft = simulateCashflow(
+      window100({
+        categories: unbounded,
+        pendingDrafts: [draft(40_000n, "2026-07-15", "cat-house")],
+      }),
+    ).safeToWithdraw.cents;
+    expect(without - withDraft).toBe(40_000n);
+  });
+
+  test("one that fits inside the plan does not move the figure", () => {
+    // The plan already stood ready to pay it, so charging BOTH would count the
+    // same money twice. Budget 30,000 a month, nothing spent, draft 10,000.
+    const without = simulateCashflow(window100()).safeToWithdraw.cents;
+    const withDraft = simulateCashflow(
+      window100({ pendingDrafts: [draft(10_000n)] }),
+    ).safeToWithdraw.cents;
+    expect(withDraft).toBe(without);
+  });
+
+  test("only the part BEYOND the plan bites further", () => {
+    // Plan 30,000, draft 50,000 → 20,000 has no plan behind it.
+    const without = simulateCashflow(window100()).safeToWithdraw.cents;
+    const withDraft = simulateCashflow(
+      window100({ pendingDrafts: [draft(50_000n)] }),
+    ).safeToWithdraw.cents;
+    expect(without - withDraft).toBe(20_000n);
+  });
+
+  test("one dated in an earlier month is owed in full — that plan is gone", () => {
+    const without = simulateCashflow(window100()).safeToWithdraw.cents;
+    const withDraft = simulateCashflow(
+      window100({ pendingDrafts: [draft(10_000n, "2026-06-20")] }),
+    ).safeToWithdraw.cents;
+    expect(without - withDraft).toBe(10_000n);
+  });
+
+  test("the tooltip still lists every one of them", () => {
+    const p = simulateCashflow(
+      window100({
+        pendingDrafts: [draft(10_000n), draft(2_500n, "2026-06-20")],
+      }),
+    );
+    expect(p.pendingPoints.map((e) => e.amountCents)).toEqual([
+      10_000n,
+      2_500n,
+    ]);
   });
 });

@@ -26,3 +26,17 @@ Feature: Overview cash-flow projection timeline
     And I click the "Overview" tab pill
     And I hover the last day of the projection band
     Then I see the projection tooltip
+
+  # An occurrence that has come due and has not been answered is money already
+  # committed. It used to reach the tooltip and nothing else, so an UNBOUNDED
+  # category — no plan, therefore no daily burn to carry it — left it out of the
+  # arithmetic entirely, and the card offered it as withdrawable (user, 260825).
+  # 1,000 in the wallet, 400 owed and unanswered → 600 is what can actually go.
+  Scenario: Money owed on an unanswered occurrence is not free to move
+    Given amounts are shown in full
+    And the budget has a SPENDINGS wallet holding 100000 cents
+    And the budget has a category "House" with no limit
+    And "House" has an unconfirmed occurrence of 40000 cents dated today
+    When I open the BDP for "My E2E Budget"
+    And I click the "Overview" tab pill
+    Then "Free to move" reads 600

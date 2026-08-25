@@ -85,7 +85,6 @@ export function enumerateOccurrences(
   return out;
 }
 
-
 export interface ComputeCashflowProjectionDeps {
   fxProvider: FxProvider;
   reservePositions: (input: { tenantId: string; budgetId: string }) => Promise<
@@ -214,9 +213,17 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
         // Occurrences whose date has passed with no answer yet. Generating a
         // draft rolls the rule's next_due_date forward, so this money is in
         // NEITHER of the two places the projection looks: not a future bill,
-        // not confirmed spend. It still rides inside the category's daily burn
-        // (the plan hasn't been consumed), and the tooltip says so — the user
-        // asked to see that it is still counted and still drifting (260812).
+        // not confirmed spend.
+        //
+        // The simulator charges them against the opening cash and against the
+        // plan they consumed — see `pendingDrafts` there for the arithmetic.
+        // Until 260825 they only reached the tooltip, on the reasoning that the
+        // category's daily burn already carried them. That holds only for a
+        // start-month occurrence inside a category that HAS a limit and has
+        // room left in it; an unbounded category has no burn to carry anything,
+        // and "free to move" offered 4,062.71 zł of unconfirmed House bills as
+        // withdrawable.
+        //
         // Dismissed drafts are answers, so they drop out.
         const pending = await tx.execute(sql`
           SELECT e.transaction_date::text AS date,
