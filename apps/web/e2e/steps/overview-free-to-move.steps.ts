@@ -129,3 +129,23 @@ Then(
       .toBe(String(expected));
   },
 );
+
+/** Nothing spare and no shortfall → the row is simply absent. "Plan looks
+ *  solid" used to sit here; it read as praise the card had not earned, and it
+ *  read the same a złoty above zero as it did well clear of it (user, 260825).
+ *  "Upcoming" is checked too — that figure belongs to the no-projection case,
+ *  and falling through to it would answer a different question. */
+Then("the card says nothing about spare money", async ({ page }) => {
+  const overview = new OverviewPo(page);
+  await expect(overview.card("available-to-spend")).toBeVisible({
+    timeout: 15000,
+  });
+  // The projection has to have LANDED before absence means anything: the row is
+  // missing while it loads too, so asserting straight away would pass on a card
+  // that has not been told the answer yet.
+  await expect(page.getByTestId("projection-timeline")).toBeVisible({
+    timeout: 20000,
+  });
+  await expect(overview.freeToMove()).toHaveCount(0);
+  await expect(page.getByTestId("spend-balanced-note")).toHaveCount(0);
+});

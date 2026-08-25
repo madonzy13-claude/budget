@@ -258,9 +258,15 @@ describe("OverviewCards", () => {
   });
 
   // "Free to move $0" was a number that said nothing — and you cannot move minus
-  // 250 either. When the forecast holds up but there is nothing spare, the row
-  // says so in words, like the reserves card's own note (user, 260822).
-  it("says the budget is fully planned instead of showing a zero", () => {
+  // 250 either (user, 260822). The note that replaced it said nothing either:
+  // "Plan looks solid" reads as praise, and it read the same whether the
+  // forecast sat comfortably clear of zero or one złoty above it. Nothing to
+  // report now means nothing rendered (user, 260825).
+  //
+  // "Upcoming" must stay away too: it belongs to the no-projection case below,
+  // and letting this state fall through to it would answer a question about
+  // spare money with an unrelated figure.
+  it("says nothing at all when there is nothing spare to report", () => {
     mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
     for (const cents of ["0", "-25000"]) {
       mockProjection.mockReturnValue({
@@ -277,10 +283,12 @@ describe("OverviewCards", () => {
       const { unmount } = render(
         <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />,
       );
-      expect(screen.getByTestId("spend-balanced-note").textContent).toContain(
-        "Plan looks solid",
-      );
+      expect(screen.queryByTestId("spend-balanced-note")).toBeNull();
       expect(screen.queryByTestId("spend-surplus-deficit")).toBeNull();
+      expect(screen.queryByText("Plan looks solid")).toBeNull();
+      expect(screen.queryByText("Upcoming")).toBeNull();
+      // The card keeps everything else it always had.
+      expect(screen.queryByText("Spent")).not.toBeNull();
       unmount();
     }
   });
@@ -354,7 +362,9 @@ describe("OverviewCards", () => {
         isError: false,
         isPending: false,
       });
-      return render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+      return render(
+        <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />,
+      );
     };
 
     it("says what is missing when short", () => {

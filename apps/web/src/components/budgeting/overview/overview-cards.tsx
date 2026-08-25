@@ -553,8 +553,9 @@ export function OverviewCards({
                    with how LONG the hole lasts instead of how bad it is. Find
                    this much and no day in the window goes under.
                 2. Something could leave the budget → how much, in green.
-                3. Neither → a plain note. "Free to move 0" was a number that
-                   said nothing (user, 260822). */}
+                3. Neither → nothing. "Free to move 0" was a number that said
+                   nothing (user, 260822), and the note that replaced it said
+                   nothing either (user, 260825). */}
             {shortfallCents !== null ? (
               <div
                 data-testid="spend-surplus-row"
@@ -603,13 +604,15 @@ export function OverviewCards({
                   {animRounded(String(freeToMove))}
                 </dd>
               </div>
-            ) : surplusDeficit !== null ? (
-              // A note, not a figure — it wants a little air above it rather
-              // than sitting on the `Spent` row's own 2px gap (user, 260823).
-              <div data-testid="spend-balanced-note" className="mt-1.5 flex">
-                <dd className="min-w-0">{t("cards.spendBalanced")}</dd>
-              </div>
-            ) : (
+            ) : surplusDeficit !==
+              null ? // same thing whether the forecast sat comfortably clear of zero or a // solid"), which read as praise the card had not earned: it said the // Nothing at all. The row used to carry a note here ("Plan looks
+            // złoty above it (user, 260825). Silence is the honest version of
+            // "there is nothing spare to tell you about".
+            //
+            // Explicitly null rather than deleted: falling through to the branch
+            // below would answer a question about spare money with the unrelated
+            // "upcoming" figure.
+            null : (
               // No upcoming income → keep the original "upcoming" figure.
               <div className="flex items-center justify-between gap-2">
                 <dt>{t("cards.leftToSpend")}</dt>

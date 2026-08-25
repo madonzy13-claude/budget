@@ -40,3 +40,15 @@ Feature: Overview cash-flow projection timeline
     When I open the BDP for "My E2E Budget"
     And I click the "Overview" tab pill
     Then "Free to move" reads 600
+
+  # Nothing spare and nothing wrong is not worth a sentence. "Plan looks solid"
+  # sat here saying the same thing whether the forecast cleared zero by a lot or
+  # by a złoty, so the row is gone rather than reworded (user, 260825).
+  Scenario: A budget with nothing spare says nothing about spare money
+    Given amounts are shown in full
+    And the budget has a SPENDINGS wallet holding 100000 cents
+    And the budget has a category "House" with no limit
+    And "House" has an unconfirmed occurrence of 100000 cents dated today
+    When I open the BDP for "My E2E Budget"
+    And I click the "Overview" tab pill
+    Then the card says nothing about spare money

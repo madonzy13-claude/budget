@@ -82,3 +82,23 @@ number rather than the reveal gesture.
 unanswered House occurrences total 4,062.71 zł against 3,473 zł free to move, so
 the card should now show the balanced note instead of a figure — predicted from
 the arithmetic, not observed, since reading it would mean signing in as them.
+
+## Follow-up — the balanced note is gone too (user, 260825)
+
+With `freeToMove` clamped at zero the card fell to a third branch printing
+"Plan looks solid". The user asked for it not to render. It read as praise the
+card had not earned, and it read identically whether the forecast cleared zero
+comfortably or by one złoty.
+
+The branch now returns `null` **explicitly** rather than being deleted: falling
+through to the branch below would answer a question about spare money with the
+unrelated "Upcoming" figure. `cards.spendBalanced` removed from EN/PL/UK (the
+4-key en-vs-pl/uk gap that remains is the pre-existing `_machineTranslated`
+markers, untouched).
+
+| Step                          | Result                                          |
+| ----------------------------- | ----------------------------------------------- |
+| Test rewritten first          | RED: `expected <div><dd></dd></div> to be null` |
+| After the change              | overview-cards 33 pass                          |
+| Full web suite                | **2318 passed, 34 skipped, 0 failed**           |
+| eslint --max-warnings=0 / tsc | clean                                           |
