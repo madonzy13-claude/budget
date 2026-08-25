@@ -203,9 +203,14 @@ describe("GET /budgets/:budgetId/tasks", () => {
       kind: "RESERVE_TOPUP",
       createdAt: "2026-01-01T10:00:00Z",
     });
+    // NOT a CONFIRM_DRAFT. Those are self-healed at READ time (260612-kxd T3):
+    // the banner query hides any whose draft is not live, so an orphan seeded
+    // here — no matching expense_ledger row — is correctly filtered out and this
+    // fixture silently lost a task. The case is about created_at ordering, not
+    // draft semantics, so it uses a kind with no liveness rule attached.
     const id2 = await seedTask({
       budgetId: fix.budgetId,
-      kind: "CONFIRM_DRAFT",
+      kind: "INCOME_UNDER_PLANNED",
       createdAt: "2026-02-01T10:00:00Z",
       payload: { rule_id: "abc" },
     });
@@ -232,7 +237,7 @@ describe("GET /budgets/:budgetId/tasks", () => {
     expect(body.tasks).toHaveLength(3);
     expect(body.tasks.map((t) => t.id)).toEqual([id1, id2, id3]);
     expect(body.tasks[0]?.kind).toBe("RESERVE_TOPUP");
-    expect(body.tasks[1]?.kind).toBe("CONFIRM_DRAFT");
+    expect(body.tasks[1]?.kind).toBe("INCOME_UNDER_PLANNED");
     expect(body.tasks[1]?.payload).toEqual({ rule_id: "abc" });
     expect(body.tasks[2]?.kind).toBe("CUSHION_BELOW_TARGET");
     // All rows must be in this budget and PENDING.
@@ -250,9 +255,11 @@ describe("GET /budgets/:budgetId/tasks", () => {
       status: "PENDING",
       createdAt: "2026-04-01T10:00:00Z",
     });
+    // Same reason as above: an orphan CONFIRM_DRAFT is hidden by the read-time
+    // self-heal, which would make this look like a status-filter failure.
     await seedTask({
       budgetId: fix.budgetId,
-      kind: "CONFIRM_DRAFT",
+      kind: "INCOME_UNDER_PLANNED",
       status: "PENDING",
       createdAt: "2026-04-02T10:00:00Z",
     });

@@ -78,15 +78,8 @@ beforeAll(async () => {
     quoteCurrency: "USD",
     rank: 5,
   });
-  // A non-US, un-priceable row (stored as manual:<MIC>). Search must NOT surface it.
-  await repo.upsert({
-    symbol: "QQZZMAN",
-    displayName: "Qqzz Warsaw Listed SA",
-    provider: "manual:XWAR",
-    assetClass: "equities",
-    quoteCurrency: "PLN",
-    rank: 70,
-  });
+  // The non-US, un-priceable `manual:<MIC>` row this fixture used to seed can no
+  // longer be written at all — see the constraint test below.
 });
 
 afterAll(async () => {
@@ -132,11 +125,33 @@ describe("DrizzleInstrumentRepo.search (local trigram, INV-07)", () => {
     expect(r.find((i) => i.symbol === "QQZZAP_OLD")).toBeUndefined();
   });
 
-  it("never returns a manual (non-US, un-priceable) instrument", async () => {
-    // Direct symbol hit AND a broad prefix — both must exclude the manual row.
-    expect((await repo.search("QQZZMAN")).map((i) => i.symbol)).not.toContain(
-      "QQZZMAN",
-    );
+  // This used to seed a `manual:XWAR` equity and assert search hid it. Migration
+  // 0076 made that row unwritable: only a US listing can be quoted, so an
+  // equity/ETF from a manual provider is now refused by a CHECK constraint
+  // rather than filtered afterwards. The old fixture failed at INSERT with
+  // 23514 and took the whole file down with it.
+  //
+  // The guarantee is stronger now, so assert the guarantee: an un-priceable
+  // equity cannot enter the catalog in the first place, and search therefore
+  // has nothing to hide.
+  it("refuses a manual (non-US, un-priceable) equity at the database (0076)", async () => {
+    // Drizzle wraps the driver error, so the constraint name is on `cause`, not
+    // in the message — matching the message alone would pass for ANY failed
+    // insert and prove nothing about which rule refused it.
+    let constraint: string | undefined;
+    try {
+      await repo.upsert({
+        symbol: "QQZZMAN",
+        displayName: "Qqzz Warsaw Listed SA",
+        provider: "manual:XWAR",
+        assetClass: "equities",
+        quoteCurrency: "PLN",
+        rank: 70,
+      });
+    } catch (e) {
+      constraint = (e as { cause?: { constraint?: string } }).cause?.constraint;
+    }
+    expect(constraint).toBe("instruments_no_manual_equities");
     expect((await repo.search("QQZZ")).map((i) => i.symbol)).not.toContain(
       "QQZZMAN",
     );

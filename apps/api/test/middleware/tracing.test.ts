@@ -19,6 +19,15 @@ import { tracingMiddleware } from "../../src/middleware/tracing";
 const exporter = new InMemorySpanExporter();
 
 beforeAll(() => {
+  // The OTel API REFUSES to replace an already-registered global provider — it
+  // warns and keeps the incumbent. Any suite that ran earlier in this bun
+  // process and called startTracing() therefore owns the global, our exporter
+  // receives nothing, and all eight assertions fail on empty span lists. In
+  // isolation the file passes, which is what made this look like flakiness for
+  // months rather than ordering. CLAUDE.md spells the rule out: disable first.
+  trace.disable();
+  context.disable();
+
   const provider = new BasicTracerProvider({
     spanProcessors: [new SimpleSpanProcessor(exporter)],
   });

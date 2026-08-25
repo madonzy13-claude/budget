@@ -140,10 +140,21 @@ describe("unarchiveCategory", () => {
   it("MONTHS-LATER revert: zeroes strictly-between months, sets current month to archive-month limits, calls unarchive once", async () => {
     const { unarchiveCategory } =
       await import("../../src/application/unarchive-category");
-    // archived 2026-03-01; current month assumed to be 2026-06-01
-    // strictly between: 2026-04-01, 2026-05-01 → zero
-    // current (2026-06-01) → archive-month limits
-    const archiveMonth = "2026-03-01";
+    // Months are derived from the REAL clock, never written down. This fixture
+    // used to hardcode archive 2026-03-01 and "current" 2026-06-01, with a
+    // comment saying "Today is 2026-06-11" — true the day it was written and
+    // wrong every month after. By August the strictly-between span had grown
+    // from 2 months to 4, so the call count drifted and the month checked for
+    // the restored limit had itself become a zeroed in-between month.
+    const now = new Date();
+    const monthStartBack = (n: number) => {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - n, 1));
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`;
+    };
+    const currentMonthStart = monthStartBack(0);
+    const archiveMonth = monthStartBack(3);
+    const between1 = monthStartBack(2);
+    const between2 = monthStartBack(1);
     const cat = makeCategory("cat-1", archiveMonth, null);
     const limitRow = makeFakeLimitRow("50000", "EUR", "10000", "EUR");
     const { repo, limitRepo } = makeRepos(cat, limitRow);
@@ -158,11 +169,6 @@ describe("unarchiveCategory", () => {
       return null;
     };
 
-    // Inject a controlled "current month" by using the test's known date 2026-06
-    // The use case uses new Date() internally; we need to verify with today's actual date.
-    // Today is 2026-06-11, so currentMonthStart = "2026-06-01"
-    const currentMonthStart = "2026-06-01";
-
     const useCase = unarchiveCategory({ repo, limitRepo });
     const result = await useCase({
       tenantId: "tenant-1",
@@ -172,25 +178,23 @@ describe("unarchiveCategory", () => {
 
     expect(result.isOk()).toBe(true);
 
-    // Strictly between: 2026-04-01, 2026-05-01 → zero
-    // Current: 2026-06-01 → archive-month limits
     const monthStarts = limitRepo.setLimitCalls.map((c: any) => c.monthStart);
-    expect(monthStarts).toContain("2026-04-01");
-    expect(monthStarts).toContain("2026-05-01");
+    expect(monthStarts).toContain(between1);
+    expect(monthStarts).toContain(between2);
     expect(monthStarts).toContain(currentMonthStart);
-    // archive month (2026-03-01) must NOT be in the set
+    // the archive month itself must NOT be in the set
     expect(monthStarts).not.toContain(archiveMonth);
 
     // Strictly-between entries should have zero amounts
     const apr = limitRepo.setLimitCalls.find(
-      (c: any) => c.monthStart === "2026-04-01",
+      (c: any) => c.monthStart === between1,
     );
     expect(apr?.normalAmount).toBe("0");
     expect(apr?.cushionAmount).toBe("0");
     expect(apr?.carryForward).toBe(false);
 
     const may = limitRepo.setLimitCalls.find(
-      (c: any) => c.monthStart === "2026-05-01",
+      (c: any) => c.monthStart === between2,
     );
     expect(may?.normalAmount).toBe("0");
     expect(may?.carryForward).toBe(false);
@@ -211,8 +215,13 @@ describe("unarchiveCategory", () => {
   it("MONTHS-LATER: total setLimitForMonth calls = (months strictly between) + 1 current", async () => {
     const { unarchiveCategory } =
       await import("../../src/application/unarchive-category");
-    // archived 2026-03-01; current 2026-06-01 → strictly between: 2026-04, 2026-05 = 2 months
-    const archiveMonth = "2026-03-01";
+    // Three months back, so exactly two months fall strictly between —
+    // relative to the real clock, for the reason spelled out above.
+    const now = new Date();
+    const archiveMonth = (() => {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, 1));
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`;
+    })();
     const cat = makeCategory("cat-1", archiveMonth, null);
     const limitRow = makeFakeLimitRow("50000", "EUR", "10000", "EUR");
     const { repo, limitRepo } = makeRepos(cat, limitRow);

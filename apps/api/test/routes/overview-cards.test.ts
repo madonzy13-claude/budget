@@ -195,6 +195,12 @@ async function buildApp(opts: { userId: string; allowedTenantIds: string[] }) {
         0n,
       );
     },
+    // Joined the holdingsValuation port with the per-snapshot cost basis
+    // (mig 0062 — "Excl" reads value minus stored cost). compute-budget-wealth-now
+    // calls it unconditionally, so a stub without it made the whole cards DTO
+    // throw. These holdings have no recorded cost basis, so 0n is the honest
+    // answer and leaves the value assertions untouched.
+    investmentCostBasisCents: async (): Promise<bigint> => 0n,
   };
 
   const getOverviewCardsUC = getOverviewCards({
@@ -202,6 +208,12 @@ async function buildApp(opts: { userId: string; allowedTenantIds: string[] }) {
     walletRepo: createOverviewCardsRepo(),
     holdingsValuation,
     fxProvider,
+    // r36: per-category upcoming outflows (drafts + projected scheduled), keyed
+    // by categoryId. boot.ts wires computeUpcomingByCategory; this fixture seeds
+    // no drafts or scheduled payments, so an empty map is the correct answer and
+    // the card figures below are unaffected. Its absence threw before any of
+    // them could be checked.
+    upcomingByCategory: async () => new Map<string, bigint>(),
     cushionSummary: getCushionSummary({ fxProvider }),
     // Fake: empty category set (overspent math is unit-tested; the replay engine
     // is out of scope for this route test).
