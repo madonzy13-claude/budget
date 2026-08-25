@@ -13,9 +13,17 @@
  *
  * KNOWN CONSOLIDATED TESTS:
  *   share-join.ts  → covered by share-links.test.ts (same domain feature)
+ *   incomes.ts     → covered by incomes-once.test.ts (the audit only looks for
+ *                    incomes.test.ts / incomess.test.ts, so a real and complete
+ *                    test file read as a coverage hole)
  *
  * EXCLUDED (infrastructure / pass-through, no app logic to test here):
  *   auth.ts        → Better Auth handler pass-through; tested by Better Auth itself
+ *   test-clock.ts  → the test harness itself, not product surface. Double-gated
+ *                    (NODE_ENV !== production AND ALLOW_TEST_CLOCK=1) so the
+ *                    route does not exist in prod, and it is exercised by the
+ *                    E2E reserves golden walk that drives it. An integration
+ *                    test for the clock the integration tests move is circular.
  */
 import { describe, test, expect } from "bun:test";
 import { readdirSync, existsSync } from "node:fs";
@@ -23,11 +31,12 @@ import { join } from "node:path";
 
 // Routes excluded from the audit — either pass-through infra or covered
 // under a consolidated test file (see KNOWN CONSOLIDATED TESTS above).
-const EXCLUDED_ROUTES = new Set(["auth.ts"]);
+const EXCLUDED_ROUTES = new Set(["auth.ts", "test-clock.ts"]);
 
 // Manual mapping: route filename → accepted test filename (for consolidated tests)
 const CONSOLIDATED: Record<string, string> = {
   "share-join.ts": "share-links.test.ts",
+  "incomes.ts": "incomes-once.test.ts",
 };
 
 describe("ENGR-03: every route has >=1 integration test", () => {
