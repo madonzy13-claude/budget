@@ -49,16 +49,43 @@ const TEST_EMAIL_PATTERNS = [
 const ORPHAN_BUDGET_GRACE = "1 hour";
 
 /**
+ * When this run began. Anything member-less created after this instant belongs
+ * to THIS run and can go immediately — the grace period above exists only to
+ * avoid racing a signup in another process, and a budget this run created is
+ * not that race.
+ *
+ * Without this the suite's own orphans (78 of them, from the tenant-leak tests)
+ * outlived their teardown and waited an hour for the NEXT run to collect them,
+ * which is not "deleted afterwards".
+ */
+const RUN_STARTED_AT = new Date().toISOString();
+
+/**
  * Superuser connection. app_role cannot DELETE from audit_history, outbox or
  * user_keys — that is deliberate (the app must not erase its own audit trail),
  * and it is why the E2E fixture logs "permission denied" on every scenario.
  * A janitor needs rights the application is correctly denied.
  */
+/**
+ * Snapshotted at PRELOAD, which runs before any test file is imported.
+ *
+ * packages/db/test/testcontainer.ts starts an ephemeral Postgres with
+ * POSTGRES_PASSWORD=postgres and then reassigns process.env.DATABASE_URL_APP to
+ * point at it. Reading the variable in afterAll therefore reads the
+ * TESTCONTAINER's address, and the teardown tries to open the dev password
+ * against a throwaway container — "password authentication failed for user
+ * postgres", with the real database never touched and its rows left behind.
+ */
+const ENV_AT_LOAD = {
+  override: process.env["TEST_TEARDOWN_DATABASE_URL"],
+  password: process.env["POSTGRES_PASSWORD"],
+  appUrl: process.env["DATABASE_URL_APP"],
+} as const;
+
 function teardownUrl(): string | undefined {
-  if (process.env["TEST_TEARDOWN_DATABASE_URL"])
-    return process.env["TEST_TEARDOWN_DATABASE_URL"];
-  const pw = process.env["POSTGRES_PASSWORD"];
-  const app = process.env["DATABASE_URL_APP"];
+  if (ENV_AT_LOAD.override) return ENV_AT_LOAD.override;
+  const pw = ENV_AT_LOAD.password;
+  const app = ENV_AT_LOAD.appUrl;
   if (!pw || !app) return undefined;
   // Borrow host/port/db from the app URL; swap in the superuser.
   try {
@@ -88,9 +115,10 @@ async function purgeTestData(pool: PgPool): Promise<number> {
       `SELECT DISTINCT budget_id FROM tenancy.budget_members WHERE user_id = ANY($1::uuid[])
        UNION
        SELECT b.id FROM tenancy.budgets b
-        WHERE b.created_at < now() - interval '${ORPHAN_BUDGET_GRACE}'
-          AND NOT EXISTS (SELECT 1 FROM tenancy.budget_members m WHERE m.budget_id = b.id)`,
-      [userIds],
+        WHERE NOT EXISTS (SELECT 1 FROM tenancy.budget_members m WHERE m.budget_id = b.id)
+          AND (b.created_at >= $2::timestamptz
+               OR b.created_at < now() - interval '${ORPHAN_BUDGET_GRACE}')`,
+      [userIds, RUN_STARTED_AT],
     );
     const budgetIds = budgets.map((b) => b.budget_id);
     // No early return when both are empty: the user_keys orphan sweep below has
@@ -173,7 +201,12 @@ afterAll(async () => {
     const pool = new Pool({ connectionString: url });
     try {
       const n = await purgeTestData(pool);
-      if (n > 0) console.log(`[test teardown] removed ${n} test rows`);
+      // ALWAYS report, including zero. Logging only on n>0 makes "cleaned
+      // nothing because there was nothing" and "never ran at all" look
+      // identical — which cost an hour on 260825, when a teardown silently
+      // skipped because a snapshotted env var was undefined and the silence
+      // read as success.
+      console.log(`[test teardown] removed ${n} test rows`);
     } finally {
       await pool.end().catch(() => {});
     }

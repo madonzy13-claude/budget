@@ -113,8 +113,15 @@ backup-status: ## Show what is actually in the bucket, per tier
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 
-test: ## Run backend unit tests
-	bun test
+# Scopes are explicit because a bare `bun test` globs apps/web/test too — those
+# are VITEST files (vi.*, happy-dom) and bun:test cannot run them. It does not
+# merely fail them: something in there never releases the event loop, so the run
+# HANGS for ever. A 4-day-old hung `bun test` was found on this box on 260825,
+# and because the process never exits, the global afterAll in
+# test/global-teardown.ts never fires and the run's data is never cleaned up.
+# Web components are covered by `cd apps/web && bunx vitest run`.
+test: ## Run backend unit + integration tests (NOT apps/web — that is Vitest)
+	$(INFISICAL) bun test packages apps/api/test tests
 
 test-watch: ## Run tests in watch mode
 	bun test --watch
