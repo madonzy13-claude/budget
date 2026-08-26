@@ -213,6 +213,16 @@ export function AggregateOverview() {
   const reservesSurplus = reservesTotal > reservesReq;
   const anyCushion = cushionSaved > 0n || cushionReq > 0n;
   const cushionCovered = cushionSaved >= cushionReq;
+  // Short / exactly covered / over, and by how much — the BDP overview card's
+  // own three states, compared at the precision the note DISPLAYS. A 40-grosz
+  // gap formats as "0 extra", which reads as a surplus of nothing, so anything
+  // that rounds away counts as covered.
+  const cushionGapCents = cushionSaved - cushionReq;
+  const cushionGapAbs =
+    cushionGapCents < 0n ? -cushionGapCents : cushionGapCents;
+  const cushionState: "short" | "surplus" | "ok" =
+    cushionGapAbs < 50n ? "ok" : cushionGapCents < 0n ? "short" : "surplus";
+  const cushionNoteAmount = fmt(cushionGapAbs);
   const cushionUnlimited = cushionReq === 0n && cushionSaved > 0n;
   // Household cushion runway = Σ(all cushion wallets) ÷ Σ(monthly cushion need
   // across every applied budget). monthly need = required ÷ target_months, so a
@@ -267,7 +277,8 @@ export function AggregateOverview() {
   const plDir = plTone(plGrow?.delta_cents);
   // Enough decimals for the percent to show the move its colour claims.
   const plDecimals = plPctDecimals(plGrow?.delta_pct);
-  const PlIcon = plDir === "up" ? TrendingUp : plDir === "down" ? TrendingDown : null;
+  const PlIcon =
+    plDir === "up" ? TrendingUp : plDir === "down" ? TrendingDown : null;
 
   return (
     <SlotRevealProvider>
@@ -485,7 +496,7 @@ export function AggregateOverview() {
             }
           />
 
-          {/* Cushion — runway (never masked, it's a duration) + saved/needed. */}
+          {/* Cushion — runway (never masked, it's a duration) + how it stands. */}
           {anyCushion && (
             <StatCard
               testid="aggregate-card-cushion"
@@ -499,20 +510,29 @@ export function AggregateOverview() {
                 )
               }
               sub={
-                <dl className="text-caption mt-1.5 flex flex-col gap-0.5 text-[var(--muted-foreground)]">
-                  <div className="flex items-center justify-between gap-2">
-                    <dt>{t("saved")}</dt>
-                    <dd className="num text-[var(--body-on-dark)]">
-                      <SlotAmount value={fmt(cushionSaved)} />
-                    </dd>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <dt>{t("needed")}</dt>
-                    <dd className="num text-[var(--body-on-dark)]">
-                      <SlotAmount value={fmt(cushionReq)} />
-                    </dd>
-                  </div>
-                </dl>
+                /* One sentence, in the BDP card's register. The Saved/Needed
+                   pair listed two figures and left the subtraction to the
+                   reader — the BDP dropped it for this in 260823, and the two
+                   pages should not describe the same fact differently
+                   (user, 260825). The note stays muted in every state: the
+                   green already lives on the icon beside the runway. */
+                <p
+                  data-testid="aggregate-cushion-note"
+                  data-state={cushionState}
+                  className="text-caption mt-1.5 text-[var(--muted-foreground)]"
+                >
+                  {t.rich(
+                    cushionState === "surplus"
+                      ? "cushion_surplus_note"
+                      : cushionState === "short"
+                        ? "cushion_short_note"
+                        : "cushion_ok_note",
+                    {
+                      amount: cushionNoteAmount,
+                      amt: () => <SlotAmount value={cushionNoteAmount} />,
+                    },
+                  )}
+                </p>
               }
             />
           )}

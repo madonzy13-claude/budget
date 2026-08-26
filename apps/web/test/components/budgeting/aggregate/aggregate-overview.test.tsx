@@ -68,11 +68,14 @@ const { dataRef, wealthRef } = vi.hoisted(() => ({
   wealthRef: { current: undefined as any },
 }));
 
-vi.mock("next-intl", () => ({
-  useTranslations: () => (k: string, v?: any) =>
-    v?.pct ? `your ${v.pct}%` : k,
-  useLocale: () => "en",
-}));
+vi.mock("next-intl", () => {
+  const t: any = (k: string, v?: any) => (v?.pct ? `your ${v.pct}%` : k);
+  // t.rich renders the <amt> chunk, so a note that masks its amount still puts
+  // that amount in the tree. The chunk is handed the key, which is all this mock
+  // has; the component ignores it and renders its own SlotAmount.
+  t.rich = (k: string, v?: any) => (v?.amt ? v.amt(k) : k);
+  return { useTranslations: () => t, useLocale: () => "en" };
+});
 // 260805: the range now comes from the user's stored picks, so the page waits
 // for them before it draws anything.
 const userPrefs: { current: Record<string, string[]>; loaded: boolean } = {
@@ -203,6 +206,52 @@ describe("AggregateOverview", () => {
     render(<AggregateOverview />);
     expect(screen.getByText("incl_investments")).toBeTruthy();
     expect(screen.getByText("cushion")).toBeTruthy();
+  });
+
+  // The cushion card carried a Saved/Needed pair, which listed two figures and
+  // left the subtraction to the reader — the same thing the BDP card dropped in
+  // 260823. It now says the one sentence the BDP says, in the same three states
+  // (user, 260825).
+  it("says how the cushion stands instead of listing saved and needed", () => {
+    render(<AggregateOverview />);
+    const note = screen.getByTestId("aggregate-cushion-note");
+    // Fixture: 50,000 saved against 0 required, twice over → a surplus.
+    expect(note.getAttribute("data-state")).toBe("surplus");
+    expect(screen.queryByText("saved")).toBeNull();
+  });
+
+  it("calls the cushion short when the household has not saved enough", () => {
+    dataRef.current = {
+      ...DATA,
+      budgets: [
+        makeBudget({
+          cushion_saved_full_cents: "10000",
+          cushion_required_full_cents: "90000",
+        }),
+      ],
+    };
+    render(<AggregateOverview />);
+    expect(
+      screen.getByTestId("aggregate-cushion-note").getAttribute("data-state"),
+    ).toBe("short");
+  });
+
+  // A gap that rounds away to nothing is covered, not a surplus of zero — the
+  // same 50-cent tolerance the BDP card applies.
+  it("treats a gap that rounds to zero as covered", () => {
+    dataRef.current = {
+      ...DATA,
+      budgets: [
+        makeBudget({
+          cushion_saved_full_cents: "90040",
+          cushion_required_full_cents: "90000",
+        }),
+      ],
+    };
+    render(<AggregateOverview />);
+    expect(
+      screen.getByTestId("aggregate-cushion-note").getAttribute("data-state"),
+    ).toBe("ok");
   });
 
   it("renders the day P/L block from the today-window grow (masked until revealed)", async () => {
