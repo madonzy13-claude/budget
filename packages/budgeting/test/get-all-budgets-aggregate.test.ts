@@ -131,3 +131,79 @@ describe("getAllBudgetsAggregate", () => {
     expect(out.budgets[0]!.health).toBe("red");
   });
 });
+
+/**
+ * The spend card's third row, ported from the BDP overview: the household's
+ * DEFICIT when a forecast goes under, otherwise what is FREE TO MOVE, otherwise
+ * nothing. Both are summed across the included budgets and FX-converted, so a
+ * hole in PLN is never weighed against spare in EUR (user, 260826).
+ *
+ * The rate stub is 1.10, so every cents figure below arrives multiplied by it.
+ */
+describe("getAllBudgetsAggregate — forecast figures for the spend card", () => {
+  const withProjection = (p: {
+    days: { availableCents: bigint }[];
+    summary: { worstShortfallCents: bigint };
+    safeToWithdraw: { cents: bigint };
+  }) => ({ ...deps, getCashflowProjectionForTenant: async () => p });
+
+  it("sums what can be withdrawn when nothing goes under", async () => {
+    const out = await getAllBudgetsAggregate(
+      withProjection({
+        days: [{ availableCents: 40_000n }],
+        summary: { worstShortfallCents: 0n },
+        safeToWithdraw: { cents: 30_000n },
+      }) as any,
+    )("u1");
+    expect(out.forecast_shortfall_cents).toBe("0");
+    expect(out.forecast_free_to_move_cents).toBe("33000"); // 30,000 × 1.10
+    expect(out.forecast_status).toBe("green");
+  });
+
+  it("sums the shortfall when a forecast does go under", async () => {
+    const out = await getAllBudgetsAggregate(
+      withProjection({
+        days: [{ availableCents: -20_000n }],
+        summary: { worstShortfallCents: 20_000n },
+        safeToWithdraw: { cents: -20_000n },
+      }) as any,
+    )("u1");
+    expect(out.forecast_shortfall_cents).toBe("22000"); // 20,000 × 1.10
+    expect(out.forecast_status).toBe("red");
+  });
+
+  // Nothing spare and nothing wrong is the state the BDP card renders as
+  // silence, so the aggregate has to be able to say it too: both zero.
+  it("reports both as zero when there is nothing to say", async () => {
+    const out = await getAllBudgetsAggregate(
+      withProjection({
+        days: [{ availableCents: 0n }],
+        summary: { worstShortfallCents: 0n },
+        safeToWithdraw: { cents: 0n },
+      }) as any,
+    )("u1");
+    expect(out.forecast_shortfall_cents).toBe("0");
+    expect(out.forecast_free_to_move_cents).toBe("0");
+  });
+
+  // A budget whose forecast cannot be built already abstains from the verdict;
+  // it must not drag the figures either.
+  it("lets a budget whose forecast throws abstain from both figures", async () => {
+    const out = await getAllBudgetsAggregate({
+      ...deps,
+      getCashflowProjectionForTenant: async () => {
+        throw new Error("no forecast");
+      },
+    } as any)("u1");
+    expect(out.forecast_shortfall_cents).toBe("0");
+    expect(out.forecast_free_to_move_cents).toBe("0");
+  });
+
+  // Without the dep wired the aggregate still builds; the card then has no
+  // figures to show rather than wrong ones.
+  it("reports zeroes when no projection dep is wired at all", async () => {
+    const out = await getAllBudgetsAggregate(deps as any)("u1");
+    expect(out.forecast_shortfall_cents).toBe("0");
+    expect(out.forecast_free_to_move_cents).toBe("0");
+  });
+});

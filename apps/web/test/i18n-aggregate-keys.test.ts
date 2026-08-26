@@ -14,9 +14,19 @@ const KEYS = [
   "aggregate.attention_title",
   "aggregate.flow_title",
   "aggregate.spent",
-  // Renamed from `left` (260811): one quantity, and the per-budget card had
-  // always called it "Upcoming".
-  "aggregate.upcoming",
+  // The spend card's third row, ported from the BDP overview (260826). It
+  // replaced "Upcoming" — next month's plan, which answered a question about
+  // spare cash and showed whether or not it meant anything.
+  "aggregate.deficit",
+  "aggregate.free_to_move",
+  // The reserves and cushion tiles say how they stand in a sentence, in the BDP
+  // card's own words, instead of listing a bare Saved/Needed figure (260825-26).
+  "aggregate.reserves_short_note",
+  "aggregate.reserves_surplus_note",
+  "aggregate.reserves_ok_note",
+  "aggregate.cushion_short_note",
+  "aggregate.cushion_surplus_note",
+  "aggregate.cushion_ok_note",
   "aggregate.my_share",
   "aggregate.rate_unavailable",
   "aggregate.empty",

@@ -56,6 +56,12 @@ export interface AllBudgetsAggregate {
    *  a payload cached before this existed replays without it, and the card falls
    *  back to its older cash-vs-upcoming rule. */
   forecast_status?: "green" | "yellow" | "red";
+  /** Σ of every included budget's deepest shortfall, FX-converted, and Σ of what
+   *  they could each give up today (floored at 0). The spend card's third row.
+   *  Optional for the same reason as the verdict above: a payload cached before
+   *  they existed replays without them, and the row is then absent. */
+  forecast_shortfall_cents?: string;
+  forecast_free_to_move_cents?: string;
 }
 
 export function useBudgetsAggregate() {

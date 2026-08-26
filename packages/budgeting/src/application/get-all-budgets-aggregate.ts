@@ -80,6 +80,14 @@ export interface AllBudgetsAggregate {
    *  red when it does not (user, 260811). "green" when no projection dep is
    *  wired — the card falls back to its old cash-vs-upcoming rule. */
   forecast_status: AggregateForecastStatus;
+  /** The spend card's third row, ported from the BDP overview (user, 260826).
+   *  Σ of every included budget's DEEPEST shortfall, FX-converted — "find this
+   *  much and no day in any window goes under". "0" when nothing goes under. */
+  forecast_shortfall_cents: string;
+  /** Σ of every included budget's safe-to-withdraw, FX-converted: what could
+   *  leave the household today with every dip still covered. Floored at "0" —
+   *  below zero there is nothing to move. */
+  forecast_free_to_move_cents: string;
 }
 
 export interface GetAllBudgetsAggregateDeps {
@@ -116,6 +124,7 @@ export interface GetAllBudgetsAggregateDeps {
   }) => Promise<{
     days: Array<{ availableCents: bigint }>;
     summary: { worstShortfallCents: bigint };
+    safeToWithdraw: { cents: bigint };
   }>;
   /** Clock; defaults to new Date(). */
   now?: () => Date;
@@ -403,6 +412,8 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
     const included = rows.filter((r) => r.included && !r.fx_unavailable);
     const project = deps.getCashflowProjectionForTenant;
     let forecast_status: AggregateForecastStatus = "green";
+    let forecast_shortfall = 0n;
+    let forecast_free_to_move = 0n;
     if (project) {
       const positions = await Promise.all(
         included.map(async (r) => {
@@ -418,8 +429,17 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
             const conv = (c: bigint) =>
               toDisplayCcy(c, r.default_currency, fx.rate, displayCcy);
             const shortfall = p.summary.worstShortfallCents;
+            // What this budget could give up today with every dip still
+            // covered. Summed across the household for the card's figure; a
+            // budget that is itself short contributes a NEGATIVE here, which is
+            // right — that money is not available to anyone.
+            const safe = conv(p.safeToWithdraw.cents);
             if (shortfall > 0n)
-              return { shortfallCents: conv(shortfall), spareCents: 0n };
+              return {
+                shortfallCents: conv(shortfall),
+                spareCents: 0n,
+                safeCents: safe,
+              };
             const trough = p.days.reduce(
               (lowest, d) =>
                 d.availableCents < lowest ? d.availableCents : lowest,
@@ -428,17 +448,27 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
             return {
               shortfallCents: 0n,
               spareCents: trough > 0n ? conv(trough) : 0n,
+              safeCents: safe,
             };
           } catch {
             // A budget whose forecast cannot be built abstains — it must not
-            // redden the card on its own.
-            return { shortfallCents: 0n, spareCents: 0n };
+            // redden the card, and it must not move the figures either.
+            return { shortfallCents: 0n, spareCents: 0n, safeCents: 0n };
           }
         }),
       );
       forecast_status = aggregateForecastStatus(positions);
+      forecast_shortfall = positions.reduce((a, p) => a + p.shortfallCents, 0n);
+      const safe = positions.reduce((a, p) => a + p.safeCents, 0n);
+      forecast_free_to_move = safe > 0n ? safe : 0n;
     }
 
-    return { display_currency: displayCcy, budgets: rows, forecast_status };
+    return {
+      display_currency: displayCcy,
+      budgets: rows,
+      forecast_status,
+      forecast_shortfall_cents: forecast_shortfall.toString(),
+      forecast_free_to_move_cents: forecast_free_to_move.toString(),
+    };
   };
 }

@@ -317,6 +317,60 @@ describe("AggregateOverview", () => {
     ).toBe("ok");
   });
 
+  // The spend card's third row, ported from the BDP overview: a DEFICIT when a
+  // forecast goes under, otherwise what is FREE TO MOVE, otherwise nothing.
+  // "Upcoming" used to sit here unconditionally — a figure about next month's
+  // plan answering a question about spare cash (user, 260826).
+  it("shows the household deficit when a forecast goes under", () => {
+    dataRef.current = {
+      ...DATA,
+      forecast_status: "red",
+      forecast_shortfall_cents: "22000",
+      forecast_free_to_move_cents: "0",
+    };
+    render(<AggregateOverview />);
+    expect(screen.getByTestId("aggregate-spend-deficit")).toBeTruthy();
+    expect(screen.queryByTestId("aggregate-spend-free-to-move")).toBeNull();
+    expect(screen.queryByText("upcoming")).toBeNull();
+  });
+
+  it("shows what is free to move when nothing goes under", () => {
+    dataRef.current = {
+      ...DATA,
+      forecast_status: "green",
+      forecast_shortfall_cents: "0",
+      forecast_free_to_move_cents: "33000",
+    };
+    render(<AggregateOverview />);
+    expect(screen.getByTestId("aggregate-spend-free-to-move")).toBeTruthy();
+    expect(screen.queryByTestId("aggregate-spend-deficit")).toBeNull();
+  });
+
+  // Same silence the BDP card keeps: no shortfall and nothing spare is not
+  // worth a row, and it must not fall back to "Upcoming" either.
+  it("shows neither row when there is nothing to say", () => {
+    dataRef.current = {
+      ...DATA,
+      forecast_status: "green",
+      forecast_shortfall_cents: "0",
+      forecast_free_to_move_cents: "0",
+    };
+    render(<AggregateOverview />);
+    expect(screen.queryByTestId("aggregate-spend-deficit")).toBeNull();
+    expect(screen.queryByTestId("aggregate-spend-free-to-move")).toBeNull();
+    expect(screen.queryByText("upcoming")).toBeNull();
+    // The rest of the card survives.
+    expect(screen.queryByText("spent")).not.toBeNull();
+  });
+
+  // A payload cached before the server computed these replays without them.
+  it("shows neither row when the payload predates the figures", () => {
+    dataRef.current = { ...DATA, forecast_status: "green" };
+    render(<AggregateOverview />);
+    expect(screen.queryByTestId("aggregate-spend-deficit")).toBeNull();
+    expect(screen.queryByTestId("aggregate-spend-free-to-move")).toBeNull();
+  });
+
   it("renders the day P/L block from the today-window grow (masked until revealed)", async () => {
     wealthRef.current = {
       display_currency: "USD",
@@ -461,11 +515,17 @@ describe("AggregateOverview — available to spend", () => {
     dataRef.current = DATA;
   });
 
-  it("calls the lower line 'upcoming', matching the per-budget card", () => {
+  // The lower line used to be "Upcoming" — next month's plan, answering a
+  // question about spare cash, and shown whether or not it meant anything. It is
+  // now the BDP card's own third row: a deficit, or what is free to move, or
+  // nothing (user, 260826).
+  it("does not name the lower line 'upcoming' any more", () => {
     render(<AggregateOverview />);
     const card = screen.getByTestId("aggregate-card-available-to-spend");
-    expect(within(card).getByText("upcoming")).toBeTruthy();
+    expect(within(card).queryByText("upcoming")).toBeNull();
     expect(within(card).queryByText("left")).toBeNull();
+    // Spent stays — it is the one figure on this card that is simply a fact.
+    expect(within(card).getByText("spent")).toBeTruthy();
   });
 
   it("goes green when every budget's forecast stays above water", () => {

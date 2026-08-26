@@ -193,6 +193,17 @@ export function AggregateOverview() {
   // without it, so the older cash-vs-upcoming comparison is the fallback.
   const spendStatus: "green" | "yellow" | "red" =
     data.forecast_status ?? (cashTotal >= leftTotal ? "green" : "red");
+  // The card's third row, ported from the BDP overview (user, 260826). Same
+  // three states, in the same order: a real DEFICIT wins, then what is FREE TO
+  // MOVE, then nothing at all. Both are summed and FX-converted server-side; a
+  // payload cached before they existed replays without them, and the row is
+  // simply absent rather than falling back to a figure about next month's plan.
+  const shortfallTotal = data.forecast_shortfall_cents
+    ? BigInt(data.forecast_shortfall_cents)
+    : 0n;
+  const freeToMoveTotal = data.forecast_free_to_move_cents
+    ? BigInt(data.forecast_free_to_move_cents)
+    : 0n;
   const reservesTotal = sumCents(summable, "reserves_full_cents");
   const reservesReq = sumCents(summable, "reserves_required_cents");
   // Cushion coverage is a HOUSEHOLD safety check → FULL cushion wallets vs FULL
@@ -448,12 +459,33 @@ export function AggregateOverview() {
                     <SlotAmount value={fmt(spentTotal)} />
                   </dd>
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                  <dt>{t("upcoming")}</dt>
-                  <dd className="num text-[var(--body-on-dark)]">
-                    <SlotAmount value={fmt(leftTotal)} />
-                  </dd>
-                </div>
+                {shortfallTotal > 0n ? (
+                  <div
+                    data-testid="aggregate-spend-deficit"
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <dt className="min-w-0 truncate">{t("deficit")}</dt>
+                    {/* The same token the forecast paints its red days with —
+                        the card echoes the chart rather than inventing an alarm
+                        of its own (DESIGN.md:647). */}
+                    <dd
+                      className="num"
+                      style={{ color: "var(--trading-down)" }}
+                    >
+                      <SlotAmount value={fmt(shortfallTotal)} />
+                    </dd>
+                  </div>
+                ) : freeToMoveTotal > 0n ? (
+                  <div
+                    data-testid="aggregate-spend-free-to-move"
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <dt className="min-w-0 truncate">{t("free_to_move")}</dt>
+                    <dd className="num" style={{ color: "var(--trading-up)" }}>
+                      <SlotAmount value={fmt(freeToMoveTotal)} />
+                    </dd>
+                  </div>
+                ) : null}
               </dl>
             }
           />
