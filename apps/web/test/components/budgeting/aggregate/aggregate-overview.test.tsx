@@ -254,6 +254,69 @@ describe("AggregateOverview", () => {
     ).toBe("ok");
   });
 
+  // Same move as the cushion tile: the reserves card listed a bare "Needed"
+  // figure, while the BDP card next door says in one sentence whether the
+  // reserves are in place, short, or over — and by how much (user, 260826).
+  it("says whether the reserves are in place instead of listing what is needed", () => {
+    render(<AggregateOverview />);
+    // Fixture: 120,000 held against 120,000 required, twice over → in place.
+    expect(
+      screen.getByTestId("aggregate-reserves-note").getAttribute("data-state"),
+    ).toBe("ok");
+    expect(screen.queryByText("needed")).toBeNull();
+  });
+
+  it("calls the reserves short when they do not cover what is required", () => {
+    dataRef.current = {
+      ...DATA,
+      budgets: [
+        makeBudget({
+          reserves_full_cents: "20000",
+          reserves_required_cents: "120000",
+        }),
+      ],
+    };
+    render(<AggregateOverview />);
+    expect(
+      screen.getByTestId("aggregate-reserves-note").getAttribute("data-state"),
+    ).toBe("short");
+  });
+
+  it("calls the reserves over when more is held than required", () => {
+    dataRef.current = {
+      ...DATA,
+      budgets: [
+        makeBudget({
+          reserves_full_cents: "200000",
+          reserves_required_cents: "120000",
+        }),
+      ],
+    };
+    render(<AggregateOverview />);
+    expect(
+      screen.getByTestId("aggregate-reserves-note").getAttribute("data-state"),
+    ).toBe("surplus");
+  });
+
+  // A gap that rounds away is "in place", not an excess of nothing — the figures
+  // print in whole units, so a 40-grosz surplus would otherwise read "0 extra".
+  // The ICON reads the same state, so the two can never disagree.
+  it("treats a reserves gap that rounds to zero as in place", () => {
+    dataRef.current = {
+      ...DATA,
+      budgets: [
+        makeBudget({
+          reserves_full_cents: "120040",
+          reserves_required_cents: "120000",
+        }),
+      ],
+    };
+    render(<AggregateOverview />);
+    expect(
+      screen.getByTestId("aggregate-reserves-note").getAttribute("data-state"),
+    ).toBe("ok");
+  });
+
   it("renders the day P/L block from the today-window grow (masked until revealed)", async () => {
     wealthRef.current = {
       display_currency: "USD",

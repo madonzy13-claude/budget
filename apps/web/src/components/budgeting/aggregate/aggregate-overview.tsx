@@ -209,8 +209,20 @@ export function AggregateOverview() {
     )[0];
 
   const anyReserves = reservesTotal > 0n || reservesReq > 0n;
-  const reservesShort = reservesTotal < reservesReq;
-  const reservesSurplus = reservesTotal > reservesReq;
+  // ONE state drives both the icon and the note, so the two can never disagree.
+  // The 50-cent tolerance matches the cushion tile's: these figures print in
+  // whole units, so without it a 40-grosz surplus reads "Too much. 0 extra".
+  const reservesGapCents = reservesTotal - reservesReq;
+  const reservesGapAbs =
+    reservesGapCents < 0n ? -reservesGapCents : reservesGapCents;
+  const reservesState: "short" | "surplus" | "ok" =
+    reservesGapAbs < 50n ? "ok" : reservesGapCents < 0n ? "short" : "surplus";
+  const reservesShort = reservesState === "short";
+  const reservesSurplus = reservesState === "surplus";
+  // short → what is MISSING, surplus → what is EXTRA. The ok note names no
+  // figure at all (the BDP card dropped it in 260804: nothing is owed, so
+  // restating the target read like a bill still to pay).
+  const reservesNoteAmount = fmt(reservesGapAbs);
   const anyCushion = cushionSaved > 0n || cushionReq > 0n;
   const cushionCovered = cushionSaved >= cushionReq;
   // Short / exactly covered / over, and by how much — the BDP overview card's
@@ -465,12 +477,26 @@ export function AggregateOverview() {
               }
               value={<SlotAmount value={fmt(reservesTotal)} />}
               sub={
-                <dl className="text-caption mt-1.5 flex items-center justify-between gap-2 text-[var(--muted-foreground)]">
-                  <dt>{t("needed")}</dt>
-                  <dd className="num text-[var(--body-on-dark)]">
-                    <SlotAmount value={fmt(reservesReq)} />
-                  </dd>
-                </dl>
+                /* One sentence, in the BDP card's words. "Needed" was a bare
+                   figure the reader had to compare against the total above it
+                   themselves (user, 260826). */
+                <p
+                  data-testid="aggregate-reserves-note"
+                  data-state={reservesState}
+                  className="text-caption mt-1.5 text-[var(--muted-foreground)]"
+                >
+                  {t.rich(
+                    reservesState === "surplus"
+                      ? "reserves_surplus_note"
+                      : reservesState === "short"
+                        ? "reserves_short_note"
+                        : "reserves_ok_note",
+                    {
+                      amount: reservesNoteAmount,
+                      amt: () => <SlotAmount value={reservesNoteAmount} />,
+                    },
+                  )}
+                </p>
               }
             />
           )}
