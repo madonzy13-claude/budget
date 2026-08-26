@@ -857,6 +857,49 @@ describe("simulateCashflow — unconfirmed occurrences are already committed", (
     expect(without - withDraft).toBe(10_000n);
   });
 
+  // The all-budgets card reports Σ worstShortfallCents as the household DEFICIT,
+  // so an unanswered occurrence has to reach that number too — not just the
+  // withdrawable figure. Both runs share the subtraction, and `summary` comes
+  // from the EVEN one, which is the run asserted here.
+  test("an unanswered occurrence deepens the deficit the card reports", () => {
+    const unbounded = [
+      {
+        id: "cat-house",
+        name: "House",
+        budgetByMonth: {},
+        spentSoFarCents: 0n,
+        noLimit: true,
+      },
+    ];
+    const thin = { categories: unbounded, startCashCents: 20_000n };
+    expect(simulateCashflow(window100(thin)).summary.worstShortfallCents).toBe(
+      0n,
+    );
+    const short = simulateCashflow(
+      window100({
+        ...thin,
+        pendingDrafts: [draft(50_000n, "2026-07-15", "cat-house")],
+      }),
+    );
+    // 20,000 of cash against 50,000 owed → 30,000 uncovered, from day one.
+    expect(short.summary.worstShortfallCents).toBe(30_000n);
+    expect(short.summary.firstRedDate).toBe("2026-07-15");
+  });
+
+  // ...but only where no plan already stood ready to pay it. This is the guard
+  // that keeps the deficit honest on a normal budget: the household's own
+  // Family Budget carries two unanswered occurrences that sit inside their
+  // categories' limits, and they must not inflate its deficit (user, 260826).
+  test("one that fits inside the plan does not deepen it", () => {
+    const plain = simulateCashflow(window100({ startCashCents: 20_000n }));
+    const withDraft = simulateCashflow(
+      window100({ startCashCents: 20_000n, pendingDrafts: [draft(10_000n)] }),
+    );
+    expect(withDraft.summary.worstShortfallCents).toBe(
+      plain.summary.worstShortfallCents,
+    );
+  });
+
   test("the tooltip still lists every one of them", () => {
     const p = simulateCashflow(
       window100({
