@@ -25,6 +25,7 @@ function day(date: string, color: DayColor, availableCents: bigint): DayCell {
     availableCents,
     openingCents: availableCents,
     plannedBurnCents: 0n,
+    pendingCents: 0n,
     reserveCoveredCents: 0n,
     drewReserve: [],
     shortfall: [],

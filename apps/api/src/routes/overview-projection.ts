@@ -34,6 +34,7 @@ export function registerOverviewProjectionRoutes(r: Hono, deps: BootedDeps) {
             available_cents: d.availableCents.toString(),
             opening_cents: d.openingCents.toString(),
             planned_burn_cents: d.plannedBurnCents.toString(),
+            pending_cents: d.pendingCents.toString(),
             reserve_covered_cents: d.reserveCoveredCents.toString(),
             income_cents: d.incomeCents.toString(),
             bill_cents: d.billCents.toString(),

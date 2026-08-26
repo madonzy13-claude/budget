@@ -11,9 +11,13 @@ export interface ProjectionDay {
   color: "green" | "yellow" | "red";
   available_cents: string;
   /** The terms of the day's arithmetic, which the tooltip reads out:
-   *  available = opening + income − bill − planned_burn + reserve_covered. */
+   *  available = opening + income − bill − planned_burn − pending + reserve_covered. */
   opening_cents: string;
   planned_burn_cents: string;
+  /** Unanswered occurrences charged that day — the FIRST day only. Optional: a
+   *  payload cached before this existed replays without it, and the term is
+   *  simply absent from the block. */
+  pending_cents?: string;
   reserve_covered_cents: string;
   income_cents: string;
   bill_cents: string;

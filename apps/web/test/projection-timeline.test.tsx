@@ -39,9 +39,10 @@ const dto: ProjectionDTO = {
     {
       date: "2026-07-15",
       color: "green",
-      available_cents: "100000",
+      available_cents: "97000",
       opening_cents: "137800",
       planned_burn_cents: "37800",
+      pending_cents: "3000",
       reserve_covered_cents: "0",
       income_cents: "0",
       bill_cents: "0",
@@ -54,6 +55,7 @@ const dto: ProjectionDTO = {
       available_cents: "-2000",
       opening_cents: "100000",
       planned_burn_cents: "2000",
+      pending_cents: "0",
       reserve_covered_cents: "2000",
       income_cents: "0",
       bill_cents: "102000",
@@ -401,9 +403,9 @@ describe("ProjectionTimeline", () => {
   test("keeps the opening label when its segment is wide enough", () => {
     projectionData = { ...dto, days: runOfDays("2026-08-01", 100) };
     renderIt();
-    expect(
-      screen.getAllByTestId("projection-month")[0]!.textContent,
-    ).toBe("Aug");
+    expect(screen.getAllByTestId("projection-month")[0]!.textContent).toBe(
+      "Aug",
+    );
   });
 
   test("drops a label with no room left to earn it", () => {
@@ -495,16 +497,29 @@ describe("ProjectionTimeline", () => {
     expect(tip.textContent).toContain("Start of day");
     expect(tip.textContent).toContain("Planned spend");
     expect(tip.textContent).toContain("Left");
-    // 1,378 start − 378 planned = 1,000 left (cents → units, narrow symbol)
+    // 1,378 start − 378 planned − 30 owed = 970 left (cents → units, narrow symbol)
     expect(screen.getByTestId("projection-opening").textContent).toContain(
       "1,378",
     );
     expect(screen.getByTestId("projection-planned-burn").textContent).toContain(
       "378",
     );
-    expect(screen.getByTestId("projection-left").textContent).toContain(
-      "1,000",
+    expect(screen.getByTestId("projection-pending-term").textContent).toContain(
+      "30",
     );
+    expect(screen.getByTestId("projection-left").textContent).toContain("970");
+  });
+
+  // The occurrences are charged on the FIRST day — they are already owed — so
+  // the term belongs to that day's arithmetic and to no other. Without it the
+  // block would read 1,378 − 378 = 970 and simply not add up (user, 260826).
+  test("a later day carries no occurrence term", async () => {
+    const { default: userEventDefault } =
+      await import("@testing-library/user-event");
+    const user = userEventDefault.setup();
+    renderIt(false);
+    await user.hover(screen.getAllByTestId("projection-day")[1]);
+    expect(screen.queryByTestId("projection-pending-term")).toBeNull();
   });
 
   // The sign carries the direction, not the amount: every figure in the block

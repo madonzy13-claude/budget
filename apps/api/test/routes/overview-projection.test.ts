@@ -160,6 +160,7 @@ describe("GET /budgets/:id/overview/projection", () => {
         available_cents: string;
         opening_cents: string;
         planned_burn_cents: string;
+        pending_cents: string;
         reserve_covered_cents: string;
         income_cents: string;
         bill_cents: string;
@@ -170,16 +171,20 @@ describe("GET /budgets/:id/overview/projection", () => {
     for (const k of [
       "opening_cents",
       "planned_burn_cents",
+      // Unanswered occurrences are charged on the first day, so the tooltip's
+      // block cannot close without a term for them (user, 260826).
+      "pending_cents",
       "reserve_covered_cents",
     ] as const) {
       expect(typeof d[k]).toBe("string");
     }
-    // available = opening + income − bills − burn + reserveCovered
+    // available = opening + income − bills − burn − pending + reserveCovered
     expect(BigInt(d.available_cents)).toBe(
       BigInt(d.opening_cents) +
         BigInt(d.income_cents) -
         BigInt(d.bill_cents) -
-        BigInt(d.planned_burn_cents) +
+        BigInt(d.planned_burn_cents) -
+        BigInt(d.pending_cents) +
         BigInt(d.reserve_covered_cents),
     );
     expect(Array.isArray(body.pending_points)).toBe(true);

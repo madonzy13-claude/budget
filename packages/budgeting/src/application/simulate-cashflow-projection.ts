@@ -52,8 +52,11 @@ export interface DayCell {
   /** Cash entering the day, before income and outflows. The FIRST day's opening
    *  is the wallet balance the "available to spend" card shows — the tooltip
    *  reads out the whole day as one equation:
-   *    available = opening + income − bills − plannedBurn + reserveCovered  */
+   *    available = opening + income − bills − plannedBurn − pending + reserveCovered  */
   openingCents: bigint;
+  /** Unanswered occurrences charged that day. Non-zero on the FIRST day only —
+   *  they are already owed, so the window opens by paying them. */
+  pendingCents: bigint;
   /** The even discretionary spend applied that day, across all categories. */
   plannedBurnCents: bigint;
   /** Σ drewReserve — spending the pot paid for, which never reduces cash. */
@@ -194,16 +197,30 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
   // inside — was represented nowhere at all, and "free to move" offered money
   // that was already spent (user, 260825).
   const pendingByCat = new Map<string, bigint>();
-  let pendingTotalCents = 0n;
+  const pendingCharges: {
+    categoryId: string;
+    amountCents: bigint;
+    beyondPlan: boolean;
+  }[] = [];
   for (const e of input.pendingDrafts ?? []) {
-    pendingTotalCents += e.amountCents;
-    if (!e.categoryId || e.date.slice(0, 7) !== startMonthKey) continue;
+    // An occurrence from an EARLIER month is beyond any plan: the month whose
+    // plan would have paid it is behind us, and it must not eat this month's
+    // headroom either. Only a start-month one has a plan standing behind it.
+    const startMonth = e.date.slice(0, 7) === startMonthKey;
+    pendingCharges.push({
+      categoryId: e.categoryId ?? "",
+      amountCents: e.amountCents,
+      beyondPlan: !startMonth,
+    });
+    if (!e.categoryId || !startMonth) continue;
     pendingByCat.set(
       e.categoryId,
       (pendingByCat.get(e.categoryId) ?? 0n) + e.amountCents,
     );
   }
-  /** This month's plan already used up: confirmed spend + unanswered occurrences. */
+  /** This month's plan already used up: confirmed spend + unanswered occurrences.
+   *  Shrinks the BURN so the same money is not charged twice — the occurrence
+   *  itself is charged below, through the same outflow path as every bill. */
   const consumedThisMonth = (c: CashflowCategoryInput): bigint =>
     c.spentSoFarCents + (pendingByCat.get(c.id) ?? 0n);
 
@@ -266,7 +283,7 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
   const immediate = input.spendTiming === "immediate";
 
   // Mutable running state.
-  let cash = input.startCashCents - pendingTotalCents;
+  let cash = input.startCashCents;
   // What each category may still spend inside its plan this month. Reserve money
   // is earmarked against limits being EXCEEDED, so this is what decides whether
   // an outflow may reach the pot at all (user, 260811).
@@ -277,7 +294,7 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
   const rollLimitsTo = (month: string) => {
     for (const c of input.categories) {
       const budget = c.budgetByMonth[month] ?? 0n;
-      const spent = month === startMonthKey ? consumedThisMonth(c) : 0n;
+      const spent = month === startMonthKey ? c.spentSoFarCents : 0n;
       const left = budget - spent;
       remainingLimit.set(c.id, left > 0n ? left : 0n);
     }
@@ -294,6 +311,7 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
     Object.entries(input.reserveByCategory ?? {}),
   );
 
+  const firstDayIso = start.toString();
   const days: DayCell[] = [];
   let firstYellowDate: string | null = null;
   let firstRedDate: string | null = null;
@@ -322,7 +340,7 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
     const reserveUsedMap = new Map<string, bigint>();
     const shortMap = new Map<string, bigint>();
 
-    const applyOutflow = (catId: string, amt: bigint) => {
+    const applyOutflow = (catId: string, amt: bigint, beyondPlan = false) => {
       if (amt <= 0n) return;
       // Split the outflow at the category's remaining plan. Only what lies
       // BEYOND it is overspend, and only overspend may reach the reserve pot —
@@ -331,13 +349,16 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       // when the real problem was an empty spending wallet (user, 260811).
       // An outflow with no category has no plan to stay inside, so all of it
       // counts as beyond one.
-      const remaining = remainingLimit.get(catId) ?? 0n;
+      // `beyondPlan` says there is no plan standing behind this outflow at all —
+      // an occurrence from a month already closed. None of it is in-plan, and it
+      // leaves this month's headroom untouched.
+      const remaining = beyondPlan ? 0n : (remainingLimit.get(catId) ?? 0n);
       const withinLimit = amt < remaining ? amt : remaining;
       // 0083: an unbounded category's spend is never overspend, so it never
       // reaches the reserve pot. Its plan is 0, so the generic path above would
       // otherwise class the whole outflow as beyond-plan.
       const overspend = unbounded.has(catId) ? 0n : amt - withinLimit;
-      remainingLimit.set(catId, remaining - withinLimit);
+      if (!beyondPlan) remainingLimit.set(catId, remaining - withinLimit);
 
       // Pay from cash first (cash never funds below 0)...
       const fromCash = amt < cash ? amt : cash > 0n ? cash : 0n;
@@ -372,7 +393,15 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       }
     };
 
-    // Dated bills first, then even discretionary burn.
+    // Occurrences already owed come first — the window opens by paying them —
+    // then the day's dated bills, then the even discretionary burn.
+    let pendingToday = 0n;
+    if (iso === firstDayIso) {
+      for (const c of pendingCharges) {
+        pendingToday += c.amountCents;
+        applyOutflow(c.categoryId, c.amountCents, c.beyondPlan);
+      }
+    }
     for (const b of billsByDate.get(iso) ?? []) {
       applyOutflow(b.categoryId ?? "", b.amountCents);
     }
@@ -416,6 +445,7 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       availableCents: cash,
       openingCents,
       plannedBurnCents,
+      pendingCents: pendingToday,
       reserveCoveredCents: reserveUsed.reduce((s, r) => s + r.amountCents, 0n),
       drewReserve: reserveUsed,
       shortfall: short,

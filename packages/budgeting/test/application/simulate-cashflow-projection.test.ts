@@ -900,6 +900,102 @@ describe("simulateCashflow — unconfirmed occurrences are already committed", (
     );
   });
 
+  // An unanswered occurrence is an OUTFLOW like any other, so the part of it
+  // that lies beyond the category's plan must be able to reach that category's
+  // reserve — which is exactly what a reserve is for. Until now it was
+  // subtracted straight from the opening cash instead, so the same money
+  // charged as a scheduled bill drew on the pot and charged as an unanswered
+  // occurrence did not (user, 260826).
+  const reserved = (over: Partial<CashflowSimInput> = {}) =>
+    window100({
+      startCashCents: 40_000n,
+      reservePoolCents: 100_000n,
+      reserveByCategory: { "cat-food": 100_000n },
+      spendTiming: "even",
+      ...over,
+    });
+
+  test("the part beyond the plan draws on the category's own reserve", () => {
+    // Plan 30,000/month, 40,000 cash, a 50,000 occurrence → 20,000 of it lies
+    // beyond the plan, and the pot is there to cover it.
+    const p = simulateCashflow(reserved({ pendingDrafts: [draft(50_000n)] }));
+    const drawn = p.days.reduce((a, d) => a + d.reserveCoveredCents, 0n);
+    expect(drawn).toBeGreaterThan(0n);
+    // The day the pot pays is yellow — the reserve doing its job is not a
+    // deficit, and it used to paint plain red here.
+    expect(p.days[0]!.color).toBe("yellow");
+    // …and the deficit is smaller by exactly what the pot covered.
+    const bare = simulateCashflow(
+      reserved({
+        pendingDrafts: [draft(50_000n)],
+        reservePoolCents: 0n,
+        reserveByCategory: {},
+      }),
+    );
+    expect(
+      bare.summary.worstShortfallCents - p.summary.worstShortfallCents,
+    ).toBe(drawn);
+  });
+
+  test("it may only draw the reserve ITS OWN category built", () => {
+    const p = simulateCashflow(
+      reserved({
+        pendingDrafts: [draft(50_000n)],
+        // The pot is full, but Food has built none of it.
+        reserveByCategory: { "cat-other": 100_000n },
+      }),
+    );
+    expect(p.days.reduce((a, d) => a + d.reserveCoveredCents, 0n)).toBe(0n);
+  });
+
+  test("an unbounded category's occurrence never reaches the pot", () => {
+    // 0083: unbounded spending is never overspend, so it is never the pot's job.
+    const p = simulateCashflow(
+      reserved({
+        categories: [
+          {
+            id: "cat-house",
+            name: "House",
+            budgetByMonth: {},
+            spentSoFarCents: 0n,
+            noLimit: true,
+          },
+        ],
+        reserveByCategory: { "cat-house": 100_000n },
+        pendingDrafts: [draft(50_000n, "2026-07-15", "cat-house")],
+      }),
+    );
+    expect(p.days.reduce((a, d) => a + d.reserveCoveredCents, 0n)).toBe(0n);
+  });
+
+  test("one from an earlier month is beyond ANY plan, so all of it may draw", () => {
+    // The month whose plan would have paid it is behind us, so none of it is
+    // in-plan — and it must not eat THIS month's headroom either.
+    const p = simulateCashflow(
+      reserved({ pendingDrafts: [draft(50_000n, "2026-06-20")] }),
+    );
+    expect(p.days.reduce((a, d) => a + d.reserveCoveredCents, 0n)).toBe(
+      10_000n,
+    );
+  });
+
+  test("the day's equation still adds up with an occurrence in it", () => {
+    const p = simulateCashflow(reserved({ pendingDrafts: [draft(50_000n)] }));
+    const d = p.days[0]!;
+    // opening + income − bills − burn − pending + reserveCovered = available
+    expect(
+      d.openingCents +
+        d.incomeCents -
+        d.billCents -
+        d.plannedBurnCents -
+        d.pendingCents +
+        d.reserveCoveredCents,
+    ).toBe(d.availableCents);
+    // Day one carries them; no later day repeats the charge.
+    expect(d.pendingCents).toBe(50_000n);
+    expect(p.days.slice(1).every((x) => x.pendingCents === 0n)).toBe(true);
+  });
+
   test("the tooltip still lists every one of them", () => {
     const p = simulateCashflow(
       window100({

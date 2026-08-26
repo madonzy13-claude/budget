@@ -583,6 +583,14 @@ function ProjectionTooltip({
             testId="projection-planned-burn"
           />
         )}
+        {Number(day.pending_cents ?? 0) > 0 && (
+          <LedgerRow
+            sign="−"
+            label={t("pending")}
+            amount={money(day.pending_cents ?? "0")}
+            testId="projection-pending-term"
+          />
+        )}
         {Number(day.reserve_covered_cents) > 0 && (
           <LedgerRow
             sign="+"
@@ -609,10 +617,13 @@ function ProjectionTooltip({
         </span>
       </div>
 
-      {/* Occurrences whose date passed with no answer. Their money is already
-          inside the daily planned spend above — this section only says so, and
-          keeps saying it every day until the payment is confirmed or rejected
-          (user, 260812). Anchored to the first cell, which is today. */}
+      {/* Occurrences whose date passed with no answer, itemised. The block above
+          already charges them on the first day — this names WHICH payments that
+          term is made of, and keeps saying so every day until each is confirmed
+          or rejected (user, 260812). Anchored to the first cell, which is today.
+          They were once said to be "already inside the daily planned spend";
+          that stopped being true in 260825, when they started coming off the
+          money the household holds. */}
       {pending.length > 0 && (
         <div className="mt-2 border-t border-[var(--hairline-dark)] pt-2">
           <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
