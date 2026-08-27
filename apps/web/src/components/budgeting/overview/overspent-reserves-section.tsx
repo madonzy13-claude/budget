@@ -12,7 +12,6 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
-import { useStagedWarmup } from "@/hooks/use-staged-warmup";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { reserveBalanceSlices } from "@/lib/reserve-balance-slices";
 import { ChartNeedsCompletedMonth } from "./chart-needs-completed-month";
@@ -46,7 +45,8 @@ export function OverspentReservesSection({
   const [reservesOpen, toggleReserves] = usePersistedSectionOpen("reserves");
   // Warmed in the background like the other sections (260806) — a wave behind
   // Planned so the two do not compete for the wire.
-  const warm = useStagedWarmup(2, { now: reservesOpen });
+  // See planned-section: no wave, the pool does the throttling.
+  const warm = true;
 
   const categories = useCategories(budgetId).data ?? [];
   // The one-off filter lists categories in the order the household arranged on

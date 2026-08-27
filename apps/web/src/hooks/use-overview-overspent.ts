@@ -6,7 +6,7 @@
  * section is open (`enabled`); range is part of the query key (D-03).
  */
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { backgroundApiFetch } from "@/lib/budget-fetch";
 
 export interface OverviewOverspentDTO {
   currency: string;
@@ -39,7 +39,7 @@ export function useOverviewOverspent(
     refetchOnMount: "always",
     queryFn: async () => {
       const qs = new URLSearchParams({ from, to });
-      const res = await clientApiFetch(
+      const res = await backgroundApiFetch(
         `/budgets/${budgetId}/overview/overspent-reserves?${qs.toString()}`,
         { headers: { "X-Budget-ID": budgetId } },
       );

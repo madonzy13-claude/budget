@@ -30,7 +30,6 @@ import {
   usePersistedSectionOpen,
   useBdpUiStore,
 } from "@/components/budgeting/bdp-ui-state";
-import { useStagedWarmup } from "@/hooks/use-staged-warmup";
 import { CHART_THEME } from "@/components/budgeting/charts/chart-theme";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
@@ -246,7 +245,10 @@ export function PlannedSection({
   // (260806): a collapsed section used to have nothing cached, so opening it
   // cost a wait — and offline it had nothing to show at all. Waves keep the
   // burst off the first paint; opening it skips the queue.
-  const warm = useStagedWarmup(1, { now: open });
+  // Fetch on mount, open or not. The 700ms wave this used to wait for is gone:
+  // request-pool caps background fetching by what is IN FLIGHT, which throttles
+  // without ever idling (260827).
+  const warm = true;
   // Persist the selected category across pill navigation (the carousel unmounts
   // this pane, so a plain useState would reset to "All categories" on return).
   const store = useBdpUiStore();

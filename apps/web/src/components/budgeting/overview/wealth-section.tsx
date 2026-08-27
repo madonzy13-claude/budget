@@ -22,7 +22,6 @@ import {
   usePersistedSectionOpen,
   useBdpUiStore,
 } from "@/components/budgeting/bdp-ui-state";
-import { useStagedWarmup } from "@/hooks/use-staged-warmup";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { seriesGrowth } from "@/lib/series-growth";
 import { OverviewBarChart } from "@/components/budgeting/charts/bar-chart";
@@ -110,7 +109,8 @@ export function WealthSection({
   const [open, toggleOpen] = usePersistedSectionOpen("wealth");
   // Last wave: the wealth series is the heaviest query on the page, so it goes
   // behind the others rather than in front of them (260806).
-  const warm = useStagedWarmup(3, { now: open });
+  // See planned-section: no wave, the pool does the throttling.
+  const warm = true;
   // View persists across pill navigation (the carousel unmounts this pane, so a
   // plain useState would reset to Capitalization on return). Backed by the shared
   // BdpUiStore ref like range / open-sections.
@@ -132,9 +132,9 @@ export function WealthSection({
   // below; profit = excl, contributions = incl − excl.
   // The investments-only series is a second query on the heaviest endpoint, so
   // it takes its own wave behind the totals one.
-  const warmExcl = useStagedWarmup(4, {
-    now: open && effectiveView === "investments",
-  });
+  // The investments-only series used to take "its own wave behind the totals
+  // one". Both now go out together and the pool decides the ordering.
+  const warmExcl = true;
   const { data, isPending, isError } = useOverviewWealth(budgetId, {
     from: range.from,
     to: range.to,

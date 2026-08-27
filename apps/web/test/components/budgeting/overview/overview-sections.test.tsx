@@ -130,7 +130,6 @@ vi.mock("@/components/budgeting/charts/pie-chart", () => ({
 }));
 
 import { OverviewSections } from "@/components/budgeting/overview/overview-sections";
-import { WARMUP_WAVE_MS } from "@/hooks/use-staged-warmup";
 
 function renderSections(props: { amountPrivacyEnabled?: boolean } = {}) {
   return render(<OverviewSections budgetId="b1" {...props} />);
@@ -397,48 +396,45 @@ describe("charts that need a finished month", () => {
 
 // 260806 (user request): a collapsed section used to fetch nothing, so opening
 // it cost a wait — and offline a section nobody had opened had nothing at all to
-// show. They warm in the background now, collapsed or not, one wave apart so the
-// burst stays off the first paint.
+// show. They warm in the background now, collapsed or not.
+//
+// 260827: and they no longer take turns. The waves that spaced them 700ms apart
+// are gone; request-pool caps what is IN FLIGHT instead, which throttles the
+// burst without leaving the network idle between turns. Measured on a cold
+// load, the old clock left 1,781ms of a 3,553ms warm-up doing nothing.
 describe("Overview sections — warmed while still collapsed", () => {
+  const anyEnabled = (mock: ReturnType<typeof vi.fn>) =>
+    mock.mock.calls.some(
+      (c) => (c[1] as { enabled?: boolean } | undefined)?.enabled === true,
+    );
+
   it("asks for a section's data before anyone opens it", async () => {
+    await act(async () => {
+      renderSections();
+    });
+    expect({
+      planned: lastOpts(plannedMock).enabled,
+      overspent: lastOpts(overspentMock).enabled,
+      wealth: anyEnabled(wealthMock),
+    }).toEqual({ planned: true, overspent: true, wealth: true });
+  });
+
+  // The inverse of the test that stood here. It asserted the heaviest section
+  // was still WAITING on the first render, which was the whole point of the
+  // waves. Nothing waits now — and nothing needs to, because the limit is on
+  // concurrency rather than on the clock.
+  it("asks for all of them at once, with no timer advanced", async () => {
     vi.useFakeTimers();
     try {
       await act(async () => {
         renderSections();
       });
-      // Nothing is expanded, yet each driver is enabled as its wave lands.
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(WARMUP_WAVE_MS * 4);
-      });
-      // The wealth section asks TWICE — the totals series and an
-      // investments-only one that stays off in capitalization view — so this
-      // looks for any enabled call rather than the last one.
-      const anyEnabled = (mock: ReturnType<typeof vi.fn>) =>
-        mock.mock.calls.some(
-          (c) => (c[1] as { enabled?: boolean } | undefined)?.enabled === true,
-        );
+      // Not a single timer moved.
       expect({
         planned: lastOpts(plannedMock).enabled,
         overspent: lastOpts(overspentMock).enabled,
         wealth: anyEnabled(wealthMock),
       }).toEqual({ planned: true, overspent: true, wealth: true });
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  // All at once is the burst that made the first pill tap janky (260804).
-  it("does not ask for all of them in the same breath", () => {
-    vi.useFakeTimers();
-    try {
-      renderSections();
-      // The first wave is up immediately; the heaviest one is still waiting.
-      expect(
-        wealthMock.mock.calls.some(
-          (c) => (c[1] as { enabled?: boolean } | undefined)?.enabled === true,
-        ),
-      ).toBe(false);
-      expect(lastOpts(plannedMock).enabled).toBe(false);
     } finally {
       vi.useRealTimers();
     }

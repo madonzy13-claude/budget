@@ -16,7 +16,7 @@ import {
   useQueryClient,
   keepPreviousData,
 } from "@tanstack/react-query";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { backgroundApiFetch } from "@/lib/budget-fetch";
 import { clientApiWrite } from "@/lib/offline-write";
 
 export interface ReserveFitTransaction {
@@ -120,7 +120,7 @@ export function useReserveFit(
     placeholderData: keepPreviousData,
     refetchOnMount: "always",
     queryFn: async () => {
-      const res = await clientApiFetch(
+      const res = await backgroundApiFetch(
         `/budgets/${budgetId}/overview/reserve-fit?from=${from}&to=${to}`,
         { headers: { "X-Budget-ID": budgetId } },
       );

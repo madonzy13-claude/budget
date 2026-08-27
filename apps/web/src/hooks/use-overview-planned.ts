@@ -7,7 +7,7 @@
  * converts to Number for recharts.
  */
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { backgroundApiFetch } from "@/lib/budget-fetch";
 
 export interface OverviewPlannedDTO {
   currency: string;
@@ -119,7 +119,7 @@ export function useOverviewPlanned(
       if (categoryId) qs.set("categoryId", categoryId);
       if (categoryIds?.length) qs.set("categoryIds", categoryIds.join(","));
       if (excludeCurrentMonth) qs.set("excludeCurrentMonth", "true");
-      const res = await clientApiFetch(
+      const res = await backgroundApiFetch(
         `/budgets/${budgetId}/overview/planned?${qs.toString()}`,
         { headers: { "X-Budget-ID": budgetId } },
       );

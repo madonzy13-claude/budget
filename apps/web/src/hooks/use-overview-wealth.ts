@@ -6,7 +6,7 @@
  * part of the query key so each view/range is cached independently (D-03).
  */
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { backgroundApiFetch } from "@/lib/budget-fetch";
 
 export type WealthView = "capitalization" | "investments";
 
@@ -50,7 +50,7 @@ export function useOverviewWealth(
     queryFn: async () => {
       const qs = new URLSearchParams({ from, to, view });
       if (net) qs.set("net", "1");
-      const res = await clientApiFetch(
+      const res = await backgroundApiFetch(
         `/budgets/${budgetId}/overview/wealth?${qs.toString()}`,
         { headers: { "X-Budget-ID": budgetId } },
       );

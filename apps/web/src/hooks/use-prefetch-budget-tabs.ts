@@ -17,7 +17,8 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Temporal } from "temporal-polyfill";
-import { clientApiFetch } from "@/lib/budget-fetch";
+import { backgroundApiFetch } from "@/lib/budget-fetch";
+import { runPooled } from "@/lib/request-pool";
 import { fetchSpendingsSummary } from "@/hooks/use-spendings-summary";
 import { mapTxnRowToDTO } from "@/hooks/use-transactions";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
@@ -34,7 +35,7 @@ export function usePrefetchBudgetTabs(budgetId: string) {
       .toString();
 
     const get = async (path: string, pick: (j: unknown) => unknown) => {
-      const res = await clientApiFetch(path, {
+      const res = await backgroundApiFetch(path, {
         signal: AbortSignal.timeout(8000),
         headers: { "X-Budget-ID": budgetId },
       });
@@ -45,11 +46,14 @@ export function usePrefetchBudgetTabs(budgetId: string) {
     type Job = { key: readonly unknown[]; fn: () => Promise<unknown> };
 
     // PRIORITY tier — drivers for the three tabs the user navigates among first
-    // (Wallets / Spendings / Reserves) + budget detail. Fired IMMEDIATELY so the
-    // first pill nav is cached + the RSC prefetch (bdp-tabs.tsx) isn't starved.
-    // Keeping this burst small is the whole point: firing all 14 at once peaked
-    // at ~16 concurrent requests and inflated each ~4x on the API (260ms → ~1s),
-    // so the primary data + RSC didn't land until ~2s → cold/janky first click.
+    // (Wallets / Spendings / Reserves) + budget detail. Queued FIRST so they get
+    // the pool's slots ahead of the Settings drivers below.
+    //
+    // 260827: the tiers used to be a schedule — Settings waited for every
+    // priority promise to settle, with a 4s fallback if one hung. That was the
+    // only tool available for "don't fire 14 at once", and it cost a wait even
+    // when the wire was free. request-pool caps concurrency instead, so order is
+    // all these tiers still carry: everything is requested now, six at a time.
     const priorityJobs: Job[] = [
       // Phase 11: overview is the FIRST pill — warm its cards before tap (D-05).
       // Section endpoints (planned/overspent/wealth) stay lazy (collapsed by default).
@@ -84,7 +88,11 @@ export function usePrefetchBudgetTabs(budgetId: string) {
       },
       {
         key: ["spendings-summary", budgetId, month],
-        fn: () => fetchSpendingsSummary(budgetId, month),
+        // Wrapped explicitly: this job borrows the grid's own fetcher, which is
+        // foreground code and rightly does not queue. Here it is warm-up like
+        // everything else beside it, and outside the pool it was the one request
+        // that could push the page to seven in flight.
+        fn: () => runPooled(() => fetchSpendingsSummary(budgetId, month)),
       },
       // SPENDINGS rows (260617) — the grid's transactions + drafts. Shapes match
       // useTransactions/useDrafts verbatim (same endpoint + mapTxnRowToDTO).
@@ -121,11 +129,10 @@ export function usePrefetchBudgetTabs(budgetId: string) {
       },
     ];
 
-    // DEFERRED tier — Settings-tab drivers. Settings is rarely the first pill, so
-    // these run only AFTER the priority tab data has finished over the network
-    // (see the deferral below) to keep them off the critical path. They still
-    // populate the persisted cache so Settings renders instantly/offline once warm.
-    const deferredJobs: Job[] = [
+    // SETTINGS tier — Settings is rarely the first pill, so these queue behind
+    // the drivers above and take pool slots as those free. They still populate
+    // the persisted cache so Settings renders instantly/offline once warm.
+    const settingsJobs: Job[] = [
       {
         // The all-budgets page belongs to no single budget, so nothing else
         // warms it: open a budget, lose the network, tap through to the
@@ -134,7 +141,7 @@ export function usePrefetchBudgetTabs(budgetId: string) {
         // budget the member is actually looking at.
         key: ["budgets", "aggregate"],
         fn: async () => {
-          const res = await clientApiFetch("/budgets/aggregate", {
+          const res = await backgroundApiFetch("/budgets/aggregate", {
             signal: AbortSignal.timeout(8000),
           });
           if (!res.ok) throw new Error("prefetch_failed:/budgets/aggregate");
@@ -174,18 +181,26 @@ export function usePrefetchBudgetTabs(budgetId: string) {
         fn: () => get(`/budgets/${budgetId}/investment-category`, (j) => j),
       },
       {
-        // settings scheduled-payments-section reads ["categories-lite"]. Same data + shape
-        // as the priority ["budget", id, "categories"] fetch — REUSE that cached
-        // value (it has resolved by the time this idle tier runs) instead of
-        // hitting /categories a second time. Falls back to a fetch only if the
-        // priority job somehow hasn't populated it yet.
+        // settings scheduled-payments-section reads ["categories-lite"]. Same
+        // data + shape as the priority ["budget", id, "categories"] fetch, so
+        // REUSE it rather than asking twice.
+        //
+        // ensureQueryData, not getQueryData: this used to read the cache and
+        // fall back to a fetch, which was safe only because the tier ran strictly
+        // AFTER the priority one had resolved. Without that deferral the read can
+        // land while categories is still in flight, and the fallback would fire a
+        // second identical request. ensureQueryData hands back the in-flight
+        // promise instead, so the two share one fetch however they interleave.
         key: ["categories-lite", budgetId],
-        fn: async () =>
-          qc.getQueryData(["budget", budgetId, "categories"]) ??
-          get(
-            `/budgets/${budgetId}/categories`,
-            (j) => (j as { categories?: unknown[] }).categories ?? [],
-          ),
+        fn: () =>
+          qc.ensureQueryData({
+            queryKey: ["budget", budgetId, "categories"],
+            queryFn: () =>
+              get(
+                `/budgets/${budgetId}/categories`,
+                (j) => (j as { categories?: unknown[] }).categories ?? [],
+              ),
+          }),
       },
       // Notification settings — push-prefs caches the whole {preferences:[...]}.
       {
@@ -201,7 +216,7 @@ export function usePrefetchBudgetTabs(budgetId: string) {
             const reg = await navigator.serviceWorker?.ready;
             const sub = await reg?.pushManager?.getSubscription?.();
             if (!sub) return { subscribed: false };
-            const res = await clientApiFetch(
+            const res = await backgroundApiFetch(
               `/push/subscription-status?budgetId=${budgetId}&endpoint=${encodeURIComponent(
                 sub.endpoint,
               )}`,
@@ -230,27 +245,10 @@ export function usePrefetchBudgetTabs(budgetId: string) {
       return ps;
     };
 
-    const priorityPromises = run(priorityJobs);
-
-    // Defer the Settings drivers until the priority tab data has finished loading
-    // over the NETWORK. Do NOT use requestIdleCallback: these prefetches are
-    // network-bound, so the main thread idles almost immediately while they're in
-    // flight and rIC fires ~at once — recreating the 16-way thundering herd that
-    // inflated every request ~4x. Chaining on the priority promises keeps Settings
-    // strictly off the critical-path burst. The fallback timer guarantees Settings
-    // still warms if a priority job hangs (each has an 8s abort) or the tab idles.
-    let cancelled = false;
-    let started = false;
-    const runDeferredOnce = () => {
-      if (cancelled || started) return;
-      started = true;
-      run(deferredJobs);
-    };
-    void Promise.allSettled(priorityPromises).then(runDeferredOnce);
-    const timerId = setTimeout(runDeferredOnce, 4000);
-    return () => {
-      cancelled = true;
-      clearTimeout(timerId);
-    };
+    // Everything is asked for NOW; the pool decides how many travel at once, and
+    // the order they were queued in is the order they get slots. Nothing waits
+    // on a clock, so a hung job can no longer hold the rest back either — the
+    // failure the 4s fallback timer existed to paper over.
+    run([...priorityJobs, ...settingsJobs]);
   }, [budgetId, qc, userTz]);
 }

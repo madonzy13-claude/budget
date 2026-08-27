@@ -122,7 +122,10 @@ describe("clientApiFetch — which budget it claims", () => {
 
   test("the requested path wins over a different budget in the URL", async () => {
     const other = "d30ee8ca-a44f-493b-af60-0f9cbd9199f8";
-    const h = await callWith(`/en/budgets/${other}/spendings`, `/budgets/${UUID}/categories`);
+    const h = await callWith(
+      `/en/budgets/${other}/spendings`,
+      `/budgets/${UUID}/categories`,
+    );
     expect(h.get("X-Budget-ID")).toBe(UUID);
   });
 
@@ -142,5 +145,100 @@ describe("clientApiFetch — which budget it claims", () => {
       headers: { "X-Budget-ID": other },
     });
     expect(h.get("X-Budget-ID")).toBe(other);
+  });
+});
+
+/**
+ * backgroundApiFetch — the same call, through the concurrency cap.
+ *
+ * Warm-up traffic is bulk and nobody is watching it; a tap is neither. Keeping
+ * them in separate lanes is what lets the cap be small without ever making a
+ * person wait behind a prefetch.
+ */
+describe("backgroundApiFetch", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  test("carries the same X-Budget-ID rules as a foreground call", async () => {
+    vi.resetModules();
+    const seen: { headers?: Headers } = {};
+    vi.stubGlobal("fetch", (_u: string, i: RequestInit) => {
+      seen.headers = new Headers(i.headers);
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    });
+    vi.stubGlobal("window", { location: { pathname: "/en" } });
+    const { backgroundApiFetch } = await import("@/lib/budget-fetch");
+    const uuid = "a2372ac5-bcdd-4e70-a4ca-4ab26d1f3bf0";
+    await backgroundApiFetch(`/budgets/${uuid}/categories`);
+    expect(seen.headers!.get("X-Budget-ID")).toBe(uuid);
+  });
+
+  test("never runs more than the pool limit at once", async () => {
+    vi.resetModules();
+    let live = 0;
+    let peak = 0;
+    const releases: (() => void)[] = [];
+    vi.stubGlobal("fetch", () => {
+      live += 1;
+      peak = Math.max(peak, live);
+      return new Promise<Response>((resolve) =>
+        releases.push(() => {
+          live -= 1;
+          resolve(new Response("{}", { status: 200 }));
+        }),
+      );
+    });
+    vi.stubGlobal("window", { location: { pathname: "/en" } });
+    const { backgroundApiFetch } = await import("@/lib/budget-fetch");
+    const { BACKGROUND_LIMIT } = await import("@/lib/request-pool");
+
+    const all = Array.from({ length: BACKGROUND_LIMIT + 4 }, () =>
+      backgroundApiFetch("/wallets"),
+    );
+    // Let every call that CAN start, start.
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    expect(peak).toBe(BACKGROUND_LIMIT);
+    // Drain in rounds — a freed slot starts a queued call, which enqueues its
+    // own release, so a single pass would leave the tail hanging.
+    for (let round = 0; round < 10 && releases.length; round++) {
+      while (releases.length) releases.shift()!();
+      for (let i = 0; i < 20; i++) await Promise.resolve();
+    }
+    await Promise.all(all);
+    expect(peak).toBe(BACKGROUND_LIMIT);
+  });
+
+  // Background never takes the last slot, so the reserved one is waiting.
+  test("a foreground call does NOT queue behind background work", async () => {
+    vi.resetModules();
+    const releases: (() => void)[] = [];
+    let foregroundRan = false;
+    vi.stubGlobal("fetch", (u: string) => {
+      if (String(u).includes("urgent")) {
+        foregroundRan = true;
+        return Promise.resolve(new Response("{}", { status: 200 }));
+      }
+      return new Promise<Response>((resolve) =>
+        releases.push(() => resolve(new Response("{}", { status: 200 }))),
+      );
+    });
+    vi.stubGlobal("window", { location: { pathname: "/en" } });
+    const { backgroundApiFetch, clientApiFetch } =
+      await import("@/lib/budget-fetch");
+    const { BACKGROUND_LIMIT } = await import("@/lib/request-pool");
+
+    // Fill the background slots and queue more behind them.
+    const bg = Array.from({ length: BACKGROUND_LIMIT + 3 }, () =>
+      backgroundApiFetch("/wallets"),
+    );
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    await clientApiFetch("/urgent");
+    expect(foregroundRan).toBe(true);
+    // Drain in rounds: freeing a slot lets a QUEUED call start, which enqueues
+    // its own release. One pass only settles the calls already in flight.
+    for (let round = 0; round < 10 && releases.length; round++) {
+      while (releases.length) releases.shift()!();
+      for (let i = 0; i < 20; i++) await Promise.resolve();
+    }
+    await Promise.all(bg);
   });
 });

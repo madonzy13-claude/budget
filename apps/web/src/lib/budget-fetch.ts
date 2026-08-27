@@ -3,6 +3,7 @@
  * Anything requiring next/headers lives in budget-fetch.server.ts.
  */
 import { reportApiUnreachable, reportApiOk } from "./api-unreachable-bus";
+import { runPooled, runCounted } from "./request-pool";
 
 const BUDGET_PATH_RE = /^\/[a-z]{2}\/budgets\/([0-9a-fA-F-]{8,})/;
 
@@ -35,10 +36,9 @@ export function extractBudgetIdFromApiPath(path: string): string | null {
  *
  * An explicit header still wins: a caller that knows better keeps control.
  */
-export async function clientApiFetch(
-  path: string,
-  init: RequestInit = {},
-): Promise<Response> {
+/** The call itself, unqueued. Both lanes wrap this ONCE — a background call
+ *  that went through a foreground wrapper would take two slots. */
+async function doFetch(path: string, init: RequestInit): Promise<Response> {
   const headers = new Headers(init.headers);
   if (!headers.has("X-Budget-ID")) {
     const budgetId =
@@ -60,4 +60,26 @@ export async function clientApiFetch(
     reportApiUnreachable();
     throw e;
   }
+}
+
+/**
+ * FOREGROUND: runs now, but occupies a slot so background work backs off.
+ * See request-pool for why foreground is counted rather than exempt.
+ */
+export async function clientApiFetch(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  return runCounted(() => doFetch(path, init));
+}
+
+/**
+ * BACKGROUND: waits for a slot — for warm-up and prefetch, which are bulk and
+ * which nobody is waiting on.
+ */
+export async function backgroundApiFetch(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  return runPooled(() => doFetch(path, init));
 }
