@@ -201,12 +201,12 @@ TRACING_ENV = $(if $(TRACING_ON),OTEL_EXPORTER_OTLP_ENDPOINT=$(OTEL_ENDPOINT),)
 
 obs-up: ## Start the trace collector and restart api/worker with tracing ON
 	$(INFISICAL) $(COMPOSE) --profile obs up -d otel-collector
-	OTEL_EXPORTER_OTLP_ENDPOINT=$(OTEL_ENDPOINT) $(INFISICAL) $(COMPOSE) up -d --force-recreate api worker
+	OTEL_EXPORTER_OTLP_ENDPOINT=$(OTEL_ENDPOINT) $(INFISICAL) $(COMPOSE) up -d --force-recreate api worker web
 	@$(MAKE) --no-print-directory obs-check
 
-obs-down: ## Stop the collector and restart api/worker with tracing OFF
+obs-down: ## Stop the collector and restart api/worker/web with tracing OFF
 	$(INFISICAL) $(COMPOSE) --profile obs stop otel-collector
-	$(INFISICAL) $(COMPOSE) up -d --force-recreate api worker
+	$(INFISICAL) $(COMPOSE) up -d --force-recreate api worker web
 	@echo "tracing OFF"
 
 obs-traces: ## Follow spans as the collector receives them

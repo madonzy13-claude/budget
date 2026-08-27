@@ -167,3 +167,39 @@ export async function handleNavigationRequest(
     },
   );
 }
+
+/**
+ * A fetch function for a navigation that SPENDS the browser's preload.
+ *
+ * navigationPreload is on, so the browser has already fired the document
+ * request by the time the fetch handler runs. Ignoring it and calling fetch()
+ * hits the server twice for every uncached navigation — the code already knew
+ * this (see the /auth/* route in sw.ts, where the duplicate sent verification
+ * emails twice) and left the waste in place everywhere else.
+ *
+ * Single-use by construction: a preload is one response with one body, and the
+ * cache-first path may ask twice (serve the cached doc, then revalidate behind
+ * it). The second ask goes to the network.
+ *
+ * A preload that rejects — the browser cancelled it, the link dropped — must not
+ * take the navigation with it, so a failure falls through to the network too.
+ */
+export function navigationFetch(
+  event: { preloadResponse?: Promise<Response | undefined> },
+  fallbackFetch: (req: Request) => Promise<Response>,
+): (req: Request) => Promise<Response> {
+  let pending = event?.preloadResponse;
+  return async (req: Request) => {
+    if (pending) {
+      const p = pending;
+      pending = undefined;
+      try {
+        const res = await p;
+        if (res) return res;
+      } catch {
+        /* cancelled / dropped — the network is still there */
+      }
+    }
+    return fallbackFetch(req);
+  };
+}

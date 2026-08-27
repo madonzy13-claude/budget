@@ -19,7 +19,7 @@
 import { describe, test, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { handleNavigationRequest } from "../sw-offline";
+import { handleNavigationRequest, navigationFetch } from "../sw-offline";
 
 const ORIGIN = "http://localhost:3000";
 
@@ -560,5 +560,82 @@ describe("SW navigation strategy — routes that server-render user data", () =>
     );
 
     expect(await res.text()).toContain("cached-page");
+  });
+});
+
+/**
+ * navigationFetch — spend the browser's preload instead of racing it.
+ *
+ * The SW sets navigationPreload: true, so the browser fires the document
+ * request itself. The generic navigation handler then ignored `preloadResponse`
+ * and issued its OWN fetch(req), which hit the server TWICE for every uncached
+ * navigation. The code already knew — it fixed it for /auth/*, where the
+ * duplicate sent verification emails twice, and left the waste everywhere else.
+ */
+describe("navigationFetch — the browser already asked", () => {
+  const req = navRequest("/en/budgets/1");
+
+  test("uses the preload response instead of fetching again", async () => {
+    const preloaded = new Response("<html>preloaded</html>", { status: 200 });
+    const fallback = vi.fn();
+    const f = navigationFetch(
+      { preloadResponse: Promise.resolve(preloaded) },
+      fallback,
+    );
+    expect(await (await f(req)).text()).toContain("preloaded");
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
+  test("fetches when there is no preload at all", async () => {
+    const fallback = vi
+      .fn()
+      .mockResolvedValue(new Response("<html>network</html>", { status: 200 }));
+    const f = navigationFetch({}, fallback);
+    expect(await (await f(req)).text()).toContain("network");
+    expect(fallback).toHaveBeenCalledTimes(1);
+  });
+
+  test("fetches when the preload resolves to nothing", async () => {
+    const fallback = vi
+      .fn()
+      .mockResolvedValue(new Response("<html>network</html>", { status: 200 }));
+    const f = navigationFetch(
+      { preloadResponse: Promise.resolve(undefined) },
+      fallback,
+    );
+    expect(await (await f(req)).text()).toContain("network");
+    expect(fallback).toHaveBeenCalledTimes(1);
+  });
+
+  // A preload is a single response. The cache-first path serves the cached
+  // document and revalidates behind it, so the same fetch function can be asked
+  // twice; the second ask must go to the network rather than re-read a body
+  // that has already been consumed.
+  test("spends the preload once, then goes to the network", async () => {
+    const preloaded = new Response("<html>preloaded</html>", { status: 200 });
+    const fallback = vi
+      .fn()
+      .mockResolvedValue(new Response("<html>network</html>", { status: 200 }));
+    const f = navigationFetch(
+      { preloadResponse: Promise.resolve(preloaded) },
+      fallback,
+    );
+    expect(await (await f(req)).text()).toContain("preloaded");
+    expect(await (await f(req)).text()).toContain("network");
+    expect(fallback).toHaveBeenCalledTimes(1);
+  });
+
+  // A preload that REJECTS (the browser cancelled it, the link dropped) must not
+  // take the navigation down with it.
+  test("falls back to the network when the preload rejects", async () => {
+    const fallback = vi
+      .fn()
+      .mockResolvedValue(new Response("<html>network</html>", { status: 200 }));
+    const f = navigationFetch(
+      { preloadResponse: Promise.reject(new Error("cancelled")) },
+      fallback,
+    );
+    expect(await (await f(req)).text()).toContain("network");
+    expect(fallback).toHaveBeenCalledTimes(1);
   });
 });

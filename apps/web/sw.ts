@@ -31,7 +31,7 @@ import {
   StaleWhileRevalidate,
   Serwist,
 } from "serwist";
-import { handleNavigationRequest } from "./sw-offline";
+import { handleNavigationRequest, navigationFetch } from "./sw-offline";
 
 // Bump this suffix whenever the static-asset caching strategy changes so a new
 // service worker abandons the old runtime cache instead of inheriting a stuck
@@ -212,10 +212,19 @@ const serwist: Serwist = new Serwist({
     {
       matcher: ({ request }: { request: Request }) =>
         request.mode === "navigate",
-      handler: ({ request }: { request: Request }) =>
+      handler: ({
+        request,
+        event,
+      }: {
+        request: Request;
+        event?: { preloadResponse?: Promise<Response | undefined> };
+      }) =>
         handleNavigationRequest(
           request,
-          (req) => fetch(req),
+          // Spend the browser's preload rather than racing it: with
+          // navigationPreload on, calling fetch() here hit the server TWICE for
+          // every uncached navigation (260827).
+          navigationFetch(event ?? {}, (req) => fetch(req)),
           (req) => caches.match(req, { ignoreSearch: true }),
           (req, res) => caches.open(NAV_CACHE).then((c) => c.put(req, res)),
           () =>
@@ -306,10 +315,10 @@ async function syncAppBadgeFromServer(): Promise<void> {
       const pending = b.pendingTasksCount ?? 0;
       if (pending <= 0 || !b.id) continue;
       try {
-        const pr = await fetch(
-          "/api/push/preferences?budgetId=" + b.id,
-          { credentials: "include", headers: { "X-Budget-ID": b.id } },
-        );
+        const pr = await fetch("/api/push/preferences?budgetId=" + b.id, {
+          credentials: "include",
+          headers: { "X-Budget-ID": b.id },
+        });
         if (!pr.ok) continue;
         const pd = (await pr.json()) as {
           preferences?: { notificationType: string; enabled: boolean }[];

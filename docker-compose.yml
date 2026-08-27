@@ -130,6 +130,12 @@ services:
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
     restart: unless-stopped
     environment:
+      # Tracing is opt-in: unset -> register() is a no-op, so the default
+      # `make dev` stack is untouched. `make obs-up` sets it.
+      #
+      # web needs this as much as api does: a 3.71s document could not be
+      # explained because this tier emitted nothing (260827).
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       # NEXT_PUBLIC_* is inlined at BUILD time. For server-side fetches that must
       # resolve at runtime (RSC server actions calling http://api:4000) we set a
       # separate non-public var that stays a runtime lookup.
