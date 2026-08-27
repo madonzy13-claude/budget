@@ -6,7 +6,7 @@
  * - returns null for /[locale]/workspaces/... paths (old pattern)
  * - returns null for non-matching paths
  */
-import { describe, test, expect } from "vitest";
+import { describe, test, expect, vi, afterEach } from "vitest";
 
 // Dynamic import so the test works before AND after the rename.
 // We try budget-fetch first; fall back to workspace-fetch so RED is clean.
@@ -80,5 +80,67 @@ describe("budget-fetch path extraction", () => {
     expect(extract("/en/sign-in")).toBeNull();
     expect(extract("/en/settings")).toBeNull();
     expect(extract("/")).toBeNull();
+  });
+});
+
+/**
+ * The header, not just the extraction.
+ *
+ * clientApiFetch used to read the budget id ONLY from window.location.pathname.
+ * Every budget-scoped hook takes a budgetId and builds `/budgets/<id>/...`, so
+ * on a page whose URL carries no budget — the all-budgets page at `/en` — the
+ * header went missing and the API answered 403 no_active_workspace. The
+ * all-budgets page renders a task banner per budget, each calling useTaskTitle →
+ * useCategories, so it fired one doomed request per budget and retried each
+ * (user screenshot, 260827).
+ *
+ * The id is right there in the PATH being requested. Prefer it.
+ */
+describe("clientApiFetch — which budget it claims", () => {
+  const UUID = "a2372ac5-bcdd-4e70-a4ca-4ab26d1f3bf0";
+
+  async function callWith(pathname: string, apiPath: string, init = {}) {
+    vi.resetModules();
+    const seen: { headers?: Headers } = {};
+    vi.stubGlobal("fetch", (_u: string, i: RequestInit) => {
+      seen.headers = new Headers(i.headers);
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    });
+    vi.stubGlobal("window", { location: { pathname } });
+    const { clientApiFetch } = await import("@/lib/budget-fetch");
+    await clientApiFetch(apiPath, init);
+    return seen.headers!;
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  test("takes the budget from the REQUESTED path, not the browser URL", async () => {
+    // The all-budgets page: no budget in the URL at all.
+    const h = await callWith("/en", `/budgets/${UUID}/categories`);
+    expect(h.get("X-Budget-ID")).toBe(UUID);
+  });
+
+  test("the requested path wins over a different budget in the URL", async () => {
+    const other = "d30ee8ca-a44f-493b-af60-0f9cbd9199f8";
+    const h = await callWith(`/en/budgets/${other}/spendings`, `/budgets/${UUID}/categories`);
+    expect(h.get("X-Budget-ID")).toBe(UUID);
+  });
+
+  test("falls back to the browser URL for a path with no budget in it", async () => {
+    const h = await callWith(`/en/budgets/${UUID}/wallets`, "/wallets");
+    expect(h.get("X-Budget-ID")).toBe(UUID);
+  });
+
+  test("the aggregate route is not mistaken for a budget id", async () => {
+    const h = await callWith("/en", "/budgets/aggregate");
+    expect(h.get("X-Budget-ID")).toBeNull();
+  });
+
+  test("an explicit header still wins — callers that know better keep control", async () => {
+    const other = "d30ee8ca-a44f-493b-af60-0f9cbd9199f8";
+    const h = await callWith("/en", `/budgets/${UUID}/categories`, {
+      headers: { "X-Budget-ID": other },
+    });
+    expect(h.get("X-Budget-ID")).toBe(other);
   });
 });

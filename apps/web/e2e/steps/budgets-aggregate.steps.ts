@@ -351,3 +351,52 @@ Then("the include-in-aggregation toggle is not visible", async ({ page }) => {
     );
   }
 });
+
+/**
+ * The all-budgets page belongs to no single budget, so its URL carries no
+ * budget id. clientApiFetch used to read the id from `window.location.pathname`
+ * alone, so every per-budget call this page makes — a task banner resolving
+ * category names, one per budget — went out with no X-Budget-ID and came back
+ * 403 no_active_workspace, then retried (user screenshot, 260827).
+ *
+ * Recording from `page.goto` is what makes this a regression test: the failures
+ * were fire-and-forget, so nothing on screen changed and only the network panel
+ * ever showed them.
+ */
+const forbidden = new WeakMap<object, { bad: string[]; responses: number }>();
+
+Given("I am recording forbidden responses", async ({ page }) => {
+  // `responses`, not `total`: local/no-float-money reads any identifier
+  // containing "total" as an amount and rejects `+=` on it.
+  const rec = { bad: [] as string[], responses: 0 };
+  forbidden.set(page, rec);
+  page.on("response", (r) => {
+    rec.responses += 1;
+    if (r.status() === 403) rec.bad.push(`${r.request().method()} ${r.url()}`);
+  });
+});
+
+Then("no request came back forbidden", async ({ page }) => {
+  // The page keeps warming after load, so give the waves time to finish before
+  // declaring silence (see use-staged-warmup: 700ms per wave).
+  await page.waitForTimeout(5000);
+  const rec = forbidden.get(page) ?? { bad: [], responses: 0 };
+  // A test that asserts an ABSENCE passes just as happily when it is watching
+  // nothing at all. Prove the recorder saw traffic before believing its silence.
+  expect(
+    rec.responses,
+    "recorder saw no responses at all — it is not attached",
+  ).toBeGreaterThan(10);
+  expect(
+    rec.bad,
+    `403s while the all-budgets page warmed:\n${rec.bad.join("\n")}`,
+  ).toEqual([]);
+});
+
+/** Guards the setup: no banner means nothing resolved a task title, and the
+ *  403 assertion below would be watching a page that never made the call. */
+Then("a task banner is showing", async ({ page }) => {
+  await expect(
+    page.locator('[data-testid^="aggregate-bt-task-"]').first(),
+  ).toBeVisible({ timeout: 15000 });
+});

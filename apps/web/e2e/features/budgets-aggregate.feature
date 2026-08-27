@@ -30,3 +30,19 @@ Feature: All-budgets aggregate overview
     Given I have a budget "Solo" in "USD" with a wallet balance of 100000 cents
     When I open the general settings for "Solo"
     Then the include-in-aggregation toggle is not visible
+
+  # Every per-budget call this page makes carries no budget in the URL, so the
+  # header had to come from somewhere else. It came from nowhere, and each call
+  # 403'd and retried — invisibly, because nothing on screen depends on it.
+  # The TASK is what makes this reproduce: the page draws a banner per pending
+  # task, and resolving its title is the only thing here that asks for a budget's
+  # categories. Without one the page never makes the call and the scenario passes
+  # against the broken build, proving nothing — as it did on the first attempt.
+  Scenario: The all-budgets page asks for nothing it is not allowed
+    Given I have a budget "Home" in "USD" with a wallet balance of 500000 cents
+    And I have a budget "Travel" in "EUR" with a wallet balance of 300000 cents
+    And a "RESERVE_TOPUP" task is seeded for "My E2E Budget" with shortfall 5000 cents in "USD"
+    And I am recording forbidden responses
+    When I open the all-budgets view
+    Then a task banner is showing
+    And no request came back forbidden
