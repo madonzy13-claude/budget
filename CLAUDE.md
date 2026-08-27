@@ -18,6 +18,7 @@ Multi-tenant SaaS that replaces an advanced personal Excel budget for households
 - **Compliance**: GDPR + CCPA — data export, right-to-delete, opt-in analytics.
 - **i18n**: EN + PL + UK at launch.
 - **Engineering**: TDD-first; DDD bounded contexts; ports & adapters for every external integration.
+
 <!-- GSD:project-end -->
 
 <!-- GSD:stack-start source:research/STACK.md -->
@@ -91,9 +92,30 @@ Verified trace shape (one trace id, five levels):
 `POST /auth/*` → `POST /sign-in/email` → `handler /sign-in/email` →
 `db findOne user` → `SELECT`.
 
+Spans go to SigNoz (`infra/observability/signoz`, its own compose project) AND
+to the collector's own log. The log is not leftover scaffolding — it answers the
+one question the dashboard cannot: did the spans ARRIVE? An empty SigNoz looks
+identical whether the app emitted nothing, the collector never started, or the
+export failed, and this repo was all three at once until 260827.
+
+**`make obs-check` is the answer to "is tracing on?"** — it reads the running
+containers rather than trusting a memory of what was last run.
+
 Gotchas that all look like "tracing is broken":
+
 - api/worker run from PREBUILT images — `--force-recreate` alone reruns the OLD
   code. Rebuild (`make build-api`) after touching instrumentation.
+- **Every recreate must carry `OTEL_EXPORTER_OTLP_ENDPOINT`, or it turns tracing
+  OFF.** `up --force-recreate` rebuilds a container from the environment of the
+  CURRENT invocation, so `make build-api` used to silently un-instrument the
+  stack every time it ran. `TRACING_ENV` in the Makefile now adds the variable
+  to `dev`, `dev-build`, `build-%` and `restart-%` whenever the collector is
+  running. Any NEW target that recreates api or worker must use it too.
+- The collector binds **127.0.0.1:14318 / :14317**, not the standard 4318/4317 —
+  SigNoz's ingester already owns those on this host, and the clash made
+  `make obs-up` die with "port is already allocated" for as long as SigNoz had
+  been installed. Nothing depends on the host mapping; api and worker reach the
+  collector by service name.
 - `startTracing()` registers a GLOBAL tracer provider; the OTel API refuses to
   replace one. Tests must `trace.disable()` before installing their own, or
   spans silently route to the other suite's exporter.
@@ -112,7 +134,7 @@ Both were attempted on 2026-08-14 and reverted with evidence. Neither is a
   `typescript: ">=4.8.4 <6.1.0"`. The documented workaround needs the TS 6 API,
   and TS 6 is beta-only. Unblocks when typescript-eslint supports TS >= 7.1
   (typescript-eslint#10940) or TS 6.0 goes stable.
-- **next stays 16.2.12** (latest is 16.3.1), as an exact pin *and* a root
+- **next stays 16.2.12** (latest is 16.3.1), as an exact pin _and_ a root
   `overrides` entry. 16.3.1 fails the **image** build while collecting page
   data: `TypeError: Expected CommonJS module to have a function wrapper` →
   `Failed to collect page data for /icon.svg`. Isolated by elimination — every

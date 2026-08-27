@@ -13,7 +13,7 @@ INFISICAL := infisical run --env=$(ENV) --
 
 .PHONY: dev dev-build build-% stop down destroy logs ps build restart \
         perf-top perf-slow perf-window perf-reset \
-        obs-up obs-down obs-traces \
+        obs-up obs-down obs-traces obs-check \
         migrate seed shell-db \
         test test-watch test-e2e test-clean ci-gate \
         lint typecheck fmt \
@@ -22,10 +22,10 @@ INFISICAL := infisical run --env=$(ENV) --
 # ── Stack ─────────────────────────────────────────────────────────────────────
 
 dev: ## Start full stack (secrets injected from Infisical)
-	$(INFISICAL) $(COMPOSE) up -d
+	$(TRACING_ENV) $(INFISICAL) $(COMPOSE) up -d
 
 dev-build: ## Build images then start
-	$(INFISICAL) $(COMPOSE) up --build -d
+	$(TRACING_ENV) $(INFISICAL) $(COMPOSE) up --build -d
 
 # Rebuild + restart ONE service without touching the rest of the stack. Use this
 # rather than a bare `docker compose build <svc>`: the web bundle INLINES
@@ -36,7 +36,7 @@ dev-build: ## Build images then start
 build-%: ## Rebuild + recreate ONE service with secrets injected (e.g. make build-web)
 	@if [ "$*" = "web" ]; then 		$(INFISICAL) sh -c 'test -n "$$NEXT_PUBLIC_VAPID_PUBLIC_KEY"' 			|| { echo "ERROR: NEXT_PUBLIC_VAPID_PUBLIC_KEY is empty — the web bundle would ship without push. Check Infisical."; exit 1; }; 	fi
 	$(INFISICAL) $(COMPOSE) build $*
-	$(INFISICAL) $(COMPOSE) up -d --no-deps --force-recreate $*
+	$(TRACING_ENV) $(INFISICAL) $(COMPOSE) up -d --no-deps --force-recreate $*
 
 stop: ## Stop containers, preserve volumes
 	$(INFISICAL) $(COMPOSE) stop
@@ -54,7 +54,7 @@ logs-%: ## Follow one service: make logs-api
 	$(INFISICAL) $(COMPOSE) logs -f $*
 
 restart-%: ## Recreate one service (picks up .env changes): make restart-api
-	$(INFISICAL) $(COMPOSE) up -d $*
+	$(TRACING_ENV) $(INFISICAL) $(COMPOSE) up -d $*
 
 ps: ## Show service status
 	$(INFISICAL) $(COMPOSE) ps
@@ -191,10 +191,18 @@ perf-reset: ## Reset query stats — do this before a measured run
 # container.
 OTEL_ENDPOINT ?= http://otel-collector:4318
 
+# Tracing follows the COLLECTOR. `docker compose up --force-recreate` rebuilds a
+# container from the environment of the CURRENT invocation, so any target that
+# recreated api or worker without this variable silently switched tracing off —
+# which is what every `make build-api` did, all day, on 260826-27. Recursive
+# (`=`, not `:=`) so it is re-evaluated per use rather than frozen at parse time.
+TRACING_ON = $(shell docker ps --filter name=otel-collector --filter status=running --format '{{.Names}}' 2>/dev/null)
+TRACING_ENV = $(if $(TRACING_ON),OTEL_EXPORTER_OTLP_ENDPOINT=$(OTEL_ENDPOINT),)
+
 obs-up: ## Start the trace collector and restart api/worker with tracing ON
 	$(INFISICAL) $(COMPOSE) --profile obs up -d otel-collector
 	OTEL_EXPORTER_OTLP_ENDPOINT=$(OTEL_ENDPOINT) $(INFISICAL) $(COMPOSE) up -d --force-recreate api worker
-	@echo "tracing ON -> $(OTEL_ENDPOINT)  (make obs-traces to watch spans)"
+	@$(MAKE) --no-print-directory obs-check
 
 obs-down: ## Stop the collector and restart api/worker with tracing OFF
 	$(INFISICAL) $(COMPOSE) --profile obs stop otel-collector
@@ -203,6 +211,18 @@ obs-down: ## Stop the collector and restart api/worker with tracing OFF
 
 obs-traces: ## Follow spans as the collector receives them
 	$(INFISICAL) $(COMPOSE) --profile obs logs -f otel-collector
+
+obs-check: ## Say whether tracing is actually ON, from the containers themselves
+	@if [ -z "$(TRACING_ON)" ]; then \
+	  echo "tracing OFF — collector not running (make obs-up)"; \
+	else \
+	  api=$$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' budget-api-1 2>/dev/null | grep '^OTEL_EXPORTER_OTLP_ENDPOINT=' | cut -d= -f2-); \
+	  if [ -z "$$api" ]; then \
+	    echo "tracing BROKEN — collector is up but api has no endpoint. Run: make obs-up"; exit 1; \
+	  else \
+	    echo "tracing ON  -> $$api  (make obs-traces to watch spans)"; \
+	  fi; \
+	fi
 
 # ── Code quality ──────────────────────────────────────────────────────────────
 

@@ -192,21 +192,32 @@ services:
   # Not started by `make dev`. Bring up with `make obs-up`, which also sets
   # OTEL_EXPORTER_OTLP_ENDPOINT so api/worker begin exporting.
   #
-  # This debug collector prints traces to its own log — it exists to verify the
-  # instrumentation (are pg spans nested under the request span?) without paying
-  # for ClickHouse. Point the same endpoint at SigNoz once that is proven.
+  # api/worker → this collector (over the default network) → SigNoz's ingester
+  # (over signoz-network), with every span also printed to this collector's log.
+  # See infra/observability/otel-collector.yaml for why the log stays.
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.140.0
     profiles: ["obs"]
     restart: unless-stopped
     command: ["--config=/etc/otelcol/config.yaml"]
     volumes:
-      - ./infra/observability/otel-collector-debug.yaml:/etc/otelcol/config.yaml:ro
+      - ./infra/observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    networks:
+      # BOTH, explicitly: naming any network opts a service OUT of the default
+      # one, and losing `default` would cut it off from api and worker.
+      - default
+      - signoz-network
     ports:
+      # 1431x, NOT 4317/4318: SigNoz's own ingester already binds those on this
+      # host, so the standard pair made `make obs-up` die with "port is already
+      # allocated" — which read as "tracing is off" for as long as SigNoz was
+      # installed (260827). Nothing depends on the host mapping; api and worker
+      # reach the collector by service name. It is here for host-side probing.
+      #
       # Loopback only — an OTLP receiver on 0.0.0.0 accepts telemetry from
       # anything that can reach the host.
-      - "127.0.0.1:4318:4318"
-      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:14318:4318"
+      - "127.0.0.1:14317:4317"
 
   # ─── Backups (hourly pg_dump → age → Cloudflare R2) ──────────────────────────
   # Holds the age PUBLIC key only: this container writes backups it cannot read.
@@ -234,3 +245,11 @@ services:
       BACKUP_AGE_PUBLIC_KEY: ${BACKUP_AGE_PUBLIC_KEY}
       BACKUP_CRON: ${BACKUP_CRON:-0 * * * *}
       BACKUP_ALERT_WEBHOOK: ${BACKUP_ALERT_WEBHOOK:-}
+
+networks:
+  # SigNoz runs as its OWN compose project (infra/observability/signoz), so its
+  # network is external here. Only otel-collector joins it, and only under the
+  # `obs` profile — `make dev` never touches it, so a machine without SigNoz is
+  # unaffected.
+  signoz-network:
+    external: true

@@ -1,0 +1,53 @@
+# OTLP collector for the budget stack: forwards to SigNoz AND prints what it
+# receives.
+#
+# The debug exporter is not left over from bringing this up — it is the reason
+# there is a collector here at all. It answers the one question a dashboard
+# cannot: did the spans ARRIVE? An empty SigNoz looks identical whether the app
+# emitted nothing, the collector never started, or the export failed, and this
+# repo has been all three at once (260827). `make obs-traces` reads it.
+#
+# It used to hold ONLY the debug exporter, so nothing ever reached SigNoz. That
+# was invisible for as long as SigNoz was installed.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+    timeout: 1s
+
+exporters:
+  # verbosity: detailed prints every span with its attributes, parent id and
+  # timings — which is exactly what we need to assert nesting.
+  debug:
+    verbosity: detailed
+  # SigNoz's own ingester, reached over `signoz-network` (the collector joins it
+  # in docker-compose.yml). `ingester` is its service alias on that network;
+  # the container answers to `signoz-ingester-1` as well.
+  #
+  # tls.insecure: both ends are containers on a private docker network, and the
+  # ingester serves plain OTLP there — this is not a public endpoint.
+  otlp/signoz:
+    endpoint: ingester:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      # Order matters only for readability; both run. Keep `debug` FIRST so the
+      # log shows a span even when the SigNoz export is what is broken.
+      exporters: [debug, otlp/signoz]
+  telemetry:
+    logs:
+      # MUST be info: the debug exporter writes spans through the collector's
+      # own logger at info level, so `warn` silently swallows every trace and
+      # the log looks identical to "nothing was received".
+      level: info
