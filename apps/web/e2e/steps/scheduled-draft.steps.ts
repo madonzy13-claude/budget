@@ -94,7 +94,17 @@ When(
     // be conditional.
     if (!(await confirmBtn.isVisible().catch(() => false))) {
       await row.click();
-      await expect(confirmBtn).toBeVisible({ timeout: 8000 });
+      // …and the tap may have BEEN the confirm. isVisible() above is a
+      // point-in-time answer that goes stale the instant it returns, so on a
+      // loaded box the actions can come out between the check and the click,
+      // putting the click on the confirm button itself. Demanding the button
+      // then appear fails on the one path where everything went right: the
+      // draft is confirmed and the row is already gone. Wait for EITHER
+      // outcome and let the assertion at the end judge which happened.
+      await Promise.race([
+        confirmBtn.waitFor({ state: "visible", timeout: 8000 }).catch(() => {}),
+        row.waitFor({ state: "hidden", timeout: 8000 }).catch(() => {}),
+      ]);
     }
     // dispatchEvent('click') instead of .click(): confirming fires
     // useConfirmDraft, which removes the draft and UNMOUNTS this row.
@@ -105,7 +115,20 @@ When(
     //
     // Still tolerated: the button may have gone anyway, because a tap we did
     // fire is settling. The outcome is asserted below either way.
-    await confirmBtn.dispatchEvent("click").catch(() => {});
+    //
+    // BOUNDED, and that bound is the whole fix (260828). dispatchEvent resolves
+    // the selector first, waiting the TEST timeout for an element to appear. So
+    // in the very case this line already tolerates — the reveal tap confirmed
+    // the draft, the row unmounted, the button is gone for good — the catch
+    // never ran: the dispatch sat waiting 56s of the 60s budget for a button
+    // that was never coming back, and the test died before reaching the
+    // assertion that would have passed. The trace is unambiguous: POST .../
+    // confirm 204 at t+15.3s, drafts refetched at t+15.6s, and `Dispatch
+    // "click"` still burning at t+71s. Two seconds is generous for an element
+    // that is either already there or already irrelevant.
+    await confirmBtn
+      .dispatchEvent("click", undefined, { timeout: 2000 })
+      .catch(() => {});
     await expect(row).toBeHidden({ timeout: 10000 });
   },
 );
