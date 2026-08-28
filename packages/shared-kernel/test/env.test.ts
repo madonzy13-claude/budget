@@ -88,15 +88,38 @@ test("parseWorkerEnv missing BUDGET_KEK throws", () => {
 // loadEnv() per use (LibsodiumKeyStore does it on every kekBytes()), so if the
 // cache ever stopped holding, a hot path would re-parse and re-validate the whole
 // environment on each call.
+// Both singletons read process.env, and the CI unit job runs with no .env at
+// all — inheriting the developer's shell made these two green here and red
+// there. Seed the variables the schema requires, then put process.env back.
+function withValidProcessEnv(fn: () => void): void {
+  const saved = new Map<string, string | undefined>();
+  for (const [k, v] of Object.entries(valid)) {
+    saved.set(k, process.env[k]);
+    process.env[k] = v;
+  }
+  try {
+    fn();
+  } finally {
+    for (const [k, v] of saved) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+}
+
 test("loadEnv caches — repeated calls return the very same object", () => {
-  const a = loadEnv();
-  const b = loadEnv();
-  expect(a).toBe(b);
+  withValidProcessEnv(() => {
+    const a = loadEnv();
+    const b = loadEnv();
+    expect(a).toBe(b);
+  });
 });
 
 test("loadWorkerEnv caches independently of loadEnv", () => {
-  const a = loadWorkerEnv();
-  const b = loadWorkerEnv();
-  expect(a).toBe(b);
-  expect(a as unknown).not.toBe(loadEnv() as unknown);
+  withValidProcessEnv(() => {
+    const a = loadWorkerEnv();
+    const b = loadWorkerEnv();
+    expect(a).toBe(b);
+    expect(a as unknown).not.toBe(loadEnv() as unknown);
+  });
 });
