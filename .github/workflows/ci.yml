@@ -340,10 +340,10 @@ jobs:
           DATABASE_URL_WORKER: postgresql://worker_role:worker_pwd@db:5432/budget
         # Run from apps/web so bddgen + playwright pick up
         # apps/web/playwright.config.ts — the same config `make test-e2e`
-        # uses. The repo-root playwright.config.ts only sees the tests/e2e
-        # tree and a single project; running it here diverged CI from local
-        # iteration. apps/web config covers both feature trees (apps/web/e2e
-        # + tests/e2e) and the chromium + mobile projects.
+        # uses. It covers both feature trees (apps/web/e2e + tests/e2e) and
+        # the chromium + mobile projects. A second config used to sit at the
+        # repo root seeing only tests/e2e with a single project, and running
+        # from there silently diverged CI from local iteration; it is deleted.
         run: cd apps/web && bunx bddgen && bunx playwright test --reporter=list
       - name: Diagnostic — api/web container logs on failure
         if: failure()
