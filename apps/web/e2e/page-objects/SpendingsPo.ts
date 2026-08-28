@@ -1,4 +1,4 @@
-import { type Page, type Locator, type BrowserContext } from "@playwright/test";
+import { type Page, type Locator } from "@playwright/test";
 
 /**
  * Page Object for the BDP Spendings tab (Phase 08 offline/sync features).
@@ -46,40 +46,11 @@ export class SpendingsPo {
     return this.page.getByTestId(`txn-row-${amountCents}`);
   }
 
-  /**
-   * The pending-sync marker on a queued (offline) transaction row.
-   * testid = `txn-pending-{txn.id}` — the local idempotency key emitted
-   * by the write-queue before the server assigns a permanent id.
-   * Use a partial testid match when the exact id is unknown.
-   */
-  pendingSyncMarker(idOrPartial: string): Locator {
-    return this.page.getByTestId(`txn-pending-${idOrPartial}`);
-  }
 
-  /** Any pending-sync marker (partial match — works before id is known). */
-  anyPendingSyncMarker(): Locator {
-    return this.page.locator('[data-testid^="txn-pending-"]');
-  }
 
-  /** The sync-issues list panel (shown when failed-replay items exist). */
-  syncIssuesList(): Locator {
-    return this.page.getByTestId("sync-issues-list");
-  }
 
-  /** The global offline/queue status badge in the nav. */
-  offlineStatusBadge(): Locator {
-    return this.page.getByTestId("offline-status-badge");
-  }
 
-  /** Simulate going offline by intercepting all network requests. */
-  async goOffline(context: BrowserContext): Promise<void> {
-    await context.setOffline(true);
-  }
 
-  /** Restore network connectivity. */
-  async goOnline(context: BrowserContext): Promise<void> {
-    await context.setOffline(false);
-  }
 
   /** Draft row for a scheduled rule by rule name (lower-cased testid). */
   draftRow(ruleName: string): Locator {
