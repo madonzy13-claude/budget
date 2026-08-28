@@ -16,4 +16,14 @@ RUN chmod +x /usr/local/bin/backup.sh \
              /usr/local/bin/restore-check.sh \
              /usr/local/bin/entrypoint.sh
 
+# Stays root, deliberately. busybox crond needs it: as an unprivileged user it
+# starts, logs `wakeup dt=60` on schedule, and never runs the job — verified on
+# 2026-08-28 by dropping to the base image's postgres user (uid 70) and watching
+# a `* * * * *` schedule produce zero backups in five minutes, silently. Every
+# other part of the sidecar is happy unprivileged (pg_dump, age and rclone all
+# ran fine as uid 70); it is the scheduler alone that requires root, and a
+# backup system that quietly stops backing up is far worse than this container
+# running as root. It publishes no port, mounts no host path, and holds an age
+# PUBLIC key, so it cannot read its own output.
+# nosemgrep: dockerfile.security.missing-user-entrypoint.missing-user-entrypoint
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
