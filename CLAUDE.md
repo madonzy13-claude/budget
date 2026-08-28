@@ -134,16 +134,33 @@ Both were attempted on 2026-08-14 and reverted with evidence. Neither is a
   `typescript: ">=4.8.4 <6.1.0"`. The documented workaround needs the TS 6 API,
   and TS 6 is beta-only. Unblocks when typescript-eslint supports TS >= 7.1
   (typescript-eslint#10940) or TS 6.0 goes stable.
-- **next stays 16.2.12** (latest is 16.3.1), as an exact pin _and_ a root
+- **next stays 16.2.12** (latest is 16.3.2), as an exact pin _and_ a root
   `overrides` entry. 16.3.1 fails the **image** build while collecting page
   data: `TypeError: Expected CommonJS module to have a function wrapper` →
   `Failed to collect page data for /icon.svg`. Isolated by elimination — every
   other dependency upgraded, only Next reverted, `docker compose build web`
-  exits 0.
+  exits 0. **Re-checked on 16.3.2 (2026-08-28): byte-identical failure.**
+- **better-auth stays 1.6.28**, likewise pinned in `overrides`. 1.7.1 breaks
+  sign-up outright — `BetterAuthError: The field "issuer" does not exist in the
+  "account" Drizzle schema`. 1.7.x added an `issuer` column to its `account`
+  model that `identity.account` does not have. Measured 2026-08-28:
+  `bun test packages/identity packages/tenancy` is 99 pass / 0 fail on 1.6.28
+  and 53 pass / 46 fail on 1.7.1, every red a failed sign-up. Unblocks with a
+  migration adding `issuer` to `identity.account` (plus its RLS grant), not
+  with a version bump alone.
 
 **Gate Next bumps on `make build-web`, not `bun run build`.** A host-side
 `next build` passes on 16.3.1; only the container reproduces the failure. The
 same trap produced the original 16.2.12 pin.
+
+**A dependabot bump of a pinned dep changes nothing and proves nothing.** The
+`overrides` entry wins over every workspace manifest, so the PR edits
+package.json, `bun.lock` keeps resolving the pinned version, CI goes green
+having built and tested the version already in use — and main is left claiming
+a version it does not run. Both #74 (better-auth) and #75 (next) auto-merged
+that way on 2026-08-28 and were reverted the same day. `auto-merge.yml` now
+comments on those two instead of merging them. To bump either, lift the
+override FIRST, then run the gate above.
 
 Playwright bumps need `bunx playwright install chromium` — 1.62.1 wants
 `chromium-1234`, and a warm cache from an older Playwright makes every scenario

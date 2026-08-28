@@ -19,10 +19,31 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # `next` and `better-auth` are PINNED in the root package.json
+      # `overrides` block, so a dependabot bump edits the manifests without
+      # changing a single resolved version — CI goes green having tested
+      # nothing. Both were auto-merged that way on 2026-08-28 and both are
+      # held back for a measured reason (see CLAUDE.md, Held-back versions).
+      # Their PRs still open; a human lifts the override and re-checks the gate.
+      - name: Comment on a pinned dependency instead of merging
+        if: |
+          contains(format(',{0},', steps.meta.outputs.dependency-names), ',next,') ||
+          contains(format(',{0},', steps.meta.outputs.dependency-names), ',better-auth,')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr comment "$PR_URL" \
+            --body "\`${{ steps.meta.outputs.dependency-names }}\` is pinned in the root \`overrides\` block. Merging this changes the manifest but not the installed version, so CI proves nothing. Lift the override and re-run the documented gate (CLAUDE.md → Held-back versions) before merging."
+
       - name: Enable auto-merge for patch + minor updates
         if: |
-          steps.meta.outputs.update-type == 'version-update:semver-patch' ||
-          steps.meta.outputs.update-type == 'version-update:semver-minor'
+          (
+            steps.meta.outputs.update-type == 'version-update:semver-patch' ||
+            steps.meta.outputs.update-type == 'version-update:semver-minor'
+          ) &&
+          !contains(format(',{0},', steps.meta.outputs.dependency-names), ',next,') &&
+          !contains(format(',{0},', steps.meta.outputs.dependency-names), ',better-auth,')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}

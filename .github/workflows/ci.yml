@@ -184,6 +184,19 @@ jobs:
           DATABASE_URL_APP: postgresql://app_role:app_pwd@localhost:5432/budget
           DATABASE_URL_WORKER: postgresql://worker_role:worker_pwd@localhost:5432/budget
         run: bun test apps/api/test/schema --timeout 30000
+      # Identity + tenancy talk to a real, migrated Postgres through appPool
+      # (and boot their own testcontainer where they need a private one), so
+      # they cannot run in the DB-free unit job. They are here because nothing
+      # else covered them: better-auth 1.7.1 was auto-merged on a green CI on
+      # 2026-08-28 while it broke sign-up outright — 46 reds the moment these
+      # ran locally, and not one CI job would have said so.
+      - name: Run identity + tenancy integration tests
+        env:
+          DATABASE_URL_APP: postgresql://app_role:app_pwd@localhost:5432/budget
+          DATABASE_URL_WORKER: postgresql://worker_role:worker_pwd@localhost:5432/budget
+          DATABASE_URL_MIGRATOR: postgresql://migrator:migrator_pwd@localhost:5432/budget
+        run: bun test packages/identity packages/tenancy --timeout 120000
+
       - name: Diagnostic — db logs on failure
         if: failure()
         run: docker compose -f docker-compose.yml logs --no-color db 2>&1 | tail -80
