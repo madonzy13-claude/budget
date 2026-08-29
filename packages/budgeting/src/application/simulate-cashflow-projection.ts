@@ -360,22 +360,28 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
       const overspend = unbounded.has(catId) ? 0n : amt - withinLimit;
       if (!beyondPlan) remainingLimit.set(catId, remaining - withinLimit);
 
-      // Pay from cash first (cash never funds below 0)...
-      const fromCash = amt < cash ? amt : cash > 0n ? cash : 0n;
-      cash -= fromCash;
-      let deficit = amt - fromCash;
-      if (deficit <= 0n) return;
-      // ...then dip into reserve for the overspend part only (reserve-covered
-      // spending does NOT reduce cash). Cash is assumed to have paid the in-plan
-      // part first, so the shortfall is overspend up to `overspend`.
+      // The OVERSPEND part draws the reserve FIRST — before cash, not after it.
+      //
+      // This used to pay from cash and consult the pot only once cash had run
+      // out, which made an earmarked reserve behave like an emergency overdraft:
+      // a 4,500 camping bill against a 2,669 Travel plan came entirely out of
+      // spendable cash while 3,598 sat in Travel's own reserve, built for
+      // exactly that bill (user, 260830). The plan is what says how much of an
+      // outflow is ordinary spending; what lies beyond it is what the reserve is
+      // for, and whether the spending wallet happened to be fat that day says
+      // nothing about it.
+      //
+      // Nor is it sleight of hand in cash terms: reserve money sits in the
+      // RESERVE wallets, which never enter startCash, so drawing it genuinely
+      // leaves the spending balance alone. That is why reserve-covered spending
+      // does not reduce cash.
       //
       // Two ceilings, both real: the category's OWN R — a category cannot spend
       // a reserve another category built — and the money actually in the RESERVE
       // wallets. Both deplete.
-      const eligible = deficit < overspend ? deficit : overspend;
       const ownReserve = reserveLeft.get(catId) ?? 0n;
       const cap = ownReserve < reservePool ? ownReserve : reservePool;
-      const fromReserve = eligible < cap ? eligible : cap > 0n ? cap : 0n;
+      const fromReserve = overspend < cap ? overspend : cap > 0n ? cap : 0n;
       if (fromReserve > 0n) {
         reservePool -= fromReserve;
         reserveLeft.set(catId, ownReserve - fromReserve);
@@ -383,10 +389,16 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
           catId,
           (reserveUsedMap.get(catId) ?? 0n) + fromReserve,
         );
-        deficit -= fromReserve;
       }
-      // ...and if the reserve is exhausted too, it's truly uncovered: cash goes
-      // negative (available < 0) and the category is short.
+
+      // Everything the reserve did not take is paid from cash (cash never funds
+      // below 0 in this step)...
+      const owed = amt - fromReserve;
+      const fromCash = owed < cash ? owed : cash > 0n ? cash : 0n;
+      cash -= fromCash;
+      const deficit = owed - fromCash;
+      // ...and if cash cannot cover the rest either, it is truly uncovered: cash
+      // goes negative (available < 0) and the category is short.
       if (deficit > 0n) {
         cash -= deficit;
         shortMap.set(catId, (shortMap.get(catId) ?? 0n) + deficit);

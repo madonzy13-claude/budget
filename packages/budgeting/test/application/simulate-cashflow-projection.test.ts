@@ -613,10 +613,16 @@ describe("simulateCashflow — safe to withdraw", () => {
         }),
       ).safeToWithdraw.cents;
 
-    // 90_000 bill: 30_000 sits inside the plan, 60_000 is beyond it. Cash pays
-    // 40_000 and runs out; of the 50_000 left, all of it is beyond-plan, so the
-    // pot covers it and the line bottoms out AT zero instead of below it.
-    expect(scenario(100_000n)).toBe(0n);
+    // 90_000 bill: 30_000 sits inside the plan, 60_000 is beyond it. The pot
+    // pays that 60_000 — all of it, since it is what the reserve is for and
+    // Food built enough — so cash is left paying only the 30_000 that was
+    // planned, and 10_000 of the 40_000 survives.
+    //
+    // This read 0n while the reserve was consulted only AFTER cash ran dry:
+    // cash paid 40_000, and the pot then covered the 50_000 still owed. Same
+    // pot, same bill, but the household's spendable cash was drained first
+    // (260830).
+    expect(scenario(100_000n)).toBe(10_000n);
     expect(scenario(0n)).toBe(-50_000n);
   });
 
@@ -974,8 +980,12 @@ describe("simulateCashflow — unconfirmed occurrences are already committed", (
     const p = simulateCashflow(
       reserved({ pendingDrafts: [draft(50_000n, "2026-06-20")] }),
     );
+    // ALL 50_000, as the name says. This asserted 10_000 for as long as cash
+    // was spent before the pot was consulted: cash covered 40_000 of the
+    // occurrence and the reserve only picked up what was left. Beyond-plan
+    // money is the reserve's from the start (260830).
     expect(p.days.reduce((a, d) => a + d.reserveCoveredCents, 0n)).toBe(
-      10_000n,
+      50_000n,
     );
   });
 
@@ -1006,5 +1016,93 @@ describe("simulateCashflow — unconfirmed occurrences are already committed", (
       10_000n,
       2_500n,
     ]);
+  });
+});
+
+// ─── Earmarked reserve pays the overspend, even when cash could ──────────────
+//
+// Reported 260830 against a real budget: Travel plans 2,669/mo and has built a
+// 3,598 reserve; a 4,500 camping bill falls on 15 Oct with 8,913 of cash in
+// hand. The forecast took the whole 4,500 out of spendable cash and never
+// touched the reserve, because the reserve was only ever consulted once CASH
+// RAN OUT — which made the pot an emergency overdraft rather than money already
+// set aside for exactly this bill.
+//
+// The plan is what says how much of an outflow is ordinary spending. Whatever
+// lies BEYOND it is what the category built its reserve for, and it should come
+// out of that reserve whether or not the spending wallet could have absorbed it.
+// In cash terms this is not a trick: reserve money sits in the RESERVE wallets,
+// which are not part of startCash at all, so drawing it genuinely leaves the
+// spending balance alone.
+describe("reserve pays for overspend before cash does", () => {
+  const camping = () =>
+    base({
+      today: "2026-07-15",
+      windowEnd: "2026-07-31",
+      startCashCents: 891_300n, // plenty — cash COULD absorb the whole bill
+      reservePoolCents: 2_250_900n, // the RESERVE wallets
+      reserveByCategory: { "cat-travel": 359_879n }, // what Travel itself built
+      categories: [
+        {
+          id: "cat-travel",
+          name: "Travel",
+          budgetByMonth: { "2026-07": 266_900n },
+          spentSoFarCents: 0n,
+        },
+      ],
+      bills: [
+        {
+          date: "2026-07-20",
+          name: "Camping Jastarnia",
+          categoryId: "cat-travel",
+          amountCents: 450_000n,
+        },
+      ],
+    });
+
+  test("the part beyond the plan comes from the category's reserve", () => {
+    const day = dayOn(simulateCashflow(camping()), "2026-07-20");
+    // 4,500 bill − 2,669 plan = 1,831 beyond plan → the reserve's job.
+    expect(day.reserveCoveredCents).toBe(183_100n);
+    expect(day.drewReserve.map((r) => r.name)).toEqual(["Travel"]);
+  });
+
+  test("spendable cash only drops by the in-plan part", () => {
+    const p = simulateCashflow(camping());
+    const before = dayOn(p, "2026-07-19").availableCents;
+    const day = dayOn(p, "2026-07-20");
+    // Cash pays the 2,669 that was planned; the reserve absorbs the rest.
+    expect(before - day.availableCents).toBe(266_900n);
+  });
+
+  test("spending INSIDE the plan still never reaches the reserve", () => {
+    // The 260811 finding, which must survive: a bill sitting inside an untouched
+    // limit is ordinary spending and has no business drawing the pot.
+    const input = camping();
+    input.bills = [
+      {
+        date: "2026-07-20",
+        name: "Small trip",
+        categoryId: "cat-travel",
+        amountCents: 100_000n, // well inside the 2,669 plan
+      },
+    ];
+    const day = dayOn(simulateCashflow(input), "2026-07-20");
+    expect(day.reserveCoveredCents).toBe(0n);
+  });
+
+  test("a category can draw only the reserve IT built", () => {
+    const input = camping();
+    input.reserveByCategory = { "cat-travel": 50_000n }; // 500, not 3,598
+    const day = dayOn(simulateCashflow(input), "2026-07-20");
+    // Capped at its own 500; the remaining overspend falls back to cash.
+    expect(day.reserveCoveredCents).toBe(50_000n);
+  });
+
+  test("and no more than the money actually in the RESERVE wallets", () => {
+    const input = camping();
+    input.reservePoolCents = 30_000n; // 300 in the wallets
+    const day = dayOn(simulateCashflow(input), "2026-07-20");
+    expect(day.reserveCoveredCents).toBe(30_000n);
   });
 });
