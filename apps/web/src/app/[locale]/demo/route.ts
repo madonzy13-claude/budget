@@ -42,23 +42,46 @@ export async function GET(
 
   const apiBase = process.env["API_INTERNAL_URL"] ?? "http://api:4000";
 
-  const res = await fetch(`${apiBase}/auth/sign-in/email`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
+  const signIn = () =>
+    fetch(`${apiBase}/auth/sign-in/email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+  let res = await signIn();
+
+  // Everyone entering the demo signs in as the SAME account, so a handful of
+  // prospects arriving together trips the auth rate limiter — which is correct
+  // behaviour for a real account and wrong for this one. One short retry
+  // absorbs the burst; a visitor who still cannot get in is told so plainly
+  // rather than bounced to a sign-in page they have no credentials for.
+  if (res.status === 429) {
+    await new Promise((r) => setTimeout(r, 1200));
+    res = await signIn();
+  }
 
   if (!res.ok) {
     // Never echo the upstream body: it can carry auth detail, and the visitor
     // can do nothing with it either way.
     console.error(`[demo] sign-in failed: ${res.status}`);
+    if (res.status === 429) {
+      return new NextResponse(
+        "The demo is busy right now. Please try again in a moment.",
+        { status: 503, headers: { "retry-after": "5" } },
+      );
+    }
     return relativeRedirect(`/${locale}/sign-in`);
   }
 
-  // Land on the app home, which is the app's own landing behaviour (it opens
-  // the last-used budget client-side). `/[locale]/budgets` is NOT a route —
-  // verified as a live 404, which is how the first version of this shipped.
-  const redirect = relativeRedirect(`/${locale}`);
+  // Land on the all-budgets overview, NOT the app home.
+  //
+  // Home auto-opens the last-used budget with a client-side soft nav, which
+  // unmounts the welcome dialog out from under the visitor — the dialog would
+  // appear and then vanish mid-click. The aggregate route is stable, and it is
+  // the better first screen anyway: it shows both demo budgets and totals a USD
+  // budget against a PLN one, which is the multi-currency story.
+  const redirect = relativeRedirect(`/${locale}/budgets/aggregate`);
 
   // Forward every Set-Cookie the auth service issued, unchanged.
   const setCookie = res.headers.getSetCookie?.() ?? [];
