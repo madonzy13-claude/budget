@@ -50,10 +50,15 @@ The demo tenant is refreshed nightly by copying two of the owner's real budgets 
 
 ### Scrub rules (LOCKED)
 
-- **Money:** every money column multiplied by ONE uniform factor **per budget pair**. Uniform _within a budget_ because scaling is linear and therefore commutes with FX conversion and with every sum — limits, reserve balances, category totals and converted display amounts all stay consistent. Per-row random factors were rejected for exactly this reason. Factors may differ _between_ the two demo budgets: each budget is internally consistent, and the all-budgets aggregate only sums per-budget converted totals, so no invariant spans them.
+- **Money:** every money column multiplied by ONE uniform factor **per budget pair, per night**. Uniform _within a budget for that run_ because scaling is linear and therefore commutes with FX conversion and with every sum — limits, reserve balances, category totals and converted display amounts all stay consistent. Per-row random factors were rejected for exactly this reason. Factors differ _between_ the two demo budgets and _between_ nights: each budget-run is internally consistent, and the all-budgets aggregate only sums per-budget converted totals, so no invariant spans them.
+- **The factor is re-rolled daily in [0.1, 10]** (user requirement, 2026-08-29). Rationale: a fixed factor is a constant offset an observer could eventually divide out; a moving one leaves the demo's magnitudes carrying no information about the owner's real ones.
+  - Sampled **log-uniformly**, not uniformly — plain uniform over [0.1, 10] puts ~90% of its mass above 1.0, so the demo would almost always inflate. Log-uniform gives shrink and grow equal odds. (Offered to the user; flat uniform available on request.)
+  - Derived deterministically from `(day, pairLabel)` rather than `Math.random()`, so re-running the same night reproduces the same demo — the job stays idempotent and the tests stay deterministic.
+  - **Known cost, raised with the user:** at the top of the range a PLN→USD budget shows ~$40,000 grocery months. Good for anonymity, weaker for a prospect judging plausibility. Accepted.
 - **Currency, per pair** (revised by the user mid-planning, 2026-08-29):
-  - demo **personal** (from `Private Budget`) → **USD**: PLN rows relabeled USD, scale ≈0.25 so relabeled amounts read plausibly as dollars.
-  - demo **family** (from `Family Budget`) → stays **PLN**: no relabel, mild scale (≈0.9) for anonymization only.
+  - demo **personal** (from `Private Budget`) → **USD**: PLN rows relabeled USD.
+  - demo **family** (from `Family Budget`) → stays **PLN**: no relabel.
+  - Each pair draws its own daily factor, so the two demo budgets do not move together.
   - EUR/GBP/CHF/UAH preserved in both. Verified source wallet spread: PLN 40, EUR 7, GBP 3, USD 2, UAH 2, CHF 1.
 - Two demo budgets in **different base currencies** is deliberate: it makes the Phase-11 all-budgets aggregate demonstrate real FX conversion rather than summing like-for-like. Consequence: the aggregate depends on a live `fx_rates` row for PLN→USD — the daily `fx-daily-fetch` job supplies it in production, and tests must seed it (project memory: the FX cache otherwise reaches a live API).
 - Demo user `display_currency` = USD, so the aggregate renders in dollars across a USD and a PLN budget.

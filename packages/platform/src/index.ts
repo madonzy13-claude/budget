@@ -22,3 +22,4 @@ export * from "./email/fan-out-email-sender";
 export * from "./email/reserved-email-domains";
 export * from "./idempotency";
 export * from "./push";
+export * from "./demo";
