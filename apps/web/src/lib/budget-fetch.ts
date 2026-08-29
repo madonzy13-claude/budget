@@ -5,6 +5,38 @@
 import { reportApiUnreachable, reportApiOk } from "./api-unreachable-bus";
 import { runPooled, runCounted } from "./request-pool";
 
+/**
+ * A read has to be bounded, for the same reason a write is (offline-write's
+ * 6s race) and for one more: it is holding a pool slot.
+ *
+ * On a SLOW link — not a dead one — `navigator.onLine` stays true, so nothing
+ * is refused and nothing is reported; requests simply never come back. Opening
+ * a budget that was never warmed fires the biggest burst in the app, six of
+ * them stick, `inFlight` pins at POOL_LIMIT, and every later read queues behind
+ * them for the life of the page. Pages that had already loaded still painted
+ * their shell from the SW cache and then sat on skeletons for ever, because no
+ * query under them could get a slot (user, 260829).
+ *
+ * The manual race is the real guarantee and the AbortSignal is best-effort, in
+ * that order, because iOS WebKit does not reliably abort a hung request — the
+ * same finding that shaped the write path.
+ *
+ * Longer than the write's 6s on purpose: a read is often part of a legitimate
+ * bulk warm-up on a genuinely slow connection, and failing those early would
+ * trade this wedge for spurious empty panes.
+ */
+const READ_RACE_MS = 10_000;
+const READ_ABORT_MS = 12_000;
+
+/** Thrown when a read outlives READ_RACE_MS. Same class of event as a network
+ *  throw — the caller's query fails and the unreachable banner appears. */
+export class SlowReadError extends Error {
+  constructor() {
+    super("slow-read");
+    this.name = "SlowReadError";
+  }
+}
+
 const BUDGET_PATH_RE = /^\/[a-z]{2}\/budgets\/([0-9a-fA-F-]{8,})/;
 
 export function extractBudgetIdFromPath(pathname: string): string | null {
@@ -48,17 +80,36 @@ async function doFetch(path: string, init: RequestInit): Promise<Response> {
         : null);
     if (budgetId) headers.set("X-Budget-ID", budgetId);
   }
+  // Our own controller so the timer can cancel, while a caller-supplied signal
+  // still works: forward its abort into ours rather than dropping it.
+  const ctl = new AbortController();
+  const callerSignal = init.signal;
+  if (callerSignal) {
+    if (callerSignal.aborted) ctl.abort();
+    else callerSignal.addEventListener("abort", () => ctl.abort(), { once: true });
+  }
+  const abortTimer = setTimeout(() => ctl.abort(), READ_ABORT_MS);
+  let raceTimer: ReturnType<typeof setTimeout> | undefined;
+
   try {
-    const res = await fetch(`/api${path}`, { ...init, headers });
+    const res = await Promise.race([
+      fetch(`/api${path}`, { ...init, headers, signal: ctl.signal }),
+      new Promise<never>((_, reject) => {
+        raceTimer = setTimeout(() => reject(new SlowReadError()), READ_RACE_MS);
+      }),
+    ]);
     // 5xx ⇒ the server itself is failing; 2xx/3xx/4xx ⇒ the API is reachable
     // (4xx is auth/validation, NOT a server-down signal).
     if (res.status >= 500) reportApiUnreachable();
     else reportApiOk();
     return res;
   } catch (e) {
-    // Network failure / abort / DNS — the API is unreachable.
+    // Network failure / abort / DNS / our own timeout — the API is unreachable.
     reportApiUnreachable();
     throw e;
+  } finally {
+    clearTimeout(abortTimer);
+    if (raceTimer !== undefined) clearTimeout(raceTimer);
   }
 }
 

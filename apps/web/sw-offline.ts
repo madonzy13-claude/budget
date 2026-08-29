@@ -73,6 +73,7 @@ export async function handleNavigationRequest(
   cachePut: (req: Request, res: Response) => Promise<void> | void,
   matchShell: () => Promise<Response | undefined>,
   isOffline = false,
+  timeoutMs = 8000,
 ): Promise<Response> {
   // CACHE-FIRST for a route we already hold (260806 user request: "all pages
   // render from cache instantly, no matter if the internet is good, bad or
@@ -131,9 +132,32 @@ export async function handleNavigationRequest(
     (err) => ({ err }),
   );
 
-  const settled = await network;
+  // …but do not AWAIT it for ever either. Never aborting is right; awaiting
+  // with no bound is what left the user with a dead tab (260829): on a slow
+  // link this promise simply never settles, so the one route they were trying
+  // to open hung with nothing painted and no way back. We stop WAITING at
+  // timeoutMs and paint the shell; the real navigation is untouched and still
+  // gets to populate the cache if it lands, so the next attempt is instant.
+  let waitTimer: ReturnType<typeof setTimeout> | undefined;
+  const settled = await Promise.race([
+    network,
+    new Promise<"timeout">((resolve) => {
+      waitTimer = setTimeout(() => resolve("timeout"), timeoutMs);
+    }),
+  ]);
+  if (waitTimer !== undefined) clearTimeout(waitTimer);
 
-  if ("res" in settled) {
+  if (settled === "timeout") {
+    void network.then((late) => {
+      if (
+        "res" in late &&
+        late.res.status >= 200 &&
+        late.res.status < 300
+      ) {
+        void cachePut(request, late.res.clone());
+      }
+    });
+  } else if ("res" in settled) {
     const res = settled.res;
     // 5xx → server reachable but failing; treat as unreachable for navigation so
     // we render the last-known-good cached/app-shell doc instead of an error body.
