@@ -64,8 +64,12 @@ export const demoManifest: TableManifest[] = [
     },
   },
   {
+    // Membership is SYNTHESISED by the job, not copied: every source member
+    // would map to the single demo user (OWNER), colliding on the one-row-per
+    // (budget,user) shape. The job wipes these and inserts exactly the demo
+    // user on both budgets plus one extra member on the family budget.
     table: "tenancy.budget_members",
-    mode: "copy",
+    mode: "wipe-only",
     columns: {
       id,
       budget_id: ref("tenancy.budgets"),
@@ -95,9 +99,11 @@ export const demoManifest: TableManifest[] = [
     },
   },
   {
-    // Invitation tokens to REAL budgets. Never copied.
+    // Invitation tokens to REAL budgets — never copied. Not wiped either:
+    // app_role has no DELETE here, and it cannot grow, because demoGuard (12-03)
+    // blocks the demo user from creating share links at all.
     table: "tenancy.budget_share_links",
-    mode: "wipe-only",
+    mode: "leave",
     columns: {
       id,
       budget_id: ref("tenancy.budgets"),
@@ -416,9 +422,12 @@ export const demoManifest: TableManifest[] = [
 
   // ─── shared_kernel ────────────────────────────────────────────────────────
   {
-    // before/after jsonb snapshots of real rows — unclassifiable per column.
+    // before/after jsonb snapshots — unclassifiable per column, so never copied.
+    // Not wiped either: app_role holds no DELETE here (audit is append-only by
+    // design), and no owner row can reach it — every audit row in the demo
+    // tenant records a demo action on already-scrubbed data.
     table: "shared_kernel.audit_history",
-    mode: "wipe-only",
+    mode: "leave",
     columns: {
       id,
       tenant_id: tenant,
@@ -479,8 +488,10 @@ export const demoManifest: TableManifest[] = [
   },
   {
     // Event queue. Copying it would replay the owner's events as the demo's.
+    // Not wiped: app_role cannot DELETE here. Demo rows are retired instead by
+    // the dispatcher (12-03), which marks them dispatched without sending.
     table: "shared_kernel.outbox",
-    mode: "wipe-only",
+    mode: "leave",
     columns: {
       id,
       tenant_id: tenant,
@@ -493,3 +504,56 @@ export const demoManifest: TableManifest[] = [
     },
   },
 ];
+
+/**
+ * FK-safe INSERT order. The wipe walks this in REVERSE.
+ *
+ * Hand-ordered rather than derived: Postgres would happily tell us the FK graph,
+ * but the ordering also has to respect the one NO ACTION edge that bit the
+ * account-deletion cascade — `category_reserve_adjustments` must be deleted
+ * BEFORE `categories`, which reversing this list gives us for free.
+ */
+export const DEMO_COPY_ORDER = [
+  "tenancy.budgets",
+  "tenancy.budget_members",
+  "budgeting.categories",
+  "budgeting.category_limits",
+  "budgeting.category_share_overrides",
+  "budgeting.category_reserve_adjustments",
+  "budgeting.wallets",
+  "budgeting.scheduled_payments",
+  "budgeting.expense_ledger",
+  "budgeting.reserve_fit_exclusions",
+  "budgeting.incomes",
+  "budgeting.investments",
+  "budgeting.budget_mode_history",
+  "budgeting.budget_templates",
+  "budgeting.budget_template_items",
+  "budgeting.budget_wealth_snapshots",
+  "budgeting.spending_by_category_month",
+  "budgeting.tasks",
+  "tenancy.shared_budget_member_shares",
+  "tenancy.budget_share_links",
+  "shared_kernel.audit_history",
+  "shared_kernel.notification_prefs",
+  "shared_kernel.push_subscriptions",
+  "shared_kernel.idempotency_keys",
+  "shared_kernel.outbox",
+] as const;
+
+/**
+ * How rows of a table are selected for a tenant. Derived from the manifest
+ * rather than declared again, so the two cannot disagree:
+ *   tenant_id present  → scope by tenant_id
+ *   budget_id present  → scope by budget_id
+ *   tenancy.budgets    → the budget row itself, by id
+ */
+export function rowScope(t: TableManifest): {
+  column: string;
+  kind: "tenant" | "budget" | "self";
+} {
+  if (t.table === "tenancy.budgets") return { column: "id", kind: "self" };
+  if ("tenant_id" in t.columns) return { column: "tenant_id", kind: "tenant" };
+  if ("budget_id" in t.columns) return { column: "budget_id", kind: "budget" };
+  throw new Error(`demo manifest: cannot scope rows of ${t.table}`);
+}

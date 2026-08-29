@@ -164,3 +164,13 @@ export function fakeText(pool: TextPool, seed: number): string {
   const i = Math.abs(Math.trunc(seed)) % list.length;
   return list[i]!;
 }
+
+/**
+ * The pool's values, for the SQL side of the copy. The copy picks from these
+ * in-database (indexing by a hash of the row id) rather than round-tripping
+ * every row through TypeScript — but it MUST pick from this same list, so the
+ * list has exactly one definition.
+ */
+export function poolValues(pool: TextPool): readonly string[] {
+  return POOLS[pool];
+}

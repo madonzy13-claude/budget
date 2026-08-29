@@ -228,3 +228,32 @@ describe("optional columns", () => {
     ]);
   });
 });
+
+describe("copy order", () => {
+  test("covers every manifested table exactly once", async () => {
+    const { demoManifest, DEMO_COPY_ORDER } =
+      await import("../src/demo/manifest");
+    expect([...DEMO_COPY_ORDER].sort()).toEqual(
+      demoManifest
+        .map((t) => t.table)
+        .sort() as (typeof DEMO_COPY_ORDER)[number][],
+    );
+  });
+
+  test("reserve adjustments are wiped before categories", async () => {
+    // categories has a NO ACTION FK from category_reserve_adjustments — the
+    // same edge that had to be special-cased in the account-deletion cascade.
+    // The wipe walks the copy order backwards, so adjustments must come AFTER
+    // categories here.
+    const { DEMO_COPY_ORDER } = await import("../src/demo/manifest");
+    const o = [...DEMO_COPY_ORDER];
+    expect(o.indexOf("budgeting.category_reserve_adjustments")).toBeGreaterThan(
+      o.indexOf("budgeting.categories"),
+    );
+  });
+
+  test("every table can be row-scoped", async () => {
+    const { demoManifest, rowScope } = await import("../src/demo/manifest");
+    for (const t of demoManifest) expect(rowScope(t).column).toBeTruthy();
+  });
+});

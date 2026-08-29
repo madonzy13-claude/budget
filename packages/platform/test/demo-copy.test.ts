@@ -1,0 +1,287 @@
+/**
+ * demo-copy.test.ts — the wipe-and-copy engine against a real Postgres.
+ *
+ * The assertions that matter most are the negative ones: no source text
+ * survives, no destination row references a source id, and a failure leaves the
+ * previous night's demo standing. Row counts matching is the easy part.
+ */
+import { describe, test, expect, beforeAll, afterAll } from "bun:test";
+import { Pool, type PoolClient } from "pg";
+import { startTestcontainer } from "@budget/db/test/testcontainer";
+import { refreshPair, type CopyPair } from "../src/demo/copy";
+
+let pool: Pool;
+
+const SOURCE = "11111111-1111-1111-1111-111111111111";
+const DEST = "22222222-2222-2222-2222-222222222222";
+const OWNER_USER = "33333333-3333-3333-3333-333333333333";
+const DEMO_USER = "44444444-4444-4444-4444-444444444444";
+
+/** Strings that must never appear anywhere in the destination tenant. */
+const SECRETS = [
+  "Grochale rent private",
+  "Salary from Acme Holdings",
+  "Kowalski family savings",
+  "Secret Wallet Name",
+];
+
+beforeAll(async () => {
+  // app_role, not migrator or worker_role. RLS policies here are granted TO
+  // app_role/worker_role specifically, so a migrator connection has no
+  // applicable policy and is denied outright. Between the two, only app_role
+  // already holds the CRUD this copy needs — worker_role would have to be
+  // granted DELETE on the append-only expense_ledger and write access to
+  // tenancy.*, which is a real privilege expansion for every job in the worker.
+  // So the refresh opens an app_role connection, and the test uses the same.
+  const { urlApp } = await startTestcontainer();
+  pool = new Pool({ connectionString: urlApp });
+  await seed();
+}, 180_000);
+
+afterAll(async () => {
+  await pool?.end();
+});
+
+async function seed() {
+  const c = await pool.connect();
+  try {
+    // RLS applies to the seeding connection too — budgets/categories/wallets
+    // all key on app.tenant_ids. Announce both tenants for the seed, the same
+    // way the refresh job does for itself.
+    await c.query(`SET app.tenant_ids = '{${SOURCE},${DEST}}'`);
+    await c.query(`SET app.current_user_id = '${OWNER_USER}'`);
+    // No identity.users rows: tenancy/shared_kernel carry no DB-level FK to
+    // identity.users (the account-deletion cascade is application-level for
+    // exactly that reason), and identity.users is itself RLS-guarded. The copy
+    // engine only ever writes user ids as opaque values.
+    for (const [id, name, slug] of [
+      [SOURCE, SECRETS[2], "src-budget"],
+      [DEST, "demo-placeholder", "demo-budget"],
+    ] as const) {
+      await c.query(
+        `INSERT INTO tenancy.budgets (id, slug, name, default_currency, owner_user_id, created_at)
+         VALUES ($1, $3, $2, 'PLN', $4, now()) ON CONFLICT (id) DO NOTHING`,
+        [id, name, slug, OWNER_USER],
+      );
+    }
+    // Source content: categories, a mixed-currency wallet set incl. a negative
+    // credit-card balance, and ledger rows carrying private notes.
+    await c.query(
+      `INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id, sort_index)
+       VALUES ('aaaaaaaa-0000-0000-0000-000000000001', $1, $2, now(), $3, 0)`,
+      [SOURCE, SECRETS[0], OWNER_USER],
+    );
+    await c.query(
+      `INSERT INTO budgeting.wallets (id, tenant_id, name, currency, current_balance, created_at, actor_user_id)
+       VALUES
+         ('bbbbbbbb-0000-0000-0000-000000000001', $1, $2, 'PLN', 4000.0000, now(), $3),
+         ('bbbbbbbb-0000-0000-0000-000000000002', $1, 'EUR pot', 'EUR', 1000.0000, now(), $3),
+         ('bbbbbbbb-0000-0000-0000-000000000003', $1, 'card', 'PLN', -2500.0000, now(), $3)`,
+      [SOURCE, SECRETS[3], OWNER_USER],
+    );
+    await c.query(
+      `INSERT INTO budgeting.expense_ledger
+         (id, tenant_id, budget_id, category_id, wallet_id, note, currency_original,
+          fx_rate, fx_as_of, amount_original_cents, amount_converted_cents, transaction_date, kind, created_at)
+       VALUES
+         ('cccccccc-0000-0000-0000-000000000001', $1, $1,
+          'aaaaaaaa-0000-0000-0000-000000000001', 'bbbbbbbb-0000-0000-0000-000000000001',
+          $2, 'PLN', 1.0, current_date, 100000, 100000, current_date, 'expense', now()),
+         ('cccccccc-0000-0000-0000-000000000002', $1, $1,
+          'aaaaaaaa-0000-0000-0000-000000000001', 'bbbbbbbb-0000-0000-0000-000000000002',
+          $3, 'EUR', 4.3, current_date, 50000, 50000, current_date, 'expense', now())`,
+      [SOURCE, SECRETS[1], "another private note"],
+    );
+  } finally {
+    c.release();
+  }
+}
+
+function pairFor(scale: number, map: Record<string, string>): CopyPair {
+  return {
+    source: SOURCE,
+    dest: DEST,
+    label: "personal",
+    currency: "USD",
+    currencyMap: map,
+    moneyScale: scale,
+    demoUserId: DEMO_USER,
+    budgetName: "Personal",
+  };
+}
+
+async function inTx<T>(fn: (c: PoolClient) => Promise<T>): Promise<T> {
+  const c = await pool.connect();
+  try {
+    await c.query("BEGIN");
+    const r = await fn(c);
+    await c.query("COMMIT");
+    return r;
+  } catch (e) {
+    await c.query("ROLLBACK");
+    throw e;
+  } finally {
+    c.release();
+  }
+}
+
+describe("refreshPair", () => {
+  test("copies every row of every copied table", async () => {
+    const counts = await inTx((c) =>
+      refreshPair(c, pairFor(0.25, { PLN: "USD" })),
+    );
+    expect(counts["budgeting.categories"]).toBe(1);
+    expect(counts["budgeting.wallets"]).toBe(3);
+    expect(counts["budgeting.expense_ledger"]).toBe(2);
+  });
+
+  test("no source text survives anywhere in the demo tenant", async () => {
+    // The scrub's core promise, checked against the actual destination rows
+    // rather than against the transform in isolation.
+    for (const table of ["budgeting.categories", "budgeting.wallets"]) {
+      const { rows } = await pool.query(
+        `SELECT name FROM ${table} WHERE tenant_id = $1`,
+        [DEST],
+      );
+      for (const r of rows) {
+        for (const s of SECRETS) expect(r.name).not.toBe(s);
+      }
+    }
+    const { rows: led } = await pool.query(
+      `SELECT note FROM budgeting.expense_ledger WHERE tenant_id = $1`,
+      [DEST],
+    );
+    for (const r of led) {
+      for (const s of SECRETS) expect(r.note).not.toBe(s);
+      expect(r.note).not.toBe("another private note");
+    }
+  });
+
+  test("money is scaled uniformly and signs are preserved", async () => {
+    const { rows } = await pool.query(
+      `SELECT currency, current_balance FROM budgeting.wallets
+        WHERE tenant_id = $1 ORDER BY current_balance`,
+      [DEST],
+    );
+    const balances = rows
+      .map((r) => Number(r.current_balance))
+      .sort((a, b) => a - b);
+    // 4000, 1000, -2500 at 0.25 → 1000, 250, -625
+    expect(balances).toEqual([-625, 250, 1000]);
+  });
+
+  test("PLN is relabeled to USD while other currencies are untouched", async () => {
+    const { rows } = await pool.query(
+      `SELECT currency, count(*)::int n FROM budgeting.wallets
+        WHERE tenant_id = $1 GROUP BY 1 ORDER BY 1`,
+      [DEST],
+    );
+    const byCcy = Object.fromEntries(rows.map((r) => [r.currency, r.n]));
+    expect(byCcy["USD"]).toBe(2);
+    expect(byCcy["EUR"]).toBe(1);
+    expect(byCcy["PLN"]).toBeUndefined();
+  });
+
+  test("an empty currency map keeps PLN — the family pair", async () => {
+    await inTx((c) =>
+      refreshPair(c, { ...pairFor(0.9, {}), currency: "PLN", label: "family" }),
+    );
+    const { rows } = await pool.query(
+      `SELECT DISTINCT currency FROM budgeting.wallets WHERE tenant_id = $1 ORDER BY 1`,
+      [DEST],
+    );
+    expect(rows.map((r) => r.currency)).toEqual(["EUR", "PLN"]);
+  });
+
+  test("no destination row references a source id", async () => {
+    await inTx((c) => refreshPair(c, pairFor(0.25, { PLN: "USD" })));
+    const { rows } = await pool.query(
+      `SELECT count(*)::int n FROM budgeting.expense_ledger
+        WHERE tenant_id = $1
+          AND (id::text LIKE 'cccccccc%' OR category_id::text LIKE 'aaaaaaaa%'
+               OR wallet_id::text LIKE 'bbbbbbbb%')`,
+      [DEST],
+    );
+    expect(rows[0].n).toBe(0);
+  });
+
+  test("foreign keys inside the demo tenant resolve", async () => {
+    const { rows } = await pool.query(
+      `SELECT count(*)::int n FROM budgeting.expense_ledger l
+         LEFT JOIN budgeting.categories c ON c.id = l.category_id
+         LEFT JOIN budgeting.wallets w ON w.id = l.wallet_id
+        WHERE l.tenant_id = $1 AND (c.id IS NULL OR w.id IS NULL)`,
+      [DEST],
+    );
+    expect(rows[0].n).toBe(0);
+  });
+
+  test("the demo budget keeps its configured id and gets the pair's currency", async () => {
+    const { rows } = await pool.query(
+      `SELECT name, default_currency FROM tenancy.budgets WHERE id = $1`,
+      [DEST],
+    );
+    expect(rows[0].name).toBe("Personal");
+    expect(rows[0].default_currency).toBe("USD");
+  });
+
+  test("the demo user is a member of the demo budget and nothing else", async () => {
+    // The isolation invariant, asserted at the point it is created.
+    const { rows } = await pool.query(
+      `SELECT budget_id FROM tenancy.budget_members WHERE user_id = $1`,
+      [DEMO_USER],
+    );
+    expect(rows.map((r) => r.budget_id)).toEqual([DEST]);
+  });
+
+  test("a re-run replaces rather than accumulates", async () => {
+    const before = await pool.query(
+      `SELECT count(*)::int n FROM budgeting.expense_ledger WHERE tenant_id = $1`,
+      [DEST],
+    );
+    await inTx((c) => refreshPair(c, pairFor(0.25, { PLN: "USD" })));
+    const after = await pool.query(
+      `SELECT count(*)::int n FROM budgeting.expense_ledger WHERE tenant_id = $1`,
+      [DEST],
+    );
+    expect(after.rows[0].n).toBe(before.rows[0].n);
+  });
+
+  test("a failure mid-run leaves the previous demo standing", async () => {
+    // The rollback guarantee. Without it, a bad night would leave the demo
+    // wiped or half-scrubbed — worse than stale.
+    const before = await pool.query(
+      `SELECT count(*)::int n, min(note) note FROM budgeting.expense_ledger WHERE tenant_id = $1`,
+      [DEST],
+    );
+    expect(before.rows[0].n).toBeGreaterThan(0);
+
+    await expect(
+      inTx(async (c) => {
+        await refreshPair(c, pairFor(0.25, { PLN: "USD" }));
+        throw new Error("boom, mid-refresh");
+      }),
+    ).rejects.toThrow("boom");
+
+    const after = await pool.query(
+      `SELECT count(*)::int n, min(note) note FROM budgeting.expense_ledger WHERE tenant_id = $1`,
+      [DEST],
+    );
+    expect(after.rows[0].n).toBe(before.rows[0].n);
+    expect(after.rows[0].note).toBe(before.rows[0].note);
+  });
+
+  test("wipe-only tables are cleared and never repopulated", async () => {
+    await pool.query(
+      `INSERT INTO shared_kernel.push_subscriptions (id, tenant_id, user_id, endpoint, p256dh, auth, created_at)
+       VALUES (gen_random_uuid(), $1, $2, 'https://push.example/x', 'k', 'a', now())`,
+      [DEST, DEMO_USER],
+    );
+    await inTx((c) => refreshPair(c, pairFor(0.25, { PLN: "USD" })));
+    const { rows } = await pool.query(
+      `SELECT count(*)::int n FROM shared_kernel.push_subscriptions WHERE tenant_id = $1`,
+      [DEST],
+    );
+    expect(rows[0].n).toBe(0);
+  });
+});

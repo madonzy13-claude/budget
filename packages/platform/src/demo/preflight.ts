@@ -31,14 +31,17 @@ export type Rule =
 /**
  * `copy`      — wiped from the demo tenant, then re-copied from the source.
  * `wipe-only` — wiped, never copied. For tables that are derived (an aggregate
- *               a reconciler rebuilds), transient (an event queue, an
- *               idempotency cache), hold real device/user handles (push
- *               subscriptions, share tokens), or store free-form JSON blobs
- *               that column-level rules cannot classify (audit before/after).
- *               Wiping them anyway is what stops owner-shaped rows from
- *               accumulating in the demo tenant across nights.
+ *               a reconciler rebuilds), transient (an idempotency cache), or
+ *               hold real device/user handles (push subscriptions). Wiping them
+ *               anyway is what stops owner-shaped rows from accumulating in the
+ *               demo tenant across nights.
+ * `leave`     — classified, never copied, never wiped. ONLY valid where no
+ *               owner-derived row can reach the table in the first place: its
+ *               rows originate solely from the demo user's own activity inside
+ *               the demo tenant. Each use must say why, and say what stops it
+ *               growing without bound.
  */
-export type TableMode = "copy" | "wipe-only";
+export type TableMode = "copy" | "wipe-only" | "leave";
 
 /**
  * A column that exists on SOME deployments but not others — the residue of
