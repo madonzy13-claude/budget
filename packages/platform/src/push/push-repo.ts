@@ -11,6 +11,12 @@ import { eq, and, inArray, sql } from "drizzle-orm";
 import { withTenantTx, withTenantTxRead, withInfraTx } from "../db/tx";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import { pushSubscriptions, notificationPrefs } from "./schema";
+import { readDemoConfig } from "../demo/config";
+
+/** True when this tenant is one of the configured demo budgets. */
+function isDemoTenant(tenantId: string): boolean {
+  return (readDemoConfig()?.pairs ?? []).some((p) => p.dest === tenantId);
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -236,6 +242,12 @@ export async function getSubscriptionsForBudget(
   // isn't pinged about their own completion (they already know).
   excludeUserId?: string,
 ): Promise<PushSubscriptionRow[]> {
+  // The demo is a shared, publicly-credentialed login. Nothing a prospect does
+  // there may reach a real person's device, so demo tenants have no
+  // deliverable subscriptions at all — enforced here, at the single point
+  // every send path reads from, rather than at each caller.
+  if (isDemoTenant(tenantId)) return [];
+
   const result = await withTenantTxRead(
     [TenantId(tenantId)],
     UserId(callerUserId),
@@ -387,6 +399,12 @@ export async function getReminderSubscriptionsForBudget(
   budgetId: string,
   callerUserId: string,
 ): Promise<ReminderSubscriptionRow[]> {
+  // The demo is a shared, publicly-credentialed login. Nothing a prospect does
+  // there may reach a real person's device, so demo tenants have no
+  // deliverable subscriptions at all — enforced here, at the single point
+  // every send path reads from, rather than at each caller.
+  if (isDemoTenant(tenantId)) return [];
+
   const result = await withTenantTxRead(
     [TenantId(tenantId)],
     UserId(callerUserId),
