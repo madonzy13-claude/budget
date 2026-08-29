@@ -1106,3 +1106,82 @@ describe("reserve pays for overspend before cash does", () => {
     expect(day.reserveCoveredCents).toBe(30_000n);
   });
 });
+
+// ─── The reserve is gated on the LIMIT, not on the cash ──────────────────────
+//
+// Asked directly (user, 260830): "reserves must be used only when planned limit
+// exceeded. If there's no cash, but still limit isn't exceeded then projection
+// should show that as red, since reserves cannot be used yet."
+//
+// That is the contract, and it is the half that the 260830 reordering must not
+// have loosened: making the reserve pay overspend BEFORE cash says nothing
+// about what counts as overspend. Running out of money is not the same event as
+// exceeding a plan, and only the second one may open the pot.
+describe("no cash but still inside the plan", () => {
+  const tight = (over: Partial<CashflowSimInput> = {}) =>
+    base({
+      today: "2026-07-15",
+      windowEnd: "2026-07-31",
+      startCashCents: 5_000n, // 50 — nowhere near enough
+      reservePoolCents: 1_000_000n, // a full pot…
+      reserveByCategory: { "cat-food": 1_000_000n }, // …all of it Food's own
+      categories: [
+        {
+          id: "cat-food",
+          name: "Food",
+          budgetByMonth: { "2026-07": 300_000n }, // a 3,000 plan, untouched
+          spentSoFarCents: 0n,
+        },
+      ],
+      bills: [
+        {
+          date: "2026-07-20",
+          name: "Groceries",
+          categoryId: "cat-food",
+          amountCents: 200_000n, // 2,000 — INSIDE the plan, beyond the cash
+        },
+      ],
+      ...over,
+    });
+
+  test("the reserve stays shut — the limit was never exceeded", () => {
+    const day = dayOn(simulateCashflow(tight()), "2026-07-20");
+    expect(day.reserveCoveredCents).toBe(0n);
+    expect(day.drewReserve).toEqual([]);
+  });
+
+  test("and the day is RED, because that money genuinely is not there", () => {
+    const p = simulateCashflow(tight());
+    const day = dayOn(p, "2026-07-20");
+    expect(day.color).toBe("red");
+    expect(day.availableCents).toBeLessThan(0n);
+    expect(day.shortfall.map((s) => s.name)).toEqual(["Food"]);
+    // Red on the bill day is the claim. The window is in fact already red
+    // before it — 50 of cash cannot even carry the daily burn of a 3,000 plan —
+    // which is the same point made a day earlier, so assert only that the run
+    // has started by the time the bill lands.
+    expect(p.summary.firstRedDate).not.toBeNull();
+    expect(p.summary.firstRedDate! <= "2026-07-20").toBe(true);
+  });
+
+  test("cross the limit and the same pot opens at once", () => {
+    // Same cash, same pot — only the bill grows past the 3,000 plan. The 500
+    // beyond it is the reserve's, and not a grosz more.
+    const day = dayOn(
+      simulateCashflow(
+        tight({
+          bills: [
+            {
+              date: "2026-07-20",
+              name: "Groceries",
+              categoryId: "cat-food",
+              amountCents: 350_000n, // 3,500 = 3,000 plan + 500 over
+            },
+          ],
+        }),
+      ),
+      "2026-07-20",
+    );
+    expect(day.reserveCoveredCents).toBe(50_000n);
+  });
+});
