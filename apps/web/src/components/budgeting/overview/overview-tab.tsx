@@ -117,10 +117,8 @@ export function OverviewTab({
             investmentsEnabled={investmentsEnabled}
             amountPrivacyEnabled={amountPrivacyEnabled}
           />
-          <ProjectionTimeline
-            budgetId={budgetId}
-            amountPrivacyEnabled={amountPrivacyEnabled}
-          />
+          {/* No amountPrivacyEnabled: the forecast popup shows real figures. */}
+          <ProjectionTimeline budgetId={budgetId} />
           <OverviewSections
             budgetId={budgetId}
             reservesEnabled={reservesEnabled}

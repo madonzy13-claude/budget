@@ -13,7 +13,6 @@ import { useTranslations, useLocale } from "next-intl";
 import { useProjection, type ProjectionDay } from "@/hooks/use-projection";
 import { useCategories } from "@/hooks/use-budget-data";
 import { centsToDisplayCompact } from "@/lib/cents-format";
-import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 import { formatShortDate } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 
@@ -66,13 +65,7 @@ export const minLabelPct = (stripPx: number): number =>
 const roundToUnit = (cents: string): string =>
   String(Math.round(Number(cents) / 100) * 100);
 
-export function ProjectionTimeline({
-  budgetId,
-  amountPrivacyEnabled = true,
-}: {
-  budgetId: string;
-  amountPrivacyEnabled?: boolean;
-}) {
+export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
   const t = useTranslations("bdp.tab.overview.projection");
   const locale = useLocale();
   const { data, isLoading, isError } = useProjection(budgetId);
@@ -380,7 +373,6 @@ export function ProjectionTimeline({
             currency={data.currency}
             locale={locale}
             t={t}
-            amountPrivacyEnabled={amountPrivacyEnabled}
           />
         )}
       </div>
@@ -446,7 +438,6 @@ function ProjectionTooltip({
   currency,
   locale,
   t,
-  amountPrivacyEnabled,
 }: {
   day: ProjectionDay;
   bills: { name: string; category_id: string | null; amount_cents: string }[];
@@ -460,12 +451,15 @@ function ProjectionTooltip({
   currency: string;
   locale: string;
   t: ReturnType<typeof useTranslations>;
-  amountPrivacyEnabled: boolean;
 }) {
-  const money = (c: string) => {
-    const s = centsToDisplayCompact(roundToUnit(c), currency, "en", true);
-    return amountPrivacyEnabled ? <SlotAmount value={s} /> : s;
-  };
+  // NOT masked, deliberately (user, 260830). Amount privacy hides figures from
+  // someone glancing at the screen; this popup is opened one day at a time by
+  // the person holding the device, and it is pointer-events-none, so a masked
+  // figure inside it cannot even be tapped to reveal. Masking it produced a
+  // popup of scrambled digits with no way to read them — the toggle stays in
+  // force on the cards and the chart behind it, which is what it is for.
+  const money = (c: string) =>
+    centsToDisplayCompact(roundToUnit(c), currency, "en", true);
   const available = Number(day.available_cents);
   // Anchor the tooltip so it never clips the card edge: pin its LEFT edge to the
   // cursor near the start, its RIGHT edge near the end, else centre it.

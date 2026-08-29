@@ -118,13 +118,12 @@ vi.mock("@/hooks/use-projection", () => ({
   }),
 }));
 
-const renderIt = (amountPrivacyEnabled = true) =>
+// The signature keeps its argument so the existing call sites still read as
+// "privacy on/off", but the popup no longer masks either way (user, 260830).
+const renderIt = (_amountPrivacyEnabled = true) =>
   render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <ProjectionTimeline
-        budgetId="b1"
-        amountPrivacyEnabled={amountPrivacyEnabled}
-      />
+      <ProjectionTimeline budgetId="b1" />
     </NextIntlClientProvider>,
   );
 
@@ -485,6 +484,25 @@ describe("ProjectionTimeline", () => {
 
   // The line's first cell sits one day's burn BELOW the "available to spend"
   // card, which reads as a mismatch until the tooltip spells the day out as
+  // The popup is opened deliberately, one day at a time, by the person holding
+  // the device — and it is pointer-events-none, so a masked figure inside it
+  // cannot even be tapped to reveal. Masking it left a popup of scrambled
+  // digits with no way to read them (user, 260830).
+  test("shows real amounts even with amount privacy ON", async () => {
+    const { default: userEventDefault } =
+      await import("@testing-library/user-event");
+    const user = userEventDefault.setup();
+    renderIt(true); // privacy enabled — the figures must still be readable
+    await user.hover(screen.getAllByTestId("projection-day")[0]);
+    expect(screen.getByTestId("projection-opening").textContent).toContain(
+      "1,378",
+    );
+    expect(screen.getByTestId("projection-planned-burn").textContent).toContain(
+      "378",
+    );
+    expect(screen.getByTestId("projection-left").textContent).toContain("970");
+  });
+
   // one subtraction (user, 260812).
   test("tooltip reads the day out as start − spend = left", async () => {
     const { default: userEventDefault } =
