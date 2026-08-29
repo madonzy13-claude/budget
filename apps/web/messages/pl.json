@@ -2093,5 +2093,13 @@
       "unknown": "Serwer niedostępny — wyświetlanie danych z pamięci podręcznej",
       "readOnly": "Budżet jest tylko do odczytu, gdy serwer jest niedostępny."
     }
+  },
+  "demo": {
+    "welcome_title": "To jest wersja demo",
+    "welcome_body": "To wspólne konto demonstracyjne z realistycznymi danymi przykładowymi. Możesz zmieniać, co chcesz — wszystko resetuje się w nocy, a każdy, kto ogląda demo, widzi te same budżety.",
+    "choose_language": "Wybierz język",
+    "start": "Zacznij zwiedzanie",
+    "banner": "Konto demo — dane przykładowe, reset codziennie o 03:00 UTC",
+    "restricted": "Ta akcja jest wyłączona na koncie demo. Załóż własne konto, aby jej użyć."
   }
 }

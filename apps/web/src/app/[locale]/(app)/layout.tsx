@@ -22,6 +22,9 @@ import { OfflineNavGuard } from "@/components/common/offline-nav-guard";
 import { OfflineReadOnly } from "@/components/common/offline-read-only";
 import { ServerDownSeed } from "@/components/common/connectivity-provider";
 import { PendingSpendingsFlusher } from "@/components/common/pending-spendings-flusher";
+import { DemoBanner } from "@/components/demo/demo-banner";
+import { DemoWelcomeDialog } from "@/components/demo/demo-welcome-dialog";
+import { isDemoSession as computeIsDemoSession } from "@/lib/demo.server";
 
 // The (app) shell is per-user: getServerSession + the onboarding guard read
 // `cookies()`/`headers()`, which ALREADY forces this layout to render per-request
@@ -199,6 +202,10 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
         ";document.documentElement.setAttribute('data-theme',t);document.cookie='budget-theme='+t+'; path=/; max-age=31536000; samesite=lax';}}catch(e){}})();"
       : null;
 
+  // Shared demo account? Resolved from the server session, so configuring the
+  // demo never requires rebuilding the web image.
+  const isDemoSession = computeIsDemoSession(session ?? null);
+
   return (
     /* global.css locks html + body to height:100% + overflow:hidden (anti
        rubber-band guard for iOS). The (app) shell must therefore own the
@@ -303,6 +310,10 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
             >
               <TopNav locale={locale} activeBudgetId={activeBudgetId} />
             </header>
+            {/* Demo notice — the account is shared and rebuilt nightly, so the
+              visitor is told before they wonder why their edits vanished. */}
+            <DemoBanner isDemo={isDemoSession} />
+            <DemoWelcomeDialog isDemo={isDemoSession} />
             {/* Offline staleness banner (260615-e8s round 3): a narrow full-width
               red bar JUST BELOW the header. Renders null online (zero height);
               offline it warns the shown data is cached + how long ago it synced.

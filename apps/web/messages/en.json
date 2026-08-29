@@ -2089,5 +2089,13 @@
       "unknown": "Server unavailable — showing cached data",
       "readOnly": "Budget is read-only while the server is unavailable."
     }
+  },
+  "demo": {
+    "welcome_title": "You're in the demo",
+    "welcome_body": "This is a shared demo account with realistic sample data. Change anything you like — it all resets overnight, and everyone exploring the demo sees the same budgets.",
+    "choose_language": "Choose your language",
+    "start": "Start exploring",
+    "banner": "Demo account — sample data, resets nightly at 03:00 UTC",
+    "restricted": "This action is disabled on the demo account. Create your own account to try it."
   }
 }
