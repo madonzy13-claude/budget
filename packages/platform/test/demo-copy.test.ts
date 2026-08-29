@@ -285,3 +285,42 @@ describe("refreshPair", () => {
     expect(rows[0].n).toBe(0);
   });
 });
+
+describe("text pool uniqueness", () => {
+  test("more rows than pool entries still produce distinct names", async () => {
+    // Found on live data: the owner has 19 categories and the pool has 15
+    // names, so a hash-based pick collided and
+    // `categories_unique_name_per_tenant` aborted the entire refresh. The pick
+    // must walk an ordinal and lap with a suffix instead.
+    const c = await pool.connect();
+    try {
+      await c.query(`SELECT set_config('app.tenant_ids', $1, false)`, [
+        `{${SOURCE},${DEST}}`,
+      ]);
+      await c.query(`SELECT set_config('app.current_user_id', $1, false)`, [
+        OWNER_USER,
+      ]);
+      // 40 categories — comfortably past every pool's length.
+      for (let i = 0; i < 40; i++) {
+        await c.query(
+          `INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id, sort_index)
+           VALUES (gen_random_uuid(), $1, $2, now(), $3, $4)
+           ON CONFLICT DO NOTHING`,
+          [SOURCE, `Owner category ${i}`, OWNER_USER, i + 10],
+        );
+      }
+    } finally {
+      c.release();
+    }
+
+    await inTx((cl) => refreshPair(cl, pairFor(0.25, { PLN: "USD" })));
+
+    const { rows } = await pool.query(
+      `SELECT count(*)::int AS total, count(DISTINCT name)::int AS distinct_names
+         FROM budgeting.categories WHERE tenant_id = $1`,
+      [DEST],
+    );
+    expect(rows[0].total).toBeGreaterThan(20);
+    expect(rows[0].distinct_names).toBe(rows[0].total);
+  });
+});

@@ -20,6 +20,14 @@ export type Rule =
   | {
       kind: "FAKE_TEXT";
       pool: "merchant" | "category" | "wallet" | "budget" | "holding";
+      /**
+       * Set ONLY where the database enforces uniqueness on this column, because
+       * making a value unique means appending a lap number once the pool wraps
+       * ("Groceries 2"), which reads as noise everywhere it is not required.
+       * Live constraints today: budgeting.categories.name (per tenant) and
+       * tenancy.budgets.slug (global).
+       */
+      unique?: true;
     }
   | { kind: "NULL" }
   | { kind: "REMAP_ID"; references?: string }

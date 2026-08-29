@@ -38,7 +38,8 @@ export const demoManifest: TableManifest[] = [
     mode: "copy",
     columns: {
       id,
-      slug: fake("budget"), // must stay unique — the copy suffixes it
+      // UNIQUE across ALL budgets, not just the demo ones.
+      slug: { ...fake("budget"), unique: true as const },
       name: fake("budget"),
       kind: ts,
       default_currency: ccy,
@@ -125,7 +126,8 @@ export const demoManifest: TableManifest[] = [
     columns: {
       id,
       tenant_id: tenant,
-      name: fake("category"),
+      // UNIQUE (tenant_id, lower(name)) WHERE archived_at IS NULL.
+      name: { ...fake("category"), unique: true as const },
       parent_id: ref("budgeting.categories"),
       archived_at: ts,
       created_at: ts,

@@ -51,13 +51,18 @@ export function readDemoConfig(
   const currencies = list(env.DEMO_CURRENCIES);
   const names = list(env.DEMO_BUDGET_NAMES);
   const labels = list(env.DEMO_LABELS);
+  // Which pairs are SHARED budgets. Without this the second member lands on
+  // every demo budget, and the personal one stops reading as personal — the
+  // contrast between the two is half of what the demo is showing.
+  const sharedLabels = new Set(list(env.DEMO_SHARED_LABELS));
 
   const pairs = sources.map((source, i) => {
     const currency = (currencies[i] ?? "USD").toUpperCase();
+    const label = labels[i] ?? `pair-${i}`;
     return {
       source,
       dest: dests[i]!,
-      label: labels[i] ?? `pair-${i}`,
+      label,
       currency,
       // The home currency is relabeled to the destination currency; everything
       // else passes through, so the multi-currency story still renders. An
@@ -67,7 +72,9 @@ export function readDemoConfig(
           ? {}
           : { [(env.DEMO_HOME_CURRENCY ?? "PLN").toUpperCase()]: currency },
       budgetName: names[i] ?? `Demo ${i + 1}`,
-      secondMemberUserId: env.DEMO_SECOND_USER_ID?.trim() || undefined,
+      secondMemberUserId: sharedLabels.has(label)
+        ? env.DEMO_SECOND_USER_ID?.trim() || undefined
+        : undefined,
     };
   });
 

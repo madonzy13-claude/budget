@@ -91,3 +91,24 @@ describe("scaleForPair", () => {
     }
   });
 });
+
+describe("shared-budget membership", () => {
+  test("the second member lands ONLY on pairs named as shared", () => {
+    // Found live: without DEMO_SHARED_LABELS the extra member joined BOTH demo
+    // budgets, so the "personal" one read as shared and the contrast the demo
+    // is meant to show disappeared.
+    const cfg = readDemoConfig({
+      ...FULL,
+      DEMO_SECOND_USER_ID: "member-2",
+      DEMO_SHARED_LABELS: "family",
+    })!;
+    const byLabel = Object.fromEntries(cfg.pairs.map((p) => [p.label, p]));
+    expect(byLabel.personal!.secondMemberUserId).toBeUndefined();
+    expect(byLabel.family!.secondMemberUserId).toBe("member-2");
+  });
+
+  test("no shared labels means no pair gets a second member", () => {
+    const cfg = readDemoConfig({ ...FULL, DEMO_SECOND_USER_ID: "member-2" })!;
+    for (const p of cfg.pairs) expect(p.secondMemberUserId).toBeUndefined();
+  });
+});

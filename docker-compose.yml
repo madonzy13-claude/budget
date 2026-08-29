@@ -97,6 +97,17 @@ services:
       # move the server clock May→June. Prod images/compose never set this, so the
       # endpoint 404s and serverNow() is always the real clock there.
       ALLOW_TEST_CLOCK: "1"
+      # Demo account (Phase 12). All optional: with these unset the worker
+      # registers no refresh job, /demo is a 404, and demoGuard is a no-op.
+      DEMO_SOURCE_TENANT_IDS: ${DEMO_SOURCE_TENANT_IDS:-}
+      DEMO_TENANT_IDS: ${DEMO_TENANT_IDS:-}
+      DEMO_USER_ID: ${DEMO_USER_ID:-}
+      DEMO_SECOND_USER_ID: ${DEMO_SECOND_USER_ID:-}
+      DEMO_CURRENCIES: ${DEMO_CURRENCIES:-}
+      DEMO_BUDGET_NAMES: ${DEMO_BUDGET_NAMES:-}
+      DEMO_LABELS: ${DEMO_LABELS:-}
+      DEMO_HOME_CURRENCY: ${DEMO_HOME_CURRENCY:-}
+      DEMO_SHARED_LABELS: ${DEMO_SHARED_LABELS:-}
       # CI E2E ONLY: forwarded from .env so the e2e job can disable Better Auth's
       # rate limiter (the suite's ~800 fresh-user sign-ups across 6 viewport
       # projects otherwise get throttled by the 100/60s bucket). Defaults to empty
@@ -141,6 +152,11 @@ services:
       # separate non-public var that stays a runtime lookup.
       NEXT_PUBLIC_API_URL: http://api:4000
       API_INTERNAL_URL: http://api:4000
+      # Demo account (Phase 12). DEMO_EMAIL/PASSWORD are read ONLY by the
+      # server-side /demo route handler and never reach the client bundle.
+      DEMO_USER_ID: ${DEMO_USER_ID:-}
+      DEMO_EMAIL: ${DEMO_EMAIL:-}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
     depends_on:
       api:
         condition: service_healthy
@@ -187,6 +203,17 @@ services:
       COINGECKO_API_KEY: ${COINGECKO_API_KEY:-}
       COINGECKO_API_KEYS: ${COINGECKO_API_KEYS:-}
       METALS_DEV_API_KEY: ${METALS_DEV_API_KEY:-}
+      # Demo account (Phase 12). All optional: with these unset the worker
+      # registers no refresh job, /demo is a 404, and demoGuard is a no-op.
+      DEMO_SOURCE_TENANT_IDS: ${DEMO_SOURCE_TENANT_IDS:-}
+      DEMO_TENANT_IDS: ${DEMO_TENANT_IDS:-}
+      DEMO_USER_ID: ${DEMO_USER_ID:-}
+      DEMO_SECOND_USER_ID: ${DEMO_SECOND_USER_ID:-}
+      DEMO_CURRENCIES: ${DEMO_CURRENCIES:-}
+      DEMO_BUDGET_NAMES: ${DEMO_BUDGET_NAMES:-}
+      DEMO_LABELS: ${DEMO_LABELS:-}
+      DEMO_HOME_CURRENCY: ${DEMO_HOME_CURRENCY:-}
+      DEMO_SHARED_LABELS: ${DEMO_SHARED_LABELS:-}
     depends_on:
       migrator:
         condition: service_completed_successfully

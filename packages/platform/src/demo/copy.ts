@@ -55,10 +55,29 @@ function literal(s: string): string {
   return `'${s.replace(/'/g, "''")}'`;
 }
 
-/** SQL that yields a value from a text pool, chosen by hashing the row id. */
-function poolExpr(pool: TextPool, keyExpr: string): string {
-  const values = poolValues(pool).map(literal).join(",");
-  return `(ARRAY[${values}])[(abs(hashtext(${keyExpr}::text)) % ${poolValues(pool).length}) + 1]`;
+/**
+ * SQL that yields a value from a text pool, UNIQUE within the tenant.
+ *
+ * Uniqueness is not cosmetic. `categories_unique_name_per_tenant` (and the
+ * equivalents on wallets and budgets.slug) mean a duplicate name aborts the
+ * whole refresh. A hash-of-the-id pick collides as soon as a tenant has more
+ * rows than the pool has entries — the owner's 19 categories against 15 pool
+ * names, which is exactly how this was found.
+ *
+ * So the pick walks a per-tenant row ordinal instead, and once it wraps past
+ * the end of the pool it appends the lap number: Groceries, … , Groceries 2.
+ * Deterministic, collision-free for any row count, and still plausible.
+ */
+function poolExpr(pool: TextPool, unique: boolean): string {
+  const list = poolValues(pool);
+  const values = list.map(literal).join(",");
+  const n = list.length;
+  const pick = `(ARRAY[${values}])[((src.__rn - 1) % ${n}) + 1]`;
+  if (!unique) return pick;
+  return (
+    `(${pick} || CASE WHEN src.__rn > ${n}` +
+    ` THEN ' ' || (((src.__rn - 1) / ${n}) + 1)::text ELSE '' END)`
+  );
 }
 
 /**
@@ -92,7 +111,6 @@ function columnExpr(
   name: string,
   pair: CopyPair,
   bind: Binder,
-  keyExpr: string,
 ): string | null {
   switch (rule.kind) {
     case "GENERATED":
@@ -118,7 +136,7 @@ function columnExpr(
       return `coalesce(${m} ->> upper(src.${col(name)}::text), src.${col(name)}::text)`;
     }
     case "FAKE_TEXT":
-      return `CASE WHEN src.${col(name)} IS NULL THEN NULL ELSE ${poolExpr(rule.pool, keyExpr)} END`;
+      return `CASE WHEN src.${col(name)} IS NULL THEN NULL ELSE ${poolExpr(rule.pool, rule.unique === true)} END`;
     case "REMAP_ID":
       return `(SELECT m.dst FROM demo_idmap m WHERE m.src = src.${col(name)})`;
   }
@@ -264,14 +282,18 @@ export async function copyIntoDemoTenant(
     const exprs: string[] = [];
     const values: unknown[] = [pair.source]; // $1 is always the source scope
     const bind = makeBinder(values);
-    const keyExpr = "id" in t.columns ? "src.id" : `src.${col(scope.column)}`;
+    // Stable ordering for the row ordinal the text pool walks. `id` when the
+    // table has one; otherwise the scope column, which is constant across the
+    // set — row_number() still yields distinct values, which is all uniqueness
+    // needs.
+    const orderBy = "id" in t.columns ? `s."id"` : `s.${col(scope.column)}`;
 
     for (const [name, rule] of Object.entries(t.columns)) {
       // An `optional` column is one this deployment may not have (hand-applied
       // DDL that never became a migration). Naming it in the INSERT would make
       // the whole refresh fail on the deployments that lack it.
       if (rule.optional && !live.get(t.table)?.has(name)) continue;
-      const expr = columnExpr(rule, name, pair, bind, keyExpr);
+      const expr = columnExpr(rule, name, pair, bind);
       if (expr === null) continue;
       names.push(col(name));
       exprs.push(expr);
@@ -280,8 +302,11 @@ export async function copyIntoDemoTenant(
     const res = await client.query(
       `INSERT INTO ${ident(t.table)} (${names.join(", ")})
        SELECT ${exprs.join(", ")}
-         FROM ${ident(t.table)} src
-        WHERE src.${col(scope.column)} = $1`,
+         FROM (
+           SELECT s.*, row_number() OVER (ORDER BY ${orderBy}) AS __rn
+             FROM ${ident(t.table)} s
+            WHERE s.${col(scope.column)} = $1
+         ) src`,
       values,
     );
     counts[t.table] = res.rowCount ?? 0;

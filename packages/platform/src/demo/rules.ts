@@ -142,7 +142,9 @@ const POOLS: Record<TextPool, string[]> = {
     "Travel Card",
     "Savings Pot",
     "Reserve Pot",
-    "Euro Account",
+    // No currency-named entries: the copy relabels currencies, so a wallet
+    // called "Euro Account" would end up holding USD.
+    "Second Account",
     "Brokerage",
     "Emergency Fund",
   ],
