@@ -14,6 +14,20 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * A RELATIVE Location header, resolved by the browser against the address it
+ * actually typed.
+ *
+ * `NextResponse.redirect(new URL(path, req.url))` looks right and is wrong
+ * here: behind the tunnel, `req.url` is the container's internal bind address,
+ * so the visitor was sent to `https://0.0.0.0:3000/en/budgets`. Deriving the
+ * public origin from forwarded headers would work too, but a relative redirect
+ * needs no origin at all and cannot be misconfigured.
+ */
+function relativeRedirect(path: string): NextResponse {
+  return new NextResponse(null, { status: 307, headers: { location: path } });
+}
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ locale: string }> },
@@ -38,14 +52,13 @@ export async function GET(
     // Never echo the upstream body: it can carry auth detail, and the visitor
     // can do nothing with it either way.
     console.error(`[demo] sign-in failed: ${res.status}`);
-    return NextResponse.redirect(new URL(`/${locale}/sign-in`, _req.url));
+    return relativeRedirect(`/${locale}/sign-in`);
   }
 
-  // Land on the budget list; the demo account's two budgets are there, which
-  // is also the first thing worth showing a prospect.
-  const redirect = NextResponse.redirect(
-    new URL(`/${locale}/budgets`, _req.url),
-  );
+  // Land on the app home, which is the app's own landing behaviour (it opens
+  // the last-used budget client-side). `/[locale]/budgets` is NOT a route —
+  // verified as a live 404, which is how the first version of this shipped.
+  const redirect = relativeRedirect(`/${locale}`);
 
   // Forward every Set-Cookie the auth service issued, unchanged.
   const setCookie = res.headers.getSetCookie?.() ?? [];
