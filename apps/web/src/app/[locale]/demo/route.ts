@@ -1,8 +1,10 @@
 /**
- * /[locale]/demo — one-click entry to the shared demo account.
+ * /[locale]/demo — the demo sign-in endpoint.
  *
  * A ROUTE HANDLER, not a page, and deliberately so: it signs in server-side and
- * forwards the resulting session cookie. The demo credentials are read from
+ * forwards the resulting session cookie. Nobody "lands" here — the sign-in
+ * page's demo dialog sends the visitor straight through it into the app, and
+ * the language they picked there selects WHICH demo account this signs into. The demo credentials are read from
  * server-only env and never reach the client bundle, so "view source" does not
  * hand anyone the password to an account that lives in the same database as
  * real households.

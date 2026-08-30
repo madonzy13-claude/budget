@@ -36,18 +36,17 @@ export class DemoPo {
     return this.page.getByTestId(`demo-lang-${code}`);
   }
 
-  async openDemo(path = "/en/demo"): Promise<void> {
-    // Reset per-visitor state BEFORE the demo page loads, not after.
-    //
-    // This suite reuses browser contexts across scenarios, so both halves of
-    // "who is this visitor" leak between them: the session cookie, and the
-    // dialog's localStorage "seen" flag. Clearing them after navigating to
-    // /demo was too late — the dialog's effect had already read the stale flag,
-    // so whichever scenario happened to run after a dismissal found no dialog.
-    // That is why the failure appeared to wander between scenarios.
-    //
-    // Land on a cheap same-origin page first (sign-in renders no demo shell),
-    // clear both stores there, and only then enter the demo.
+  get entryLink(): Locator {
+    return this.page.getByTestId("demo-entry-link");
+  }
+
+  get picker(): Locator {
+    return this.page.getByTestId("demo-entry-dialog");
+  }
+
+  async openSignIn(): Promise<void> {
+    // Clear the context first: this suite reuses browser contexts between
+    // scenarios, so the page can arrive already signed in as somebody else.
     await this.page.goto("/en/sign-in", { waitUntil: "domcontentloaded" });
     await this.page.context().clearCookies();
     await this.page.evaluate(() => {
@@ -58,19 +57,26 @@ export class DemoPo {
         /* private mode — nothing to clear */
       }
     });
+    await this.page.reload({ waitUntil: "domcontentloaded" });
+  }
 
+  async openLanguagePicker(): Promise<void> {
+    await this.entryLink.click({ timeout: 15_000 });
+    await this.picker.waitFor({ state: "visible", timeout: 15_000 });
+  }
+
+  /** Straight to a language's demo account, skipping the sign-in page. */
+  async openDemo(path = "/en/demo"): Promise<void> {
+    await this.page.goto("/en/sign-in", { waitUntil: "domcontentloaded" });
+    await this.page.context().clearCookies();
     const res = await this.page.goto(path, { waitUntil: "domcontentloaded" });
     if (res && res.status() === 404) {
       throw new Error(
         "The demo is not configured on this stack (/demo returned 404). " +
-          "Set DEMO_EMAIL / DEMO_PASSWORD / DEMO_USER_ID and the tenant id " +
-          "lists, or run this feature with --grep-invert @demo.",
+          "Set DEMO_EMAIL_* / DEMO_PASSWORD_* / DEMO_USER_ID_* and the tenant " +
+          "id lists, or run this feature with --grep-invert @demo.",
       );
     }
-
-    // Settle on something the server actually rendered. `domcontentloaded`
-    // fires while the shell is still navigating, which destroyed the execution
-    // context under page.evaluate() and raced clicks inside the dialog.
     await this.banner
       .waitFor({ state: "visible", timeout: 30_000 })
       .catch(() => {});
@@ -78,14 +84,11 @@ export class DemoPo {
 
   async chooseLanguage(label: string): Promise<void> {
     const code = { English: "en", Polski: "pl", Українська: "uk" }[label];
-    await this.languageButton(label).click({ timeout: 10_000 });
-    // Wait for the LOCALE SWAP itself, not merely a load event: the choice
-    // triggers a full navigation to /{code}, and asserting on domcontentloaded
-    // raced with it (flaky on the mobile project). Bounded, so a genuine
-    // failure surfaces here instead of consuming the test timeout.
+    await this.languageButton(label).click({ timeout: 15_000 });
+    // Wait for the sign-in navigation to land, not merely for a load event.
     await this.page
       .waitForURL((u) => new URL(u).pathname.startsWith(`/${code}`), {
-        timeout: 15_000,
+        timeout: 30_000,
       })
       .catch(() => {});
   }

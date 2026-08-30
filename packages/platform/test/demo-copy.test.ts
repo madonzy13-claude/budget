@@ -434,3 +434,86 @@ describe("readability of the copied demo", () => {
     expect(names.some((n) => !english.has(n))).toBe(true);
   });
 });
+
+describe("wealth history level", () => {
+  test("the copied series ends where the demo's live value actually is", async () => {
+    // The reported "-44% since yesterday". Snapshots store a capitalization
+    // already CONVERTED to the source budget's currency; relabeling PLN->USD
+    // redenominates that total without converting it, so the history sat far
+    // above the demo's own live value and the card reported a crash that never
+    // happened. The series is re-levelled onto the live value instead.
+    const c = await pool.connect();
+    try {
+      await c.query(`SET app.tenant_ids = '{${SOURCE},${DEST}}'`);
+      await c.query(`SET app.current_user_id = '${OWNER_USER}'`);
+      // No fx_rates seeding: app_role cannot write that table (it is the
+      // worker's). Without a rate the conversion falls back to 1, which is fine
+      // here — both sides of the assertion use the SAME expression, so the test
+      // is about the levels agreeing, not about the rate itself.
+      // Two historical points, far above anything the demo's wallets imply.
+      for (const [days, cents] of [
+        [2, 900000000],
+        [1, 800000000],
+      ] as const) {
+        await c.query(
+          `INSERT INTO budgeting.budget_wealth_snapshots
+             (id, tenant_id, budget_id, captured_at, capitalization_cents,
+              investment_value_cents, currency, investment_cost_basis_cents)
+           VALUES (gen_random_uuid(), $1, $1, now() - ($2 || ' days')::interval,
+                   $3, 100000000, 'PLN', 50000000)`,
+          [SOURCE, days, cents],
+        );
+      }
+    } finally {
+      c.release();
+    }
+
+    const seeded = await pool.query(
+      `SELECT count(*)::int n FROM budgeting.budget_wealth_snapshots WHERE tenant_id = $1`,
+      [SOURCE],
+    );
+    expect(seeded.rows[0].n).toBeGreaterThanOrEqual(2); // the fixture landed
+
+    await inTx((cl) => refreshPair(cl, pairFor(1, { PLN: "USD" })));
+
+    const { rows } = await pool.query(
+      `WITH live AS (
+         SELECT COALESCE(sum(w.current_balance * CASE
+             WHEN w.currency = 'USD' THEN 1
+             ELSE COALESCE((SELECT rate FROM budgeting.fx_rates
+                             WHERE base = w.currency AND quote = 'USD'
+                             ORDER BY date DESC LIMIT 1), 1) END), 0) AS cap
+           FROM budgeting.wallets w
+          WHERE w.tenant_id = $1 AND w.archived_at IS NULL)
+       SELECT (SELECT cap FROM live)::numeric AS live_major,
+              (SELECT capitalization_cents / 100.0
+                 FROM budgeting.budget_wealth_snapshots
+                WHERE tenant_id = $1
+                ORDER BY captured_at DESC LIMIT 1)::numeric AS newest_major`,
+      [DEST],
+    );
+    const live = Number(rows[0].live_major);
+    const newest = Number(rows[0].newest_major);
+    expect(live).toBeGreaterThan(0);
+    // Within a cent-rounding whisker of each other — no cliff for the card to
+    // report.
+    expect(Math.abs(newest - live) / live).toBeLessThan(0.001);
+  });
+
+  test("re-levelling preserves the SHAPE of the history", async () => {
+    // Only the level may move. If the relative movement changed, the demo would
+    // be telling a different financial story than the one it copied.
+    const { rows } = await pool.query(
+      `SELECT capitalization_cents::numeric AS c
+         FROM budgeting.budget_wealth_snapshots
+        WHERE tenant_id = $1 ORDER BY captured_at`,
+      [DEST],
+    );
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+    const first = Number(rows[0].c);
+    const last = Number(rows[rows.length - 1].c);
+    // Source went 900,000,000 -> 800,000,000, i.e. the later point is 8/9 of
+    // the earlier one. That ratio must survive the re-levelling.
+    expect(last / first).toBeCloseTo(800000000 / 900000000, 3);
+  });
+});

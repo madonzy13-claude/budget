@@ -85,7 +85,7 @@ describe("scaleMoney", () => {
 });
 
 describe("dailyMoneyScale", () => {
-  test("always lands inside [0.1, 10]", () => {
+  test("always lands inside the configured range", () => {
     for (let d = 0; d < 400; d++) {
       const s = dailyMoneyScale(`2026-01-01`, `pair-${d}`);
       expect(s).toBeGreaterThanOrEqual(SCALE_MIN);
@@ -112,8 +112,8 @@ describe("dailyMoneyScale", () => {
   });
 
   test("is log-uniform: roughly half the days fall below 1.0", () => {
-    // Plain uniform over [0.1,10] would put ~90% of days above 1.0 and make the
-    // demo almost always inflate. Log-uniform gives shrink and grow equal odds.
+    // Plain uniform would put most days above 1.0 and make the demo almost
+    // always inflate. Log-uniform gives shrink and grow equal odds.
     let below = 0;
     const days = 1000;
     for (let d = 0; d < days; d++) {

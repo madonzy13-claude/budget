@@ -329,12 +329,14 @@ export function OverviewPieChart({
 
       {data.length > 0 && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
-          {/* The hole is a CIRCLE, so a label sized to the square's width runs
-              right up to the ring at the widest point — "Wszystkie kategorie"
-              looked wedged in. Capping the width well inside the hole lets a
-              long label wrap to two tight lines instead, which keeps clear air
-              between the text and the arc in every language. */}
-          <span className="pointer-events-none max-w-[58%] text-balance leading-tight text-caption text-[var(--muted-foreground)]">
+          {/* Capped in CH, not in % of this overlay.
+              The overlay is inset-0 over the chart WRAPPER, which is far wider
+              than the donut — so a percentage cap (58% of ~830px) never bit,
+              and "Wszystkie kategorie" still ran edge to edge across the hole.
+              A ch cap is relative to the text itself, so a long label wraps to
+              two tight lines inside the hole in every language while a short
+              one ("All") still sits on one. */}
+          <span className="pointer-events-none max-w-[13ch] text-balance leading-tight text-caption text-[var(--muted-foreground)]">
             {centreName}
           </span>
           {/* The masked amount stays pointer-events-auto so the wrapper's pointer-up

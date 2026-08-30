@@ -2100,6 +2100,9 @@
     "choose_language": "Wybierz język",
     "start": "Zacznij zwiedzanie",
     "banner": "Konto demo — dane przykładowe, reset codziennie o 03:00 UTC",
-    "restricted": "Ta akcja jest wyłączona na koncie demo. Załóż własne konto, aby jej użyć."
+    "restricted": "Ta akcja jest wyłączona na koncie demo. Załóż własne konto, aby jej użyć.",
+    "try_link": "Zobacz demo →",
+    "try_hint": "Dane przykładowe, bez zakładania konta",
+    "entering": "Otwieranie…"
   }
 }

@@ -10,9 +10,16 @@
 
 export type MoneyDecimals = 0 | 4;
 
-/** The factor range the demo may use on any given night. */
-export const SCALE_MIN = 0.1;
-export const SCALE_MAX = 10;
+/**
+ * The factor range the demo may use on any given night.
+ *
+ * Narrowed from [0.1, 10] on request: two orders of magnitude meant some days
+ * showed a $100 grocery budget and others a $10,000 one. A demo has to look
+ * like a plausible household EVERY day, and [0.5, 2] still moves the numbers
+ * enough that they carry no stable relationship to the owner's real ones.
+ */
+export const SCALE_MIN = 0.5;
+export const SCALE_MAX = 2;
 
 /**
  * The night's money factor for one budget pair.

@@ -15,6 +15,7 @@ import { InstallBanner } from "@/components/common/install-banner";
 import { PublicLocaleSwitcher } from "@/components/common/public-locale-switcher";
 import { HeaderThemeToggle } from "@/components/common/header-theme-toggle";
 import { SiteFooter } from "@/components/common/site-footer";
+import { DemoEntryDialog } from "@/components/demo/demo-entry-dialog";
 
 interface SignInPageProps {
   params: Promise<{ locale: string }>;
@@ -120,6 +121,14 @@ export default async function SignInPage({
                 >
                   {t("signin.forgot")}
                 </Link>
+              </div>
+
+              {/* The way in for someone who has no account and does not want
+                  to make one yet. Opens a language picker, because each
+                  language is a separate demo ACCOUNT — the data itself is
+                  stored in one language, not translated at render time. */}
+              <div className="border-t border-[var(--hairline-dark)] pt-4 text-center">
+                <DemoEntryDialog />
               </div>
             </CardContent>
           </Card>

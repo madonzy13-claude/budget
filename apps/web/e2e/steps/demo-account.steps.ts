@@ -8,47 +8,34 @@
  * feature.
  */
 import { createBdd } from "playwright-bdd";
-import { expect, type BrowserContext, type Page } from "@playwright/test";
+import { expect } from "@playwright/test";
 import { test } from "../fixtures/fresh-user-per-scenario";
 import { DemoPo } from "../page-objects/DemoPo";
 
-const { Given, When, Then } = createBdd(test);
-
-/** A second visitor: independent context, so localStorage and cookies differ. */
-let secondContext: BrowserContext | undefined;
-let secondPage: Page | undefined;
+const { When, Then } = createBdd(test);
 
 When("I open the demo entry point", async ({ page }) => {
   await new DemoPo(page).openDemo();
 });
 
-When("I reload the demo page", async ({ page }) => {
-  await page.reload({ waitUntil: "domcontentloaded" });
-  // Same settle as openDemo: assert on the dialog only once the shell is up,
-  // or "not visible" passes vacuously against a half-rendered page.
-  await new DemoPo(page).banner
-    .waitFor({ state: "visible", timeout: 20_000 })
-    .catch(() => {});
+When("I open the sign-in page as a new visitor", async ({ page }) => {
+  await new DemoPo(page).openSignIn();
 });
 
-Then("I am signed in", async ({ page }) => {
-  await expect(page).not.toHaveURL(/\/sign-in/);
+When("I click the demo entry link", async ({ page }) => {
+  await new DemoPo(page).openLanguagePicker();
 });
 
-Then("the demo banner is visible", async ({ page }) => {
-  await expect(new DemoPo(page).banner).toBeVisible({ timeout: 10_000 });
+Then("the demo entry link is visible", async ({ page }) => {
+  await expect(new DemoPo(page).entryLink).toBeVisible({ timeout: 15_000 });
 });
 
-Then("the demo welcome dialog is visible", async ({ page }) => {
-  await expect(new DemoPo(page).dialog).toBeVisible({ timeout: 10_000 });
-});
-
-Then("the demo welcome dialog is not visible", async ({ page }) => {
-  await expect(new DemoPo(page).dialog).toBeHidden();
+Then("the demo language picker is visible", async ({ page }) => {
+  await expect(new DemoPo(page).picker).toBeVisible({ timeout: 15_000 });
 });
 
 Then(
-  "the dialog offers {string}, {string} and {string}",
+  "the picker offers {string}, {string} and {string}",
   async ({ page }, en: string, pl: string, uk: string) => {
     const po = new DemoPo(page);
     for (const label of [en, pl, uk]) {
@@ -58,47 +45,19 @@ Then(
 );
 
 When(
-  "I choose {string} in the demo welcome dialog",
+  "I choose {string} in the demo language picker",
   async ({ page }, label: string) => {
     await new DemoPo(page).chooseLanguage(label);
   },
 );
 
-When("I dismiss the demo welcome dialog", async ({ page }) => {
-  await new DemoPo(page).dismiss();
+Then("I am signed in", async ({ page }) => {
+  await expect(page).not.toHaveURL(/\/sign-in/);
+  await expect(new DemoPo(page).banner).toBeVisible({ timeout: 20_000 });
 });
 
-Given(
-  "a visitor chose {string} in the demo welcome dialog",
-  async ({ page }, label: string) => {
-    const po = new DemoPo(page);
-    await po.openDemo();
-    await po.chooseLanguage(label);
-  },
-);
-
-When("a different visitor opens the demo entry point", async ({ browser }) => {
-  // A whole new context, not just a new page: the point is that this visitor
-  // shares NOTHING client-side with the first one, so if the language had
-  // been persisted server-side on the shared account it would show up here.
-  secondContext = await browser.newContext();
-  secondPage = await secondContext.newPage();
-  await new DemoPo(secondPage).openDemo();
-});
-
-Then("that visitor sees the demo welcome dialog", async ({}) => {
-  if (!secondPage) throw new Error("second visitor was never opened");
-  await expect(new DemoPo(secondPage).dialog).toBeVisible({ timeout: 10_000 });
-});
-
-Then("that visitor's URL contains {string}", async ({}, fragment: string) => {
-  if (!secondPage) throw new Error("second visitor was never opened");
-  await expect(secondPage).toHaveURL(
-    new RegExp(fragment.replace(/\//g, "\\/")),
-  );
-  await secondContext?.close();
-  secondContext = undefined;
-  secondPage = undefined;
+Then("the demo banner is visible", async ({ page }) => {
+  await expect(new DemoPo(page).banner).toBeVisible({ timeout: 20_000 });
 });
 
 Then("both demo budgets are listed", async ({ page }) => {

@@ -12,6 +12,7 @@ import {
   isDemoUser,
   isDemoTenantId,
 } from "../src/demo/config";
+import { SCALE_MIN, SCALE_MAX } from "../src/demo/rules";
 
 const BASE = {
   DEMO_SOURCE_TENANT_IDS: "src-personal,src-family",
@@ -157,12 +158,14 @@ describe("scaleForPair", () => {
     );
   });
 
-  test("stays inside [0.1, 10] across a year", () => {
+  test("stays inside the configured range across a year", () => {
+    // A demo has to look like a plausible household EVERY day, not just on
+    // average — so the range is checked over a full year of draws.
     const cfg = readDemoConfig(MULTI)!;
     for (let d = 0; d < 365; d++) {
       const s = scaleForPair(cfg, cfg.pairs[0]!, `2026-day-${d}`);
-      expect(s).toBeGreaterThanOrEqual(0.1);
-      expect(s).toBeLessThanOrEqual(10);
+      expect(s).toBeGreaterThanOrEqual(SCALE_MIN);
+      expect(s).toBeLessThanOrEqual(SCALE_MAX);
     }
   });
 

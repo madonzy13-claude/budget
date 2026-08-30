@@ -2096,6 +2096,9 @@
     "choose_language": "Choose your language",
     "start": "Start exploring",
     "banner": "Demo account — sample data, resets nightly at 03:00 UTC",
-    "restricted": "This action is disabled on the demo account. Create your own account to try it."
+    "restricted": "This action is disabled on the demo account. Create your own account to try it.",
+    "try_link": "Explore the demo →",
+    "try_hint": "Sample data, no sign-up needed",
+    "entering": "Opening…"
   }
 }

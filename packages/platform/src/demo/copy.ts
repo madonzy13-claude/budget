@@ -308,6 +308,12 @@ export async function copyIntoDemoTenant(
     const t = byTable(table);
     if (t.mode !== "copy") continue;
 
+    if (t.table === "budgeting.budget_wealth_snapshots") {
+      await copyWealthHistory(client, pair);
+      counts[t.table] = 1;
+      continue;
+    }
+
     if (t.table === "tenancy.budgets") {
       // One row, handled explicitly rather than bent through the generic
       // engine: it is an UPDATE (stable id) and its name/currency come from the
@@ -391,6 +397,72 @@ export async function copyIntoDemoTenant(
 
   await synthesiseMembership(client, pair);
   return counts;
+}
+
+/**
+ * Wealth history, re-levelled onto the demo's OWN present value.
+ *
+ * `budget_wealth_snapshots` stores a capitalization ALREADY CONVERTED into the
+ * source budget's currency. Relabeling PLN→USD — which is right for a wallet,
+ * whose balance is just a number wearing a currency — silently redenominates
+ * those totals WITHOUT converting them. The history then sat ~2.9x above the
+ * demo's live value and the Overview reported a crash that never happened.
+ * That was the reported "-44% since yesterday".
+ *
+ * So each point is scaled by (live capitalization ÷ newest source point)
+ * instead of by the money factor. Note the factor cancels out of that ratio
+ * entirely, which is why this is exact rather than approximate. Shape and
+ * relative movement are preserved; only the level moves, which is the part
+ * that was wrong.
+ *
+ * Runs AFTER wallets are copied — the live value is computed from them — and
+ * as an INSERT rather than a follow-up UPDATE, because app_role holds no
+ * UPDATE on this table (it is append-only by design) and widening that grant
+ * for a cosmetic fix would be the wrong trade.
+ *
+ * Investment value and cost basis ride the same ratio: they are a component of
+ * capitalization, and recomputing them honestly would need per-instrument
+ * prices at every historical point, which the snapshot does not carry.
+ */
+async function copyWealthHistory(
+  client: PoolClient,
+  pair: CopyPair,
+): Promise<void> {
+  await client.query(
+    `WITH live AS (
+       SELECT COALESCE(sum(
+         w.current_balance * CASE
+           WHEN w.currency = $3 THEN 1
+           ELSE COALESCE((
+             SELECT fr.rate FROM budgeting.fx_rates fr
+              WHERE fr.base = w.currency AND fr.quote = $3
+              ORDER BY fr.date DESC LIMIT 1), 1)
+         END), 0) * 100 AS cap_cents
+         FROM budgeting.wallets w
+        WHERE w.tenant_id = $2 AND w.archived_at IS NULL
+     ),
+     newest AS (
+       SELECT capitalization_cents AS c
+         FROM budgeting.budget_wealth_snapshots
+        WHERE tenant_id = $1
+        ORDER BY captured_at DESC LIMIT 1
+     ),
+     r AS (
+       SELECT COALESCE(live.cap_cents / NULLIF(newest.c, 0), 0) AS ratio
+         FROM live, newest
+     )
+     INSERT INTO budgeting.budget_wealth_snapshots
+       (id, tenant_id, budget_id, captured_at, capitalization_cents,
+        investment_value_cents, currency, investment_cost_basis_cents)
+     SELECT gen_random_uuid(), $2::uuid, $2::uuid, s.captured_at,
+            round(s.capitalization_cents * r.ratio)::bigint,
+            round(s.investment_value_cents * r.ratio)::bigint,
+            $3,
+            round(COALESCE(s.investment_cost_basis_cents, 0) * r.ratio)::bigint
+       FROM budgeting.budget_wealth_snapshots s, r
+      WHERE s.tenant_id = $1 AND r.ratio > 0`,
+    [pair.source, pair.dest, pair.currency],
+  );
 }
 
 /**

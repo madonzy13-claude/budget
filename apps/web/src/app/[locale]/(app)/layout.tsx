@@ -23,7 +23,6 @@ import { OfflineReadOnly } from "@/components/common/offline-read-only";
 import { ServerDownSeed } from "@/components/common/connectivity-provider";
 import { PendingSpendingsFlusher } from "@/components/common/pending-spendings-flusher";
 import { DemoBanner } from "@/components/demo/demo-banner";
-import { DemoWelcomeDialog } from "@/components/demo/demo-welcome-dialog";
 import { isDemoSession as computeIsDemoSession } from "@/lib/demo.server";
 
 // The (app) shell is per-user: getServerSession + the onboarding guard read
@@ -311,9 +310,10 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
               <TopNav locale={locale} activeBudgetId={activeBudgetId} />
             </header>
             {/* Demo notice — the account is shared and rebuilt nightly, so the
-              visitor is told before they wonder why their edits vanished. */}
+              visitor is told before they wonder why their edits vanished. The
+              explanation and the language choice happen at ENTRY (the sign-in
+              page's demo dialog), so nothing pops up over the app itself. */}
             <DemoBanner isDemo={isDemoSession} />
-            <DemoWelcomeDialog isDemo={isDemoSession} />
             {/* Offline staleness banner (260615-e8s round 3): a narrow full-width
               red bar JUST BELOW the header. Renders null online (zero height);
               offline it warns the shown data is cached + how long ago it synced.
