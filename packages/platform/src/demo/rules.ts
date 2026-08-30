@@ -91,88 +91,66 @@ export function relabelCurrency(
   return map[upper] ?? upper;
 }
 
-export type TextPool =
-  "merchant" | "category" | "wallet" | "budget" | "holding";
+export type { DemoLocale, PoolName } from "./pools";
+export {
+  poolValues,
+  merchantsForCategory,
+  categoryCount,
+  demoLocales,
+  isDemoLocale,
+} from "./pools";
 
-const POOLS: Record<TextPool, string[]> = {
-  merchant: [
-    "City Market",
-    "Corner Grocer",
-    "Metro Transit",
-    "Fuel Stop 24",
-    "The Coffee Bar",
-    "Riverside Pharmacy",
-    "Bright Electric",
-    "Municipal Water",
-    "Streamly",
-    "Fitness Club",
-    "Hardware Depot",
-    "Book Nook",
-    "Green Garden Centre",
-    "Family Diner",
-    "Airline Booking",
-    "Hotel Stay",
-    "Insurance Premium",
-    "Mobile Plan",
-    "Home Internet",
-    "Parking Garage",
-  ],
-  category: [
-    "Groceries",
-    "Transport",
-    "Utilities",
-    "Dining Out",
-    "Health",
-    "Household",
-    "Subscriptions",
-    "Travel",
-    "Education",
-    "Gifts",
-    "Clothing",
-    "Pets",
-    "Home Repair",
-    "Entertainment",
-    "Savings",
-  ],
-  wallet: [
-    "Main Account",
-    "Joint Account",
-    "Cash",
-    "Credit Card",
-    "Travel Card",
-    "Savings Pot",
-    "Reserve Pot",
-    // No currency-named entries: the copy relabels currencies, so a wallet
-    // called "Euro Account" would end up holding USD.
-    "Second Account",
-    "Brokerage",
-    "Emergency Fund",
-  ],
-  budget: ["Personal", "Family"],
-  holding: [
-    "Global Equity Fund",
-    "Tech Growth ETF",
-    "Government Bond",
-    "Gold Holding",
-    "Digital Asset",
-    "Dividend Fund",
-    "Property Share",
-  ],
-};
-
-/** Deterministic per (pool, seed) so a re-run of the same night is stable. */
-export function fakeText(pool: TextPool, seed: number): string {
-  const list = POOLS[pool];
-  const i = Math.abs(Math.trunc(seed)) % list.length;
-  return list[i]!;
-}
+import {
+  poolValues as poolValuesFor,
+  type PoolName,
+  type DemoLocale,
+} from "./pools";
 
 /**
- * The pool's values, for the SQL side of the copy. The copy picks from these
- * in-database (indexing by a hash of the row id) rather than round-tripping
- * every row through TypeScript — but it MUST pick from this same list, so the
- * list has exactly one definition.
+ * Rounds a money amount to a value a human would have typed.
+ *
+ * Scaling by an arbitrary daily factor turns a tidy 3,000 limit into 231,209 —
+ * technically consistent, and immediately reads as machine noise on a screen
+ * meant to look like somebody's real budget. Limits are TARGETS, not sums, so
+ * rounding them breaks no invariant: nothing has to add up to a limit.
+ *
+ * Deliberately NOT applied to transactions. Those DO sum into category totals
+ * and balances, and rounding each one would make the totals disagree with the
+ * rows behind them.
+ *
+ * Step grows with magnitude, the way people actually pick round numbers:
+ * 12 → 12, 86 → 85, 312 → 310, 4,180 → 4,200, 231,209 → 231,000.
+ *
+ * The <100 band steps by 5, not 1: at a small daily factor the limits land in
+ * double digits, and 86 / 71 / 69 read exactly as machine-generated as the
+ * six-figure version did.
  */
-export function poolValues(pool: TextPool): readonly string[] {
-  return POOLS[pool];
+export function niceRound(major: number): number {
+  const abs = Math.abs(major);
+  const step =
+    abs < 20
+      ? 1
+      : abs < 100
+        ? 5
+        : abs < 1_000
+          ? 10
+          : abs < 10_000
+            ? 50
+            : abs < 100_000
+              ? 500
+              : 1_000;
+  return Math.round(major / step) * step;
+}
+
+export type TextPool = PoolName;
+
+/** Deterministic per (pool, seed) so a re-run of the same night is stable. */
+export function fakeText(
+  pool: PoolName,
+  seed: number,
+  locale: DemoLocale = "en",
+): string {
+  const list = poolValuesFor(locale, pool);
+  const i = Math.abs(Math.trunc(seed)) % list.length;
+  return list[i]!;
 }

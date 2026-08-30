@@ -67,11 +67,7 @@ export async function runDemoRefresh(
       // resolving per table would break the uniformity the arithmetic needs.
       const moneyScale = scaleForPair(cfg, pair, day);
       scales[pair.label] = moneyScale;
-      counts[pair.label] = await refreshPair(client, {
-        ...pair,
-        moneyScale,
-        demoUserId: cfg.demoUserId,
-      });
+      counts[pair.label] = await refreshPair(client, { ...pair, moneyScale });
     }
     await client.query("COMMIT");
     return { ok: true, scales, counts };

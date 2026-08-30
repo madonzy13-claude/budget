@@ -13,8 +13,13 @@ import {
   relabelCurrency,
   fakeText,
   dailyMoneyScale,
+  niceRound,
   SCALE_MIN,
   SCALE_MAX,
+  poolValues,
+  merchantsForCategory,
+  categoryCount,
+  demoLocales,
 } from "../src/demo/rules";
 
 describe("scaleMoney", () => {
@@ -179,8 +184,11 @@ describe("fakeText", () => {
       for (let i = 0; i < 500; i++) {
         expect(allowed.has(fakeText(pool, i))).toBe(true);
       }
-      // The pool is small and closed — it cannot grow with the input.
-      expect(allowed.size).toBeLessThan(50);
+      // The pool is CLOSED — it cannot grow with the input. The bound is
+      // generous because the merchant vocabulary is now per-category (28
+      // categories, a few merchants each); what matters is that 500 different
+      // seeds still yield no value outside the fixed set.
+      expect(allowed.size).toBeLessThan(200);
     }
   });
 
@@ -223,6 +231,107 @@ describe("fakeText", () => {
       "holding",
     ] as const) {
       expect(fakeText(pool, 0).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("niceRound", () => {
+  test("turns scaled noise into numbers a person would type", () => {
+    // The reported symptom: a limit rendered as $231,209.
+    expect(niceRound(231209)).toBe(231000);
+    expect(niceRound(4180)).toBe(4200);
+    expect(niceRound(312)).toBe(310);
+    expect(niceRound(86)).toBe(85);
+    expect(niceRound(12)).toBe(12);
+  });
+
+  test("keeps the sign and handles zero", () => {
+    expect(niceRound(-4180)).toBe(-4200);
+    expect(niceRound(0)).toBe(0);
+  });
+
+  test("never moves a value by more than half a step", () => {
+    for (let v = 1; v < 500_000; v += 977) {
+      const r = niceRound(v);
+      const step =
+        v < 20
+          ? 1
+          : v < 100
+            ? 5
+            : v < 1000
+              ? 10
+              : v < 10000
+                ? 50
+                : v < 100000
+                  ? 500
+                  : 1000;
+      expect(Math.abs(r - v)).toBeLessThanOrEqual(step / 2);
+    }
+  });
+});
+
+describe("localised, coherent vocabularies", () => {
+  test("every language carries a full set of pools", () => {
+    for (const locale of demoLocales()) {
+      for (const pool of [
+        "category",
+        "income",
+        "scheduled",
+        "wallet",
+        "holding",
+        "budget",
+      ] as const) {
+        expect(poolValues(locale, pool).length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  test("the category pool outgrows a real budget, so names never lap", () => {
+    // The reported "Dining out 2": the owner has 19 categories and the pool had
+    // 15, so names wrapped and picked up a lap suffix.
+    for (const locale of demoLocales()) {
+      expect(categoryCount(locale)).toBeGreaterThanOrEqual(25);
+    }
+  });
+
+  test("merchants are index-aligned with categories in every language", () => {
+    for (const locale of demoLocales()) {
+      for (let i = 0; i < categoryCount(locale); i++) {
+        expect(merchantsForCategory(locale, i).length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  test("a category's merchants belong to that category", () => {
+    // Coherence, spot-checked: the first category is groceries in every
+    // language, and its merchants must be grocery-shaped — not "Airline
+    // Booking", which is what the flat pool used to produce.
+    expect(merchantsForCategory("en", 0).join(" ")).toMatch(
+      /market|grocer|food|shop/i,
+    );
+    expect(merchantsForCategory("pl", 0).join(" ")).toMatch(
+      /market|sklep|produkty|zakupy/i,
+    );
+    expect(merchantsForCategory("uk", 0).join(" ")).toMatch(
+      /ринок|магазин|продукти|покупки/i,
+    );
+  });
+
+  test("incomes and scheduled payments have their own vocabularies", () => {
+    // "Streamly" is not a plausible salary.
+    for (const locale of demoLocales()) {
+      const income = poolValues(locale, "income");
+      const scheduled = poolValues(locale, "scheduled");
+      const merchants = poolValues(locale, "merchant");
+      expect(income.some((v) => merchants.includes(v))).toBe(false);
+      expect(scheduled.length).toBeGreaterThan(5);
+    }
+  });
+
+  test("the three languages describe the same concepts in the same order", () => {
+    const n = poolValues("en", "category").length;
+    for (const locale of demoLocales()) {
+      expect(poolValues(locale, "category")).toHaveLength(n);
     }
   });
 });

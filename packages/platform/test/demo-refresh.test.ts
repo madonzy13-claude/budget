@@ -103,7 +103,8 @@ describe("runDemoRefresh", () => {
 
   test("each pair gets its own factor, both inside [0.1, 10]", async () => {
     const r = await runDemoRefresh(pool, "2026-08-29", readDemoConfig(ENV));
-    expect(r.scales.personal).not.toBe(r.scales.family);
+    // Labels carry their locale, because there is one budget pair per language.
+    expect(r.scales["personal-en"]).not.toBe(r.scales["family-en"]);
     for (const s of Object.values(r.scales)) {
       expect(s).toBeGreaterThanOrEqual(0.1);
       expect(s).toBeLessThanOrEqual(10);

@@ -11,11 +11,11 @@ import { eq, and, inArray, sql } from "drizzle-orm";
 import { withTenantTx, withTenantTxRead, withInfraTx } from "../db/tx";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import { pushSubscriptions, notificationPrefs } from "./schema";
-import { readDemoConfig } from "../demo/config";
+import { isDemoTenantId } from "../demo/config";
 
 /** True when this tenant is one of the configured demo budgets. */
 function isDemoTenant(tenantId: string): boolean {
-  return (readDemoConfig()?.pairs ?? []).some((p) => p.dest === tenantId);
+  return isDemoTenantId(tenantId);
 }
 
 // ---------------------------------------------------------------------------

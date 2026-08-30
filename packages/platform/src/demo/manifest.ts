@@ -24,12 +24,28 @@ const owner = { kind: "OWNER" } as const;
 const id = { kind: "REMAP_ID" } as const;
 const money0 = { kind: "SCALE_MONEY", decimals: 0 } as const;
 const money4 = { kind: "SCALE_MONEY", decimals: 4 } as const;
+// Targets, not sums — safe to round to what a person would have typed.
+const limit0 = { kind: "SCALE_MONEY", decimals: 0, round: "nice" } as const;
+const limit4 = { kind: "SCALE_MONEY", decimals: 4, round: "nice" } as const;
 const ccy = { kind: "RELABEL_CURRENCY" } as const;
 const nul = { kind: "NULL" } as const;
 const ref = (t: string) => ({ kind: "REMAP_ID", references: t }) as const;
 const fake = (
-  pool: "merchant" | "category" | "wallet" | "budget" | "holding",
+  pool:
+    | "merchant"
+    | "category"
+    | "income"
+    | "scheduled"
+    | "wallet"
+    | "budget"
+    | "holding",
 ) => ({ kind: "FAKE_TEXT", pool }) as const;
+/** A merchant drawn from the row's own category, so the note makes sense. */
+const merchantOfCategory = {
+  kind: "FAKE_TEXT",
+  pool: "merchant",
+  coherentWithCategory: true,
+} as const;
 
 export const demoManifest: TableManifest[] = [
   // ─── tenancy ──────────────────────────────────────────────────────────────
@@ -148,17 +164,17 @@ export const demoManifest: TableManifest[] = [
       id,
       tenant_id: tenant,
       category_id: ref("budgeting.categories"),
-      normal_amount: money0,
+      normal_amount: limit0,
       normal_currency: ccy,
-      cushion_amount: money0,
+      cushion_amount: limit0,
       cushion_currency: ccy,
       effective_from: ts,
       effective_to: ts,
       actor_user_id: owner,
       created_at: ts,
-      cushion_amount_cents: money0,
-      needs_amount: money0,
-      wants_amount: money0,
+      cushion_amount_cents: limit0,
+      needs_amount: limit0,
+      wants_amount: limit0,
       no_limit: ts,
     },
   },
@@ -170,7 +186,7 @@ export const demoManifest: TableManifest[] = [
       tenant_id: tenant,
       category_id: ref("budgeting.categories"),
       delta_cents: money0,
-      note: fake("merchant"),
+      note: merchantOfCategory,
       created_by: owner,
       occurred_at: ts,
     },
@@ -219,7 +235,7 @@ export const demoManifest: TableManifest[] = [
       fx_as_of: ts,
       created_at: ts,
       transaction_date: ts,
-      note: fake("merchant"),
+      note: merchantOfCategory,
       category_id: ref("budgeting.categories"),
       amount_original_cents: money0,
       amount_converted_cents: money0,
@@ -241,8 +257,8 @@ export const demoManifest: TableManifest[] = [
     columns: {
       id,
       tenant_id: tenant,
-      name: fake("merchant"),
-      amount: money4,
+      name: fake("income"),
+      amount: limit4,
       currency: ccy,
       cadence: ts,
       cadence_anchor: ts,
@@ -262,12 +278,12 @@ export const demoManifest: TableManifest[] = [
       id,
       tenant_id: tenant,
       category_id: ref("budgeting.categories"),
-      amount: money4,
+      amount: limit4,
       currency: ccy,
       cadence: ts,
       cadence_anchor: ts,
       weekly_dow: ts,
-      note: fake("merchant"),
+      note: fake("scheduled"),
       active: ts,
       next_due_date: ts,
       created_at: ts,
@@ -363,9 +379,9 @@ export const demoManifest: TableManifest[] = [
     columns: {
       template_id: ref("budgeting.budget_templates"),
       category_id: ref("budgeting.categories"),
-      normal_amount: money0,
+      normal_amount: limit0,
       normal_currency: ccy,
-      cushion_amount: money0,
+      cushion_amount: limit0,
       cushion_currency: ccy,
       tenant_id: tenant,
     },

@@ -15,7 +15,7 @@
  * break real accounts.
  */
 import type { MiddlewareHandler } from "hono";
-import { readDemoConfig } from "@budget/platform";
+import { readDemoConfig, isDemoUser } from "@budget/platform";
 import type { BootedDeps } from "../boot";
 
 /**
@@ -58,8 +58,9 @@ export const demoGuard =
         .catch(() => null);
     }
 
+    // Every demo account, across languages — there is one per locale.
     const userId = (session as any)?.user?.id;
-    if (userId !== cfg.demoUserId) return next();
+    if (!isDemoUser(userId, cfg)) return next();
 
     return c.json(
       {

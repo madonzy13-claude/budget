@@ -329,7 +329,12 @@ export function OverviewPieChart({
 
       {data.length > 0 && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
-          <span className="pointer-events-none text-caption text-[var(--muted-foreground)]">
+          {/* The hole is a CIRCLE, so a label sized to the square's width runs
+              right up to the ring at the widest point — "Wszystkie kategorie"
+              looked wedged in. Capping the width well inside the hole lets a
+              long label wrap to two tight lines instead, which keeps clear air
+              between the text and the arc in every language. */}
+          <span className="pointer-events-none max-w-[58%] text-balance leading-tight text-caption text-[var(--muted-foreground)]">
             {centreName}
           </span>
           {/* The masked amount stays pointer-events-auto so the wrapper's pointer-up

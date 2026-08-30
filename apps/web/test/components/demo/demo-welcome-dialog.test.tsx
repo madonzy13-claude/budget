@@ -83,7 +83,11 @@ describe("DemoWelcomeDialog", () => {
     fireEvent.click(screen.getByTestId("demo-lang-pl"));
 
     expect(document.cookie).toContain("budget-locale=pl");
-    expect(assign).toHaveBeenCalledWith("/pl/budgets");
+    // Re-enters through /demo rather than swapping the URL's locale segment:
+    // each language has its OWN demo account, because the DATA (categories,
+    // notes, wallets) is stored in one language. Swapping only the path would
+    // translate the chrome and leave English data underneath it.
+    expect(assign).toHaveBeenCalledWith("/pl/demo");
     // The whole point: no settings API call. If this ever goes red, one
     // visitor's language is about to become every visitor's.
     expect(apiCalls).toEqual([]);

@@ -11,7 +11,6 @@
  * See `LocaleSelect` for the account-persisting version used by real users.
  */
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   Dialog,
@@ -49,7 +48,6 @@ function safeSet(key: string, value: string): void {
 
 export function DemoWelcomeDialog({ isDemo }: { isDemo: boolean }) {
   const t = useTranslations("demo");
-  const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -71,10 +69,12 @@ export function DemoWelcomeDialog({ isDemo }: { isDemo: boolean }) {
     safeSet(SEEN_KEY, "1");
     // Cookie only. NOT the settings API — see the file header.
     document.cookie = `budget-locale=${code}; path=/; max-age=31536000; samesite=lax`;
-    const next = pathname.replace(/^\/(en|pl|uk)/, `/${code}`) || `/${code}`;
-    // Full navigation: a same-path locale swap is a different [locale] RSC
-    // segment, and the soft version races (see LocaleSelect's note).
-    window.location.assign(next);
+    // Re-enter through /demo rather than swapping the URL's locale segment.
+    // Each language has its OWN demo account, because the data itself — the
+    // category names, the transaction notes, the wallets — is stored in one
+    // language. Swapping only the path would translate the chrome and leave
+    // English data underneath it, which is the thing this is meant to fix.
+    window.location.assign(`/${code}/demo`);
   };
 
   return (

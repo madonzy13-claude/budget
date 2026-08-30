@@ -5,8 +5,22 @@
  * An unconfigured deployment being completely inert is the point: this feature
  * reads one household's real data, so it must never switch itself on by
  * default, and a missing variable must never be interpreted as a default.
+ *
+ * ONE ACCOUNT PER LANGUAGE. The demo's data — category names, transaction
+ * notes, wallets, incomes — is written into the database in one language, so a
+ * single shared account cannot serve three. Each locale therefore gets its own
+ * demo user and its own pair of budgets, and `/[locale]/demo` signs the visitor
+ * into the account for that language. The locale-specific variables fall back
+ * to the single-locale ones, so a deployment configured before this existed
+ * keeps working as the English demo.
  */
 import { dailyMoneyScale } from "./rules";
+import {
+  demoLocales,
+  isDemoLocale,
+  poolValues,
+  type DemoLocale,
+} from "./pools";
 
 export type DemoPair = {
   source: string;
@@ -17,12 +31,19 @@ export type DemoPair = {
   /** {} keeps every source currency; {PLN:"USD"} relabels. */
   currencyMap: Record<string, string>;
   budgetName: string;
+  /** The account that owns this budget — one per language. */
+  demoUserId: string;
   secondMemberUserId?: string;
+  /** Which language this budget's DATA is written in. */
+  textLocale: DemoLocale;
 };
 
 export type DemoConfig = {
   pairs: DemoPair[];
-  demoUserId: string;
+  /** Every demo account, for the guard and the outbound suppression. */
+  userIds: string[];
+  /** locale → the account to sign in as at /[locale]/demo. */
+  userByLocale: Record<string, string>;
   /** Test-only pin. Production leaves it unset and draws the daily value. */
   fixedMoneyScale?: number;
 };
@@ -34,55 +55,87 @@ function list(v: string | undefined): string[] {
     .filter(Boolean);
 }
 
+function pick(
+  env: Record<string, string | undefined>,
+  base: string,
+  locale: string,
+): string | undefined {
+  // DEMO_USER_ID_PL wins; DEMO_USER_ID is the pre-multi-locale fallback.
+  return env[`${base}_${locale.toUpperCase()}`] ?? env[base];
+}
+
 export function readDemoConfig(
   env: Record<string, string | undefined> = process.env,
 ): DemoConfig | null {
   const sources = list(env.DEMO_SOURCE_TENANT_IDS);
-  const dests = list(env.DEMO_TENANT_IDS);
-  const demoUserId = (env.DEMO_USER_ID ?? "").trim();
+  if (!sources.length) return null;
 
-  if (!sources.length || !dests.length || !demoUserId) return null;
-
-  // Mismatched lists would silently pair the wrong budgets — which, with a
-  // source list that is someone's real finances, is the one misconfiguration
-  // that must never be papered over.
-  if (sources.length !== dests.length) return null;
+  const locales = (
+    list(env.DEMO_LOCALES).length ? list(env.DEMO_LOCALES) : ["en"]
+  ).filter(isDemoLocale) as DemoLocale[];
+  if (!locales.length) return null;
 
   const currencies = list(env.DEMO_CURRENCIES);
-  const names = list(env.DEMO_BUDGET_NAMES);
   const labels = list(env.DEMO_LABELS);
-  // Which pairs are SHARED budgets. Without this the second member lands on
-  // every demo budget, and the personal one stops reading as personal — the
-  // contrast between the two is half of what the demo is showing.
   const sharedLabels = new Set(list(env.DEMO_SHARED_LABELS));
+  const home = (env.DEMO_HOME_CURRENCY ?? "PLN").toUpperCase();
 
-  const pairs = sources.map((source, i) => {
-    const currency = (currencies[i] ?? "USD").toUpperCase();
-    const label = labels[i] ?? `pair-${i}`;
-    return {
-      source,
-      dest: dests[i]!,
-      label,
-      currency,
-      // The home currency is relabeled to the destination currency; everything
-      // else passes through, so the multi-currency story still renders. An
-      // identical mapping is an empty map — no relabel at all.
-      currencyMap:
-        currency === (env.DEMO_HOME_CURRENCY ?? "PLN").toUpperCase()
-          ? {}
-          : { [(env.DEMO_HOME_CURRENCY ?? "PLN").toUpperCase()]: currency },
-      budgetName: names[i] ?? `Demo ${i + 1}`,
-      secondMemberUserId: sharedLabels.has(label)
-        ? env.DEMO_SECOND_USER_ID?.trim() || undefined
-        : undefined,
-    };
-  });
+  const pairs: DemoPair[] = [];
+  const userByLocale: Record<string, string> = {};
+
+  for (const locale of locales) {
+    const dests = list(pick(env, "DEMO_TENANT_IDS", locale));
+    const userId = (pick(env, "DEMO_USER_ID", locale) ?? "").trim();
+    const secondUserId = (
+      pick(env, "DEMO_SECOND_USER_ID", locale) ?? ""
+    ).trim();
+
+    // A locale that is not fully configured is SKIPPED, not guessed at. Half a
+    // demo account is worse than none: it would sign visitors into an empty or
+    // half-copied budget.
+    if (!userId || dests.length !== sources.length) continue;
+
+    userByLocale[locale] = userId;
+    // Budget names come from the locale's own vocabulary, so the Polish demo
+    // says "Osobisty" rather than "Personal".
+    const budgetNames = poolValues(locale, "budget");
+
+    sources.forEach((source, i) => {
+      const currency = (currencies[i] ?? "USD").toUpperCase();
+      const label = labels[i] ?? `pair-${i}`;
+      pairs.push({
+        source,
+        dest: dests[i]!,
+        label: `${label}-${locale}`,
+        currency,
+        // The home currency is relabeled to the destination currency;
+        // everything else passes through, so the multi-currency story still
+        // renders. An identical mapping is an empty map — no relabel at all.
+        currencyMap: currency === home ? {} : { [home]: currency },
+        budgetName: budgetNames[i] ?? `Demo ${i + 1}`,
+        demoUserId: userId,
+        secondMemberUserId: sharedLabels.has(label)
+          ? secondUserId || undefined
+          : undefined,
+        textLocale: locale,
+      });
+    });
+  }
+
+  if (!pairs.length) return null;
 
   const fixed = env.DEMO_MONEY_SCALE ? Number(env.DEMO_MONEY_SCALE) : undefined;
 
   return {
     pairs,
-    demoUserId,
+    userIds: [
+      ...new Set(
+        pairs.flatMap((p) =>
+          [p.demoUserId, p.secondMemberUserId].filter(Boolean),
+        ),
+      ),
+    ] as string[],
+    userByLocale,
     fixedMoneyScale:
       fixed !== undefined && Number.isFinite(fixed) && fixed > 0
         ? fixed
@@ -98,3 +151,23 @@ export function scaleForPair(
 ): number {
   return cfg.fixedMoneyScale ?? dailyMoneyScale(day, pair.label);
 }
+
+/** Is this user one of the demo accounts? */
+export function isDemoUser(
+  userId: string | undefined,
+  cfg: DemoConfig | null = readDemoConfig(),
+): boolean {
+  if (!userId || !cfg) return false;
+  return cfg.userIds.includes(userId);
+}
+
+/** Is this tenant one of the demo budgets? */
+export function isDemoTenantId(
+  tenantId: string | undefined,
+  cfg: DemoConfig | null = readDemoConfig(),
+): boolean {
+  if (!tenantId || !cfg) return false;
+  return cfg.pairs.some((p) => p.dest === tenantId);
+}
+
+export { demoLocales };

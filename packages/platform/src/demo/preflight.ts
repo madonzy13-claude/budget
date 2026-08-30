@@ -15,11 +15,33 @@ import type { Pool } from "pg";
 
 export type Rule =
   | { kind: "COPY" }
-  | { kind: "SCALE_MONEY"; decimals: 0 | 4 }
+  | {
+      kind: "SCALE_MONEY";
+      decimals: 0 | 4;
+      /**
+       * Round to a value a human would have typed. Only for TARGETS (limits,
+       * template amounts, planned figures) — never for transactions, whose
+       * rows must keep summing to the totals shown above them.
+       */
+      round?: "nice";
+    }
   | { kind: "RELABEL_CURRENCY" }
   | {
       kind: "FAKE_TEXT";
-      pool: "merchant" | "category" | "wallet" | "budget" | "holding";
+      pool:
+        | "merchant"
+        | "category"
+        | "income"
+        | "scheduled"
+        | "wallet"
+        | "budget"
+        | "holding";
+      /**
+       * Draw from the vocabulary of the row's CATEGORY rather than the flat
+       * pool, so a Groceries transaction reads "City Market" and not
+       * "Airline Booking". Requires the table to have a category_id.
+       */
+      coherentWithCategory?: true;
       /**
        * Set ONLY where the database enforces uniqueness on this column, because
        * making a value unique means appending a lap number once the pool wraps

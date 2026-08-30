@@ -11,6 +11,7 @@
  * unconfigured deployment should look like the feature does not exist.
  */
 import { NextResponse } from "next/server";
+import { demoCredentialsFor } from "@/lib/demo.server";
 
 export const dynamic = "force-dynamic";
 
@@ -34,11 +35,14 @@ export async function GET(
 ) {
   const { locale } = await params;
 
-  const email = process.env["DEMO_EMAIL"];
-  const password = process.env["DEMO_PASSWORD"];
-  if (!email || !password) {
+  // One account PER LANGUAGE: the demo's data is written in a single language,
+  // so /pl/demo signs the visitor into the Polish demo rather than dropping a
+  // Polish UI over English categories and notes.
+  const creds = demoCredentialsFor(locale);
+  if (!creds) {
     return new NextResponse("Not found", { status: 404 });
   }
+  const { email, password } = creds;
 
   const apiBase = process.env["API_INTERNAL_URL"] ?? "http://api:4000";
 

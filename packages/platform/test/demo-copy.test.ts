@@ -107,6 +107,7 @@ function pairFor(scale: number, map: Record<string, string>): CopyPair {
     moneyScale: scale,
     demoUserId: DEMO_USER,
     budgetName: "Personal",
+    textLocale: "en" as const,
   };
 }
 
@@ -322,5 +323,114 @@ describe("text pool uniqueness", () => {
     );
     expect(rows[0].total).toBeGreaterThan(20);
     expect(rows[0].distinct_names).toBe(rows[0].total);
+  });
+});
+
+describe("readability of the copied demo", () => {
+  test("limits land on round numbers, transactions do not", async () => {
+    // User-reported: a category limit rendered as $231,209. Limits are targets,
+    // so rounding them breaks nothing; transactions must NOT be rounded or the
+    // category totals would stop matching the rows behind them.
+    const c = await pool.connect();
+    try {
+      await c.query(`SET app.tenant_ids = '{${SOURCE},${DEST}}'`);
+      await c.query(`SET app.current_user_id = '${OWNER_USER}'`);
+      await c.query(
+        `INSERT INTO budgeting.category_limits
+           (id, tenant_id, category_id, normal_amount, normal_currency,
+            cushion_amount, cushion_currency,
+            effective_from, actor_user_id, created_at)
+         VALUES (gen_random_uuid(), $1, 'aaaaaaaa-0000-0000-0000-000000000001',
+                 92483700, 'PLN', 71234500, 'PLN', current_date, $2, now())`,
+        [SOURCE, OWNER_USER],
+      );
+    } finally {
+      c.release();
+    }
+
+    await inTx((cl) => refreshPair(cl, pairFor(0.25, { PLN: "USD" })));
+
+    const { rows } = await pool.query(
+      `SELECT normal_amount FROM budgeting.category_limits WHERE tenant_id = $1`,
+      [DEST],
+    );
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) {
+      const major = Number(r.normal_amount) / 100;
+      // Every limit sits on its magnitude's step — no 231,209-style noise.
+      const a = Math.abs(major);
+      const step =
+        a < 20
+          ? 1
+          : a < 100
+            ? 5
+            : Math.abs(major) < 1000
+              ? 10
+              : Math.abs(major) < 10000
+                ? 50
+                : Math.abs(major) < 100000
+                  ? 500
+                  : 1000;
+      expect(major % step).toBe(0);
+    }
+  });
+
+  test("a transaction's note belongs to its own category", async () => {
+    // User-reported: notes read like lorem ipsum. A note must come from the
+    // vocabulary of the category it sits in.
+    const { rows } = await pool.query(
+      `SELECT c.name AS category, l.note
+         FROM budgeting.expense_ledger l
+         JOIN budgeting.categories c ON c.id = l.category_id
+        WHERE l.tenant_id = $1 AND l.note IS NOT NULL`,
+      [DEST],
+    );
+    expect(rows.length).toBeGreaterThan(0);
+
+    const { poolValues, merchantsForCategory, categoryCount } =
+      await import("../src/demo/pools");
+    const categories = poolValues("en", "category");
+    for (const r of rows) {
+      const idx = categories.indexOf(r.category);
+      if (idx < 0) continue; // lapped name; covered by the uniqueness test
+      const allowed = merchantsForCategory("en", idx % categoryCount("en"));
+      expect({
+        category: r.category,
+        note: r.note,
+        ok: allowed.includes(r.note),
+      }).toEqual({ category: r.category, note: r.note, ok: true });
+    }
+  });
+
+  test("a Polish demo is written in Polish, not translated at render time", async () => {
+    await inTx((cl) =>
+      refreshPair(cl, {
+        ...pairFor(0.25, {}),
+        currency: "PLN",
+        label: "personal-pl",
+        textLocale: "pl",
+        budgetName: "Osobisty",
+      }),
+    );
+    const { rows } = await pool.query(
+      `SELECT name FROM budgeting.categories WHERE tenant_id = $1`,
+      [DEST],
+    );
+    const { poolValues } = await import("../src/demo/pools");
+    const polish = new Set(poolValues("pl", "category"));
+    const english = new Set(poolValues("en", "category"));
+    const names = rows.map((r) => String(r.name).replace(/ \d+$/, ""));
+
+    // Every name comes from the Polish vocabulary.
+    for (const name of names) {
+      expect({ name, fromPolishPool: polish.has(name) }).toEqual({
+        name,
+        fromPolishPool: true,
+      });
+    }
+    // And it is genuinely Polish, not the English set by coincidence: some
+    // words ARE identical across the two ("Transport"), so the discriminator is
+    // that at least one name exists ONLY in Polish.
+    expect(names.some((n) => !english.has(n))).toBe(true);
   });
 });

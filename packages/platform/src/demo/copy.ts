@@ -19,7 +19,13 @@
 import type { PoolClient } from "pg";
 import { demoManifest, DEMO_COPY_ORDER, rowScope } from "./manifest";
 import type { TableManifest, ColumnEntry } from "./preflight";
-import { poolValues, type TextPool } from "./rules";
+import {
+  poolValues,
+  merchantsForCategory,
+  categoryCount,
+  type PoolName,
+  type DemoLocale,
+} from "./pools";
 
 export type CopyPair = {
   source: string;
@@ -36,6 +42,8 @@ export type CopyPair = {
   secondMemberUserId?: string;
   /** Display name for the destination budget. */
   budgetName: string;
+  /** Which language the demo's DATA is written in (not just its UI). */
+  textLocale: DemoLocale;
 };
 
 function ident(qualified: string): string {
@@ -68,8 +76,8 @@ function literal(s: string): string {
  * the end of the pool it appends the lap number: Groceries, … , Groceries 2.
  * Deterministic, collision-free for any row count, and still plausible.
  */
-function poolExpr(pool: TextPool, unique: boolean): string {
-  const list = poolValues(pool);
+function poolExpr(locale: DemoLocale, pool: PoolName, unique: boolean): string {
+  const list = poolValues(locale, pool);
   const values = list.map(literal).join(",");
   const n = list.length;
   const pick = `(ARRAY[${values}])[((src.__rn - 1) % ${n}) + 1]`;
@@ -77,6 +85,47 @@ function poolExpr(pool: TextPool, unique: boolean): string {
   return (
     `(${pick} || CASE WHEN src.__rn > ${n}` +
     ` THEN ' ' || (((src.__rn - 1) / ${n}) + 1)::text ELSE '' END)`
+  );
+}
+
+/**
+ * A merchant drawn from the row's OWN category vocabulary.
+ *
+ * Categories are renamed by their per-tenant ordinal, so a row's category
+ * ordinal also selects which merchant list it belongs to. The ordinal arrives
+ * via the `cat_ord` join; rows with no category fall back to the flat pool.
+ *
+ * Emitted as a CASE over the category ordinal — generated from the same tables
+ * the TypeScript side uses, so the two can never drift apart.
+ */
+function coherentMerchantExpr(locale: DemoLocale): string {
+  const n = categoryCount(locale);
+  const branches: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const list = merchantsForCategory(locale, i);
+    const arr = list.map(literal).join(",");
+    branches.push(
+      `WHEN ${i} THEN (ARRAY[${arr}])[((src.__rn - 1) % ${list.length}) + 1]`,
+    );
+  }
+  const flat = poolValues(locale, "merchant");
+  const fallback = `(ARRAY[${flat.map(literal).join(",")}])[((src.__rn - 1) % ${flat.length}) + 1]`;
+  return `CASE (cat_ord.ord % ${n}) ${branches.join(" ")} ELSE ${fallback} END`;
+}
+
+/**
+ * Rounds a scaled money value to something a person would have typed.
+ * Mirrors niceRound() in rules.ts; the unit test pins the two together.
+ */
+function niceRoundSql(scaledMajor: string): string {
+  return (
+    `(CASE` +
+    ` WHEN abs(${scaledMajor}) < 20 THEN round(${scaledMajor})` +
+    ` WHEN abs(${scaledMajor}) < 100 THEN round(${scaledMajor} / 5) * 5` +
+    ` WHEN abs(${scaledMajor}) < 1000 THEN round(${scaledMajor} / 10) * 10` +
+    ` WHEN abs(${scaledMajor}) < 10000 THEN round(${scaledMajor} / 50) * 50` +
+    ` WHEN abs(${scaledMajor}) < 100000 THEN round(${scaledMajor} / 500) * 500` +
+    ` ELSE round(${scaledMajor} / 1000) * 1000 END)`
   );
 }
 
@@ -125,9 +174,19 @@ function columnExpr(
       return `NULL`;
     case "SCALE_MONEY": {
       const s = bind("scale", String(pair.moneyScale), "::numeric");
+      const scaled = `(src.${col(name)}::numeric * ${s})`;
+      if (rule.round === "nice") {
+        // Round in MAJOR units (what the user sees), then return to the
+        // column's own scale.
+        const major = rule.decimals === 0 ? `(${scaled} / 100)` : `${scaled}`;
+        const rounded = niceRoundSql(major);
+        return rule.decimals === 0
+          ? `(${rounded} * 100)::bigint`
+          : `round(${rounded}, 4)`;
+      }
       return rule.decimals === 0
-        ? `round(src.${col(name)}::numeric * ${s})::bigint`
-        : `round(src.${col(name)}::numeric * ${s}, 4)`;
+        ? `round(${scaled})::bigint`
+        : `round(${scaled}, 4)`;
     }
     case "RELABEL_CURRENCY": {
       // Unmapped codes pass through unchanged — that is how the family pair
@@ -135,8 +194,12 @@ function columnExpr(
       const m = bind("ccy", JSON.stringify(pair.currencyMap), "::jsonb");
       return `coalesce(${m} ->> upper(src.${col(name)}::text), src.${col(name)}::text)`;
     }
-    case "FAKE_TEXT":
-      return `CASE WHEN src.${col(name)} IS NULL THEN NULL ELSE ${poolExpr(rule.pool, rule.unique === true)} END`;
+    case "FAKE_TEXT": {
+      const text = rule.coherentWithCategory
+        ? coherentMerchantExpr(pair.textLocale)
+        : poolExpr(pair.textLocale, rule.pool, rule.unique === true);
+      return `CASE WHEN src.${col(name)} IS NULL THEN NULL ELSE ${text} END`;
+    }
     case "REMAP_ID":
       return `(SELECT m.dst FROM demo_idmap m WHERE m.src = src.${col(name)})`;
   }
@@ -299,6 +362,20 @@ export async function copyIntoDemoTenant(
       exprs.push(expr);
     }
 
+    // Only joined when a column actually needs it. `cat_ord` numbers the
+    // source tenant's categories the SAME way the categories copy does, so a
+    // row's category ordinal here selects the very vocabulary its category was
+    // renamed from — that is what keeps a Groceries note about groceries.
+    const needsCategoryOrdinal = Object.values(t.columns).some(
+      (r) => r.kind === "FAKE_TEXT" && r.coherentWithCategory,
+    );
+    const catOrdJoin = needsCategoryOrdinal
+      ? ` LEFT JOIN (
+            SELECT id, (row_number() OVER (ORDER BY id) - 1) AS ord
+              FROM budgeting.categories WHERE tenant_id = $1
+          ) cat_ord ON cat_ord.id = src.category_id`
+      : "";
+
     const res = await client.query(
       `INSERT INTO ${ident(t.table)} (${names.join(", ")})
        SELECT ${exprs.join(", ")}
@@ -306,7 +383,7 @@ export async function copyIntoDemoTenant(
            SELECT s.*, row_number() OVER (ORDER BY ${orderBy}) AS __rn
              FROM ${ident(t.table)} s
             WHERE s.${col(scope.column)} = $1
-         ) src`,
+         ) src${catOrdJoin}`,
       values,
     );
     counts[t.table] = res.rowCount ?? 0;
