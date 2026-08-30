@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { Home } from "lucide-react";
-import { BrandMark } from "@/components/common/brand-mark";
+import { PublicHeader } from "@/components/common/public-header";
 
 /**
  * [locale]/not-found.tsx — Friendly localized 404 for any URL that doesn't
@@ -30,11 +30,11 @@ export default async function LocaleNotFound() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-[var(--canvas-dark)] text-[var(--body-on-dark)]">
-      <header className="z-50 border-b border-[var(--hairline-dark)] bg-[var(--canvas-dark)]/95 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center px-4">
-          <BrandMark href={`/${locale}`} />
-        </div>
-      </header>
+      <PublicHeader
+        locale={locale}
+        controls={false}
+        className="z-50 bg-[var(--canvas-dark)]/95 backdrop-blur"
+      />
       <main className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center">
         <div className="max-w-md space-y-6" data-testid="not-found-card">
           <p

@@ -11,7 +11,7 @@
  * JoinPageCard which renders the appropriate state.
  */
 import { getTranslations } from "next-intl/server";
-import { BrandMark } from "@/components/common/brand-mark";
+import { PublicHeader } from "@/components/common/public-header";
 import { InstallBanner } from "@/components/common/install-banner";
 import { Toaster } from "@/components/ui/sonner";
 import {
@@ -80,11 +80,7 @@ export default async function JoinPage({ params }: PageProps) {
       {/* r40: install nudge reaches logged-out users too — invited family
           members land here on a fresh device. */}
       <InstallBanner />
-      <header className="border-b border-[var(--hairline-dark)]">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center px-4 sm:px-6">
-          <BrandMark href={`/${locale}`} />
-        </div>
-      </header>
+      <PublicHeader locale={locale} controls={false} />
 
       <main className="flex flex-1 items-center justify-center px-4 py-10">
         <JoinPageCard

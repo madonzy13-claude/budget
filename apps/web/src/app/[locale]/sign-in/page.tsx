@@ -10,11 +10,9 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SignInForm } from "@/components/auth/sign-in-form";
-import { BrandMark } from "@/components/common/brand-mark";
 import { InstallBanner } from "@/components/common/install-banner";
-import { PublicLocaleSwitcher } from "@/components/common/public-locale-switcher";
-import { HeaderThemeToggle } from "@/components/common/header-theme-toggle";
 import { SiteFooter } from "@/components/common/site-footer";
+import { PublicHeader } from "@/components/common/public-header";
 import { DemoEntryDialog } from "@/components/demo/demo-entry-dialog";
 
 interface SignInPageProps {
@@ -45,15 +43,7 @@ export default async function SignInPage({
       {/* r40: the install nudge must reach users BEFORE they log in — the
           logged-out entry pages are where new devices land. */}
       <InstallBanner />
-      <header className="border-b border-[var(--hairline-dark)]">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
-          <BrandMark href={`/${locale}`} />
-          <div className="flex items-center gap-2">
-            <PublicLocaleSwitcher current={locale} />
-            <HeaderThemeToggle />
-          </div>
-        </div>
-      </header>
+      <PublicHeader locale={locale} />
 
       <main className="flex flex-1 items-center justify-center px-4 py-10">
         <div className="w-full max-w-md">

@@ -113,14 +113,15 @@ export class DemoPo {
    * asserts the server actually refuses.
    */
   async attemptInvite(): Promise<number> {
-    // Discover a real budget id from a link in the rendered page. `/api/budgets`
-    // is NOT an endpoint (it 404s), and the aggregate route has no budget id in
-    // its own path, so neither the URL nor a list call can supply one.
-    const href = await this.page
-      .locator('a[href*="/budgets/"]')
-      .first()
-      .getAttribute("href", { timeout: 30_000 })
-      .catch(() => null);
+    // Ask for the budget LIST explicitly rather than reading whatever the
+    // landing happens to render. The demo lands on home, which auto-opens a
+    // budget or shows the cross-budget view depending on state — neither is a
+    // reliable place to find a budget id, and this step only needs one.
+    // `/api/budgets` is not an endpoint, and the landing URL carries no id.
+    await this.page.goto("/en?list=1", { waitUntil: "domcontentloaded" });
+    const link = this.page.locator('a[href*="/budgets/"]').first();
+    await link.waitFor({ state: "attached", timeout: 30_000 }).catch(() => {});
+    const href = await link.getAttribute("href").catch(() => null);
     const id = href?.match(
       /\/budgets\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i,
     )?.[1];

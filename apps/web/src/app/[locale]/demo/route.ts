@@ -80,14 +80,16 @@ export async function GET(
     return relativeRedirect(`/${locale}/sign-in`);
   }
 
-  // Land on the all-budgets overview, NOT the app home.
+  // Land on the app home — ONE hop, and the destination the visitor actually
+  // wanted.
   //
-  // Home auto-opens the last-used budget with a client-side soft nav, which
-  // unmounts the welcome dialog out from under the visitor — the dialog would
-  // appear and then vanish mid-click. The aggregate route is stable, and it is
-  // the better first screen anyway: it shows both demo budgets and totals a USD
-  // budget against a PLN one, which is the multi-currency story.
-  const redirect = relativeRedirect(`/${locale}/budgets/aggregate`);
+  // `/budgets/aggregate` is NOT a route: it matched `budgets/[id]` with
+  // id="aggregate", which is no budget, so the page bounced to home a moment
+  // later. That was the visible double redirect. The all-budgets view IS home
+  // (home-budgets-client renders AggregateOverview when there is more than one
+  // budget and no last-visited memory), so a fresh visitor lands on exactly the
+  // screen the old two-hop route was reaching for.
+  const redirect = relativeRedirect(`/${locale}`);
 
   // Forward every Set-Cookie the auth service issued, unchanged.
   const setCookie = res.headers.getSetCookie?.() ?? [];
