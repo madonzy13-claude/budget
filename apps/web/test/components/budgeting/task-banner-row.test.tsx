@@ -215,34 +215,10 @@ describe("TaskBannerRow — CONFIRM_DRAFT jumps to the draft", () => {
     expect(jump).toBeInTheDocument();
   });
 
-  it("scrolls the matching draft row into view when clicked", async () => {
-    const user = userEvent.setup();
-    const { scrollIntoView } = renderWithDraft();
-    await user.click(screen.getByRole("button", { name: /€1,000 \(Rent\)/ }));
-    expect(scrollIntoView).toHaveBeenCalled();
-    // inline:"center" brings the category COLUMN across the horizontal
-    // scroller; block:"nearest" must not drag the page under the sticky header.
-    expect(scrollIntoView.mock.calls[0]?.[0]).toMatchObject({
-      block: "nearest",
-      inline: "center",
-    });
-  });
-
-  it("scrolls instantly rather than animating", async () => {
-    // NOT behavior:"smooth". A smooth scrollIntoView is an animation, and any
-    // competing scroll cancels it half-done: the browser's own scroll on
-    // focusing the button, a re-render swapping the row out from under it, or
-    // WebKit animating only ONE ancestor when the row sits inside nested
-    // scrollers — which is what the installed PWA has and a desktop browser
-    // does not. All three land as "the first tap moved it a pixel, the second
-    // worked". An instant scroll cannot be half-done, and the arrival flash
-    // already does the job smoothness was there for.
-    const user = userEvent.setup();
-    const { scrollIntoView } = renderWithDraft();
-    await user.click(screen.getByRole("button", { name: /€1,000 \(Rent\)/ }));
-    expect(scrollIntoView).toHaveBeenCalled();
-    expect(scrollIntoView.mock.calls[0]?.[0]?.behavior).not.toBe("smooth");
-  });
+  // The scroll mechanics — which ancestors move, how far, and smoothly —
+  // are the helper's contract and are covered in test/lib/scroll-to-draft.
+  // What belongs HERE is the wiring: clicking the title reaches the helper at
+  // all, which the flash below observes without restating the geometry.
 
   it("flags the draft so it can be highlighted on arrival", async () => {
     const user = userEvent.setup();
