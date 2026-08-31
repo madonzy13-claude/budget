@@ -920,3 +920,32 @@ html.is-server-down
     --mobile-offset-bottom: 60px !important;
   }
 }
+
+/* Arrival highlight for a draft row jumped to from its CONFIRM_DRAFT task
+   banner (scroll-to-draft.ts sets the attribute, then clears it). Scrolling
+   alone drops the user next to the row but still leaves them comparing it
+   against its neighbours; two pulses of the accent say "this one".
+   Outline, not background: the draft lane already paints its own sunken
+   surface, and an outline cannot be mistaken for a selection state. */
+@keyframes draft-flash {
+  0%,
+  100% {
+    outline-color: transparent;
+  }
+  25%,
+  75% {
+    outline-color: var(--primary);
+  }
+}
+[data-draft-flash] {
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  animation: draft-flash 0.8s ease-in-out 2;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Hold the ring steady instead of pulsing — the row still stands out. */
+  [data-draft-flash] {
+    outline-color: var(--primary);
+    animation: none;
+  }
+}

@@ -121,6 +121,11 @@ export function DraftRow({
     <div
       ref={ref}
       data-testid={`draft-row-${draft.ruleName.toLowerCase()}`}
+      // Jump target for the CONFIRM_DRAFT task banner (scroll-to-draft.ts).
+      // The testid is keyed on the rule NAME, which is neither unique nor
+      // stable across a rename — the task carries the draft id, so that is
+      // what the anchor exposes.
+      data-draft-id={draft.id}
       onClick={handleClick}
       role="row"
       tabIndex={0}
