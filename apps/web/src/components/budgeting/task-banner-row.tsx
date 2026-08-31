@@ -223,7 +223,11 @@ export function TaskBannerRow({ task, budgetId }: TaskBannerRowProps) {
         <DialogTrigger asChild>
           <button
             type="button"
-            className="shrink-0 text-xs font-medium text-[var(--primary)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+            // --accent-ink, not --primary: brand yellow is a SHAPE colour and
+            // washes out as TEXT on the pale light-theme card, which is what
+            // the token exists for. The focus RING stays --primary — that is
+            // yellow used as a shape.
+            className="shrink-0 text-xs font-medium text-[var(--accent-ink)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
           >
             {t("bdp.tasks.more")}
           </button>

@@ -209,6 +209,13 @@
        (= the old color-mix(card,#000 22%)); flips LIGHTER than the card in the
        light scope so sub-items read as a deeper level either way. */
     --surface-nested-dark: #171b20;
+    /* Surface the CONFIRM_DRAFT arrival flash lifts a draft row to. A separate
+       token because the two themes need opposite DIRECTIONS: dark lifts to the
+       hover step (lighter), while light's greys are packed so tightly that the
+       same step is a 5-unit move nobody can see — so light goes the other way,
+       to the nested surface, which is the palette's own "lighter than its
+       parent in light mode" idiom. Pinned by draft-flash-contrast.test.ts. */
+    --draft-flash-surface: var(--surface-elevated-dark);
 
     /* Hairlines */
     --hairline-dark: #2b3139;
@@ -275,6 +282,9 @@
     --surface-elevated-dark: #e2e6ec;
     /* Nested investment rows read LIGHTER than the group/card in light mode. */
     --surface-nested-dark: #fafafa;
+    /* Lift the flashed row UP off the sunken lane rather than down: elevated
+       is only 5 units from sunken here, which shipped invisible. */
+    --draft-flash-surface: var(--surface-nested-dark);
     --hairline-dark: #dde1e8;
     --hairline-on-dark: var(--hairline-dark);
     --body-on-dark: #181a20;
@@ -942,7 +952,7 @@ html.is-server-down
 @keyframes draft-flash {
   0%,
   35% {
-    background-color: var(--surface-elevated-dark);
+    background-color: var(--draft-flash-surface);
   }
   100% {
     background-color: var(--surface-sunken-dark);
@@ -955,7 +965,7 @@ html.is-server-down
   /* Hold the lift instead of fading it — same signal, no animation. The
      attribute is removed on a timer either way, so it still goes away. */
   [data-draft-flash] {
-    background-color: var(--surface-elevated-dark);
+    background-color: var(--draft-flash-surface);
     animation: none;
   }
 }
