@@ -124,6 +124,9 @@ services:
       DEMO_MONEY_SCALES_EN: ${DEMO_MONEY_SCALES_EN:-}
       DEMO_MONEY_SCALES_PL: ${DEMO_MONEY_SCALES_PL:-}
       DEMO_MONEY_SCALES_UK: ${DEMO_MONEY_SCALES_UK:-}
+      DEMO_ANCHORS_EN: ${DEMO_ANCHORS_EN:-}
+      DEMO_ANCHORS_PL: ${DEMO_ANCHORS_PL:-}
+      DEMO_ANCHORS_UK: ${DEMO_ANCHORS_UK:-}
       # CI E2E ONLY: forwarded from .env so the e2e job can disable Better Auth's
       # rate limiter (the suite's ~800 fresh-user sign-ups across 6 viewport
       # projects otherwise get throttled by the 100/60s bucket). Defaults to empty
@@ -185,6 +188,9 @@ services:
       DEMO_MONEY_SCALES_EN: ${DEMO_MONEY_SCALES_EN:-}
       DEMO_MONEY_SCALES_PL: ${DEMO_MONEY_SCALES_PL:-}
       DEMO_MONEY_SCALES_UK: ${DEMO_MONEY_SCALES_UK:-}
+      DEMO_ANCHORS_EN: ${DEMO_ANCHORS_EN:-}
+      DEMO_ANCHORS_PL: ${DEMO_ANCHORS_PL:-}
+      DEMO_ANCHORS_UK: ${DEMO_ANCHORS_UK:-}
       DEMO_EMAIL_EN: ${DEMO_EMAIL_EN:-}
       DEMO_PASSWORD_EN: ${DEMO_PASSWORD_EN:-}
       DEMO_EMAIL_PL: ${DEMO_EMAIL_PL:-}
@@ -264,6 +270,9 @@ services:
       DEMO_MONEY_SCALES_EN: ${DEMO_MONEY_SCALES_EN:-}
       DEMO_MONEY_SCALES_PL: ${DEMO_MONEY_SCALES_PL:-}
       DEMO_MONEY_SCALES_UK: ${DEMO_MONEY_SCALES_UK:-}
+      DEMO_ANCHORS_EN: ${DEMO_ANCHORS_EN:-}
+      DEMO_ANCHORS_PL: ${DEMO_ANCHORS_PL:-}
+      DEMO_ANCHORS_UK: ${DEMO_ANCHORS_UK:-}
     depends_on:
       migrator:
         condition: service_completed_successfully

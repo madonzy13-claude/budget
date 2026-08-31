@@ -16,7 +16,7 @@
 import type { Pool, PoolClient } from "pg";
 import { checkManifest } from "./preflight";
 import { demoManifest } from "./manifest";
-import { refreshPair } from "./copy";
+import { refreshPair, anchorScale } from "./copy";
 import { readDemoConfig, scaleForPair, type DemoConfig } from "./config";
 
 /**
@@ -88,9 +88,13 @@ export async function runDemoRefresh(
   try {
     await client.query("BEGIN");
     for (const pair of cfg.pairs) {
-      // One constant per budget, threaded through every table of that budget —
-      // resolving it per table would break the uniformity the arithmetic needs.
-      const moneyScale = scaleForPair(pair);
+      // Resolved ONCE per budget and threaded through every table of it —
+      // resolving per table would break the uniformity the arithmetic needs.
+      // An anchored budget solves for the factor that lands on its target; the
+      // rest fall back to a configured constant.
+      const moneyScale = pair.anchor
+        ? await anchorScale(client, pair, pair.anchor)
+        : scaleForPair(pair);
       scales[pair.label] = moneyScale;
       counts[pair.label] = await refreshPair(client, { ...pair, moneyScale });
     }

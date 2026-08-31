@@ -32,9 +32,16 @@ export type DemoPair = {
   currencyMap: Record<string, string>;
   budgetName: string;
   /**
-   * This budget's money factor. A CONSTANT, not re-rolled: a nightly draw made
-   * capitalization swing 60-90% between consecutive days, which reads as chaos
-   * to anyone who visits twice.
+   * Target capitalization for this budget, in its OWN currency. The refresh
+   * solves the money factor that lands on it, so the demo's level is a number
+   * we chose rather than the owner's magnitude times something — and it stays
+   * put as the owner's real balances move.
+   */
+  anchor?: number;
+  /**
+   * Fallback factor, used only when no anchor is configured. A plain
+   * multiplier keeps the demo proportional to the owner's real figures, which
+   * is why the anchor is preferred.
    */
   moneyScale: number;
   /** The account that owns this budget — one per language. */
@@ -114,6 +121,8 @@ export function readDemoConfig(
     // Per budget, because the budgets are in different currencies: one constant
     // cannot make both a dollar budget and a hryvnia budget look plausible.
     const scales = list(pick(env, "DEMO_MONEY_SCALES", locale)).map(Number);
+    // Target capitalization per budget, in that budget's own currency.
+    const anchors = list(pick(env, "DEMO_ANCHORS", locale)).map(Number);
     // Budget names come from the locale's own vocabulary, so the Polish demo
     // says "Osobisty" rather than "Personal".
     const budgetNames = poolValues(locale, "budget");
@@ -131,6 +140,10 @@ export function readDemoConfig(
         // renders. An identical mapping is an empty map — no relabel at all.
         currencyMap: currency === home ? {} : { [home]: currency },
         budgetName: budgetNames[i] ?? `Demo ${i + 1}`,
+        anchor:
+          Number.isFinite(anchors[i]) && (anchors[i] as number) > 0
+            ? (anchors[i] as number)
+            : undefined,
         moneyScale: isUsableScale(scales[i] as number)
           ? (scales[i] as number)
           : 1,
@@ -170,9 +183,9 @@ export function readDemoConfig(
 }
 
 /**
- * The factor for one budget. Constant — see DemoPair.moneyScale. An
- * unconfigured or nonsensical value falls back to 1 (copy the source's
- * magnitudes unchanged) rather than to a guess.
+ * The FALLBACK factor, for budgets with no anchor configured. Anchored budgets
+ * solve their factor at refresh time instead (see anchorScale) — that is what
+ * keeps the demo's level steady while the owner's real balances move.
  */
 export function scaleForPair(pair: DemoPair): number {
   return pair.moneyScale;

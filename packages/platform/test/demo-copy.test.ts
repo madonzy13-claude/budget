@@ -8,7 +8,7 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { Pool, type PoolClient } from "pg";
 import { startTestcontainer } from "@budget/db/test/testcontainer";
-import { refreshPair, type CopyPair } from "../src/demo/copy";
+import { refreshPair, anchorScale, type CopyPair } from "../src/demo/copy";
 
 let pool: Pool;
 
@@ -528,5 +528,104 @@ describe("wealth history level", () => {
     const first = ratios[0]!;
     for (const r of ratios)
       expect(Math.abs(r - first) / first).toBeLessThan(0.001);
+  });
+});
+
+describe("anchored level", () => {
+  /** Capitalization exactly as the app defines it: wallets + investments. */
+  async function capitalizationOf(tenant: string, ccy: string) {
+    const { rows } = await pool.query(
+      `WITH fx AS (SELECT base, quote, rate FROM budgeting.fx_rates
+                    WHERE date = (SELECT max(date) FROM budgeting.fx_rates))
+       SELECT (COALESCE((SELECT sum(w.current_balance * CASE WHEN w.currency=$2 THEN 1
+                 ELSE COALESCE((SELECT rate FROM fx WHERE base=w.currency AND quote=$2),1) END)
+               FROM budgeting.wallets w WHERE w.tenant_id=$1 AND w.archived_at IS NULL),0)
+             + COALESCE((SELECT sum(i.quantity * (i.current_price_cents/100.0) *
+                 CASE WHEN i.current_price_currency=$2 THEN 1
+                 ELSE COALESCE((SELECT rate FROM fx WHERE base=i.current_price_currency AND quote=$2),1) END)
+               FROM budgeting.investments i WHERE i.tenant_id=$1 AND i.archived_at IS NULL),0))::numeric AS cap`,
+      [tenant, ccy],
+    );
+    return Number(rows[0].cap);
+  }
+
+  test("lands the demo on its anchor, whatever the source is worth", async () => {
+    const anchor = 250_000;
+    const scale = await inTx((cl) =>
+      anchorScale(cl, pairFor(1, { PLN: "USD" }), anchor),
+    );
+    await inTx((cl) =>
+      refreshPair(cl, { ...pairFor(1, { PLN: "USD" }), moneyScale: scale }),
+    );
+
+    const cap = await capitalizationOf(DEST, "USD");
+    // Within the ±3% wobble that keeps consecutive days from being identical.
+    expect(Math.abs(cap - anchor) / anchor).toBeLessThan(0.04);
+  });
+
+  test("holds the level when the OWNER's balances move — the whole point", async () => {
+    // A fixed multiplier cannot do this: the demo would move with the owner,
+    // and its magnitude would stay proportional to theirs. The anchor absorbs
+    // the change, so the demo's level says nothing about the owner's.
+    const anchor = 250_000;
+    const before = await capitalizationOf(DEST, "USD");
+
+    const c = await pool.connect();
+    try {
+      await c.query(`SET app.tenant_ids = '{${SOURCE},${DEST}}'`);
+      await c.query(`SET app.current_user_id = '${OWNER_USER}'`);
+      // The owner comes into a large amount of money.
+      await c.query(
+        `INSERT INTO budgeting.wallets
+           (id, tenant_id, name, currency, current_balance, created_at, actor_user_id)
+         VALUES (gen_random_uuid(), $1, 'windfall', 'PLN', 5000000.0000, now(), $2)`,
+        [SOURCE, OWNER_USER],
+      );
+    } finally {
+      c.release();
+    }
+
+    const scale = await inTx((cl) =>
+      anchorScale(cl, pairFor(1, { PLN: "USD" }), anchor),
+    );
+    await inTx((cl) =>
+      refreshPair(cl, { ...pairFor(1, { PLN: "USD" }), moneyScale: scale }),
+    );
+    const after = await capitalizationOf(DEST, "USD");
+
+    // The demo barely moved, though the source's worth changed enormously.
+    expect(Math.abs(after - anchor) / anchor).toBeLessThan(0.04);
+    expect(Math.abs(after - before) / before).toBeLessThan(0.08);
+  });
+
+  test("a source worth nothing falls back to 1 instead of dividing by zero", async () => {
+    const empty = { ...pairFor(1, {}), source: DEMO_USER }; // a tenant with no rows
+    const scale = await inTx((cl) => anchorScale(cl, empty, 250_000));
+    expect(scale).toBe(1);
+  });
+
+  test("adds NO artificial day-to-day noise", async () => {
+    // An earlier version wobbled the factor ±3% "so it looks alive". That noise
+    // lands straight in the card's "since yesterday" figure, inventing a ±6%
+    // move out of nothing — the exact thing anchoring exists to remove. The
+    // demo is alive from the owner's real movement instead.
+    const p = pairFor(1, { PLN: "USD" });
+    const a = await inTx((cl) => anchorScale(cl, p, 250_000));
+    const b = await inTx((cl) => anchorScale(cl, p, 250_000));
+    expect(a).toBe(b);
+  });
+});
+
+describe("anchor visibility", () => {
+  test("solves a real factor, never silently degrading to 1", async () => {
+    // anchorScale runs BEFORE refreshPair, so it must announce its own tenants:
+    // without the GUC the source is invisible under RLS, every sum returns 0,
+    // and the anchor quietly falls back to a factor of 1 — indistinguishable
+    // from success in the logs, and the demo ships at the owner's real scale.
+    const scale = await inTx((cl) =>
+      anchorScale(cl, pairFor(1, { PLN: "USD" }), 250_000),
+    );
+    expect(scale).not.toBe(1);
+    expect(scale).toBeGreaterThan(0);
   });
 });

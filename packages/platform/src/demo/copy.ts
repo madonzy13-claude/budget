@@ -400,6 +400,83 @@ export async function copyIntoDemoTenant(
 }
 
 /**
+ * The money factor that lands this budget's capitalization ON its anchor.
+ *
+ * Everything the demo shows is LINEAR in the factor — wallet balances scale by
+ * it, investment quantities scale by it, prices do not — so capitalization at
+ * factor F is exactly F × capitalization at factor 1. That makes the factor
+ * solvable in closed form rather than by trial: F = anchor ÷ cap(1).
+ *
+ * Recomputed every night, which is the whole point of anchoring: as the owner's
+ * real balances move, the factor absorbs the movement and the demo stays put.
+ * A fixed factor could not do that — the demo's level would drift with the
+ * owner's, and its magnitude would stay proportional to theirs. Here the level
+ * is a number WE chose, with no arithmetic relationship to the owner's at all.
+ *
+ * `cap(1)` is computed from the SOURCE with the same relabel-and-convert rules
+ * the copy is about to apply, so the prediction matches what actually lands.
+ *
+ * NO artificial wobble. An earlier version added ±3% "so it looks alive",
+ * which was a mistake: that noise lands squarely in the card's "since
+ * yesterday" figure, inventing a ±6% day-over-day move out of nothing — the
+ * exact complaint anchoring is meant to answer. The demo is already alive
+ * without it, because the owner's real day-to-day movement flows through the
+ * copied history (currently a fraction of a percent, as it should be).
+ */
+export async function anchorScale(
+  client: PoolClient,
+  pair: CopyPair,
+  anchor: number,
+): Promise<number> {
+  // Announce both tenants FIRST. This runs before refreshPair (its result IS
+  // refreshPair's input), so without this the source is invisible under RLS,
+  // every sum comes back 0, and the anchor silently degrades to the fallback
+  // factor of 1 — which looks like it worked.
+  await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+    `{${pair.source},${pair.dest}}`,
+  ]);
+  await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [
+    pair.demoUserId,
+  ]);
+
+  const { rows } = await client.query<{ cap: string | null }>(
+    `WITH fx AS (
+       SELECT base, quote, rate FROM budgeting.fx_rates
+        WHERE date = (SELECT max(date) FROM budgeting.fx_rates)
+     ),
+     -- The copy relabels currencies (PLN->USD is a rename, not a conversion),
+     -- so the rate lookup must use the RELABELED code to predict correctly.
+     w AS (
+       SELECT COALESCE(sum(
+         wa.current_balance * CASE
+           WHEN COALESCE($3::jsonb ->> upper(wa.currency), upper(wa.currency)) = $2 THEN 1
+           ELSE COALESCE((SELECT rate FROM fx WHERE base = COALESCE($3::jsonb ->> upper(wa.currency), upper(wa.currency)) AND quote = $2), 1)
+         END), 0) AS v
+         FROM budgeting.wallets wa
+        WHERE wa.tenant_id = $1 AND wa.archived_at IS NULL
+     ),
+     i AS (
+       SELECT COALESCE(sum(
+         inv.quantity * (inv.current_price_cents / 100.0) * CASE
+           WHEN COALESCE($3::jsonb ->> upper(inv.current_price_currency), upper(inv.current_price_currency)) = $2 THEN 1
+           ELSE COALESCE((SELECT rate FROM fx WHERE base = COALESCE($3::jsonb ->> upper(inv.current_price_currency), upper(inv.current_price_currency)) AND quote = $2), 1)
+         END), 0) AS v
+         FROM budgeting.investments inv
+        WHERE inv.tenant_id = $1 AND inv.archived_at IS NULL
+     )
+     SELECT ((SELECT v FROM w) + (SELECT v FROM i))::text AS cap`,
+    [pair.source, pair.currency, JSON.stringify(pair.currencyMap)],
+  );
+
+  const capAtOne = Number(rows[0]?.cap ?? 0);
+  // No source data (or no rates) → copy the source unchanged rather than
+  // divide by zero and publish a nonsense level.
+  if (!Number.isFinite(capAtOne) || capAtOne <= 0) return 1;
+
+  return anchor / capAtOne;
+}
+
+/**
  * Wealth history, re-levelled onto the demo's OWN present value.
  *
  * `budget_wealth_snapshots` stores totals ALREADY CONVERTED into the source
