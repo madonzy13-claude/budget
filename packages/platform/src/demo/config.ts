@@ -42,6 +42,12 @@ export type DemoConfig = {
   pairs: DemoPair[];
   /** Every demo account, for the guard and the outbound suppression. */
   userIds: string[];
+  /**
+   * locale → the currency that account's own money is shown in. Taken from the
+   * PERSONAL budget, since that is the visitor's own money; the shared family
+   * budget is foreign to it on purpose.
+   */
+  accountCurrencyByLocale: Record<string, string>;
   /** locale → the account to sign in as at /[locale]/demo. */
   userByLocale: Record<string, string>;
   /** Test-only pin. Production leaves it unset and draws the daily value. */
@@ -75,7 +81,6 @@ export function readDemoConfig(
   ).filter(isDemoLocale) as DemoLocale[];
   if (!locales.length) return null;
 
-  const currencies = list(env.DEMO_CURRENCIES);
   const labels = list(env.DEMO_LABELS);
   const sharedLabels = new Set(list(env.DEMO_SHARED_LABELS));
   const home = (env.DEMO_HOME_CURRENCY ?? "PLN").toUpperCase();
@@ -96,6 +101,12 @@ export function readDemoConfig(
     if (!userId || dests.length !== sources.length) continue;
 
     userByLocale[locale] = userId;
+    // Currencies are per LANGUAGE: a Ukrainian visitor's personal budget is in
+    // hryvnia, a Polish one in złoty, an English one in dollars. The shared
+    // family budget is the same currency in every language (euro), which also
+    // keeps it a genuinely foreign currency next to each personal budget — so
+    // the all-budgets total always demonstrates real FX conversion.
+    const currencies = list(pick(env, "DEMO_CURRENCIES", locale));
     // Budget names come from the locale's own vocabulary, so the Polish demo
     // says "Osobisty" rather than "Personal".
     const budgetNames = poolValues(locale, "budget");
@@ -124,6 +135,16 @@ export function readDemoConfig(
 
   if (!pairs.length) return null;
 
+  // The account's display currency follows its PERSONAL budget — that is the
+  // "global" currency every cross-budget total is rendered in.
+  const accountCurrencyByLocale: Record<string, string> = {};
+  for (const [locale, userId] of Object.entries(userByLocale)) {
+    const personal = pairs.find(
+      (p) => p.textLocale === locale && p.demoUserId === userId,
+    );
+    if (personal) accountCurrencyByLocale[locale] = personal.currency;
+  }
+
   const fixed = env.DEMO_MONEY_SCALE ? Number(env.DEMO_MONEY_SCALE) : undefined;
 
   return {
@@ -136,6 +157,7 @@ export function readDemoConfig(
       ),
     ] as string[],
     userByLocale,
+    accountCurrencyByLocale,
     fixedMoneyScale:
       fixed !== undefined && Number.isFinite(fixed) && fixed > 0
         ? fixed

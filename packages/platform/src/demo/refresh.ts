@@ -13,11 +13,39 @@
  * merely stale. Every write is in one transaction, so a mid-run failure cannot
  * leave a half-scrubbed demo standing.
  */
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { checkManifest } from "./preflight";
 import { demoManifest } from "./manifest";
 import { refreshPair } from "./copy";
 import { readDemoConfig, scaleForPair, type DemoConfig } from "./config";
+
+/**
+ * Each demo account's display currency follows its own PERSONAL budget, so a
+ * Ukrainian visitor sees hryvnia everywhere the app totals across budgets and a
+ * Polish one sees złoty.
+ *
+ * Done here rather than left to provisioning: a fresh deployment should end up
+ * correct from the first refresh, not depend on someone remembering a one-off
+ * UPDATE. identity.users is USER-SCOPED under RLS, and the copy has already set
+ * app.current_user_id to the demo user, so this is a self-update — the same
+ * thing the account could do from its own settings page.
+ */
+async function setAccountCurrencies(
+  client: PoolClient,
+  cfg: DemoConfig,
+): Promise<void> {
+  for (const [locale, userId] of Object.entries(cfg.userByLocale)) {
+    const currency = cfg.accountCurrencyByLocale[locale];
+    if (!currency) continue;
+    await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [
+      userId,
+    ]);
+    await client.query(
+      `UPDATE identity.users SET display_currency = $2 WHERE id = $1::uuid`,
+      [userId, currency],
+    );
+  }
+}
 
 export type RefreshResult = {
   ok: boolean;
@@ -69,6 +97,7 @@ export async function runDemoRefresh(
       scales[pair.label] = moneyScale;
       counts[pair.label] = await refreshPair(client, { ...pair, moneyScale });
     }
+    await setAccountCurrencies(client, cfg);
     await client.query("COMMIT");
     return { ok: true, scales, counts };
   } catch (e) {

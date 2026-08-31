@@ -118,6 +118,9 @@ services:
       DEMO_TENANT_IDS_UK: ${DEMO_TENANT_IDS_UK:-}
       DEMO_USER_ID_UK: ${DEMO_USER_ID_UK:-}
       DEMO_SECOND_USER_ID_UK: ${DEMO_SECOND_USER_ID_UK:-}
+      DEMO_CURRENCIES_EN: ${DEMO_CURRENCIES_EN:-}
+      DEMO_CURRENCIES_PL: ${DEMO_CURRENCIES_PL:-}
+      DEMO_CURRENCIES_UK: ${DEMO_CURRENCIES_UK:-}
       # CI E2E ONLY: forwarded from .env so the e2e job can disable Better Auth's
       # rate limiter (the suite's ~800 fresh-user sign-ups across 6 viewport
       # projects otherwise get throttled by the 100/60s bucket). Defaults to empty
@@ -173,6 +176,9 @@ services:
       DEMO_SECOND_USER_ID_EN: ${DEMO_SECOND_USER_ID_EN:-}
       DEMO_SECOND_USER_ID_PL: ${DEMO_SECOND_USER_ID_PL:-}
       DEMO_SECOND_USER_ID_UK: ${DEMO_SECOND_USER_ID_UK:-}
+      DEMO_CURRENCIES_EN: ${DEMO_CURRENCIES_EN:-}
+      DEMO_CURRENCIES_PL: ${DEMO_CURRENCIES_PL:-}
+      DEMO_CURRENCIES_UK: ${DEMO_CURRENCIES_UK:-}
       DEMO_EMAIL_EN: ${DEMO_EMAIL_EN:-}
       DEMO_PASSWORD_EN: ${DEMO_PASSWORD_EN:-}
       DEMO_EMAIL_PL: ${DEMO_EMAIL_PL:-}
@@ -246,6 +252,9 @@ services:
       DEMO_TENANT_IDS_UK: ${DEMO_TENANT_IDS_UK:-}
       DEMO_USER_ID_UK: ${DEMO_USER_ID_UK:-}
       DEMO_SECOND_USER_ID_UK: ${DEMO_SECOND_USER_ID_UK:-}
+      DEMO_CURRENCIES_EN: ${DEMO_CURRENCIES_EN:-}
+      DEMO_CURRENCIES_PL: ${DEMO_CURRENCIES_PL:-}
+      DEMO_CURRENCIES_UK: ${DEMO_CURRENCIES_UK:-}
     depends_on:
       migrator:
         condition: service_completed_successfully

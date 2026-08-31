@@ -16,7 +16,7 @@ import { SCALE_MIN, SCALE_MAX } from "../src/demo/rules";
 
 const BASE = {
   DEMO_SOURCE_TENANT_IDS: "src-personal,src-family",
-  DEMO_CURRENCIES: "USD,PLN",
+  DEMO_CURRENCIES: "USD,EUR",
   DEMO_LABELS: "personal,family",
   DEMO_SHARED_LABELS: "family",
   DEMO_HOME_CURRENCY: "PLN",
@@ -33,6 +33,10 @@ const LEGACY = {
 const MULTI = {
   ...BASE,
   DEMO_LOCALES: "en,pl,uk",
+  // Personal budget in the language's own currency; family always euro.
+  DEMO_CURRENCIES_EN: "USD,EUR",
+  DEMO_CURRENCIES_PL: "PLN,EUR",
+  DEMO_CURRENCIES_UK: "UAH,EUR",
   DEMO_TENANT_IDS_EN: "en-personal,en-family",
   DEMO_USER_ID_EN: "demo-en",
   DEMO_SECOND_USER_ID_EN: "member-en",
@@ -89,12 +93,14 @@ describe("readDemoConfig", () => {
 
   test("budget names come from the language's own vocabulary", () => {
     const cfg = readDemoConfig(MULTI)!;
+    // Keyed on the LABEL, not the currency — currencies now differ per
+    // language, which is what the neighbouring tests cover.
     const names = Object.fromEntries(
-      cfg.pairs.map((p) => [`${p.textLocale}-${p.currency}`, p.budgetName]),
+      cfg.pairs.map((p) => [p.label, p.budgetName]),
     );
-    expect(names["en-USD"]).toBe("Personal");
-    expect(names["pl-USD"]).toBe("Osobisty");
-    expect(names["uk-USD"]).toBe("Особистий");
+    expect(names["personal-en"]).toBe("Personal");
+    expect(names["personal-pl"]).toBe("Osobisty");
+    expect(names["personal-uk"]).toBe("Особистий");
   });
 
   test("a half-configured language is SKIPPED, never half-built", () => {
@@ -106,12 +112,57 @@ describe("readDemoConfig", () => {
   });
 
   test("relabels the home currency only when the destination differs", () => {
-    const cfg = readDemoConfig(LEGACY)!;
+    const cfg = readDemoConfig({ ...LEGACY, DEMO_CURRENCIES: "USD,PLN" })!;
     const [personal, family] = cfg.pairs;
     expect(personal!.currency).toBe("USD");
     expect(personal!.currencyMap).toEqual({ PLN: "USD" });
+    // Destination equals the source's home currency → nothing to relabel.
     expect(family!.currency).toBe("PLN");
     expect(family!.currencyMap).toEqual({});
+  });
+
+  test("each language's PERSONAL budget uses that language's currency", () => {
+    const cfg = readDemoConfig(MULTI)!;
+    const personal = Object.fromEntries(
+      cfg.pairs
+        .filter((p) => p.label.startsWith("personal"))
+        .map((p) => [p.textLocale, p.currency]),
+    );
+    expect(personal).toEqual({ en: "USD", pl: "PLN", uk: "UAH" });
+  });
+
+  test("the family budget is euro in every language", () => {
+    const cfg = readDemoConfig(MULTI)!;
+    for (const p of cfg.pairs.filter((x) => x.label.startsWith("family"))) {
+      expect({ locale: p.textLocale, currency: p.currency }).toEqual({
+        locale: p.textLocale,
+        currency: "EUR",
+      });
+    }
+  });
+
+  test("the account's display currency follows its personal budget", () => {
+    // The "global" currency: what every cross-budget total is rendered in.
+    const cfg = readDemoConfig(MULTI)!;
+    expect(cfg.accountCurrencyByLocale).toEqual({
+      en: "USD",
+      pl: "PLN",
+      uk: "UAH",
+    });
+  });
+
+  test("personal and family never share a currency, in any language", () => {
+    // What keeps the all-budgets total a real FX conversion rather than plain
+    // addition — in every language, not just the one that happened to be set up.
+    const cfg = readDemoConfig(MULTI)!;
+    for (const locale of ["en", "pl", "uk"]) {
+      const forLocale = cfg.pairs.filter((p) => p.textLocale === locale);
+      const currencies = new Set(forLocale.map((p) => p.currency));
+      expect({ locale, distinct: currencies.size }).toEqual({
+        locale,
+        distinct: forLocale.length,
+      });
+    }
   });
 
   test("the second member lands only on pairs named as shared", () => {

@@ -12,7 +12,14 @@
  * old daily row in the database and keep running it alongside the new one.
  *
  * Algorithm:
- * 1. Collect all distinct (currency_orig, currency_default) pairs from expense_ledger.
+ * 1. Collect all distinct (base, quote) pairs the app will need to convert:
+ *    - every (currency_orig, currency_default) in expense_ledger, and
+ *    - every (wallet currency, budget default_currency) for live wallets.
+ *
+ *    The wallet half matters on its own: a wallet holding a currency that has
+ *    no TRANSACTIONS in it still shows up in capitalization and net worth, and
+ *    without a rate those totals silently counted it 1:1. Ledger-only pairs
+ *    left that hole open for any account with, say, a dormant foreign account.
  * 2. For each pair call fxProvider.rateAsOf(base, quote, today).
  *    fxProvider internally caches results into budgeting.fx_rates.
  * 3. Returns { fetched, failed } counts for observability.
@@ -20,8 +27,8 @@
  * No RLS needed: fx_rates is reference data; withInfraTx uses worker_role.
  */
 import type { FxProvider } from "@budget/shared-kernel";
+import { FX_PAIRS_SQL } from "./fx-pairs-sql";
 import { withInfraTx } from "@budget/platform";
-import { sql } from "drizzle-orm";
 
 /** Queue name — unchanged on purpose; see the note above. */
 export const FX_FETCH_QUEUE = "fx-daily-fetch";
@@ -42,16 +49,21 @@ export function registerFxDailyFetch(boss: PgBossLike, fxProvider: FxProvider) {
     // Collect distinct (base, quote) pairs from expense_ledger
     let pairs: Array<{ base: string; quote: string }> = [];
     const result = await withInfraTx(async (tx) => {
-      const rows = await tx.execute(sql`
-        SELECT DISTINCT currency_orig AS base, currency_default AS quote
-        FROM budgeting.expense_ledger
-        WHERE currency_orig IS NOT NULL AND currency_default IS NOT NULL
-          AND currency_orig <> currency_default
-      `);
+      const rows = await tx.execute(FX_PAIRS_SQL);
       return rows.rows as Array<{ base: string; quote: string }>;
     });
     if (result.isOk()) {
       pairs = result.value;
+    } else {
+      // LOUD. This query used to name columns that do not exist
+      // (currency_orig / currency_default), the error was swallowed here, and
+      // the job then "succeeded" having fetched nothing at all — for months.
+      // An empty pair list is indistinguishable from a healthy no-op, so the
+      // failure has to say so itself.
+      console.error(
+        `[fx-daily-fetch] could not collect currency pairs: ${result.error.message}`,
+      );
+      throw result.error;
     }
 
     const today = new Date();

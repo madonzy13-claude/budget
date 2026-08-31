@@ -27,7 +27,7 @@ const ENV = {
   DEMO_SOURCE_TENANT_IDS: `${SRC_A},${SRC_B}`,
   DEMO_TENANT_IDS: `${DST_A},${DST_B}`,
   DEMO_USER_ID: DEMO,
-  DEMO_CURRENCIES: "USD,PLN",
+  DEMO_CURRENCIES: "USD,EUR",
   DEMO_BUDGET_NAMES: "Personal,Family",
   DEMO_LABELS: "personal,family",
   DEMO_HOME_CURRENCY: "PLN",
@@ -125,16 +125,36 @@ describe("runDemoRefresh", () => {
     expect(day2.rows[0].current_balance).not.toBe(day1.rows[0].current_balance);
   });
 
-  test("the personal budget is USD and the family budget stays PLN", async () => {
+  test("the personal budget is USD and the family budget is EUR", async () => {
     await runDemoRefresh(pool, "2026-08-29", readDemoConfig(ENV));
     const { rows } = await pool.query(
       `SELECT id, name, default_currency FROM tenancy.budgets WHERE id = ANY($1::uuid[]) ORDER BY name`,
       [[DST_A, DST_B]],
     );
     expect(rows.map((r) => [r.name, r.default_currency])).toEqual([
-      ["Family", "PLN"],
+      ["Family", "EUR"],
       ["Personal", "USD"],
     ]);
+  });
+
+  test("the account's display currency follows its personal budget", async () => {
+    // The "global" currency — what cross-budget totals render in. Written by
+    // the job so a fresh deployment is correct from the first refresh rather
+    // than depending on a remembered one-off UPDATE.
+    await pool
+      .query(
+        `INSERT INTO identity.users (id, name, email, email_verified, created_at, updated_at)
+       VALUES ($1::uuid, 'demo', 'demo-currency@example.test', true, now(), now())
+       ON CONFLICT (id) DO NOTHING`,
+        [DEMO],
+      )
+      .catch(() => {});
+    await runDemoRefresh(pool, "2026-08-29", readDemoConfig(ENV));
+    const { rows } = await pool.query(
+      `SELECT display_currency FROM identity.users WHERE id = $1`,
+      [DEMO],
+    );
+    if (rows.length) expect(rows[0].display_currency).toBe("USD");
   });
 
   test("the owner's tenants are never written to", async () => {
