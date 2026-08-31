@@ -924,28 +924,38 @@ html.is-server-down
 /* Arrival highlight for a draft row jumped to from its CONFIRM_DRAFT task
    banner (scroll-to-draft.ts sets the attribute, then clears it). Scrolling
    alone drops the user next to the row but still leaves them comparing it
-   against its neighbours; two pulses of the accent say "this one".
-   Outline, not background: the draft lane already paints its own sunken
-   surface, and an outline cannot be mistaken for a selection state. */
+   against its neighbours.
+
+   A surface lift, not a ring: this is the same step the app already uses for
+   a hovered row, so "the thing you asked for is here" is said in the
+   vocabulary the rest of the UI speaks. It was a pulsing yellow outline, which
+   was wrong twice over — the accent carries brand voltage (primary CTAs,
+   headings), so spending it on a transient marker competes with the real
+   actions on screen, and a ring around one row in a dense grid reads as a
+   selection the user now has to dismiss.
+
+   Both tokens flip with the theme, so this lands correctly in light too. The
+   keyframe wins over the row's inline background-color: animations sit above
+   normal author declarations in the cascade, inline style included. Holding
+   the lift through the first third gives the eye time to arrive before it
+   settles back. */
 @keyframes draft-flash {
   0%,
-  100% {
-    outline-color: transparent;
+  35% {
+    background-color: var(--surface-elevated-dark);
   }
-  25%,
-  75% {
-    outline-color: var(--primary);
+  100% {
+    background-color: var(--surface-sunken-dark);
   }
 }
 [data-draft-flash] {
-  outline: 2px solid transparent;
-  outline-offset: -2px;
-  animation: draft-flash 0.8s ease-in-out 2;
+  animation: draft-flash 1.4s ease-out;
 }
 @media (prefers-reduced-motion: reduce) {
-  /* Hold the ring steady instead of pulsing — the row still stands out. */
+  /* Hold the lift instead of fading it — same signal, no animation. The
+     attribute is removed on a timer either way, so it still goes away. */
   [data-draft-flash] {
-    outline-color: var(--primary);
+    background-color: var(--surface-elevated-dark);
     animation: none;
   }
 }
