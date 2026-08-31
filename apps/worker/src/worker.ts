@@ -218,7 +218,7 @@ async function main() {
       "demo-refresh",
       { pollingIntervalSeconds: 60, batchSize: 1 },
       async () => {
-        await handleDemoRefresh();
+        await handleDemoRefresh(wealthSnapshotDeps);
       },
     );
     await boss.schedule("demo-refresh", "0 3 * * *", null, { tz: "UTC" });

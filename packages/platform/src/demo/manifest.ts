@@ -70,6 +70,8 @@ export const demoManifest: TableManifest[] = [
       cushion_enabled: ts,
       cushion_target_months: ts,
       investments_enabled: ts,
+      // Forced false by the copy — see copyIntoDemoTenant. The rule stays COPY
+      // so the preflight still accounts for the column.
       amount_privacy_enabled: ts,
       // DRIFT: `0055_overview_enabled` adds this column and `0056_amount_privacy_flag`
       // RENAMES it to amount_privacy_enabled — so a freshly migrated database

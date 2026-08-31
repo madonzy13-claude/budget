@@ -309,8 +309,8 @@ export async function copyIntoDemoTenant(
     if (t.mode !== "copy") continue;
 
     if (t.table === "budgeting.budget_wealth_snapshots") {
-      await copyWealthHistory(client, pair);
-      counts[t.table] = 1;
+      // Levelled AFTER the copy commits, by levelWealthHistory — it needs the
+      // app's own valuation of the copied data, which reads committed rows.
       continue;
     }
 
@@ -330,7 +330,11 @@ export async function copyIntoDemoTenant(
                 cushion_enabled = s.cushion_enabled,
                 cushion_target_months = s.cushion_target_months,
                 investments_enabled = s.investments_enabled,
-                amount_privacy_enabled = s.amount_privacy_enabled,
+                -- Forced OFF, never copied. The owner runs with amounts
+                -- obfuscated; a prospect landing on a wall of scrambled
+                -- characters sees nothing worth evaluating. The demo exists to
+                -- be read.
+                amount_privacy_enabled = false,
                 archived_at = NULL
            FROM tenancy.budgets s
           WHERE d.id = $1 AND s.id = $5`,
@@ -400,38 +404,27 @@ export async function copyIntoDemoTenant(
 }
 
 /**
- * The money factor that lands this budget's capitalization ON its anchor.
+ * Wealth history, re-levelled onto the demo's own present value.
  *
- * Everything the demo shows is LINEAR in the factor — wallet balances scale by
- * it, investment quantities scale by it, prices do not — so capitalization at
- * factor F is exactly F × capitalization at factor 1. That makes the factor
- * solvable in closed form rather than by trial: F = anchor ÷ cap(1).
+ * `budget_wealth_snapshots` stores totals ALREADY CONVERTED into the source
+ * budget's currency, so copying them through a currency relabel redenominates
+ * without converting. Each series is therefore scaled by (its live value ÷ its
+ * newest source point); the money factor cancels out of that ratio.
  *
- * Recomputed every night, which is the whole point of anchoring: as the owner's
- * real balances move, the factor absorbs the movement and the demo stays put.
- * A fixed factor could not do that — the demo's level would drift with the
- * owner's, and its magnitude would stay proportional to theirs. Here the level
- * is a number WE chose, with no arithmetic relationship to the owner's at all.
- *
- * `cap(1)` is computed from the SOURCE with the same relabel-and-convert rules
- * the copy is about to apply, so the prediction matches what actually lands.
- *
- * NO artificial wobble. An earlier version added ±3% "so it looks alive",
- * which was a mistake: that noise lands squarely in the card's "since
- * yesterday" figure, inventing a ±6% day-over-day move out of nothing — the
- * exact complaint anchoring is meant to answer. The demo is already alive
- * without it, because the owner's real day-to-day movement flows through the
- * copied history (currently a fraction of a percent, as it should be).
+ * The live values are PASSED IN, never computed here. Twice now this module
+ * tried to derive capitalization in SQL and got it wrong — first by omitting
+ * investments entirely (~45% low), then by valuing holdings as
+ * quantity x stored price, which ignores the live price cache and the
+ * per-type rules for metals premiums and deposit accrual (~21% low, and it was
+ * the reported "+21.6% since yesterday": the card computed one number and the
+ * chart another). Capitalization has a single definition, in
+ * compute-budget-wealth-now, and this takes it from there.
  */
-export async function anchorScale(
+export async function levelWealthHistory(
   client: PoolClient,
   pair: CopyPair,
-  anchor: number,
-): Promise<number> {
-  // Announce both tenants FIRST. This runs before refreshPair (its result IS
-  // refreshPair's input), so without this the source is invisible under RLS,
-  // every sum comes back 0, and the anchor silently degrades to the fallback
-  // factor of 1 — which looks like it worked.
+  live: { capitalizationCents: bigint; investmentValueCents: bigint },
+): Promise<void> {
   await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
     `{${pair.source},${pair.dest}}`,
   ]);
@@ -439,114 +432,23 @@ export async function anchorScale(
     pair.demoUserId,
   ]);
 
-  const { rows } = await client.query<{ cap: string | null }>(
-    `WITH fx AS (
-       SELECT base, quote, rate FROM budgeting.fx_rates
-        WHERE date = (SELECT max(date) FROM budgeting.fx_rates)
-     ),
-     -- The copy relabels currencies (PLN->USD is a rename, not a conversion),
-     -- so the rate lookup must use the RELABELED code to predict correctly.
-     w AS (
-       SELECT COALESCE(sum(
-         wa.current_balance * CASE
-           WHEN COALESCE($3::jsonb ->> upper(wa.currency), upper(wa.currency)) = $2 THEN 1
-           ELSE COALESCE((SELECT rate FROM fx WHERE base = COALESCE($3::jsonb ->> upper(wa.currency), upper(wa.currency)) AND quote = $2), 1)
-         END), 0) AS v
-         FROM budgeting.wallets wa
-        WHERE wa.tenant_id = $1 AND wa.archived_at IS NULL
-     ),
-     i AS (
-       SELECT COALESCE(sum(
-         inv.quantity * (inv.current_price_cents / 100.0) * CASE
-           WHEN COALESCE($3::jsonb ->> upper(inv.current_price_currency), upper(inv.current_price_currency)) = $2 THEN 1
-           ELSE COALESCE((SELECT rate FROM fx WHERE base = COALESCE($3::jsonb ->> upper(inv.current_price_currency), upper(inv.current_price_currency)) AND quote = $2), 1)
-         END), 0) AS v
-         FROM budgeting.investments inv
-        WHERE inv.tenant_id = $1 AND inv.archived_at IS NULL
-     )
-     SELECT ((SELECT v FROM w) + (SELECT v FROM i))::text AS cap`,
-    [pair.source, pair.currency, JSON.stringify(pair.currencyMap)],
+  // Clear any previously levelled rows for this tenant — this runs in its own
+  // transaction, after the copy has committed, so it must be idempotent.
+  await client.query(
+    `DELETE FROM budgeting.budget_wealth_snapshots WHERE tenant_id = $1`,
+    [pair.dest],
   );
 
-  const capAtOne = Number(rows[0]?.cap ?? 0);
-  // No source data (or no rates) → copy the source unchanged rather than
-  // divide by zero and publish a nonsense level.
-  if (!Number.isFinite(capAtOne) || capAtOne <= 0) return 1;
-
-  return anchor / capAtOne;
-}
-
-/**
- * Wealth history, re-levelled onto the demo's OWN present value.
- *
- * `budget_wealth_snapshots` stores totals ALREADY CONVERTED into the source
- * budget's currency. Relabeling PLN→USD — right for a wallet, whose balance is
- * just a number wearing a currency — silently redenominates those totals
- * without converting them, so the copied history sat far above the demo's live
- * value and the Overview reported a crash that never happened.
- *
- * So each series is scaled by (its own live value ÷ its newest source point).
- * The money factor cancels out of that ratio, which is why this is exact.
- *
- * CAPITALIZATION IS WALLETS **PLUS INVESTMENTS** (see
- * compute-budget-wealth-now: "Σ ALL wallet balances + investments"). An earlier
- * version of this used wallets alone, which left the newest history point ~45%
- * BELOW the capitalization card — the very discontinuity this function exists
- * to remove. Investments are ~95% of the source household's net worth, so the
- * omission was not a rounding matter.
- *
- * Capitalization and investment value get SEPARATE ratios. Riding one ratio for
- * both would keep their proportion but put the investment series at the wrong
- * level, and the Overview draws them on the same axis.
- *
- * Runs AFTER wallets and investments are copied — the live values come from
- * them — and as an INSERT rather than a follow-up UPDATE, because app_role
- * holds no UPDATE on this append-only table.
- */
-async function copyWealthHistory(
-  client: PoolClient,
-  pair: CopyPair,
-): Promise<void> {
   await client.query(
-    `WITH fx AS (
-       SELECT base, quote, rate FROM budgeting.fx_rates
-        WHERE date = (SELECT max(date) FROM budgeting.fx_rates)
-     ),
-     live_wallets AS (
-       SELECT COALESCE(sum(
-         w.current_balance * CASE
-           WHEN w.currency = $3 THEN 1
-           ELSE COALESCE((SELECT rate FROM fx
-                           WHERE base = w.currency AND quote = $3), 1)
-         END), 0) AS v
-         FROM budgeting.wallets w
-        WHERE w.tenant_id = $2 AND w.archived_at IS NULL
-     ),
-     live_investments AS (
-       SELECT COALESCE(sum(
-         i.quantity * (i.current_price_cents / 100.0) * CASE
-           WHEN i.current_price_currency = $3 THEN 1
-           ELSE COALESCE((SELECT rate FROM fx
-                           WHERE base = i.current_price_currency
-                             AND quote = $3), 1)
-         END), 0) AS v
-         FROM budgeting.investments i
-        WHERE i.tenant_id = $2 AND i.archived_at IS NULL
-     ),
-     newest AS (
+    `WITH newest AS (
        SELECT capitalization_cents AS cap, investment_value_cents AS inv
          FROM budgeting.budget_wealth_snapshots
         WHERE tenant_id = $1
         ORDER BY captured_at DESC LIMIT 1
      ),
      r AS (
-       SELECT
-         COALESCE(
-           ((SELECT v FROM live_wallets) + (SELECT v FROM live_investments))
-             * 100 / NULLIF(newest.cap, 0), 0) AS cap_ratio,
-         COALESCE(
-           (SELECT v FROM live_investments) * 100 / NULLIF(newest.inv, 0),
-           0) AS inv_ratio
+       SELECT COALESCE($4::numeric / NULLIF(newest.cap, 0), 0) AS cap_ratio,
+              COALESCE($5::numeric / NULLIF(newest.inv, 0), 0) AS inv_ratio
          FROM newest
      )
      INSERT INTO budgeting.budget_wealth_snapshots
@@ -559,7 +461,13 @@ async function copyWealthHistory(
             round(COALESCE(s.investment_cost_basis_cents, 0) * r.inv_ratio)::bigint
        FROM budgeting.budget_wealth_snapshots s, r
       WHERE s.tenant_id = $1 AND r.cap_ratio > 0`,
-    [pair.source, pair.dest, pair.currency],
+    [
+      pair.source,
+      pair.dest,
+      pair.currency,
+      live.capitalizationCents.toString(),
+      live.investmentValueCents.toString(),
+    ],
   );
 }
 

@@ -8,7 +8,11 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { Pool, type PoolClient } from "pg";
 import { startTestcontainer } from "@budget/db/test/testcontainer";
-import { refreshPair, anchorScale, type CopyPair } from "../src/demo/copy";
+import {
+  refreshPair,
+  levelWealthHistory,
+  type CopyPair,
+} from "../src/demo/copy";
 
 let pool: Pool;
 
@@ -435,29 +439,16 @@ describe("readability of the copied demo", () => {
   });
 });
 
-describe("wealth history level", () => {
-  test("the newest point equals wallets PLUS investments, not wallets alone", async () => {
-    // The bug this replaced: the series was re-levelled onto a wallets-only
-    // figure while the Overview's capitalization card is "Σ ALL wallets +
-    // investments". The newest history point sat ~45% BELOW the card — and the
-    // original verification compared the wallets-only formula against itself,
-    // so it agreed with itself and the gap survived.
+describe("wealth levelling", () => {
+  /** A source history to level: two points, so shape is observable. */
+  async function seedSourceHistory() {
     const c = await pool.connect();
     try {
       await c.query(`SET app.tenant_ids = '{${SOURCE},${DEST}}'`);
       await c.query(`SET app.current_user_id = '${OWNER_USER}'`);
-      await c.query(
-        `INSERT INTO budgeting.investments
-           (id, tenant_id, budget_id, name, holding_type, quantity,
-            current_price_cents, current_price_currency, created_at)
-         VALUES (gen_random_uuid(), $1, $1, 'holding', 'equities', 100,
-                 5000, 'PLN', now())
-         ON CONFLICT DO NOTHING`,
-        [SOURCE],
-      );
       for (const [days, cap, inv] of [
-        [7, 900000000, 300000000],
-        [3, 800000000, 250000000],
+        [9, 900000000, 300000000],
+        [4, 800000000, 250000000],
       ] as const) {
         await c.query(
           `INSERT INTO budgeting.budget_wealth_snapshots
@@ -472,160 +463,95 @@ describe("wealth history level", () => {
     } finally {
       c.release();
     }
+  }
 
+  test("levels the history onto the values it is GIVEN", async () => {
+    await seedSourceHistory();
+    // The live values are an input, never derived here. This module twice tried
+    // to compute capitalization in SQL and was wrong both times — once by
+    // omitting investments, once by valuing holdings at quantity x stored price
+    // and ignoring the live price cache. Capitalization has one definition, in
+    // compute-budget-wealth-now.
     await inTx((cl) => refreshPair(cl, pairFor(1, { PLN: "USD" })));
 
+    const live = {
+      capitalizationCents: 25_000_000n, // $250,000
+      investmentValueCents: 10_000_000n, // $100,000
+    };
+    await inTx((cl) => levelWealthHistory(cl, pairFor(1, {}), live));
+
     const { rows } = await pool.query(
-      `WITH fx AS (SELECT base, quote, rate FROM budgeting.fx_rates
-                    WHERE date = (SELECT max(date) FROM budgeting.fx_rates)),
-       w AS (SELECT COALESCE(sum(wa.current_balance * CASE WHEN wa.currency='USD' THEN 1
-               ELSE COALESCE((SELECT rate FROM fx WHERE base=wa.currency AND quote='USD'),1) END),0) v
-             FROM budgeting.wallets wa WHERE wa.tenant_id=$1 AND wa.archived_at IS NULL),
-       i AS (SELECT COALESCE(sum(inv.quantity * (inv.current_price_cents/100.0) *
-               CASE WHEN inv.current_price_currency='USD' THEN 1
-               ELSE COALESCE((SELECT rate FROM fx WHERE base=inv.current_price_currency AND quote='USD'),1) END),0) v
-             FROM budgeting.investments inv WHERE inv.tenant_id=$1 AND inv.archived_at IS NULL)
-       SELECT (SELECT v FROM w)::numeric AS wallets,
-              (SELECT v FROM i)::numeric AS investments,
-              (SELECT capitalization_cents/100.0 FROM budgeting.budget_wealth_snapshots
-                WHERE tenant_id=$1 ORDER BY captured_at DESC LIMIT 1)::numeric AS newest`,
+      `SELECT capitalization_cents::text c, investment_value_cents::text i
+         FROM budgeting.budget_wealth_snapshots
+        WHERE tenant_id = $1 ORDER BY captured_at DESC LIMIT 1`,
       [DEST],
     );
-    const wallets = Number(rows[0].wallets);
-    const investments = Number(rows[0].investments);
-    const newest = Number(rows[0].newest);
-
-    expect(investments).toBeGreaterThan(0); // the fixture is doing its job
-    // Matches the FULL definition…
-    const full = wallets + investments;
-    expect(Math.abs(newest - full) / full).toBeLessThan(0.001);
-    // …and is therefore materially above wallets alone, which is exactly the
-    // gap that used to surface as a phantom drop on the card.
-    expect(newest).toBeGreaterThan(wallets * 1.05);
+    expect(rows[0].c).toBe("25000000");
+    expect(rows[0].i).toBe("10000000");
   });
 
-  test("re-levelling preserves the SHAPE of the history", async () => {
-    // Only the LEVEL may move. If relative movement changed, the demo would be
-    // telling a different financial story than the one it copied. Compared
-    // point-for-point against the source rather than against hard-coded
-    // numbers, so the assertion survives other tests adding fixtures.
+  test("is idempotent — re-levelling does not duplicate the series", async () => {
+    // It runs in its own transaction after the copy commits, so it can be
+    // retried; a second run must replace the series, not append to it.
+    const live = {
+      capitalizationCents: 25_000_000n,
+      investmentValueCents: 10_000_000n,
+    };
+    await inTx((cl) => levelWealthHistory(cl, pairFor(1, {}), live));
+    const first = await pool.query(
+      `SELECT count(*)::int n FROM budgeting.budget_wealth_snapshots WHERE tenant_id=$1`,
+      [DEST],
+    );
+    await inTx((cl) => levelWealthHistory(cl, pairFor(1, {}), live));
+    const second = await pool.query(
+      `SELECT count(*)::int n FROM budgeting.budget_wealth_snapshots WHERE tenant_id=$1`,
+      [DEST],
+    );
+    expect(second.rows[0].n).toBe(first.rows[0].n);
+  });
+
+  test("preserves the SHAPE — only the level moves", async () => {
     const { rows } = await pool.query(
-      `SELECT s.captured_at,
-              s.capitalization_cents::numeric AS src,
-              d.capitalization_cents::numeric AS dst
+      `SELECT s.capitalization_cents::numeric AS src, d.capitalization_cents::numeric AS dst
          FROM budgeting.budget_wealth_snapshots s
          JOIN budgeting.budget_wealth_snapshots d
            ON d.tenant_id = $2
           AND date_trunc('hour', d.captured_at) = date_trunc('hour', s.captured_at)
-        WHERE s.tenant_id = $1
-        ORDER BY s.captured_at`,
+        WHERE s.tenant_id = $1 ORDER BY s.captured_at`,
       [SOURCE, DEST],
     );
     expect(rows.length).toBeGreaterThanOrEqual(2);
-
-    // Every point shares ONE ratio — that is what "only the level moved" means.
     const ratios = rows.map((r) => Number(r.dst) / Number(r.src));
     const first = ratios[0]!;
-    for (const r of ratios)
+    for (const r of ratios) {
       expect(Math.abs(r - first) / first).toBeLessThan(0.001);
+    }
   });
 });
 
-describe("anchored level", () => {
-  /** Capitalization exactly as the app defines it: wallets + investments. */
-  async function capitalizationOf(tenant: string, ccy: string) {
-    const { rows } = await pool.query(
-      `WITH fx AS (SELECT base, quote, rate FROM budgeting.fx_rates
-                    WHERE date = (SELECT max(date) FROM budgeting.fx_rates))
-       SELECT (COALESCE((SELECT sum(w.current_balance * CASE WHEN w.currency=$2 THEN 1
-                 ELSE COALESCE((SELECT rate FROM fx WHERE base=w.currency AND quote=$2),1) END)
-               FROM budgeting.wallets w WHERE w.tenant_id=$1 AND w.archived_at IS NULL),0)
-             + COALESCE((SELECT sum(i.quantity * (i.current_price_cents/100.0) *
-                 CASE WHEN i.current_price_currency=$2 THEN 1
-                 ELSE COALESCE((SELECT rate FROM fx WHERE base=i.current_price_currency AND quote=$2),1) END)
-               FROM budgeting.investments i WHERE i.tenant_id=$1 AND i.archived_at IS NULL),0))::numeric AS cap`,
-      [tenant, ccy],
-    );
-    return Number(rows[0].cap);
-  }
-
-  test("lands the demo on its anchor, whatever the source is worth", async () => {
-    const anchor = 250_000;
-    const scale = await inTx((cl) =>
-      anchorScale(cl, pairFor(1, { PLN: "USD" }), anchor),
-    );
-    await inTx((cl) =>
-      refreshPair(cl, { ...pairFor(1, { PLN: "USD" }), moneyScale: scale }),
-    );
-
-    const cap = await capitalizationOf(DEST, "USD");
-    // Within the ±3% wobble that keeps consecutive days from being identical.
-    expect(Math.abs(cap - anchor) / anchor).toBeLessThan(0.04);
-  });
-
-  test("holds the level when the OWNER's balances move — the whole point", async () => {
-    // A fixed multiplier cannot do this: the demo would move with the owner,
-    // and its magnitude would stay proportional to theirs. The anchor absorbs
-    // the change, so the demo's level says nothing about the owner's.
-    const anchor = 250_000;
-    const before = await capitalizationOf(DEST, "USD");
-
+describe("demo readability", () => {
+  test("amount privacy is OFF, whatever the owner has set", async () => {
+    // The owner runs with amounts obfuscated. Copied through, a prospect lands
+    // on a wall of scrambled characters and can evaluate nothing — the demo
+    // exists to be read.
     const c = await pool.connect();
     try {
       await c.query(`SET app.tenant_ids = '{${SOURCE},${DEST}}'`);
       await c.query(`SET app.current_user_id = '${OWNER_USER}'`);
-      // The owner comes into a large amount of money.
       await c.query(
-        `INSERT INTO budgeting.wallets
-           (id, tenant_id, name, currency, current_balance, created_at, actor_user_id)
-         VALUES (gen_random_uuid(), $1, 'windfall', 'PLN', 5000000.0000, now(), $2)`,
-        [SOURCE, OWNER_USER],
+        `UPDATE tenancy.budgets SET amount_privacy_enabled = true WHERE id = $1`,
+        [SOURCE],
       );
     } finally {
       c.release();
     }
 
-    const scale = await inTx((cl) =>
-      anchorScale(cl, pairFor(1, { PLN: "USD" }), anchor),
+    await inTx((cl) => refreshPair(cl, pairFor(1, { PLN: "USD" })));
+
+    const { rows } = await pool.query(
+      `SELECT amount_privacy_enabled FROM tenancy.budgets WHERE id = $1`,
+      [DEST],
     );
-    await inTx((cl) =>
-      refreshPair(cl, { ...pairFor(1, { PLN: "USD" }), moneyScale: scale }),
-    );
-    const after = await capitalizationOf(DEST, "USD");
-
-    // The demo barely moved, though the source's worth changed enormously.
-    expect(Math.abs(after - anchor) / anchor).toBeLessThan(0.04);
-    expect(Math.abs(after - before) / before).toBeLessThan(0.08);
-  });
-
-  test("a source worth nothing falls back to 1 instead of dividing by zero", async () => {
-    const empty = { ...pairFor(1, {}), source: DEMO_USER }; // a tenant with no rows
-    const scale = await inTx((cl) => anchorScale(cl, empty, 250_000));
-    expect(scale).toBe(1);
-  });
-
-  test("adds NO artificial day-to-day noise", async () => {
-    // An earlier version wobbled the factor ±3% "so it looks alive". That noise
-    // lands straight in the card's "since yesterday" figure, inventing a ±6%
-    // move out of nothing — the exact thing anchoring exists to remove. The
-    // demo is alive from the owner's real movement instead.
-    const p = pairFor(1, { PLN: "USD" });
-    const a = await inTx((cl) => anchorScale(cl, p, 250_000));
-    const b = await inTx((cl) => anchorScale(cl, p, 250_000));
-    expect(a).toBe(b);
-  });
-});
-
-describe("anchor visibility", () => {
-  test("solves a real factor, never silently degrading to 1", async () => {
-    // anchorScale runs BEFORE refreshPair, so it must announce its own tenants:
-    // without the GUC the source is invisible under RLS, every sum returns 0,
-    // and the anchor quietly falls back to a factor of 1 — indistinguishable
-    // from success in the logs, and the demo ships at the owner's real scale.
-    const scale = await inTx((cl) =>
-      anchorScale(cl, pairFor(1, { PLN: "USD" }), 250_000),
-    );
-    expect(scale).not.toBe(1);
-    expect(scale).toBeGreaterThan(0);
+    expect(rows[0].amount_privacy_enabled).toBe(false);
   });
 });

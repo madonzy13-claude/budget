@@ -12,8 +12,14 @@
  * isolation is unchanged.
  */
 import { appPool, readDemoConfig, runDemoRefresh } from "@budget/platform";
+import {
+  computeBudgetWealthNow,
+  type ComputeBudgetWealthNowDeps,
+} from "@budget/budgeting/src/application/compute-budget-wealth-now";
 
-export async function handleDemoRefresh(): Promise<void> {
+export async function handleDemoRefresh(
+  wealthDeps: ComputeBudgetWealthNowDeps,
+): Promise<void> {
   const cfg = readDemoConfig();
   if (!cfg) {
     // Should be unreachable — the schedule is not registered when unconfigured
@@ -22,7 +28,24 @@ export async function handleDemoRefresh(): Promise<void> {
     return;
   }
 
-  const result = await runDemoRefresh(appPool(), cfg);
+  // The app's OWN valuation, injected. Capitalization is domain logic — live
+  // price cache, metals premiums, deposit accrual — and the demo copy has no
+  // business re-deriving it. Two earlier attempts to compute it in SQL were
+  // both wrong, and the second one is what the user saw as "+21.6% since
+  // yesterday": the card and the chart were computing different numbers.
+  const computeWealthNow = computeBudgetWealthNow(wealthDeps);
+  const result = await runDemoRefresh(appPool(), cfg, async (b) => {
+    const w = await computeWealthNow({
+      budgetId: b.budgetId,
+      tenantId: b.tenantId,
+      defaultCurrency: b.defaultCurrency,
+      now: new Date(),
+    });
+    return {
+      capitalizationCents: w.capitalization_cents,
+      investmentValueCents: w.investment_value_cents,
+    };
+  });
 
   if (!result.ok) {
     // Loud, and NOT an exception: the demo is intentionally left as it was.
