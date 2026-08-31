@@ -548,12 +548,28 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     const el = gridRef.current;
     if (!el) return;
     // Layer 1: anchor scrollTop away from 0.
+    //
+    // Only while a finger is down. Pull-to-refresh cannot start without a
+    // touch, so correcting on EVERY scroll event bought nothing and cost the
+    // one thing a scroll listener must never do: writing scrollTop cancels an
+    // in-flight smooth scroll. The CONFIRM_DRAFT jump animates this grid, its
+    // first scroll event arrived while scrollTop was still 0, this handler
+    // wrote to it, and the animation died two frames in — then worked on the
+    // next tap, because by then the grid was pinned at 1 and the handler no
+    // longer fired. Measured off a screen recording: 33ms of motion on tap
+    // one, ~300ms on tap two.
+    let touching = false;
     if (el.scrollTop === 0) el.scrollTop = 1;
     function onScroll() {
-      if (!el) return;
+      if (!el || !touching) return;
       if (el.scrollTop === 0) el.scrollTop = 1;
     }
+    function onTouchEnd() {
+      touching = false;
+    }
     el.addEventListener("scroll", onScroll, { passive: true });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    el.addEventListener("touchcancel", onTouchEnd, { passive: true });
 
     // Layer 2: downward-cone preventDefault.
     const ACTIVATE_PX = 6;
@@ -564,6 +580,11 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       if (e.touches.length !== 1 || !el) return;
       const t = e.touches[0];
       if (!t) return;
+      // Anchor HERE rather than on every scroll: this is the first moment a
+      // pull-to-refresh could begin, and it is before any touchmove. Layer 2
+      // still arms, since it guards on startScrollTop > 1 and this leaves 1.
+      touching = true;
+      if (el.scrollTop === 0) el.scrollTop = 1;
       startX = t.clientX;
       startY = t.clientY;
       startScrollTop = el.scrollTop;
@@ -588,6 +609,8 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       el.removeEventListener("scroll", onScroll);
       el.removeEventListener("touchstart", onStart);
       el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
     };
   }, []);
 

@@ -245,6 +245,62 @@ function renderGrid() {
   );
 }
 
+describe("pull-to-refresh scrollTop anchor", () => {
+  // The anchor keeps the grid off scrollTop 0 so iOS cannot start a
+  // pull-to-refresh. It used to do that from the scroll listener, on EVERY
+  // scroll event — including the ones a programmatic smooth scroll emits. That
+  // write cancels the animation, which is what made the CONFIRM_DRAFT jump
+  // move for two frames and stop the first time and work the second (by then
+  // the grid was pinned at 1, so the handler no longer fired).
+  //
+  // Pull-to-refresh needs a finger, so the correction only has to hold while
+  // one is down.
+  beforeEach(() => {
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(() =>
+      Promise.resolve({ ok: true, status: 200, json: async () => ({}) }),
+    );
+  });
+
+  it("does not touch scrollTop on a scroll with no finger down", () => {
+    renderGrid();
+    const grid = screen.getByTestId("spendings-grid");
+    grid.scrollTop = 0;
+    fireEvent.scroll(grid);
+    // A programmatic smooth scroll must be allowed to run to completion.
+    expect(grid.scrollTop).toBe(0);
+  });
+
+  it("anchors away from 0 once a finger is down", () => {
+    renderGrid();
+    const grid = screen.getByTestId("spendings-grid");
+    grid.scrollTop = 0;
+    fireEvent.touchStart(grid, { touches: [{ clientX: 10, clientY: 10 }] });
+    expect(grid.scrollTop).toBe(1);
+  });
+
+  it("keeps anchoring during a touch-driven scroll", () => {
+    // Momentum can carry the grid back to 0 mid-gesture; that is exactly when
+    // the anchor has to hold.
+    renderGrid();
+    const grid = screen.getByTestId("spendings-grid");
+    fireEvent.touchStart(grid, { touches: [{ clientX: 10, clientY: 10 }] });
+    grid.scrollTop = 0;
+    fireEvent.scroll(grid);
+    expect(grid.scrollTop).toBe(1);
+  });
+
+  it("stops anchoring once the finger lifts", () => {
+    renderGrid();
+    const grid = screen.getByTestId("spendings-grid");
+    fireEvent.touchStart(grid, { touches: [{ clientX: 10, clientY: 10 }] });
+    fireEvent.touchEnd(grid, { touches: [] });
+    grid.scrollTop = 0;
+    fireEvent.scroll(grid);
+    expect(grid.scrollTop).toBe(0);
+  });
+});
+
 describe("SpendingsGridClient", () => {
   beforeEach(() => {
     fetchMock.mockReset();
