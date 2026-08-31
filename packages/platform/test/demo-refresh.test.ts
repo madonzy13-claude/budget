@@ -28,6 +28,7 @@ const ENV = {
   DEMO_TENANT_IDS: `${DST_A},${DST_B}`,
   DEMO_USER_ID: DEMO,
   DEMO_CURRENCIES: "USD,EUR",
+  DEMO_MONEY_SCALES: "0.5,2",
   DEMO_BUDGET_NAMES: "Personal,Family",
   DEMO_LABELS: "personal,family",
   DEMO_HOME_CURRENCY: "PLN",
@@ -88,45 +89,38 @@ async function countIn(tenant: string): Promise<number> {
 
 describe("runDemoRefresh", () => {
   test("does nothing when unconfigured", async () => {
-    const r = await runDemoRefresh(pool, "2026-08-29", readDemoConfig({}));
+    const r = await runDemoRefresh(pool, readDemoConfig({}));
     expect(r.ok).toBe(false);
     expect(r.reason).toMatch(/not configured/);
     expect(await countIn(DST_A)).toBe(0);
   });
 
   test("rebuilds both demo budgets in one run", async () => {
-    const r = await runDemoRefresh(pool, "2026-08-29", readDemoConfig(ENV));
+    const r = await runDemoRefresh(pool, readDemoConfig(ENV));
     expect(r.ok).toBe(true);
     expect(await countIn(DST_A)).toBe(1);
     expect(await countIn(DST_B)).toBe(1);
   });
 
-  test("each pair gets its own factor, both inside the range", async () => {
-    const r = await runDemoRefresh(pool, "2026-08-29", readDemoConfig(ENV));
+  test("each budget carries its own configured factor", async () => {
+    const r = await runDemoRefresh(pool, readDemoConfig(ENV));
     // Labels carry their locale, because there is one budget pair per language.
-    expect(r.scales["personal-en"]).not.toBe(r.scales["family-en"]);
-    for (const s of Object.values(r.scales)) {
-      expect(s).toBeGreaterThanOrEqual(0.5);
-      expect(s).toBeLessThanOrEqual(2);
-    }
+    expect(r.scales["personal-en"]).toBe(0.5);
+    expect(r.scales["family-en"]).toBe(2);
   });
 
-  test("a different day produces different amounts", async () => {
-    await runDemoRefresh(pool, "2026-08-29", readDemoConfig(ENV));
-    const day1 = await pool.query(
-      `SELECT current_balance FROM budgeting.wallets WHERE tenant_id = $1`,
-      [DST_A],
-    );
-    await runDemoRefresh(pool, "2026-09-15", readDemoConfig(ENV));
-    const day2 = await pool.query(
-      `SELECT current_balance FROM budgeting.wallets WHERE tenant_id = $1`,
-      [DST_A],
-    );
-    expect(day2.rows[0].current_balance).not.toBe(day1.rows[0].current_balance);
+  test("the SAME amounts every run — the factor is a constant", () => {
+    // Was: "a different day produces different amounts". That was the whole
+    // problem — capitalization swung 60-90% between consecutive days, so anyone
+    // revisiting the demo saw a household in freefall or a windfall.
+    const a = readDemoConfig(ENV)!.pairs[0]!.moneyScale;
+    const b = readDemoConfig(ENV)!.pairs[0]!.moneyScale;
+    expect(a).toBe(b);
+    expect(a).toBe(0.5);
   });
 
   test("the personal budget is USD and the family budget is EUR", async () => {
-    await runDemoRefresh(pool, "2026-08-29", readDemoConfig(ENV));
+    await runDemoRefresh(pool, readDemoConfig(ENV));
     const { rows } = await pool.query(
       `SELECT id, name, default_currency FROM tenancy.budgets WHERE id = ANY($1::uuid[]) ORDER BY name`,
       [[DST_A, DST_B]],
@@ -149,7 +143,7 @@ describe("runDemoRefresh", () => {
         [DEMO],
       )
       .catch(() => {});
-    await runDemoRefresh(pool, "2026-08-29", readDemoConfig(ENV));
+    await runDemoRefresh(pool, readDemoConfig(ENV));
     const { rows } = await pool.query(
       `SELECT display_currency FROM identity.users WHERE id = $1`,
       [DEMO],
@@ -162,7 +156,7 @@ describe("runDemoRefresh", () => {
       `SELECT count(*)::int n, min(name) name FROM budgeting.categories WHERE tenant_id = ANY($1::uuid[])`,
       [[SRC_A, SRC_B]],
     );
-    await runDemoRefresh(pool, "2026-08-29", readDemoConfig(ENV));
+    await runDemoRefresh(pool, readDemoConfig(ENV));
     const after = await pool.query(
       `SELECT count(*)::int n, min(name) name FROM budgeting.categories WHERE tenant_id = ANY($1::uuid[])`,
       [[SRC_A, SRC_B]],
@@ -175,7 +169,7 @@ describe("runDemoRefresh", () => {
     // ever regresses to "wipe, then discover the problem", every migration
     // would blank the demo — and the failure would look like a copy bug rather
     // than the refusal it is.
-    await runDemoRefresh(pool, "2026-08-29", readDemoConfig(ENV));
+    await runDemoRefresh(pool, readDemoConfig(ENV));
     const before = await countIn(DST_A);
     expect(before).toBeGreaterThan(0);
 
@@ -183,7 +177,7 @@ describe("runDemoRefresh", () => {
       `ALTER TABLE budgeting.categories ADD COLUMN unclassified_secret text`,
     );
     try {
-      const r = await runDemoRefresh(pool, "2026-08-30", readDemoConfig(ENV));
+      const r = await runDemoRefresh(pool, readDemoConfig(ENV));
       expect(r.ok).toBe(false);
       expect(r.reason).toMatch(/manifest out of date/);
       expect(r.reason).toMatch(/unclassified_secret/);

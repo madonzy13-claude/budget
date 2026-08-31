@@ -402,65 +402,86 @@ export async function copyIntoDemoTenant(
 /**
  * Wealth history, re-levelled onto the demo's OWN present value.
  *
- * `budget_wealth_snapshots` stores a capitalization ALREADY CONVERTED into the
- * source budget's currency. Relabeling PLN→USD — which is right for a wallet,
- * whose balance is just a number wearing a currency — silently redenominates
- * those totals WITHOUT converting them. The history then sat ~2.9x above the
- * demo's live value and the Overview reported a crash that never happened.
- * That was the reported "-44% since yesterday".
+ * `budget_wealth_snapshots` stores totals ALREADY CONVERTED into the source
+ * budget's currency. Relabeling PLN→USD — right for a wallet, whose balance is
+ * just a number wearing a currency — silently redenominates those totals
+ * without converting them, so the copied history sat far above the demo's live
+ * value and the Overview reported a crash that never happened.
  *
- * So each point is scaled by (live capitalization ÷ newest source point)
- * instead of by the money factor. Note the factor cancels out of that ratio
- * entirely, which is why this is exact rather than approximate. Shape and
- * relative movement are preserved; only the level moves, which is the part
- * that was wrong.
+ * So each series is scaled by (its own live value ÷ its newest source point).
+ * The money factor cancels out of that ratio, which is why this is exact.
  *
- * Runs AFTER wallets are copied — the live value is computed from them — and
- * as an INSERT rather than a follow-up UPDATE, because app_role holds no
- * UPDATE on this table (it is append-only by design) and widening that grant
- * for a cosmetic fix would be the wrong trade.
+ * CAPITALIZATION IS WALLETS **PLUS INVESTMENTS** (see
+ * compute-budget-wealth-now: "Σ ALL wallet balances + investments"). An earlier
+ * version of this used wallets alone, which left the newest history point ~45%
+ * BELOW the capitalization card — the very discontinuity this function exists
+ * to remove. Investments are ~95% of the source household's net worth, so the
+ * omission was not a rounding matter.
  *
- * Investment value and cost basis ride the same ratio: they are a component of
- * capitalization, and recomputing them honestly would need per-instrument
- * prices at every historical point, which the snapshot does not carry.
+ * Capitalization and investment value get SEPARATE ratios. Riding one ratio for
+ * both would keep their proportion but put the investment series at the wrong
+ * level, and the Overview draws them on the same axis.
+ *
+ * Runs AFTER wallets and investments are copied — the live values come from
+ * them — and as an INSERT rather than a follow-up UPDATE, because app_role
+ * holds no UPDATE on this append-only table.
  */
 async function copyWealthHistory(
   client: PoolClient,
   pair: CopyPair,
 ): Promise<void> {
   await client.query(
-    `WITH live AS (
+    `WITH fx AS (
+       SELECT base, quote, rate FROM budgeting.fx_rates
+        WHERE date = (SELECT max(date) FROM budgeting.fx_rates)
+     ),
+     live_wallets AS (
        SELECT COALESCE(sum(
          w.current_balance * CASE
            WHEN w.currency = $3 THEN 1
-           ELSE COALESCE((
-             SELECT fr.rate FROM budgeting.fx_rates fr
-              WHERE fr.base = w.currency AND fr.quote = $3
-              ORDER BY fr.date DESC LIMIT 1), 1)
-         END), 0) * 100 AS cap_cents
+           ELSE COALESCE((SELECT rate FROM fx
+                           WHERE base = w.currency AND quote = $3), 1)
+         END), 0) AS v
          FROM budgeting.wallets w
         WHERE w.tenant_id = $2 AND w.archived_at IS NULL
      ),
+     live_investments AS (
+       SELECT COALESCE(sum(
+         i.quantity * (i.current_price_cents / 100.0) * CASE
+           WHEN i.current_price_currency = $3 THEN 1
+           ELSE COALESCE((SELECT rate FROM fx
+                           WHERE base = i.current_price_currency
+                             AND quote = $3), 1)
+         END), 0) AS v
+         FROM budgeting.investments i
+        WHERE i.tenant_id = $2 AND i.archived_at IS NULL
+     ),
      newest AS (
-       SELECT capitalization_cents AS c
+       SELECT capitalization_cents AS cap, investment_value_cents AS inv
          FROM budgeting.budget_wealth_snapshots
         WHERE tenant_id = $1
         ORDER BY captured_at DESC LIMIT 1
      ),
      r AS (
-       SELECT COALESCE(live.cap_cents / NULLIF(newest.c, 0), 0) AS ratio
-         FROM live, newest
+       SELECT
+         COALESCE(
+           ((SELECT v FROM live_wallets) + (SELECT v FROM live_investments))
+             * 100 / NULLIF(newest.cap, 0), 0) AS cap_ratio,
+         COALESCE(
+           (SELECT v FROM live_investments) * 100 / NULLIF(newest.inv, 0),
+           0) AS inv_ratio
+         FROM newest
      )
      INSERT INTO budgeting.budget_wealth_snapshots
        (id, tenant_id, budget_id, captured_at, capitalization_cents,
         investment_value_cents, currency, investment_cost_basis_cents)
      SELECT gen_random_uuid(), $2::uuid, $2::uuid, s.captured_at,
-            round(s.capitalization_cents * r.ratio)::bigint,
-            round(s.investment_value_cents * r.ratio)::bigint,
+            round(s.capitalization_cents * r.cap_ratio)::bigint,
+            round(s.investment_value_cents * r.inv_ratio)::bigint,
             $3,
-            round(COALESCE(s.investment_cost_basis_cents, 0) * r.ratio)::bigint
+            round(COALESCE(s.investment_cost_basis_cents, 0) * r.inv_ratio)::bigint
        FROM budgeting.budget_wealth_snapshots s, r
-      WHERE s.tenant_id = $1 AND r.ratio > 0`,
+      WHERE s.tenant_id = $1 AND r.cap_ratio > 0`,
     [pair.source, pair.dest, pair.currency],
   );
 }

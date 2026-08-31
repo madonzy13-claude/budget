@@ -12,7 +12,6 @@ import {
   isDemoUser,
   isDemoTenantId,
 } from "../src/demo/config";
-import { SCALE_MIN, SCALE_MAX } from "../src/demo/rules";
 
 const BASE = {
   DEMO_SOURCE_TENANT_IDS: "src-personal,src-family",
@@ -43,6 +42,9 @@ const MULTI = {
   DEMO_TENANT_IDS_PL: "pl-personal,pl-family",
   DEMO_USER_ID_PL: "demo-pl",
   DEMO_SECOND_USER_ID_PL: "member-pl",
+  DEMO_MONEY_SCALES_EN: "0.325,2.208",
+  DEMO_MONEY_SCALES_PL: "0.844,2.208",
+  DEMO_MONEY_SCALES_UK: "1.312,2.208",
   DEMO_TENANT_IDS_UK: "uk-personal,uk-family",
   DEMO_USER_ID_UK: "demo-uk",
   DEMO_SECOND_USER_ID_UK: "member-uk",
@@ -198,37 +200,32 @@ describe("demo identity predicates", () => {
 });
 
 describe("scaleForPair", () => {
-  test("draws a different factor per day and per pair", () => {
+  test("is a CONSTANT — the same budget yields the same factor every time", () => {
+    // It used to be re-rolled nightly, which swung capitalization 60-90%
+    // between consecutive days. Anyone revisiting the demo saw chaos.
     const cfg = readDemoConfig(MULTI)!;
-    const [a, b] = cfg.pairs;
-    expect(scaleForPair(cfg, a!, "2026-08-29")).not.toBe(
-      scaleForPair(cfg, a!, "2026-08-30"),
-    );
-    expect(scaleForPair(cfg, a!, "2026-08-29")).not.toBe(
-      scaleForPair(cfg, b!, "2026-08-29"),
-    );
+    const p = cfg.pairs[0]!;
+    expect(scaleForPair(p)).toBe(scaleForPair(p));
+    expect(scaleForPair(p)).toBe(0.325);
   });
 
-  test("stays inside the configured range across a year", () => {
-    // A demo has to look like a plausible household EVERY day, not just on
-    // average — so the range is checked over a full year of draws.
+  test("each budget carries its own factor", () => {
+    // One constant cannot make a dollar budget and a hryvnia budget both look
+    // plausible, so the factor is per budget.
     const cfg = readDemoConfig(MULTI)!;
-    for (let d = 0; d < 365; d++) {
-      const s = scaleForPair(cfg, cfg.pairs[0]!, `2026-day-${d}`);
-      expect(s).toBeGreaterThanOrEqual(SCALE_MIN);
-      expect(s).toBeLessThanOrEqual(SCALE_MAX);
-    }
+    const byLabel = Object.fromEntries(
+      cfg.pairs.map((p) => [p.label, scaleForPair(p)]),
+    );
+    expect(byLabel["personal-en"]).toBe(0.325);
+    expect(byLabel["personal-pl"]).toBe(0.844);
+    expect(byLabel["personal-uk"]).toBe(1.312);
   });
 
-  test("an explicit DEMO_MONEY_SCALE pins the factor (tests only)", () => {
-    const cfg = readDemoConfig({ ...LEGACY, DEMO_MONEY_SCALE: "0.25" })!;
-    expect(scaleForPair(cfg, cfg.pairs[0]!, "any-day")).toBe(0.25);
-  });
-
-  test("a nonsense DEMO_MONEY_SCALE is ignored rather than obeyed", () => {
-    for (const bad of ["0", "-1", "abc"]) {
-      const cfg = readDemoConfig({ ...LEGACY, DEMO_MONEY_SCALE: bad })!;
-      expect(cfg.fixedMoneyScale).toBeUndefined();
+  test("a missing or nonsensical factor falls back to 1, never to a guess", () => {
+    for (const bad of ["", "abc", "0", "-1", "1e9"]) {
+      const cfg = readDemoConfig({ ...MULTI, DEMO_MONEY_SCALES_EN: bad })!;
+      const en = cfg.pairs.find((p) => p.label === "personal-en")!;
+      expect({ bad, scale: scaleForPair(en) }).toEqual({ bad, scale: 1 });
     }
   });
 });

@@ -58,12 +58,9 @@ export type RefreshResult = {
  * @param pool an APP-role pool. worker_role cannot do this work: it holds no
  *   write grant on tenancy.* and no DELETE on the append-only expense_ledger,
  *   and granting those would widen every job in the worker, not just this one.
- * @param day  "YYYY-MM-DD" — the day whose money factor to use. Passed in
- *   rather than read from the clock so a run is reproducible and testable.
  */
 export async function runDemoRefresh(
   pool: Pool,
-  day: string,
   cfg: DemoConfig | null = readDemoConfig(),
 ): Promise<RefreshResult> {
   const scales: Record<string, number> = {};
@@ -91,9 +88,9 @@ export async function runDemoRefresh(
   try {
     await client.query("BEGIN");
     for (const pair of cfg.pairs) {
-      // Resolved ONCE per pair and threaded through every table of that pair —
-      // resolving per table would break the uniformity the arithmetic needs.
-      const moneyScale = scaleForPair(cfg, pair, day);
+      // One constant per budget, threaded through every table of that budget —
+      // resolving it per table would break the uniformity the arithmetic needs.
+      const moneyScale = scaleForPair(pair);
       scales[pair.label] = moneyScale;
       counts[pair.label] = await refreshPair(client, { ...pair, moneyScale });
     }

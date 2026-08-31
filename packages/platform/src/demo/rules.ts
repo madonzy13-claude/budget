@@ -11,47 +11,23 @@
 export type MoneyDecimals = 0 | 4;
 
 /**
- * The factor range the demo may use on any given night.
+ * Sanity bounds for a CONFIGURED money factor.
  *
- * Narrowed from [0.1, 10] on request: two orders of magnitude meant some days
- * showed a $100 grocery budget and others a $10,000 one. A demo has to look
- * like a plausible household EVERY day, and [0.5, 2] still moves the numbers
- * enough that they carry no stable relationship to the owner's real ones.
+ * The factor used to be re-rolled nightly across this range, which made the
+ * demo's capitalization swing by 60-90% between consecutive days — fine for a
+ * screenshot, wrong for something people revisit. It is now a constant set per
+ * budget in configuration; these bounds only stop a typo (a stray 100 or a
+ * negative) from reaching a public login.
+ *
+ * A fixed factor is also the easiest of the schemes to invert if anyone ever
+ * works out the constant — a deliberate trade, chosen for stability.
  */
-export const SCALE_MIN = 0.5;
-export const SCALE_MAX = 2;
+export const SCALE_MIN = 0.01;
+export const SCALE_MAX = 100;
 
-/**
- * The night's money factor for one budget pair.
- *
- * Re-rolled every day so the demo's magnitudes carry no information about the
- * owner's real ones: watching the demo over time reveals a moving target, not
- * a fixed offset anyone could divide out.
- *
- * Sampled LOG-uniformly across [0.1, 10]. Plain uniform would put ~90% of its
- * mass above 1.0 — the demo would almost always inflate. Log-uniform gives
- * "shrink" and "grow" equal odds across the two orders of magnitude.
- *
- * Derived from (day, pair) rather than Math.random() so a re-run of the same
- * night reproduces the same demo, which keeps the job idempotent and the tests
- * deterministic.
- */
-export function dailyMoneyScale(day: string, pairLabel: string): number {
-  const h = hash32(`${day}:${pairLabel}`);
-  const unit = h / 0x1_0000_0000; // [0,1)
-  const logMin = Math.log(SCALE_MIN);
-  const logMax = Math.log(SCALE_MAX);
-  return Math.exp(logMin + unit * (logMax - logMin));
-}
-
-/** FNV-1a. Small, dependency-free, and good enough to decorrelate day/pair. */
-function hash32(s: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
+/** True when a configured factor is usable at all. */
+export function isUsableScale(v: number): boolean {
+  return Number.isFinite(v) && v >= SCALE_MIN && v <= SCALE_MAX;
 }
 
 /** bigint for `*_cents` columns, string for `numeric(19,4)` (pg returns NUMERIC as string). */

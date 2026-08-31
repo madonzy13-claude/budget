@@ -14,7 +14,7 @@
  * to the single-locale ones, so a deployment configured before this existed
  * keeps working as the English demo.
  */
-import { dailyMoneyScale } from "./rules";
+import { isUsableScale } from "./rules";
 import {
   demoLocales,
   isDemoLocale,
@@ -31,6 +31,12 @@ export type DemoPair = {
   /** {} keeps every source currency; {PLN:"USD"} relabels. */
   currencyMap: Record<string, string>;
   budgetName: string;
+  /**
+   * This budget's money factor. A CONSTANT, not re-rolled: a nightly draw made
+   * capitalization swing 60-90% between consecutive days, which reads as chaos
+   * to anyone who visits twice.
+   */
+  moneyScale: number;
   /** The account that owns this budget — one per language. */
   demoUserId: string;
   secondMemberUserId?: string;
@@ -50,8 +56,6 @@ export type DemoConfig = {
   accountCurrencyByLocale: Record<string, string>;
   /** locale → the account to sign in as at /[locale]/demo. */
   userByLocale: Record<string, string>;
-  /** Test-only pin. Production leaves it unset and draws the daily value. */
-  fixedMoneyScale?: number;
 };
 
 function list(v: string | undefined): string[] {
@@ -107,6 +111,9 @@ export function readDemoConfig(
     // keeps it a genuinely foreign currency next to each personal budget — so
     // the all-budgets total always demonstrates real FX conversion.
     const currencies = list(pick(env, "DEMO_CURRENCIES", locale));
+    // Per budget, because the budgets are in different currencies: one constant
+    // cannot make both a dollar budget and a hryvnia budget look plausible.
+    const scales = list(pick(env, "DEMO_MONEY_SCALES", locale)).map(Number);
     // Budget names come from the locale's own vocabulary, so the Polish demo
     // says "Osobisty" rather than "Personal".
     const budgetNames = poolValues(locale, "budget");
@@ -124,6 +131,9 @@ export function readDemoConfig(
         // renders. An identical mapping is an empty map — no relabel at all.
         currencyMap: currency === home ? {} : { [home]: currency },
         budgetName: budgetNames[i] ?? `Demo ${i + 1}`,
+        moneyScale: isUsableScale(scales[i] as number)
+          ? (scales[i] as number)
+          : 1,
         demoUserId: userId,
         secondMemberUserId: sharedLabels.has(label)
           ? secondUserId || undefined
@@ -145,8 +155,6 @@ export function readDemoConfig(
     if (personal) accountCurrencyByLocale[locale] = personal.currency;
   }
 
-  const fixed = env.DEMO_MONEY_SCALE ? Number(env.DEMO_MONEY_SCALE) : undefined;
-
   return {
     pairs,
     userIds: [
@@ -158,20 +166,16 @@ export function readDemoConfig(
     ] as string[],
     userByLocale,
     accountCurrencyByLocale,
-    fixedMoneyScale:
-      fixed !== undefined && Number.isFinite(fixed) && fixed > 0
-        ? fixed
-        : undefined,
   };
 }
 
-/** The factor for one pair on one day — the daily draw unless pinned. */
-export function scaleForPair(
-  cfg: DemoConfig,
-  pair: DemoPair,
-  day: string,
-): number {
-  return cfg.fixedMoneyScale ?? dailyMoneyScale(day, pair.label);
+/**
+ * The factor for one budget. Constant — see DemoPair.moneyScale. An
+ * unconfigured or nonsensical value falls back to 1 (copy the source's
+ * magnitudes unchanged) rather than to a guess.
+ */
+export function scaleForPair(pair: DemoPair): number {
+  return pair.moneyScale;
 }
 
 /** Is this user one of the demo accounts? */

@@ -12,10 +12,8 @@ import {
   scaleMoney,
   relabelCurrency,
   fakeText,
-  dailyMoneyScale,
   niceRound,
-  SCALE_MIN,
-  SCALE_MAX,
+  isUsableScale,
   poolValues,
   merchantsForCategory,
   categoryCount,
@@ -84,48 +82,20 @@ describe("scaleMoney", () => {
   });
 });
 
-describe("dailyMoneyScale", () => {
-  test("always lands inside the configured range", () => {
-    for (let d = 0; d < 400; d++) {
-      const s = dailyMoneyScale(`2026-01-01`, `pair-${d}`);
-      expect(s).toBeGreaterThanOrEqual(SCALE_MIN);
-      expect(s).toBeLessThanOrEqual(SCALE_MAX);
-    }
+describe("isUsableScale", () => {
+  test("accepts a plausible configured factor", () => {
+    for (const v of [0.325, 1, 2.208, 13]) expect(isUsableScale(v)).toBe(true);
   });
 
-  test("is stable within a day — a re-run of the same night reproduces it", () => {
-    expect(dailyMoneyScale("2026-08-29", "personal")).toBe(
-      dailyMoneyScale("2026-08-29", "personal"),
-    );
-  });
-
-  test("changes from one day to the next", () => {
-    const a = dailyMoneyScale("2026-08-29", "personal");
-    const b = dailyMoneyScale("2026-08-30", "personal");
-    expect(a).not.toBe(b);
-  });
-
-  test("differs between the two budget pairs on the same day", () => {
-    expect(dailyMoneyScale("2026-08-29", "personal")).not.toBe(
-      dailyMoneyScale("2026-08-29", "family"),
-    );
-  });
-
-  test("is log-uniform: roughly half the days fall below 1.0", () => {
-    // Plain uniform would put most days above 1.0 and make the demo almost
-    // always inflate. Log-uniform gives shrink and grow equal odds.
-    let below = 0;
-    const days = 1000;
-    for (let d = 0; d < days; d++) {
-      if (dailyMoneyScale(`day-${d}`, "personal") < 1) below++;
-    }
-    expect(below / days).toBeGreaterThan(0.35);
-    expect(below / days).toBeLessThan(0.65);
-  });
-
-  test("never returns zero or a negative factor", () => {
-    for (let d = 0; d < 200; d++) {
-      expect(dailyMoneyScale(`day-${d}`, "family")).toBeGreaterThan(0);
+  test("rejects the shapes a typo actually takes", () => {
+    // The factor is hand-configured per budget, so the failure mode is a stray
+    // character, not a subtle drift. A bad value must fall back to 1 rather
+    // than reach a public login as, say, x1000.
+    for (const v of [0, -1, 1e9, NaN, Infinity]) {
+      expect({ v: String(v), ok: isUsableScale(v) }).toEqual({
+        v: String(v),
+        ok: false,
+      });
     }
   });
 });

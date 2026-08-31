@@ -22,11 +22,7 @@ export async function handleDemoRefresh(): Promise<void> {
     return;
   }
 
-  // The run's day, in UTC, so the factor is stable for the whole run even if
-  // it straddles midnight.
-  const day = new Date().toISOString().slice(0, 10);
-
-  const result = await runDemoRefresh(appPool(), day, cfg);
+  const result = await runDemoRefresh(appPool(), cfg);
 
   if (!result.ok) {
     // Loud, and NOT an exception: the demo is intentionally left as it was.
