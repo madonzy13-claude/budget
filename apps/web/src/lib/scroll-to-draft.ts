@@ -32,7 +32,18 @@ export function scrollToDraft(draftId: string): boolean {
   // inline:"center" walks the horizontal category scroller across to the
   // draft's column; block:"nearest" scrolls vertically only as far as needed,
   // so it cannot drag the page out from under the sticky header.
-  el.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+  //
+  // Deliberately NOT behavior:"smooth". Smooth is an animation, and anything
+  // that scrolls while it runs cancels it part-way: the browser's own scroll
+  // when the button takes focus, a re-render swapping the row out from under
+  // it, or WebKit animating only ONE ancestor when the row sits inside nested
+  // scrollers — which the installed PWA has (the grid switches to its own
+  // scroller in standalone) and a desktop browser does not. That is the
+  // reported "first tap moves it about a pixel, second tap works": the first
+  // tap's animation was cancelled, and by the second the ancestors were
+  // already where they needed to be. An instant scroll cannot land half-done,
+  // and the arrival flash below already does the work smoothness was for.
+  el.scrollIntoView({ block: "nearest", inline: "center" });
 
   // Restart the highlight if it is already lit — a second click should read as
   // a second flash, not as nothing happening.

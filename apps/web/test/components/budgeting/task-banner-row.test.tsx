@@ -228,6 +228,22 @@ describe("TaskBannerRow — CONFIRM_DRAFT jumps to the draft", () => {
     });
   });
 
+  it("scrolls instantly rather than animating", async () => {
+    // NOT behavior:"smooth". A smooth scrollIntoView is an animation, and any
+    // competing scroll cancels it half-done: the browser's own scroll on
+    // focusing the button, a re-render swapping the row out from under it, or
+    // WebKit animating only ONE ancestor when the row sits inside nested
+    // scrollers — which is what the installed PWA has and a desktop browser
+    // does not. All three land as "the first tap moved it a pixel, the second
+    // worked". An instant scroll cannot be half-done, and the arrival flash
+    // already does the job smoothness was there for.
+    const user = userEvent.setup();
+    const { scrollIntoView } = renderWithDraft();
+    await user.click(screen.getByRole("button", { name: /€1,000 \(Rent\)/ }));
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(scrollIntoView.mock.calls[0]?.[0]?.behavior).not.toBe("smooth");
+  });
+
   it("flags the draft so it can be highlighted on arrival", async () => {
     const user = userEvent.setup();
     const { draft } = renderWithDraft();
