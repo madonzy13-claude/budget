@@ -98,4 +98,39 @@ export interface CategoryLimitRepo {
       }
     >
   >;
+
+  /**
+   * The same SCD-2 lookup, for MANY months in one round trip.
+   *
+   * The reserve replay needs the effective limits for every month the budget
+   * has history in — 35 of them on a three-year budget. Asking per month cost
+   * 35 queries AND 35 transactions, and each transaction carries two SET LOCAL
+   * statements for the RLS GUCs. On the all-budgets aggregate that came to 424
+   * limit lookups and ~500 GUC statements for a single request, roughly a
+   * second of pure round-trip: the statements themselves are ~0.1ms, the
+   * per-call overhead is ~1.9ms.
+   *
+   * Keys: `YYYY-MM-DD` month start → the same map effectiveForMonth returns.
+   * Months with no matching row still get an (empty) entry, so callers can
+   * treat a miss and an empty month identically.
+   */
+  effectiveForMonths(
+    tenantId: string,
+    budgetId: string,
+    monthStarts: string[], // YYYY-MM-DD each
+  ): Promise<
+    Map<
+      string,
+      Map<
+        string,
+        {
+          planned: bigint;
+          cushion: bigint;
+          needs: bigint | null;
+          wants: bigint | null;
+          noLimit: boolean;
+        }
+      >
+    >
+  >;
 }

@@ -582,6 +582,13 @@
       "when": 1782739201010,
       "tag": "0083_category_limit_no_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1782742801010,
+      "tag": "0084_tenant_id_indexes",
+      "breakpoints": true
     }
   ]
 }
