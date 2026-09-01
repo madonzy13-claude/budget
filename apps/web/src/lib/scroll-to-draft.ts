@@ -44,6 +44,52 @@ export function scrollToDraft(draftId: string): boolean {
 }
 
 /**
+ * Wait for the draft row to exist, then jump to it.
+ *
+ * A CONFIRM_DRAFT task can name a payment in a month the grid is not showing.
+ * Clicking it switches the month first, and the row only exists once that
+ * month's data has loaded — so the plain call would report "not on the page"
+ * and do nothing, which is exactly what the user saw.
+ *
+ * Polls frames rather than observing: the grid mounts its columns over several
+ * commits, and a MutationObserver would fire on every one of them for the same
+ * answer. Bounded, because the draft may never arrive — confirmed on another
+ * device, deleted, or a month that genuinely has no such row — and a wait that
+ * never ends is a leak.
+ *
+ * @returns a cancel function, for a caller that navigates away mid-wait.
+ */
+export function scrollToDraftWhenReady(
+  draftId: string,
+  opts: { timeoutMs?: number } = {},
+): () => void {
+  const timeoutMs = opts.timeoutMs ?? 4000;
+  if (typeof document === "undefined" || !draftId) return () => {};
+
+  // Already there: no reason to wait a frame first.
+  if (scrollToDraft(draftId)) return () => {};
+
+  let cancelled = false;
+  const started = Date.now();
+  const tick = () => {
+    if (cancelled) return;
+    if (scrollToDraft(draftId)) return;
+    if (Date.now() - started > timeoutMs) return;
+    raf(tick);
+  };
+  raf(tick);
+  return () => {
+    cancelled = true;
+  };
+}
+
+/** rAF where it exists, a timer where it does not (tests, SSR-adjacent code). */
+function raf(fn: () => void): void {
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(fn);
+  else setTimeout(fn, 16);
+}
+
+/**
  * Scroll every scrollable ancestor so `el` is centred horizontally and just
  * inside the edge vertically.
  *

@@ -20,6 +20,15 @@ vi.mock("@/hooks/use-budget-data", () => ({
   useCategories: () => ({ data: [{ id: "cat-1", name: "Groceries" }] }),
 }));
 
+const setMonthMock = vi.fn();
+let currentMonth = "2026-08";
+vi.mock("@/hooks/use-month-param", () => ({
+  useMonthParam: () => ({ monthStr: currentMonth, setMonth: setMonthMock }),
+}));
+vi.mock("@/components/common/user-timezone-provider", () => ({
+  useUserTimezone: () => "Europe/Warsaw",
+}));
+
 vi.mock("next-intl", () => ({
   useLocale: () => "en",
   useTranslations: () => (key: string, vars?: Record<string, unknown>) => {
@@ -291,5 +300,57 @@ describe("TaskBannerRow — CONFIRM_DRAFT jumps to the draft", () => {
     );
     // Only "More" — a reserve shortfall has no single row to scroll to.
     expect(screen.getAllByRole("button")).toHaveLength(1);
+  });
+});
+
+describe("TaskBannerRow — a draft in another month", () => {
+  beforeEach(() => {
+    setMonthMock.mockClear();
+    currentMonth = "2026-08";
+    document.querySelectorAll("[data-draft-id]").forEach((n) => n.remove());
+  });
+
+  it("switches the month when the draft is not in the open one", async () => {
+    // Nothing happened at all before: the row is not in the DOM, so the jump
+    // reported "not on the page" and stopped there.
+    const user = userEvent.setup();
+    render(
+      <TaskBannerRow
+        task={makeTask("CONFIRM_DRAFT", { transaction_date: "2026-06-15" })}
+        budgetId="b1"
+        locale="en"
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /€1,000 \(Rent\)/ }));
+    // setMonth takes a Temporal.PlainYearMonth; compare by its string form.
+    expect(String(setMonthMock.mock.calls[0]?.[0])).toBe("2026-06");
+  });
+
+  it("does not navigate when the draft is in the open month", async () => {
+    const user = userEvent.setup();
+    render(
+      <TaskBannerRow
+        task={makeTask("CONFIRM_DRAFT", { transaction_date: "2026-08-03" })}
+        budgetId="b1"
+        locale="en"
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /€1,000 \(Rent\)/ }));
+    expect(setMonthMock).not.toHaveBeenCalled();
+  });
+
+  it("does not navigate when the payload carries no date", async () => {
+    // Older tasks predate transaction_date. They still jump within the open
+    // month rather than guessing at one.
+    const user = userEvent.setup();
+    render(
+      <TaskBannerRow
+        task={makeTask("CONFIRM_DRAFT", { transaction_date: undefined })}
+        budgetId="b1"
+        locale="en"
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /€1,000 \(Rent\)/ }));
+    expect(setMonthMock).not.toHaveBeenCalled();
   });
 });

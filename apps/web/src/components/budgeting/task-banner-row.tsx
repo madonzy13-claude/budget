@@ -4,7 +4,10 @@ import * as React from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { centsToDisplayCompact } from "@/lib/cents-format";
 import { useCategories } from "@/hooks/use-budget-data";
-import { scrollToDraft } from "@/lib/scroll-to-draft";
+import { scrollToDraft, scrollToDraftWhenReady } from "@/lib/scroll-to-draft";
+import { Temporal } from "temporal-polyfill";
+import { useMonthParam } from "@/hooks/use-month-param";
+import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import {
   Dialog,
   DialogContent,
@@ -181,11 +184,33 @@ function TaskTitleText({
   titleParams: Record<string, string>;
 }) {
   const draftId = task.payload?.draft_id as string | undefined;
+  // The month the payment actually falls in. A task can name one the grid is
+  // not showing — a scheduled payment that came due while the user was looking
+  // at another month — and until this was read, clicking it did nothing at all:
+  // the row simply was not in the DOM to scroll to.
+  const draftMonth = (
+    task.payload?.transaction_date as string | undefined
+  )?.slice(0, 7);
+  const userTz = useUserTimezone();
+  const { monthStr, setMonth } = useMonthParam(userTz);
   const jump =
     task.kind === "CONFIRM_DRAFT" && draftId && titleParams.hasRule === "yes"
       ? `${titleParams.amount} (${titleParams.ruleName})`
       : undefined;
   const at = jump ? title.indexOf(jump) : -1;
+
+  function goToDraft(): void {
+    if (!draftId) return;
+    if (draftMonth && draftMonth !== monthStr) {
+      // Switch first, then wait for that month's rows to arrive. setMonth is a
+      // pushState, so this stays a client-side move — no RSC round trip, and it
+      // works offline like the month arrows do.
+      setMonth(Temporal.PlainYearMonth.from(draftMonth));
+      scrollToDraftWhenReady(draftId);
+      return;
+    }
+    scrollToDraft(draftId);
+  }
 
   // No draft id, no category or rule to name, or a translation that broke the
   // run apart: render the plain title rather than an unclickable fake link.
@@ -196,7 +221,7 @@ function TaskTitleText({
       {title.slice(0, at)}
       <button
         type="button"
-        onClick={() => scrollToDraft(draftId!)}
+        onClick={goToDraft}
         className="underline decoration-dotted underline-offset-2 hover:decoration-solid focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
       >
         {jump}

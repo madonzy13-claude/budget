@@ -13,7 +13,7 @@
  * one smoothly, to a position computed BEFORE any of them moves.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { scrollToDraft } from "@/lib/scroll-to-draft";
+import { scrollToDraft, scrollToDraftWhenReady } from "@/lib/scroll-to-draft";
 
 /** A scroller with known geometry. happy-dom reports zeros for layout, so
  *  every measurement the helper reads is stubbed explicitly. */
@@ -193,5 +193,52 @@ describe("scrollToDraft", () => {
     expect(grid.scrollTo).toHaveBeenCalledWith(
       expect.objectContaining({ behavior: "auto" }),
     );
+  });
+
+  describe("scrollToDraftWhenReady", () => {
+    // Jumping to a draft in ANOTHER month has to switch the month first, and
+    // the row only exists once that month's data has loaded. So the jump waits
+    // for it rather than reporting "not on the page" and doing nothing, which
+    // is what the plain call does.
+    it("scrolls once the row turns up", async () => {
+      const grid = makeScroller({
+        rect: { top: 100, left: 0, width: 400, height: 600 },
+      });
+      document.body.appendChild(grid);
+      scrollToDraftWhenReady("d1", { timeoutMs: 2000 });
+
+      // Nothing yet — the month's data has not arrived.
+      expect(grid.scrollTo).not.toHaveBeenCalled();
+
+      const row = makeTarget({ top: 300, left: 1500 });
+      grid.appendChild(row);
+      await new Promise((r) => setTimeout(r, 80));
+      expect(grid.scrollTo).toHaveBeenCalled();
+      expect(row.getAttribute("data-draft-flash")).toBe("");
+    });
+
+    it("gives up quietly when it never turns up", async () => {
+      // A draft that was confirmed or deleted from another device: the wait
+      // must end, not poll for the life of the page.
+      const grid = makeScroller({
+        rect: { top: 100, left: 0, width: 400, height: 600 },
+      });
+      document.body.appendChild(grid);
+      scrollToDraftWhenReady("nope", { timeoutMs: 60 });
+      await new Promise((r) => setTimeout(r, 200));
+      expect(grid.scrollTo).not.toHaveBeenCalled();
+    });
+
+    it("can be cancelled", async () => {
+      const grid = makeScroller({
+        rect: { top: 100, left: 0, width: 400, height: 600 },
+      });
+      document.body.appendChild(grid);
+      const cancel = scrollToDraftWhenReady("d1", { timeoutMs: 2000 });
+      cancel();
+      grid.appendChild(makeTarget({ top: 300, left: 1500 }));
+      await new Promise((r) => setTimeout(r, 120));
+      expect(grid.scrollTo).not.toHaveBeenCalled();
+    });
   });
 });
