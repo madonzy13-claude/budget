@@ -49,7 +49,7 @@ const initial = {
   investmentLimitMode: "smart" as string | null,
 };
 
-function renderSlider() {
+function renderSlider(overrides: Partial<typeof initial> = {}) {
   return render(
     <TestQueryProvider client={makeTestQueryClient()}>
       <InvestmentCategorySlider
@@ -58,11 +58,15 @@ function renderSlider() {
         budgetId="b1"
         budgetCurrency="USD"
         month="2026-07"
-        initial={initial}
+        initial={{ ...initial, ...overrides }}
       />
     </TestQueryProvider>,
   );
 }
+
+/** aria-pressed on a mode button, as the DOM reports it. */
+const pressed = (mode: string) =>
+  screen.getByTestId(`invest-mode-${mode}`).getAttribute("aria-pressed");
 
 function statusResponse(hasIncome: boolean, mode: string | null) {
   return {
@@ -80,6 +84,69 @@ describe("InvestmentCategorySlider", () => {
     fetchMock.mockReset();
     writeMock.mockReset();
     writeMock.mockResolvedValue({ ok: true });
+  });
+
+  it("offers a third mode: no limit", async () => {
+    // Investments used to be forced to carry a limit — 'smart' if the member
+    // never chose, which the money forecast could not see and therefore read
+    // as a plan of zero. 'none' is the same no-limit every other category has.
+    fetchMock.mockResolvedValue(statusResponse(true, "none"));
+    renderSlider();
+    // Inside waitFor: the button renders immediately, but the authoritative
+    // mode only arrives with the status query.
+    await waitFor(() => expect(pressed("none")).toBe("true"));
+  });
+
+  it("defaults to no limit when the category has no mode yet", async () => {
+    // A category created before the mode existed, or one just created: 'none'
+    // is the default now, and the dialog must not silently show 'smart'.
+    // Nothing on the server AND nothing on the row — the only case that is
+    // really "no mode yet". A stored 'smart' is still honoured.
+    fetchMock.mockResolvedValue(statusResponse(true, null));
+    renderSlider({ investmentLimitMode: null });
+    await waitFor(() => expect(pressed("none")).toBe("true"));
+  });
+
+  it("hides the manual amount field while no limit is selected", async () => {
+    // Nothing to type: the category is unbounded, exactly like a no-limit
+    // normal category.
+    fetchMock.mockResolvedValue(statusResponse(true, "none"));
+    renderSlider();
+    await waitFor(() => expect(pressed("none")).toBe("true"));
+    expect(screen.queryByTestId("invest-manual-readout")).toBeNull();
+  });
+
+  it("saving no limit PATCHes mode 'none'", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue(statusResponse(true, "manual"));
+    renderSlider();
+    await waitFor(() => expect(pressed("manual")).toBe("true"));
+    await user.click(screen.getByTestId("invest-mode-none"));
+    await user.click(screen.getByTestId("invest-cat-save"));
+    await waitFor(() => {
+      // By URL — the save PATCHes the category itself first (name + colour),
+      // so "the first PATCH" is the wrong call to look at.
+      const patched = writeMock.mock.calls.find((c) =>
+        String(c[0]).includes("/limit-mode"),
+      );
+      expect(String(patched?.[1]?.body ?? "")).toContain('"mode":"none"');
+    });
+  });
+
+  it("lays the colour swatches out in one 10-per-row grid", async () => {
+    // They were fixed h-8 w-8 in a flex-wrap, which spilled onto a third row on
+    // a phone. The normal category picker moved to this grid (user, 260820);
+    // this dialog was missed.
+    fetchMock.mockResolvedValue(statusResponse(true, "none"));
+    renderSlider();
+    await waitFor(() =>
+      expect(screen.getByTestId("invest-color-green")).toBeTruthy(),
+    );
+    const grid = screen.getByTestId("invest-color-green").parentElement!;
+    expect(grid.className).toContain("grid-cols-10");
+    expect(screen.getByTestId("invest-color-green").className).not.toContain(
+      "w-8",
+    );
   });
 
   it("disables Smart and shows a hint when there is no income", async () => {

@@ -418,7 +418,7 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         await tx.execute(
           sql`UPDATE budgeting.categories
               SET archived_at = NULL, archived_from = NULL, reserve_excluded = true,
-                  investment_limit_mode = COALESCE(investment_limit_mode, 'smart')
+                  investment_limit_mode = COALESCE(investment_limit_mode, 'none')
               WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid`,
         );
         await writeAudit(tx, {
@@ -450,7 +450,7 @@ export class DrizzleCategoryRepo implements CategoryRepo {
                ${actorUserId}::uuid,
                (SELECT COALESCE(MIN(sort_index), 0) - 1
                   FROM budgeting.categories WHERE tenant_id = ${tenantId}::uuid),
-               true, true, 'smart')`,
+               true, true, 'none')`,
       );
       await writeAudit(tx, {
         tenantId: tid,
@@ -459,7 +459,7 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         action: "create",
         actorUserId: uid,
         before: null,
-        after: { name, isInvestment: true, investmentLimitMode: "smart" },
+        after: { name, isInvestment: true, investmentLimitMode: "none" },
       });
       await writeOutbox(tx, {
         tenantId: tid,
@@ -476,11 +476,12 @@ export class DrizzleCategoryRepo implements CategoryRepo {
     return cat;
   }
 
-  /** r33: switch the Investments category between 'manual' and 'smart'. */
+  /** r33: switch the Investments category between 'manual', 'smart' and
+   *  'none' (no limit — the default since 0085). */
   async setInvestmentLimitMode(
     tenantId: string,
     categoryId: string,
-    mode: "manual" | "smart",
+    mode: "manual" | "smart" | "none",
     actorUserId: string,
   ): Promise<void> {
     const tid = TenantId(tenantId);

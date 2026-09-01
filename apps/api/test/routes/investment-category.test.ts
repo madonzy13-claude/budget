@@ -118,12 +118,16 @@ describe("/budgets/:budgetId/investment-category (r33)", () => {
 
   const base = () => `/budgets/${fix.budgetId}/investment-category`;
 
-  it("POST creates the pinned, reserve-excluded, smart Investments category", async () => {
+  it("POST creates the pinned, reserve-excluded, NO-LIMIT Investments category", async () => {
     const res = await app.request(base(), { method: "POST" });
     expect(res.status).toBe(201);
     const body = (await res.json()) as any;
     expect(body.category.isInvestment).toBe(true);
-    expect(body.category.investmentLimitMode).toBe("smart");
+    // 'none' is the default since 0085. It used to be 'smart', which handed
+    // every user who never opened the dialog a computed limit they never chose
+    // — and one the money forecast could not see, so it read the category as a
+    // plan of zero that every złoty overspent.
+    expect(body.category.investmentLimitMode).toBe("none");
     expect(body.category.name).toBe("Investments");
 
     // reserve_excluded + first sort_index verified straight from the DB (RLS
@@ -159,6 +163,58 @@ describe("/budgets/:budgetId/investment-category (r33)", () => {
     expect(b2.category.id).toBe(b1.category.id);
   });
 
+  /** The category's open (uncapped) SCD-2 limit row, or null. */
+  async function openLimit(): Promise<{
+    no_limit: boolean;
+    normal_amount: string;
+  } | null> {
+    const pool = new Pool({ connectionString: DB_URL });
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+        `{${fix.budgetId}}`,
+      ]);
+      await c.query(`SELECT set_config('app.current_user_id', $1, true)`, [
+        fix.userId,
+      ]);
+      const r = await c.query(
+        `SELECT cl.no_limit, cl.normal_amount::text AS normal_amount
+           FROM budgeting.category_limits cl
+           JOIN budgeting.categories c ON c.id = cl.category_id
+          WHERE c.tenant_id = $1::uuid AND c.is_investment
+            AND cl.effective_to IS NULL`,
+        [fix.budgetId],
+      );
+      await c.query("COMMIT");
+      return r.rows[0] ?? null;
+    } finally {
+      c.release();
+      await pool.end();
+    }
+  }
+
+  it("POST leaves an open limit row that says no_limit", async () => {
+    // The mode is what the dialog shows; no_limit is what the GRID, the
+    // spendings summary, the reserve engine and the cash-flow forecast read.
+    // A category with no row at all reads as no_limit=false and shows a number
+    // where the dash belongs, so creation has to write one.
+    expect(await openLimit()).toMatchObject({ no_limit: true });
+  });
+
+  it("PATCH /limit-mode none → 200 and the row says no_limit", async () => {
+    const res = await app.request(`${base()}/limit-mode`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "none" }),
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).category.investmentLimitMode).toBe(
+      "none",
+    );
+    expect(await openLimit()).toMatchObject({ no_limit: true });
+  });
+
   it("PATCH /limit-mode smart → 409 income_required when no income exists", async () => {
     const res = await app.request(`${base()}/limit-mode`, {
       method: "PATCH",
@@ -169,11 +225,24 @@ describe("/budgets/:budgetId/investment-category (r33)", () => {
     expect(((await res.json()) as any).error).toBe("income_required");
   });
 
-  it("PATCH /limit-mode manual → 200 (no income needed)", async () => {
+  it("PATCH /limit-mode manual → clears no_limit and keeps the amount", async () => {
+    // Leaving no_limit set would make the grid show a dash and the forecast
+    // ignore the limit the member just chose to type.
+    await app.request(`${base()}/limit-mode`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "none" }),
+    });
+    const before = await openLimit();
     const res = await app.request(`${base()}/limit-mode`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode: "manual" }),
+    });
+    expect(await openLimit()).toMatchObject({
+      no_limit: false,
+      // Switching modes must not spend the member's typed figure.
+      normal_amount: before!.normal_amount,
     });
     expect(res.status).toBe(200);
     expect(((await res.json()) as any).category.investmentLimitMode).toBe(

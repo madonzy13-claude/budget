@@ -18,6 +18,8 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { DrizzleCategoryRepo } from "@budget/budgeting/src/adapters/persistence/category-repo";
 import { DrizzleIncomeRepo } from "@budget/budgeting/src/adapters/persistence/income-repo";
+import { DrizzleCategoryLimitRepo } from "@budget/budgeting/src/adapters/persistence/category-limit-repo";
+import { DrizzleBudgetRepo } from "@budget/tenancy/src/adapters/persistence/workspace-repo";
 
 // Minimal shape of what the DTO reads — avoids exporting the domain class subpath.
 interface CategoryLike {
@@ -46,12 +48,69 @@ function toDto(c: CategoryLike): InvestmentCategoryDto {
 }
 
 const ensureSchema = z.object({ name: z.string().min(1).max(120).optional() });
-const modeSchema = z.object({ mode: z.enum(["manual", "smart"]) });
+const modeSchema = z.object({ mode: z.enum(["manual", "smart", "none"]) });
 
 export function createInvestmentCategoryRoute() {
   const app = new Hono<{ Variables: Record<string, unknown> }>();
   const categoryRepo = new DrizzleCategoryRepo();
   const incomeRepo = new DrizzleIncomeRepo();
+  const limitRepo = new DrizzleCategoryLimitRepo();
+  const budgetRepo = new DrizzleBudgetRepo();
+
+  /** First day of the current month, UTC — the month an edit carries forward from. */
+  function thisMonthStart(): string {
+    return `${new Date().toISOString().slice(0, 7)}-01`;
+  }
+
+  /**
+   * Carry the limit MODE into category_limits.no_limit.
+   *
+   * 'none' is not a third kind of limit — it is the same no-limit a normal
+   * category has, and no_limit is the column the grid's dash, the spendings
+   * summary, the reserve engine and the cash-flow forecast all read. Writing it
+   * here is what lets every one of them treat the Investments category
+   * correctly without knowing it is special.
+   *
+   * Goes through setLimitForMonth so the change is versioned like any other
+   * limit edit (SCD-2, carried forward from this month) rather than rewriting
+   * history: past months really did have the limit they had.
+   */
+  async function syncNoLimit(
+    tenantId: string,
+    categoryId: string,
+    mode: string,
+    actorUserId: string,
+  ): Promise<void> {
+    const monthStart = thisMonthStart();
+    const current = (
+      await limitRepo.effectiveForMonth(tenantId, tenantId, monthStart)
+    ).get(categoryId);
+    // Same fallback chain as the normal limits route: the workspace already
+    // declared its currency, so the member never picks one here.
+    let currency = "USD";
+    try {
+      const ws = (await budgetRepo.listForUser(actorUserId)).find(
+        (b) => b.id === tenantId,
+      );
+      if (ws?.default_currency) currency = ws.default_currency;
+    } catch {
+      // best-effort; a wrong fallback only labels a zero amount.
+    }
+    await limitRepo.setLimitForMonth({
+      tenantId,
+      categoryId,
+      monthStart,
+      // Amounts are preserved across a mode change: switching to 'none' and
+      // back must not spend the figure the member typed.
+      normalAmount: String(current?.planned ?? 0n),
+      normalCurrency: currency,
+      cushionAmount: String(current?.cushion ?? 0n),
+      cushionCurrency: currency,
+      noLimit: mode === "none",
+      actorUserId,
+      carryForward: true,
+    });
+  }
 
   function ctx(c: { get: (k: string) => unknown }): {
     tenantId: string;
@@ -96,12 +155,23 @@ export function createInvestmentCategoryRoute() {
     if (!tenantId) return c.json({ error: "no active workspace" }, 403);
     const body = await c.req.json().catch(() => ({}));
     const parsed = ensureSchema.safeParse(body ?? {});
-    const name = parsed.success ? (parsed.data.name ?? "Investments") : "Investments";
+    const name = parsed.success
+      ? (parsed.data.name ?? "Investments")
+      : "Investments";
     try {
       const cat = await categoryRepo.ensureInvestmentCategory(
         tenantId,
         userId,
         name,
+      );
+      // A brand-new (or reactivated) category defaults to 'none', and the flag
+      // the rest of the app reads has to say so — a category with no limit row
+      // reads as no_limit=false and shows a number where the dash belongs.
+      await syncNoLimit(
+        tenantId,
+        cat.id,
+        cat.investmentLimitMode ?? "none",
+        userId,
       );
       return c.json({ category: toDto(cat) }, 201);
     } catch (e) {
@@ -132,7 +202,10 @@ export function createInvestmentCategoryRoute() {
     const body = await c.req.json().catch(() => null);
     const parsed = modeSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json({ error: "Validation error", issues: parsed.error.issues }, 400);
+      return c.json(
+        { error: "Validation error", issues: parsed.error.issues },
+        400,
+      );
     }
     const { mode } = parsed.data;
     try {
@@ -142,6 +215,7 @@ export function createInvestmentCategoryRoute() {
         return c.json({ error: "income_required" }, 409);
       }
       await categoryRepo.setInvestmentLimitMode(tenantId, cat.id, mode, userId);
+      await syncNoLimit(tenantId, cat.id, mode, userId);
       const updated = await categoryRepo.findInvestmentCategory(tenantId);
       return c.json({ category: updated ? toDto(updated) : null }, 200);
     } catch (e) {

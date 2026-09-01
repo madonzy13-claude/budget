@@ -1987,7 +1987,8 @@
       "limitLabel": "Limit inwestycji",
       "mode": {
         "smart": "Limit inteligentny",
-        "manual": "Ręcznie"
+        "manual": "Ręcznie",
+        "none": "Bez limitu"
       },
       "manualAmountLabel": "Kwota",
       "smartExplainer": "Limit inteligentny = całkowity dochód minus wszystko zaplanowane w pozostałych kategoriach. Aktualizuje się automatycznie.",
@@ -1996,7 +1997,8 @@
       "save": "Zapisz",
       "error": {
         "save": "Nie udało się zapisać — spróbuj ponownie"
-      }
+      },
+      "noLimitExplainer": "Brak górnej granicy dla inwestycji. Prognoza miesiąca liczy to, co faktycznie zainwestujesz, i nie ma wartości przekroczenia — tak jak w każdej innej kategorii bez limitu."
     }
   },
   "errors": {
