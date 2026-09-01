@@ -199,6 +199,33 @@ describe("/budgets/:budgetId/investment-category (r33)", () => {
     }
   }
 
+  /** Type an amount straight onto the open row, as the limits route would. */
+  async function setOpenLimitAmount(cents: string): Promise<void> {
+    const pool = new Pool({ connectionString: DB_URL });
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+        `{${fix.budgetId}}`,
+      ]);
+      await c.query(`SELECT set_config('app.current_user_id', $1, true)`, [
+        fix.userId,
+      ]);
+      await c.query(
+        `UPDATE budgeting.category_limits cl
+            SET normal_amount = $2::bigint
+           FROM budgeting.categories c
+          WHERE c.id = cl.category_id AND c.tenant_id = $1::uuid
+            AND c.is_investment AND cl.effective_to IS NULL`,
+        [fix.budgetId, cents],
+      );
+      await c.query("COMMIT");
+    } finally {
+      c.release();
+      await pool.end();
+    }
+  }
+
   it("POST leaves an open limit row that says no_limit", async () => {
     // The mode is what the dialog shows; no_limit is what the GRID, the
     // spendings summary, the reserve engine and the cash-flow forecast read.
@@ -253,25 +280,41 @@ describe("/budgets/:budgetId/investment-category (r33)", () => {
     expect(((await res.json()) as any).error).toBe("income_required");
   });
 
-  it("PATCH /limit-mode manual → clears no_limit and keeps the amount", async () => {
-    // Leaving no_limit set would make the grid show a dash and the forecast
-    // ignore the limit the member just chose to type.
+  it("PATCH /limit-mode none → zeroes the stored amount, not just the flag", async () => {
+    // no_limit ⇒ amount 0 is an INVARIANT, not tidiness. The cash-flow
+    // simulator computes each category's daily drip as
+    // `budget − spent − bills` with no no_limit check; unbounded categories
+    // drip nothing only because their stored amount is 0
+    // (compute-cashflow-projection.ts, rule 0083). Preserving the member's
+    // typed figure here — which is what this route used to do — left an
+    // unbounded category quietly dripping that amount every month and ate a
+    // real budget's surplus.
+    await app.request(`${base()}/limit-mode`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "manual" }),
+    });
+    // A typed manual limit, the state this bug needed: 5,000.00.
+    await setOpenLimitAmount("500000");
+    expect(await openLimit()).toMatchObject({ normal_amount: "500000" });
     await app.request(`${base()}/limit-mode`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode: "none" }),
     });
-    const before = await openLimit();
+    expect(await openLimit()).toMatchObject({
+      no_limit: true,
+      normal_amount: "0",
+    });
+  });
+
+  it("PATCH /limit-mode manual → clears no_limit", async () => {
     const res = await app.request(`${base()}/limit-mode`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode: "manual" }),
     });
-    expect(await openLimit()).toMatchObject({
-      no_limit: false,
-      // Switching modes must not spend the member's typed figure.
-      normal_amount: before!.normal_amount,
-    });
+    expect(await openLimit()).toMatchObject({ no_limit: false });
     expect(res.status).toBe(200);
     expect(((await res.json()) as any).category.investmentLimitMode).toBe(
       "manual",

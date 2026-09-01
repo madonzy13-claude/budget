@@ -131,17 +131,25 @@ export function createInvestmentCategoryRoute(
     } catch {
       // best-effort; a wrong fallback only labels a zero amount.
     }
+    // no_limit ⇒ amounts 0. Not tidiness — an INVARIANT the cash-flow simulator
+    // depends on: it computes each category's daily drip as
+    // `budget − spent − bills` with NO no_limit check, so an unbounded category
+    // spends nothing only because its stored amount is zero
+    // (compute-cashflow-projection.ts, rule 0083). Preserving the member's
+    // typed figure here — the first version of this function did, to be kind —
+    // left an unbounded category quietly dripping it every month, which is what
+    // ate a real budget's 500 zł surplus. Every other no-limit row in the
+    // database stores 0; this one was the single exception.
+    const unbounded = mode === "none";
     await limitRepo.setLimitForMonth({
       tenantId,
       categoryId,
       monthStart,
-      // Amounts are preserved across a mode change: switching to 'none' and
-      // back must not spend the figure the member typed.
-      normalAmount: String(current?.planned ?? 0n),
+      normalAmount: unbounded ? "0" : String(current?.planned ?? 0n),
       normalCurrency: currency,
-      cushionAmount: String(current?.cushion ?? 0n),
+      cushionAmount: unbounded ? "0" : String(current?.cushion ?? 0n),
       cushionCurrency: currency,
-      noLimit: mode === "none",
+      noLimit: unbounded,
       actorUserId,
       carryForward: true,
     });
