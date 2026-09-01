@@ -22,6 +22,7 @@
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
 import { reserveFit, type ReserveFitMonth } from "../domain/reserve-fit";
+import { completedMonthsForRange } from "../domain/completed-months";
 import { reserveNeededToday } from "../domain/reserve-requirement";
 import {
   earmarkedForOneOffs,
@@ -224,7 +225,22 @@ export function getReserveFit(deps: GetReserveFitDeps) {
     input: GetReserveFitInput,
   ): Promise<Result<ReserveFitDTO, Error>> => {
     try {
-      const { budgetId, from, to } = input;
+      const { budgetId, to } = input;
+      // The month still running never counts toward a rate (see scopeMonths
+      // below: half a month of spend against a whole month of limit is not
+      // one). A window that ends at TODAY therefore lost a month rather than
+      // excluding one — on the 1st, "1Y" averaged 11 months and "3M" averaged
+      // 2, so the same budget advised differently depending on the day it was
+      // opened. The window slides back far enough to keep the count asked for,
+      // and the queries below read that wider window, or the extra month would
+      // arrive empty and drag every average down.
+      const nowMonth = (deps.now?.() ?? new Date()).toISOString().slice(0, 7);
+      const scope = completedMonthsForRange({
+        from: input.from,
+        to,
+        nowMonth,
+      });
+      const from = scope.length > 0 ? `${scope[0]}-01` : input.from;
       const [
         meta,
         windows,
@@ -297,8 +313,6 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       // Used twice: the month still running is dropped from the walk, and the
       // forward leg starts after BOTH the range and today, so a member reading an
       // old range still gets the real future rather than a replayed one.
-      const nowMonth = (deps.now?.() ?? new Date()).toISOString().slice(0, 7);
-
       // Every rule in the BUDGET's money, once, before anything counts it. A
       // rule carries its own currency, so a 100 EUR charge in a PLN budget is
       // 430 of limit — the scheduled charts have always converted, this read
