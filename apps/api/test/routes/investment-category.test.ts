@@ -7,7 +7,7 @@
  *   PATCH /limit-mode → smart requires ≥1 active income (else 409 income_required)
  *   DELETE → archives (GET then returns null), reactivatable via POST
  */
-import { describe, it, expect, beforeAll } from "bun:test";
+import { describe, it, expect, beforeAll, mock } from "bun:test";
 import { Hono } from "hono";
 import { Pool } from "pg";
 
@@ -101,11 +101,16 @@ async function buildApp(fix: Fixture) {
   });
   app.route(
     "/budgets/:budgetId/investment-category",
-    createInvestmentCategoryRoute(),
+    createInvestmentCategoryRoute({
+      recomputeIncomeUnderPlanned: recomputeSpy,
+    }),
   );
   app.route("/budgets/:budgetId/categories", createCategoriesRoute(deps));
   return app;
 }
+
+/** Stands in for the INCOME_UNDER_PLANNED runner boot wires in. */
+const recomputeSpy = mock(async () => {});
 
 describe("/budgets/:budgetId/investment-category (r33)", () => {
   let fix: Fixture;
@@ -213,6 +218,29 @@ describe("/budgets/:budgetId/investment-category (r33)", () => {
       "none",
     );
     expect(await openLimit()).toMatchObject({ no_limit: true });
+  });
+
+  it("every mutation that changes the plan refreshes the shortfall task", async () => {
+    // The bug: switching the Investments limit mode changes what the budget
+    // plans to spend — a SMART limit is income − Σ other planned — but this
+    // route wrote through the repos directly and never re-evaluated
+    // INCOME_UNDER_PLANNED. set-category-limit.ts has done this for every
+    // other planned change since r33; this route was the door that skipped it.
+    // Until the hourly sweep came round, the forecast showed the deficit and
+    // no task said so.
+    recomputeSpy.mockClear();
+    await app.request(`${base()}/limit-mode`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "manual" }),
+    });
+    expect(recomputeSpy.mock.calls.length).toBeGreaterThan(0);
+
+    // Creating the category adds an unbounded plan; archiving removes a plan.
+    // Both move the same number, so both refresh the same task.
+    recomputeSpy.mockClear();
+    await app.request(base(), { method: "POST" });
+    expect(recomputeSpy.mock.calls.length).toBeGreaterThan(0);
   });
 
   it("PATCH /limit-mode smart → 409 income_required when no income exists", async () => {

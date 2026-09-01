@@ -164,7 +164,10 @@ export function createApp(deps: BootedDeps) {
   );
   app.route(
     "/budgets/:budgetId/investment-category",
-    createInvestmentCategoryRoute(),
+    createInvestmentCategoryRoute({
+      recomputeIncomeUnderPlanned:
+        deps.budgeting.recomputeIncomeUnderPlannedRunner,
+    }),
   );
   // UAT Defect 1: transactions were only mounted at /transactions (cross-budget root),
   // not under /budgets/:budgetId/transactions. Phase 4 hooks call the nested path.

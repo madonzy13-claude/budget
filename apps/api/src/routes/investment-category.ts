@@ -50,12 +50,47 @@ function toDto(c: CategoryLike): InvestmentCategoryDto {
 const ensureSchema = z.object({ name: z.string().min(1).max(120).optional() });
 const modeSchema = z.object({ mode: z.enum(["manual", "smart", "none"]) });
 
-export function createInvestmentCategoryRoute() {
+/**
+ * `recomputeIncomeUnderPlanned` — the own-tx INCOME_UNDER_PLANNED runner that
+ * boot wires into the incomes route and set-category-limit.
+ *
+ * Every mutation here changes what the budget PLANS to spend: the limit mode
+ * decides whether the Investments plan is a stored amount, a computed one
+ * (income − Σ other planned), or nothing at all; creating the category adds a
+ * plan and archiving it removes one. set-category-limit.ts has refreshed the
+ * shortfall task on every other planned change since r33 — this route wrote
+ * through its repos directly and skipped it, so the forecast showed the
+ * deficit and no task said so until the hourly sweep came round.
+ *
+ * Optional so the route stays usable without it; best-effort, exactly like the
+ * incomes route — a failed recompute must never fail the save.
+ */
+export interface InvestmentCategoryRouteDeps {
+  recomputeIncomeUnderPlanned?: (input: {
+    tenantId: string;
+    budgetId: string;
+  }) => Promise<void>;
+}
+
+export function createInvestmentCategoryRoute(
+  deps: InvestmentCategoryRouteDeps = {},
+) {
   const app = new Hono<{ Variables: Record<string, unknown> }>();
   const categoryRepo = new DrizzleCategoryRepo();
   const incomeRepo = new DrizzleIncomeRepo();
   const limitRepo = new DrizzleCategoryLimitRepo();
   const budgetRepo = new DrizzleBudgetRepo();
+
+  /** Refresh INCOME_UNDER_PLANNED after a change to the plan. Never throws. */
+  async function refreshShortfallTask(tenantId: string): Promise<void> {
+    // budget_id === tenant_id (v1.1), the same identity every caller here uses.
+    await deps
+      .recomputeIncomeUnderPlanned?.({
+        tenantId,
+        budgetId: tenantId,
+      })
+      .catch(() => undefined);
+  }
 
   /** First day of the current month, UTC — the month an edit carries forward from. */
   function thisMonthStart(): string {
@@ -173,6 +208,7 @@ export function createInvestmentCategoryRoute() {
         cat.investmentLimitMode ?? "none",
         userId,
       );
+      await refreshShortfallTask(tenantId);
       return c.json({ category: toDto(cat) }, 201);
     } catch (e) {
       console.error("[investment-category] ensure failed", e);
@@ -188,6 +224,9 @@ export function createInvestmentCategoryRoute() {
       const cat = await categoryRepo.findInvestmentCategory(tenantId);
       if (!cat) return c.body(null, 204); // already off — idempotent
       await categoryRepo.archive(tenantId, cat.id, userId, { hideAll: true });
+      // Archiving takes its plan out of the total, which moves the same number
+      // the other two paths move.
+      await refreshShortfallTask(tenantId);
       return c.body(null, 204);
     } catch (e) {
       console.error("[investment-category] archive failed", e);
@@ -216,6 +255,7 @@ export function createInvestmentCategoryRoute() {
       }
       await categoryRepo.setInvestmentLimitMode(tenantId, cat.id, mode, userId);
       await syncNoLimit(tenantId, cat.id, mode, userId);
+      await refreshShortfallTask(tenantId);
       const updated = await categoryRepo.findInvestmentCategory(tenantId);
       return c.json({ category: updated ? toDto(updated) : null }, 200);
     } catch (e) {
