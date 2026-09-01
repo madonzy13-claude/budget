@@ -215,3 +215,33 @@ afterAll(async () => {
     console.warn(`[test teardown] FAILED: ${(e as Error).message}`);
   }
 });
+
+/**
+ * …and the throwaway Postgres CONTAINER with it.
+ *
+ * 37 test files call startTestcontainer(); none called stopTestcontainer().
+ * The helper only reaped on a SIGNAL, so a test process that finished normally
+ * — the usual case — left its container running. By 260901 that was 73 orphans
+ * holding 3.2 GiB of RAM, the oldest two days old, and the box OOM-killed the
+ * systemd user manager three times in one morning. The kernel takes
+ * user@1000.service first (systemd sets oom_score_adj 100/200 on it), so what
+ * the user actually saw was every tmux session vanishing.
+ *
+ * Registered here rather than in 37 files for the same reason the row cleanup
+ * above is: the preload runs once per test process and covers every file in it.
+ * A no-op when this process never started a container, so files that talk to
+ * the dev database pay nothing. `docker stop` is enough to reclaim it — the
+ * container runs with --rm and its PGDATA is tmpfs.
+ */
+afterAll(async () => {
+  try {
+    const { stopTestcontainer } =
+      await import("../packages/db/test/testcontainer");
+    await stopTestcontainer();
+  } catch (e) {
+    // Loud, never fatal — same rule as the row cleanup above.
+    console.warn(
+      `[test teardown] container stop FAILED: ${(e as Error).message}`,
+    );
+  }
+});
