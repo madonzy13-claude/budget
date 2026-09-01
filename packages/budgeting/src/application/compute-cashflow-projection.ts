@@ -19,6 +19,11 @@ import {
 import { withTenantTx } from "@budget/platform";
 import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
 import {
+  computeInvestmentSmartLimit,
+  normalizeIncomesToMonthlyItems,
+  type IncomeForNormalize,
+} from "./investment-smart-limit";
+import {
   simulateCashflow,
   type CashflowProjection,
   type CashflowCategoryInput,
@@ -176,7 +181,9 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
         // → doubled budget. `tl` = limit effective today; `nl` = limit effective at
         // the first of next month. Mirrors get-income-vs-planned's effective-today.
         const cats = await tx.execute(sql`
-          SELECT c.id::text AS id, c.name AS name
+          SELECT c.id::text AS id, c.name AS name,
+                 COALESCE(c.is_investment, false) AS is_investment,
+                 c.investment_limit_mode AS investment_limit_mode
             FROM budgeting.categories c
            WHERE c.tenant_id = ${input.tenantId}::uuid
              AND c.archived_at IS NULL`);
@@ -241,7 +248,11 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
            ORDER BY e.transaction_date`);
 
         const incomes = await tx.execute(sql`
-          SELECT name, (amount * 100)::bigint::text AS amount_cents, currency,
+          SELECT name, (amount * 100)::bigint::text AS amount_cents,
+                 -- The raw decimal too: the smart investment limit reuses
+                 -- normalizeIncomesToMonthlyItems, which parses the numeric
+                 -- string exactly rather than trusting a pre-rounded cents value.
+                 amount::text AS amount, currency,
                  cadence, cadence_anchor, weekly_dow, yearly_month,
                  once_date::text AS once_date
             FROM budgeting.incomes
@@ -362,12 +373,52 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
           (l.effective_to === null || l.effective_to > onDate),
       )?.no_limit === true;
 
+    // The Investments category on a SMART limit has no stored amount — the
+    // limit is income − Σ other planned, computed on read (investment-smart-
+    // limit.ts). Reading category_limits alone therefore gave it a plan of
+    // ZERO, and a plan of zero with no_limit=false is read by the simulator as
+    // "every złoty spent here is overspend" — the opposite of an investment.
+    // Recomputed here per probed month so the forecast counts the same figure
+    // the grid and the Overview do. 'manual' needs nothing (its amount IS
+    // stored) and 'none' needs nothing (no_limit already carries it).
+    const investRow = (L.catRows as Record<string, unknown>[]).find(
+      (r) => r.is_investment === true && r.investment_limit_mode === "smart",
+    );
+    let smartByMonth: Record<string, bigint> | null = null;
+    if (investRow) {
+      const items = normalizeIncomesToMonthlyItems(
+        L.incomeRows as unknown as IncomeForNormalize[],
+        monthProbes[0]?.key,
+      );
+      const monthlyIncomeCents = await sumWalletsToCurrency(
+        items,
+        currency,
+        deps.fxProvider,
+        asOf,
+      );
+      smartByMonth = {};
+      for (const p of monthProbes) {
+        let otherPlanned = 0n;
+        for (const r of L.catRows as Record<string, string>[]) {
+          if (r.id === investRow.id) continue;
+          otherPlanned += budgetAt(r.id, p.asOfDate);
+        }
+        smartByMonth[p.key] = computeInvestmentSmartLimit({
+          monthlyIncomeCents,
+          otherPlannedCents: otherPlanned,
+        });
+      }
+    }
+
     const categories: CashflowCategoryInput[] = (
       L.catRows as Record<string, string>[]
     ).map((r) => {
       const budgetByMonth: Record<string, bigint> = {};
       for (const p of monthProbes)
-        budgetByMonth[p.key] = budgetAt(r.id, p.asOfDate);
+        budgetByMonth[p.key] =
+          smartByMonth && r.id === investRow?.id
+            ? (smartByMonth[p.key] ?? 0n)
+            : budgetAt(r.id, p.asOfDate);
       return {
         id: r.id,
         name: r.name,
