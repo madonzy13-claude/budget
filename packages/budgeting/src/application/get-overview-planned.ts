@@ -476,7 +476,46 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
 
       const investWindow = windows.find((w) => w.is_investment);
       let plannedRows = plannedResolved;
-      if (investWindow?.investment_limit_mode === "smart") {
+      if (investWindow?.investment_limit_mode === "none") {
+        // Unbounded: its implicit plan is what it INVESTED, which is rule 0083
+        // applied by MODE rather than by the presence of a stored row. The
+        // substitution above needs a row to substitute into, and a category
+        // that has never carried a stored limit has none for its history — so
+        // the pie's investing arc had nothing to draw and disappeared from the
+        // ring, where it is meant to stay whatever the picker says.
+        const from = startOf(investWindow);
+        const already = new Set(
+          plannedResolved
+            .filter((p) => p.category_id === investWindow.category_id)
+            .map((p) => p.month),
+        );
+        plannedRows = [
+          ...plannedResolved.map((p) =>
+            p.category_id === investWindow.category_id
+              ? {
+                  ...p,
+                  planned_cents:
+                    spentPerCatMonth.get(`${p.category_id}|${p.month}`) ?? 0n,
+                  needs_cents: 0n,
+                }
+              : p,
+          ),
+          // Months with no stored row at all — the usual case for a category
+          // that was never given a limit. Bounded by the category's own start
+          // so an arc is never drawn across history it did not exist for.
+          ...monthsInRange(input.from, input.to)
+            .filter((month) => month >= from && !already.has(month))
+            .map((month) => ({
+              category_id: investWindow.category_id,
+              month,
+              planned_cents:
+                spentPerCatMonth.get(`${investWindow.category_id}|${month}`) ??
+                0n,
+              // No needs/wants split — Investments carries no cushion.
+              needs_cents: 0n,
+            })),
+        ];
+      } else if (investWindow?.investment_limit_mode === "smart") {
         let monthlyIncome = 0n;
         if (deps.incomeRepo) {
           const incomes = await deps.incomeRepo.listActive(input.tenantId);

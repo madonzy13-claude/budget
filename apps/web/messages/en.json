@@ -1480,7 +1480,7 @@
           "scheduledSeries": "Scheduled payments",
           "timelineTitle": "How each month tracked against plan",
           "avgByCategory": "How far off plan, by category",
-          "avgPie": "Planned spendings, by category",
+          "avgPie": "Average planned spendings, by category",
           "difference": "Difference",
           "increaseLimitBy": "Increase limit by",
           "decreaseLimitBy": "Decrease limit by",

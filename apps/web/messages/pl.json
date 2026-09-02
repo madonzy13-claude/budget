@@ -1503,7 +1503,7 @@
           "scheduledSeries": "Zaplanowane płatności",
           "timelineTitle": "Jak każdy miesiąc wypadł względem planu",
           "avgByCategory": "Odchylenie od planu, wg kategorii",
-          "avgPie": "Planowane wydatki wg kategorii",
+          "avgPie": "Średnie planowane wydatki wg kategorii",
           "difference": "Różnica",
           "increaseLimitBy": "Zwiększ limit o",
           "decreaseLimitBy": "Zmniejsz limit o",
