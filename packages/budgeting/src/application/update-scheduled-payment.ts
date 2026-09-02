@@ -7,7 +7,6 @@
  * - When applyToFuture=false: leave drafts untouched.
  * - Zod schema declares applyToFuture: z.boolean() (no .default()) so missing field → 422.
  */
-import { sql } from "drizzle-orm";
 import { type Result } from "@budget/shared-kernel";
 import { withTenantTx, writeAudit, writeOutbox } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
@@ -110,14 +109,17 @@ export function updateScheduledPayment(deps: {
           const merged = {
             cadence: (input.edits.cadence ?? before.cadence) as Cadence,
             anchorDay:
-              (input.edits.cadenceAnchor ??
-                (before.cadence_anchor as number | null)) ?? undefined,
+              input.edits.cadenceAnchor ??
+              (before.cadence_anchor as number | null) ??
+              undefined,
             weeklyDow:
-              (input.edits.weeklyDow ??
-                (before.weekly_dow as number | null)) ?? undefined,
+              input.edits.weeklyDow ??
+              (before.weekly_dow as number | null) ??
+              undefined,
             yearlyMonth:
-              (input.edits.yearlyMonth ??
-                (before.yearly_month as number | null)) ?? undefined,
+              input.edits.yearlyMonth ??
+              (before.yearly_month as number | null) ??
+              undefined,
           };
           const nextDue = nextDueDateAfter(merged, Temporal.Now.plainDateISO());
           await deps.ruleRepo.advanceNextDueDate(
