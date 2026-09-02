@@ -250,6 +250,36 @@ export function ScheduledPaymentForm({
     : (url: string, init?: RequestInit) =>
         clientApiWrite(url.replace(/^\/api/, ""), init ?? {});
 
+  /**
+   * Refresh everything a materialised draft touches.
+   *
+   * Saving a payment that is DUE creates its draft server-side, in the same
+   * request (create-scheduled-payment's catch-up, and since 260902 the edit
+   * path too). Only the tasks query was refreshed, so the "confirm" task
+   * appeared at once while the draft row it points at stayed missing until a
+   * full page reload — a task aimed at a row that is not on screen.
+   *
+   * Month-agnostic keys (no month segment) so a draft that lands in a month the
+   * grid is not currently showing is still refreshed when the user navigates to
+   * it — the same shape the grid's own mutations use.
+   */
+  function refreshAfterSave(id: string): void {
+    for (const queryKey of [
+      ["tasks", id, "pending"],
+      // The row itself.
+      ["drafts", id],
+      // "limit used" and what is left, above the row.
+      ["spendings-summary", id],
+      // The forecast counts an unconfirmed payment against opening cash.
+      // NOTE the shape: ["budget", id, "projection"], NOT ["projection", id] —
+      // an invalidate on a key nothing registers is a silent no-op, which is
+      // exactly the class of bug this function exists to fix.
+      ["budget", id, "projection"],
+    ]) {
+      queryClient.invalidateQueries({ queryKey });
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (saving) return;
@@ -332,11 +362,7 @@ export function ScheduledPaymentForm({
         // 4480afc). Invalidate the per-budget tasks query so the Spendings
         // pill badge + slider show the new task within ~1 tick instead of
         // waiting for the 60 s React Query poll.
-        if (budgetId) {
-          queryClient.invalidateQueries({
-            queryKey: ["tasks", budgetId, "pending"],
-          });
-        }
+        if (budgetId) refreshAfterSave(budgetId);
       } else {
         const ruleId = initialValues?.ruleId;
         if (!ruleId) return;
@@ -387,11 +413,7 @@ export function ScheduledPaymentForm({
         // UAT round 11: editing a rule can change the next-due materialise
         // path; refresh the tasks query for the same reason as the create
         // branch above.
-        if (budgetId) {
-          queryClient.invalidateQueries({
-            queryKey: ["tasks", budgetId, "pending"],
-          });
-        }
+        if (budgetId) refreshAfterSave(budgetId);
       }
       onSaved?.();
       onOpenChange(false);
