@@ -11,6 +11,7 @@ import { type ReactNode, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { pillFor } from "@/components/budgeting/tasks/kind-pill-map";
@@ -136,11 +137,25 @@ function BudgetRow({
         <span className="truncate text-sm font-semibold text-[var(--body)]">
           {name}
         </span>
-        {list.length > 0 && (
-          <span className="num shrink-0 rounded-[var(--radius-pill)] bg-[var(--trading-down)] px-1.5 text-[11px] font-semibold text-white">
-            {list.length}
-          </span>
-        )}
+        {/* The row has always been a link and read as a plain section label —
+            nothing on it said it could be tapped (user, 260902). The chevron is
+            the cue, and it sits on EVERY budget, with or without a badge: on
+            the one budget that has no tasks it would otherwise look like part
+            of the badge rather than part of the row. Decorative — the link
+            already announces the budget's name, and an icon with its own
+            accessible name would have it read twice. */}
+        <span className="flex shrink-0 items-center gap-2">
+          {list.length > 0 && (
+            <span className="num rounded-[var(--radius-pill)] bg-[var(--trading-down)] px-1.5 text-[11px] font-semibold text-white">
+              {list.length}
+            </span>
+          )}
+          <ChevronRight
+            data-testid="aggregate-bt-chevron"
+            aria-hidden="true"
+            className="size-4 text-[var(--muted-foreground)]"
+          />
+        </span>
       </Link>
       {/* Both the task list AND the empty "no tasks" note drop to the recessed
           full-width lane, flush under the header. */}
