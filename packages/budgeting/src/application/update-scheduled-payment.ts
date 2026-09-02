@@ -7,6 +7,7 @@
  * - When applyToFuture=false: leave drafts untouched.
  * - Zod schema declares applyToFuture: z.boolean() (no .default()) so missing field → 422.
  */
+import { sql } from "drizzle-orm";
 import { type Result } from "@budget/shared-kernel";
 import { withTenantTx, writeAudit, writeOutbox } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
@@ -17,6 +18,11 @@ import type {
   ScheduledPaymentEdits,
 } from "../ports/scheduled-payment-repo";
 import type { ScheduledDraftRepo } from "../ports/scheduled-draft-repo";
+import {
+  materialiseDueDrafts,
+  type ConfirmDraftEmitter,
+  type MaterialiseDueDraftsDeps,
+} from "./materialise-due-drafts";
 
 export interface UpdateScheduledPaymentInput {
   tenantId: string;
@@ -38,6 +44,11 @@ export class RuleNotFoundError extends Error {
 export function updateScheduledPayment(deps: {
   ruleRepo: ScheduledPaymentRepo;
   draftRepo: ScheduledDraftRepo;
+  /** Present = an edit that brings a payment DUE materialises its draft on
+   *  save. Absent = the nightly engine remains the only path, which is what it
+   *  was until 260902. Optional so existing wiring keeps compiling. */
+  fxProvider?: MaterialiseDueDraftsDeps["fxProvider"];
+  taskRepo?: ConfirmDraftEmitter;
 }) {
   return async (
     input: UpdateScheduledPaymentInput,
@@ -157,6 +168,69 @@ export function updateScheduledPayment(deps: {
           }
         }
         // If applyToFuture === false: leave drafts untouched (D-01-d)
+
+        // Moving a payment TO a date that has arrived makes it due NOW. The
+        // nightly engine would find it at 06:00 tomorrow, which is what made a
+        // payment edited to today simply not appear (user, 260902). Creating a
+        // rule has always caught up inline; editing one now does the same.
+        //
+        // Re-read rather than trusting the merged edits: the ONCE branch above
+        // rewrites both the date and the end_date, and the cadence branch
+        // recomputes the pointer, so the row is the only thing that knows where
+        // the walk starts. Best-effort — a failure here must not lose the edit
+        // the user just made, and the engine remains the backstop.
+        if (deps.fxProvider && deps.taskRepo) {
+          try {
+            const fresh = await drizzleTx.execute(sql`
+              SELECT r.next_due_date::text AS next_due_date,
+                     r.end_date::text AS end_date,
+                     r.cadence, r.cadence_anchor, r.weekly_dow, r.yearly_month,
+                     r.category_id::text AS category_id, r.note,
+                     r.amount::text AS amount, r.currency, r.active,
+                     b.default_currency AS budget_currency
+                FROM budgeting.scheduled_payments r
+                JOIN tenancy.budgets b ON b.id = r.tenant_id
+               WHERE r.id = ${input.ruleId}::uuid
+            `);
+            const row = fresh.rows[0] as Record<string, unknown> | undefined;
+            if (row && row.active === true) {
+              const { nextDueDate, draftsGenerated } =
+                await materialiseDueDrafts(
+                  tx,
+                  {
+                    tenantId: input.tenantId,
+                    ruleId: input.ruleId,
+                    fromDate: String(row.next_due_date),
+                    endDate: (row.end_date as string | null) ?? null,
+                    cadence: String(row.cadence),
+                    cadenceAnchor: row.cadence_anchor as number | null,
+                    weeklyDow: row.weekly_dow as number | null,
+                    yearlyMonth: row.yearly_month as number | null,
+                    categoryId: (row.category_id as string | null) ?? null,
+                    note: (row.note as string | null) ?? null,
+                    amount: String(row.amount),
+                    currency: String(row.currency),
+                    budgetCurrency: String(row.budget_currency),
+                  },
+                  { fxProvider: deps.fxProvider, taskRepo: deps.taskRepo },
+                );
+              // Advance the pointer past what was just drafted, so neither this
+              // path nor the engine walks the same dates again.
+              if (draftsGenerated > 0) {
+                await deps.ruleRepo.advanceNextDueDate(
+                  tx,
+                  input.ruleId,
+                  nextDueDate,
+                );
+              }
+            }
+          } catch (e) {
+            console.error(
+              `[scheduled-payment] catch-up after edit failed for rule ${input.ruleId}:`,
+              e,
+            );
+          }
+        }
 
         await writeAudit(tx, {
           tenantId: TenantId(input.tenantId),
