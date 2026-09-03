@@ -28,12 +28,27 @@ import {
 /** The locales the demo offers. Mirrors DEMO_LOCALES. */
 const LOCALES = ["en", "pl", "uk"] as const;
 
-/** Each locale's budget currencies — the aggregate scenario asserts the
- *  all-budgets view spans more than one, so the pair must differ. */
-const CURRENCY: Record<string, [string, string]> = {
-  en: ["USD", "EUR"],
-  pl: ["PLN", "EUR"],
-  uk: ["UAH", "EUR"],
+/**
+ * The two budgets each demo login gets.
+ *
+ * The NAMES are asserted by the aggregate scenario ("both demo budgets are
+ * listed" looks for Personal and Family by text), so they are part of the
+ * contract, not decoration. The CURRENCIES differ because the same scenario
+ * asserts the all-budgets view spans more than one.
+ */
+const BUDGETS: Record<string, Array<[string, string, "PRIVATE" | "SHARED"]>> = {
+  en: [
+    ["Personal", "USD", "PRIVATE"],
+    ["Family", "EUR", "SHARED"],
+  ],
+  pl: [
+    ["Personal", "PLN", "PRIVATE"],
+    ["Family", "EUR", "SHARED"],
+  ],
+  uk: [
+    ["Personal", "UAH", "PRIVATE"],
+    ["Family", "EUR", "SHARED"],
+  ],
 };
 
 /** Stand-ins for the budgets a real deployment copies from. Their COUNT is what
@@ -65,14 +80,12 @@ async function main(): Promise<void> {
     );
     const cookie = cookieHeaderFrom(setCookieHeaders);
 
-    // Two budgets: the aggregate scenario asserts both are listed.
-    const [first, second] = CURRENCY[locale]!;
+    // Two budgets, named as the aggregate scenario expects.
     const tenants: string[] = [];
-    for (const [name, kind] of [
-      [`Demo ${first}`, "PRIVATE"],
-      [`Demo ${second}`, "SHARED"],
-    ] as const) {
-      tenants.push(await createBudgetViaHttp(baseUrl, cookie, name, kind));
+    for (const [name, currency, kind] of BUDGETS[locale]!) {
+      tenants.push(
+        await createBudgetViaHttp(baseUrl, cookie, name, kind, currency),
+      );
     }
 
     const up = locale.toUpperCase();
