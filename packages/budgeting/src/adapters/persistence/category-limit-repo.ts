@@ -394,6 +394,100 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
     return rowToDto(r.value);
   }
 
+  /**
+   * effectiveForMonth for many months, in ONE query and ONE transaction.
+   *
+   * The per-month version was called in a loop by the reserve replay — 35
+   * months on a three-year budget, each its own transaction with two SET LOCAL
+   * statements for the RLS GUCs. A single all-budgets request issued 424 of
+   * these lookups and ~500 GUC statements, about a second of round-trip; the
+   * queries themselves are ~0.1ms each against ~1.9ms of per-call overhead.
+   *
+   * The month list is passed as an array and joined against, so the SCD-2
+   * predicate is evaluated per month by the database instead of per round trip.
+   */
+  async effectiveForMonths(
+    tenantId: string,
+    _budgetId: string,
+    monthStarts: string[],
+  ): Promise<
+    Map<
+      string,
+      Map<
+        string,
+        {
+          planned: bigint;
+          cushion: bigint;
+          needs: bigint | null;
+          wants: bigint | null;
+          noLimit: boolean;
+        }
+      >
+    >
+  > {
+    const out = new Map<
+      string,
+      Map<
+        string,
+        {
+          planned: bigint;
+          cushion: bigint;
+          needs: bigint | null;
+          wants: bigint | null;
+          noLimit: boolean;
+        }
+      >
+    >();
+    // Every requested month gets an entry, so a caller cannot tell a month with
+    // no limits apart from a month that was never asked for.
+    for (const m of monthStarts) out.set(m, new Map());
+    if (monthStarts.length === 0) return out;
+
+    const tid = TenantId(tenantId);
+    const uid = UserId(tenantId);
+
+    // ONE bound parameter holding a Postgres array literal, not a JS array:
+    // drizzle's sql`` expands an array inline as a record, which Postgres then
+    // refuses to cast ("cannot cast type record to date[]").
+    const monthsLiteral = `{${monthStarts.join(",")}}`;
+
+    const r = await withTenantTx(tid, uid, async (tx) => {
+      return tx.execute<{
+        month_start: string;
+        category_id: string;
+        normal_amount: string;
+        cushion_amount: string;
+        needs_amount: string | null;
+        wants_amount: string | null;
+        no_limit: boolean;
+      }>(sql`
+        SELECT m.month_start::text AS month_start,
+               cl.category_id::text, cl.normal_amount::text,
+               cl.cushion_amount::text, cl.needs_amount::text,
+               cl.wants_amount::text, cl.no_limit
+          FROM unnest(${monthsLiteral}::date[]) AS m(month_start)
+          JOIN budgeting.category_limits cl
+            ON cl.tenant_id = ${tenantId}::uuid
+           AND cl.effective_from <= m.month_start
+           AND (cl.effective_to IS NULL OR cl.effective_to > m.month_start)
+      `);
+    });
+    if (r.isErr()) throw r.error;
+
+    for (const row of r.value.rows) {
+      const month = out.get(row.month_start);
+      if (!month) continue;
+      month.set(row.category_id, {
+        planned: BigInt(row.normal_amount),
+        cushion: BigInt(row.cushion_amount),
+        needs: row.needs_amount === null ? null : BigInt(row.needs_amount),
+        wants: row.wants_amount === null ? null : BigInt(row.wants_amount),
+        noLimit: row.no_limit,
+      });
+    }
+    return out;
+  }
+
   async effectiveForMonth(
     tenantId: string,
     _budgetId: string,

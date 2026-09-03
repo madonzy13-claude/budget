@@ -8,7 +8,7 @@
  * Composition (do NOT re-implement spend/limit/wallet SQL — reuse the ports):
  *   - spendByCategoryByMonth  → transactionRepo.spendByCategoryByMonth (exclusive
  *                               upper bound = first day of the month AFTER open)
- *   - limitsByMonth           → categoryLimitRepo.effectiveForMonth per month
+ *   - limitsByMonth           → categoryLimitRepo.effectiveForMonths (one query)
  *   - userDefinedCents        → reservesSummaryRepo.sumReserveWalletAmounts
  *
  * In-adapter raw SQL (Drizzle/SQL stays ONLY here, per CLAUDE.md hex rule):
@@ -181,28 +181,40 @@ export function createReserveEventLoaderRepo(
       for (const byMonth of spendByCategoryByMonth.values()) {
         for (const m of byMonth.keys()) monthKeys.add(m);
       }
-      const limitEntries = await Promise.all(
-        [...monthKeys].map(async (m) => {
-          const limits = await categoryLimitRepo.effectiveForMonth(
-            tenantId,
-            budgetId,
-            `${m}-01`,
-          );
-          const mapped = new Map<
-            string,
-            { plannedCents: bigint; cushionCents: bigint; noLimit: boolean }
-          >();
-          for (const [catId, v] of limits) {
-            mapped.set(catId, {
-              plannedCents: v.planned,
-              cushionCents: v.cushion,
-              noLimit: v.noLimit,
-            });
-          }
-          return [m, mapped] as const;
-        }),
+      // ONE query for every month, not one per month. This used to be a
+      // Promise.all over `effectiveForMonth`, which looks concurrent but is
+      // still 35 separate transactions on a three-year budget — each carrying
+      // two SET LOCAL statements for the RLS GUCs. The all-budgets aggregate
+      // was issuing 424 limit lookups and ~500 GUC statements per request,
+      // about a second of round-trip against ~0.1ms of actual query time.
+      const months = [...monthKeys];
+      const limitsForMonths = await categoryLimitRepo.effectiveForMonths(
+        tenantId,
+        budgetId,
+        months.map((m) => `${m}-01`),
       );
-      const limitsByMonth = new Map(limitEntries);
+      const limitsByMonth = new Map<
+        string,
+        Map<
+          string,
+          { plannedCents: bigint; cushionCents: bigint; noLimit: boolean }
+        >
+      >();
+      for (const m of months) {
+        const limits = limitsForMonths.get(`${m}-01`) ?? new Map();
+        const mapped = new Map<
+          string,
+          { plannedCents: bigint; cushionCents: bigint; noLimit: boolean }
+        >();
+        for (const [catId, v] of limits) {
+          mapped.set(catId, {
+            plannedCents: v.planned,
+            cushionCents: v.cushion,
+            noLimit: v.noLimit,
+          });
+        }
+        limitsByMonth.set(m, mapped);
+      }
 
       // ── cushionHistory: ordered { fromMonth, on } segments (ascending).
       const cushionHistory = cushionRows.map((r) => ({

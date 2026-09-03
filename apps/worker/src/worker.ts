@@ -4,9 +4,11 @@ import {
   workerPool,
   appPool,
   withInfraTx,
+  readDemoConfig,
 } from "@budget/platform";
 import { startTracing } from "@budget/platform/otel";
 import { sql } from "drizzle-orm";
+import { handleDemoRefresh } from "./handlers/demo-refresh";
 import { handleOutboxTick } from "./handlers/outbox-dispatch";
 import {
   registerFxDailyFetch,
@@ -206,6 +208,22 @@ async function main() {
     },
   );
   await boss.schedule("outbox-dispatch", "*/1 * * * *");
+
+  // Demo tenant refresh — nightly, and ONLY when configured. An unconfigured
+  // deployment never registers the queue at all, so the feature that reads a
+  // real household's data cannot switch itself on by omission.
+  if (readDemoConfig()) {
+    await boss.createQueue("demo-refresh");
+    await boss.work(
+      "demo-refresh",
+      { pollingIntervalSeconds: 60, batchSize: 1 },
+      async () => {
+        await handleDemoRefresh(wealthSnapshotDeps);
+      },
+    );
+    await boss.schedule("demo-refresh", "0 3 * * *", null, { tz: "UTC" });
+    console.log("[worker] demo-refresh scheduled (03:00 UTC)");
+  }
 
   // FX fetcher — hourly. The API is cache-only now, so anything this job has
   // not stored is served as a stale-flagged prior rate.

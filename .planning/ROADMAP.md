@@ -357,6 +357,33 @@ Within Phase 8, PWA / i18n / E2E concerns are parallel-eligible at the plan leve
 8. A pg-boss handler snapshots every budget's {capitalization, investment value} in default_currency every ≤3h into a new aggregate table; budget-side metrics compute-on-read (no snapshot) and the tab renders cached data instantly then revalidates; editing a past transaction is reflected after invalidation with correct recomputed history.
 9. recharts (latest stable) added; chart components are responsive + themed per DESIGN.md; all strings EN/PL/UK; E2E Gherkin covers the golden overview render + range switch + category selector + wealth toggle + pie interaction.
 
+### Phase 12: Demo Account _(v1.2 track)_
+
+**Goal:** Give prospects a single shared login that shows the whole product working on realistic data, without exposing the owner's finances. A nightly pg-boss job copies two real source budgets (`Private Budget` d30ee8ca → demo personal, `Family Budget` a2372ac5 → demo family) into a dedicated demo tenant, scrubbing every column through an **allowlist manifest** that aborts the refresh if the live schema grows a column the manifest has never seen. Money is scaled by one uniform factor and PLN is relabeled USD (other currencies preserved, so multi-currency still demonstrates). The demo user is a member of the demo budgets and nothing else, so RLS alone guarantees it can never read the owner's tenant — pinned by a new tenant-leak gate test. A `/demo` route signs the prospect in; a first-paint dialog explains the demo and offers EN/PL/UK, stored per-browser so one visitor's language choice does not become everyone's.
+**Requirements**: DEMO-\* (enumerated in 12-SPEC)
+**Depends on:** Phase 9 (investments) · Phase 10 (`purgeUserData` cascade order, reused for the demo wipe) · Phase 11 (Overview + all-budgets aggregate, which the second demo budget exists to populate)
+**Plans:** 4 plans
+
+**Success Criteria** (what must be TRUE):
+
+1. A pg-boss handler `demo-refresh` runs nightly (03:00 UTC), and in ONE transaction wipes the demo tenant and re-copies both source budgets with ids remapped; any failure rolls back and leaves yesterday's demo data intact. The job does not schedule at all unless `DEMO_TENANT_IDS` + `DEMO_SOURCE_TENANT_IDS` are configured, so an unconfigured deploy is inert.
+2. A scrub manifest enumerates every column of every copied table with exactly one rule (`COPY | SCALE_MONEY | FAKE_TEXT | NULL | REMAP_ID | TENANT`). A preflight against `information_schema.columns` **aborts the run** when the live DB has a column absent from the manifest — the demo is left unchanged rather than publishing an unreviewed field.
+3. No free text from the owner's tenant reaches the demo: category, wallet, budget and holding names, transaction descriptions and notes are replaced from a fixed pool keyed by category. A test asserts no source string survives the copy.
+4. Every money value is multiplied by one uniform factor **per budget pair, per night** — re-rolled daily, log-uniform across [0.1, 10], derived deterministically from (day, pair) so a re-run reproduces the night — so sums, limits, reserve balances and FX conversions stay arithmetically consistent within each budget while carrying no stable relationship to the owner's real magnitudes. The personal demo budget is **USD** (PLN relabeled, other currencies preserved); the family demo budget stays **PLN**. The demo user's `display_currency` is USD, so the two-currency pair is what the aggregate converts across.
+5. The demo user holds `budget_members` rows for the demo budgets ONLY. A new `tests/tenant-leak/demo-tenant-cross-tenant.test.ts` authenticates as demo and asserts zero rows from the owner's tenant across every `TENANT-SCOPED` table parsed at runtime from `USER-DATA-TABLES.txt`; it runs in `make ci-gate`.
+6. A `demoGuard` middleware returns 403 for the demo user on change-password, change-email, delete-account, member invitation, and share-link creation; outbox dispatch and web-push skip rows whose `tenant_id` is a demo tenant, so no demo action can email or notify a real address.
+7. `/[locale]/demo` signs the prospect into the shared account and lands on a demo budget; a persistent app-shell banner states the data is a demo that resets nightly.
+8. On first paint for the demo user a dialog explains the demo and offers EN/PL/UK; the selection sets the locale cookie and soft-navs to `/{locale}/…`, is remembered per browser (localStorage), and is never written to the shared user row.
+9. Both demo budgets appear in the budget switcher and the all-budgets aggregate Overview renders across them, converting a USD budget and a PLN budget into the display currency (so the aggregate demonstrates FX, not like-for-like addition); the personal demo budget carries the investments story, the family demo budget carries the second member and sharing story.
+10. All new strings exist in EN/PL/UK; E2E Gherkin covers demo sign-in → populated Overview → language switch via the dialog → a blocked guardrail action.
+
+Plans:
+
+- [ ] 12-01 — Scrub manifest, transform rules, and the fail-closed schema preflight (wave 1)
+- [ ] 12-02 — Nightly wipe-and-copy job, per-pair currency/scale, pg-boss schedule (wave 2)
+- [ ] 12-03 — Isolation gate test, demoGuard middleware, outbound suppression (wave 3)
+- [ ] 12-04 — /demo route, welcome dialog + language picker, banner, i18n, E2E (wave 3)
+
 ---
 
 _Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.1 requirements mapped. Phase 7 rescoped 2026-05-30: 3-kind set (RESERVE_TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET); TASK-05 dropped from v1.1; TASK-04 reassigned semantic to CUSHION_BELOW_TARGET. Phase 11 added 2026-06-28 (v1.2 Overview tab — single phase; budget-side compute-on-read + per-budget 3h wealth aggregate snapshot)._

@@ -47,7 +47,7 @@ export interface InvestmentCategorySliderProps {
   };
 }
 
-type Mode = "smart" | "manual";
+type Mode = "smart" | "manual" | "none";
 
 function centsToDecimal(cents: string): string {
   const n = parseInt(cents, 10);
@@ -98,7 +98,7 @@ export function InvestmentCategorySlider({
   const [name, setName] = useState(initial.name);
   const [colorKey, setColorKey] = useState<string | null>(initial.colorKey);
   const [mode, setMode] = useState<Mode>(
-    (initial.investmentLimitMode as Mode) ?? "smart",
+    (initial.investmentLimitMode as Mode) ?? "none",
   );
   const [manualAmount, setManualAmount] = useState(
     centsToDecimal(initial.plannedCents),
@@ -114,7 +114,7 @@ export function InvestmentCategorySlider({
     const authMode =
       (statusQuery.data?.category?.investmentLimitMode as Mode) ??
       (initial.investmentLimitMode as Mode) ??
-      "smart";
+      "none";
     setMode(authMode);
   }, [
     open,
@@ -242,12 +242,22 @@ export function InvestmentCategorySlider({
             />
           </div>
 
-          {/* Limit mode: Smart | Manual */}
+          {/* Limit mode: No limit | Smart | Manual */}
           <div className="flex flex-col gap-2">
             <Label className="text-sm text-[var(--muted-foreground)]">
               {t("limitLabel")}
             </Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                type="button"
+                size="sm"
+                data-testid="invest-mode-none"
+                variant={effectiveMode === "none" ? "primary" : "outline"}
+                aria-pressed={effectiveMode === "none"}
+                onClick={() => setMode("none")}
+              >
+                {t("mode.none")}
+              </Button>
               <Button
                 type="button"
                 size="sm"
@@ -280,7 +290,7 @@ export function InvestmentCategorySlider({
             )}
           </div>
 
-          {/* Manual amount OR smart explainer */}
+          {/* Manual amount, or the explainer for whichever computed mode is on */}
           {effectiveMode === "manual" ? (
             <div className="flex flex-col gap-1.5">
               <Label className="text-sm text-[var(--muted-foreground)]">
@@ -303,8 +313,13 @@ export function InvestmentCategorySlider({
               </div>
             </div>
           ) : (
-            <p className="rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] px-3 py-2 text-sm text-[var(--muted-foreground)]">
-              {t("smartExplainer")}
+            <p
+              data-testid="invest-mode-explainer"
+              className="rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] px-3 py-2 text-sm text-[var(--muted-foreground)]"
+            >
+              {effectiveMode === "none"
+                ? t("noLimitExplainer")
+                : t("smartExplainer")}
             </p>
           )}
 
@@ -313,7 +328,11 @@ export function InvestmentCategorySlider({
             <Label className="text-sm text-[var(--muted-foreground)]">
               {t("colorLabel")}
             </Label>
-            <div className="flex gap-2 flex-wrap">
+            {/* Same 10-per-row grid as the normal category picker: fixed h-8 w-8
+                swatches wrapped onto a third row on a phone. The grid takes the
+                width it is given and each swatch squares off its own cell
+                (user, 260820) — this dialog was missed by that change. */}
+            <div className="grid grid-cols-10 gap-1.5">
               {CATEGORY_COLORS.map(({ key, hex }) => (
                 <button
                   key={key}
@@ -321,7 +340,7 @@ export function InvestmentCategorySlider({
                   data-testid={`invest-color-${key}`}
                   onClick={() => setColorKey(colorKey === key ? null : key)}
                   className={cn(
-                    "flex h-8 w-8 rounded-full border-2 transition-all",
+                    "w-full aspect-square rounded-full border-2 transition-all",
                     colorKey === key
                       ? "border-[var(--body-on-dark)] scale-110"
                       : "border-transparent",

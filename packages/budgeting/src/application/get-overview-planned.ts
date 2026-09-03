@@ -12,6 +12,7 @@
  * service boundary (matching get-spendings-summary / get-cushion-summary).
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
+import { completedMonthsForRange } from "../domain/completed-months";
 import type { FxProvider } from "@budget/shared-kernel";
 import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
 import {
@@ -353,6 +354,27 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
       const ccy = meta.default_currency;
       const bucket = chooseBucket(input.from, input.to);
 
+      // The averages below drop the month still running, so a window that ends
+      // at TODAY loses a month rather than excluding one — on the 1st, a year
+      // averaged eleven months. The read slides back far enough to keep the
+      // count, and it has to be the READ, not just the month list: an extra
+      // month with no data would drag both averages down.
+      //
+      // Only the averages move. The chart keeps the range exactly as asked,
+      // running month included — there a part-finished month is a short bar,
+      // which is honest, and hiding it would hide the month most worth seeing.
+      const avgMonths = input.excludeCurrentMonth
+        ? completedMonthsForRange({
+            from: input.from,
+            to: input.to,
+            nowMonth: isoDay(asOf).slice(0, 7),
+          })
+        : [];
+      const queryFrom =
+        avgMonths.length > 0 && `${avgMonths[0]}-01` < input.from
+          ? `${avgMonths[0]}-01`
+          : input.from;
+
       const [planned, spend, windows, rules, excluded, posResult] =
         await Promise.all([
           // Stretched to TODAY when the range ends earlier: "current limit"
@@ -361,19 +383,15 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           // nothing on the presets, which all end today already.
           deps.repo.monthlyPlannedByCategory(
             input.budgetId,
-            input.from,
+            queryFrom,
             input.to >= isoDay(asOf) ? input.to : isoDay(asOf),
           ),
-          deps.repo.monthlySpendByCategory(
-            input.budgetId,
-            input.from,
-            input.to,
-          ),
+          deps.repo.monthlySpendByCategory(input.budgetId, queryFrom, input.to),
           deps.repo.categoryWindows(input.budgetId),
           deps.repo.activeScheduledPayments(input.budgetId),
           deps.excludedSpend?.({
             budgetId: input.budgetId,
-            from: input.from,
+            from: queryFrom,
             to: input.to,
           }) ?? Promise.resolve([]),
           deps.reservePositions?.({
@@ -458,7 +476,46 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
 
       const investWindow = windows.find((w) => w.is_investment);
       let plannedRows = plannedResolved;
-      if (investWindow?.investment_limit_mode === "smart") {
+      if (investWindow?.investment_limit_mode === "none") {
+        // Unbounded: its implicit plan is what it INVESTED, which is rule 0083
+        // applied by MODE rather than by the presence of a stored row. The
+        // substitution above needs a row to substitute into, and a category
+        // that has never carried a stored limit has none for its history — so
+        // the pie's investing arc had nothing to draw and disappeared from the
+        // ring, where it is meant to stay whatever the picker says.
+        const from = startOf(investWindow);
+        const already = new Set(
+          plannedResolved
+            .filter((p) => p.category_id === investWindow.category_id)
+            .map((p) => p.month),
+        );
+        plannedRows = [
+          ...plannedResolved.map((p) =>
+            p.category_id === investWindow.category_id
+              ? {
+                  ...p,
+                  planned_cents:
+                    spentPerCatMonth.get(`${p.category_id}|${p.month}`) ?? 0n,
+                  needs_cents: 0n,
+                }
+              : p,
+          ),
+          // Months with no stored row at all — the usual case for a category
+          // that was never given a limit. Bounded by the category's own start
+          // so an arc is never drawn across history it did not exist for.
+          ...monthsInRange(input.from, input.to)
+            .filter((month) => month >= from && !already.has(month))
+            .map((month) => ({
+              category_id: investWindow.category_id,
+              month,
+              planned_cents:
+                spentPerCatMonth.get(`${investWindow.category_id}|${month}`) ??
+                0n,
+              // No needs/wants split — Investments carries no cushion.
+              needs_cents: 0n,
+            })),
+        ];
+      } else if (investWindow?.investment_limit_mode === "smart") {
         let monthlyIncome = 0n;
         if (deps.incomeRepo) {
           const incomes = await deps.incomeRepo.listActive(input.tenantId);
@@ -535,9 +592,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
 
       for (const s of spend) {
         if (!inCat(s.category_id)) continue;
-        const unbounded = noLimitPerCatMonth.has(
-          `${s.category_id}|${s.month}`,
-        );
+        const unbounded = noLimitPerCatMonth.has(`${s.category_id}|${s.month}`);
         const limit =
           plannedPerCatMonth.get(`${s.category_id}|${s.month}`) ?? 0n;
         const within = unbounded
@@ -778,8 +833,8 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
       // …minus the month still in progress, when asked and when there is
       // anything left to average.
       const rangeMonths =
-        input.excludeCurrentMonth && allRangeMonths.length > 1
-          ? allRangeMonths.filter((m) => m !== runningMonth)
+        input.excludeCurrentMonth && avgMonths.length > 0
+          ? avgMonths
           : allRangeMonths;
       const plannedKey = new Map<string, bigint>();
       const needsKey = new Map<string, bigint>();
@@ -816,7 +871,16 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           // only month is the one still running (a category — or a budget —
           // started this month) would otherwise vanish from the chart entirely
           // (found live, 260804). A weak signal beats no bar at all.
-          const active = within(rangeMonths);
+          // Months the widening ADDED (before the range the caller asked for)
+          // only count where the category actually had a limit then. Reaching
+          // back is meant to restore evidence, not invent it: a month with no
+          // limit row would average in as a plan of zero and understate the
+          // category — which is how this went wrong the first time.
+          const requestedFrom = input.from.slice(0, 7);
+          const active = within(rangeMonths).filter(
+            (m) =>
+              m >= requestedFrom || plannedKey.has(`${w.category_id}|${m}`),
+          );
           const months = active.length > 0 ? active : within(allRangeMonths);
           if (months.length === 0) return null;
           let ps = 0n;
@@ -885,14 +949,16 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
       // renewal divided by twelve — which erased the lump this chart exists to
       // show (260807).
       const upcoming = upcomingByMonth(
-        rules.map((rule, i) => ({
-          name: rule.rule_name || rule.name || "",
-          amount_cents: ruleAmounts[i]!,
-          cadence: rule.cadence,
-          yearly_month: rule.yearly_month,
-          next_due_date: rule.next_due_date ?? "",
-          end_date: rule.end_date ?? null,
-        })).filter((p) => p.next_due_date !== ""),
+        rules
+          .map((rule, i) => ({
+            name: rule.rule_name || rule.name || "",
+            amount_cents: ruleAmounts[i]!,
+            cadence: rule.cadence,
+            yearly_month: rule.yearly_month,
+            next_due_date: rule.next_due_date ?? "",
+            end_date: rule.end_date ?? null,
+          }))
+          .filter((p) => p.next_due_date !== ""),
         isoDay(asOf),
       );
 

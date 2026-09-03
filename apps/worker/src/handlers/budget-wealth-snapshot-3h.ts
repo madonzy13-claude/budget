@@ -17,7 +17,7 @@
  * TIME ZONE 'UTC')) bucket index (0049) DO NOTHING — a same-hour re-run no-ops.
  */
 import { sql } from "drizzle-orm";
-import { withInfraTx, withTenantTx } from "@budget/platform";
+import { withInfraTx, withTenantTx, isDemoTenantId } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import {
   computeBudgetWealthNow,
@@ -57,7 +57,15 @@ export async function runBudgetWealthSnapshot3h(
       default_currency: string;
     }>;
   });
-  const budgets = scan.isOk() ? scan.value : [];
+  const scanned = scan.isOk() ? scan.value : [];
+
+  // Demo budgets are EXCLUDED. Their whole wealth history is written by the
+  // nightly refresh, scaled by that night's factor. If this job also wrote
+  // snapshots between refreshes, the series would mix two factors and the chart
+  // would show a cliff that never happened — the reported "-44% since
+  // yesterday", which was an artefact of the re-roll, not a change in anyone's
+  // money.
+  const budgets = scanned.filter((b) => !isDemoTenantId(b.tenant_id));
 
   let inserted = 0;
   const now = new Date();

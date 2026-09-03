@@ -25,6 +25,11 @@ const testDir = defineBddConfig({
   // removes this clause + the feature tag to un-skip it.
   // @skip-phase-07-debt + @skip-tasks-redesign-debt are honored via the
   // --grep-invert flag on the runner (see Makefile / make test-e2e).
+  // @skip-phase-12-debt is GONE (260903): the tag was declared here but no
+  // scenario ever carried it, so it excluded nothing and only implied a demo
+  // scenario was being skipped. The demo suite runs in full — CI now seeds a
+  // demo account (scripts/ci/seed-demo.ts) instead of leaving those scenarios
+  // to fail against a stack that never had one.
   tags: "not @skip-phase-05-debt and not @skip-phase-09-debt",
 });
 

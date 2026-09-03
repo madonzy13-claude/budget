@@ -308,8 +308,8 @@
           "description": "When a reserve needs topping up"
         },
         "CONFIRM_DRAFT": {
-          "label": "Draft needs confirming",
-          "description": "When a scheduled payment's draft awaits confirmation"
+          "label": "Scheduled payment needs confirming",
+          "description": "When a scheduled payment is waiting for confirmation"
         },
         "CUSHION_BELOW_TARGET": {
           "label": "Cushion below target",
@@ -1202,7 +1202,7 @@
         "errorAmount": "Enter an amount like 73.80",
         "noteLabel": "Note (optional)",
         "applyToFutureLabel": "Also apply to future occurrences",
-        "applyToFutureHelp": "Edits the upcoming pending drafts so they reflect the new amount/category. Past confirmed transactions are never changed.",
+        "applyToFutureHelp": "Edits the upcoming unconfirmed payments so they reflect the new amount/category. Past confirmed transactions are never changed.",
         "categoryPlaceholder": "Select category…",
         "once": "One time",
         "dateLabel": "Date"
@@ -1222,7 +1222,7 @@
       },
       "drafts": {
         "inboxTitle": "Pending payments",
-        "empty": "No pending drafts.",
+        "empty": "No payments waiting for confirmation.",
         "confirmButton": "Confirm transaction",
         "editConfirmButton": "Edit & confirm",
         "skipButton": "Skip this period",
@@ -1236,7 +1236,7 @@
       },
       "delete": {
         "title": "Delete scheduled payment?",
-        "body": "This stops future drafts. Past confirmed transactions are kept.",
+        "body": "This stops future payments. Past confirmed transactions are kept.",
         "confirm": "Delete",
         "cancel": "Cancel"
       }
@@ -1480,7 +1480,7 @@
           "scheduledSeries": "Scheduled payments",
           "timelineTitle": "How each month tracked against plan",
           "avgByCategory": "How far off plan, by category",
-          "avgPie": "Planned spendings, by category",
+          "avgPie": "Average planned spendings, by category",
           "difference": "Difference",
           "increaseLimitBy": "Increase limit by",
           "decreaseLimitBy": "Decrease limit by",
@@ -1763,14 +1763,14 @@
       "count": "{count, plural, one {# task pending} other {# tasks pending}}",
       "title": {
         "RESERVE_TOPUP": "Top up reserve by {amount}",
-        "CONFIRM_DRAFT": "{hasCategory, select, yes {Confirm {amount} — {category}} other {Confirm {amount}}}",
+        "CONFIRM_DRAFT": "{hasRule, select, yes {Confirm {amount} ({ruleName})} other {Confirm {amount}}}",
         "CUSHION_BELOW_TARGET": "Cushion short by {shortfall}",
         "INCOME_UNDER_PLANNED": "You run {shortfall} short before your next income",
         "RESERVE_TOPUP_withdraw": "Reserve has {amount} extra"
       },
       "kind": {
         "RESERVE_TOPUP": "Reserve",
-        "CONFIRM_DRAFT": "Draft",
+        "CONFIRM_DRAFT": "Payment",
         "CUSHION_BELOW_TARGET": "Cushion",
         "INCOME_UNDER_PLANNED": "Spending"
       },
@@ -1780,20 +1780,20 @@
           "ariaLabel": "Go to Reserves to fix top-up"
         },
         "CONFIRM_DRAFT": {
-          "label": "Confirm draft"
+          "label": "Confirm payment"
         },
         "CUSHION_BELOW_TARGET": {
           "label": "Top up cushion",
           "ariaLabel": "Go to Assets to top up cushion"
         }
       },
-      "confirmError": "Could not confirm draft. Try again.",
+      "confirmError": "Could not confirm the payment. Try again.",
       "more": "More",
       "detail": {
         "RESERVE_TOPUP": "Your reserve wallets hold {amount} less than the sum allocated across reserve categories. You have two options: top up a reserve wallet (move money in) to match the category sum, or reduce some category reserve amounts so the sum drops back to the wallet balance.",
-        "CONFIRM_DRAFT": "A scheduled payment has produced a new draft transaction for {ruleName} ({amount}). Open the Spendings tab, review the draft row, and confirm or dismiss it. Confirming records the transaction in your ledger; dismissing skips it without affecting future occurrences.",
+        "CONFIRM_DRAFT": "{ruleName} ({amount}) is scheduled and waiting for your confirmation. Review the row below and confirm or dismiss it. Confirming records the transaction in your ledger; dismissing skips it without affecting future occurrences.",
         "CUSHION_BELOW_TARGET": "Your cushion savings are below the target you set in Settings (months × average monthly spend). The shortfall is {shortfall}. You have three options: transfer money into a cushion-type wallet to cover the gap, lower the cushion target months in Settings → Cushion (smaller runway = smaller required cushion), or reduce some category limits so the average monthly spend drops.",
-        "INCOME_UNDER_PLANNED": "Following your current plan, your money dips to {low} before your next income lands — {shortfall} short. Open the Spendings tab and lower some category limits, or move a payment, until the forecast stays above zero.",
+        "INCOME_UNDER_PLANNED": "Following your current plan, your money dips to {low} before your next income lands — {shortfall} short. Lower some category limits below, or move a payment, until the forecast stays above zero.",
         "RESERVE_TOPUP_withdraw": "Your reserve wallets hold {amount} more than the sum allocated across reserve categories. You have two options: withdraw the surplus from a reserve wallet, or redistribute the extra into category reserves (increase one or more category amounts so they add up to the wallet sum)."
       }
     }
@@ -1934,7 +1934,7 @@
       },
       "dismissDraft": {
         "title": "Skip {ruleName} for {month}?",
-        "body": "The scheduled payment will keep running. Next month's draft will appear on time.",
+        "body": "The scheduled payment will keep running. Next month's payment will appear on time.",
         "cta": "Skip this month",
         "cancel": "Cancel"
       }
@@ -1964,7 +1964,8 @@
       "limitLabel": "Investment limit",
       "mode": {
         "smart": "Smart limit",
-        "manual": "Manual"
+        "manual": "Manual",
+        "none": "No limit"
       },
       "manualAmountLabel": "Amount",
       "smartExplainer": "Smart limit = total income minus everything planned in your other categories. It updates automatically.",
@@ -1973,7 +1974,8 @@
       "save": "Save",
       "error": {
         "save": "Couldn't save — try again"
-      }
+      },
+      "noLimitExplainer": "No cap on what goes into investments. The month’s forecast counts what you actually invest, and there is no overinvested figure — the same as any other category with no limit."
     }
   },
   "share": {
@@ -2089,5 +2091,16 @@
       "unknown": "Server unavailable — showing cached data",
       "readOnly": "Budget is read-only while the server is unavailable."
     }
+  },
+  "demo": {
+    "welcome_title": "You're in the demo",
+    "welcome_body": "This is a shared demo account with realistic sample data. Change anything you like — it all resets overnight, and everyone exploring the demo sees the same budgets.",
+    "choose_language": "Choose your language",
+    "start": "Start exploring",
+    "banner": "Demo account — sample data, resets nightly at 03:00 UTC",
+    "restricted": "This action is disabled on the demo account. Create your own account to try it.",
+    "try_link": "Explore the demo →",
+    "try_hint": "Sample data, no sign-up needed",
+    "entering": "Opening…"
   }
 }

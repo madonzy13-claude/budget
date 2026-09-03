@@ -47,6 +47,30 @@ export function sanitizeAmount(raw: string): string {
   return v;
 }
 
+/**
+ * The balance to SEND, from whatever is in the field.
+ *
+ * Clearing the field and confirming is how a member says "this is empty now".
+ * It used to reach the API as "", fail its signed-decimal check and come back
+ * as a generic "couldn't save" with the old value still on screen (user,
+ * 260902). An empty balance means zero.
+ *
+ * Also normalises what sanitizeAmount deliberately tolerates mid-entry but the
+ * API rejects: a lone "-", a bare ".", and a leading-dot decimal like ".5".
+ * Separate from sanitizeAmount because that one runs on every KEYSTROKE — it
+ * has to let a half-typed "-" stand, or the minus would vanish as it is typed.
+ * This runs once, at the save boundary.
+ */
+export function amountForSave(raw: string): string {
+  const v = sanitizeAmount(raw.trim());
+  // Nothing numeric in it at all.
+  if (!/\d/.test(v)) return "0";
+  // ".5" / "-.5" — a valid number that the API's regex does not accept.
+  if (v.startsWith(".")) return `0${v}`;
+  if (v.startsWith("-.")) return `-0${v.slice(1)}`;
+  return v;
+}
+
 interface PersistedProps {
   mode: "persisted";
   wallet: WalletDto;
@@ -166,7 +190,9 @@ function DraftRow({
       onDiscard();
       return;
     }
-    onCommit(trimmed, currency, amount);
+    // A new wallet left with an empty amount is a wallet holding nothing, not
+    // a validation failure — the same rule the persisted editor follows.
+    onCommit(trimmed, currency, amountForSave(amount));
   };
 
   // Tab / Shift+Tab CYCLE within the three draft fields, wrapping: name →
@@ -826,7 +852,7 @@ function PersistedRow({
                 className="ml-auto h-9 w-[10ch] max-w-full px-2 text-right"
               />
             )}
-            onSave={(v) => onUpdate({ amount: sanitizeAmount(v) })}
+            onSave={(v) => onUpdate({ amount: amountForSave(v) })}
           />
         </div>
 

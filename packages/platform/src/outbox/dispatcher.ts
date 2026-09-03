@@ -3,6 +3,7 @@ import { withInfraTx } from "../db/tx";
 import { tenantContextSql } from "../db/rls";
 import { eventBus } from "../events/bus";
 import { TenantId, UserId } from "@budget/shared-kernel";
+import { readDemoConfig } from "../demo/config";
 
 /** PC-08 system principal — outbox dispatcher's app.current_user_id placeholder. */
 const OUTBOX_SYSTEM_USER = UserId("00000000-0000-0000-0000-00000000fafe");
@@ -28,7 +29,23 @@ export async function dispatchOutboxBatch(): Promise<number> {
       LIMIT 100
     `);
     const rows = sel.rows as OutboxRow[];
+
+    // Demo tenants never dispatch. A prospect poking at the shared demo must
+    // not be able to make it email or notify a real person. Rows are RETIRED
+    // (marked dispatched) rather than skipped, or they would be re-selected
+    // every tick forever.
+    const demoTenants = new Set(
+      readDemoConfig()?.pairs.map((p) => p.dest) ?? [],
+    );
+
     for (const row of rows) {
+      if (demoTenants.has(row.tenant_id)) {
+        await tx.execute(
+          sql`UPDATE shared_kernel.outbox SET dispatched_at = now() WHERE id = ${row.id}`,
+        );
+        continue;
+      }
+
       // PC-08: scope in-process handlers to the row's tenant before publish
       for (const stmt of tenantContextSql(
         [TenantId(row.tenant_id)],

@@ -323,6 +323,10 @@ export async function createBudgetViaHttp(
   cookieHeader: string,
   name: string,
   kind: "PRIVATE" | "SHARED" = "PRIVATE",
+  /** Defaults to USD, which is what every existing caller relied on. The demo
+   *  seed passes a real currency per budget so the all-budgets aggregate has a
+   *  conversion to do, as it does on the deployed demo. */
+  defaultCurrency = "USD",
 ): Promise<string> {
   const res = await fetch(`${baseUrl}/api/budgets`, {
     method: "POST",
@@ -331,7 +335,7 @@ export async function createBudgetViaHttp(
       cookie: cookieHeader,
       Origin: baseUrl,
     },
-    body: JSON.stringify({ name, kind, default_currency: "USD" }),
+    body: JSON.stringify({ name, kind, default_currency: defaultCurrency }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "<unreadable>");

@@ -97,6 +97,36 @@ services:
       # move the server clock May→June. Prod images/compose never set this, so the
       # endpoint 404s and serverNow() is always the real clock there.
       ALLOW_TEST_CLOCK: "1"
+      # Demo account (Phase 12). All optional: with these unset the worker
+      # registers no refresh job, /demo is a 404, and demoGuard is a no-op.
+      DEMO_SOURCE_TENANT_IDS: ${DEMO_SOURCE_TENANT_IDS:-}
+      DEMO_TENANT_IDS: ${DEMO_TENANT_IDS:-}
+      DEMO_USER_ID: ${DEMO_USER_ID:-}
+      DEMO_SECOND_USER_ID: ${DEMO_SECOND_USER_ID:-}
+      DEMO_CURRENCIES: ${DEMO_CURRENCIES:-}
+      DEMO_BUDGET_NAMES: ${DEMO_BUDGET_NAMES:-}
+      DEMO_LABELS: ${DEMO_LABELS:-}
+      DEMO_HOME_CURRENCY: ${DEMO_HOME_CURRENCY:-}
+      DEMO_SHARED_LABELS: ${DEMO_SHARED_LABELS:-}
+      DEMO_LOCALES: ${DEMO_LOCALES:-}
+      DEMO_TENANT_IDS_EN: ${DEMO_TENANT_IDS_EN:-}
+      DEMO_USER_ID_EN: ${DEMO_USER_ID_EN:-}
+      DEMO_SECOND_USER_ID_EN: ${DEMO_SECOND_USER_ID_EN:-}
+      DEMO_TENANT_IDS_PL: ${DEMO_TENANT_IDS_PL:-}
+      DEMO_USER_ID_PL: ${DEMO_USER_ID_PL:-}
+      DEMO_SECOND_USER_ID_PL: ${DEMO_SECOND_USER_ID_PL:-}
+      DEMO_TENANT_IDS_UK: ${DEMO_TENANT_IDS_UK:-}
+      DEMO_USER_ID_UK: ${DEMO_USER_ID_UK:-}
+      DEMO_SECOND_USER_ID_UK: ${DEMO_SECOND_USER_ID_UK:-}
+      DEMO_CURRENCIES_EN: ${DEMO_CURRENCIES_EN:-}
+      DEMO_CURRENCIES_PL: ${DEMO_CURRENCIES_PL:-}
+      DEMO_CURRENCIES_UK: ${DEMO_CURRENCIES_UK:-}
+      DEMO_MONEY_SCALES_EN: ${DEMO_MONEY_SCALES_EN:-}
+      DEMO_MONEY_SCALES_PL: ${DEMO_MONEY_SCALES_PL:-}
+      DEMO_MONEY_SCALES_UK: ${DEMO_MONEY_SCALES_UK:-}
+      DEMO_ANCHORS_EN: ${DEMO_ANCHORS_EN:-}
+      DEMO_ANCHORS_PL: ${DEMO_ANCHORS_PL:-}
+      DEMO_ANCHORS_UK: ${DEMO_ANCHORS_UK:-}
       # CI E2E ONLY: forwarded from .env so the e2e job can disable Better Auth's
       # rate limiter (the suite's ~800 fresh-user sign-ups across 6 viewport
       # projects otherwise get throttled by the 100/60s bucket). Defaults to empty
@@ -141,6 +171,32 @@ services:
       # separate non-public var that stays a runtime lookup.
       NEXT_PUBLIC_API_URL: http://api:4000
       API_INTERNAL_URL: http://api:4000
+      # Demo account (Phase 12). DEMO_EMAIL/PASSWORD are read ONLY by the
+      # server-side /demo route handler and never reach the client bundle.
+      DEMO_USER_ID: ${DEMO_USER_ID:-}
+      DEMO_EMAIL: ${DEMO_EMAIL:-}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+      DEMO_USER_ID_EN: ${DEMO_USER_ID_EN:-}
+      DEMO_USER_ID_PL: ${DEMO_USER_ID_PL:-}
+      DEMO_USER_ID_UK: ${DEMO_USER_ID_UK:-}
+      DEMO_SECOND_USER_ID_EN: ${DEMO_SECOND_USER_ID_EN:-}
+      DEMO_SECOND_USER_ID_PL: ${DEMO_SECOND_USER_ID_PL:-}
+      DEMO_SECOND_USER_ID_UK: ${DEMO_SECOND_USER_ID_UK:-}
+      DEMO_CURRENCIES_EN: ${DEMO_CURRENCIES_EN:-}
+      DEMO_CURRENCIES_PL: ${DEMO_CURRENCIES_PL:-}
+      DEMO_CURRENCIES_UK: ${DEMO_CURRENCIES_UK:-}
+      DEMO_MONEY_SCALES_EN: ${DEMO_MONEY_SCALES_EN:-}
+      DEMO_MONEY_SCALES_PL: ${DEMO_MONEY_SCALES_PL:-}
+      DEMO_MONEY_SCALES_UK: ${DEMO_MONEY_SCALES_UK:-}
+      DEMO_ANCHORS_EN: ${DEMO_ANCHORS_EN:-}
+      DEMO_ANCHORS_PL: ${DEMO_ANCHORS_PL:-}
+      DEMO_ANCHORS_UK: ${DEMO_ANCHORS_UK:-}
+      DEMO_EMAIL_EN: ${DEMO_EMAIL_EN:-}
+      DEMO_PASSWORD_EN: ${DEMO_PASSWORD_EN:-}
+      DEMO_EMAIL_PL: ${DEMO_EMAIL_PL:-}
+      DEMO_PASSWORD_PL: ${DEMO_PASSWORD_PL:-}
+      DEMO_EMAIL_UK: ${DEMO_EMAIL_UK:-}
+      DEMO_PASSWORD_UK: ${DEMO_PASSWORD_UK:-}
     depends_on:
       api:
         condition: service_healthy
@@ -187,6 +243,36 @@ services:
       COINGECKO_API_KEY: ${COINGECKO_API_KEY:-}
       COINGECKO_API_KEYS: ${COINGECKO_API_KEYS:-}
       METALS_DEV_API_KEY: ${METALS_DEV_API_KEY:-}
+      # Demo account (Phase 12). All optional: with these unset the worker
+      # registers no refresh job, /demo is a 404, and demoGuard is a no-op.
+      DEMO_SOURCE_TENANT_IDS: ${DEMO_SOURCE_TENANT_IDS:-}
+      DEMO_TENANT_IDS: ${DEMO_TENANT_IDS:-}
+      DEMO_USER_ID: ${DEMO_USER_ID:-}
+      DEMO_SECOND_USER_ID: ${DEMO_SECOND_USER_ID:-}
+      DEMO_CURRENCIES: ${DEMO_CURRENCIES:-}
+      DEMO_BUDGET_NAMES: ${DEMO_BUDGET_NAMES:-}
+      DEMO_LABELS: ${DEMO_LABELS:-}
+      DEMO_HOME_CURRENCY: ${DEMO_HOME_CURRENCY:-}
+      DEMO_SHARED_LABELS: ${DEMO_SHARED_LABELS:-}
+      DEMO_LOCALES: ${DEMO_LOCALES:-}
+      DEMO_TENANT_IDS_EN: ${DEMO_TENANT_IDS_EN:-}
+      DEMO_USER_ID_EN: ${DEMO_USER_ID_EN:-}
+      DEMO_SECOND_USER_ID_EN: ${DEMO_SECOND_USER_ID_EN:-}
+      DEMO_TENANT_IDS_PL: ${DEMO_TENANT_IDS_PL:-}
+      DEMO_USER_ID_PL: ${DEMO_USER_ID_PL:-}
+      DEMO_SECOND_USER_ID_PL: ${DEMO_SECOND_USER_ID_PL:-}
+      DEMO_TENANT_IDS_UK: ${DEMO_TENANT_IDS_UK:-}
+      DEMO_USER_ID_UK: ${DEMO_USER_ID_UK:-}
+      DEMO_SECOND_USER_ID_UK: ${DEMO_SECOND_USER_ID_UK:-}
+      DEMO_CURRENCIES_EN: ${DEMO_CURRENCIES_EN:-}
+      DEMO_CURRENCIES_PL: ${DEMO_CURRENCIES_PL:-}
+      DEMO_CURRENCIES_UK: ${DEMO_CURRENCIES_UK:-}
+      DEMO_MONEY_SCALES_EN: ${DEMO_MONEY_SCALES_EN:-}
+      DEMO_MONEY_SCALES_PL: ${DEMO_MONEY_SCALES_PL:-}
+      DEMO_MONEY_SCALES_UK: ${DEMO_MONEY_SCALES_UK:-}
+      DEMO_ANCHORS_EN: ${DEMO_ANCHORS_EN:-}
+      DEMO_ANCHORS_PL: ${DEMO_ANCHORS_PL:-}
+      DEMO_ANCHORS_UK: ${DEMO_ANCHORS_UK:-}
     depends_on:
       migrator:
         condition: service_completed_successfully

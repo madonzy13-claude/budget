@@ -335,6 +335,26 @@ jobs:
             sleep 2
           done
           echo "::warning::/sign-in did not become ready in 60s; proceeding anyway"
+      # The demo is a DEPLOYMENT feature — one shared login per language wired
+      # through DEMO_* env at pointed-at budgets. A fresh stack has none, so the
+      # @demo scenarios failed every retry here: not flaky, impossible. Build
+      # what they need instead of tagging them as debt. The user ids are only
+      # known once sign-up returns them, which is why the stack starts without
+      # demo config and api + web are recreated below.
+      - name: Seed the demo account
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          MAILPIT_URL: http://localhost:8025
+        run: |
+          bun scripts/ci/seed-demo.ts >> .env
+          echo "seeded:"; grep -c '^DEMO_' .env
+      - name: Recreate api + web with the demo configuration
+        run: |
+          docker compose up -d --wait --force-recreate api web
+          for i in $(seq 1 30); do
+            curl -fs http://localhost:3000/en/sign-in > /dev/null 2>&1 && break
+            sleep 2
+          done
       - name: Run Playwright BDD
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000

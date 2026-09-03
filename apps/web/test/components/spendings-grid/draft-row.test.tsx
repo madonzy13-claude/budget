@@ -55,6 +55,16 @@ describe("DraftRow", () => {
     mockDismissMutate.mockClear();
   });
 
+  it("exposes data-draft-id so its task banner can scroll to it", () => {
+    renderDraftRow();
+    // The testid is keyed on the rule NAME — not unique, and it moves when the
+    // payment is renamed. The CONFIRM_DRAFT task carries the draft id, so the
+    // id is what the jump target has to be.
+    expect(
+      document.querySelector("[data-draft-id]")?.getAttribute("data-draft-id"),
+    ).toBe(draft.id);
+  });
+
   it("has data-testid=draft-row-rent (lowercase ruleName)", () => {
     renderDraftRow();
     expect(screen.getByTestId("draft-row-rent")).toBeTruthy();

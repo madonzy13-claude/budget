@@ -7,7 +7,7 @@
  *   PATCH /limit-mode → smart requires ≥1 active income (else 409 income_required)
  *   DELETE → archives (GET then returns null), reactivatable via POST
  */
-import { describe, it, expect, beforeAll } from "bun:test";
+import { describe, it, expect, beforeAll, mock } from "bun:test";
 import { Hono } from "hono";
 import { Pool } from "pg";
 
@@ -101,11 +101,16 @@ async function buildApp(fix: Fixture) {
   });
   app.route(
     "/budgets/:budgetId/investment-category",
-    createInvestmentCategoryRoute(),
+    createInvestmentCategoryRoute({
+      recomputeIncomeUnderPlanned: recomputeSpy,
+    }),
   );
   app.route("/budgets/:budgetId/categories", createCategoriesRoute(deps));
   return app;
 }
+
+/** Stands in for the INCOME_UNDER_PLANNED runner boot wires in. */
+const recomputeSpy = mock(async () => {});
 
 describe("/budgets/:budgetId/investment-category (r33)", () => {
   let fix: Fixture;
@@ -118,12 +123,16 @@ describe("/budgets/:budgetId/investment-category (r33)", () => {
 
   const base = () => `/budgets/${fix.budgetId}/investment-category`;
 
-  it("POST creates the pinned, reserve-excluded, smart Investments category", async () => {
+  it("POST creates the pinned, reserve-excluded, NO-LIMIT Investments category", async () => {
     const res = await app.request(base(), { method: "POST" });
     expect(res.status).toBe(201);
     const body = (await res.json()) as any;
     expect(body.category.isInvestment).toBe(true);
-    expect(body.category.investmentLimitMode).toBe("smart");
+    // 'none' is the default since 0085. It used to be 'smart', which handed
+    // every user who never opened the dialog a computed limit they never chose
+    // — and one the money forecast could not see, so it read the category as a
+    // plan of zero that every złoty overspent.
+    expect(body.category.investmentLimitMode).toBe("none");
     expect(body.category.name).toBe("Investments");
 
     // reserve_excluded + first sort_index verified straight from the DB (RLS
@@ -159,6 +168,108 @@ describe("/budgets/:budgetId/investment-category (r33)", () => {
     expect(b2.category.id).toBe(b1.category.id);
   });
 
+  /** The category's open (uncapped) SCD-2 limit row, or null. */
+  async function openLimit(): Promise<{
+    no_limit: boolean;
+    normal_amount: string;
+  } | null> {
+    const pool = new Pool({ connectionString: DB_URL });
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+        `{${fix.budgetId}}`,
+      ]);
+      await c.query(`SELECT set_config('app.current_user_id', $1, true)`, [
+        fix.userId,
+      ]);
+      const r = await c.query(
+        `SELECT cl.no_limit, cl.normal_amount::text AS normal_amount
+           FROM budgeting.category_limits cl
+           JOIN budgeting.categories c ON c.id = cl.category_id
+          WHERE c.tenant_id = $1::uuid AND c.is_investment
+            AND cl.effective_to IS NULL`,
+        [fix.budgetId],
+      );
+      await c.query("COMMIT");
+      return r.rows[0] ?? null;
+    } finally {
+      c.release();
+      await pool.end();
+    }
+  }
+
+  /** Type an amount straight onto the open row, as the limits route would. */
+  async function setOpenLimitAmount(cents: string): Promise<void> {
+    const pool = new Pool({ connectionString: DB_URL });
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+        `{${fix.budgetId}}`,
+      ]);
+      await c.query(`SELECT set_config('app.current_user_id', $1, true)`, [
+        fix.userId,
+      ]);
+      await c.query(
+        `UPDATE budgeting.category_limits cl
+            SET normal_amount = $2::bigint
+           FROM budgeting.categories c
+          WHERE c.id = cl.category_id AND c.tenant_id = $1::uuid
+            AND c.is_investment AND cl.effective_to IS NULL`,
+        [fix.budgetId, cents],
+      );
+      await c.query("COMMIT");
+    } finally {
+      c.release();
+      await pool.end();
+    }
+  }
+
+  it("POST leaves an open limit row that says no_limit", async () => {
+    // The mode is what the dialog shows; no_limit is what the GRID, the
+    // spendings summary, the reserve engine and the cash-flow forecast read.
+    // A category with no row at all reads as no_limit=false and shows a number
+    // where the dash belongs, so creation has to write one.
+    expect(await openLimit()).toMatchObject({ no_limit: true });
+  });
+
+  it("PATCH /limit-mode none → 200 and the row says no_limit", async () => {
+    const res = await app.request(`${base()}/limit-mode`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "none" }),
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).category.investmentLimitMode).toBe(
+      "none",
+    );
+    expect(await openLimit()).toMatchObject({ no_limit: true });
+  });
+
+  it("every mutation that changes the plan refreshes the shortfall task", async () => {
+    // The bug: switching the Investments limit mode changes what the budget
+    // plans to spend — a SMART limit is income − Σ other planned — but this
+    // route wrote through the repos directly and never re-evaluated
+    // INCOME_UNDER_PLANNED. set-category-limit.ts has done this for every
+    // other planned change since r33; this route was the door that skipped it.
+    // Until the hourly sweep came round, the forecast showed the deficit and
+    // no task said so.
+    recomputeSpy.mockClear();
+    await app.request(`${base()}/limit-mode`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "manual" }),
+    });
+    expect(recomputeSpy.mock.calls.length).toBeGreaterThan(0);
+
+    // Creating the category adds an unbounded plan; archiving removes a plan.
+    // Both move the same number, so both refresh the same task.
+    recomputeSpy.mockClear();
+    await app.request(base(), { method: "POST" });
+    expect(recomputeSpy.mock.calls.length).toBeGreaterThan(0);
+  });
+
   it("PATCH /limit-mode smart → 409 income_required when no income exists", async () => {
     const res = await app.request(`${base()}/limit-mode`, {
       method: "PATCH",
@@ -169,12 +280,41 @@ describe("/budgets/:budgetId/investment-category (r33)", () => {
     expect(((await res.json()) as any).error).toBe("income_required");
   });
 
-  it("PATCH /limit-mode manual → 200 (no income needed)", async () => {
+  it("PATCH /limit-mode none → zeroes the stored amount, not just the flag", async () => {
+    // no_limit ⇒ amount 0 is an INVARIANT, not tidiness. The cash-flow
+    // simulator computes each category's daily drip as
+    // `budget − spent − bills` with no no_limit check; unbounded categories
+    // drip nothing only because their stored amount is 0
+    // (compute-cashflow-projection.ts, rule 0083). Preserving the member's
+    // typed figure here — which is what this route used to do — left an
+    // unbounded category quietly dripping that amount every month and ate a
+    // real budget's surplus.
+    await app.request(`${base()}/limit-mode`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "manual" }),
+    });
+    // A typed manual limit, the state this bug needed: 5,000.00.
+    await setOpenLimitAmount("500000");
+    expect(await openLimit()).toMatchObject({ normal_amount: "500000" });
+    await app.request(`${base()}/limit-mode`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "none" }),
+    });
+    expect(await openLimit()).toMatchObject({
+      no_limit: true,
+      normal_amount: "0",
+    });
+  });
+
+  it("PATCH /limit-mode manual → clears no_limit", async () => {
     const res = await app.request(`${base()}/limit-mode`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode: "manual" }),
     });
+    expect(await openLimit()).toMatchObject({ no_limit: false });
     expect(res.status).toBe(200);
     expect(((await res.json()) as any).category.investmentLimitMode).toBe(
       "manual",

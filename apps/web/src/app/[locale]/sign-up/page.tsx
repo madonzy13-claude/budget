@@ -8,11 +8,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { SignUpForm } from "@/components/auth/sign-up-form";
-import { BrandMark } from "@/components/common/brand-mark";
 import { InstallBanner } from "@/components/common/install-banner";
-import { PublicLocaleSwitcher } from "@/components/common/public-locale-switcher";
-import { HeaderThemeToggle } from "@/components/common/header-theme-toggle";
 import { SiteFooter } from "@/components/common/site-footer";
+import { PublicHeader } from "@/components/common/public-header";
 
 interface SignUpPageProps {
   params: Promise<{ locale: string }>;
@@ -32,15 +30,7 @@ export default async function SignUpPage({ params }: SignUpPageProps) {
     <div className="flex min-h-screen flex-col bg-[var(--canvas-dark)]">
       {/* r40: install nudge reaches logged-out users too. */}
       <InstallBanner />
-      <header className="border-b border-[var(--hairline-dark)]">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
-          <BrandMark href={`/${locale}`} />
-          <div className="flex items-center gap-2">
-            <PublicLocaleSwitcher current={locale} />
-            <HeaderThemeToggle />
-          </div>
-        </div>
-      </header>
+      <PublicHeader locale={locale} />
 
       <main className="flex flex-1 items-start justify-center px-4 py-10 sm:items-center">
         <div className="w-full max-w-md">

@@ -15,6 +15,7 @@ import { Hono } from "hono";
 import { errorMiddleware } from "./middleware/error";
 import { authMiddleware } from "./middleware/auth";
 import { tenantGuard } from "./middleware/tenant-guard";
+import { demoGuard } from "./middleware/demo-guard";
 import { i18nMiddleware } from "./middleware/i18n";
 import { requireAuth } from "./middleware/require-auth";
 import { requireWorkspace } from "./middleware/require-workspace";
@@ -72,6 +73,11 @@ export function createApp(deps: BootedDeps) {
       "TEST CLOCK ENABLED — /test/clock mounted; serverNow() can be overridden (non-prod only)",
     );
   }
+
+  // 2.5. Demo guard — mounted BEFORE the Better Auth handler, because /auth/*
+  //      is registered before authMiddleware and the credential-changing
+  //      endpoints live there. Resolves its own session on those paths.
+  app.use(demoGuard(deps));
 
   // 3. Better Auth handler — public
   app.route("/auth", authRoutes(deps));
@@ -158,7 +164,10 @@ export function createApp(deps: BootedDeps) {
   );
   app.route(
     "/budgets/:budgetId/investment-category",
-    createInvestmentCategoryRoute(),
+    createInvestmentCategoryRoute({
+      recomputeIncomeUnderPlanned:
+        deps.budgeting.recomputeIncomeUnderPlannedRunner,
+    }),
   );
   // UAT Defect 1: transactions were only mounted at /transactions (cross-budget root),
   // not under /budgets/:budgetId/transactions. Phase 4 hooks call the nested path.

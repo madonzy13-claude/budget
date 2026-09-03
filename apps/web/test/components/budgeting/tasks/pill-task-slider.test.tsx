@@ -9,6 +9,10 @@ vi.mock("@/lib/budget-fetch", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
+  // The rows read the open month (a CONFIRM_DRAFT jump switches to the draft's
+  // month before scrolling), and useMonthParam reads it from the URL.
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => "/en/budgets/b1/spendings",
   useRouter: () => ({
     push: vi.fn(),
     replace: vi.fn(),

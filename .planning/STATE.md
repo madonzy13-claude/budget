@@ -113,6 +113,7 @@ _Updated after each plan completion_
 ### Roadmap Evolution
 
 - Phase 10 added (2026-06-26): User Settings Redesign — 2-pill carousel (General · User) reusing the BDP pill/prefetch frame + Settings-tab accordion; remove AI/voice Provider feature end-to-end (incl. column-drop migration); add profile name/email edit (email re-verify), email-gated password change (reuses reset flow), active-sessions revoke + sign-out-others, Danger Zone account deletion (GDPR); build the missing logged-out forgot/reset-password pages + fix the dead sign-in link. Depends on Phase 3 (BDP frame) + Phase 6 (settings). _(v1.2 track)_
+- Phase 12 added (2026-08-29): Demo Account — one shared login for prospect walkthroughs, backed by a nightly pg-boss job that wipes and re-copies two real budgets (`Private Budget` → demo personal, `Family Budget` → demo family) into a demo tenant through an allowlist scrub manifest. Decided with the user: shared login (not per-visitor sandboxes), copied-from-live (not synthetic), nightly re-pull (not a frozen fixture) — the re-pull risk is bought off by the manifest preflight, which ABORTS the refresh on any unmanifested column instead of publishing it. Money uniformly scaled + PLN relabeled USD; demo user is a member of the demo budgets only, so RLS is the isolation guarantee (pinned by a new ci-gate test). Depends on Phase 9 (investments), Phase 10 (`purgeUserData` cascade order, reused for the wipe), Phase 11 (all-budgets aggregate, which the 2nd demo budget populates). _(v1.2 track)_
 
 ### Decisions
 

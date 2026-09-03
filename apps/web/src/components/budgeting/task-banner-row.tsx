@@ -4,6 +4,10 @@ import * as React from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { centsToDisplayCompact } from "@/lib/cents-format";
 import { useCategories } from "@/hooks/use-budget-data";
+import { scrollToDraft, scrollToDraftWhenReady } from "@/lib/scroll-to-draft";
+import { Temporal } from "temporal-polyfill";
+import { useMonthParam } from "@/hooks/use-month-param";
+import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import {
   Dialog,
   DialogContent,
@@ -88,14 +92,16 @@ function buildTitleParams(
     case "RESERVE_TOPUP":
       return { amount: fmt(payload.shortfall_cents) };
     case "CONFIRM_DRAFT": {
-      // Title: `Confirm {amount} — {category}` (amount first, NEVER the rule note —
-      // round 23 item 7). Drops the "— {category}" tail when the category can't be
-      // resolved (hasCategory drives the ICU select).
-      const category = categoryName ?? "";
+      // Title: `Confirm {amount} ({ruleName})` — amount first, then the
+      // scheduled payment that produced the draft, which is how the row is
+      // labelled in the grid. Still NEVER the rule NOTE (round 23 item 7).
+      //
+      // Falls back to the category when the payment has no name, so the
+      // parenthesised half is either useful or absent — never "( )".
+      const label = (payload.rule_name as string) || categoryName || "";
       return {
-        ruleName: (payload.rule_name as string) ?? "", // detail text only
-        category,
-        hasCategory: category ? "yes" : "no",
+        ruleName: label,
+        hasRule: label ? "yes" : "no",
         amount: fmt(payload.amount_cents),
       };
     }
@@ -122,8 +128,8 @@ export function useTaskTitle(task: TaskSummary, budgetId: string) {
   const locale = useLocale();
 
   // Resolve the draft's category NAME from the budget's categories (the task
-  // payload only carries category_id) so the CONFIRM_DRAFT title can read
-  // "…in {category}". Works for existing tasks too (no re-emit).
+  // payload only carries category_id) — the CONFIRM_DRAFT title falls back to
+  // it when the scheduled payment has no name of its own.
   const categories = useCategories(budgetId).data ?? [];
   const categoryName =
     task.kind === "CONFIRM_DRAFT"
@@ -154,6 +160,77 @@ export function useTaskTitle(task: TaskSummary, budgetId: string) {
   return { t, title, detailKey, titleParams, amounts };
 }
 
+/**
+ * The title, with the part that identifies a draft turned into a jump button.
+ *
+ * Only the "{amount} ({ruleName})" run is the target — "Confirm " stays plain
+ * text so the row does not read as one long link, and so the button's
+ * accessible name is the thing being jumped to.
+ *
+ * The split is on the RENDERED title rather than on ICU tags: `title` is also
+ * the dialog heading and is consumed by the all-budgets aggregate banner, both
+ * of which want a plain string. Keeping one message and slicing it here means
+ * the three locales stay ordinary strings a translator can move around — the
+ * only requirement is that "{amount} ({ruleName})" survives as one run, which
+ * the i18n test pins.
+ */
+function TaskTitleText({
+  task,
+  title,
+  titleParams,
+}: {
+  task: TaskSummary;
+  title: string;
+  titleParams: Record<string, string>;
+}) {
+  const draftId = task.payload?.draft_id as string | undefined;
+  // The month the payment actually falls in. A task can name one the grid is
+  // not showing — a scheduled payment that came due while the user was looking
+  // at another month — and until this was read, clicking it did nothing at all:
+  // the row simply was not in the DOM to scroll to.
+  const draftMonth = (
+    task.payload?.transaction_date as string | undefined
+  )?.slice(0, 7);
+  const userTz = useUserTimezone();
+  const { monthStr, setMonth } = useMonthParam(userTz);
+  const jump =
+    task.kind === "CONFIRM_DRAFT" && draftId && titleParams.hasRule === "yes"
+      ? `${titleParams.amount} (${titleParams.ruleName})`
+      : undefined;
+  const at = jump ? title.indexOf(jump) : -1;
+
+  function goToDraft(): void {
+    if (!draftId) return;
+    if (draftMonth && draftMonth !== monthStr) {
+      // Switch first, then wait for that month's rows to arrive. setMonth is a
+      // pushState, so this stays a client-side move — no RSC round trip, and it
+      // works offline like the month arrows do.
+      setMonth(Temporal.PlainYearMonth.from(draftMonth));
+      scrollToDraftWhenReady(draftId);
+      return;
+    }
+    scrollToDraft(draftId);
+  }
+
+  // No draft id, no category or rule to name, or a translation that broke the
+  // run apart: render the plain title rather than an unclickable fake link.
+  if (!jump || at < 0) return <>{title}</>;
+
+  return (
+    <>
+      {title.slice(0, at)}
+      <button
+        type="button"
+        onClick={goToDraft}
+        className="underline decoration-dotted underline-offset-2 hover:decoration-solid focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+      >
+        {jump}
+      </button>
+      {title.slice(at + jump.length)}
+    </>
+  );
+}
+
 export function TaskBannerRow({ task, budgetId }: TaskBannerRowProps) {
   const { t, title, detailKey, titleParams } = useTaskTitle(task, budgetId);
 
@@ -165,13 +242,17 @@ export function TaskBannerRow({ task, budgetId }: TaskBannerRowProps) {
       className="flex min-h-12 items-center gap-3 border-b border-[var(--hairline-on-dark)] px-4 py-2 last:border-b-0"
     >
       <span className="flex-1 truncate text-sm text-[var(--body-on-dark)]">
-        {title}
+        <TaskTitleText task={task} title={title} titleParams={titleParams} />
       </span>
       <Dialog>
         <DialogTrigger asChild>
           <button
             type="button"
-            className="shrink-0 text-xs font-medium text-[var(--primary)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+            // --accent-ink, not --primary: brand yellow is a SHAPE colour and
+            // washes out as TEXT on the pale light-theme card, which is what
+            // the token exists for. The focus RING stays --primary — that is
+            // yellow used as a shape.
+            className="shrink-0 text-xs font-medium text-[var(--accent-ink)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
           >
             {t("bdp.tasks.more")}
           </button>

@@ -26,8 +26,13 @@ vi.mock("@/lib/offline-write", () => ({
 vi.mock("@/hooks/use-offline-write-toast", () => ({
   useOfflineWriteToast: () => vi.fn(),
 }));
+// One stable spy, so a test can assert WHICH caches a save refreshes.
+const invalidateMock = vi.fn();
 vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({ invalidateQueries: vi.fn(), setQueryData: vi.fn() }),
+  useQueryClient: () => ({
+    invalidateQueries: invalidateMock,
+    setQueryData: vi.fn(),
+  }),
 }));
 
 import { ScheduledPaymentForm } from "@/components/budgeting/scheduled-payment-form";
@@ -60,8 +65,15 @@ const sentBody = () => {
 beforeEach(() => {
   writeMock.mockReset();
   toastError.mockReset();
+  invalidateMock.mockReset();
   writeMock.mockResolvedValue({ ok: true, json: async () => ({}) });
 });
+
+/** The query keys a save asked React Query to refresh, as dotted strings. */
+const invalidatedKeys = () =>
+  invalidateMock.mock.calls.map((c) =>
+    ((c[0] as { queryKey?: unknown[] })?.queryKey ?? []).join("."),
+  );
 
 describe("Scheduled rule form — amount", () => {
   it("sends a comma amount as the dot decimal the API accepts", async () => {
@@ -267,5 +279,82 @@ describe("the date field says which date it is", () => {
     renderForm();
     expect(screen.getByText("rule.firstDueLabel")).toBeTruthy();
     expect(screen.queryByText("rule.nextDueLabel")).toBeNull();
+  });
+});
+
+describe("saving a payment refreshes what it changed", () => {
+  // Saving a payment that is due materialises its draft server-side. The form
+  // refreshed the TASKS query, so the "confirm" task appeared immediately — but
+  // never the drafts query, so the draft row itself was missing until a full
+  // page reload (user, 260902). A task pointing at a row that is not on screen
+  // is worse than neither.
+  const editValues = {
+    ruleId: "r1",
+    categoryId: null,
+    amount: "250",
+    currency: "PLN",
+    cadence: "ONCE" as const,
+    cadenceAnchor: null,
+    weeklyDow: null,
+    yearlyMonth: null,
+    note: "Kite",
+    firstDueDate: "2027-05-05",
+  };
+
+  function renderEdit() {
+    return render(
+      <ScheduledPaymentForm
+        open
+        onOpenChange={vi.fn()}
+        mode="edit"
+        budgetId="b1"
+        categories={CATEGORIES}
+        defaultCurrency="PLN"
+        onSaved={vi.fn()}
+        initialValues={editValues}
+      />,
+    );
+  }
+
+  it("editing refreshes the drafts the grid draws, not just the task badge", async () => {
+    renderEdit();
+    fireEvent.submit(document.querySelector("form")!);
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    await waitFor(() => expect(invalidatedKeys()).toContain("drafts.b1"));
+    // The task badge still refreshes — this adds a cache, it does not move one.
+    expect(invalidatedKeys()).toContain("tasks.b1.pending");
+  });
+
+  it("refreshes the forecast under the key it is actually registered with", async () => {
+    // useProjection registers ["budget", id, "projection"] — an invalidate on
+    // ["projection", id] would match nothing and fail silently, which is the
+    // same class of bug as the one being fixed here.
+    renderEdit();
+    fireEvent.submit(document.querySelector("form")!);
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(invalidatedKeys()).toContain("budget.b1.projection"),
+    );
+  });
+
+  it("editing refreshes the summary the column headers read", async () => {
+    // A new draft changes what the category has left to spend, so the header
+    // above the row has to move with it.
+    renderEdit();
+    fireEvent.submit(document.querySelector("form")!);
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(invalidatedKeys()).toContain("spendings-summary.b1"),
+    );
+  });
+
+  it("creating refreshes them too", async () => {
+    // The create path materialises drafts the same way and had the same gap.
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByLabelText("rule.amountLabel"), "12");
+    fireEvent.submit(document.querySelector("form")!);
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    await waitFor(() => expect(invalidatedKeys()).toContain("drafts.b1"));
   });
 });

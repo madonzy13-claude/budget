@@ -383,6 +383,10 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     updateScheduledPayment: updateScheduledPayment({
       ruleRepo: scheduledPaymentRepo,
       draftRepo: scheduledDraftRepo,
+      // Same pair create gets: an edit that brings a payment due materialises
+      // its draft on save rather than waiting for the 06:00 engine.
+      fxProvider,
+      taskRepo: createTaskRepo(),
     }),
     deleteScheduledPayment: deleteScheduledPayment({ ruleRepo: scheduledPaymentRepo }),
     // Phase 7 (D-PH7-09 / D-PH7-10): taskRepo injected so confirm + skip
