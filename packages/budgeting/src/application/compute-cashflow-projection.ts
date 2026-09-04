@@ -440,8 +440,16 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
     const investRow = (L.catRows as Record<string, unknown>[]).find(
       (r) => r.is_investment === true && r.investment_limit_mode === "smart",
     );
+    // In a CUSHION month the household is on its tighter limits, and the rest of
+    // the app already stops the Investments category planning anything there.
+    // The forecast used to keep dripping — and for a smart limit it dripped MORE
+    // than usual, since smart is income − Σ other planned and the cushion limits
+    // it subtracts are smaller. The only investing a cushion month knows about
+    // is what is actually SCHEDULED, which is charged as a dated bill like any
+    // other (user, 260904f). Manual needs nothing here: its stored cushion
+    // amount is already 0, which budgetAt returns on its own.
     let smartByMonth: Record<string, bigint> | null = null;
-    if (investRow) {
+    if (investRow && !L.cushionMode) {
       const items = normalizeIncomesToMonthlyItems(
         L.incomeRows as unknown as IncomeForNormalize[],
         monthProbes[0]?.key,
@@ -484,6 +492,10 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
         // is effective-dated but a 100-day window rarely straddles a flip, and
         // erring this way keeps the forecast agreeing with the reserve engine.
         noLimit: monthProbes.some((p) => noLimitAt(r.id, p.asOfDate)),
+        // Investing past the plan is a choice, not a failure — it must not spend
+        // the reserve the household built for emergencies.
+        neverOverspends:
+          (r as unknown as { is_investment?: boolean }).is_investment === true,
       };
     });
 
