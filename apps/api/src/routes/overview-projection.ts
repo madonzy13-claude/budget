@@ -4,8 +4,13 @@
  * Registers the Overview cash-flow projection endpoint onto the budgets router
  * (mirrors registerOverviewCardsRoutes). Tenant guard: tenantIds.includes(budgetId)
  * → 404. bigint cents → string at this single boundary.
+ *
+ * `?days=` is the member's own horizon (260904). It sizes a per-day loop, so it
+ * is clamped here — at the edge, before it reaches the loader — rather than
+ * trusted: 30–730, anything unreadable falling back to the rolling 100.
  */
 import type { Hono } from "hono";
+import { clampProjectionWindowDays } from "@budget/budgeting/src/application/compute-cashflow-projection";
 import type { BootedDeps } from "../boot";
 import { serverError } from "../middleware/server-error";
 
@@ -24,6 +29,7 @@ export function registerOverviewProjectionRoutes(r: Hono, deps: BootedDeps) {
       const p = await deps.budgeting.getCashflowProjection({
         tenantId: budgetId,
         budgetId,
+        windowDays: clampProjectionWindowDays(c.req.query("days")),
       });
       return c.json(
         {
