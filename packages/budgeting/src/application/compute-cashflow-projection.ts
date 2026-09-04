@@ -217,16 +217,39 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
             .cushion_mode_enabled,
         );
 
-        // SPENDINGS only. Cushion money is not spendable where it sits — moving
-        // it into a spendings wallet is a deliberate act, and until the member
-        // makes it the forecast must not spend it for them (user, 260812).
+        // SPENDINGS, plus CUSHION once the budget is in cushion mode.
+        //
+        // Cushion money used to be excluded outright: "not spendable where it
+        // sits — moving it into a spendings wallet is a deliberate act, and
+        // until the member makes it the forecast must not spend it for them"
+        // (user, 260812). Enabling cushion mode IS that deliberate act, and the
+        // rest of the app had already moved: the Overview's "available to spend"
+        // card folds cushion wallets in for a cushion month (r36,
+        // get-overview-cards). The band underneath it did not, so the card
+        // counted the cushion while the health dot beside it — which comes from
+        // THIS projection — said the household would run short (user, 260904h).
+        //
+        // Cushion is CASH here, not a third buffer drawn after the reserve. The
+        // reserve keeps its own job: it is reached for only by what a category
+        // spends BEYOND its plan, and only the reserve that category built.
+        // Spending 600 against a 500 limit is 500 of ordinary cash — whichever
+        // of the two wallet types it comes out of — and 100 of reserve.
+        //
+        // A negative balance is a credit card, not money; the >= 0 filter is the
+        // same rule get-overview-cards applies.
+        const spendableTypes = cushionMode
+          ? ["SPENDINGS", "CUSHION"]
+          : ["SPENDINGS"];
         const wallets = await tx.execute(sql`
           SELECT (current_balance * 100)::bigint::text AS amount_cents, currency
             FROM budgeting.wallets
            WHERE tenant_id = ${input.tenantId}::uuid
              AND archived_at IS NULL
              AND current_balance >= 0
-             AND wallet_type = 'SPENDINGS'`);
+             AND wallet_type IN (${sql.join(
+               spendableTypes.map((t) => sql`${t}`),
+               sql`, `,
+             )})`);
 
         // Categories + this-month + next-month active limits (cushion vs normal).
         // POINT-IN-TIME predicates (limit effective ON a single date), NOT a
