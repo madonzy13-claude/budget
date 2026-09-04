@@ -748,6 +748,10 @@
         "withPremium": "Z premią",
         "pl": "Zysk/strata"
       }
+    },
+    "cushionMode": {
+      "name": "Poduszka",
+      "state": "Aktywny"
     }
   },
   "aggregate": {

@@ -27,6 +27,7 @@ import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { useOverviewWealth } from "@/hooks/use-overview-wealth";
 import { useMaxProjection, useProjection } from "@/hooks/use-projection";
 import { useProjectionDraft } from "@/components/budgeting/overview/projection-draft";
+import { CushionModeChip } from "@/components/budgeting/cushion-mode-chip";
 import { projectionAtWindow } from "@/lib/projection-window-view";
 import { useProjectionHorizon } from "@/hooks/use-projection-horizon";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
@@ -644,8 +645,8 @@ export function OverviewCards({
                   {animRounded(String(freeToMove))}
                 </dd>
               </div>
-            ) : surplusDeficit !== null ? // // "there is nothing spare to tell you about". // złoty above it (user, 260825). Silence is the honest version of // same thing whether the forecast sat comfortably clear of zero or a // solid"), which read as praise the card had not earned: it said the // Nothing at all. The row used to carry a note here ("Plan looks
-            // Explicitly null rather than deleted: falling through to the branch
+            ) : surplusDeficit !==
+              null ? // Explicitly null rather than deleted: falling through to the branch // // "there is nothing spare to tell you about". // złoty above it (user, 260825). Silence is the honest version of // same thing whether the forecast sat comfortably clear of zero or a // solid"), which read as praise the card had not earned: it said the // Nothing at all. The row used to carry a note here ("Plan looks
             // below would answer a question about spare money with the unrelated
             // "upcoming" figure.
             null : (
@@ -763,7 +764,12 @@ export function OverviewCards({
             cushion-related info shows on budgets that don't use it. */}
         {data.cushion.enabled && (
           <section data-testid="overview-card-cushion" className={CARD}>
-            <CardLabel>{t("cards.cushion")}</CardLabel>
+            <div className="flex items-baseline justify-between gap-2">
+              <CardLabel>{t("cards.cushion")}</CardLabel>
+              {/* Running on the cushion limits — this is the pot that mode makes
+                  spendable, so the state belongs on this card (user, 260904l). */}
+              {data.cushion.mode_enabled && <CushionModeChip variant="state" />}
+            </div>
             <p className="num text-title-md mt-1 flex items-center gap-1.5 text-[var(--body-on-dark)]">
               {/* Circle icon to match the other cards (item 6): green check when
                   the cushion meets its required limit, red alert when short. */}

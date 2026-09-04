@@ -598,7 +598,11 @@ export function AggregateOverview() {
 
         {/* BUDGETS & TASKS — all budgets, each with its pending tasks */}
         <AggregateBudgetsTasks
-          budgets={data.budgets.map((b) => ({ id: b.id, name: b.name }))}
+          budgets={data.budgets.map((b) => ({
+            id: b.id,
+            name: b.name,
+            cushionMode: b.cushion_mode_enabled ?? false,
+          }))}
         />
 
         {/* RANGE SELECTOR — a SEPARATE piece (not inside the chart), scoping the

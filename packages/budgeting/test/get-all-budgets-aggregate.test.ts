@@ -140,6 +140,35 @@ describe("getAllBudgetsAggregate", () => {
  *
  * The rate stub is 1.10, so every cents figure below arrives multiplied by it.
  */
+/**
+ * Which budgets are running on their cushion limits. The all-budgets page sums
+ * figures computed under different rules, so a reader needs to see which rows
+ * contributed cushion money to the total (user, 260904l).
+ */
+describe("getAllBudgetsAggregate — cushion mode per row", () => {
+  it("carries the flag through from the budget listing", async () => {
+    const out = await getAllBudgetsAggregate({
+      ...deps,
+      listForUser: async () => [
+        {
+          id: "b1",
+          name: "B1",
+          default_currency: "USD",
+          member_count: 1,
+          pendingTasksCount: 0,
+          cushion_mode_enabled: true,
+        },
+      ],
+    } as any)("u1");
+    expect(out.budgets[0]!.cushion_mode_enabled).toBe(true);
+  });
+
+  it("is false for a budget on its normal limits", async () => {
+    const out = await getAllBudgetsAggregate(deps as any)("u1");
+    expect(out.budgets[0]!.cushion_mode_enabled).toBe(false);
+  });
+});
+
 describe("getAllBudgetsAggregate — forecast figures for the spend card", () => {
   const withProjection = (p: {
     days: { availableCents: bigint }[];

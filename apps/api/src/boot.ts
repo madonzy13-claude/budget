@@ -618,6 +618,9 @@ export async function boot(): Promise<BootedDeps> {
           default_currency: b.default_currency,
           member_count: b.memberCount,
           pendingTasksCount: b.pendingTasksCount,
+          // Which budgets are running on their cushion limits, so the
+          // all-budgets rows can say so (user, 260904l).
+          cushion_mode_enabled: b.cushionModeEnabled ?? false,
         }));
       },
       getOverviewCardsForTenant: budgetingFinal.getOverviewCards,

@@ -6,7 +6,7 @@
  * lists the top categories.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 
 vi.mock("next-intl", () => {
   const translate = (key: string, vars?: Record<string, unknown>) => {
@@ -882,6 +882,42 @@ describe("OverviewCards", () => {
       expect(
         await screen.findByTestId("spend-surplus-deficit"),
       ).toHaveTextContent("400");
+    });
+  });
+
+  /**
+   * A budget running on its cushion limits looks, on the Overview, exactly like
+   * one that is not: same cards, different rules behind every figure. The
+   * Cushion card is where that belongs — it is the pot the mode makes spendable
+   * (user, 260904l).
+   */
+  describe("cushion mode", () => {
+    it("marks the Cushion card when the budget is running on it", async () => {
+      mockUse.mockReturnValue({
+        data: {
+          ...DTO,
+          cushion: { ...DTO.cushion, enabled: true, mode_enabled: true },
+        },
+        isError: false,
+        isPending: false,
+      });
+      render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+      const card = await screen.findByTestId("overview-card-cushion");
+      expect(within(card).getByTestId("cushion-mode-chip")).toBeInTheDocument();
+    });
+
+    it("says nothing on a budget using its normal limits", async () => {
+      mockUse.mockReturnValue({
+        data: {
+          ...DTO,
+          cushion: { ...DTO.cushion, enabled: true, mode_enabled: false },
+        },
+        isError: false,
+        isPending: false,
+      });
+      render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+      await screen.findByTestId("overview-card-cushion");
+      expect(screen.queryByTestId("cushion-mode-chip")).toBeNull();
     });
   });
 });

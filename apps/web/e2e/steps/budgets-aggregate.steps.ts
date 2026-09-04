@@ -400,3 +400,65 @@ Then("a task banner is showing", async ({ page }) => {
     page.locator('[data-testid^="aggregate-bt-task-"]').first(),
   ).toBeVisible({ timeout: 15000 });
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// Cushion mode on the all-budgets list (260904l)
+// ───────────────────────────────────────────────────────────────────────────
+
+Given(
+  /^the "(.+?)" budget is in cushion mode$/,
+  async ({ freshUser }, name: string) => {
+    const budgetId = registryFor(freshUser).get(name) ?? freshUser.budgetId;
+    const { Pool } = await import("pg");
+    const dbUrl =
+      process.env.DATABASE_URL_APP?.replace("@db:", "@localhost:") ?? "";
+    if (!dbUrl) throw new Error("DATABASE_URL_APP not set — cannot seed");
+    const pool = new Pool({ connectionString: dbUrl });
+    const client = await pool.connect();
+    try {
+      // The GUCs are transaction-local, and without them RLS matches NO rows and
+      // the UPDATE succeeds having changed nothing — the failure mode that made
+      // this step silently do nothing the first time it was written.
+      await client.query("BEGIN");
+      await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+        `{${budgetId}}`,
+      ]);
+      await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [
+        freshUser.userId,
+      ]);
+      const r = await client.query(
+        `UPDATE tenancy.budgets SET cushion_mode_enabled = true WHERE id = $1::uuid`,
+        [budgetId],
+      );
+      if (r.rowCount !== 1) {
+        throw new Error(
+          `cushion mode not set: UPDATE touched ${r.rowCount} rows (RLS?)`,
+        );
+      }
+      await client.query("COMMIT");
+    } finally {
+      client.release();
+      await pool.end();
+    }
+  },
+);
+
+Then(
+  /^the "(.+?)" budget row is marked as running on its cushion$/,
+  async ({ page, freshUser }, name: string) => {
+    const budgetId = registryFor(freshUser).get(name) ?? freshUser.budgetId;
+    const row = page.getByTestId(`aggregate-bt-budget-${budgetId}`);
+    await expect(row).toBeVisible({ timeout: 15000 });
+    await expect(row.getByTestId("cushion-mode-chip")).toBeVisible();
+  },
+);
+
+Then(
+  /^the "(.+?)" budget row carries no cushion mark$/,
+  async ({ page, freshUser }, name: string) => {
+    const budgetId = registryFor(freshUser).get(name) ?? freshUser.budgetId;
+    const row = page.getByTestId(`aggregate-bt-budget-${budgetId}`);
+    await expect(row).toBeVisible({ timeout: 15000 });
+    await expect(row.getByTestId("cushion-mode-chip")).toHaveCount(0);
+  },
+);

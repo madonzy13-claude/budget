@@ -33,6 +33,10 @@ export interface OverviewCardsDTO {
   };
   cushion: {
     enabled: boolean;
+    /** The budget is RUNNING on its cushion limits — different from having the
+     *  feature on. Optional: a payload cached before the flag existed simply
+     *  shows no chip (user, 260904l). */
+    mode_enabled?: boolean;
     real_months: number;
     total_cents: string;
     required_cents: string;

@@ -165,6 +165,11 @@ export interface OverviewCards {
   };
   cushion: {
     enabled: boolean;
+    /** The budget is RUNNING on its cushion limits — a different fact from
+     *  having the feature on. Every category is judged against its cushion
+     *  amount and cushion wallets count as spendable, so the Overview badges it
+     *  (user, 260904l). */
+    mode_enabled: boolean;
     real_months: number;
     total_cents: bigint;
     /** Required cushion to cover the threshold — for the "have vs needed" line. */
@@ -431,6 +436,7 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
         },
         cushion: {
           enabled: cushion.enabled,
+          mode_enabled: meta.cushion_mode_enabled,
           real_months: realMonths,
           total_cents: actualCents,
           required_cents: requiredCents,

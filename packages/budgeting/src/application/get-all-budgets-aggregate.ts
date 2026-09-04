@@ -47,6 +47,8 @@ export interface AggregateBudgetRow {
   overspent_top_name: string | null;
   overspent_top_cents: string;
   cushion_breached: boolean;
+  /** This budget is running on its cushion limits (user, 260904l). */
+  cushion_mode_enabled: boolean;
   reserves_status: "ok" | "short" | "surplus";
   /** FULL (NO ownership share) available-to-spend + reserves + reserve required —
    *  the Available-to-spend / Available-reserves / Overspent cards are operational
@@ -102,6 +104,9 @@ export interface GetAllBudgetsAggregateDeps {
       default_currency: string;
       member_count: number;
       pendingTasksCount: number;
+      /** Running on its cushion limits. Surfaced per row so the page can say
+       *  which budgets contributed cushion money to the totals above them. */
+      cushion_mode_enabled?: boolean;
     }>
   >;
   getOverviewCardsForTenant: (input: {
@@ -151,6 +156,7 @@ type BaseRowFields = Pick<
   | "my_share_pct"
   | "included"
   | "pending_tasks"
+  | "cushion_mode_enabled"
 >;
 
 /** FX hop only (Money×rate, banker's rounding — same path as compute-budget-wealth-now). */
@@ -268,6 +274,7 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
           my_share_pct: p.ownership_share_pct,
           included: p.include_in_aggregation,
           pending_tasks: b.pendingTasksCount,
+          cushion_mode_enabled: b.cushion_mode_enabled ?? false,
         };
 
         const cardsRes = await deps.getOverviewCardsForTenant({

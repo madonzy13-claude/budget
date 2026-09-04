@@ -9,6 +9,7 @@
  */
 import { type ReactNode, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
+import { CushionModeChip } from "@/components/budgeting/cushion-mode-chip";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight } from "lucide-react";
@@ -103,10 +104,14 @@ function TaskLine({
 function BudgetRow({
   id,
   name,
+  cushionMode,
   locale,
 }: {
   id: string;
   name: string;
+  /** Running on its cushion limits — the totals above this list count its
+   *  cushion wallets, so the row says which budget that was (user, 260904l). */
+  cushionMode: boolean;
   locale: string;
 }) {
   const t = useTranslations("aggregate");
@@ -134,8 +139,11 @@ function BudgetRow({
         className={HEADER}
         data-testid={`aggregate-bt-budget-${id}`}
       >
-        <span className="truncate text-sm font-semibold text-[var(--body)]">
-          {name}
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-sm font-semibold text-[var(--body)]">
+            {name}
+          </span>
+          {cushionMode && <CushionModeChip />}
         </span>
         {/* The row has always been a link and read as a plain section label —
             nothing on it said it could be tapped (user, 260902). The chevron is
@@ -183,14 +191,20 @@ function BudgetRow({
 export function AggregateBudgetsTasks({
   budgets,
 }: {
-  budgets: { id: string; name: string }[];
+  budgets: { id: string; name: string; cushionMode?: boolean }[];
 }) {
   const locale = useLocale();
   if (budgets.length === 0) return null;
   return (
     <section className={CARD} data-testid="aggregate-budgets-tasks">
       {budgets.map((b) => (
-        <BudgetRow key={b.id} id={b.id} name={b.name} locale={locale} />
+        <BudgetRow
+          key={b.id}
+          id={b.id}
+          name={b.name}
+          cushionMode={b.cushionMode ?? false}
+          locale={locale}
+        />
       ))}
     </section>
   );

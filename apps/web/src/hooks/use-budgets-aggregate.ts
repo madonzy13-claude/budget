@@ -33,6 +33,9 @@ export interface AggregateBudgetRow {
   overspent_top_name: string | null;
   overspent_top_cents: string;
   cushion_breached: boolean;
+  /** Running on its cushion limits. Optional: a payload cached before the flag
+   *  existed simply shows no chip (user, 260904l). */
+  cushion_mode_enabled?: boolean;
   reserves_status: "ok" | "short" | "surplus";
   cash_full_cents: string;
   reserves_full_cents: string;

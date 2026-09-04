@@ -748,6 +748,10 @@
         "withPremium": "With premium",
         "pl": "P/L"
       }
+    },
+    "cushionMode": {
+      "name": "Cushion",
+      "state": "Active"
     }
   },
   "aggregate": {
