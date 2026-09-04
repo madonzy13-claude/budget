@@ -69,7 +69,9 @@ function makeDeps(opts: {
   };
   const transactionRepo: Pick<
     TransactionRepo,
-    "spendByCategoryForMonth" | "spendByCategoryByMonth" | "latestSpendingCreatedAt"
+    | "spendByCategoryForMonth"
+    | "spendByCategoryByMonth"
+    | "latestSpendingCreatedAt"
   > = {
     spendByCategoryForMonth: async () => opts.spend ?? new Map(),
     spendByCategoryByMonth: async () => new Map(),
@@ -240,7 +242,18 @@ describe("getSpendingsSummary — Investments category (r33)", () => {
     expect(inv.overspentCents).toBe("50000");
   });
 
-  it("cushion mode ON: Investments limit is 0 (no cushion → don't invest on the tighter budget)", async () => {
+  /**
+   * A cushion month makes Investments UNBOUNDED (user, 260904g).
+   *
+   * It used to hand back a limit of 0, which is a different claim: a category
+   * with a plan of zero is one that is overspent by every złoty that touches it,
+   * so a household investing 2,500 in a tight month was shown as 2,500
+   * overspent. "No limit" says the true thing — there is no cap to be inside or
+   * outside of — and it is the same shape the rest of the app already has for an
+   * unbounded category, so the grid's dashes and the forecast's "this cannot be
+   * overspent" both follow with no further special-casing.
+   */
+  it("cushion mode ON: Investments is unbounded, not capped at zero", async () => {
     const svc = getSpendingsSummary(
       makeDeps({
         categories: base,
@@ -254,11 +267,30 @@ describe("getSpendingsSummary — Investments category (r33)", () => {
     );
     const r = await svc({ tenantId: TENANT, budgetId: BUDGET, month: MONTH });
     const inv = findCat((r as any).value.categories, CAT_INV);
-    // cushion is 0 → the active (displayed) limit is 0 in cushion mode.
-    expect(inv.cushionCents).toBe("0");
-    expect(inv.activeBudgetCents).toBe("0");
-    // overspent/overinvested is spent against the 0 cushion limit.
-    expect(inv.overspentCents).toBe("250000");
+    expect(inv.noLimit).toBe(true);
+    // Nothing to be outside of — the engine's overage against the stored 0 is
+    // exactly the figure this rule exists to stop showing.
+    expect(inv.overspentCents).toBe("0");
+    // An unbounded category's plan is what it actually cost, as everywhere else.
+    expect(inv.plannedCents).toBe("250000");
+    expect(inv.activeBudgetCents).toBe("250000");
+  });
+
+  it("cushion mode OFF: the limit is a real cap again", async () => {
+    const svc = getSpendingsSummary(
+      makeDeps({
+        categories: base,
+        limits,
+        currency: "USD",
+        cushionMode: false,
+        incomes: [{ amount: "6000", currency: "USD", cadence: "MONTHLY" }],
+        spend: new Map([[CAT_INV, 250000n]]),
+        engineOverage: new Map([[CAT_INV, 250000n]]),
+      }),
+    );
+    const r = await svc({ tenantId: TENANT, budgetId: BUDGET, month: MONTH });
+    const inv = findCat((r as any).value.categories, CAT_INV);
+    expect(inv.noLimit).toBe(false);
   });
 
   it("normal categories keep isInvestment=false", async () => {

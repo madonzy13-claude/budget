@@ -39,8 +39,8 @@ export interface InvestmentCategorySliderProps {
   budgetCurrency: string;
   month?: string;
   /**
-   * The VIEWED month ran (or runs) in cushion mode, where the Investments limit
-   * is always the category's scheduled payments and nothing else.
+   * The VIEWED month ran (or runs) in cushion mode, where this category has NO
+   * limit at all — only what is actually invested counts.
    *
    * It only says so — the modes stay live (user, 260904f, revised). The limit
    * being ignored THIS month is not a reason to stop someone setting the one

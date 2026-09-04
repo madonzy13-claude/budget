@@ -197,8 +197,7 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
       // category, clamped ≥ 0. MANUAL keeps its stored limit. Either way the
       // Investments category carries no cushion (forced to 0 in the map below).
       const invCat = categories.find((c) => (c as any).isInvestment) as
-        | { id: string; investmentLimitMode?: string | null }
-        | undefined;
+        { id: string; investmentLimitMode?: string | null } | undefined;
       let investmentPlannedOverride: bigint | null = null;
       if (invCat) {
         if (invCat.investmentLimitMode === "smart") {
@@ -251,7 +250,16 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           // entirely as needs (user, 260820). It was the category's scheduled
           // payments until then; the scheduled total is not what the month cost,
           // so the charts showed a plan the household never recognised.
-          const noLimit = limits.noLimit === true;
+          // A cushion month makes Investments UNBOUNDED (user, 260904g). It used
+          // to be handed a limit of 0, which is a different claim: a plan of
+          // zero is a cap that every złoty spent is outside, so a household
+          // investing in a tight month read as fully overspent. "No limit" says
+          // the true thing, and it is a shape the rest of this function already
+          // understands — plan becomes what it actually cost, overage becomes 0,
+          // and the grid renders its dashes — so nothing below needs to know
+          // that investing is the reason.
+          const noLimit =
+            limits.noLimit === true || (isInvestment && monthCushionMode);
           const planned = noLimit
             ? spent
             : isInvestment && investmentPlannedOverride !== null
@@ -274,7 +282,11 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           // 0 on the row), so in a cushion month the plain ternary would hand
           // back 0 and the runway would read it as costing nothing. Its plan is
           // its scheduled payments in either mode.
-          const active = noLimit ? planned : monthCushionMode ? cushion : planned;
+          const active = noLimit
+            ? planned
+            : monthCushionMode
+              ? cushion
+              : planned;
 
           // Engine cell for THIS month → used + overspent + the free reserve at the
           // month's end. When the engine emitted no cell (no activity it tracked),

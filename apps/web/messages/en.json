@@ -1977,7 +1977,7 @@
         "save": "Couldn't save — try again"
       },
       "noLimitExplainer": "No cap on what goes into investments. The month’s forecast counts what you actually invest, and there is no overinvested figure — the same as any other category with no limit.",
-      "cushionNote": "In cushion mode the limit is always your scheduled payments only."
+      "cushionNote": "In cushion mode this category has no limit — only what you actually invest counts."
     }
   },
   "share": {
