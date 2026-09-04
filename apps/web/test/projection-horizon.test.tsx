@@ -31,7 +31,14 @@ let projectionData: ProjectionDTO | undefined;
 vi.mock("@/hooks/use-projection", () => ({
   useProjection: (_budgetId: string, days?: number | null) => {
     projectionCalls.push(days);
-    return { data: projectionData, isLoading: false, isError: false };
+    // Faithful to the real hook: `days === null` disables the query, and a
+    // DISABLED query in TanStack v5 is pending-but-not-fetching — so it reports
+    // isLoading FALSE while holding no data.
+    return {
+      data: days === null ? undefined : projectionData,
+      isLoading: false,
+      isError: false,
+    };
   },
 }));
 
@@ -174,6 +181,16 @@ describe("Forecast horizon", () => {
     // null, not 100: asking for the default first would fetch a window nobody
     // chose and then swap it for theirs — a wasted request and a visible jump.
     expect(projectionCalls.every((d) => d === null)).toBe(true);
+  });
+
+  test("waiting on the pick looks like loading, not like an empty forecast", async () => {
+    prefsLoaded = false;
+    await renderTimeline();
+    // The query is disabled, so it reports isLoading FALSE with no data — which
+    // the card would otherwise read as "this budget has nothing to forecast" and
+    // say so, a sentence that is both wrong and gone a moment later.
+    expect(screen.queryByText(/Add income or scheduled payments/i)).toBeNull();
+    expect(screen.queryByTestId("projection-timeline")).toBeNull();
   });
 
   test("offline, the stored pick still opens the card", async () => {

@@ -220,7 +220,12 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
     });
   }, [data, locale, stripPx]);
 
-  if (isLoading) {
+  // `effective === null` means the member's stored horizon is still on its way,
+  // which DISABLES the projection query — and a disabled query in TanStack v5 is
+  // pending-but-not-fetching, so isLoading is false while it holds no data. Read
+  // literally, the guard below would call that an empty forecast and say "add
+  // income or scheduled payments" over a budget that has both.
+  if (isLoading || effective === null) {
     return <div className={cn(CARD, "h-[104px] animate-pulse")} aria-hidden />;
   }
   if (isError || !data || n === 0) {
