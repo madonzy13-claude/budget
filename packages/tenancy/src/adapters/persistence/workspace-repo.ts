@@ -667,6 +667,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         ownership_share_pct: number;
         include_in_aggregation: boolean;
         amount_privacy_enabled: boolean;
+        ui_prefs: Record<string, string[]> | null;
       }
     >
   > {
@@ -676,9 +677,14 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         ownership_share_pct: number;
         include_in_aggregation: boolean;
         amount_privacy_enabled: boolean;
+        ui_prefs: Record<string, string[]> | null;
       }>(sql`
         SELECT budget_id, ownership_share_pct, include_in_aggregation,
-               amount_privacy_enabled
+               amount_privacy_enabled,
+               -- The member's own chart picks. The all-budgets rollup reads the
+               -- forecast window out of these so its spend card answers the same
+               -- question the budget's own page does (user, 260904j).
+               ui_prefs
           FROM tenancy.budget_members
          WHERE user_id = ${userId}::uuid
       `),
@@ -690,6 +696,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         ownership_share_pct: number;
         include_in_aggregation: boolean;
         amount_privacy_enabled: boolean;
+        ui_prefs: Record<string, string[]> | null;
       }
     >();
     for (const row of r.value.rows) {
@@ -698,6 +705,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         include_in_aggregation: row.include_in_aggregation,
         // migration 0082: false for anyone who joined after the move.
         amount_privacy_enabled: row.amount_privacy_enabled ?? false,
+        ui_prefs: row.ui_prefs ?? null,
       });
     }
     return map;

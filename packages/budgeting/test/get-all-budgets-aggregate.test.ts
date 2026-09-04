@@ -199,6 +199,89 @@ describe("getAllBudgetsAggregate — forecast figures for the spend card", () =>
     expect(out.forecast_free_to_move_cents).toBe("0");
   });
 
+  /**
+   * The forecast window is a member preference, and these two figures ARE the
+   * forecast: free-to-move is the trough of the window and the shortfall is its
+   * deepest hole. Asking every budget for a fixed 100 days made the all-budgets
+   * card disagree with the very budget page it summarises, where the member had
+   * chosen to look a year out (user, 260904j).
+   */
+  it("asks each budget for the window that budget's member chose", async () => {
+    const asked: (number | undefined)[] = [];
+    await getAllBudgetsAggregate({
+      ...deps,
+      getAggPrefsForUser: async () =>
+        new Map([
+          [
+            "b1",
+            {
+              ownership_share_pct: 60,
+              include_in_aggregation: true,
+              ui_prefs: { projectionDays: ["365"] },
+            },
+          ],
+        ]),
+      getCashflowProjectionForTenant: async (input: {
+        windowDays?: number;
+      }) => {
+        asked.push(input.windowDays);
+        return {
+          days: [{ availableCents: 40_000n }],
+          summary: { worstShortfallCents: 0n },
+          safeToWithdraw: { cents: 30_000n },
+        };
+      },
+    } as any)("u1");
+    expect(asked).toEqual([365]);
+  });
+
+  it("falls back to the default window when the member has no pick", async () => {
+    const asked: (number | undefined)[] = [];
+    await getAllBudgetsAggregate({
+      ...deps,
+      getCashflowProjectionForTenant: async (input: {
+        windowDays?: number;
+      }) => {
+        asked.push(input.windowDays);
+        return {
+          days: [{ availableCents: 40_000n }],
+          summary: { worstShortfallCents: 0n },
+          safeToWithdraw: { cents: 30_000n },
+        };
+      },
+    } as any)("u1");
+    expect(asked).toEqual([100]);
+  });
+
+  it("ignores a stored pick that is not a readable window", async () => {
+    const asked: (number | undefined)[] = [];
+    await getAllBudgetsAggregate({
+      ...deps,
+      getAggPrefsForUser: async () =>
+        new Map([
+          [
+            "b1",
+            {
+              ownership_share_pct: 60,
+              include_in_aggregation: true,
+              ui_prefs: { projectionDays: ["not-a-number"] },
+            },
+          ],
+        ]),
+      getCashflowProjectionForTenant: async (input: {
+        windowDays?: number;
+      }) => {
+        asked.push(input.windowDays);
+        return {
+          days: [{ availableCents: 40_000n }],
+          summary: { worstShortfallCents: 0n },
+          safeToWithdraw: { cents: 30_000n },
+        };
+      },
+    } as any)("u1");
+    expect(asked).toEqual([100]);
+  });
+
   // Without the dep wired the aggregate still builds; the card then has no
   // figures to show rather than wrong ones.
   it("reports zeroes when no projection dep is wired at all", async () => {

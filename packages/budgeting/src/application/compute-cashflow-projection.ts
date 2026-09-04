@@ -61,6 +61,11 @@ export const PROJECTION_WINDOW_DAYS = 100;
 /** The span a member may pick between. Below a month the strip has nothing to
  *  say that the month itself doesn't; beyond two years it is repeating this
  *  month's plan back at them at a day per pixel. */
+/** The member ui-prefs key the forecast window is stored under. Named here so
+ *  the web form, the per-budget page and the all-budgets rollup all read the
+ *  same one — a second spelling would silently give two different windows. */
+export const PROJECTION_WINDOW_PREF_KEY = "projectionDays";
+
 export const MIN_PROJECTION_WINDOW_DAYS = 30;
 export const MAX_PROJECTION_WINDOW_DAYS = 730;
 

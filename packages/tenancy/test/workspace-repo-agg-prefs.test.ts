@@ -96,6 +96,10 @@ test("getAggPrefsForUser reads back known ownership_share_pct + include_in_aggre
     // migration 0082: a membership created from here on starts with privacy
     // off — only the members who predate the move kept it on.
     amount_privacy_enabled: false,
+    // The member's chart picks ride along so the all-budgets rollup can read
+    // the forecast window out of them (260904j). A fresh membership has none.
+    // The column defaults to an empty object, not NULL.
+    ui_prefs: {},
   });
 });
 
