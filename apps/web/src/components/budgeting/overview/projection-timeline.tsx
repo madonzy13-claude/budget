@@ -17,6 +17,7 @@ import {
   type ProjectionDay,
 } from "@/hooks/use-projection";
 import { useProjectionHorizon } from "@/hooks/use-projection-horizon";
+import { useSetProjectionDraft } from "@/components/budgeting/overview/projection-draft";
 import { useCategories } from "@/hooks/use-budget-data";
 import {
   DEFAULT_HORIZON_DAYS,
@@ -106,6 +107,15 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
   // every input event is the drag's entire frame budget, and a finger that is on
   // the slider cannot be hovering a day cell.
   const [dragging, setDragging] = useState(false);
+  // Publish the drafted window so the cards ABOVE the strip can answer for it
+  // too — free-to-move and the deficit are the window (260904k). Mirrored in an
+  // effect rather than called beside every setDraft, so a new way of moving the
+  // thumb cannot forget to do it.
+  const publishDraft = useSetProjectionDraft();
+  useEffect(() => {
+    publishDraft(draft);
+  }, [draft, publishDraft]);
+  useEffect(() => () => publishDraft(null), [publishDraft]);
 
   const commitHorizon = useCallback(
     (days: number) => {

@@ -74,6 +74,10 @@ export function registerOverviewProjectionRoutes(r: Hono, deps: BootedDeps) {
           })),
           // What can leave the budget today with every dip still covered — the
           // lowest point of a worst-case run (see simulate-cashflow-projection).
+          // One entry per day: what could be withdrawn if the window ended
+          // there. Lets the Overview's free-to-move and deficit follow a
+          // dragging horizon without a request per pixel (260904k).
+          safe_by_day: (p.safeByDay ?? []).map((c) => c.toString()),
           safe_to_withdraw: {
             cents: p.safeToWithdraw.cents.toString(),
             thinnest_date: p.safeToWithdraw.thinnestDate,

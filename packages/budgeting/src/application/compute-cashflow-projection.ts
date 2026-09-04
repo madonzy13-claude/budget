@@ -614,7 +614,16 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       ...simInput,
       spendTiming: "immediate",
     });
-    return { ...line, safeToWithdraw: worstCase.safeToWithdraw };
+    // The same trough, answered for every window length the member could drag
+    // to. Free — the pessimistic run already walked these days; only its final
+    // minimum was being kept.
+    const safeByDay: bigint[] = [];
+    let low: bigint | null = null;
+    for (const d of worstCase.days) {
+      low = low === null || d.availableCents < low ? d.availableCents : low;
+      safeByDay.push(low);
+    }
+    return { ...line, safeToWithdraw: worstCase.safeToWithdraw, safeByDay };
   };
 }
 

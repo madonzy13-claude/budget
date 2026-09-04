@@ -66,6 +66,12 @@ export interface ProjectionDTO {
    * an offline cache written by an older build has no such field.
    */
   safe_to_withdraw?: { cents: string; thinnest_date: string | null };
+  /** What could be withdrawn if the window ended on each day — the running
+   *  trough of the same pessimistic run, one entry per day. Lets the card's
+   *  figures follow a dragging horizon out of the payload already in hand
+   *  (260904k). Optional: a payload cached before it existed has none, and the
+   *  caller then keeps the server's single figure. */
+  safe_by_day?: string[];
   /** "Available to spend" card health (dot + surplus/deficit). `good` is null and
    *  `surplus_deficit_cents` is null when there is no upcoming income (grey dot,
    *  card falls back to its "upcoming" figure). */

@@ -118,6 +118,19 @@ export interface CashflowProjection {
    * option for why (user, 260812).
    */
   safeToWithdraw: { cents: bigint; thinnestDate: string | null };
+  /**
+   * What could be withdrawn if the window ENDED on each day — the running
+   * trough of the pessimistic run, one entry per day, so the last is
+   * `safeToWithdraw.cents`.
+   *
+   * It exists so the Overview's free-to-move and deficit can follow a dragging
+   * horizon slider without a request per pixel: the widest window is already in
+   * the browser and every shorter one is an index into this (260904k). A running
+   * minimum is monotone non-increasing, which is what makes the prefix answer
+   * EXACT rather than an approximation. Optional: only the loader that runs the
+   * pessimistic pass can fill it.
+   */
+  safeByDay?: bigint[];
   summary: {
     firstYellowDate: string | null;
     firstRedDate: string | null;
