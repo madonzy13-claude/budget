@@ -28,7 +28,11 @@ import type { ProjectionDTO } from "@/hooks/use-projection";
 const projectionCalls: (number | null | undefined)[] = [];
 let projectionData: ProjectionDTO | undefined;
 
+const prefetched: number[] = [];
 vi.mock("@/hooks/use-projection", () => ({
+  useProjectionPrefetch: () => (days: number) => {
+    prefetched.push(days);
+  },
   useProjection: (_budgetId: string, days?: number | null) => {
     projectionCalls.push(days);
     // Faithful to the real hook: `days === null` disables the query, and a
@@ -109,6 +113,7 @@ const slider = () => screen.getByTestId("projection-horizon-slider");
 
 beforeEach(() => {
   projectionCalls.length = 0;
+  prefetched.length = 0;
   projectionData = dtoOf("2026-09-04", 100);
   storedPrefs = {};
   prefsLoaded = true;
@@ -329,14 +334,40 @@ describe("Dragging the horizon", () => {
     }
   });
 
-  test("the unknown tail says it is loading, not that money runs out", async () => {
+  /**
+   * The unknown tail was a grey slab with a pulse on it, and a grey slab is what
+   * "your money ends here" looks like — it flickered against the colour every
+   * time a bucket landed (user, 260904c, with a screenshot). It is now the last
+   * known colour fading out: the line reads as continuing into what is not known
+   * yet, with no hard edge to jump when the days arrive. It still FADES, so it
+   * never claims a green fortnight nobody has forecast.
+   */
+  test("the unknown tail continues the line instead of cutting it grey", async () => {
     projectionData = dtoOf("2026-09-04", 100);
     await renderTimeline();
     fireEvent.click(chip());
     fireEvent.input(slider(), { target: { value: "400" } });
-    expect(screen.getByTestId("projection-unloaded-tail")).toBeVisible();
-    fireEvent.input(slider(), { target: { value: "50" } });
+    const line = screen.getByTestId("projection-line");
+    // A full window has no tail to fade at all.
+    expect(line).toHaveAttribute("data-fill-pct", "25");
+    // No pulsing slab over the tail any more.
     expect(screen.queryByTestId("projection-unloaded-tail")).toBeNull();
+    // The tail is mixed FROM the last known day's colour, not painted over it.
+    expect(line).toHaveAttribute("data-tail-from", "var(--trading-up)");
+
+    fireEvent.input(slider(), { target: { value: "50" } });
+    expect(screen.getByTestId("projection-line")).not.toHaveAttribute(
+      "data-tail-from",
+    );
+  });
+
+  test("opening the panel warms the next window up, so the first drag has data", async () => {
+    // "This is when I first scroll" — the empty tail is worst on the very first
+    // drag, when nothing but the committed window has ever been fetched.
+    await renderTimeline();
+    expect(prefetched).toHaveLength(0);
+    fireEvent.click(chip());
+    expect(prefetched).toContain(180);
   });
 
   test("the per-day hit cells stay out of the drag path", async () => {

@@ -58,6 +58,8 @@ vi.mock("@/hooks/use-projection-horizon", () => ({
 }));
 
 vi.mock("@/hooks/use-projection", () => ({
+  // Warms the next window when the horizon panel opens; a no-op here.
+  useProjectionPrefetch: () => () => {},
   useProjection: () => ({ data: undefined }),
 }));
 vi.mock("@/components/common/user-timezone-provider", () => ({

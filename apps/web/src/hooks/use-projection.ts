@@ -8,7 +8,12 @@
  * ["budget", id, "projection"] still reaches every window from the mutation
  * hooks that clear it.
  */
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useCallback } from "react";
+import {
+  keepPreviousData,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { DEFAULT_HORIZON_DAYS } from "@/lib/projection-horizon";
 
@@ -108,4 +113,28 @@ export function useProjection(budgetId: string, days?: number | null) {
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
   });
+}
+
+/**
+ * Warm a window before it is asked for.
+ *
+ * The empty tail is worst on the very FIRST drag, when nothing but the committed
+ * window has ever been fetched — open the panel, pull right, and the strip has
+ * nothing to draw until a round trip finishes (user, 260904c). Opening the panel
+ * is a reliable signal that a longer window is about to be wanted, so the next
+ * one up is fetched then, while the finger is still travelling to the thumb.
+ */
+export function useProjectionPrefetch(budgetId: string) {
+  const qc = useQueryClient();
+  return useCallback(
+    (days: number) => {
+      void qc.prefetchQuery({
+        queryKey: ["budget", budgetId, "projection", days] as const,
+        queryFn: () => fetchProjection(budgetId, days),
+        // Long enough that opening the panel twice in a row is one fetch.
+        staleTime: 60_000,
+      });
+    },
+    [qc, budgetId],
+  );
 }

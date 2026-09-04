@@ -11,7 +11,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { ChevronDown } from "lucide-react";
-import { useProjection, type ProjectionDay } from "@/hooks/use-projection";
+import {
+  useProjection,
+  useProjectionPrefetch,
+  type ProjectionDay,
+} from "@/hooks/use-projection";
 import { useProjectionHorizon } from "@/hooks/use-projection-horizon";
 import { useCategories } from "@/hooks/use-budget-data";
 import {
@@ -103,6 +107,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
   // every input event is the drag's entire frame budget, and a finger that is on
   // the slider cannot be hovering a day cell.
   const [dragging, setDragging] = useState(false);
+  const prefetchProjection = useProjectionPrefetch(budgetId);
 
   const commitHorizon = useCallback(
     (days: number) => {
@@ -244,10 +249,20 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
     const stops = viewDays
       .map((d, i) => `${COLOR_VAR[d.color]} ${pctAt(i).toFixed(2)}%`)
       .join(", ");
+    // The days nobody has yet. A hard stop into grey was a slab that read as
+    // "your money ends here", and it FLICKERED: every bucket that landed moved
+    // the edge in one visible step (user, 260904c). The line now fades out of
+    // its last known colour into the empty track over a short ramp — no edge to
+    // jump, and no claim that the unknown fortnight is green either, because it
+    // is visibly fading rather than coloured.
+    const last = COLOR_VAR[viewDays[n - 1]!.color];
+    const rampEnd = Math.min(100, fillPct + 18);
     const tail =
       fillPct >= 100
         ? ""
-        : `, var(--surface-elevated-dark) ${fillPct.toFixed(2)}%, var(--surface-elevated-dark) 100%`;
+        : `, color-mix(in oklab, ${last} 45%, var(--surface-elevated-dark)) ${fillPct.toFixed(2)}%` +
+          `, color-mix(in oklab, ${last} 12%, var(--surface-elevated-dark)) ${rampEnd.toFixed(2)}%` +
+          `, var(--surface-elevated-dark) 100%`;
     return `linear-gradient(90deg, ${stops}${tail})`;
   }, [viewDays, n, span, fillPct]);
 
@@ -359,7 +374,18 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
               data-testid="projection-horizon"
               aria-expanded={horizonOpen}
               disabled={horizonLocked}
-              onClick={() => setHorizonOpen((open) => !open)}
+              onClick={() => {
+                const opening = !horizonOpen;
+                setHorizonOpen(opening);
+                // Opening the panel is the one reliable signal that a longer
+                // window is about to be wanted. Fetch it while the finger is
+                // still travelling to the thumb, so the first drag has days to
+                // draw instead of an empty tail.
+                if (opening && effective !== null) {
+                  const next = horizonBucket(effective + 1);
+                  if (next > effective) prefetchProjection(next);
+                }
+              }}
               className={cn(
                 "ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5",
                 "align-baseline font-semibold tabular-nums",
@@ -454,6 +480,14 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
           // derived style so the growing case is assertable without a layout
           // engine — happy-dom measures every box as 0×0.
           data-fill-pct={Math.round(fillPct)}
+          // Which colour the unknown tail fades OUT of. An attribute because a
+          // happy-dom stylesheet drops color-mix() on parse, so the gradient
+          // string itself is not assertable in a unit test.
+          data-tail-from={
+            fillPct < 100 && n > 0
+              ? COLOR_VAR[viewDays[n - 1]!.color]
+              : undefined
+          }
           className="absolute inset-x-0 top-0 h-5 overflow-hidden rounded-full"
           style={{ background: gradient }}
         >
@@ -568,19 +602,6 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
             aria-hidden
             className="absolute z-[2] h-6 w-0.5 -translate-x-1/2 rounded bg-[var(--body-on-dark)]"
             style={{ left: `${activePct}%`, top: "-2px" }}
-          />
-        )}
-
-        {/* The part of the window nobody has the days for yet. Without it the
-            growing strip reads as a forecast that simply stops — a grey tail
-            after the colour is what "you run out here" looks like. It pulses
-            instead, which is what it is: still arriving. */}
-        {fillPct < 100 && (
-          <div
-            data-testid="projection-unloaded-tail"
-            aria-hidden
-            className="pointer-events-none absolute top-0 h-5 animate-pulse rounded-r-full bg-[var(--surface-sunken-dark)]"
-            style={{ left: `${fillPct}%`, right: 0 }}
           />
         )}
 
