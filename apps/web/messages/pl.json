@@ -1999,7 +1999,8 @@
       "error": {
         "save": "Nie udało się zapisać — spróbuj ponownie"
       },
-      "noLimitExplainer": "Brak górnej granicy dla inwestycji. Prognoza miesiąca liczy to, co faktycznie zainwestujesz, i nie ma wartości przekroczenia — tak jak w każdej innej kategorii bez limitu."
+      "noLimitExplainer": "Brak górnej granicy dla inwestycji. Prognoza miesiąca liczy to, co faktycznie zainwestujesz, i nie ma wartości przekroczenia — tak jak w każdej innej kategorii bez limitu.",
+      "cushionNote": "W trybie poduszki limit to zawsze tylko Twoje zaplanowane płatności."
     }
   },
   "errors": {

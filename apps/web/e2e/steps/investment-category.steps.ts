@@ -134,3 +134,27 @@ Then(
       .toBe(expected);
   },
 );
+
+Given("the budget is in cushion mode", async ({ freshUser }) => {
+  await withBudgetGuc(freshUser.budgetId, freshUser.userId, async (c) => {
+    await c.query(
+      `UPDATE tenancy.budgets SET cushion_mode_enabled = true WHERE id = $1::uuid`,
+      [freshUser.budgetId],
+    );
+  });
+});
+
+Then("the cushion-limit note is shown", async ({ page }) => {
+  await expect(new InvestmentCategoryPo(page).cushionNote()).toBeVisible();
+});
+
+Then("no cushion-limit note is shown", async ({ page }) => {
+  await expect(new InvestmentCategoryPo(page).cushionNote()).toHaveCount(0);
+});
+
+Then("every limit mode is still selectable", async ({ page }) => {
+  const po = new InvestmentCategoryPo(page);
+  for (const mode of ["none", "smart", "manual"] as const) {
+    await expect(po.modeOption(mode)).toBeEnabled();
+  }
+});

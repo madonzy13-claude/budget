@@ -49,7 +49,10 @@ const initial = {
   investmentLimitMode: "smart" as string | null,
 };
 
-function renderSlider(overrides: Partial<typeof initial> = {}) {
+function renderSlider(
+  overrides: Partial<typeof initial> = {},
+  props: { cushionMonth?: boolean } = {},
+) {
   return render(
     <TestQueryProvider client={makeTestQueryClient()}>
       <InvestmentCategorySlider
@@ -59,6 +62,7 @@ function renderSlider(overrides: Partial<typeof initial> = {}) {
         budgetCurrency="USD"
         month="2026-07"
         initial={{ ...initial, ...overrides }}
+        {...props}
       />
     </TestQueryProvider>,
   );
@@ -185,5 +189,52 @@ describe("InvestmentCategorySlider", () => {
     expect(JSON.parse((modeCall[1] as { body: string }).body).mode).toBe(
       "manual",
     );
+  });
+
+  /**
+   * A cushion month is the household on its tighter limits, and there the
+   * Investments limit is always the category's scheduled payments and nothing
+   * else (user, 260904f). The form SAYS so and leaves the choice alone: the
+   * limit being ignored this month is no reason to stop someone setting the one
+   * every other month will use.
+   *
+   * Per-month, deliberately — step back to a month that ran outside cushion mode
+   * and the note is gone.
+   */
+  describe("in a cushion month", () => {
+    it("says the limit is the scheduled payments, and changes nothing else", async () => {
+      fetchMock.mockResolvedValue(statusResponse(true, "smart"));
+      renderSlider({}, { cushionMonth: true });
+      expect(
+        await screen.findByTestId("invest-cushion-note"),
+      ).toBeInTheDocument();
+      // Wait for the income status to land — Smart is disabled until it does,
+      // for its own unrelated reason.
+      await waitFor(() =>
+        expect(screen.getByTestId("invest-mode-smart")).not.toBeDisabled(),
+      );
+      // Every mode still pickable — this is information, not a restriction.
+      for (const mode of ["none", "smart", "manual"]) {
+        expect(screen.getByTestId(`invest-mode-${mode}`)).not.toBeDisabled();
+      }
+    });
+
+    it("still lets a manual amount be typed for other months", async () => {
+      fetchMock.mockResolvedValue(statusResponse(true, "manual"));
+      renderSlider({ investmentLimitMode: "manual" }, { cushionMonth: true });
+      await waitFor(() =>
+        expect(screen.getByTestId("invest-cushion-note")).toBeInTheDocument(),
+      );
+      expect(screen.getByTestId("invest-manual-readout")).toBeInTheDocument();
+    });
+
+    it("says nothing in an ordinary month", async () => {
+      fetchMock.mockResolvedValue(statusResponse(true, "smart"));
+      renderSlider({}, { cushionMonth: false });
+      await waitFor(() =>
+        expect(screen.getByTestId("invest-mode-manual")).toBeInTheDocument(),
+      );
+      expect(screen.queryByTestId("invest-cushion-note")).toBeNull();
+    });
   });
 });

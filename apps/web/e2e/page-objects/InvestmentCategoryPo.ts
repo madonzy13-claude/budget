@@ -38,6 +38,14 @@ export class InvestmentCategoryPo {
     return this.page.getByTestId("invest-smart-hint");
   }
 
+  cushionNote(): Locator {
+    return this.page.getByTestId("invest-cushion-note");
+  }
+
+  modeOption(mode: "none" | "smart" | "manual"): Locator {
+    return this.page.getByTestId(`invest-mode-${mode}`);
+  }
+
   /** Tapping any summary row reveals the action cluster (pen). */
   async openEditor(): Promise<void> {
     await this.overinvestedRow().click();
