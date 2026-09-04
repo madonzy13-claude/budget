@@ -1,5 +1,5 @@
 # Stage 1: install workspace dependencies
-FROM oven/bun:1.4.0-slim AS deps
+FROM oven/bun:1.4.1-slim AS deps
 WORKDIR /app
 # bun.lock is deliberately NOT copied here. With a lockfile present, a
 # --production install resolves a tree WITHOUT devDependencies, which bun
