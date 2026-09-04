@@ -15,9 +15,17 @@ export class ProjectionTimelinePo {
     return this.page.getByTestId("projection-day");
   }
 
+  /**
+   * POLLED, not sampled: since 260904b the strip keeps the window it already had
+   * while a longer one is fetched, so the cells arrive a beat after the number
+   * does. A single count() reads the OLD window and fails a strip that is
+   * working exactly as designed. Bounded — a window that never arrives still
+   * fails, just 10s later.
+   */
   async expectAtLeastDays(n: number) {
-    const count = await this.dayCells().count();
-    expect(count).toBeGreaterThanOrEqual(n);
+    await expect
+      .poll(() => this.dayCells().count(), { timeout: 10_000 })
+      .toBeGreaterThanOrEqual(n);
   }
 
   async hoverLastDay() {

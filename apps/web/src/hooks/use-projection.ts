@@ -8,7 +8,7 @@
  * ["budget", id, "projection"] still reaches every window from the mutation
  * hooks that clear it.
  */
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { DEFAULT_HORIZON_DAYS } from "@/lib/projection-horizon";
 
@@ -94,6 +94,11 @@ export function useProjection(budgetId: string, days?: number | null) {
     queryKey: ["budget", budgetId, "projection", window] as const,
     queryFn: () => fetchProjection(budgetId, window),
     enabled: days !== null,
+    // Dragging the horizon changes the key, and a key change normally empties
+    // `data` — which would blank the strip mid-drag and bounce the card back to
+    // its skeleton. Holding the previous window lets the band keep what it has
+    // and fill forward as the longer one lands.
+    placeholderData: keepPreviousData,
     // The projection depends on wallets, reserves, income, scheduled rules and
     // spend, changed from many surfaces (often other tabs). Cache-first but always
     // revalidate on return to the tab / focus so a budget change is reflected

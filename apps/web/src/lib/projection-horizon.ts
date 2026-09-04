@@ -52,3 +52,37 @@ export function decodeHorizonPref(stored: string[] | undefined): number | null {
   if (!Number.isFinite(n)) return null;
   return clampHorizonDays(n);
 }
+
+/**
+ * `iso` moved on by whole days, in UTC.
+ *
+ * The forecast's end date has to keep up with a dragging thumb, and asking the
+ * server where a window ends is a round trip per pixel. It is a calendar
+ * question with an exact answer, so it is answered here: the strip's first day
+ * is known, and the last is that day plus the span. Returns the input unchanged
+ * if it is not a parseable YYYY-MM-DD, so a malformed payload cannot render a
+ * date of "NaN".
+ */
+export function isoPlusDays(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map((s) => parseInt(s, 10));
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
+    return iso;
+  }
+  const t = Date.UTC(y!, m! - 1, d!) + days * 86_400_000;
+  return new Date(t).toISOString().slice(0, 10);
+}
+
+/**
+ * The smallest snap window that CONTAINS `days`.
+ *
+ * Used only while the thumb is moving. Asking for the exact draft would fetch a
+ * dozen one-off windows across a full sweep, none of them reusable — drag back
+ * down and every one is a fresh request. Asking for the bucket instead means a
+ * sweep touches at most six windows, each answering every draft inside it from
+ * cache, and the days beyond the draft are simply not drawn. The window that
+ * gets COMMITTED is still the exact one.
+ */
+export function horizonBucket(days: number): number {
+  const d = clampHorizonDays(days);
+  return HORIZON_SNAP_DAYS.find((s) => s >= d) ?? MAX_HORIZON_DAYS;
+}

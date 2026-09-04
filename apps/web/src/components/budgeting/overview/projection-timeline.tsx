@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
+import { ChevronDown } from "lucide-react";
 import { useProjection, type ProjectionDay } from "@/hooks/use-projection";
 import { useProjectionHorizon } from "@/hooks/use-projection-horizon";
 import { useCategories } from "@/hooks/use-budget-data";
@@ -18,6 +19,8 @@ import {
   HORIZON_SNAP_DAYS,
   MAX_HORIZON_DAYS,
   MIN_HORIZON_DAYS,
+  horizonBucket,
+  isoPlusDays,
 } from "@/lib/projection-horizon";
 import { centsToDisplayCompact } from "@/lib/cents-format";
 import { formatShortDate } from "@/lib/format-date";
@@ -95,13 +98,71 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
   const effective = picked ?? stored;
   const shownDays = draft ?? effective ?? DEFAULT_HORIZON_DAYS;
 
+  // True from the moment the thumb is grabbed until it is let go. The per-day
+  // hit cells come out of the tree for the duration — 730 spans reconciled on
+  // every input event is the drag's entire frame budget, and a finger that is on
+  // the slider cannot be hovering a day cell.
+  const [dragging, setDragging] = useState(false);
+
   const commitHorizon = useCallback(
     (days: number) => {
       setDraft(null);
+      setDragging(false);
       setPicked(days);
       persist(days);
     },
     [persist],
+  );
+
+  /**
+   * What we ask the SERVER for while the thumb is moving.
+   *
+   * A THROTTLE, not a debounce — the difference is the whole feel of the drag. A
+   * debounce restarts on every move, so a thumb held down for a second asks for
+   * nothing until it is released and the band sits at a sliver the whole way.
+   * This asks at most four times a second and never sooner than a beat after the
+   * thumb last moved, so the band fills AS the drag happens. It trails the
+   * draft rather than leading the commit: nothing is PERSISTED until release.
+   */
+  const [requested, setRequested] = useState<number | null>(null);
+  const lastAsk = useRef(0);
+  const askTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The pending fire reads the LATEST draft when it goes off, so a move that
+  // lands while it is waiting updates what will be asked for without pushing
+  // the ask further away. Cancelling and rescheduling on every move is what
+  // turns a throttle back into a debounce — measured on a real drag: the whole
+  // second of movement produced one request, at the end.
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  useEffect(() => {
+    if (draft === null) {
+      if (askTimer.current !== null) {
+        clearTimeout(askTimer.current);
+        askTimer.current = null;
+      }
+      setRequested(null);
+      lastAsk.current = 0;
+      return;
+    }
+    if (askTimer.current !== null) return;
+    const since = Date.now() - lastAsk.current;
+    const wait = since >= 250 ? 120 : 250 - since;
+    askTimer.current = setTimeout(() => {
+      askTimer.current = null;
+      lastAsk.current = Date.now();
+      // The BUCKET, not the exact draft: a sweep then touches six windows
+      // instead of a dozen one-offs, and the way back down is all cache.
+      if (draftRef.current !== null) {
+        setRequested(horizonBucket(draftRef.current));
+      }
+    }, wait);
+  }, [draft]);
+  // Unmounting mid-drag must not leave a timer holding a setState.
+  useEffect(
+    () => () => {
+      if (askTimer.current !== null) clearTimeout(askTimer.current);
+    },
+    [],
   );
 
   // The drag ENDS on the platform's own `change` event — which React does not
@@ -117,7 +178,12 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
     return () => el.removeEventListener("change", onCommit);
   }, [horizonOpen, commitHorizon]);
 
-  const { data, isLoading, isError } = useProjection(budgetId, effective);
+  const { data, isLoading, isError } = useProjection(
+    budgetId,
+    // effective is null only while the stored pick is in flight; a drafted
+    // window never resurrects a disabled query.
+    effective === null ? null : (requested ?? effective),
+  );
   // The card's category lists read in the order the household arranged on the
   // spendings tab, which is the order they see everywhere else (user, 260813).
   // Sorted here rather than trusted from the wire, exactly as the grid does it.
@@ -150,32 +216,54 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
     return () => ro.disconnect();
   }, []);
 
-  const n = data?.days.length ?? 0;
+  /**
+   * The days actually DRAWN, and the window they are drawn against — two
+   * different numbers while the thumb is moving.
+   *
+   * Shrinking is free: the days are already in hand, so the band redraws on the
+   * same frame as the thumb. Growing is not — those days do not exist yet — so
+   * the strip's coordinate system is the WINDOW (`span`), and what is known
+   * covers `fillPct` of it, the rest reading as empty track until the fetch
+   * lands. Stretching the hundred days we hold across a strip labelled 546
+   * would be a picture of money nobody has.
+   */
+  const viewDays = useMemo(
+    () => data?.days.slice(0, shownDays) ?? [],
+    [data, shownDays],
+  );
+  const n = viewDays.length;
+  const span = Math.max(shownDays - 1, 1);
+  const fillPct = n === 0 ? 0 : Math.min(100, (n / shownDays) * 100);
+  const pctAt = (i: number) => (i / span) * 100;
 
   // Fluent colour line: one gradient stop per day at its x%, so the colour flows
-  // continuously across zones instead of rendering discrete cells.
+  // continuously across zones instead of rendering discrete cells. Anything past
+  // the days we hold is the strip's own empty track, at a hard stop.
   const gradient = useMemo(() => {
-    if (!data || n === 0) return undefined;
-    const stops = data.days
-      .map((d, i) => {
-        const pct = n === 1 ? 0 : (i / (n - 1)) * 100;
-        return `${COLOR_VAR[d.color]} ${pct.toFixed(2)}%`;
-      })
+    if (n === 0) return undefined;
+    const stops = viewDays
+      .map((d, i) => `${COLOR_VAR[d.color]} ${pctAt(i).toFixed(2)}%`)
       .join(", ");
-    return `linear-gradient(90deg, ${stops})`;
-  }, [data, n]);
+    const tail =
+      fillPct >= 100
+        ? ""
+        : `, var(--surface-elevated-dark) ${fillPct.toFixed(2)}%, var(--surface-elevated-dark) 100%`;
+    return `linear-gradient(90deg, ${stops}${tail})`;
+  }, [viewDays, n, span, fillPct]);
 
-  // date → day index, for placing income/bill markers on the line.
+  // date → day index, for placing income/bill markers on the line. Keyed on the
+  // DRAWN days: a marker for a day past the fill would otherwise be pinned to
+  // the empty track, floating over nothing.
   const indexByDate = useMemo(() => {
     const m = new Map<string, number>();
-    data?.days.forEach((d, i) => m.set(d.date, i));
+    viewDays.forEach((d, i) => m.set(d.date, i));
     return m;
-  }, [data]);
+  }, [viewDays]);
 
   const pctFor = (date: string): number | null => {
     const i = indexByDate.get(date);
-    if (i === undefined || n <= 1) return i === undefined ? null : 0;
-    return (i / (n - 1)) * 100;
+    if (i === undefined) return null;
+    return pctAt(i);
   };
 
   /**
@@ -196,14 +284,13 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
    * its name; the wide segment beside it keeps its own.
    */
   const monthMarks = useMemo(() => {
-    if (!data || data.days.length === 0) return [];
-    const span = Math.max(data.days.length - 1, 1);
+    if (viewDays.length === 0) return [];
     const monthName = (iso: string) =>
       new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" })
         .format(new Date(`${iso}T00:00:00Z`))
         .replace(/\.$/, "");
     // Every month boundary in the window, before any is dropped.
-    const opens = data.days.flatMap((d, i) =>
+    const opens = viewDays.flatMap((d, i) =>
       i === 0 || d.date.endsWith("-01")
         ? [{ key: d.date, pct: (i / span) * 100, label: monthName(d.date) }]
         : [],
@@ -215,10 +302,12 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
     const minPct = minLabelPct(stripPx);
     return opens.map((m, i) => {
       const next = opens[i + 1];
-      const room = (next ? next.pct : 100) - m.pct;
+      // The last named month runs to the end of what is DRAWN, not to the end of
+      // the strip — past the fill there is no month to name yet.
+      const room = (next ? next.pct : fillPct) - m.pct;
       return { ...m, labelled: room >= minPct };
     });
-  }, [data, locale, stripPx]);
+  }, [viewDays, locale, stripPx, span, fillPct]);
 
   // `effective === null` means the member's stored horizon is still on its way,
   // which DISABLES the projection query — and a disabled query in TanStack v5 is
@@ -243,10 +332,13 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
     const rect = el.getBoundingClientRect();
     if (!rect.width) return;
     const frac = (clientX - rect.left) / rect.width;
-    setActive(clamp(Math.round(frac * (n - 1)), 0, n - 1));
+    // Against the WINDOW, then clamped to the days in hand: pointing at the
+    // empty tail of a growing strip selects its last known day rather than a
+    // day that has not arrived.
+    setActive(clamp(Math.round(frac * span), 0, Math.max(n - 1, 0)));
   };
 
-  const activePct = active === null || n <= 1 ? 0 : (active / (n - 1)) * 100;
+  const activePct = active === null || n === 0 ? 0 : pctAt(active);
   // The band is the strip plus, when there is any, the row the income dots sit
   // in. With no income it stopped at the strip and the card kept a strip of
   // empty space anyway (user, 260812).
@@ -269,14 +361,27 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
               disabled={horizonLocked}
               onClick={() => setHorizonOpen((open) => !open)}
               className={cn(
-                "rounded-[var(--radius-sm)] px-1.5 py-0.5 font-semibold tabular-nums",
-                "text-[var(--primary)] underline decoration-[var(--primary)] decoration-2 underline-offset-4",
+                "ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5",
+                "align-baseline font-semibold tabular-nums",
+                // A quiet pill, not an underline: the accent is what the SLIDER
+                // uses to say "this is the value", and spending it on the label
+                // as well left two yellow things competing inside one sentence
+                // (user, 260904b — "very messy").
+                "bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]",
                 horizonLocked
                   ? "cursor-default opacity-60"
-                  : "hover:bg-[var(--surface-elevated-dark)]",
+                  : "transition-colors hover:bg-[var(--surface-nested-dark)]",
               )}
             >
               {chunks}
+              {/* The one mark that says the number opens something. */}
+              <ChevronDown
+                aria-hidden
+                className={cn(
+                  "size-3 shrink-0 text-[var(--muted-foreground)] transition-transform",
+                  horizonOpen && "rotate-180",
+                )}
+              />
             </button>
           ),
         })}
@@ -296,6 +401,9 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
             step={1}
             value={shownDays}
             aria-label={t("horizonAria")}
+            onPointerDown={() => setDragging(true)}
+            onPointerUp={() => setDragging(false)}
+            onPointerCancel={() => setDragging(false)}
             onChange={(e) => setDraft(Number(e.target.value))}
             className="h-6 w-full accent-[var(--primary)]"
           />
@@ -342,6 +450,10 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
         <div
           data-testid="projection-line"
           ref={measureStrip}
+          // How much of the window is actually drawn. An attribute rather than a
+          // derived style so the growing case is assertable without a layout
+          // engine — happy-dom measures every box as 0×0.
+          data-fill-pct={Math.round(fillPct)}
           className="absolute inset-x-0 top-0 h-5 overflow-hidden rounded-full"
           style={{ background: gradient }}
         >
@@ -459,28 +571,48 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
           />
         )}
 
-        {/* Transparent per-day hit cells (interaction + E2E/unit test). */}
-        <div className="absolute inset-0 flex">
-          {data.days.map((d, i) => (
-            <span
-              key={d.date}
-              data-testid="projection-day"
-              data-color={d.color}
-              data-index={i}
-              onPointerEnter={() => setActive(i)}
-              className="h-full min-w-0 flex-1 cursor-pointer"
-            />
-          ))}
+        {/* The part of the window nobody has the days for yet. Without it the
+            growing strip reads as a forecast that simply stops — a grey tail
+            after the colour is what "you run out here" looks like. It pulses
+            instead, which is what it is: still arriving. */}
+        {fillPct < 100 && (
+          <div
+            data-testid="projection-unloaded-tail"
+            aria-hidden
+            className="pointer-events-none absolute top-0 h-5 animate-pulse rounded-r-full bg-[var(--surface-sunken-dark)]"
+            style={{ left: `${fillPct}%`, right: 0 }}
+          />
+        )}
+
+        {/* Transparent per-day hit cells (interaction + E2E/unit test). Out of
+            the tree during a drag: reconciling up to 730 spans on every input
+            event is the whole frame budget, and the finger is on the slider. The
+            band still answers the pointer through selectFromClientX. */}
+        <div
+          className="absolute inset-y-0 left-0 flex"
+          style={{ width: `${fillPct}%` }}
+        >
+          {!dragging &&
+            viewDays.map((d, i) => (
+              <span
+                key={d.date}
+                data-testid="projection-day"
+                data-color={d.color}
+                data-index={i}
+                onPointerEnter={() => setActive(i)}
+                className="h-full min-w-0 flex-1 cursor-pointer"
+              />
+            ))}
         </div>
 
-        {active !== null && data.days[active] && (
+        {active !== null && viewDays[active] && (
           <ProjectionTooltip
-            day={data.days[active]}
+            day={viewDays[active]}
             bills={data.bill_points.filter(
-              (b) => b.date === data.days[active]!.date,
+              (b) => b.date === viewDays[active]!.date,
             )}
             incomes={data.income_points.filter(
-              (p) => p.date === data.days[active]!.date,
+              (p) => p.date === viewDays[active]!.date,
             )}
             // Pending occurrences have dates in the PAST, so no day cell would
             // ever match them. They belong to today — the first cell — which is
@@ -507,7 +639,13 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
           {formatShortDate(data.days[0]!.date, locale)}
         </span>
         <span data-testid="projection-axis-to">
-          {formatShortDate(data.days[n - 1]!.date, locale)}
+          {/* Arithmetic, not the last loaded day: the end of the window is a
+              calendar fact, so it keeps up with a dragging thumb instead of
+              waiting for the days in between to arrive. */}
+          {formatShortDate(
+            isoPlusDays(data.days[0]!.date, shownDays - 1),
+            locale,
+          )}
         </span>
       </div>
     </div>
