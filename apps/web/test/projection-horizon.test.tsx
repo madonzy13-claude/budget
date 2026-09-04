@@ -28,10 +28,14 @@ import type { ProjectionDTO } from "@/hooks/use-projection";
 const projectionCalls: (number | null | undefined)[] = [];
 let projectionData: ProjectionDTO | undefined;
 
-const prefetched: number[] = [];
+let maxEnabled = false;
+let maxData: ProjectionDTO | undefined;
+const maxCalls: boolean[] = [];
 vi.mock("@/hooks/use-projection", () => ({
-  useProjectionPrefetch: () => (days: number) => {
-    prefetched.push(days);
+  useMaxProjection: (_budgetId: string, enabled: boolean) => {
+    maxCalls.push(enabled);
+    maxEnabled = enabled;
+    return { data: enabled ? maxData : undefined };
   },
   useProjection: (_budgetId: string, days?: number | null) => {
     projectionCalls.push(days);
@@ -113,7 +117,9 @@ const slider = () => screen.getByTestId("projection-horizon-slider");
 
 beforeEach(() => {
   projectionCalls.length = 0;
-  prefetched.length = 0;
+  maxCalls.length = 0;
+  maxEnabled = false;
+  maxData = undefined;
   projectionData = dtoOf("2026-09-04", 100);
   storedPrefs = {};
   prefsLoaded = true;
@@ -270,104 +276,75 @@ describe("Dragging the horizon", () => {
     );
   });
 
-  test("a held thumb asks for its window without waiting for release", async () => {
+  test("the thumb asks for nothing; release asks once", async () => {
     await renderTimeline();
     fireEvent.click(chip());
     const before = projectionCalls.length;
     fireEvent.input(slider(), { target: { value: "365" } });
-    // Not on the same tick: one request per pixel of a 400-pixel drag is what
-    // the debounce exists to prevent.
-    expect(projectionCalls.slice(before).every((d) => d === 100)).toBe(true);
     await act(async () => {
-      vi.advanceTimersByTime(400);
+      vi.advanceTimersByTime(600);
     });
+    // Held down, the drag is drawn from the wide window — the committed one is
+    // the only thing still being asked for, and nothing is persisted yet.
+    expect(projectionCalls.slice(before).every((d) => d === 100)).toBe(true);
+    expect(save).not.toHaveBeenCalled();
+
+    // Letting go asks for the EXACT window, which is what the cards' trough is
+    // computed over.
+    fireEvent.change(slider(), { target: { value: "365" } });
     expect(projectionCalls[projectionCalls.length - 1]).toBe(365);
-    // …and still nothing PERSISTED: the pick is not theirs until they let go.
-    expect(save).not.toHaveBeenCalled();
-  });
-
-  test("a long drag fills as it goes, rather than waiting for release", async () => {
-    await renderTimeline();
-    fireEvent.click(chip());
-    const before = projectionCalls.length;
-    // A thumb held down and moved for a second. A plain debounce answers this
-    // with ONE request at the end — every move restarts its timer — and the band
-    // sits at a sliver for the whole drag. The window has to be asked for WHILE
-    // the thumb is moving, just not on every pixel of it.
-    for (const v of [150, 200, 260, 320, 380, 440, 500, 560, 620, 680]) {
-      fireEvent.input(slider(), { target: { value: String(v) } });
-      await act(async () => {
-        vi.advanceTimersByTime(100);
-      });
-    }
-    const asked = projectionCalls
-      .slice(before)
-      .filter((d) => d !== 100 && d !== null);
-    // A second of movement, asked for about four times a second. The floor is
-    // what fails a debounce dressed as a throttle (it asks ZERO times until the
-    // thumb is released); the ceiling is what fails asking on every move.
-    expect(new Set(asked).size).toBeGreaterThanOrEqual(3);
-    expect(new Set(asked).size).toBeLessThanOrEqual(6);
-    expect(save).not.toHaveBeenCalled();
-  });
-
-  test("a drag asks for whole buckets, so dragging back is free", async () => {
-    await renderTimeline();
-    fireEvent.click(chip());
-    const before = projectionCalls.length;
-    for (const v of [120, 200, 300, 420, 500, 600, 700]) {
-      fireEvent.input(slider(), { target: { value: String(v) } });
-      await act(async () => {
-        vi.advanceTimersByTime(300);
-      });
-    }
-    const asked = new Set(
-      projectionCalls
-        .slice(before)
-        .filter((d): d is number => typeof d === "number"),
-    );
-    // Every in-drag window is a snap point: 180 covers every draft from 91 to
-    // 180, so the way back down is answered from cache.
-    for (const d of asked) {
-      if (d === 100) continue; // the committed window, still in play
-      expect([30, 90, 180, 365, 546, 730]).toContain(d);
-    }
+    expect(save).toHaveBeenCalledWith("projectionDays", ["365"]);
   });
 
   /**
-   * The unknown tail was a grey slab with a pulse on it, and a grey slab is what
-   * "your money ends here" looks like — it flickered against the colour every
-   * time a bucket landed (user, 260904c, with a screenshot). It is now the last
-   * known colour fading out: the line reads as continuing into what is not known
-   * yet, with no hard edge to jump when the days arrive. It still FADES, so it
-   * never claims a green fortnight nobody has forecast.
+   * The drag stopped fetching (user, 260904d: "why is there still a request for
+   * dates we already know from past scroll?"). Opening the panel pulls the
+   * WIDEST window once; every draft inside it is a prefix of that one payload,
+   * because the simulation runs forward — day 40 of a 730-day run is day 40 of a
+   * 100-day run. So the whole slider is answered locally: no requests, no empty
+   * tail to dress up, and dragging right, left and right again costs nothing.
    */
-  test("the unknown tail continues the line instead of cutting it grey", async () => {
+  test("opening the panel pulls the widest window, once", async () => {
+    await renderTimeline();
+    expect(maxCalls.every((enabled) => enabled === false)).toBe(true);
+    fireEvent.click(chip());
+    expect(maxEnabled).toBe(true);
+  });
+
+  test("with that window in hand, the whole slider is free", async () => {
+    maxData = dtoOf("2026-09-04", 730);
+    await renderTimeline();
+    fireEvent.click(chip());
+    const before = projectionCalls.length;
+    for (const v of [200, 546, 730, 300, 90, 730, 420]) {
+      fireEvent.input(slider(), { target: { value: String(v) } });
+      await act(async () => {
+        vi.advanceTimersByTime(200);
+      });
+      // Every window drawn in full, every time — there is nothing to wait for.
+      expect(screen.getByTestId("projection-line")).toHaveAttribute(
+        "data-fill-pct",
+        "100",
+      );
+    }
+    // Not one request for a window we already hold the days for.
+    expect(
+      projectionCalls.slice(before).every((d) => d === 100 || d === null),
+    ).toBe(true);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  test("until it lands the band draws what it has, with no tail dressing", async () => {
+    // Brief and one-step now, so it is the plain track rather than a pulsing
+    // slab or a fade — both of which read as "your money ends here" (260904c).
     projectionData = dtoOf("2026-09-04", 100);
     await renderTimeline();
     fireEvent.click(chip());
     fireEvent.input(slider(), { target: { value: "400" } });
     const line = screen.getByTestId("projection-line");
-    // A full window has no tail to fade at all.
     expect(line).toHaveAttribute("data-fill-pct", "25");
-    // No pulsing slab over the tail any more.
+    expect(line).not.toHaveAttribute("data-tail-from");
     expect(screen.queryByTestId("projection-unloaded-tail")).toBeNull();
-    // The tail is mixed FROM the last known day's colour, not painted over it.
-    expect(line).toHaveAttribute("data-tail-from", "var(--trading-up)");
-
-    fireEvent.input(slider(), { target: { value: "50" } });
-    expect(screen.getByTestId("projection-line")).not.toHaveAttribute(
-      "data-tail-from",
-    );
-  });
-
-  test("opening the panel warms the next window up, so the first drag has data", async () => {
-    // "This is when I first scroll" — the empty tail is worst on the very first
-    // drag, when nothing but the committed window has ever been fetched.
-    await renderTimeline();
-    expect(prefetched).toHaveLength(0);
-    fireEvent.click(chip());
-    expect(prefetched).toContain(180);
   });
 
   test("the per-day hit cells stay out of the drag path", async () => {

@@ -12,8 +12,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import {
+  useMaxProjection,
   useProjection,
-  useProjectionPrefetch,
   type ProjectionDay,
 } from "@/hooks/use-projection";
 import { useProjectionHorizon } from "@/hooks/use-projection-horizon";
@@ -23,7 +23,6 @@ import {
   HORIZON_SNAP_DAYS,
   MAX_HORIZON_DAYS,
   MIN_HORIZON_DAYS,
-  horizonBucket,
   isoPlusDays,
 } from "@/lib/projection-horizon";
 import { centsToDisplayCompact } from "@/lib/cents-format";
@@ -107,7 +106,6 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
   // every input event is the drag's entire frame budget, and a finger that is on
   // the slider cannot be hovering a day cell.
   const [dragging, setDragging] = useState(false);
-  const prefetchProjection = useProjectionPrefetch(budgetId);
 
   const commitHorizon = useCallback(
     (days: number) => {
@@ -119,61 +117,10 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
     [persist],
   );
 
-  /**
-   * What we ask the SERVER for while the thumb is moving.
-   *
-   * A THROTTLE, not a debounce — the difference is the whole feel of the drag. A
-   * debounce restarts on every move, so a thumb held down for a second asks for
-   * nothing until it is released and the band sits at a sliver the whole way.
-   * This asks at most four times a second and never sooner than a beat after the
-   * thumb last moved, so the band fills AS the drag happens. It trails the
-   * draft rather than leading the commit: nothing is PERSISTED until release.
-   */
-  const [requested, setRequested] = useState<number | null>(null);
-  const lastAsk = useRef(0);
-  const askTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The pending fire reads the LATEST draft when it goes off, so a move that
-  // lands while it is waiting updates what will be asked for without pushing
-  // the ask further away. Cancelling and rescheduling on every move is what
-  // turns a throttle back into a debounce — measured on a real drag: the whole
-  // second of movement produced one request, at the end.
-  const draftRef = useRef(draft);
-  draftRef.current = draft;
-  useEffect(() => {
-    if (draft === null) {
-      if (askTimer.current !== null) {
-        clearTimeout(askTimer.current);
-        askTimer.current = null;
-      }
-      setRequested(null);
-      lastAsk.current = 0;
-      return;
-    }
-    if (askTimer.current !== null) return;
-    const since = Date.now() - lastAsk.current;
-    const wait = since >= 250 ? 120 : 250 - since;
-    askTimer.current = setTimeout(() => {
-      askTimer.current = null;
-      lastAsk.current = Date.now();
-      // The BUCKET, not the exact draft: a sweep then touches six windows
-      // instead of a dozen one-offs, and the way back down is all cache.
-      if (draftRef.current !== null) {
-        setRequested(horizonBucket(draftRef.current));
-      }
-    }, wait);
-  }, [draft]);
-  // Unmounting mid-drag must not leave a timer holding a setState.
-  useEffect(
-    () => () => {
-      if (askTimer.current !== null) clearTimeout(askTimer.current);
-    },
-    [],
-  );
-
   // The drag ENDS on the platform's own `change` event — which React does not
   // surface separately for a range input (its onChange is the `input` event, one
-  // per pixel). Listening for the real thing is the whole debounce: no timer to
-  // tune, and a keyboard arrow commits on its own too.
+  // per pixel). Listening for the real thing is what makes release the commit,
+  // and a keyboard arrow commits on its own too.
   const sliderRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const el = sliderRef.current;
@@ -183,12 +130,15 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
     return () => el.removeEventListener("change", onCommit);
   }, [horizonOpen, commitHorizon]);
 
-  const { data, isLoading, isError } = useProjection(
-    budgetId,
-    // effective is null only while the stored pick is in flight; a drafted
-    // window never resurrects a disabled query.
-    effective === null ? null : (requested ?? effective),
-  );
+  // The COMMITTED window: what the card settles on, and the same payload the
+  // Overview cards read for their trough.
+  const { data, isLoading, isError } = useProjection(budgetId, effective);
+  // …and the widest window, pulled once while the panel is open, from which
+  // every position of the slider is a slice. See useMaxProjection: a shorter
+  // window is a prefix of a longer one, so this is the whole drag answered
+  // without a single further request.
+  const { data: wideData } = useMaxProjection(budgetId, horizonOpen);
+  const source = horizonOpen && wideData ? wideData : data;
   // The card's category lists read in the order the household arranged on the
   // spendings tab, which is the order they see everywhere else (user, 260813).
   // Sorted here rather than trusted from the wire, exactly as the grid does it.
@@ -233,8 +183,8 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
    * would be a picture of money nobody has.
    */
   const viewDays = useMemo(
-    () => data?.days.slice(0, shownDays) ?? [],
-    [data, shownDays],
+    () => source?.days.slice(0, shownDays) ?? [],
+    [source, shownDays],
   );
   const n = viewDays.length;
   const span = Math.max(shownDays - 1, 1);
@@ -249,20 +199,14 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
     const stops = viewDays
       .map((d, i) => `${COLOR_VAR[d.color]} ${pctAt(i).toFixed(2)}%`)
       .join(", ");
-    // The days nobody has yet. A hard stop into grey was a slab that read as
-    // "your money ends here", and it FLICKERED: every bucket that landed moved
-    // the edge in one visible step (user, 260904c). The line now fades out of
-    // its last known colour into the empty track over a short ramp — no edge to
-    // jump, and no claim that the unknown fortnight is green either, because it
-    // is visibly fading rather than coloured.
-    const last = COLOR_VAR[viewDays[n - 1]!.color];
-    const rampEnd = Math.min(100, fillPct + 18);
+    // The days nobody has yet — now only the moment between opening the panel
+    // and the wide window landing, and only once. A pulse made it flicker and a
+    // fade looked no better (user, 260904c/d), so it is simply the strip's own
+    // empty track: one clean step from partial to whole, nothing animated.
     const tail =
       fillPct >= 100
         ? ""
-        : `, color-mix(in oklab, ${last} 45%, var(--surface-elevated-dark)) ${fillPct.toFixed(2)}%` +
-          `, color-mix(in oklab, ${last} 12%, var(--surface-elevated-dark)) ${rampEnd.toFixed(2)}%` +
-          `, var(--surface-elevated-dark) 100%`;
+        : `, var(--surface-elevated-dark) ${fillPct.toFixed(2)}%, var(--surface-elevated-dark) 100%`;
     return `linear-gradient(90deg, ${stops}${tail})`;
   }, [viewDays, n, span, fillPct]);
 
@@ -374,18 +318,10 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
               data-testid="projection-horizon"
               aria-expanded={horizonOpen}
               disabled={horizonLocked}
-              onClick={() => {
-                const opening = !horizonOpen;
-                setHorizonOpen(opening);
-                // Opening the panel is the one reliable signal that a longer
-                // window is about to be wanted. Fetch it while the finger is
-                // still travelling to the thumb, so the first drag has days to
-                // draw instead of an empty tail.
-                if (opening && effective !== null) {
-                  const next = horizonBucket(effective + 1);
-                  if (next > effective) prefetchProjection(next);
-                }
-              }}
+              // Opening the panel starts the wide fetch (useMaxProjection is
+              // enabled by this flag), so it is already on its way while the
+              // finger travels to the thumb.
+              onClick={() => setHorizonOpen((open) => !open)}
               className={cn(
                 "ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5",
                 "align-baseline font-semibold tabular-nums",
@@ -480,14 +416,6 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
           // derived style so the growing case is assertable without a layout
           // engine — happy-dom measures every box as 0×0.
           data-fill-pct={Math.round(fillPct)}
-          // Which colour the unknown tail fades OUT of. An attribute because a
-          // happy-dom stylesheet drops color-mix() on parse, so the gradient
-          // string itself is not assertable in a unit test.
-          data-tail-from={
-            fillPct < 100 && n > 0
-              ? COLOR_VAR[viewDays[n - 1]!.color]
-              : undefined
-          }
           className="absolute inset-x-0 top-0 h-5 overflow-hidden rounded-full"
           style={{ background: gradient }}
         >
@@ -629,10 +557,10 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
         {active !== null && viewDays[active] && (
           <ProjectionTooltip
             day={viewDays[active]}
-            bills={data.bill_points.filter(
+            bills={source!.bill_points.filter(
               (b) => b.date === viewDays[active]!.date,
             )}
-            incomes={data.income_points.filter(
+            incomes={source!.income_points.filter(
               (p) => p.date === viewDays[active]!.date,
             )}
             // Pending occurrences have dates in the PAST, so no day cell would

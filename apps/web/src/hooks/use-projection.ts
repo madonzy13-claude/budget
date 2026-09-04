@@ -8,14 +8,12 @@
  * ["budget", id, "projection"] still reaches every window from the mutation
  * hooks that clear it.
  */
-import { useCallback } from "react";
-import {
-  keepPreviousData,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
-import { DEFAULT_HORIZON_DAYS } from "@/lib/projection-horizon";
+import {
+  DEFAULT_HORIZON_DAYS,
+  MAX_HORIZON_DAYS,
+} from "@/lib/projection-horizon";
 
 export interface ProjectionDay {
   date: string;
@@ -109,32 +107,40 @@ export function useProjection(budgetId: string, days?: number | null) {
     // revalidate on return to the tab / focus so a budget change is reflected
     // without threading invalidation through every mutation. Mutation hooks also
     // invalidate ["budget", id, "projection"] for same-tab live updates.
-    staleTime: 0,
+    // 260904d: was 0, which made every return to a window already in hand fire
+    // a fresh request — drag right, drag left, drag right, three requests for
+    // days nobody's budget had changed in between. A minute is short enough that
+    // a figure acted on is never a minute stale, and mutations still invalidate
+    // ["budget", id, "projection"] outright.
+    staleTime: 60_000,
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
   });
 }
 
 /**
- * Warm a window before it is asked for.
+ * The WIDEST window, fetched once while the horizon panel is open.
  *
- * The empty tail is worst on the very FIRST drag, when nothing but the committed
- * window has ever been fetched — open the panel, pull right, and the strip has
- * nothing to draw until a round trip finishes (user, 260904c). Opening the panel
- * is a reliable signal that a longer window is about to be wanted, so the next
- * one up is fetched then, while the finger is still travelling to the thumb.
+ * The projection runs forward, so a shorter window is a PREFIX of a longer one —
+ * day 40 of a 730-day run is day 40 of a 100-day run, the same opening balance
+ * carried through the same events. That makes one wide payload the answer to
+ * every position of the slider, which is what turns dragging from a series of
+ * requests into a slice. Opening the panel is the signal it will be wanted; the
+ * band is drawn from it for as long as the panel stays open.
+ *
+ * Its key is the ordinary one for that window, so a member who actually COMMITS
+ * to 730 shares this cache entry rather than fetching it twice.
  */
-export function useProjectionPrefetch(budgetId: string) {
-  const qc = useQueryClient();
-  return useCallback(
-    (days: number) => {
-      void qc.prefetchQuery({
-        queryKey: ["budget", budgetId, "projection", days] as const,
-        queryFn: () => fetchProjection(budgetId, days),
-        // Long enough that opening the panel twice in a row is one fetch.
-        staleTime: 60_000,
-      });
-    },
-    [qc, budgetId],
-  );
+export function useMaxProjection(budgetId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["budget", budgetId, "projection", MAX_HORIZON_DAYS] as const,
+    queryFn: () => fetchProjection(budgetId, MAX_HORIZON_DAYS),
+    enabled,
+    // Quieter than the committed window on purpose: this one is a drawing
+    // surface for a gesture, not the figure anybody acts on. Re-opening the
+    // panel inside the session must not re-pull it.
+    staleTime: 5 * 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+  });
 }

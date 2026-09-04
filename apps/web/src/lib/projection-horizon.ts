@@ -71,18 +71,3 @@ export function isoPlusDays(iso: string, days: number): string {
   const t = Date.UTC(y!, m! - 1, d!) + days * 86_400_000;
   return new Date(t).toISOString().slice(0, 10);
 }
-
-/**
- * The smallest snap window that CONTAINS `days`.
- *
- * Used only while the thumb is moving. Asking for the exact draft would fetch a
- * dozen one-off windows across a full sweep, none of them reusable — drag back
- * down and every one is a fresh request. Asking for the bucket instead means a
- * sweep touches at most six windows, each answering every draft inside it from
- * cache, and the days beyond the draft are simply not drawn. The window that
- * gets COMMITTED is still the exact one.
- */
-export function horizonBucket(days: number): number {
-  const d = clampHorizonDays(days);
-  return HORIZON_SNAP_DAYS.find((s) => s >= d) ?? MAX_HORIZON_DAYS;
-}
