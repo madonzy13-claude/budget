@@ -88,11 +88,34 @@ function runOfDays(start: string, n: number): ProjectionDTO["days"] {
   return out;
 }
 
+/** Monthly pay-days across the window — the marks that have to keep up with a
+ *  drag, not appear once it is over. */
+function monthlyPoints(start: string, n: number) {
+  const out: { date: string; name: string; amount_cents: string }[] = [];
+  let d = new Date(`${start}T00:00:00Z`);
+  for (let i = 0; i < n; i++) {
+    if (d.getUTCDate() === 10) {
+      out.push({
+        date: d.toISOString().slice(0, 10),
+        name: "Salary",
+        amount_cents: "980000",
+      });
+    }
+    d = new Date(d.getTime() + 86_400_000);
+  }
+  return out;
+}
+
 const dtoOf = (start: string, n: number): ProjectionDTO => ({
   currency: "PLN",
   days: runOfDays(start, n),
-  income_points: [],
-  bill_points: [],
+  income_points: monthlyPoints(start, n),
+  bill_points: monthlyPoints(start, n).map((p) => ({
+    ...p,
+    date: p.date.replace(/-10$/, "-05"),
+    name: "Rent",
+    category_id: null,
+  })),
   pending_points: [],
   summary: {
     first_yellow_date: null,
@@ -345,6 +368,35 @@ describe("Dragging the horizon", () => {
     expect(line).toHaveAttribute("data-fill-pct", "25");
     expect(line).not.toHaveAttribute("data-tail-from");
     expect(screen.queryByTestId("projection-unloaded-tail")).toBeNull();
+  });
+
+  /**
+   * The dots and notches under the line are the pay-days and the bills. They
+   * were still being read off the COMMITTED payload while the band had moved to
+   * the wide one, so a drag stretched the colour and left the marks where they
+   * were — they only caught up once the drag was over (user, 260904e: "the dots
+   * below the line should appear simultaneously with scroll, not after I done
+   * with scroll").
+   */
+  test("the marks under the line keep up with the thumb", async () => {
+    maxData = dtoOf("2026-09-04", 730);
+    projectionData = dtoOf("2026-09-04", 100); // Sep/Oct/Nov/Dec pay-days
+    await renderTimeline();
+    expect(screen.getAllByTestId("projection-income-marker")).toHaveLength(4);
+
+    fireEvent.click(chip());
+    fireEvent.input(slider(), { target: { value: "365" } });
+    // A year of pay-days, drawn while the thumb is still down.
+    expect(
+      screen.getAllByTestId("projection-income-marker").length,
+    ).toBeGreaterThanOrEqual(11);
+    expect(
+      screen.getAllByTestId("projection-bill-marker").length,
+    ).toBeGreaterThanOrEqual(11);
+
+    // …and back down again, on the same gesture.
+    fireEvent.input(slider(), { target: { value: "60" } });
+    expect(screen.getAllByTestId("projection-income-marker")).toHaveLength(2);
   });
 
   test("the per-day hit cells stay out of the drag path", async () => {

@@ -301,7 +301,9 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
   // The band is the strip plus, when there is any, the row the income dots sit
   // in. With no income it stopped at the strip and the card kept a strip of
   // empty space anyway (user, 260812).
-  const hasIncome = data.income_points.length > 0;
+  // From `source`, like everything else the band draws. Read off the COMMITTED
+  // payload it left the income row's height a beat behind the drag.
+  const hasIncome = source!.income_points.length > 0;
 
   return (
     <div className={CARD} data-testid="projection-timeline">
@@ -452,7 +454,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
                 strokeDasharray="3 2"
               />
             ))}
-            {data.bill_points.map((b, i) => {
+            {source!.bill_points.map((b, i) => {
               const pct = pctFor(b.date);
               if (pct === null) return null;
               return (
@@ -506,7 +508,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
             picked it from the mockups, 260812). Below the band rather than
             inside it, so income reads as arriving AT the line while payments
             are cut OUT of it. */}
-        {data.income_points.map((p, i) => {
+        {source!.income_points.map((p, i) => {
           const pct = pctFor(p.date);
           if (pct === null) return null;
           return (
@@ -569,7 +571,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
             pending={active === 0 ? (data.pending_points ?? []) : []}
             categoryRank={categoryRank}
             leftPct={activePct}
-            currency={data.currency}
+            currency={source!.currency}
             locale={locale}
             t={t}
           />
