@@ -1544,7 +1544,7 @@
           "reserveFit": "No reserves to size yet."
         },
         "projection": {
-          "title": "Money forecast for the next 100 days",
+          "title": "Money forecast for the next <horizon>{days, plural, one {# day} other {# days}}</horizon>",
           "empty": "Add income or scheduled payments to see your forecast",
           "available": "Available",
           "reserveShrinking": "Reserve shrinking",
@@ -1557,7 +1557,8 @@
           "plannedSpend": "Planned spend",
           "left": "Left",
           "pending": "Not confirmed yet",
-          "pendingHint": "Already taken off what you have, until you confirm or reject it"
+          "pendingHint": "Already taken off what you have, until you confirm or reject it",
+          "horizonAria": "Forecast window in days"
         },
         "reserveFit": {
           "title": "Is each reserve the right size?",

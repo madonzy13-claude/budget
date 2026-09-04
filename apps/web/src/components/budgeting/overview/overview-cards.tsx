@@ -26,6 +26,7 @@ import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { useOverviewWealth } from "@/hooks/use-overview-wealth";
 import { useProjection } from "@/hooks/use-projection";
+import { useProjectionHorizon } from "@/hooks/use-projection-horizon";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import {
   centsToDisplayCompact,
@@ -141,7 +142,11 @@ export function OverviewCards({
   // Available-to-spend health (dot + surplus/deficit) comes from the cash-flow
   // projection so it accounts for upcoming income to the last pay-day of the window
   // (the ProjectionTimeline sibling already fetches this; React Query dedupes).
-  const { data: projection } = useProjection(budgetId);
+  // The SAME window the strip below is drawing (user, 260904): both read the
+  // member's stored horizon, so "safe to withdraw" is the trough of the window
+  // the member is actually looking at rather than of a fixed hundred days.
+  const { days: horizonDays } = useProjectionHorizon(budgetId);
+  const { data: projection } = useProjection(budgetId, horizonDays);
   // Capitalization card flips to reveal the retirement runway on its back (item 9).
   const [flipped, setFlipped] = useState(false);
   // Amount privacy (per-budget flag). When ON, each figure is an independently
@@ -609,8 +614,7 @@ export function OverviewCards({
                 </dd>
               </div>
             ) : surplusDeficit !==
-              null ? // złoty above it (user, 260825). Silence is the honest version of // same thing whether the forecast sat comfortably clear of zero or a // solid"), which read as praise the card had not earned: it said the // Nothing at all. The row used to carry a note here ("Plan looks
-            // "there is nothing spare to tell you about".
+              null ? // "there is nothing spare to tell you about". // złoty above it (user, 260825). Silence is the honest version of // same thing whether the forecast sat comfortably clear of zero or a // solid"), which read as praise the card had not earned: it said the // Nothing at all. The row used to carry a note here ("Plan looks
             //
             // Explicitly null rather than deleted: falling through to the branch
             // below would answer a question about spare money with the unrelated

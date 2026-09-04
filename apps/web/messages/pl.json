@@ -1567,7 +1567,7 @@
           "reserveFit": "Brak rezerw do oceny."
         },
         "projection": {
-          "title": "Prognoza pieniędzy na najbliższe 100 dni",
+          "title": "Prognoza pieniędzy na najbliższe <horizon>{days, plural, one {# dzień} few {# dni} many {# dni} other {# dni}}</horizon>",
           "empty": "Dodaj dochód lub zaplanowane płatności, aby zobaczyć prognozę",
           "available": "Dostępne",
           "reserveShrinking": "Kurczy się rezerwa",
@@ -1580,7 +1580,8 @@
           "plannedSpend": "Planowane wydatki",
           "left": "Zostaje",
           "pending": "Jeszcze niepotwierdzone",
-          "pendingHint": "Już odjęte od tego, co masz, dopóki nie potwierdzisz lub nie odrzucisz"
+          "pendingHint": "Już odjęte od tego, co masz, dopóki nie potwierdzisz lub nie odrzucisz",
+          "horizonAria": "Okno prognozy w dniach"
         },
         "reserveFit": {
           "title": "Czy każda rezerwa ma właściwą wielkość?",

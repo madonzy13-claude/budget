@@ -1,10 +1,16 @@
 "use client";
 /**
  * use-projection.ts — TanStack Query hook for the Overview cash-flow projection.
- * queryKey: ["budget", budgetId, "projection"]. Mirrors use-spendings-summary.
+ * queryKey: ["budget", budgetId, "projection", days]. Mirrors use-spendings-summary.
+ *
+ * The window is part of the KEY (260904): a payload cached for 100 days cannot
+ * answer a question about 365, and prefix invalidation on
+ * ["budget", id, "projection"] still reaches every window from the mutation
+ * hooks that clear it.
  */
 import { useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
+import { DEFAULT_HORIZON_DAYS } from "@/lib/projection-horizon";
 
 export interface ProjectionDay {
   date: string;
@@ -51,7 +57,7 @@ export interface ProjectionDTO {
     worst_shortfall_cents: string;
   };
   /**
-   * What can leave the budget TODAY with every dip in the 100-day window still
+   * What can leave the budget TODAY with every dip in the forecast window still
    * covered — the lowest point of a worst-case run (each month's plan spendable
    * the moment the month opens). Negative = you are short by that much. Optional:
    * an offline cache written by an older build has no such field.
@@ -68,16 +74,26 @@ export interface ProjectionDTO {
 
 export async function fetchProjection(
   budgetId: string,
+  days: number = DEFAULT_HORIZON_DAYS,
 ): Promise<ProjectionDTO> {
-  const res = await clientApiFetch(`/budgets/${budgetId}/overview/projection`);
+  const res = await clientApiFetch(
+    `/budgets/${budgetId}/overview/projection?days=${days}`,
+  );
   if (!res.ok) throw new Error("projection_fetch_failed");
   return await res.json();
 }
 
-export function useProjection(budgetId: string) {
+/**
+ * @param days how far ahead to look. `null` means the member's stored pick has
+ *   not landed yet, and the query stays idle rather than fetching a window
+ *   nobody chose and swapping it a moment later.
+ */
+export function useProjection(budgetId: string, days?: number | null) {
+  const window = days ?? DEFAULT_HORIZON_DAYS;
   return useQuery({
-    queryKey: ["budget", budgetId, "projection"] as const,
-    queryFn: () => fetchProjection(budgetId),
+    queryKey: ["budget", budgetId, "projection", window] as const,
+    queryFn: () => fetchProjection(budgetId, window),
+    enabled: days !== null,
     // The projection depends on wallets, reserves, income, scheduled rules and
     // spend, changed from many surfaces (often other tabs). Cache-first but always
     // revalidate on return to the tab / focus so a budget change is reflected

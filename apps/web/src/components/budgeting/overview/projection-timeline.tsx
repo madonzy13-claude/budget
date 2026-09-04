@@ -8,10 +8,17 @@
  * finger-slide) shows a tooltip ABOVE the line so the finger never covers it —
  * which is where every date, name and amount lives.
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { useProjection, type ProjectionDay } from "@/hooks/use-projection";
+import { useProjectionHorizon } from "@/hooks/use-projection-horizon";
 import { useCategories } from "@/hooks/use-budget-data";
+import {
+  DEFAULT_HORIZON_DAYS,
+  HORIZON_SNAP_DAYS,
+  MAX_HORIZON_DAYS,
+  MIN_HORIZON_DAYS,
+} from "@/lib/projection-horizon";
 import { centsToDisplayCompact } from "@/lib/cents-format";
 import { formatShortDate } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
@@ -68,7 +75,49 @@ const roundToUnit = (cents: string): string =>
 export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
   const t = useTranslations("bdp.tab.overview.projection");
   const locale = useLocale();
-  const { data, isLoading, isError } = useProjection(budgetId);
+
+  // How far ahead this member looks. THREE values, because they answer three
+  // different questions and collapsing them breaks one of the three:
+  //   stored   — what the member ui-prefs row says (null until it lands).
+  //   picked   — what they just chose here, which leads the stored value so the
+  //              strip moves on the same render rather than after a round trip.
+  //   draft    — where the slider thumb is DURING a drag. It moves the sentence
+  //              and nothing else: a drag from 100 to 546 crosses four hundred
+  //              values, and each one reaching `effective` would be a request.
+  const {
+    days: stored,
+    setDays: persist,
+    locked: horizonLocked,
+  } = useProjectionHorizon(budgetId);
+  const [picked, setPicked] = useState<number | null>(null);
+  const [draft, setDraft] = useState<number | null>(null);
+  const [horizonOpen, setHorizonOpen] = useState(false);
+  const effective = picked ?? stored;
+  const shownDays = draft ?? effective ?? DEFAULT_HORIZON_DAYS;
+
+  const commitHorizon = useCallback(
+    (days: number) => {
+      setDraft(null);
+      setPicked(days);
+      persist(days);
+    },
+    [persist],
+  );
+
+  // The drag ENDS on the platform's own `change` event — which React does not
+  // surface separately for a range input (its onChange is the `input` event, one
+  // per pixel). Listening for the real thing is the whole debounce: no timer to
+  // tune, and a keyboard arrow commits on its own too.
+  const sliderRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const el = sliderRef.current;
+    if (!el) return;
+    const onCommit = () => commitHorizon(Number(el.value));
+    el.addEventListener("change", onCommit);
+    return () => el.removeEventListener("change", onCommit);
+  }, [horizonOpen, commitHorizon]);
+
+  const { data, isLoading, isError } = useProjection(budgetId, effective);
   // The card's category lists read in the order the household arranged on the
   // spendings tab, which is the order they see everywhere else (user, 260813).
   // Sorted here rather than trusted from the wire, exactly as the grid does it.
@@ -200,9 +249,73 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
 
   return (
     <div className={CARD} data-testid="projection-timeline">
-      <h3 className="mb-2.5 truncate text-caption text-[var(--muted-foreground)]">
-        {t("title")}
+      {/* The horizon is not a control bolted beside the title — it IS the title.
+          The card already said "for the next 100 days"; the number in that
+          sentence became the button, so the thing that states the window and the
+          thing that changes it are the same word (user, 260904). */}
+      <h3 className="mb-2.5 text-caption text-[var(--muted-foreground)]">
+        {t.rich("title", {
+          days: shownDays,
+          horizon: (chunks) => (
+            <button
+              type="button"
+              data-testid="projection-horizon"
+              aria-expanded={horizonOpen}
+              disabled={horizonLocked}
+              onClick={() => setHorizonOpen((open) => !open)}
+              className={cn(
+                "rounded-[var(--radius-sm)] px-1.5 py-0.5 font-semibold tabular-nums",
+                "text-[var(--primary)] underline decoration-[var(--primary)] decoration-2 underline-offset-4",
+                horizonLocked
+                  ? "cursor-default opacity-60"
+                  : "hover:bg-[var(--surface-elevated-dark)]",
+              )}
+            >
+              {chunks}
+            </button>
+          ),
+        })}
       </h3>
+
+      {horizonOpen && !horizonLocked && (
+        <div
+          data-testid="projection-horizon-panel"
+          className="mb-3 flex flex-col gap-1.5 rounded-[var(--radius-lg)] bg-[var(--surface-sunken-dark)] p-3"
+        >
+          <input
+            ref={sliderRef}
+            type="range"
+            data-testid="projection-horizon-slider"
+            min={MIN_HORIZON_DAYS}
+            max={MAX_HORIZON_DAYS}
+            step={1}
+            value={shownDays}
+            aria-label={t("horizonAria")}
+            onChange={(e) => setDraft(Number(e.target.value))}
+            className="h-6 w-full accent-[var(--primary)]"
+          />
+          {/* Whole windows, one tap each. They are the presets a pill row would
+              have carried, without spending a permanent row on them. */}
+          <div className="flex items-center justify-between">
+            {HORIZON_SNAP_DAYS.map((d) => (
+              <button
+                key={d}
+                type="button"
+                data-testid={`projection-horizon-snap-${d}`}
+                onClick={() => commitHorizon(d)}
+                className={cn(
+                  "rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[11px] tabular-nums",
+                  d === shownDays
+                    ? "text-[var(--primary)]"
+                    : "text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]",
+                )}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div
         data-testid="projection-band"
@@ -375,6 +488,22 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
             t={t}
           />
         )}
+      </div>
+
+      {/* Where the window starts and where it ends. The months inside the strip
+          say which months these are; only the two ends say WHEN the forecast
+          stops — and with the span now a choice, that is the first thing a
+          changed number has to be legible against (user, 260904). */}
+      <div
+        data-testid="projection-axis"
+        className="mt-1.5 flex items-baseline justify-between gap-2 text-[10px] tabular-nums text-[var(--muted-foreground)]"
+      >
+        <span data-testid="projection-axis-from">
+          {formatShortDate(data.days[0]!.date, locale)}
+        </span>
+        <span data-testid="projection-axis-to">
+          {formatShortDate(data.days[n - 1]!.date, locale)}
+        </span>
       </div>
     </div>
   );
