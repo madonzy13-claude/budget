@@ -4,6 +4,7 @@
  */
 import { FrankfurterFxProvider } from "../adapters/fx/frankfurter";
 import { CacheOnlyFxProvider } from "../adapters/fx/cache-only";
+import { ok } from "@budget/shared-kernel";
 import type { FxProvider } from "@budget/shared-kernel";
 import { DrizzleAccountRepo } from "../adapters/persistence/account-repo";
 import { DrizzleCategoryRepo } from "../adapters/persistence/category-repo";
@@ -321,6 +322,13 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       limitRepo,
       taskRepo: createTaskRepo(),
       fxProvider,
+      // The cushion amount is the category's MODE applied to the incoming
+      // split, derived in the service rather than trusted from whichever screen
+      // wrote the limit (260905).
+      cushionModeOf: async (tenantId: string, categoryId: string) => {
+        const cat = await categoryRepo.findById(tenantId, categoryId);
+        return ok(cat?.cushionMode ?? null);
+      },
       // 260731: the projected-shortfall task reads the cash-flow projection —
       // the same numbers as the Overview Surplus card.
       getProjection: computeCashflowProjection({
@@ -388,7 +396,9 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
       fxProvider,
       taskRepo: createTaskRepo(),
     }),
-    deleteScheduledPayment: deleteScheduledPayment({ ruleRepo: scheduledPaymentRepo }),
+    deleteScheduledPayment: deleteScheduledPayment({
+      ruleRepo: scheduledPaymentRepo,
+    }),
     // Phase 7 (D-PH7-09 / D-PH7-10): taskRepo injected so confirm + skip
     // auto-resolve the matching PENDING CONFIRM_DRAFT task in the same tx.
     // 05-17: confirming (or edit-and-confirming) a scheduled draft flips
