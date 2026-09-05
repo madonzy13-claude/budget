@@ -42,8 +42,30 @@ vi.mock("next-intl", () => ({
   useLocale: () => "en",
 }));
 
+let tasksPayload: unknown[] = [];
 vi.mock("@/lib/budget-fetch", () => ({
-  clientApiFetch: async () => ({ ok: true, json: async () => ({ tasks: [] }) }),
+  clientApiFetch: async () => ({
+    ok: true,
+    json: async () => ({ tasks: tasksPayload }),
+  }),
+}));
+
+const push = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push, prefetch: () => {} }),
+}));
+
+const scrollWhenReady = vi.fn(() => () => {});
+vi.mock("@/lib/scroll-to-draft", () => ({
+  scrollToDraftWhenReady: (...a: unknown[]) => scrollWhenReady(...a),
+  scrollToDraft: () => false,
+}));
+
+vi.mock("@/components/budgeting/task-banner-row", () => ({
+  useTaskTitle: () => ({
+    title: "Confirm 29.99 zł (Surfr)",
+    amounts: ["29.99 zł"],
+  }),
 }));
 
 import { AggregateBudgetsTasks } from "@/components/budgeting/aggregate/aggregate-budgets-tasks";
@@ -60,6 +82,9 @@ function renderList() {
 
 beforeEach(() => {
   pending = false;
+  tasksPayload = [];
+  push.mockClear();
+  scrollWhenReady.mockClear();
 });
 
 describe("AggregateBudgetsTasks — leaving for a budget", () => {
@@ -120,20 +145,92 @@ describe("AggregateBudgetsTasks — leaving for a budget", () => {
     it("starts the spinner even before the router reports anything", async () => {
       renderList();
       const row = await screen.findByTestId("aggregate-bt-budget-b1");
-      expect(within(row).getByTestId("aggregate-bt-chevron")).toBeInTheDocument();
+      expect(
+        within(row).getByTestId("aggregate-bt-chevron"),
+      ).toBeInTheDocument();
       fireEvent.click(row);
-      expect(within(row).getByTestId("aggregate-bt-spinner")).toBeInTheDocument();
+      expect(
+        within(row).getByTestId("aggregate-bt-spinner"),
+      ).toBeInTheDocument();
     });
 
     it("gives up rather than spinning for ever on a navigation that never lands", async () => {
       renderList();
       const row = await screen.findByTestId("aggregate-bt-budget-b1");
       fireEvent.click(row);
-      expect(within(row).getByTestId("aggregate-bt-spinner")).toBeInTheDocument();
+      expect(
+        within(row).getByTestId("aggregate-bt-spinner"),
+      ).toBeInTheDocument();
       await act(async () => {
         vi.advanceTimersByTime(9000);
       });
-      expect(within(row).getByTestId("aggregate-bt-chevron")).toBeInTheDocument();
+      expect(
+        within(row).getByTestId("aggregate-bt-chevron"),
+      ).toBeInTheDocument();
     });
+  });
+
+  /**
+   * A "Confirm 29.99 zł (Surfr)" task on the all-budgets page should land the
+   * member on the same row the spendings page's own task lands them on — the
+   * grid is a horizontal scroller of category columns, so the draft is usually
+   * both below the fold and off to one side (user, 260905).
+   *
+   * What it must NOT copy is the spendings row's dotted-underline run. There the
+   * underline marks WHICH part of a sentence is the jump; here the whole row is
+   * already the target, so an underline inside it would offer a second, smaller
+   * one.
+   */
+  describe("a confirm-payment task", () => {
+    const draftTask = {
+      id: "t1",
+      kind: "CONFIRM_DRAFT",
+      payload: { draft_id: "d-9", transaction_date: "2026-07-14" },
+    };
+
+    it("goes to the payment's own month and jumps to the row", async () => {
+      tasksPayload = [draftTask];
+      renderList();
+      const line = await screen.findByTestId("aggregate-bt-task-t1");
+      fireEvent.click(line);
+      expect(push).toHaveBeenCalledWith(
+        "/en/budgets/b1/spendings?month=2026-07",
+      );
+      // The row only exists once that month's columns have mounted, which is
+      // after the navigation — hence the polling variant.
+      expect(scrollWhenReady).toHaveBeenCalledWith(
+        "d-9",
+        expect.objectContaining({ timeoutMs: expect.any(Number) }),
+      );
+    });
+
+    it("leaves the title plain — no second, smaller target inside the row", async () => {
+      tasksPayload = [draftTask];
+      renderList();
+      const line = await screen.findByTestId("aggregate-bt-task-t1");
+      // No dotted-underline jump run. The amount's own reveal control is a
+      // different thing and stays — it hides a figure, it does not navigate.
+      expect(line.querySelector(".underline")).toBeNull();
+      expect(line.querySelector("button")).toBeNull();
+    });
+
+    it("a task with no draft still just opens its pill", async () => {
+      tasksPayload = [{ id: "t2", kind: "RESERVE_TOPUP", payload: {} }];
+      renderList();
+      fireEvent.click(await screen.findByTestId("aggregate-bt-task-t2"));
+      expect(push).toHaveBeenCalledWith("/en/budgets/b1/reserves");
+      expect(scrollWhenReady).not.toHaveBeenCalled();
+    });
+  });
+
+  it("the row's spinner is grey, not the brand accent", async () => {
+    pending = true;
+    renderList();
+    const row = await screen.findByTestId("aggregate-bt-budget-b1");
+    const spinner = within(row).getByTestId("aggregate-bt-spinner");
+    // A navigation in progress is not a brand moment; the accent means "this is
+    // the value you are setting" elsewhere in the app (user, 260905).
+    expect(spinner.getAttribute("class")).toContain("--muted-foreground");
+    expect(spinner.getAttribute("class")).not.toContain("--primary");
   });
 });

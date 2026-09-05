@@ -22,6 +22,7 @@ import {
   type TaskSummary,
 } from "@/components/budgeting/task-banner-row";
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
+import { scrollToDraftWhenReady } from "@/lib/scroll-to-draft";
 
 // The whole banner is edge-to-edge alternating bands (NO card padding, so no
 // extra top padding above the first header and no grey strip below the last
@@ -66,7 +67,38 @@ function TaskLine({
 }) {
   const router = useRouter();
   const { title, amounts } = useTaskTitle(task, budgetId);
-  const href = `/${locale}/budgets/${budgetId}/${pillFor(task.kind)}`;
+  /**
+   * A confirm-payment task names one row in a horizontal scroller of category
+   * columns, so landing on the Spendings pill still leaves it below the fold and
+   * off to one side — the same problem the spendings page's own task solves by
+   * jumping (user, 260905). Carry the payment's MONTH in the url, because a
+   * scheduled payment that came due while the member was looking elsewhere is
+   * not the month the grid opens on, and the row would simply not exist.
+   *
+   * The title stays PLAIN here, unlike the spendings row. There the dotted
+   * underline marks which part of a sentence is the jump; here the whole row is
+   * already the target, so an underline inside it would offer a second, smaller
+   * one.
+   */
+  const draftId = task.payload?.draft_id as string | undefined;
+  const draftMonth = (
+    task.payload?.transaction_date as string | undefined
+  )?.slice(0, 7);
+  const jumpsToDraft = task.kind === "CONFIRM_DRAFT" && Boolean(draftId);
+  const href =
+    jumpsToDraft && draftMonth
+      ? `/${locale}/budgets/${budgetId}/${pillFor(task.kind)}?month=${draftMonth}`
+      : `/${locale}/budgets/${budgetId}/${pillFor(task.kind)}`;
+
+  const go = (): void => {
+    router.push(href);
+    // The row only exists once the destination's columns have mounted, which is
+    // after this push — hence the polling variant, and a longer budget than the
+    // in-page jump gets: this navigation crosses a page, not a month.
+    if (jumpsToDraft && draftId) {
+      scrollToDraftWhenReady(draftId, { timeoutMs: 12000 });
+    }
+  };
   // Warm the destination so the tap navigates instantly (a <Link> would prefetch
   // for us, but we can't use one here — see below).
   useEffect(() => {
@@ -81,11 +113,11 @@ function TaskLine({
       role="link"
       tabIndex={0}
       data-testid={`aggregate-bt-task-${task.id}`}
-      onClick={() => router.push(href)}
+      onClick={go}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          router.push(href);
+          go();
         }
       }}
       className="flex min-h-7 cursor-pointer items-start gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--primary)]"
@@ -159,7 +191,7 @@ function RowTrailingMark({ pending }: { pending: boolean }) {
       aria-hidden="true"
       // Reduced motion gets the gentler pulse rather than nothing: the row still
       // has to say it is working.
-      className="size-4 animate-spin text-[var(--primary)] motion-reduce:animate-pulse"
+      className="size-4 animate-spin text-[var(--muted-foreground)] motion-reduce:animate-pulse"
     />
   ) : (
     <ChevronRight
