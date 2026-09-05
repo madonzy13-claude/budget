@@ -139,11 +139,8 @@ function BudgetRow({
         className={HEADER}
         data-testid={`aggregate-bt-budget-${id}`}
       >
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm font-semibold text-[var(--body)]">
-            {name}
-          </span>
-          {cushionMode && <CushionModeChip />}
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--body)]">
+          {name}
         </span>
         {/* The row has always been a link and read as a plain section label —
             nothing on it said it could be tapped (user, 260902). The chevron is
@@ -153,6 +150,10 @@ function BudgetRow({
             already announces the budget's name, and an icon with its own
             accessible name would have it read twice. */}
         <span className="flex shrink-0 items-center gap-2">
+          {/* Right-aligned, ahead of the task count — the same slot and the same
+              order the switcher's dropdown puts it in, so the two lists of
+              budgets read identically (user, 260905). */}
+          {cushionMode && <CushionModeChip />}
           {list.length > 0 && (
             <span className="num rounded-[var(--radius-pill)] bg-[var(--trading-down)] px-1.5 text-[11px] font-semibold text-white">
               {list.length}
