@@ -7,10 +7,11 @@
  * money amount masked as a tap-to-reveal SlotAmount; clicking a task jumps to the
  * BDP pill it belongs to (pillFor(kind)). Task lists share BdpTabs' query key.
  */
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { CushionModeChip } from "@/components/budgeting/cushion-mode-chip";
-import Link from "next/link";
+import { Loader2 } from "lucide-react";
+import Link, { useLinkStatus } from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -101,6 +102,74 @@ function TaskLine({
   );
 }
 
+/**
+ * The row's trailing mark: a chevron at rest, a spinner while the row's own
+ * navigation is in flight.
+ *
+ * Leaving this page goes to the server, and until the new route commits nothing
+ * on screen moved — the row sat there and the app read as frozen (user,
+ * 260905). The feedback belongs on the row the finger landed on, in the place
+ * the chevron already occupies, so the row's contents do not shift at the very
+ * moment it should look settled.
+ *
+ * `useLinkStatus` is Next's own per-link pending flag and only works INSIDE the
+ * Link, which is why this is a child component rather than state in BudgetRow —
+ * and why there is no click handler, timer or cleanup to get wrong.
+ */
+function RowTrailing({
+  cushionMode,
+  taskCount,
+  tapped,
+}: {
+  cushionMode: boolean;
+  taskCount: number;
+  /** The row was tapped — see BudgetRow for why the tap, and not only the
+   *  router's own pending flag, drives this. */
+  tapped: boolean;
+}) {
+  const { pending } = useLinkStatus();
+  const busy = pending || tapped;
+  return (
+    <span
+      data-testid="aggregate-bt-trailing"
+      // The cluster, not the icon: an aria-hidden spinner cannot carry it, and
+      // the Link itself is outside this component — useLinkStatus only reports
+      // from within.
+      aria-busy={busy || undefined}
+      className="flex shrink-0 items-center gap-2"
+    >
+      {/* Right-aligned, ahead of the task count — the same slot and the same
+          order the switcher's dropdown puts it in, so the two lists of
+          budgets read identically (user, 260905). */}
+      {cushionMode && <CushionModeChip />}
+      {taskCount > 0 && (
+        <span className="num rounded-[var(--radius-pill)] bg-[var(--trading-down)] px-1.5 text-[11px] font-semibold text-white">
+          {taskCount}
+        </span>
+      )}
+      <RowTrailingMark pending={busy} />
+    </span>
+  );
+}
+
+function RowTrailingMark({ pending }: { pending: boolean }) {
+  return pending ? (
+    <Loader2
+      data-testid="aggregate-bt-spinner"
+      aria-hidden="true"
+      // Reduced motion gets the gentler pulse rather than nothing: the row still
+      // has to say it is working.
+      className="size-4 animate-spin text-[var(--primary)] motion-reduce:animate-pulse"
+    />
+  ) : (
+    <ChevronRight
+      data-testid="aggregate-bt-chevron"
+      aria-hidden="true"
+      className="size-4 text-[var(--muted-foreground)]"
+    />
+  );
+}
+
 function BudgetRow({
   id,
   name,
@@ -131,6 +200,26 @@ function BudgetRow({
   });
   const list = tasks ?? [];
 
+  /**
+   * The tap starts the spinner, not just the router's `pending`.
+   *
+   * On this app the destination is usually served by the SERVICE WORKER, so the
+   * router transition finishes in milliseconds and `pending` may never be seen
+   * — measured on the dev stack, where the RSC request never reached the
+   * network at all. What a member actually waits through is tap → the
+   * destination's first paint, which is wider than the transition.
+   *
+   * It ends when this row unmounts, which is what leaving the page does. The
+   * timer is only for a navigation that never happens — a cancelled one, or a
+   * modified click that opened a new tab — so the row cannot spin for ever.
+   */
+  const [tapped, setTapped] = useState(false);
+  useEffect(() => {
+    if (!tapped) return;
+    const id = setTimeout(() => setTapped(false), 8000);
+    return () => clearTimeout(id);
+  }, [tapped]);
+
   return (
     <div>
       {/* Budget header band (card surface) — name vertically centered. */}
@@ -138,6 +227,7 @@ function BudgetRow({
         href={`/${locale}/budgets/${id}/overview`}
         className={HEADER}
         data-testid={`aggregate-bt-budget-${id}`}
+        onClick={() => setTapped(true)}
       >
         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--body)]">
           {name}
@@ -149,22 +239,11 @@ function BudgetRow({
             of the badge rather than part of the row. Decorative — the link
             already announces the budget's name, and an icon with its own
             accessible name would have it read twice. */}
-        <span className="flex shrink-0 items-center gap-2">
-          {/* Right-aligned, ahead of the task count — the same slot and the same
-              order the switcher's dropdown puts it in, so the two lists of
-              budgets read identically (user, 260905). */}
-          {cushionMode && <CushionModeChip />}
-          {list.length > 0 && (
-            <span className="num rounded-[var(--radius-pill)] bg-[var(--trading-down)] px-1.5 text-[11px] font-semibold text-white">
-              {list.length}
-            </span>
-          )}
-          <ChevronRight
-            data-testid="aggregate-bt-chevron"
-            aria-hidden="true"
-            className="size-4 text-[var(--muted-foreground)]"
-          />
-        </span>
+        <RowTrailing
+          cushionMode={cushionMode}
+          taskCount={list.length}
+          tapped={tapped}
+        />
       </Link>
       {/* Both the task list AND the empty "no tasks" note drop to the recessed
           full-width lane, flush under the header. */}
