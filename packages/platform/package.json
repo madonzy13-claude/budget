@@ -22,7 +22,7 @@
     "@opentelemetry/semantic-conventions": "^1.43.0",
     "drizzle-orm": "^0.45.2",
     "libsodium-wrappers": "^0.8.4",
-    "nodemailer": "^9.0.1",
+    "nodemailer": "^10.0.6",
     "pg": "^8.13.0",
     "pg-boss": "^12.18.2",
     "web-push": "^3.6.7"
