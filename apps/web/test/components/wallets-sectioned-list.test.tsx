@@ -219,6 +219,38 @@ describe("WalletsSectionedList", () => {
     expect(screen.getByTestId("wallet-section-RESERVE")).toBeInTheDocument();
   });
 
+  /**
+   * Reserve sits ABOVE Cushion (user, 260921). Both are pools you hold rather
+   * than spend from, so presence alone never caught the order — only the
+   * sequence does.
+   */
+  it("orders the pools reserve-before-cushion, under spendings", () => {
+    renderWithQuery();
+    const order = screen
+      .getAllByTestId(/^wallet-section-/)
+      .map((el) => el.getAttribute("data-testid"));
+    expect(order).toEqual([
+      "wallet-section-SPENDINGS",
+      "wallet-section-RESERVE",
+      "wallet-section-CUSHION",
+      "wallet-section-POSSESSION",
+      "wallet-section-OTHER",
+    ]);
+  });
+
+  it("keeps cushion directly under spendings when reserves are off", () => {
+    renderWithQuery(INITIAL_WALLETS, { reservesEnabled: false });
+    const order = screen
+      .getAllByTestId(/^wallet-section-/)
+      .map((el) => el.getAttribute("data-testid"));
+    expect(order).toEqual([
+      "wallet-section-SPENDINGS",
+      "wallet-section-CUSHION",
+      "wallet-section-POSSESSION",
+      "wallet-section-OTHER",
+    ]);
+  });
+
   it("renders each wallet row in the correct section", () => {
     renderWithQuery();
     // All 3 wallet rows present
@@ -264,9 +296,7 @@ describe("WalletsSectionedList", () => {
       const total = screen.getByTestId("section-total-CUSHION").textContent!;
       expect(total).toContain("25,000");
       expect(total).toMatch(/€/);
-      expect(
-        screen.queryByTestId("section-total-currency-CUSHION"),
-      ).toBeNull();
+      expect(screen.queryByTestId("section-total-currency-CUSHION")).toBeNull();
     });
 
     // Without the FX figure the raw balance is all there is — a fixture or a
@@ -336,8 +366,9 @@ describe("WalletsSectionedList", () => {
       ].map((n) => n.getAttribute("data-testid"));
       expect(order).toEqual([
         "wallet-section-SPENDINGS",
-        "wallet-section-CUSHION",
+        // Reserve above Cushion since 260921 — see the ordering test above.
         "wallet-section-RESERVE",
+        "wallet-section-CUSHION",
         "investments-section",
         "wallet-section-POSSESSION",
         "wallet-section-OTHER",
