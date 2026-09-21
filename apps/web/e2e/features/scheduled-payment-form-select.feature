@@ -14,3 +14,19 @@ Feature: Scheduled-rule category dropdown closes on re-click
     And I open the scheduled category dropdown
     And I click the scheduled category dropdown again
     Then the scheduled category dropdown is closed
+
+  # A payment dated today is how a household says "this starts now" — the rule
+  # materialises its first unconfirmed payment as soon as it is saved. A date
+  # already gone by is a mistake, and used to be accepted silently (user,
+  # 260921).
+  Scenario: Today is allowed as the first due date
+    When I open the settings tab for "My E2E Budget"
+    And I open the add scheduled rule form
+    And I set the scheduled first due date to today
+    Then the scheduled form accepts the first due date
+
+  Scenario: A first due date in the past is refused with a reason
+    When I open the settings tab for "My E2E Budget"
+    And I open the add scheduled rule form
+    And I set the scheduled first due date 3 days before today
+    Then the scheduled form rejects the first due date

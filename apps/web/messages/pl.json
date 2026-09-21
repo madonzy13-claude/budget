@@ -1232,7 +1232,8 @@
         "applyToFutureHelp": "Edytuje nadchodzące niepotwierdzone płatności, aby odzwierciedlały nową kwotę/kategorię. Potwierdzone w przeszłości transakcje nigdy nie są zmieniane.",
         "categoryPlaceholder": "Wybierz kategorię…",
         "once": "Jednorazowo",
-        "dateLabel": "Data"
+        "dateLabel": "Data",
+        "errorFirstDueInPast": "Pierwsza data nie może być w przeszłości — wybierz dziś lub później."
       },
       "list": {
         "title": "Zaplanowane płatności",

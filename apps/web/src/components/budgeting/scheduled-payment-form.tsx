@@ -210,6 +210,18 @@ export function ScheduledPaymentForm({
             todayIso(),
           )),
   );
+  /**
+   * A first due date already gone by. Today is deliberately NOT past: picking
+   * today is how a household says "this starts now", and the service
+   * materialises that first unconfirmed payment as soon as the rule is saved
+   * (user, 260921).
+   *
+   * Only in CREATE. An existing rule's next due can legitimately sit in the
+   * past — the nightly engine has simply not caught up with it yet — and
+   * blocking Save there would trap someone in a form they cannot submit.
+   */
+  const firstDueInPast = mode === "create" && firstDueDate < todayIso();
+
   useEffect(() => {
     if (firstDueTouched.current) return;
     // Nothing to follow for a one-time payment — leave the date alone rather
@@ -308,6 +320,10 @@ export function ScheduledPaymentForm({
       // already does when it stores the row.
       // Otherwise "last date" is optional, and when set it cannot precede the
       // first due date. ISO YYYY-MM-DD strings compare chronologically.
+      if (firstDueInPast) {
+        toast.error(t("rule.errorFirstDueInPast"));
+        return;
+      }
       const endDate = cadence === "ONCE" ? firstDueDate : lastDate || null;
       if (cadence !== "ONCE" && endDate !== null && endDate < firstDueDate) {
         toast.error(t("rule.errorLastBeforeFirst"));
@@ -688,8 +704,41 @@ export function ScheduledPaymentForm({
                     // A manual pick freezes the auto-follow.
                     firstDueTouched.current = true;
                     setFirstDueDate(v);
+                    // …and SETS the rhythm, because the date is the thing the
+                    // household actually chose. The two used to be independent,
+                    // so a yearly payment dated today still repeated every
+                    // January — its next due landed next year, which is not the
+                    // date anyone picked (user, 260921).
+                    const [yy, mm, dd] = v.split("-");
+                    const day = parseInt(dd ?? "", 10);
+                    const month = parseInt(mm ?? "", 10);
+                    const year = parseInt(yy ?? "", 10);
+                    if (Number.isFinite(day)) setCadenceAnchorRaw(String(day));
+                    if (Number.isFinite(month)) setYearlyMonth(month);
+                    // …and the weekday, for the same reason: a weekly payment
+                    // dated a Thursday repeats on Thursdays, not on whichever
+                    // day the picker happened to default to. getUTCDay() is
+                    // already Sunday=0..Saturday=6, which IS weekly_dow.
+                    if (
+                      Number.isFinite(year) &&
+                      Number.isFinite(month) &&
+                      Number.isFinite(day)
+                    ) {
+                      setWeeklyDow(
+                        new Date(Date.UTC(year, month - 1, day)).getUTCDay(),
+                      );
+                    }
                   }}
                 />
+                {firstDueInPast && (
+                  <p
+                    data-testid="rr-firstdue-error"
+                    role="alert"
+                    className="text-caption text-[var(--trading-down)]"
+                  >
+                    {t("rule.errorFirstDueInPast")}
+                  </p>
+                )}
               </div>
 
               {/* Optional "last date": empty = no deadline; when set, drafts
@@ -735,6 +784,7 @@ export function ScheduledPaymentForm({
               disabled={
                 saving ||
                 !note?.trim() ||
+                firstDueInPast ||
                 // Budget-scoped rules MUST be categorised — the generated spending
                 // draft needs a column to land in. Gating on budgetId (not on
                 // categories.length) closes the race where the categories query

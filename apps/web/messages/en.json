@@ -1209,7 +1209,8 @@
         "applyToFutureHelp": "Edits the upcoming unconfirmed payments so they reflect the new amount/category. Past confirmed transactions are never changed.",
         "categoryPlaceholder": "Select category…",
         "once": "One time",
-        "dateLabel": "Date"
+        "dateLabel": "Date",
+        "errorFirstDueInPast": "The first date cannot be in the past — pick today or later."
       },
       "list": {
         "title": "Scheduled payments",
