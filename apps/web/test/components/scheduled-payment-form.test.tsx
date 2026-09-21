@@ -663,3 +663,119 @@ describe("ScheduledPaymentForm — a first due date in the past", () => {
     expect(screen.queryByTestId("rr-firstdue-error")).toBeNull();
   });
 });
+
+/**
+ * The guard belongs to the DATE field, not to the cadence/day controls (user,
+ * 260921b). Setting "monthly on the 8th" on the 21st legitimately starts next
+ * month — that is the rule working. What must not happen is the household
+ * SELECTING a first due date that has already gone by.
+ */
+describe("ScheduledPaymentForm — a past first due date cannot be picked", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const todayIso = () => new Date().toISOString().slice(0, 10);
+
+  it("the date control itself refuses to offer the past", () => {
+    render(
+      <ScheduledPaymentForm open={true} onOpenChange={vi.fn()} mode="create" />,
+    );
+    // A native date input with `min` cannot be walked back past it — the guard
+    // is on the control, not only on the message under it.
+    expect(screen.getByLabelText(/First due date/i)).toHaveAttribute(
+      "min",
+      todayIso(),
+    );
+  });
+
+  it("editing an existing rule is NOT restricted", () => {
+    // An existing rule's next due can legitimately sit in the past when the
+    // nightly engine has not caught up; capping it would trap someone in a
+    // form they cannot submit.
+    render(
+      <ScheduledPaymentForm
+        open={true}
+        onOpenChange={vi.fn()}
+        mode="edit"
+        initialValues={{ firstDueDate: "2020-01-01", cadence: "MONTHLY" }}
+      />,
+    );
+    // By id: the edit-mode label key is not in this file's i18n map, so it
+    // renders as the raw key path.
+    expect(document.getElementById("rr-firstdue")).not.toHaveAttribute("min");
+  });
+
+  it("the day-of-month control is left alone", () => {
+    render(
+      <ScheduledPaymentForm open={true} onOpenChange={vi.fn()} mode="create" />,
+    );
+    // Rolling to next month because the 8th has passed is correct behaviour,
+    // so nothing here may block it.
+    fireEvent.change(screen.getByLabelText(/On day/i), {
+      target: { value: "8" },
+    });
+    expect(screen.queryByTestId("rr-firstdue-error")).toBeNull();
+  });
+});
+
+/**
+ * Saving a rule that starts TODAY immediately materialises its first
+ * unconfirmed payment — which is exactly what the household asked for, but it
+ * then leaves the rule showing NEXT month (or next year) as its due date. That
+ * looked like the date had been ignored. Say what happened (user, 260921b).
+ */
+describe("ScheduledPaymentForm — saving a rule that starts today", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const todayIso = () => new Date().toISOString().slice(0, 10);
+
+  const save = async (firstDueDate: string) => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({}) });
+    render(
+      <ScheduledPaymentForm
+        open={true}
+        onOpenChange={vi.fn()}
+        mode="create"
+        budgetId="bgt-1"
+        categories={[{ id: "cat-a", name: "Food" }]}
+        initialValues={{
+          amount: "100",
+          currency: "EUR",
+          cadence: "MONTHLY",
+          cadenceAnchor: 1,
+          weeklyDow: null,
+          yearlyMonth: null,
+          categoryId: "cat-a",
+          note: "Car Insurance",
+        }}
+        fetchImpl={fetchMock as unknown as typeof fetch}
+      />,
+    );
+    // Through the field, not initialValues: in CREATE mode the auto-follow
+    // effect owns the date until the household picks one.
+    fireEvent.change(screen.getByLabelText(/First due date/i), {
+      target: { value: firstDueDate },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Save rule/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    return (await import("sonner")).toast;
+  };
+
+  it("says a payment is already waiting to be confirmed", async () => {
+    const toast = await save(todayIso());
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("rule.createdDueToday"),
+    );
+  });
+
+  it("stays quiet when the rule starts later", async () => {
+    const toast = await save("2027-01-08");
+    // Nothing was materialised, so there is nothing to explain.
+    expect(toast.success).not.toHaveBeenCalledWith("rule.createdDueToday");
+  });
+});

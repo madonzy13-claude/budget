@@ -1233,7 +1233,8 @@
         "categoryPlaceholder": "Wybierz kategorię…",
         "once": "Jednorazowo",
         "dateLabel": "Data",
-        "errorFirstDueInPast": "Pierwsza data nie może być w przeszłości — wybierz dziś lub później."
+        "errorFirstDueInPast": "Pierwsza data nie może być w przeszłości — wybierz dziś lub później.",
+        "createdDueToday": "Płatność dodana — jedna czeka na Twoje potwierdzenie."
       },
       "list": {
         "title": "Zaplanowane płatności",

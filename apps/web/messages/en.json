@@ -1210,7 +1210,8 @@
         "categoryPlaceholder": "Select category…",
         "once": "One time",
         "dateLabel": "Date",
-        "errorFirstDueInPast": "The first date cannot be in the past — pick today or later."
+        "errorFirstDueInPast": "The first date cannot be in the past — pick today or later.",
+        "createdDueToday": "Payment added — one is waiting for you to confirm."
       },
       "list": {
         "title": "Scheduled payments",

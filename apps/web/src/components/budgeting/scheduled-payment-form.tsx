@@ -431,6 +431,13 @@ export function ScheduledPaymentForm({
         // branch above.
         if (budgetId) refreshAfterSave(budgetId);
       }
+      // A rule starting TODAY materialises its first payment on save, and the
+      // rule then shows NEXT month (or next year) as its due date — which read
+      // as the picked date being ignored. Say what actually happened
+      // (user, 260921b). Create only: an edit materialises nothing here.
+      if (mode === "create" && firstDueDate === todayIso()) {
+        toast.success(t("rule.createdDueToday"));
+      }
       onSaved?.();
       onOpenChange(false);
     } catch (err) {
@@ -700,6 +707,14 @@ export function ScheduledPaymentForm({
                 <DateInput
                   id="rr-firstdue"
                   value={firstDueDate}
+                  // Stop the past being PICKED at all, not just complained
+                  // about afterwards (user, 260921b). Create only: an existing
+                  // rule's next due can legitimately sit in the past when the
+                  // nightly engine has not caught up, and capping it would trap
+                  // someone in a form they cannot submit. The inline error
+                  // below stays as the backstop — `min` is advisory in a text
+                  // fallback, and nothing stops a typed value.
+                  {...(mode === "create" ? { min: todayIso() } : {})}
                   onChange={(v) => {
                     // A manual pick freezes the auto-follow.
                     firstDueTouched.current = true;
