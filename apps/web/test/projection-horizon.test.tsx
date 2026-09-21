@@ -54,6 +54,14 @@ vi.mock("@/hooks/use-budget-data", () => ({
   useCategories: () => ({ data: [] }),
 }));
 
+const buzzes: { hasIncome: boolean; hasBill: boolean }[] = [];
+vi.mock("@/lib/haptics", () => ({
+  canVibrate: () => true,
+  hapticForDay: (d: { hasIncome: boolean; hasBill: boolean }) => {
+    buzzes.push(d);
+  },
+}));
+
 const save = vi.fn(async () => undefined);
 let storedPrefs: Record<string, string[]> = {};
 let prefsLoaded = true;
@@ -139,6 +147,7 @@ const chip = () => screen.getByTestId("projection-horizon");
 const slider = () => screen.getByTestId("projection-horizon-slider");
 
 beforeEach(() => {
+  buzzes.length = 0;
   projectionCalls.length = 0;
   maxCalls.length = 0;
   maxEnabled = false;
@@ -443,5 +452,100 @@ describe("The window's two ends", () => {
       "12 Dec 2026",
     );
     expect(screen.getAllByTestId("projection-day")).toHaveLength(100);
+  });
+});
+
+/**
+ * Scrubbing the strip passes ~100 days of colour; the few that actually move
+ * money are the ones worth feeling (user, 260921). The rules that keep it from
+ * becoming noise are all about restraint.
+ */
+describe("Haptics while scrubbing the forecast", () => {
+  const dayCell = (i: number) =>
+    screen.getAllByTestId("projection-day")[i] as HTMLElement;
+  /** The strip reports every day it crosses and the helper decides whether
+   *  that is worth a buzz (it owns that rule, and has its own tests). These
+   *  are the ones that actually fire. */
+  const felt = () => buzzes.filter((b) => b.hasIncome || b.hasBill);
+
+  /**
+   * Every other test in this file starts already-loaded, so a hook declared
+   * below the card's early returns runs on one render and not the other —
+   * React #310, which took the whole Overview down with "Something went
+   * wrong". Only driving the real page caught it. This crosses the boundary.
+   */
+  test("survives the pending → loaded transition", async () => {
+    prefsLoaded = false;
+    const { rerender } = await renderTimeline();
+    prefsLoaded = true;
+    projectionData = dtoOf("2026-09-04", 40);
+    const { ProjectionTimeline } =
+      await import("@/components/budgeting/overview/projection-timeline");
+    rerender(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <ProjectionTimeline budgetId="b1" />
+      </NextIntlClientProvider>,
+    );
+    expect(await screen.findByTestId("projection-band")).toBeVisible();
+  });
+
+  test("a day carrying income buzzes as income", async () => {
+    // dtoOf puts income on the 10th of each month and a payment on the 5th.
+    projectionData = dtoOf("2026-09-04", 40);
+    await renderTimeline();
+    const incomeIdx = projectionData.days.findIndex((d) =>
+      d.date.endsWith("-10"),
+    );
+    fireEvent.pointerEnter(dayCell(incomeIdx));
+    expect(felt()).toEqual([{ hasIncome: true, hasBill: false }]);
+  });
+
+  test("a day carrying a scheduled payment buzzes as a payment", async () => {
+    projectionData = dtoOf("2026-09-04", 40);
+    await renderTimeline();
+    const billIdx = projectionData.days.findIndex((d) =>
+      d.date.endsWith("-05"),
+    );
+    fireEvent.pointerEnter(dayCell(billIdx));
+    expect(felt()).toEqual([{ hasIncome: false, hasBill: true }]);
+  });
+
+  test("an ordinary day is silent", async () => {
+    projectionData = dtoOf("2026-09-04", 40);
+    await renderTimeline();
+    const plainIdx = projectionData.days.findIndex(
+      (d) => !d.date.endsWith("-10") && !d.date.endsWith("-05"),
+    );
+    fireEvent.pointerEnter(dayCell(plainIdx));
+    // Reported, but with nothing on it — so nothing is felt.
+    expect(buzzes).toEqual([{ hasIncome: false, hasBill: false }]);
+    expect(felt()).toEqual([]);
+  });
+
+  test("holding on the same day does not buzz again", async () => {
+    projectionData = dtoOf("2026-09-04", 40);
+    await renderTimeline();
+    const incomeIdx = projectionData.days.findIndex((d) =>
+      d.date.endsWith("-10"),
+    );
+    fireEvent.pointerEnter(dayCell(incomeIdx));
+    fireEvent.pointerEnter(dayCell(incomeIdx));
+    fireEvent.pointerEnter(dayCell(incomeIdx));
+    // One report per day CROSSED, not per event — a finger resting on a
+    // pay-day would otherwise rattle.
+    expect(felt()).toHaveLength(1);
+  });
+
+  test("coming back to a day after leaving it buzzes again", async () => {
+    projectionData = dtoOf("2026-09-04", 40);
+    await renderTimeline();
+    const incomeIdx = projectionData.days.findIndex((d) =>
+      d.date.endsWith("-10"),
+    );
+    const plainIdx = incomeIdx + 1;
+    fireEvent.pointerEnter(dayCell(incomeIdx));
+    fireEvent.pointerEnter(dayCell(plainIdx));
+    fireEvent.pointerEnter(dayCell(incomeIdx));
+    expect(felt()).toHaveLength(2);
   });
 });
