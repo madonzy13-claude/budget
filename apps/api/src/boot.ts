@@ -360,6 +360,11 @@ export async function boot(): Promise<BootedDeps> {
   const confirmDraftService = confirmDraft({
     repo: expenseLedgerDraftPortRepo,
     taskRepo,
+    // 260921: a confirmed payment is counted spend, so it can draw a category's
+    // reserve and move the surplus RESERVE_TOPUP reports. Without this the
+    // reserves pill kept the amount it was emitted with while the Overview,
+    // which recomputes on read, moved on.
+    recomputeReserveTopup: baseBudgeting.recomputeReserveTopup,
   });
   const getSpendingsSummaryService = getSpendingsSummary({
     categoryRepo,

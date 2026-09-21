@@ -12,11 +12,32 @@ import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import type { ExpenseLedgerDraftPortRepo } from "../ports/expense-ledger-draft-port-repo";
 import type { TaskRepo, TenantTx } from "../ports/task-repo";
-
 export interface ConfirmDraftDeps {
   repo: ExpenseLedgerDraftPortRepo;
   /** Phase 7 (D-PH7-10): auto-resolve the CONFIRM_DRAFT task on confirm. */
   taskRepo?: TaskRepo;
+  /**
+   * 260921: a confirm flips `confirmed_at`, so the row becomes COUNTED SPEND —
+   * which can overspend a category, draw that category's reserve, and move the
+   * surplus the RESERVE_TOPUP task reports.
+   *
+   * Every other mutation that can move that surplus already refreshes the task
+   * (create-transaction, set-wallet-balance, adjust-category-reserve, and the
+   * sibling confirm-scheduled-draft). This one did not — and it is the one the
+   * app actually runs, since the scheduled-payments route calls it and
+   * confirm-scheduled-draft is wired to no route at all. So the reserves pill
+   * kept the amount it had been emitted with while the Overview, which
+   * recomputes on read, moved on.
+   *
+   * The module's own composed recompute, rather than its three ingredients: it
+   * already owns the tx and the currency/enabled lookups, and duplicating that
+   * wiring here is how the two would drift apart again.
+   */
+  recomputeReserveTopup?: (input: {
+    tenantId: string;
+    budgetId: string;
+    actorUserId: string;
+  }) => Promise<void>;
 }
 
 export interface ConfirmDraftInput {
@@ -82,6 +103,22 @@ export function confirmDraft(deps: ConfirmDraftDeps) {
             );
           },
         );
+      }
+
+      // …and the reserve the confirm may have just drawn.
+      if (deps.recomputeReserveTopup) {
+        try {
+          await deps.recomputeReserveTopup({
+            tenantId: input.tenantId,
+            // v1.1 invariant: budgetId === tenantId.
+            budgetId: input.tenantId,
+            actorUserId: input.actorUserId,
+          });
+        } catch (e) {
+          // Never fail the confirm over the task: the payment IS recorded, and
+          // the hourly sweep reconverges the amount.
+          console.error("[confirm-draft] reserve-topup recompute failed:", e);
+        }
       }
 
       return ok(undefined);
