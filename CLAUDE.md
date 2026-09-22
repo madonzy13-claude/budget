@@ -134,12 +134,21 @@ Both were attempted on 2026-08-14 and reverted with evidence. Neither is a
   `typescript: ">=4.8.4 <6.1.0"`. The documented workaround needs the TS 6 API,
   and TS 6 is beta-only. Unblocks when typescript-eslint supports TS >= 7.1
   (typescript-eslint#10940) or TS 6.0 goes stable.
-- **next stays 16.2.12** (latest is 16.3.2), as an exact pin _and_ a root
-  `overrides` entry. 16.3.1 fails the **image** build while collecting page
-  data: `TypeError: Expected CommonJS module to have a function wrapper` →
-  `Failed to collect page data for /icon.svg`. Isolated by elimination — every
-  other dependency upgraded, only Next reverted, `docker compose build web`
-  exits 0. **Re-checked on 16.3.2 (2026-08-28): byte-identical failure.**
+- **next: the 16.3.x block is LIFTED — now 16.3.5** (2026-09-22). It stays an
+  exact pin _and_ a root `overrides` entry, but only to keep one Next across
+  the workspaces; it is no longer a known-bad hold.
+
+  History, because the reason mattered: 16.3.1 and 16.3.2 both failed the
+  **image** build while collecting page data — `TypeError: Expected CommonJS
+  module to have a function wrapper` → `Failed to collect page data for
+  /icon.svg`. 16.3.5 does not: `make build-web` exits 0, all four images build,
+  compose-smoke comes up healthy and `/en/health` answers 200.
+
+  Bumped because staying was the bigger risk: 16.2.12 carries TWO CRITICAL
+  advisories — GHSA-p293-qw3h-jr36 (unauthenticated RCE on Windows-hosted
+  servers) and GHSA-2xp9-vwfh-vxw4 (unauthenticated RCE in the Image
+  Optimization API via AVIF) — both fixed in 16.3.3. `bun audit
+  --audit-level=high` is a blocking CI job, so main was red until this moved.
 - **better-auth stays 1.6.28**, likewise pinned in `overrides`. 1.7.1 breaks
   sign-up outright — `BetterAuthError: The field "issuer" does not exist in the
   "account" Drizzle schema`. 1.7.x added an `issuer` column to its `account`
