@@ -4,8 +4,13 @@
  * Registers the Overview cash-flow projection endpoint onto the budgets router
  * (mirrors registerOverviewCardsRoutes). Tenant guard: tenantIds.includes(budgetId)
  * → 404. bigint cents → string at this single boundary.
+ *
+ * `?days=` is the member's own horizon (260904). It sizes a per-day loop, so it
+ * is clamped here — at the edge, before it reaches the loader — rather than
+ * trusted: 30–730, anything unreadable falling back to the rolling 100.
  */
 import type { Hono } from "hono";
+import { clampProjectionWindowDays } from "@budget/budgeting/src/application/compute-cashflow-projection";
 import type { BootedDeps } from "../boot";
 import { serverError } from "../middleware/server-error";
 
@@ -24,6 +29,7 @@ export function registerOverviewProjectionRoutes(r: Hono, deps: BootedDeps) {
       const p = await deps.budgeting.getCashflowProjection({
         tenantId: budgetId,
         budgetId,
+        windowDays: clampProjectionWindowDays(c.req.query("days")),
       });
       return c.json(
         {
@@ -68,6 +74,10 @@ export function registerOverviewProjectionRoutes(r: Hono, deps: BootedDeps) {
           })),
           // What can leave the budget today with every dip still covered — the
           // lowest point of a worst-case run (see simulate-cashflow-projection).
+          // One entry per day: what could be withdrawn if the window ended
+          // there. Lets the Overview's free-to-move and deficit follow a
+          // dragging horizon without a request per pixel (260904k).
+          safe_by_day: (p.safeByDay ?? []).map((c) => c.toString()),
           safe_to_withdraw: {
             cents: p.safeToWithdraw.cents.toString(),
             thinnest_date: p.safeToWithdraw.thinnestDate,

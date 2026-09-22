@@ -6,8 +6,13 @@ const { When, Then } = createBdd(test);
 
 When("I open the add scheduled rule form", async ({ page }) => {
   // Open the Scheduled Expenses accordion, then the add-rule sheet.
-  await page.getByRole("button", { name: /Scheduled/i }).first().click();
-  await page.getByRole("button", { name: /Add rule|Add payment|додати платіж/i }).click();
+  await page
+    .getByRole("button", { name: /Scheduled/i })
+    .first()
+    .click();
+  await page
+    .getByRole("button", { name: /Add rule|Add payment|додати платіж/i })
+    .click();
   await page.locator("#rr-category").waitFor({ state: "visible" });
 });
 
@@ -30,4 +35,38 @@ Then("the scheduled category dropdown is closed", async ({ page }) => {
     "data-state",
     "closed",
   );
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// First due date: today is allowed, the past is not (user, 260921)
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Offsets are in days from today; 0 IS today, which must stay allowed. */
+When(
+  /^I set the scheduled first due date (\d+) days? (before|after) today$/,
+  async ({ page }, nStr: string, dir: string) => {
+    const n = parseInt(nStr, 10) * (dir === "before" ? -1 : 1);
+    const iso = new Date(Date.now() + n * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    await page.locator("#rr-firstdue").fill(iso);
+  },
+);
+
+When("I set the scheduled first due date to today", async ({ page }) => {
+  await page
+    .locator("#rr-firstdue")
+    .fill(new Date().toISOString().slice(0, 10));
+});
+
+Then("the scheduled form rejects the first due date", async ({ page }) => {
+  await expect(page.getByTestId("rr-firstdue-error")).toBeVisible();
+  // The message alone is not enough — the save must actually be barred.
+  await expect(
+    page.getByRole("button", { name: /Save rule|Save/i }).last(),
+  ).toBeDisabled();
+});
+
+Then("the scheduled form accepts the first due date", async ({ page }) => {
+  await expect(page.getByTestId("rr-firstdue-error")).toHaveCount(0);
 });

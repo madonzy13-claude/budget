@@ -516,3 +516,266 @@ describe("ScheduledPaymentForm — WEEKLY weekday picker (UAT-7)", () => {
     expect(mod.WEEKDAY_ORDER).toEqual([1, 2, 3, 4, 5, 6, 0]);
   });
 });
+
+/**
+ * A scheduled payment's RHYTHM is the date the household picked (user, 260921).
+ *
+ * The date field and the rhythm controls (day-of-month, yearly month) were
+ * independent: picking a date froze the auto-follow but left the anchor at its
+ * default, so a YEARLY rule dated today still repeated every JANUARY. Measured
+ * on the real form before the fix:
+ *
+ *   on open (MONTHLY)     first-due = 2026-10-01   (anchor defaulted to day 1)
+ *   after picking YEARLY  first-due = 2027-01-01   ("next year")
+ *   after picking today   first-due = 2026-09-21, yearly month still January
+ *
+ * so the saved rule's next due landed on 1 January — the reported "it makes
+ * next year instead of selected". Picking the date now sets the rhythm from it.
+ */
+describe("ScheduledPaymentForm — the picked date sets the rhythm", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const openCreate = () =>
+    render(
+      <ScheduledPaymentForm open={true} onOpenChange={vi.fn()} mode="create" />,
+    );
+
+  it("MONTHLY: the day of the month follows the date", () => {
+    openCreate();
+    fireEvent.change(screen.getByLabelText(/First due date/i), {
+      target: { value: "2026-09-21" },
+    });
+    expect(screen.getByLabelText(/On day/i)).toHaveValue(21);
+  });
+
+  it("YEARLY: both the month and the day follow the date", () => {
+    openCreate();
+    fireEvent.click(screen.getByRole("button", { name: /Yearly/i }));
+    fireEvent.change(screen.getByLabelText(/First due date/i), {
+      target: { value: "2026-09-21" },
+    });
+    // A yearly rule dated 21 September repeats in SEPTEMBER, not January.
+    expect(screen.getByLabelText(/On day/i)).toHaveValue(21);
+    // The i18n mock leaves month keys unmapped on purpose, so the key path IS
+    // the assertion: months.9 is September (see this file's header).
+    expect(screen.getByLabelText(/Month/i)).toHaveTextContent("rule.months.9");
+  });
+
+  it("WEEKLY: the weekday follows the date", () => {
+    openCreate();
+    fireEvent.click(screen.getByRole("button", { name: /Weekly/i }));
+    // 2026-09-24 is a Thursday — picking it must move the rhythm off the
+    // default Monday.
+    fireEvent.change(screen.getByLabelText(/First due date/i), {
+      target: { value: "2026-09-24" },
+    });
+    // weekly_dow follows Postgres' Sunday=0..Saturday=6, so Thursday is 4 —
+    // the key path is the assertion, as with the months above.
+    expect(screen.getByLabelText(/^On$/i)).toHaveTextContent("rule.weekdays.4");
+  });
+
+  it("the date the household picked is the one that survives", () => {
+    openCreate();
+    fireEvent.click(screen.getByRole("button", { name: /Yearly/i }));
+    fireEvent.change(screen.getByLabelText(/First due date/i), {
+      target: { value: "2026-09-21" },
+    });
+    // Syncing the anchor must not bounce the date back through the
+    // auto-follow — that would re-derive 1 January and undo the pick.
+    expect(screen.getByLabelText(/First due date/i)).toHaveValue("2026-09-21");
+  });
+});
+
+/**
+ * Today is allowed — that is the whole point: the rule materialises its first
+ * unconfirmed payment the moment it is saved. A date in the PAST is not
+ * (user, 260921).
+ */
+describe("ScheduledPaymentForm — a first due date in the past", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const todayIso = () => new Date().toISOString().slice(0, 10);
+  const daysFromToday = (n: number) =>
+    new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+
+  const openCreate = () =>
+    render(
+      <ScheduledPaymentForm open={true} onOpenChange={vi.fn()} mode="create" />,
+    );
+
+  it("refuses to save and says why", async () => {
+    openCreate();
+    fireEvent.change(screen.getByLabelText(/Amount/i), {
+      target: { value: "10" },
+    });
+    // Save is gated on the name too — fill it so only the DATE can keep the
+    // button disabled.
+    fireEvent.change(screen.getByLabelText(/name/i), {
+      target: { value: "Car Insurance" },
+    });
+    fireEvent.change(screen.getByLabelText(/First due date/i), {
+      target: { value: daysFromToday(-1) },
+    });
+
+    expect(await screen.findByTestId("rr-firstdue-error")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Save rule/i })).toBeDisabled();
+  });
+
+  it("accepts TODAY — the payment is meant to appear straight away", async () => {
+    openCreate();
+    fireEvent.change(screen.getByLabelText(/Amount/i), {
+      target: { value: "10" },
+    });
+    // Save is gated on the name too — fill it so only the DATE can keep the
+    // button disabled.
+    fireEvent.change(screen.getByLabelText(/name/i), {
+      target: { value: "Car Insurance" },
+    });
+    fireEvent.change(screen.getByLabelText(/First due date/i), {
+      target: { value: todayIso() },
+    });
+
+    expect(screen.queryByTestId("rr-firstdue-error")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /Save rule/i }),
+    ).not.toBeDisabled();
+  });
+
+  it("clears the complaint once the date moves forward again", async () => {
+    openCreate();
+    fireEvent.change(screen.getByLabelText(/Amount/i), {
+      target: { value: "10" },
+    });
+    // Save is gated on the name too — fill it so only the DATE can keep the
+    // button disabled.
+    fireEvent.change(screen.getByLabelText(/name/i), {
+      target: { value: "Car Insurance" },
+    });
+    const date = screen.getByLabelText(/First due date/i);
+    fireEvent.change(date, { target: { value: daysFromToday(-3) } });
+    expect(await screen.findByTestId("rr-firstdue-error")).toBeInTheDocument();
+
+    fireEvent.change(date, { target: { value: daysFromToday(2) } });
+    expect(screen.queryByTestId("rr-firstdue-error")).toBeNull();
+  });
+});
+
+/**
+ * The guard belongs to the DATE field, not to the cadence/day controls (user,
+ * 260921b). Setting "monthly on the 8th" on the 21st legitimately starts next
+ * month — that is the rule working. What must not happen is the household
+ * SELECTING a first due date that has already gone by.
+ */
+describe("ScheduledPaymentForm — a past first due date cannot be picked", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const todayIso = () => new Date().toISOString().slice(0, 10);
+
+  it("the date control itself refuses to offer the past", () => {
+    render(
+      <ScheduledPaymentForm open={true} onOpenChange={vi.fn()} mode="create" />,
+    );
+    // A native date input with `min` cannot be walked back past it — the guard
+    // is on the control, not only on the message under it.
+    expect(screen.getByLabelText(/First due date/i)).toHaveAttribute(
+      "min",
+      todayIso(),
+    );
+  });
+
+  it("editing an existing rule is NOT restricted", () => {
+    // An existing rule's next due can legitimately sit in the past when the
+    // nightly engine has not caught up; capping it would trap someone in a
+    // form they cannot submit.
+    render(
+      <ScheduledPaymentForm
+        open={true}
+        onOpenChange={vi.fn()}
+        mode="edit"
+        initialValues={{ firstDueDate: "2020-01-01", cadence: "MONTHLY" }}
+      />,
+    );
+    // By id: the edit-mode label key is not in this file's i18n map, so it
+    // renders as the raw key path.
+    expect(document.getElementById("rr-firstdue")).not.toHaveAttribute("min");
+  });
+
+  it("the day-of-month control is left alone", () => {
+    render(
+      <ScheduledPaymentForm open={true} onOpenChange={vi.fn()} mode="create" />,
+    );
+    // Rolling to next month because the 8th has passed is correct behaviour,
+    // so nothing here may block it.
+    fireEvent.change(screen.getByLabelText(/On day/i), {
+      target: { value: "8" },
+    });
+    expect(screen.queryByTestId("rr-firstdue-error")).toBeNull();
+  });
+});
+
+/**
+ * Saving a rule that starts TODAY immediately materialises its first
+ * unconfirmed payment — which is exactly what the household asked for, but it
+ * then leaves the rule showing NEXT month (or next year) as its due date. That
+ * looked like the date had been ignored. Say what happened (user, 260921b).
+ */
+describe("ScheduledPaymentForm — saving a rule that starts today", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const todayIso = () => new Date().toISOString().slice(0, 10);
+
+  const save = async (firstDueDate: string) => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({}) });
+    render(
+      <ScheduledPaymentForm
+        open={true}
+        onOpenChange={vi.fn()}
+        mode="create"
+        budgetId="bgt-1"
+        categories={[{ id: "cat-a", name: "Food" }]}
+        initialValues={{
+          amount: "100",
+          currency: "EUR",
+          cadence: "MONTHLY",
+          cadenceAnchor: 1,
+          weeklyDow: null,
+          yearlyMonth: null,
+          categoryId: "cat-a",
+          note: "Car Insurance",
+        }}
+        fetchImpl={fetchMock as unknown as typeof fetch}
+      />,
+    );
+    // Through the field, not initialValues: in CREATE mode the auto-follow
+    // effect owns the date until the household picks one.
+    fireEvent.change(screen.getByLabelText(/First due date/i), {
+      target: { value: firstDueDate },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Save rule/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    return (await import("sonner")).toast;
+  };
+
+  it("says a payment is already waiting to be confirmed", async () => {
+    const toast = await save(todayIso());
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("rule.createdDueToday"),
+    );
+  });
+
+  it("stays quiet when the rule starts later", async () => {
+    const toast = await save("2027-01-08");
+    // Nothing was materialised, so there is nothing to explain.
+    expect(toast.success).not.toHaveBeenCalledWith("rule.createdDueToday");
+  });
+});

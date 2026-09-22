@@ -15,9 +15,17 @@ export class ProjectionTimelinePo {
     return this.page.getByTestId("projection-day");
   }
 
+  /**
+   * POLLED, not sampled: since 260904b the strip keeps the window it already had
+   * while a longer one is fetched, so the cells arrive a beat after the number
+   * does. A single count() reads the OLD window and fails a strip that is
+   * working exactly as designed. Bounded — a window that never arrives still
+   * fails, just 10s later.
+   */
   async expectAtLeastDays(n: number) {
-    const count = await this.dayCells().count();
-    expect(count).toBeGreaterThanOrEqual(n);
+    await expect
+      .poll(() => this.dayCells().count(), { timeout: 10_000 })
+      .toBeGreaterThanOrEqual(n);
   }
 
   async hoverLastDay() {
@@ -72,8 +80,10 @@ export class ProjectionTimelinePo {
       const right = box.x + box.width;
 
       // Clear of the strip's left end (the opening label's lead-in).
-      expect(box.x - stripX, `"${text}" crowds the start of the strip`)
-        .toBeGreaterThanOrEqual(minGapPx);
+      expect(
+        box.x - stripX,
+        `"${text}" crowds the start of the strip`,
+      ).toBeGreaterThanOrEqual(minGapPx);
 
       // Clear of the next month's rule, if this is not the last segment.
       // Searched from the label's LEFT edge, not its right: a label that has
@@ -84,13 +94,69 @@ export class ProjectionTimelinePo {
       // rule right of box.x is always the one it must not reach.
       const nextRule = ruleXs.find((x) => x > box.x);
       if (nextRule !== undefined) {
-        expect(nextRule - right, `"${text}" collides with the next divider`)
-          .toBeGreaterThanOrEqual(minGapPx);
+        expect(
+          nextRule - right,
+          `"${text}" collides with the next divider`,
+        ).toBeGreaterThanOrEqual(minGapPx);
       }
 
       // …and of the strip's right end regardless.
-      expect(stripX + stripW - right, `"${text}" runs off the strip`)
-        .toBeGreaterThanOrEqual(minGapPx);
+      expect(
+        stripX + stripW - right,
+        `"${text}" runs off the strip`,
+      ).toBeGreaterThanOrEqual(minGapPx);
     }
+  }
+
+  // ── The member's own forecast window (260904) ───────────────────────────────
+
+  horizonChip() {
+    return this.page.getByTestId("projection-horizon");
+  }
+
+  horizonSlider() {
+    return this.page.getByTestId("projection-horizon-slider");
+  }
+
+  async expectHorizonReads(days: number) {
+    await expect(this.horizonChip()).toContainText(String(days));
+  }
+
+  /** Open the panel and take a snap point — the one-tap path a member uses. */
+  async setHorizonBySnap(days: number) {
+    if ((await this.horizonSlider().count()) === 0) {
+      await this.horizonChip().click();
+    }
+    await this.page.getByTestId(`projection-horizon-snap-${days}`).click();
+  }
+
+  /**
+   * Drive the SLIDER itself to an off-snap value. `fill` on a range input sets
+   * the value and fires input + change, which is exactly the shape of a finger
+   * being lifted — the event the commit hangs off.
+   */
+  async dragHorizonTo(days: number) {
+    if ((await this.horizonSlider().count()) === 0) {
+      await this.horizonChip().click();
+    }
+    await this.horizonSlider().fill(String(days));
+  }
+
+  /**
+   * The date under the strip's right end is the day the forecast stops. Asserted
+   * as a SPAN rather than a string: the label is localised and day-first, so
+   * matching its text would be asserting the formatter, not the window.
+   */
+  async expectWindowSpansDays(days: number) {
+    const from = await this.page
+      .getByTestId("projection-axis-from")
+      .textContent();
+    const to = await this.page.getByTestId("projection-axis-to").textContent();
+    expect(from, "no from-date under the strip").toBeTruthy();
+    expect(to, "no to-date under the strip").toBeTruthy();
+    const span =
+      (Date.parse(`${to!.trim()} UTC`) - Date.parse(`${from!.trim()} UTC`)) /
+      86_400_000;
+    expect(span, `window reads ${from} → ${to}`).toBe(days - 1);
   }
 }

@@ -67,13 +67,72 @@ async function setMode(mode: string): Promise<void> {
   });
 }
 
-/** The projected cash on the last day of the window. */
-async function finalCash(): Promise<bigint> {
-  const p = await computeCashflowProjection(deps as never)({
+async function project() {
+  return await computeCashflowProjection(deps as never)({
     tenantId: TENANT,
     budgetId: TENANT,
   });
+}
+
+/**
+ * The same forecast, but with a reserve pot behind each category.
+ *
+ * Overspend draws the reserve BEFORE cash, so with an empty pot and a fat
+ * wallet nothing an over-investment does is visible at all — which is why the
+ * plain `project()` sees no shortfalls however far past its limit the category
+ * goes. The pot is where "the forecast treats over-investing as a problem"
+ * actually shows: the day turns yellow and the buffer is spent.
+ */
+async function projectWithReserve(cents: bigint) {
+  const positions = new Map([
+    [NORMAL, { reserveCents: cents }],
+    [INVEST, { reserveCents: cents }],
+  ]);
+  return await computeCashflowProjection({
+    fxProvider,
+    reservePositions: async () =>
+      ok({ userDefinedCents: cents * 2n, positions }),
+  } as never)({ tenantId: TENANT, budgetId: TENANT });
+}
+
+/** The projected cash on the last day of the window. */
+async function finalCash(): Promise<bigint> {
+  const p = await project();
   return p.days[p.days.length - 1]!.availableCents;
+}
+
+/** Cushion mode is a budget-level switch. */
+async function setCushionMode(on: boolean): Promise<void> {
+  await withTenant((c) =>
+    c.query(
+      `UPDATE tenancy.budgets SET cushion_mode_enabled = $2 WHERE id = $1`,
+      [TENANT, on],
+    ),
+  );
+}
+
+/** A dated investment payment — the only investing the household has committed
+ *  to, as opposed to a limit saying how much it MIGHT do. */
+async function addInvestmentPayment(amount: number): Promise<void> {
+  await withTenant((c) =>
+    c.query(
+      `INSERT INTO budgeting.scheduled_payments
+         (id, tenant_id, category_id, amount, currency, cadence, cadence_anchor,
+          note, active, next_due_date, created_at, actor_user_id)
+       VALUES (gen_random_uuid(), $1, $2, $3, 'PLN', 'MONTHLY', 15, 'Broker',
+               true, date_trunc('month', now())::date + 14, now(), $4)`,
+      [TENANT, INVEST, amount, OWNER],
+    ),
+  );
+}
+
+async function clearInvestmentPayments(): Promise<void> {
+  await withTenant((c) =>
+    c.query(
+      `DELETE FROM budgeting.scheduled_payments WHERE category_id = $1::uuid`,
+      [INVEST],
+    ),
+  );
 }
 
 beforeAll(async () => {
@@ -157,5 +216,130 @@ describe("Investments in the cash-flow forecast", () => {
     // treats as "no discretionary drip and no reserve draw".
     const cash = await finalCash();
     expect(typeof cash).toBe("bigint");
+  });
+});
+
+/**
+ * Cushion mode is the household saying "we are tight this month". Everywhere
+ * else in the app that already means the Investments category stops planning —
+ * the grid shows it at zero. The forecast did not follow: it kept dripping the
+ * limit, and for a SMART limit it dripped MORE than usual, because smart is
+ * income − Σ other planned and the cushion limits it subtracts are smaller
+ * (user, 260904f).
+ *
+ * The rule: in a cushion month the only investing the forecast knows about is
+ * what is actually SCHEDULED. No limit, manual or smart, drips.
+ */
+describe("Investments in a cushion month", () => {
+  test("the smart limit stops dripping", async () => {
+    await setMode("smart");
+    await setCushionMode(false);
+    const normal = await finalCash();
+    await setCushionMode(true);
+    const cushion = await finalCash();
+    // Nothing about the household's money changed — only the mode. If the drip
+    // stops, more cash survives the window.
+    expect({ higher: cushion > normal }).toEqual({ higher: true });
+  });
+
+  test("a manual limit stops dripping too", async () => {
+    await setMode("manual");
+    await withTenant((c) =>
+      c.query(
+        `UPDATE budgeting.category_limits SET normal_amount = 50000
+          WHERE category_id = $1::uuid AND effective_to IS NULL`,
+        [INVEST],
+      ),
+    );
+    await setCushionMode(false);
+    const normal = await finalCash();
+    await setCushionMode(true);
+    const cushion = await finalCash();
+    expect({ higher: cushion > normal }).toEqual({ higher: true });
+    await withTenant((c) =>
+      c.query(
+        `UPDATE budgeting.category_limits SET normal_amount = 0
+          WHERE category_id = $1::uuid AND effective_to IS NULL`,
+        [INVEST],
+      ),
+    );
+  });
+
+  test("what IS scheduled still leaves the wallet", async () => {
+    await setMode("smart");
+    await setCushionMode(true);
+    const without = await finalCash();
+    await addInvestmentPayment(300);
+    const withPayment = await finalCash();
+    await clearInvestmentPayments();
+    // A dated payment is a commitment, cushion month or not. Three months of it
+    // inside the window, so the drop is a multiple of 300 — asserted as "less",
+    // since how many occurrences the window holds depends on today's date.
+    expect({ lower: withPayment < without }).toEqual({ lower: true });
+  });
+});
+
+/**
+ * Over-investing is not a failure. The grid has always said so — it relabels the
+ * Investments overage "overinvested" and paints it green — but the forecast
+ * treated it as overspend, which means it reached for the RESERVE pot exactly as
+ * a blown grocery budget does, painting the day yellow and spending a buffer the
+ * household built for emergencies (user, 260904f: "overinvesting is something
+ * good, not bad").
+ *
+ * Cash still falls when the money moves — a day that would genuinely leave the
+ * wallet empty is still red, whatever the money went on. What stops is calling
+ * it a shortfall.
+ */
+describe("Over-investing never draws the reserve", () => {
+  const drawsFor = (
+    p: Awaited<ReturnType<typeof projectWithReserve>>,
+    catId: string,
+  ) =>
+    p.days.flatMap((d) => d.drewReserve.filter((r) => r.categoryId === catId));
+
+  test("a payment beyond the investment limit leaves the buffer alone", async () => {
+    await setMode("manual"); // stored limit 0 → every złoty is beyond plan
+    await setCushionMode(false);
+    await addInvestmentPayment(300);
+    const p = await projectWithReserve(100000n);
+    await clearInvestmentPayments();
+    expect(drawsFor(p, INVEST)).toEqual([]);
+    expect(
+      p.days.flatMap((d) => d.shortfall.filter((s) => s.categoryId === INVEST)),
+    ).toEqual([]);
+  });
+
+  test("nor in a cushion month, where nothing is planned at all", async () => {
+    await setMode("smart");
+    await setCushionMode(true);
+    await addInvestmentPayment(300);
+    const p = await projectWithReserve(100000n);
+    await clearInvestmentPayments();
+    await setCushionMode(false);
+    expect(drawsFor(p, INVEST)).toEqual([]);
+  });
+
+  test("an ORDINARY category still draws its reserve when it overspends", async () => {
+    // The guard is about investing, not about switching overspend off.
+    await setCushionMode(false);
+    await withTenant((c) =>
+      c.query(
+        `INSERT INTO budgeting.scheduled_payments
+           (id, tenant_id, category_id, amount, currency, cadence, cadence_anchor,
+            note, active, next_due_date, created_at, actor_user_id)
+         VALUES (gen_random_uuid(), $1, $2, 4000, 'PLN', 'MONTHLY', 15, 'Feast',
+                 true, date_trunc('month', now())::date + 14, now(), $3)`,
+        [TENANT, NORMAL, OWNER],
+      ),
+    );
+    const p = await projectWithReserve(100000n);
+    await withTenant((c) =>
+      c.query(
+        `DELETE FROM budgeting.scheduled_payments WHERE category_id = $1::uuid`,
+        [NORMAL],
+      ),
+    );
+    expect({ drew: drawsFor(p, NORMAL).length > 0 }).toEqual({ drew: true });
   });
 });

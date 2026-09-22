@@ -748,6 +748,10 @@
         "withPremium": "Z premią",
         "pl": "Zysk/strata"
       }
+    },
+    "cushionMode": {
+      "name": "Poduszka",
+      "state": "Aktywny"
     }
   },
   "aggregate": {
@@ -1228,7 +1232,9 @@
         "applyToFutureHelp": "Edytuje nadchodzące niepotwierdzone płatności, aby odzwierciedlały nową kwotę/kategorię. Potwierdzone w przeszłości transakcje nigdy nie są zmieniane.",
         "categoryPlaceholder": "Wybierz kategorię…",
         "once": "Jednorazowo",
-        "dateLabel": "Data"
+        "dateLabel": "Data",
+        "errorFirstDueInPast": "Pierwsza data nie może być w przeszłości — wybierz dziś lub później.",
+        "createdDueToday": "Płatność dodana — jedna czeka na Twoje potwierdzenie."
       },
       "list": {
         "title": "Zaplanowane płatności",
@@ -1567,7 +1573,7 @@
           "reserveFit": "Brak rezerw do oceny."
         },
         "projection": {
-          "title": "Prognoza pieniędzy na najbliższe 100 dni",
+          "title": "Prognoza pieniędzy na najbliższe <horizon>{days, plural, one {# dzień} few {# dni} many {# dni} other {# dni}}</horizon>",
           "empty": "Dodaj dochód lub zaplanowane płatności, aby zobaczyć prognozę",
           "available": "Dostępne",
           "reserveShrinking": "Kurczy się rezerwa",
@@ -1580,7 +1586,8 @@
           "plannedSpend": "Planowane wydatki",
           "left": "Zostaje",
           "pending": "Jeszcze niepotwierdzone",
-          "pendingHint": "Już odjęte od tego, co masz, dopóki nie potwierdzisz lub nie odrzucisz"
+          "pendingHint": "Już odjęte od tego, co masz, dopóki nie potwierdzisz lub nie odrzucisz",
+          "horizonAria": "Okno prognozy w dniach"
         },
         "reserveFit": {
           "title": "Czy każda rezerwa ma właściwą wielkość?",
@@ -1998,7 +2005,8 @@
       "error": {
         "save": "Nie udało się zapisać — spróbuj ponownie"
       },
-      "noLimitExplainer": "Brak górnej granicy dla inwestycji. Prognoza miesiąca liczy to, co faktycznie zainwestujesz, i nie ma wartości przekroczenia — tak jak w każdej innej kategorii bez limitu."
+      "noLimitExplainer": "Brak górnej granicy dla inwestycji. Prognoza miesiąca liczy to, co faktycznie zainwestujesz, i nie ma wartości przekroczenia — tak jak w każdej innej kategorii bez limitu.",
+      "cushionNote": "W trybie poduszki ta kategoria nie ma limitu — liczy się tylko to, co faktycznie zainwestujesz."
     }
   },
   "errors": {

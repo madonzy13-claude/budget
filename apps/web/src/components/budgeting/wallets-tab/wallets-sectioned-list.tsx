@@ -583,8 +583,12 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
         {(
           [
             "SPENDINGS",
-            ...(cushionEnabled ? (["CUSHION"] as const) : []),
+            // Reserve above Cushion (user, 260921): the reserve is the pool the
+            // household touches month to month — it is drawn on whenever a
+            // category overspends — while the cushion is the one they hope not
+            // to touch at all. Either section still disappears on its own flag.
             ...(reservesEnabled ? (["RESERVE"] as const) : []),
+            ...(cushionEnabled ? (["CUSHION"] as const) : []),
           ] as const
         ).map(renderSection)}
         {/* Phase 9 (INV-01/02): Investments renders LAST when its flag is on —

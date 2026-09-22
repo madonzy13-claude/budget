@@ -212,8 +212,46 @@ Then("I see the projection tooltip", async ({ page }) => {
   await new ProjectionTimelinePo(page).expectTooltip();
 });
 
-Then("every month name on the projection strip clears its divider", async ({
-  page,
-}) => {
-  await new ProjectionTimelinePo(page).expectMonthLabelsClearDividers();
+Then(
+  "every month name on the projection strip clears its divider",
+  async ({ page }) => {
+    await new ProjectionTimelinePo(page).expectMonthLabelsClearDividers();
+  },
+);
+
+// ───────────────────────────────────────────────────────────────────────────
+// The member's own forecast window (260904)
+// ───────────────────────────────────────────────────────────────────────────
+
+Then(
+  "the forecast horizon reads {int} days",
+  async ({ page }, days: number) => {
+    await new ProjectionTimelinePo(page).expectHorizonReads(days);
+  },
+);
+
+When(
+  "I set the forecast horizon to {int} days",
+  async ({ page }, days: number) => {
+    await new ProjectionTimelinePo(page).setHorizonBySnap(days);
+  },
+);
+
+When(
+  "I drag the forecast horizon to {int} days",
+  async ({ page }, days: number) => {
+    await new ProjectionTimelinePo(page).dragHorizonTo(days);
+  },
+);
+
+/** A full page load, which is what proves the pick outlived the tab. */
+When("I reload the overview", async ({ page }) => {
+  await page.reload();
 });
+
+Then(
+  "the projection window spans {int} days",
+  async ({ page }, days: number) => {
+    await new ProjectionTimelinePo(page).expectWindowSpansDays(days);
+  },
+);

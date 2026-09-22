@@ -8,10 +8,24 @@
  * finger-slide) shows a tooltip ABOVE the line so the finger never covers it —
  * which is where every date, name and amount lives.
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { useProjection, type ProjectionDay } from "@/hooks/use-projection";
+import { ChevronDown } from "lucide-react";
+import {
+  useMaxProjection,
+  useProjection,
+  type ProjectionDay,
+} from "@/hooks/use-projection";
+import { useProjectionHorizon } from "@/hooks/use-projection-horizon";
+import { useSetProjectionDraft } from "@/components/budgeting/overview/projection-draft";
 import { useCategories } from "@/hooks/use-budget-data";
+import {
+  DEFAULT_HORIZON_DAYS,
+  HORIZON_SNAP_DAYS,
+  MAX_HORIZON_DAYS,
+  MIN_HORIZON_DAYS,
+  isoPlusDays,
+} from "@/lib/projection-horizon";
 import { centsToDisplayCompact } from "@/lib/cents-format";
 import { formatShortDate } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
@@ -68,7 +82,73 @@ const roundToUnit = (cents: string): string =>
 export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
   const t = useTranslations("bdp.tab.overview.projection");
   const locale = useLocale();
-  const { data, isLoading, isError } = useProjection(budgetId);
+
+  // How far ahead this member looks. THREE values, because they answer three
+  // different questions and collapsing them breaks one of the three:
+  //   stored   — what the member ui-prefs row says (null until it lands).
+  //   picked   — what they just chose here, which leads the stored value so the
+  //              strip moves on the same render rather than after a round trip.
+  //   draft    — where the slider thumb is DURING a drag. It moves the sentence
+  //              and nothing else: a drag from 100 to 546 crosses four hundred
+  //              values, and each one reaching `effective` would be a request.
+  const {
+    days: stored,
+    setDays: persist,
+    locked: horizonLocked,
+  } = useProjectionHorizon(budgetId);
+  const [picked, setPicked] = useState<number | null>(null);
+  const [draft, setDraft] = useState<number | null>(null);
+  const [horizonOpen, setHorizonOpen] = useState(false);
+  const effective = picked ?? stored;
+  const shownDays = draft ?? effective ?? DEFAULT_HORIZON_DAYS;
+
+  // True from the moment the thumb is grabbed until it is let go. The per-day
+  // hit cells come out of the tree for the duration — 730 spans reconciled on
+  // every input event is the drag's entire frame budget, and a finger that is on
+  // the slider cannot be hovering a day cell.
+  const [dragging, setDragging] = useState(false);
+  // Publish the drafted window so the cards ABOVE the strip can answer for it
+  // too — free-to-move and the deficit are the window (260904k). Mirrored in an
+  // effect rather than called beside every setDraft, so a new way of moving the
+  // thumb cannot forget to do it.
+  const publishDraft = useSetProjectionDraft();
+  useEffect(() => {
+    publishDraft(draft);
+  }, [draft, publishDraft]);
+  useEffect(() => () => publishDraft(null), [publishDraft]);
+
+  const commitHorizon = useCallback(
+    (days: number) => {
+      setDraft(null);
+      setDragging(false);
+      setPicked(days);
+      persist(days);
+    },
+    [persist],
+  );
+
+  // The drag ENDS on the platform's own `change` event — which React does not
+  // surface separately for a range input (its onChange is the `input` event, one
+  // per pixel). Listening for the real thing is what makes release the commit,
+  // and a keyboard arrow commits on its own too.
+  const sliderRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const el = sliderRef.current;
+    if (!el) return;
+    const onCommit = () => commitHorizon(Number(el.value));
+    el.addEventListener("change", onCommit);
+    return () => el.removeEventListener("change", onCommit);
+  }, [horizonOpen, commitHorizon]);
+
+  // The COMMITTED window: what the card settles on, and the same payload the
+  // Overview cards read for their trough.
+  const { data, isLoading, isError } = useProjection(budgetId, effective);
+  // …and the widest window, pulled once while the panel is open, from which
+  // every position of the slider is a slice. See useMaxProjection: a shorter
+  // window is a prefix of a longer one, so this is the whole drag answered
+  // without a single further request.
+  const { data: wideData } = useMaxProjection(budgetId, horizonOpen);
+  const source = horizonOpen && wideData ? wideData : data;
   // The card's category lists read in the order the household arranged on the
   // spendings tab, which is the order they see everywhere else (user, 260813).
   // Sorted here rather than trusted from the wire, exactly as the grid does it.
@@ -101,32 +181,58 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
     return () => ro.disconnect();
   }, []);
 
-  const n = data?.days.length ?? 0;
+  /**
+   * The days actually DRAWN, and the window they are drawn against — two
+   * different numbers while the thumb is moving.
+   *
+   * Shrinking is free: the days are already in hand, so the band redraws on the
+   * same frame as the thumb. Growing is not — those days do not exist yet — so
+   * the strip's coordinate system is the WINDOW (`span`), and what is known
+   * covers `fillPct` of it, the rest reading as empty track until the fetch
+   * lands. Stretching the hundred days we hold across a strip labelled 546
+   * would be a picture of money nobody has.
+   */
+  const viewDays = useMemo(
+    () => source?.days.slice(0, shownDays) ?? [],
+    [source, shownDays],
+  );
+  const n = viewDays.length;
+  const span = Math.max(shownDays - 1, 1);
+  const fillPct = n === 0 ? 0 : Math.min(100, (n / shownDays) * 100);
+  const pctAt = (i: number) => (i / span) * 100;
 
   // Fluent colour line: one gradient stop per day at its x%, so the colour flows
-  // continuously across zones instead of rendering discrete cells.
+  // continuously across zones instead of rendering discrete cells. Anything past
+  // the days we hold is the strip's own empty track, at a hard stop.
   const gradient = useMemo(() => {
-    if (!data || n === 0) return undefined;
-    const stops = data.days
-      .map((d, i) => {
-        const pct = n === 1 ? 0 : (i / (n - 1)) * 100;
-        return `${COLOR_VAR[d.color]} ${pct.toFixed(2)}%`;
-      })
+    if (n === 0) return undefined;
+    const stops = viewDays
+      .map((d, i) => `${COLOR_VAR[d.color]} ${pctAt(i).toFixed(2)}%`)
       .join(", ");
-    return `linear-gradient(90deg, ${stops})`;
-  }, [data, n]);
+    // The days nobody has yet — now only the moment between opening the panel
+    // and the wide window landing, and only once. A pulse made it flicker and a
+    // fade looked no better (user, 260904c/d), so it is simply the strip's own
+    // empty track: one clean step from partial to whole, nothing animated.
+    const tail =
+      fillPct >= 100
+        ? ""
+        : `, var(--surface-elevated-dark) ${fillPct.toFixed(2)}%, var(--surface-elevated-dark) 100%`;
+    return `linear-gradient(90deg, ${stops}${tail})`;
+  }, [viewDays, n, span, fillPct]);
 
-  // date → day index, for placing income/bill markers on the line.
+  // date → day index, for placing income/bill markers on the line. Keyed on the
+  // DRAWN days: a marker for a day past the fill would otherwise be pinned to
+  // the empty track, floating over nothing.
   const indexByDate = useMemo(() => {
     const m = new Map<string, number>();
-    data?.days.forEach((d, i) => m.set(d.date, i));
+    viewDays.forEach((d, i) => m.set(d.date, i));
     return m;
-  }, [data]);
+  }, [viewDays]);
 
   const pctFor = (date: string): number | null => {
     const i = indexByDate.get(date);
-    if (i === undefined || n <= 1) return i === undefined ? null : 0;
-    return (i / (n - 1)) * 100;
+    if (i === undefined) return null;
+    return pctAt(i);
   };
 
   /**
@@ -147,14 +253,13 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
    * its name; the wide segment beside it keeps its own.
    */
   const monthMarks = useMemo(() => {
-    if (!data || data.days.length === 0) return [];
-    const span = Math.max(data.days.length - 1, 1);
+    if (viewDays.length === 0) return [];
     const monthName = (iso: string) =>
       new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" })
         .format(new Date(`${iso}T00:00:00Z`))
         .replace(/\.$/, "");
     // Every month boundary in the window, before any is dropped.
-    const opens = data.days.flatMap((d, i) =>
+    const opens = viewDays.flatMap((d, i) =>
       i === 0 || d.date.endsWith("-01")
         ? [{ key: d.date, pct: (i / span) * 100, label: monthName(d.date) }]
         : [],
@@ -166,12 +271,19 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
     const minPct = minLabelPct(stripPx);
     return opens.map((m, i) => {
       const next = opens[i + 1];
-      const room = (next ? next.pct : 100) - m.pct;
+      // The last named month runs to the end of what is DRAWN, not to the end of
+      // the strip — past the fill there is no month to name yet.
+      const room = (next ? next.pct : fillPct) - m.pct;
       return { ...m, labelled: room >= minPct };
     });
-  }, [data, locale, stripPx]);
+  }, [viewDays, locale, stripPx, span, fillPct]);
 
-  if (isLoading) {
+  // `effective === null` means the member's stored horizon is still on its way,
+  // which DISABLES the projection query — and a disabled query in TanStack v5 is
+  // pending-but-not-fetching, so isLoading is false while it holds no data. Read
+  // literally, the guard below would call that an empty forecast and say "add
+  // income or scheduled payments" over a budget that has both.
+  if (isLoading || effective === null) {
     return <div className={cn(CARD, "h-[104px] animate-pulse")} aria-hidden />;
   }
   if (isError || !data || n === 0) {
@@ -189,20 +301,108 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
     const rect = el.getBoundingClientRect();
     if (!rect.width) return;
     const frac = (clientX - rect.left) / rect.width;
-    setActive(clamp(Math.round(frac * (n - 1)), 0, n - 1));
+    // Against the WINDOW, then clamped to the days in hand: pointing at the
+    // empty tail of a growing strip selects its last known day rather than a
+    // day that has not arrived.
+    setActive(clamp(Math.round(frac * span), 0, Math.max(n - 1, 0)));
   };
 
-  const activePct = active === null || n <= 1 ? 0 : (active / (n - 1)) * 100;
+  const activePct = active === null || n === 0 ? 0 : pctAt(active);
   // The band is the strip plus, when there is any, the row the income dots sit
   // in. With no income it stopped at the strip and the card kept a strip of
   // empty space anyway (user, 260812).
-  const hasIncome = data.income_points.length > 0;
+  // From `source`, like everything else the band draws. Read off the COMMITTED
+  // payload it left the income row's height a beat behind the drag.
+  const hasIncome = source!.income_points.length > 0;
 
   return (
     <div className={CARD} data-testid="projection-timeline">
-      <h3 className="mb-2.5 truncate text-caption text-[var(--muted-foreground)]">
-        {t("title")}
+      {/* The horizon is not a control bolted beside the title — it IS the title.
+          The card already said "for the next 100 days"; the number in that
+          sentence became the button, so the thing that states the window and the
+          thing that changes it are the same word (user, 260904). */}
+      <h3 className="mb-2.5 text-caption text-[var(--muted-foreground)]">
+        {t.rich("title", {
+          days: shownDays,
+          horizon: (chunks) => (
+            <button
+              type="button"
+              data-testid="projection-horizon"
+              aria-expanded={horizonOpen}
+              disabled={horizonLocked}
+              // Opening the panel starts the wide fetch (useMaxProjection is
+              // enabled by this flag), so it is already on its way while the
+              // finger travels to the thumb.
+              onClick={() => setHorizonOpen((open) => !open)}
+              className={cn(
+                "ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5",
+                "align-baseline font-semibold tabular-nums",
+                // A quiet pill, not an underline: the accent is what the SLIDER
+                // uses to say "this is the value", and spending it on the label
+                // as well left two yellow things competing inside one sentence
+                // (user, 260904b — "very messy").
+                "bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]",
+                horizonLocked
+                  ? "cursor-default opacity-60"
+                  : "transition-colors hover:bg-[var(--surface-nested-dark)]",
+              )}
+            >
+              {chunks}
+              {/* The one mark that says the number opens something. */}
+              <ChevronDown
+                aria-hidden
+                className={cn(
+                  "size-3 shrink-0 text-[var(--muted-foreground)] transition-transform",
+                  horizonOpen && "rotate-180",
+                )}
+              />
+            </button>
+          ),
+        })}
       </h3>
+
+      {horizonOpen && !horizonLocked && (
+        <div
+          data-testid="projection-horizon-panel"
+          className="mb-3 flex flex-col gap-1.5 rounded-[var(--radius-lg)] bg-[var(--surface-sunken-dark)] p-3"
+        >
+          <input
+            ref={sliderRef}
+            type="range"
+            data-testid="projection-horizon-slider"
+            min={MIN_HORIZON_DAYS}
+            max={MAX_HORIZON_DAYS}
+            step={1}
+            value={shownDays}
+            aria-label={t("horizonAria")}
+            onPointerDown={() => setDragging(true)}
+            onPointerUp={() => setDragging(false)}
+            onPointerCancel={() => setDragging(false)}
+            onChange={(e) => setDraft(Number(e.target.value))}
+            className="h-6 w-full accent-[var(--primary)]"
+          />
+          {/* Whole windows, one tap each. They are the presets a pill row would
+              have carried, without spending a permanent row on them. */}
+          <div className="flex items-center justify-between">
+            {HORIZON_SNAP_DAYS.map((d) => (
+              <button
+                key={d}
+                type="button"
+                data-testid={`projection-horizon-snap-${d}`}
+                onClick={() => commitHorizon(d)}
+                className={cn(
+                  "rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[11px] tabular-nums",
+                  d === shownDays
+                    ? "text-[var(--primary)]"
+                    : "text-[var(--muted-foreground)] hover:text-[var(--body-on-dark)]",
+                )}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div
         data-testid="projection-band"
@@ -224,6 +424,10 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
         <div
           data-testid="projection-line"
           ref={measureStrip}
+          // How much of the window is actually drawn. An attribute rather than a
+          // derived style so the growing case is assertable without a layout
+          // engine — happy-dom measures every box as 0×0.
+          data-fill-pct={Math.round(fillPct)}
           className="absolute inset-x-0 top-0 h-5 overflow-hidden rounded-full"
           style={{ background: gradient }}
         >
@@ -260,7 +464,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
                 strokeDasharray="3 2"
               />
             ))}
-            {data.bill_points.map((b, i) => {
+            {source!.bill_points.map((b, i) => {
               const pct = pctFor(b.date);
               if (pct === null) return null;
               return (
@@ -314,7 +518,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
             picked it from the mockups, 260812). Below the band rather than
             inside it, so income reads as arriving AT the line while payments
             are cut OUT of it. */}
-        {data.income_points.map((p, i) => {
+        {source!.income_points.map((p, i) => {
           const pct = pctFor(p.date);
           if (pct === null) return null;
           return (
@@ -341,28 +545,35 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
           />
         )}
 
-        {/* Transparent per-day hit cells (interaction + E2E/unit test). */}
-        <div className="absolute inset-0 flex">
-          {data.days.map((d, i) => (
-            <span
-              key={d.date}
-              data-testid="projection-day"
-              data-color={d.color}
-              data-index={i}
-              onPointerEnter={() => setActive(i)}
-              className="h-full min-w-0 flex-1 cursor-pointer"
-            />
-          ))}
+        {/* Transparent per-day hit cells (interaction + E2E/unit test). Out of
+            the tree during a drag: reconciling up to 730 spans on every input
+            event is the whole frame budget, and the finger is on the slider. The
+            band still answers the pointer through selectFromClientX. */}
+        <div
+          className="absolute inset-y-0 left-0 flex"
+          style={{ width: `${fillPct}%` }}
+        >
+          {!dragging &&
+            viewDays.map((d, i) => (
+              <span
+                key={d.date}
+                data-testid="projection-day"
+                data-color={d.color}
+                data-index={i}
+                onPointerEnter={() => setActive(i)}
+                className="h-full min-w-0 flex-1 cursor-pointer"
+              />
+            ))}
         </div>
 
-        {active !== null && data.days[active] && (
+        {active !== null && viewDays[active] && (
           <ProjectionTooltip
-            day={data.days[active]}
-            bills={data.bill_points.filter(
-              (b) => b.date === data.days[active]!.date,
+            day={viewDays[active]}
+            bills={source!.bill_points.filter(
+              (b) => b.date === viewDays[active]!.date,
             )}
-            incomes={data.income_points.filter(
-              (p) => p.date === data.days[active]!.date,
+            incomes={source!.income_points.filter(
+              (p) => p.date === viewDays[active]!.date,
             )}
             // Pending occurrences have dates in the PAST, so no day cell would
             // ever match them. They belong to today — the first cell — which is
@@ -370,11 +581,33 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
             pending={active === 0 ? (data.pending_points ?? []) : []}
             categoryRank={categoryRank}
             leftPct={activePct}
-            currency={data.currency}
+            currency={source!.currency}
             locale={locale}
             t={t}
           />
         )}
+      </div>
+
+      {/* Where the window starts and where it ends. The months inside the strip
+          say which months these are; only the two ends say WHEN the forecast
+          stops — and with the span now a choice, that is the first thing a
+          changed number has to be legible against (user, 260904). */}
+      <div
+        data-testid="projection-axis"
+        className="mt-1.5 flex items-baseline justify-between gap-2 text-[10px] tabular-nums text-[var(--muted-foreground)]"
+      >
+        <span data-testid="projection-axis-from">
+          {formatShortDate(data.days[0]!.date, locale)}
+        </span>
+        <span data-testid="projection-axis-to">
+          {/* Arithmetic, not the last loaded day: the end of the window is a
+              calendar fact, so it keeps up with a dragging thumb instead of
+              waiting for the days in between to arrive. */}
+          {formatShortDate(
+            isoPlusDays(data.days[0]!.date, shownDays - 1),
+            locale,
+          )}
+        </span>
       </div>
     </div>
   );

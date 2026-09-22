@@ -11,6 +11,10 @@
  * A missing/thrown FX rate degrades that budget's row to zeroed wealth figures
  * with fx_unavailable=true rather than failing the whole aggregate.
  */
+import {
+  clampProjectionWindowDays,
+  PROJECTION_WINDOW_PREF_KEY,
+} from "./compute-cashflow-projection";
 import { Money } from "@budget/shared-kernel";
 import type { Currency, FxProvider, Result } from "@budget/shared-kernel";
 import type { OverviewCards } from "./get-overview-cards";
@@ -43,6 +47,8 @@ export interface AggregateBudgetRow {
   overspent_top_name: string | null;
   overspent_top_cents: string;
   cushion_breached: boolean;
+  /** This budget is running on its cushion limits (user, 260904l). */
+  cushion_mode_enabled: boolean;
   reserves_status: "ok" | "short" | "surplus";
   /** FULL (NO ownership share) available-to-spend + reserves + reserve required —
    *  the Available-to-spend / Available-reserves / Overspent cards are operational
@@ -98,18 +104,25 @@ export interface GetAllBudgetsAggregateDeps {
       default_currency: string;
       member_count: number;
       pendingTasksCount: number;
+      /** Running on its cushion limits. Surfaced per row so the page can say
+       *  which budgets contributed cushion money to the totals above them. */
+      cushion_mode_enabled?: boolean;
     }>
   >;
   getOverviewCardsForTenant: (input: {
     tenantId: string;
     budgetId: string;
   }) => Promise<Result<OverviewCards, Error>>;
-  getAggPrefsForUser: (
-    userId: string,
-  ) => Promise<
+  getAggPrefsForUser: (userId: string) => Promise<
     Map<
       string,
-      { ownership_share_pct: number; include_in_aggregation: boolean }
+      {
+        ownership_share_pct: number;
+        include_in_aggregation: boolean;
+        /** The member's stored chart picks for this budget. Only the forecast
+         *  window is read here; the shape is the ui-prefs jsonb as stored. */
+        ui_prefs?: Record<string, string[]> | null;
+      }
     >
   >;
   displayCurrencyReader: {
@@ -121,6 +134,9 @@ export interface GetAllBudgetsAggregateDeps {
   getCashflowProjectionForTenant?: (input: {
     tenantId: string;
     budgetId: string;
+    /** The member's own forecast window for THIS budget. Omitted → the
+     *  default 100 days. */
+    windowDays?: number;
   }) => Promise<{
     days: Array<{ availableCents: bigint }>;
     summary: { worstShortfallCents: bigint };
@@ -140,6 +156,7 @@ type BaseRowFields = Pick<
   | "my_share_pct"
   | "included"
   | "pending_tasks"
+  | "cushion_mode_enabled"
 >;
 
 /** FX hop only (Money×rate, banker's rounding — same path as compute-budget-wealth-now). */
@@ -231,6 +248,18 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
     ]);
     const displayCcy = displayCcyRaw ?? budgets[0]?.default_currency ?? "USD";
 
+    /**
+     * The member's forecast window for one budget, off their stored ui-prefs.
+     *
+     * Same key and same clamp the per-budget page uses, so the two cannot drift:
+     * an unreadable or missing pick is the default 100 days, never a NaN-day
+     * window handed to a per-day loop.
+     */
+    const windowFor = (budgetId: string): number =>
+      clampProjectionWindowDays(
+        prefs.get(budgetId)?.ui_prefs?.[PROJECTION_WINDOW_PREF_KEY]?.[0],
+      );
+
     const rows = await Promise.all(
       budgets.map(async (b): Promise<AggregateBudgetRow> => {
         const p = prefs.get(b.id) ?? {
@@ -245,6 +274,7 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
           my_share_pct: p.ownership_share_pct,
           included: p.include_in_aggregation,
           pending_tasks: b.pendingTasksCount,
+          cushion_mode_enabled: b.cushion_mode_enabled ?? false,
         };
 
         const cardsRes = await deps.getOverviewCardsForTenant({
@@ -419,7 +449,15 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
         included.map(async (r) => {
           try {
             const [p, fx] = await Promise.all([
-              project({ tenantId: r.id, budgetId: r.id }),
+              project({
+                tenantId: r.id,
+                budgetId: r.id,
+                // These two figures ARE the forecast — free-to-move is the
+                // trough of the window and the shortfall its deepest hole — so
+                // asking for a fixed 100 days made this card disagree with the
+                // very budget page it summarises (user, 260904j).
+                windowDays: windowFor(r.id),
+              }),
               deps.fxProvider.rateAsOf(
                 r.default_currency as Currency,
                 displayCcy as Currency,

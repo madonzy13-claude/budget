@@ -190,6 +190,124 @@ describe("GET /budgets/:id/overview/projection", () => {
     expect(Array.isArray(body.pending_points)).toBe(true);
   });
 
+  /**
+   * 260904: the horizon became the member's to pick, so the route takes it as
+   * `?days=`. The value is a loop bound reaching us off a URL, which is exactly
+   * the kind of number that must be clamped at the boundary rather than trusted
+   * — hence the junk cases below sitting beside the happy one.
+   */
+  describe("?days= — the member's own horizon", () => {
+    const daysOf = async (qs: string) => {
+      const app = await buildApp({
+        userId: fix.userId,
+        allowedTenantIds: [fix.budgetId],
+      });
+      const res = await app.request(
+        `/budgets/${fix.budgetId}/overview/projection${qs}`,
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { days: { date: string }[] };
+      return body.days;
+    };
+
+    test("a requested window is the window that comes back", async () => {
+      expect(await daysOf("?days=30")).toHaveLength(30);
+      expect(await daysOf("?days=365")).toHaveLength(365);
+    });
+
+    test("18 months of days arrive in one contiguous run", async () => {
+      const days = await daysOf("?days=546");
+      expect(days).toHaveLength(546);
+      // No gaps: a truncated occurrence loop or a month-probe miscount would
+      // show up here as a short or broken series rather than as a wrong figure.
+      const first = new Date(`${days[0]!.date}T00:00:00Z`).getTime();
+      const last = new Date(`${days[545]!.date}T00:00:00Z`).getTime();
+      expect((last - first) / 86_400_000).toBe(545);
+    });
+
+    test("no ?days= is still the rolling 100", async () => {
+      expect(await daysOf("")).toHaveLength(100);
+    });
+
+    test("a window nobody could mean is clamped, not obeyed", async () => {
+      expect(await daysOf("?days=1")).toHaveLength(30);
+      expect(await daysOf("?days=99999")).toHaveLength(730);
+      expect(await daysOf("?days=-5")).toHaveLength(30);
+    });
+
+    test("unreadable input falls back to the default window", async () => {
+      expect(await daysOf("?days=abc")).toHaveLength(100);
+      expect(await daysOf("?days=")).toHaveLength(100);
+    });
+  });
+
+  /**
+   * `safe_by_day[i]` is what could be withdrawn if the window ENDED on day i —
+   * the running trough of the same pessimistic run the single
+   * `safe_to_withdraw` figure comes from.
+   *
+   * It exists so the Overview's free-to-move and deficit can follow a dragging
+   * horizon slider without a request per pixel: the widest window is already in
+   * the browser, and every shorter one is an index into this array (user,
+   * 260904k). A running minimum is monotone non-increasing, which is what makes
+   * the prefix answer exact rather than an approximation.
+   */
+  describe("safe_by_day — the window's answer at every length", () => {
+    test("one entry per day, ending on the figure the window reports", async () => {
+      const app = await buildApp({
+        userId: fix.userId,
+        allowedTenantIds: [fix.budgetId],
+      });
+      const res = await app.request(
+        `/budgets/${fix.budgetId}/overview/projection?days=120`,
+      );
+      const body = (await res.json()) as {
+        days: { date: string }[];
+        safe_by_day: string[];
+        safe_to_withdraw: { cents: string; thinnest_date: string | null };
+      };
+      expect(body.safe_by_day).toHaveLength(120);
+      expect(body.safe_by_day[119]).toBe(body.safe_to_withdraw.cents);
+      for (const v of body.safe_by_day) expect(typeof v).toBe("string");
+    });
+
+    test("never rises: a longer window can only find a deeper trough", async () => {
+      const app = await buildApp({
+        userId: fix.userId,
+        allowedTenantIds: [fix.budgetId],
+      });
+      const res = await app.request(
+        `/budgets/${fix.budgetId}/overview/projection?days=200`,
+      );
+      const body = (await res.json()) as { safe_by_day: string[] };
+      const vals = body.safe_by_day.map((v) => BigInt(v));
+      for (let i = 1; i < vals.length; i++) {
+        expect(vals[i]! <= vals[i - 1]!).toBe(true);
+      }
+    });
+
+    test("a prefix equals the same window asked for directly", async () => {
+      const app = await buildApp({
+        userId: fix.userId,
+        allowedTenantIds: [fix.budgetId],
+      });
+      const [wide, narrow] = await Promise.all([
+        app
+          .request(`/budgets/${fix.budgetId}/overview/projection?days=300`)
+          .then((r) => r.json() as Promise<{ safe_by_day: string[] }>),
+        app
+          .request(`/budgets/${fix.budgetId}/overview/projection?days=90`)
+          .then(
+            (r) =>
+              r.json() as Promise<{ safe_to_withdraw: { cents: string } }>,
+          ),
+      ]);
+      // This equality is the whole feature: slicing the wide answer must give
+      // the same number the server would compute for that window on its own.
+      expect(wide.safe_by_day[89]).toBe(narrow.safe_to_withdraw.cents);
+    });
+  });
+
   test("unknown budget → 404 (IDOR guard)", async () => {
     const app = await buildApp({
       userId: fix.userId,

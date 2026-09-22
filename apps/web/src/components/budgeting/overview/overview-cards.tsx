@@ -25,7 +25,11 @@ import {
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { useOverviewWealth } from "@/hooks/use-overview-wealth";
-import { useProjection } from "@/hooks/use-projection";
+import { useMaxProjection, useProjection } from "@/hooks/use-projection";
+import { useProjectionDraft } from "@/components/budgeting/overview/projection-draft";
+import { CushionModeChip } from "@/components/budgeting/cushion-mode-chip";
+import { projectionAtWindow } from "@/lib/projection-window-view";
+import { useProjectionHorizon } from "@/hooks/use-projection-horizon";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import {
   centsToDisplayCompact,
@@ -141,7 +145,26 @@ export function OverviewCards({
   // Available-to-spend health (dot + surplus/deficit) comes from the cash-flow
   // projection so it accounts for upcoming income to the last pay-day of the window
   // (the ProjectionTimeline sibling already fetches this; React Query dedupes).
-  const { data: projection } = useProjection(budgetId);
+  // The SAME window the strip below is drawing (user, 260904): both read the
+  // member's stored horizon, so "safe to withdraw" is the trough of the window
+  // the member is actually looking at rather than of a fixed hundred days.
+  const { days: horizonDays } = useProjectionHorizon(budgetId);
+  const draftHorizonDays = useProjectionDraft();
+  // The wide window the strip draws from, read only while a thumb is down so the
+  // card can answer for the DRAFTED window (user, 260904k). Every shorter window
+  // is a prefix of it, so this costs no request and uses the same arithmetic the
+  // server would — which is what stops the figure jumping when the drag ends.
+  //
+  // Declared with the other hooks, ABOVE this component's isPending/isError
+  // returns. Placed beside the derivation it feeds, it ran only on the loaded
+  // path, React counted a different number of hooks between renders, and the
+  // whole Overview showed "Something went wrong" (#310, caught by driving the
+  // real page — the component tests mock this hook, so they cannot see it).
+  const { data: wideProjection } = useMaxProjection(
+    budgetId,
+    draftHorizonDays !== null,
+  );
+  const { data: projection } = useProjection(budgetId, horizonDays);
   // Capitalization card flips to reveal the retirement runway on its back (item 9).
   const [flipped, setFlipped] = useState(false);
   // Amount privacy (per-budget flag). When ON, each figure is an independently
@@ -271,7 +294,14 @@ export function OverviewCards({
   // upcoming income to mean something, unlike the cash-before-payday proxy it
   // replaced, so the row no longer disappears on a budget with no pay-day.
   // `spend_health` remains the fallback for a payload cached by an older build.
-  const safe = projection?.safe_to_withdraw;
+  // While the thumb is down these read the DRAFTED window instead. A payload
+  // that has not landed, or one predating `safe_by_day`, leaves the committed
+  // answer standing rather than showing an invented one.
+  const drafted =
+    draftHorizonDays !== null && wideProjection
+      ? projectionAtWindow(wideProjection, draftHorizonDays)
+      : null;
+  const safe = drafted?.safe ?? projection?.safe_to_withdraw;
   const sdRaw = safe?.cents ?? spendHealth?.surplus_deficit_cents ?? null;
   const surplusDeficit = sdRaw !== null ? BigInt(sdRaw) : null;
   // Below zero there is nothing to move, and "minus 590" is not an amount anyone
@@ -287,9 +317,16 @@ export function OverviewCards({
   // A reserve-covered dip is yellow in the band and stays out of this: the
   // reserve doing its job is not a deficit.
   const summary = projection?.summary;
+  const firstRedDate = drafted
+    ? drafted.first_red_date
+    : (summary?.first_red_date ?? null);
   const shortfallCents =
-    summary?.first_red_date != null
-      ? BigInt(summary.worst_shortfall_cents)
+    firstRedDate != null
+      ? BigInt(
+          drafted
+            ? drafted.worst_shortfall_cents
+            : (summary?.worst_shortfall_cents ?? "0"),
+        )
       : null;
   const thinnestDate = safe?.thinnest_date ?? null;
   // Reserves-note amount (short → missing, surplus → extra). The OK note names
@@ -609,10 +646,7 @@ export function OverviewCards({
                 </dd>
               </div>
             ) : surplusDeficit !==
-              null ? // złoty above it (user, 260825). Silence is the honest version of // same thing whether the forecast sat comfortably clear of zero or a // solid"), which read as praise the card had not earned: it said the // Nothing at all. The row used to carry a note here ("Plan looks
-            // "there is nothing spare to tell you about".
-            //
-            // Explicitly null rather than deleted: falling through to the branch
+              null ? // Explicitly null rather than deleted: falling through to the branch // // "there is nothing spare to tell you about". // złoty above it (user, 260825). Silence is the honest version of // same thing whether the forecast sat comfortably clear of zero or a // solid"), which read as praise the card had not earned: it said the // Nothing at all. The row used to carry a note here ("Plan looks
             // below would answer a question about spare money with the unrelated
             // "upcoming" figure.
             null : (
@@ -730,7 +764,12 @@ export function OverviewCards({
             cushion-related info shows on budgets that don't use it. */}
         {data.cushion.enabled && (
           <section data-testid="overview-card-cushion" className={CARD}>
-            <CardLabel>{t("cards.cushion")}</CardLabel>
+            <div className="flex items-baseline justify-between gap-2">
+              <CardLabel>{t("cards.cushion")}</CardLabel>
+              {/* Running on the cushion limits — this is the pot that mode makes
+                  spendable, so the state belongs on this card (user, 260904l). */}
+              {data.cushion.mode_enabled && <CushionModeChip variant="state" />}
+            </div>
             <p className="num text-title-md mt-1 flex items-center gap-1.5 text-[var(--body-on-dark)]">
               {/* Circle icon to match the other cards (item 6): green check when
                   the cushion meets its required limit, red alert when short. */}

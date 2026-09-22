@@ -39,6 +39,44 @@ export interface SetCategoryLimitDeps {
   reservePositions?: RecomputeReserveTopupTaskDeps["reservePositions"];
   budgetCurrencyOf?: RecomputeReserveTopupTaskDeps["budgetCurrencyOf"];
   isReservesEnabled?: RecomputeReserveTopupTaskDeps["isReservesEnabled"];
+  /**
+   * The category's cushion MODE, so the cushion amount can be derived here
+   * rather than trusted from the caller (260905).
+   *
+   * It used to be computed in one place only — the category edit form — which
+   * left every other writer having to remember the rule. The Overview's
+   * limit-rebalance popup did not: it sent a new normal split with the OLD
+   * cushion carried forward, so a category lowered from 234 to 74 kept a 234
+   * cushion and cushion mode made it LOOSER than normal mode. Deriving at the
+   * one path every writer already goes through means none of them can get it
+   * wrong. Optional so a caller without it keeps today's passthrough.
+   */
+  cushionModeOf?: (
+    tenantId: string,
+    categoryId: string,
+  ) => Promise<Result<string | null, Error>>;
+}
+
+/** Cushion modes that DEFINE the amount. `custom` (and an absent mode) mean the
+ *  caller's figure is the answer — there is nothing to derive it from. */
+export function deriveCushionAmount(input: {
+  mode: string | null;
+  normalAmount: string;
+  needsAmount?: string | null;
+  supplied: string;
+}): string {
+  switch (input.mode) {
+    case "needs_wants":
+      return input.normalAmount;
+    case "needs_only":
+      // A category with no recorded needs/wants split has nothing to derive
+      // from; zeroing it would wipe a real cushion.
+      return input.needsAmount ?? input.supplied;
+    case "none":
+      return "0";
+    default:
+      return input.supplied;
+  }
 }
 
 export interface SetCategoryLimitFullInput extends Omit<
@@ -75,6 +113,24 @@ export function setCategoryLimit(deps: SetCategoryLimitDeps) {
     // month so only that month changes.
     const carryForward = !input.singleMonth;
 
+    // The cushion is the category's mode applied to the incoming split — not
+    // whatever the caller happened to send with it.
+    let cushionAmount = input.cushionAmount;
+    if (deps.cushionModeOf) {
+      const modeRes = await deps.cushionModeOf(
+        input.tenantId,
+        input.categoryId,
+      );
+      if (modeRes.isOk()) {
+        cushionAmount = deriveCushionAmount({
+          mode: modeRes.value,
+          normalAmount: input.normalAmount,
+          needsAmount: input.needsAmount,
+          supplied: input.cushionAmount,
+        });
+      }
+    }
+
     try {
       await deps.limitRepo.setLimitForMonth({
         tenantId: input.tenantId,
@@ -82,7 +138,7 @@ export function setCategoryLimit(deps: SetCategoryLimitDeps) {
         monthStart: effectiveFrom,
         normalAmount: input.normalAmount,
         normalCurrency: input.normalCurrency,
-        cushionAmount: input.cushionAmount,
+        cushionAmount,
         cushionCurrency: input.cushionCurrency,
         needsAmount: input.needsAmount,
         wantsAmount: input.wantsAmount,

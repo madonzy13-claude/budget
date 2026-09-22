@@ -55,6 +55,7 @@ export function registerOverviewCardsRoutes(r: Hono, deps: BootedDeps) {
         },
         cushion: {
           enabled: dto.cushion.enabled,
+          mode_enabled: dto.cushion.mode_enabled,
           real_months: dto.cushion.real_months,
           total_cents: dto.cushion.total_cents.toString(),
           required_cents: dto.cushion.required_cents.toString(),

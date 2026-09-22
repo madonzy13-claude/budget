@@ -153,6 +153,34 @@ describe("CushionSection (Phase 7-09) cushion_target_months + preview", () => {
     });
   });
 
+  /**
+   * The all-budgets page sums each budget's "available to spend", and cushion
+   * mode is exactly what decides whether a budget's cushion wallets are part of
+   * that figure. Every other affected surface was already being marked stale
+   * here; the aggregate was missed, so the total was right only after a full
+   * page reload (user, 260904i).
+   */
+  it("toggling cushion mode invalidates the all-budgets aggregate", async () => {
+    patchMock.mockResolvedValue({ ok: true });
+    useQueryMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+    });
+    const user = userEvent.setup();
+    const { getByLabelText } = renderCushionSection({ cushionEnabled: true });
+    await user.click(getByLabelText("cushion.mode_label"));
+
+    await waitFor(() =>
+      expect(patchMock).toHaveBeenCalledWith(
+        expect.objectContaining({ json: { cushion_mode_enabled: true } }),
+      ),
+    );
+    expect(invalidateMock).toHaveBeenCalledWith({
+      queryKey: ["budgets", "aggregate"],
+    });
+  });
+
   // Bug: enabling the master cushion flag left the target preview ("Have X of Y
   // — target met") hidden, because the enabled-gated cushion-summary query had
   // fetched the OLD (feature-off, required=0) summary before the PATCH landed and

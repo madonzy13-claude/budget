@@ -52,3 +52,32 @@ Feature: Overview cash-flow projection timeline
     When I open the BDP for "My E2E Budget"
     And I click the "Overview" tab pill
     Then the card says nothing about spare money
+
+  # The window is the member's own since 260904, and a pick is only a preference
+  # if it survives leaving the page. It rides the member ui-prefs row, so the
+  # reload below is the whole point of the scenario — a tab-local useState would
+  # pass every assertion above it and fail this one.
+  Scenario: A chosen horizon redraws the strip and outlives a reload
+    When I open the BDP for "My E2E Budget"
+    And I click the "Overview" tab pill
+    Then I see the cash-flow projection banner
+    And the forecast horizon reads 100 days
+    And the projection window spans 100 days
+    When I set the forecast horizon to 365 days
+    Then the forecast horizon reads 365 days
+    And the projection band has at least 360 day cells
+    And the projection window spans 365 days
+    When I reload the overview
+    And I click the "Overview" tab pill
+    Then the forecast horizon reads 365 days
+    And the projection window spans 365 days
+
+  # The slider is the reason the number is a button rather than a row of pills:
+  # it reaches the windows no preset names. 546 is the one that was asked for.
+  Scenario: The slider reaches a window no preset offers
+    When I open the BDP for "My E2E Budget"
+    And I click the "Overview" tab pill
+    Then I see the cash-flow projection banner
+    When I drag the forecast horizon to 217 days
+    Then the forecast horizon reads 217 days
+    And the projection window spans 217 days

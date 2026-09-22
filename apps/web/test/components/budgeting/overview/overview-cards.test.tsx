@@ -6,7 +6,7 @@
  * lists the top categories.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 
 vi.mock("next-intl", () => {
   const translate = (key: string, vars?: Record<string, unknown>) => {
@@ -91,11 +91,38 @@ const mockProjection = vi.fn(() => ({
     safe_to_withdraw: { cents: "40000", thinnest_date: "2026-08-15" },
   },
 }));
-vi.mock("@/hooks/use-projection", () => ({
-  useProjection: () => mockProjection(),
+vi.mock("@/hooks/use-projection-horizon", () => ({
+  // The horizon control has a suite of its own (projection-horizon.test.tsx).
+  // Here it only has to hand back the default window, without dragging a
+  // QueryClient in behind the member ui-prefs read.
+  useProjectionHorizon: () => ({
+    days: 100,
+    setDays: () => {},
+    locked: false,
+  }),
 }));
 
+let mockWide: unknown = undefined;
+vi.mock("@/hooks/use-projection", async () => {
+  const react = await vi.importActual<typeof import("react")>("react");
+  return {
+    // The wide window the horizon panel draws from. The card reads it only
+    // while the thumb is down, to answer for the drafted window.
+    //
+    // It calls a REAL hook (useRef) on purpose. A plain function stub would let
+    // the component call it conditionally with no consequence, and the
+    // hook-ORDER bug that took the whole Overview down (#310) would stay
+    // invisible to every test in this file.
+    useMaxProjection: () => {
+      react.useRef(null);
+      return { data: mockWide };
+    },
+    useProjection: () => mockProjection(),
+  };
+});
+
 import { OverviewCards } from "@/components/budgeting/overview/overview-cards";
+import { ProjectionDraftProvider } from "@/components/budgeting/overview/projection-draft";
 
 const DTO = {
   default_currency: "USD",
@@ -747,5 +774,150 @@ describe("OverviewCards", () => {
     render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
     expect(screen.getByText("$7,075,137")).toBeTruthy(); // rounded, no cents
     expect(screen.getByText("$7,067,537")).toBeTruthy(); // P/L rounded
+  });
+
+  /**
+   * Free-to-move and the deficit ARE the forecast window, so they have to move
+   * with the horizon slider rather than wait for it to be let go (user,
+   * 260904k). While the thumb is down the card answers from the wide payload the
+   * strip is already drawing from — no request, and the same arithmetic the
+   * server would use, so the figure does not jump when the drag ends.
+   */
+  describe("while the horizon slider is being dragged", () => {
+    const wideDto = {
+      currency: "USD",
+      // 200 days; the line dips to -900 on day 150, so a 100-day window is
+      // healthy and a 200-day one is not.
+      days: Array.from({ length: 200 }, (_, i) => ({
+        date: `2026-09-${String((i % 28) + 1).padStart(2, "0")}`,
+        color: i === 150 ? "red" : "green",
+        available_cents: i === 150 ? "-90000" : "50000",
+        opening_cents: "0",
+        planned_burn_cents: "0",
+        reserve_covered_cents: "0",
+        income_cents: "0",
+        bill_cents: "0",
+        drew_reserve: [],
+        shortfall: [],
+      })),
+      safe_by_day: Array.from({ length: 200 }, (_, i) =>
+        i < 150 ? "50000" : "-90000",
+      ),
+      income_points: [],
+      bill_points: [],
+      pending_points: [],
+      summary: {
+        first_yellow_date: null,
+        first_red_date: null,
+        worst_shortfall_cents: "0",
+      },
+      spend_health: { good: true, surplus_deficit_cents: null },
+    };
+
+    it("answers for the drafted window, not the committed one", async () => {
+      mockWide = wideDto;
+      render(
+        <ProjectionDraftProvider initialDraft={200}>
+          <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />
+        </ProjectionDraftProvider>,
+      );
+      // The committed window is healthy ($400 free to move); the drafted 200-day
+      // one goes under by $900, so the row must read as a deficit.
+      expect(
+        await screen.findByTestId("spend-surplus-deficit"),
+      ).toHaveTextContent("900");
+    });
+
+    it("keeps the committed answer when no thumb is down", async () => {
+      mockWide = wideDto;
+      render(
+        <ProjectionDraftProvider initialDraft={null}>
+          <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />
+        </ProjectionDraftProvider>,
+      );
+      expect(
+        await screen.findByTestId("spend-surplus-deficit"),
+      ).toHaveTextContent("400");
+    });
+
+    /**
+     * The drafted-window read is a HOOK, and this component returns early while
+     * its own query is pending. Declared beside the derivation it feeds, it ran
+     * only on the loaded path, so React counted a different number of hooks
+     * between the two renders and threw #310 — the whole Overview showed
+     * "Something went wrong", caught only by driving the real page.
+     *
+     * Every other test here starts already loaded, which is exactly why none of
+     * them saw it. This one crosses the boundary — and the mock above calls a
+     * real hook so that crossing actually counts.
+     */
+    it("survives the pending → loaded transition with a thumb down", async () => {
+      mockWide = wideDto;
+      mockUse.mockReturnValue({
+        data: undefined,
+        isError: false,
+        isPending: true,
+      });
+      const { rerender } = render(
+        <ProjectionDraftProvider initialDraft={200}>
+          <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />
+        </ProjectionDraftProvider>,
+      );
+      mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+      rerender(
+        <ProjectionDraftProvider initialDraft={200}>
+          <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />
+        </ProjectionDraftProvider>,
+      );
+      expect(await screen.findByTestId("spend-surplus-deficit")).toBeVisible();
+    });
+
+    it("keeps the committed answer when the wide payload has not landed", async () => {
+      mockWide = undefined;
+      render(
+        <ProjectionDraftProvider initialDraft={200}>
+          <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />
+        </ProjectionDraftProvider>,
+      );
+      expect(
+        await screen.findByTestId("spend-surplus-deficit"),
+      ).toHaveTextContent("400");
+    });
+  });
+
+  /**
+   * A budget running on its cushion limits looks, on the Overview, exactly like
+   * one that is not: same cards, different rules behind every figure. The
+   * Cushion card is where that belongs — it is the pot the mode makes spendable
+   * (user, 260904l).
+   */
+  describe("cushion mode", () => {
+    it("marks the Cushion card when the budget is running on it", async () => {
+      mockUse.mockReturnValue({
+        data: {
+          ...DTO,
+          cushion: { ...DTO.cushion, enabled: true, mode_enabled: true },
+        },
+        isError: false,
+        isPending: false,
+      });
+      render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+      const card = await screen.findByTestId("overview-card-cushion");
+      expect(within(card).getByTestId("cushion-mode-chip")).toBeInTheDocument();
+    });
+
+    it("says nothing on a budget using its normal limits", async () => {
+      mockUse.mockReturnValue({
+        data: {
+          ...DTO,
+          cushion: { ...DTO.cushion, enabled: true, mode_enabled: false },
+        },
+        isError: false,
+        isPending: false,
+      });
+      render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+      await screen.findByTestId("overview-card-cushion");
+      expect(screen.queryByTestId("cushion-mode-chip")).toBeNull();
+    });
   });
 });

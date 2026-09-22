@@ -112,6 +112,8 @@ test("setMemberAggregationSettings persists sharePct alongside included (self, n
     ownership_share_pct: 42,
     include_in_aggregation: true,
     amount_privacy_enabled: false,
+    // The column defaults to an empty object, not NULL.
+    ui_prefs: {},
   });
 });
 

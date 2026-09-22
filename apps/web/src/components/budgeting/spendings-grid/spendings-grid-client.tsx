@@ -1202,6 +1202,14 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
           budgetId={budgetId}
           budgetCurrency={budgetCurrency}
           month={month}
+          // The VIEWED month's mode, exactly as the columns read it: a month
+          // that ran in cushion mode plans no investing, so its limit is not a
+          // choice — but stepping back to a normal month restores it.
+          cushionMonth={
+            summary.data?.cushionModeForMonth ??
+            summary.data?.cushionModeEnabled ??
+            false
+          }
           initial={editCatInitial}
         />
       ) : (

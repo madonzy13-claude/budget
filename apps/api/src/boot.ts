@@ -136,7 +136,7 @@ export interface BootedDeps {
     >["setExclusions"];
     /** Phase 11 (11-06): Financial-Wealth section (snapshot series + live point + pie). */
     getOverviewWealth: ReturnType<typeof getOverviewWealth>;
-    /** Overview projection timeline (today → 100 days out). */
+    /** Overview projection timeline (today → the caller's window, default 100 days). */
     getCashflowProjection: ReturnType<typeof computeCashflowProjection>;
     /** Task 7: GET /budgets/aggregate — cross-budget "all budgets" rollup. */
     getAllBudgetsAggregate: ReturnType<typeof getAllBudgetsAggregate>;
@@ -360,6 +360,11 @@ export async function boot(): Promise<BootedDeps> {
   const confirmDraftService = confirmDraft({
     repo: expenseLedgerDraftPortRepo,
     taskRepo,
+    // 260921: a confirmed payment is counted spend, so it can draw a category's
+    // reserve and move the surplus RESERVE_TOPUP reports. Without this the
+    // reserves pill kept the amount it was emitted with while the Overview,
+    // which recomputes on read, moved on.
+    recomputeReserveTopup: baseBudgeting.recomputeReserveTopup,
   });
   const getSpendingsSummaryService = getSpendingsSummary({
     categoryRepo,
@@ -595,7 +600,7 @@ export async function boot(): Promise<BootedDeps> {
         return byMonth;
       },
     }),
-    // Overview cash-flow projection timeline (today → 100 days out).
+    // Overview cash-flow projection timeline (today → the caller's window, 100 by default).
     getCashflowProjection: computeCashflowProjection({
       fxProvider: baseBudgeting.fxProvider,
       reservePositions: baseBudgeting.reservePositions,
@@ -618,6 +623,9 @@ export async function boot(): Promise<BootedDeps> {
           default_currency: b.default_currency,
           member_count: b.memberCount,
           pendingTasksCount: b.pendingTasksCount,
+          // Which budgets are running on their cushion limits, so the
+          // all-budgets rows can say so (user, 260904l).
+          cushion_mode_enabled: b.cushionModeEnabled ?? false,
         }));
       },
       getOverviewCardsForTenant: budgetingFinal.getOverviewCards,

@@ -46,3 +46,14 @@ Feature: All-budgets aggregate overview
     When I open the all-budgets view
     Then a task banner is showing
     And no request came back forbidden
+
+  # A budget running on its cushion limits contributes its cushion wallets to the
+  # totals above the list, so the row has to say which budget that was — the
+  # figures are summed under different rules (user, 260904l).
+  Scenario: A cushion-mode budget is marked in the all-budgets list
+    Given I have a budget "Home" in "USD" with a wallet balance of 500000 cents
+    And I have a budget "Travel" in "EUR" with a wallet balance of 300000 cents
+    And the "Home" budget is in cushion mode
+    When I open the all-budgets view
+    Then the "Home" budget row is marked as running on its cushion
+    And the "Travel" budget row carries no cushion mark

@@ -16,6 +16,8 @@ import { PillBadge } from "@/components/budgeting/tasks/pill-badge";
 import { budgetSwitchPath } from "@/lib/bdp-tabs";
 import { cn } from "@/lib/utils";
 
+import { CushionModeChip } from "@/components/budgeting/cushion-mode-chip";
+
 export interface BudgetSummary {
   id: string;
   name: string;
@@ -32,6 +34,9 @@ export interface BudgetSummary {
   /** Whether the Reserves pill exists on this budget — lets a same-pill switch
    *  from a Reserves tab fall back to Overview when the destination has it off. */
   reservesEnabled?: boolean;
+  /** Running on its cushion limits. Badged in the switcher's LIST so the choice
+   *  between budgets carries it; never on the trigger (user, 260904l). */
+  cushionModeEnabled?: boolean;
 }
 
 /** kind-removal: a budget is "shared" purely by having more than one member. */
@@ -399,6 +404,12 @@ function BudgetGroup({
               />
             )}
             <span className={rowLabelClass(isActive)}>{b.name}</span>
+            {/* Running on its cushion limits. In the LIST only, never on the
+                trigger above: the trigger is a name plus a kind glyph in a nav
+                that has no room in pl/uk, and this is a fact about a budget you
+                are choosing between rather than one you are already in
+                (user, 260904l). */}
+            {b.cushionModeEnabled && <CushionModeChip />}
             {/* r35: pending-task count badge (red) instead of the currency —
                 hidden when 0 (PillBadge returns null for count ≤ 0). */}
             <PillBadge count={b.pendingTasksCount} />

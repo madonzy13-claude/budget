@@ -220,6 +220,13 @@ function addMonths(month: string, n: number): string {
   return `${Math.floor(zero / 12)}-${String((zero % 12) + 1).padStart(2, "0")}`;
 }
 
+/** Last day of `month` ('YYYY-MM'), so a planned query can reach the running
+ *  month without knowing how long it is. */
+function plannedToForRunningMonth(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(y!, m!, 0)).toISOString().slice(0, 10);
+}
+
 export function getReserveFit(deps: GetReserveFitDeps) {
   return async (
     input: GetReserveFitInput,
@@ -253,7 +260,14 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       ] = await Promise.all([
         deps.metaReader.getBudgetMeta(budgetId),
         deps.overviewRepo.categoryWindows(budgetId),
-        deps.overviewRepo.monthlyPlannedByCategory(budgetId, from, to),
+        // Reaches past `to` when the running month sits outside the charted
+        // range, so `currentLimit` below can be the limit in force TODAY. The
+        // extra rows are filtered straight back out of `limitByCell`.
+        deps.overviewRepo.monthlyPlannedByCategory(
+          budgetId,
+          from,
+          nowMonth > to.slice(0, 7) ? plannedToForRunningMonth(nowMonth) : to,
+        ),
         deps.overviewRepo.monthlySpendByCategory(budgetId, from, to),
         deps.exclusionsRepo.largeTransactions({ budgetId, from, to }),
         deps.exclusionsRepo.excludedSpendByCategory({ budgetId, from, to }),
@@ -280,10 +294,36 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       // overage" — House was quoted 128,640 zł of reserve it can never need
       // (user, 260820).
       const noLimitByCell = new Map<string, boolean>();
+      const toMonth = to.slice(0, 7);
       for (const p of planned) {
+        // Rows past the charted range are here only to answer "what is the
+        // limit today" (see `todayLimitByCat`); the walk must not see them.
+        if (p.month > toMonth) continue;
         limitByCell.set(`${p.category_id}|${p.month}`, p.planned_cents);
         noLimitByCell.set(`${p.category_id}|${p.month}`, p.no_limit === true);
       }
+      // "Current" means the limit in force TODAY. When the charted range ends
+      // BEFORE the running month — and the Future chart's default range is the
+      // closed months, so it usually does — the range carries no cell for it,
+      // and this lookup fell through to "the last month of the range". The row
+      // then measured its advice against a limit the member had already
+      // replaced: live on 260922, Car was advised off August's 662 while
+      // September ran on 900, so it asked for +194 when the honest gap was 43 —
+      // under the whole unit that counts as a move. Acting on it changed
+      // September, which the charted range never looks at, so the same advice
+      // came straight back (user, 260922).
+      //
+      // Kept in its OWN map rather than left in `limitByCell`: `all` is derived
+      // from that map's keys, and the trough walk must keep answering for the
+      // charted months only.
+      const todayLimitByCat = new Map<string, bigint>();
+      const todayNoLimitByCat = new Map<string, boolean>();
+      for (const p of planned) {
+        if (p.month !== nowMonth) continue;
+        todayLimitByCat.set(p.category_id, p.planned_cents);
+        todayNoLimitByCat.set(p.category_id, p.no_limit === true);
+      }
+
       const spendByCell = new Map<string, bigint>();
       const scheduledByCell = new Map<string, bigint>();
       for (const s of spend) {
@@ -464,6 +504,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // its own history: there is nothing current to judge it against, and
         // treating that as a limit of zero would turn all its spend into overage.
         const currentLimit =
+          todayLimitByCat.get(w.category_id) ??
           limitByCell.get(`${w.category_id}|${nowMonth}`) ??
           [...all]
             .sort()
@@ -475,6 +516,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // category that cannot be overspent can never need a reserve, whatever
         // its history looks like against a stored limit of 0.
         const isUnbounded =
+          todayNoLimitByCat.get(w.category_id) ??
           noLimitByCell.get(`${w.category_id}|${nowMonth}`) ??
           [...all]
             .sort()

@@ -110,7 +110,20 @@ let categoryData: { id: string; name: string; sortIndex: number }[] = [];
 vi.mock("@/hooks/use-budget-data", () => ({
   useCategories: () => ({ data: categoryData }),
 }));
+vi.mock("@/hooks/use-projection-horizon", () => ({
+  // The horizon control has a suite of its own (projection-horizon.test.tsx).
+  // Here it only has to hand back the default window, without dragging a
+  // QueryClient in behind the member ui-prefs read.
+  useProjectionHorizon: () => ({
+    days: 100,
+    setDays: () => {},
+    locked: false,
+  }),
+}));
+
 vi.mock("@/hooks/use-projection", () => ({
+  // The wide window the horizon panel draws from; not exercised here.
+  useMaxProjection: () => ({ data: undefined }),
   useProjection: () => ({
     data: projectionData,
     isLoading: false,

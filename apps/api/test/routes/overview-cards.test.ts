@@ -309,6 +309,7 @@ describe("GET /budgets/:id/overview/cards", () => {
       };
       cushion: {
         enabled: boolean;
+        mode_enabled: boolean;
         real_months: number;
         total_cents: string;
         required_cents: string;
@@ -330,6 +331,10 @@ describe("GET /budgets/:id/overview/cards", () => {
     expect(body.retirement_inflation_pct).toBe(4.5);
     expect(body.overspent.total_cents).toBe("0");
     expect(body.cushion.enabled).toBe(true);
+    // Whether the budget is RUNNING on its cushion limits — a different fact
+    // from having the feature on, and the one the Overview badges (user,
+    // 260904l). This fixture never switched it on.
+    expect(body.cushion.mode_enabled).toBe(false);
     expect(body.cushion.real_months).toBeCloseTo(0.3, 5);
     expect(body.cushion.total_cents).toBe("3000");
     expect(body.cushion.covered).toBe(false); // actual far below required

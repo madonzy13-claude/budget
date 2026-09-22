@@ -52,11 +52,62 @@ const specOf = (r: CadenceRow): CadenceSpec => ({
   yearlyMonth: r.yearly_month ?? undefined,
 });
 
-/** How far ahead the forecast looks: a rolling 100 days (user, 260812). */
+/** How far ahead the forecast looks when nobody has said: a rolling 100 days
+ *  (user, 260812). Since 260904 a member can pick their own span; this stays the
+ *  answer for everyone who hasn't, and for the callers that must NOT follow a
+ *  view preference — the task generator and the all-budgets verdict. */
 export const PROJECTION_WINDOW_DAYS = 100;
+
+/** The span a member may pick between. Below a month the strip has nothing to
+ *  say that the month itself doesn't; beyond two years it is repeating this
+ *  month's plan back at them at a day per pixel. */
+/** The member ui-prefs key the forecast window is stored under. Named here so
+ *  the web form, the per-budget page and the all-budgets rollup all read the
+ *  same one — a second spelling would silently give two different windows. */
+export const PROJECTION_WINDOW_PREF_KEY = "projectionDays";
+
+export const MIN_PROJECTION_WINDOW_DAYS = 30;
+export const MAX_PROJECTION_WINDOW_DAYS = 730;
+
+/**
+ * A requested window, made safe. The value reaches us off a query string, so it
+ * arrives as a string, as nothing, or as whatever someone typed into the URL —
+ * and it sizes a loop over days, which makes an unclamped one a way to ask the
+ * server for a million iterations. Unreadable input takes the default rather
+ * than an end of the range: it means "no preference", not "as far as possible".
+ */
+export function clampProjectionWindowDays(requested?: unknown): number {
+  if (requested === undefined || requested === null) {
+    return PROJECTION_WINDOW_DAYS;
+  }
+  // Number([]) is 0 and Number(true) is 1 — both would sail through a bare
+  // isFinite check and silently become the minimum window.
+  if (typeof requested !== "number" && typeof requested !== "string") {
+    return PROJECTION_WINDOW_DAYS;
+  }
+  const n = Math.floor(Number(requested));
+  if (!Number.isFinite(n)) return PROJECTION_WINDOW_DAYS;
+  if (typeof requested === "string" && requested.trim() === "") {
+    return PROJECTION_WINDOW_DAYS;
+  }
+  if (n < MIN_PROJECTION_WINDOW_DAYS) return MIN_PROJECTION_WINDOW_DAYS;
+  if (n > MAX_PROJECTION_WINDOW_DAYS) return MAX_PROJECTION_WINDOW_DAYS;
+  return n;
+}
 
 /** Backstop so a malformed cadence can never spin the projection loop forever. */
 export const MAX_PROJECTION_STEPS = 400;
+
+/**
+ * The same backstop, sized for the window being asked about. A flat 400 was
+ * generous for 100 days and a silent TRUNCATION for 546 — a daily rule would
+ * stop being charged four hundred days in, and the forecast would read healthier
+ * the further out you looked. The slack above the window covers a seed that
+ * starts in the past and has to walk forward to reach it.
+ */
+export function maxProjectionSteps(windowDays: number): number {
+  return windowDays + 300;
+}
 
 /**
  * Occurrence ISO dates strictly after `afterExclusive`, up to and including `end`,
@@ -69,15 +120,17 @@ export function enumerateOccurrences(
     seed: Temporal.PlainDate;
     afterExclusive: Temporal.PlainDate;
     end: Temporal.PlainDate;
+    /** Loop backstop. Defaults to the 100-day window's — a caller projecting a
+     *  longer span must raise it via `maxProjectionSteps`, or a daily rule stops
+     *  being charged partway along the strip. */
+    maxSteps?: number;
   },
 ): string[] {
   const out: string[] = [];
   let cur = opts.seed;
   let steps = 0;
-  while (
-    Temporal.PlainDate.compare(cur, opts.end) <= 0 &&
-    steps++ < MAX_PROJECTION_STEPS
-  ) {
+  const cap = opts.maxSteps ?? MAX_PROJECTION_STEPS;
+  while (Temporal.PlainDate.compare(cur, opts.end) <= 0 && steps++ < cap) {
     if (Temporal.PlainDate.compare(cur, opts.afterExclusive) > 0) {
       out.push(cur.toString());
     }
@@ -113,14 +166,22 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
   return async (input: {
     tenantId: string;
     budgetId: string;
+    /** How far ahead this caller wants to look, in days. Omitted — by the task
+     *  generator and the all-budgets verdict, which must answer the same
+     *  question for everyone — it is the default 100. */
+    windowDays?: number;
   }): Promise<CashflowProjection> => {
     const asOf = deps.now ? deps.now() : new Date();
     const today = Temporal.Now.plainDateISO();
     const startMonth = today.with({ day: 1 });
-    // 100 days (user, 260812). "To the end of next month" was
-    // a horizon that shrank as the month ran out: on the 30th it forecast one
-    // month, on the 1st two. A fixed span always looks the same distance ahead.
-    const windowEnd = today.add({ days: PROJECTION_WINDOW_DAYS - 1 });
+    // A FIXED span, defaulting to 100 days (user, 260812). "To the end of next
+    // month" was a horizon that shrank as the month ran out: on the 30th it
+    // forecast one month, on the 1st two. A fixed span always looks the same
+    // distance ahead — the member now picks how far (260904), and every span
+    // they can pick is still the same distance tomorrow as it is today.
+    const windowDays = clampProjectionWindowDays(input.windowDays);
+    const stepCap = maxProjectionSteps(windowDays);
+    const windowEnd = today.add({ days: windowDays - 1 });
     const thisMonthStartStr = startMonth.toString();
     const thisMonthEndStr = startMonth
       .with({ day: startMonth.daysInMonth })
@@ -161,16 +222,39 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
             .cushion_mode_enabled,
         );
 
-        // SPENDINGS only. Cushion money is not spendable where it sits — moving
-        // it into a spendings wallet is a deliberate act, and until the member
-        // makes it the forecast must not spend it for them (user, 260812).
+        // SPENDINGS, plus CUSHION once the budget is in cushion mode.
+        //
+        // Cushion money used to be excluded outright: "not spendable where it
+        // sits — moving it into a spendings wallet is a deliberate act, and
+        // until the member makes it the forecast must not spend it for them"
+        // (user, 260812). Enabling cushion mode IS that deliberate act, and the
+        // rest of the app had already moved: the Overview's "available to spend"
+        // card folds cushion wallets in for a cushion month (r36,
+        // get-overview-cards). The band underneath it did not, so the card
+        // counted the cushion while the health dot beside it — which comes from
+        // THIS projection — said the household would run short (user, 260904h).
+        //
+        // Cushion is CASH here, not a third buffer drawn after the reserve. The
+        // reserve keeps its own job: it is reached for only by what a category
+        // spends BEYOND its plan, and only the reserve that category built.
+        // Spending 600 against a 500 limit is 500 of ordinary cash — whichever
+        // of the two wallet types it comes out of — and 100 of reserve.
+        //
+        // A negative balance is a credit card, not money; the >= 0 filter is the
+        // same rule get-overview-cards applies.
+        const spendableTypes = cushionMode
+          ? ["SPENDINGS", "CUSHION"]
+          : ["SPENDINGS"];
         const wallets = await tx.execute(sql`
           SELECT (current_balance * 100)::bigint::text AS amount_cents, currency
             FROM budgeting.wallets
            WHERE tenant_id = ${input.tenantId}::uuid
              AND archived_at IS NULL
              AND current_balance >= 0
-             AND wallet_type = 'SPENDINGS'`);
+             AND wallet_type IN (${sql.join(
+               spendableTypes.map((t) => sql`${t}`),
+               sql`, `,
+             )})`);
 
         // Categories + this-month + next-month active limits (cushion vs normal).
         // POINT-IN-TIME predicates (limit effective ON a single date), NOT a
@@ -384,8 +468,16 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
     const investRow = (L.catRows as Record<string, unknown>[]).find(
       (r) => r.is_investment === true && r.investment_limit_mode === "smart",
     );
+    // In a CUSHION month the household is on its tighter limits, and the rest of
+    // the app already stops the Investments category planning anything there.
+    // The forecast used to keep dripping — and for a smart limit it dripped MORE
+    // than usual, since smart is income − Σ other planned and the cushion limits
+    // it subtracts are smaller. The only investing a cushion month knows about
+    // is what is actually SCHEDULED, which is charged as a dated bill like any
+    // other (user, 260904f). Manual needs nothing here: its stored cushion
+    // amount is already 0, which budgetAt returns on its own.
     let smartByMonth: Record<string, bigint> | null = null;
-    if (investRow) {
+    if (investRow && !L.cushionMode) {
       const items = normalizeIncomesToMonthlyItems(
         L.incomeRows as unknown as IncomeForNormalize[],
         monthProbes[0]?.key,
@@ -428,6 +520,10 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
         // is effective-dated but a 100-day window rarely straddles a flip, and
         // erring this way keeps the forecast agreeing with the reserve engine.
         noLimit: monthProbes.some((p) => noLimitAt(r.id, p.asOfDate)),
+        // Investing past the plan is a choice, not a failure — it must not spend
+        // the reserve the household built for emergencies.
+        neverOverspends:
+          (r as unknown as { is_investment?: boolean }).is_investment === true,
       };
     });
 
@@ -446,6 +542,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
         seed: incomeSeedDate(r, today),
         afterExclusive: today,
         end: windowEnd,
+        maxSteps: stepCap,
       })) {
         incomePayments.push({ date, name: r.name, amountCents: amt });
       }
@@ -473,6 +570,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
         seed,
         afterExclusive: today,
         end: enumEnd,
+        maxSteps: stepCap,
       })) {
         bills.push({
           date,
@@ -516,7 +614,16 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       ...simInput,
       spendTiming: "immediate",
     });
-    return { ...line, safeToWithdraw: worstCase.safeToWithdraw };
+    // The same trough, answered for every window length the member could drag
+    // to. Free — the pessimistic run already walked these days; only its final
+    // minimum was being kept.
+    const safeByDay: bigint[] = [];
+    let low: bigint | null = null;
+    for (const d of worstCase.days) {
+      low = low === null || d.availableCents < low ? d.availableCents : low;
+      safeByDay.push(low);
+    }
+    return { ...line, safeToWithdraw: worstCase.safeToWithdraw, safeByDay };
   };
 }
 

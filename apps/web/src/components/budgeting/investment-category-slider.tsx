@@ -38,6 +38,16 @@ export interface InvestmentCategorySliderProps {
   budgetId: string;
   budgetCurrency: string;
   month?: string;
+  /**
+   * The VIEWED month ran (or runs) in cushion mode, where this category has NO
+   * limit at all — only what is actually invested counts.
+   *
+   * It only says so — the modes stay live (user, 260904f, revised). The limit
+   * being ignored THIS month is not a reason to stop someone setting the one
+   * every other month will use, and a disabled control that gives no way to do
+   * that is worse than a sentence explaining it.
+   */
+  cushionMonth?: boolean;
   initial: {
     categoryId: string;
     name: string;
@@ -70,6 +80,7 @@ export function InvestmentCategorySlider({
   budgetId,
   budgetCurrency,
   month,
+  cushionMonth = false,
   initial,
 }: InvestmentCategorySliderProps) {
   const t = useTranslations("grid.investCat");
@@ -286,6 +297,14 @@ export function InvestmentCategorySlider({
                 className="text-xs text-[var(--muted-foreground)]"
               >
                 {t("smartRequiresIncome")}
+              </p>
+            )}
+            {cushionMonth && (
+              <p
+                data-testid="invest-cushion-note"
+                className="text-xs text-[var(--muted-foreground)]"
+              >
+                {t("cushionNote")}
               </p>
             )}
           </div>

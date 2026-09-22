@@ -255,6 +255,12 @@ export function CushionSection({
     queryClient.invalidateQueries({
       queryKey: ["budget", budgetId, "projection"],
     });
+    // …and the all-budgets page, which SUMS each budget's available-to-spend.
+    // Cushion mode is exactly what decides whether this budget's cushion wallets
+    // are part of that figure, so leaving it out meant the cross-budget total
+    // was right only after a full page reload (user, 260904i). The prefix covers
+    // the wealth series keyed under it too.
+    queryClient.invalidateQueries({ queryKey: ["budgets", "aggregate"] });
   }
 
   const renderPreview = () => {
