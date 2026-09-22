@@ -17,7 +17,6 @@ import {
   type ProjectionDay,
 } from "@/hooks/use-projection";
 import { useProjectionHorizon } from "@/hooks/use-projection-horizon";
-import { hapticForDay } from "@/lib/haptics";
 import { useSetProjectionDraft } from "@/components/budgeting/overview/projection-draft";
 import { useCategories } from "@/hooks/use-budget-data";
 import {
@@ -163,15 +162,6 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
       .map((c, i) => [c.id as string, i]),
   );
   const [active, setActive] = useState<number | null>(null);
-  /**
-   * The day the finger last BUZZED on, so a scrub buzzes once per day crossed
-   * rather than once per pointer event — a finger resting on a pay-day would
-   * otherwise rattle (user, 260921).
-   *
-   * A ref, not state: it must not re-render the strip mid-drag, and it is read
-   * and written in the same tick that moves the selection.
-   */
-  const lastBuzzedDay = useRef<number | null>(null);
 
   // The strip's own width, so a month name can be priced in the pixels it
   // occupies rather than in a percentage guessed for one device (see
@@ -293,20 +283,6 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
   // pending-but-not-fetching, so isLoading is false while it holds no data. Read
   // literally, the guard below would call that an empty forecast and say "add
   // income or scheduled payments" over a budget that has both.
-  /** Which dates carry money, for the scrub's haptic. Sets rather than a scan:
-   *  this is consulted once per day the finger crosses.
-   *
-   *  Declared with the other hooks, ABOVE this component's early returns: put
-   *  beside the handler that uses it, it ran only on the loaded path and React
-   *  counted a different number of hooks between renders (#310 — the whole
-   *  Overview showed "Something went wrong"). Caught by driving the real page;
-   *  the component tests all start already-loaded. */
-  const moneyDates = useMemo(() => {
-    const income = new Set((source?.income_points ?? []).map((p) => p.date));
-    const bill = new Set((source?.bill_points ?? []).map((b) => b.date));
-    return { income, bill };
-  }, [source]);
-
   if (isLoading || effective === null) {
     return <div className={cn(CARD, "h-[104px] animate-pulse")} aria-hidden />;
   }
@@ -318,24 +294,6 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
     );
   }
 
-  /**
-   * The ONE way the scrubbed day changes — both the band's pointer maths and
-   * the per-day hit cells go through it, so the haptic cannot be attached to
-   * one path and forgotten on the other.
-   */
-  const selectDay = (i: number) => {
-    setActive(i);
-    // Once per day CROSSED, not per pointer event.
-    if (lastBuzzedDay.current === i) return;
-    lastBuzzedDay.current = i;
-    const day = viewDays[i];
-    if (!day) return;
-    hapticForDay({
-      hasIncome: moneyDates.income.has(day.date),
-      hasBill: moneyDates.bill.has(day.date),
-    });
-  };
-
   // Pointer x → nearest day index (works for mouse move AND touch finger-slide;
   // getBoundingClientRect returns 0s in happy-dom, so guard NaN — the unit test
   // drives selection via per-cell onPointerEnter instead).
@@ -346,7 +304,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
     // Against the WINDOW, then clamped to the days in hand: pointing at the
     // empty tail of a growing strip selects its last known day rather than a
     // day that has not arrived.
-    selectDay(clamp(Math.round(frac * span), 0, Math.max(n - 1, 0)));
+    setActive(clamp(Math.round(frac * span), 0, Math.max(n - 1, 0)));
   };
 
   const activePct = active === null || n === 0 ? 0 : pctAt(active);
@@ -453,12 +411,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
           "relative touch-none select-none",
           hasIncome ? "h-[30px]" : "h-5",
         )}
-        onPointerLeave={() => {
-          setActive(null);
-          // Lifting resets the run, so coming back to the same pay-day feels
-          // like arriving at it again.
-          lastBuzzedDay.current = null;
-        }}
+        onPointerLeave={() => setActive(null)}
         onPointerMove={(e) => selectFromClientX(e.clientX, e.currentTarget)}
         onPointerDown={(e) => selectFromClientX(e.clientX, e.currentTarget)}
       >
@@ -607,7 +560,7 @@ export function ProjectionTimeline({ budgetId }: { budgetId: string }) {
                 data-testid="projection-day"
                 data-color={d.color}
                 data-index={i}
-                onPointerEnter={() => selectDay(i)}
+                onPointerEnter={() => setActive(i)}
                 className="h-full min-w-0 flex-1 cursor-pointer"
               />
             ))}
