@@ -11,7 +11,7 @@
  *    requires a prior user gesture) must not take the scrub down with it.
  */
 import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
-import { canVibrate, hapticForDay } from "@/lib/haptics";
+import { canVibrate, hapticForDay, __resetHaptics } from "@/lib/haptics";
 
 const setVibrate = (impl: unknown) => {
   Object.defineProperty(navigator, "vibrate", {
@@ -24,6 +24,8 @@ const setVibrate = (impl: unknown) => {
 let calls: (number | number[])[];
 
 beforeEach(() => {
+  __resetHaptics();
+  document.body.innerHTML = "";
   calls = [];
   setVibrate((p: number | number[]) => {
     calls.push(p);
@@ -93,5 +95,67 @@ describe("canVibrate", () => {
     // @ts-expect-error — removing the API
     delete navigator.vibrate;
     expect(canVibrate()).toBe(false);
+  });
+});
+
+/**
+ * iOS has no Vibration API at all. The one haptic Apple exposes to the web is
+ * the system tick Safari plays when a `<input type="checkbox" switch>` is
+ * toggled, so where vibrate() is missing we fall back to clicking a hidden
+ * switch (user, 260921: "if it's possible on iOS, I'd like to try").
+ *
+ * It is a trick, not an API: it gives ONE fixed feel, so income and a payment
+ * cannot be told apart there, and Apple may stop honouring it. Everything here
+ * is therefore about it being inert and cheap — never about the buzz itself,
+ * which no test on this machine can observe.
+ */
+describe("the iOS fallback", () => {
+  const noVibrate = () => {
+    // @ts-expect-error — exactly the shape of every iPhone
+    delete navigator.vibrate;
+  };
+  const sw = () =>
+    document.querySelector<HTMLInputElement>("input[type=checkbox][switch]");
+
+  test("clicks a switch when there is no vibration API", () => {
+    noVibrate();
+    let clicked = 0;
+    document.addEventListener("click", () => clicked++, true);
+    hapticForDay({ hasIncome: true, hasBill: false });
+    expect(sw()).not.toBeNull();
+    expect(clicked).toBeGreaterThan(0);
+  });
+
+  test("reuses the same switch rather than littering the DOM", () => {
+    noVibrate();
+    hapticForDay({ hasIncome: true, hasBill: false });
+    hapticForDay({ hasIncome: false, hasBill: true });
+    hapticForDay({ hasIncome: true, hasBill: true });
+    expect(
+      document.querySelectorAll("input[type=checkbox][switch]"),
+    ).toHaveLength(1);
+  });
+
+  test("the switch is inert — it cannot be reached or seen", () => {
+    noVibrate();
+    hapticForDay({ hasIncome: true, hasBill: false });
+    const el = sw()!;
+    // It exists only to be clicked by us: out of the tab order, hidden from
+    // assistive tech, and out of the way of a finger.
+    expect(el.tabIndex).toBe(-1);
+    expect(el.getAttribute("aria-hidden")).toBe("true");
+    expect(el.style.pointerEvents).toBe("none");
+  });
+
+  test("an ordinary day still creates nothing at all", () => {
+    noVibrate();
+    hapticForDay({ hasIncome: false, hasBill: false });
+    expect(sw()).toBeNull();
+  });
+
+  test("vibrate(), where it exists, wins — no switch is ever made", () => {
+    hapticForDay({ hasIncome: true, hasBill: false });
+    expect(calls).toHaveLength(1);
+    expect(sw()).toBeNull();
   });
 });
