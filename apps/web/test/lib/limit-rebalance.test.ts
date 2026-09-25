@@ -8,6 +8,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  limitMoveSize,
   limitRebalanceButton,
   proposeSplit,
   sortLimitRows,
@@ -159,5 +160,57 @@ describe("sortLimitRows", () => {
       }),
     ];
     expect(sortLimitRows(rows)[0]!.categoryId).toBe("both");
+  });
+});
+
+/**
+ * A gap the Future chart calls nothing must not become a move in the dialog
+ * that opens from it (user, 260925).
+ *
+ * The chart zeroes a gap under one whole unit before it draws — "a limit is set
+ * in whole units, and the dialog proposes whole ones, so what a rebalance
+ * leaves behind is a few groszy of rounding, which is nothing to act on"
+ * (planned-section.tsx). The dialog rounded the TARGET up first and then asked
+ * whether the move was worth making, so the rounding itself cleared the bar:
+ * Food & Home, live on 260925, projected 103.53 against a limit of 103. The
+ * chart drew 0 zł. The dialog offered 104 — a whole złoty conjured out of 53
+ * groszy, on a row the chart said was settled.
+ *
+ * The test for "is this worth doing" has to run on the RAW gap, the same figure
+ * the chart tests. Rounding up is for a move already worth making.
+ */
+describe("a sub-unit gap is not a move", () => {
+  it("proposes no change when the projection is under a whole unit away", () => {
+    // Food & Home, live: 103 held, 103.53 projected.
+    expect(proposeSplit(10300, 0, 10353)).toEqual({
+      needsCents: 10300,
+      wantsCents: 0,
+    });
+  });
+
+  it("leaves the button inert on such a row, as the chart leaves the bar at 0", () => {
+    const split = proposeSplit(10300, 0, 10353);
+    const row: LimitRow = {
+      categoryId: "c1",
+      name: "Food & Home",
+      needsCents: 10300,
+      wantsCents: 0,
+      targetNeedsCents: split.needsCents,
+      targetWantsCents: split.wantsCents,
+      baseline: null,
+    };
+    expect(limitMoveSize(row)).toBe(0);
+    expect(limitRebalanceButton(row)).toEqual({
+      kind: "rebalance",
+      disabled: true,
+    });
+  });
+
+  it("still rounds up once the move IS worth making", () => {
+    // Entertainment, live: 159 held (46 needs / 113 wants), 168.96 projected.
+    expect(proposeSplit(4600, 11300, 16896)).toEqual({
+      needsCents: 4900,
+      wantsCents: 12000,
+    });
   });
 });

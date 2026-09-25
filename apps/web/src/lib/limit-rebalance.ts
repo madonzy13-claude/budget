@@ -48,11 +48,21 @@ export function proposeSplit(
   wantsCents: number,
   totalCents: number,
 ): LimitSplit {
+  const current = needsCents + wantsCents;
+  // A gap under one whole unit is NOT a move, and the test has to run on the
+  // raw figure — before the rounding below, not after it. The Future chart
+  // zeroes exactly this gap before it draws a bar (planned-section.tsx), so
+  // rounding up first and then asking "is this worth doing" let the rounding
+  // itself answer yes: Food & Home, live 260925, projected 103.53 against a
+  // limit of 103 — the chart drew 0 zł and the dialog offered 104, a whole
+  // złoty conjured out of 53 groszy (user, 260925).
+  if (Math.abs(Math.max(0, totalCents) - current) < UNIT)
+    return { needsCents, wantsCents };
+
   // Whole units on both sides. Nobody sets a limit of 3,129.90: the walk
   // answers to the groszy, but a limit is a decision and it is made in whole
   // złoty (user, 260808). Rounding UP so the limit still covers what was asked.
   const total = roundUpUnit(Math.max(0, totalCents));
-  const current = needsCents + wantsCents;
   if (current <= 0 || wantsCents <= 0)
     return { needsCents: total, wantsCents: 0 };
   const wants = Math.min(
