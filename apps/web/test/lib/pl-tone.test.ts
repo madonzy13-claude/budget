@@ -68,3 +68,31 @@ describe("plPctDecimals", () => {
     expect(plPctDecimals(Number.NaN)).toBe(1);
   });
 });
+
+/**
+ * The depth is chosen so the FIRST SIGNIFICANT DIGIT survives — but it is
+ * chosen from the raw value, and rounding to that depth can carry the digit one
+ * place to the left, leaving a zero on the end that says nothing.
+ *
+ * Live, 260930: −155 zł against 1,585,738 zł is −0.009774…%. The first
+ * significant digit sits at the third decimal, so the rule asked for three —
+ * and three rounds to "0.010". Two would have printed "0.01": the same value,
+ * without the dead digit (user, 260930).
+ */
+describe("plPctDecimals — no trailing zero the rounding invented", () => {
+  it("drops the place that rounding carried away", () => {
+    // −0.009774…% → "0.01", not "0.010".
+    expect(plPctDecimals((155 / 1585738) * 100)).toBe(2);
+  });
+
+  it("keeps the place when it still carries a digit", () => {
+    // 0.0071 → "0.007": rounding to 2 would say "0.01", which is a different
+    // number, so the third place is doing work.
+    expect(plPctDecimals(0.0071)).toBe(3);
+  });
+
+  it("keeps rounding UP into view rather than printing zero", () => {
+    // The original reason the rule exists: 0.049 → "0.05", never "0.0".
+    expect(plPctDecimals(0.049)).toBe(2);
+  });
+});
