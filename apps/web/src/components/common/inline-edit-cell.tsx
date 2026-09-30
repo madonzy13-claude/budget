@@ -137,19 +137,29 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
   }, [draft, props]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
+    // Space alone (user, 260930). Enter is no longer an "open the editor" key
+    // anywhere — the spendings grid and the assets pill moved with it — which
+    // leaves Enter free to mean "commit" inside the editor and "decide" on a
+    // row, instead of all three at once.
+    if (e.key === " ") {
       e.preventDefault();
       beginEdit();
+      e.stopPropagation();
     }
   };
 
   const onEditorKeyDown = (e: React.KeyboardEvent) => {
+    // A key this editor acts on is CONSUMED. Without that the commit carried on
+    // up the tree, and an ancestor that reads Enter as "open this row" popped
+    // its sheet on top of the save — investments, live 260930 (user).
     if (e.key === "Escape") {
       e.preventDefault();
+      e.stopPropagation();
       onCancel();
     }
     if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA") {
       e.preventDefault();
+      e.stopPropagation();
       onCommit();
     }
   };

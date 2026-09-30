@@ -169,6 +169,11 @@ export function TransactionRow({
     }
 
     input.focus({ preventScroll: true });
+    // Selected, so the first keystroke replaces the figure rather than
+    // appending to it (user, 260930). Done here rather than on the input's
+    // onFocus so the mobile keyboard toggle, which refocuses, does not
+    // re-select mid-edit.
+    input.select();
     requestAnimationFrame(() => {
       if (container) container.scrollTop = savedTop;
       setTimeout(adjustForKeyboard, 350);
@@ -483,7 +488,11 @@ export function TransactionRow({
           if (!canEdit) return;
           e.preventDefault();
           onEdit(txn.id);
-        } else if (e.key === "Enter") {
+        } else if (e.key === " ") {
+          // Space, not Enter (user, 260930). Enter was opening the editor here
+          // and committing it there; on an unconfirmed scheduled payment it is
+          // also the confirm. One key, three jobs. Space opens the editor and
+          // Enter is left to mean "decide".
           e.preventDefault();
           startEditing();
         } else if (e.key === "Backspace" || e.key === "Delete") {

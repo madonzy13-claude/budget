@@ -287,3 +287,54 @@ describe("InlineEditCell", () => {
     });
   });
 });
+
+/**
+ * Committing must not also trigger whatever sits above the cell (user, 260930).
+ *
+ * The editor handled Enter — preventDefault, commit — but never stopped it, so
+ * the key carried on up. On an investment row the ancestor reads Enter as
+ * "open this holding", and saving an amount the quick way popped the edit sheet
+ * on top of the save.
+ *
+ * And the resting cell now opens on Space alone, matching the spendings grid
+ * and the rest of the assets pill: Enter is no longer an "open the editor" key
+ * anywhere.
+ */
+describe("InlineEditCell — keys stay in the cell", () => {
+  it("does not let a committing Enter reach an ancestor", () => {
+    const onAncestorKey = vi.fn();
+    render(
+      <div onKeyDown={onAncestorKey}>
+        <InlineEditCell
+          value="10"
+          ariaLabel="amount"
+          testId="cell"
+          onSave={vi.fn().mockResolvedValue(undefined)}
+          render={() => <span>10</span>}
+          renderEditor={(draft, onChange) => (
+            <input
+              data-testid="editor-input"
+              defaultValue={String(draft)}
+              onChange={(e) => onChange(e.target.value)}
+            />
+          )}
+        />
+      </div>,
+    );
+    fireEvent.click(screen.getByRole("button"));
+    fireEvent.keyDown(screen.getByTestId("editor-input"), { key: "Enter" });
+    expect(onAncestorKey).not.toHaveBeenCalled();
+  });
+
+  it("opens the editor on Space", () => {
+    renderCell("hello");
+    fireEvent.keyDown(screen.getByRole("button"), { key: " " });
+    expect(screen.getByTestId("editor-input")).toBeInTheDocument();
+  });
+
+  it("no longer opens it on Enter", () => {
+    renderCell("hello");
+    fireEvent.keyDown(screen.getByRole("button"), { key: "Enter" });
+    expect(screen.queryByTestId("editor-input")).not.toBeInTheDocument();
+  });
+});

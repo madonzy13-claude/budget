@@ -13,10 +13,12 @@
  *
  * Keys (desktop ≥md only, and only while focus is within the tab / not editing):
  *   ↑/↓            move the highlight (wrap); enters at an end from nothing.
- *   Enter          wallet/possession → edit amount; invest-group → toggle;
- *                  invest-row → open edit sheet; add-* → create / open.
+ *   Space          wallet/possession → edit the highlighted field (amount by
+ *                  default); also works the button-like items below.
+ *   Enter          invest-group → toggle; invest-row → open edit sheet;
+ *                  add-* → create / open. NOT the amount editor (user, 260930).
  *   ←/→            wallet/possession → hop the active field name↔currency↔amount
- *                  (Enter then activates that field). Investments: ignored.
+ *                  (Space then activates that field). Investments: ignored.
  *   Delete/Backspace  wallet/possession/invest-row → remove (with confirm).
  *
  * The tab root (rendered only after the data loads, so read FRESH each keypress)
@@ -179,7 +181,13 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
         return;
       }
 
-      if (e.key === "Enter") {
+      if (e.key === "Enter" || e.key === " ") {
+        // SPACE opens the inline amount editor; Enter does not (user, 260930).
+        // Enter was opening the editor here and committing it there, and the
+        // spendings grid moved the same way in the same breath — one key, one
+        // job, across both tabs. The button-like items keep Enter, because that
+        // is what a button answers to, and gain Space for the same reason.
+        if (fielded && e.key !== " ") return;
         e.preventDefault();
         e.stopPropagation();
         if (fielded) {
