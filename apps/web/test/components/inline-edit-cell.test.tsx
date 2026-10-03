@@ -338,3 +338,20 @@ describe("InlineEditCell — keys stay in the cell", () => {
     expect(screen.queryByTestId("editor-input")).not.toBeInTheDocument();
   });
 });
+
+/**
+ * The figure is selected when the editor opens (user, 261003).
+ *
+ * Every caller supplies its own `renderEditor`, so each one would otherwise
+ * have to remember to select — and none of them did. The cell does it once,
+ * for wallets, possessions and investments alike.
+ */
+describe("InlineEditCell — the amount is selected on open", () => {
+  it("selects the editor's text so typing replaces it", () => {
+    renderCell("hello");
+    fireEvent.keyDown(screen.getByRole("button"), { key: " " });
+    const input = screen.getByTestId("editor-input") as HTMLInputElement;
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe("hello".length);
+  });
+})

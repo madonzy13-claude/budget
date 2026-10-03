@@ -482,9 +482,11 @@ export function TransactionRow({
       onKeyDown={(e) => {
         if (readOnly || editing) return;
         if (e.target !== e.currentTarget) return; // row itself, not the editor
-        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-          // r40b: Cmd/Ctrl+Enter opens the FULL editor (same as the pen chip),
-          // distinct from a plain Enter which starts the inline amount edit.
+        if (e.key === " " && (e.metaKey || e.ctrlKey)) {
+          // Cmd/Ctrl+SPACE opens the FULL editor (same as the pen chip). Was
+          // Cmd/Ctrl+Enter until 261003 (user): now that the plain key is
+          // Space, the modified form is the same key, so "open the editor" and
+          // "open the bigger editor" read as one idea rather than two chords.
           if (!canEdit) return;
           e.preventDefault();
           onEdit(txn.id);
