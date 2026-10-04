@@ -701,20 +701,24 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       return v;
     }
 
-    /** scrollTop of whichever ancestor actually scrolls — the window in the
-     *  browser, an inner shell scroller in the installed PWA. */
-    function pageScrollTop(from: HTMLElement): number {
-      let cur = from.parentElement;
-      while (cur) {
-        const s = getComputedStyle(cur);
-        if (
-          /(auto|scroll)/.test(s.overflowY) &&
-          cur.scrollHeight > cur.clientHeight
-        )
-          return cur.scrollTop;
-        cur = cur.parentElement;
-      }
-      return window.scrollY || document.documentElement.scrollTop || 0;
+    /** The element that actually scrolls this page. The (app) shell is
+     *  `h-lvh` with the content in `<main data-shell-scroll>`, so the WINDOW
+     *  never scrolls — window.scrollY is always 0 here. */
+    const shellScroller = () =>
+      el!.closest<HTMLElement>("[data-shell-scroll]");
+
+    /** SUM, not a choice between them: the app has two scroll architectures
+     *  and which one is live depends on display-mode (global.css). Installed
+     *  (standalone) the root is `h-lvh` and `main[data-shell-scroll]` scrolls;
+     *  in the BROWSER that same main is forced to `overflow-y: visible` and
+     *  the WINDOW scrolls instead. Whichever is not in play reads 0, so adding
+     *  them is right in both and needs no media query to stay in sync with the
+     *  stylesheet. */
+    function pageScrollTop(): number {
+      const shell = shellScroller()?.scrollTop ?? 0;
+      const win =
+        window.scrollY || document.documentElement.scrollTop || 0;
+      return shell + win;
     }
 
     function updateMaxH() {
@@ -730,7 +734,7 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       // gesture and the page never moved. Only relaunching fixed it.
       const top = gridTopOffset({
         rectTop: rect.top,
-        scrollTop: pageScrollTop(el!),
+        scrollTop: pageScrollTop(),
       });
 
       // SHELL-R17: iOS-browser-only extension past 100lvh to physical screen bottom.
@@ -781,16 +785,21 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
 
     const ro = new ResizeObserver(updateMaxH);
     ro.observe(el);
-    // …and the page itself. A ResizeObserver fires for SIZE changes, never for
-    // position ones, so a band appearing ABOVE the grid — the tasks banner,
-    // which mounts after its query resolves — slid the grid down without any
-    // remeasure. The box kept the height it was given when it sat higher, so
-    // the document ended up taller than the viewport by exactly the banner,
-    // and that surplus is what the user could scroll into and not back out of
-    // (user, 261004). Body height moves when a band appears, so this catches
-    // it. Converges: `top` is page-relative now, so the second pass computes
-    // the same value and writes the same string.
-    if (document.body) ro.observe(document.body);
+    // …and the shell scroller's CONTENT. A ResizeObserver fires for SIZE
+    // changes, never position ones, so a band appearing ABOVE the grid — the
+    // tasks banner, which mounts once its query resolves — slid the grid down
+    // with no remeasure at all. The box kept the height it was given while it
+    // sat higher, so the scroller's content ended up taller than the scroller
+    // by exactly the banner, and that surplus is the scroll the user fell into
+    // and could not climb back out of (user, 261004).
+    //
+    // NOT document.body: the (app) shell is `h-lvh`, so the body is pinned to
+    // the viewport and its size never changes — an observer there cannot fire.
+    // The scroller's first child is the content column, and THAT grows.
+    // Converges: `top` is scroller-relative now, so the second pass computes
+    // the same number and writes the same string.
+    const shellContent = shellScroller()?.firstElementChild;
+    if (shellContent) ro.observe(shellContent);
 
     window.addEventListener("resize", updateMaxH, { passive: true });
     // SHELL-R17: orientationchange fires on iOS when the user rotates the
