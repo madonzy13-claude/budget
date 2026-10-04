@@ -75,16 +75,28 @@ export function gridTopOffset(i: {
 }
 
 /**
- * Whether the grid should hold a vertical overscroll or pass it to the page.
+ * Whether the grid should hold a vertical overscroll or hand it to the page.
  *
- * `overscroll-behavior: none` exists so a vertical or diagonal swipe inside the
- * grid cannot bleed into the page and fire pull-to-refresh. That is only worth
- * protecting while the grid HAS scroll of its own. Measured on a column with no
- * transactions, `scrollHeight − clientHeight` is 0 and the box still refused to
- * chain: with the page scrolled down, every touch landed on the grid, the grid
- * did nothing with it and passed nothing on, and the only way back was to
- * relaunch the app (user, 261004).
+ * A touch gesture locks its scroll chain at touchstart, which is why the bug
+ * reads the way it does: "scroll down and up without lifting my finger works
+ * nice, but once I scroll down and lift my finger I cannot scroll up" (user,
+ * 261004). One unbroken drag keeps driving whatever it began on. Lift, and the
+ * next touch re-resolves onto the grid — which sits at its own top, has
+ * nothing left to give upward, and under `overscroll-behavior: none` hands
+ * nothing on either. The page stays where it is, for good.
+ *
+ * `auto` chains only at the edge, which is the behaviour actually wanted.
+ *
+ * It is kept as `none` in the BROWSER while the grid has rows of its own:
+ * there, Safari's native pull-to-refresh fires on a downward swipe at the top
+ * of the page and chaining would feed it. The installed app has no such
+ * gesture — its pull-to-refresh is the app's own, gated separately by
+ * `data-no-pull-refresh` — so it can chain freely.
  */
-export function gridOverscrollY(canScrollYPx: number): "none" | "auto" {
+export function gridOverscrollY(
+  canScrollYPx: number,
+  isStandalone: boolean,
+): "none" | "auto" {
+  if (isStandalone) return "auto";
   return canScrollYPx >= 1 ? "none" : "auto";
 }

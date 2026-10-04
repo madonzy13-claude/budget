@@ -243,15 +243,35 @@ describe("gridTopOffset", () => {
  * Chaining is only dangerous while the grid HAS scroll of its own to protect.
  */
 describe("gridOverscrollY", () => {
-  it("holds the gesture while the grid has rows to scroll", () => {
-    expect(gridOverscrollY(120)).toBe("none");
+  // INSTALLED APP — always chain. There is no native pull-to-refresh to guard
+  // against, and refusing to chain is precisely the trap (user, 261004):
+  // "scroll down and up without lifting my finger works nice, but once I
+  // scroll down and lift my finger I cannot scroll up". A gesture locks its
+  // scroll chain at touchstart, so one unbroken drag keeps driving whatever it
+  // started on. Lift, and the next touch re-resolves onto the grid — which
+  // sits at its own top, has nothing left to give in that direction, and with
+  // `none` hands nothing on either. `auto` chains only at the edge, which is
+  // exactly the wanted behaviour.
+  it("always chains in the installed app, even with rows to scroll", () => {
+    expect(gridOverscrollY(120, true)).toBe("auto");
   });
 
-  it("passes it to the page when the grid has nothing to scroll", () => {
-    expect(gridOverscrollY(0)).toBe("auto");
+  it("chains in the installed app with nothing to scroll", () => {
+    expect(gridOverscrollY(0, true)).toBe("auto");
+  });
+
+  // BROWSER — Safari's own pull-to-refresh fires on a downward swipe at the
+  // top of the page, and chaining would feed it. Hold the gesture while there
+  // are rows; let it go when there is nothing here to scroll anyway.
+  it("holds the gesture in the browser while the grid has rows", () => {
+    expect(gridOverscrollY(120, false)).toBe("none");
+  });
+
+  it("releases it in the browser when the grid has nothing to scroll", () => {
+    expect(gridOverscrollY(0, false)).toBe("auto");
   });
 
   it("treats a sub-pixel overflow as nothing — rounding is not content", () => {
-    expect(gridOverscrollY(0.4)).toBe("auto");
+    expect(gridOverscrollY(0.4, false)).toBe("auto");
   });
 });

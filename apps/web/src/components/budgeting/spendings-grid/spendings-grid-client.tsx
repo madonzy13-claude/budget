@@ -767,6 +767,7 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       // (user, 261004).
       el!.style.overscrollBehaviorY = gridOverscrollY(
         el!.scrollHeight - el!.clientHeight,
+        isStandalone,
       );
 
       // Dynamic spacer — BROWSER ONLY. Standalone keeps the JSX env+64 fallback
