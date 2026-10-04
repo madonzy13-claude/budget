@@ -13,7 +13,10 @@
  * Drag listeners scoped to grip handle only — NOT on column body.
  */
 import { useState, useMemo, useEffect, useRef } from "react";
-import { computeScreenExtension } from "@/lib/grid-screen-anchor";
+import {
+  computeScreenExtension,
+  gridTopOffset,
+} from "@/lib/grid-screen-anchor";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -698,11 +701,37 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       return v;
     }
 
+    /** scrollTop of whichever ancestor actually scrolls — the window in the
+     *  browser, an inner shell scroller in the installed PWA. */
+    function pageScrollTop(from: HTMLElement): number {
+      let cur = from.parentElement;
+      while (cur) {
+        const s = getComputedStyle(cur);
+        if (
+          /(auto|scroll)/.test(s.overflowY) &&
+          cur.scrollHeight > cur.clientHeight
+        )
+          return cur.scrollTop;
+        cur = cur.parentElement;
+      }
+      return window.scrollY || document.documentElement.scrollTop || 0;
+    }
+
     function updateMaxH() {
       // Freeze: skip remeasure while a field inside the scroller is focused.
       if (isKeyboardEditing()) return;
       const rect = el!.getBoundingClientRect();
-      const top = Math.max(0, Math.round(rect.top));
+      // PAGE coordinates, not viewport (user, 261004). rect.top shrinks as the
+      // page scrolls, and the height below is `100lvh − top` — so a scrolled
+      // page rebuilt the grid taller by exactly the amount scrolled, keeping
+      // the document taller than the viewport, keeping it scrolled. With
+      // `overscroll-behavior: none` on this box and nothing of its own left to
+      // scroll, there was no way to drag the page back up: the grid ate the
+      // gesture and the page never moved. Only relaunching fixed it.
+      const top = gridTopOffset({
+        rectTop: rect.top,
+        scrollTop: pageScrollTop(el!),
+      });
 
       // SHELL-R17: iOS-browser-only extension past 100lvh to physical screen bottom.
       // Compute per-call so orientation changes (screen dim swap) are reflected.
@@ -752,6 +781,16 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
 
     const ro = new ResizeObserver(updateMaxH);
     ro.observe(el);
+    // …and the page itself. A ResizeObserver fires for SIZE changes, never for
+    // position ones, so a band appearing ABOVE the grid — the tasks banner,
+    // which mounts after its query resolves — slid the grid down without any
+    // remeasure. The box kept the height it was given when it sat higher, so
+    // the document ended up taller than the viewport by exactly the banner,
+    // and that surplus is what the user could scroll into and not back out of
+    // (user, 261004). Body height moves when a band appears, so this catches
+    // it. Converges: `top` is page-relative now, so the second pass computes
+    // the same value and writes the same string.
+    if (document.body) ro.observe(document.body);
 
     window.addEventListener("resize", updateMaxH, { passive: true });
     // SHELL-R17: orientationchange fires on iOS when the user rotates the

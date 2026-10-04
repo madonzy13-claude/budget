@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeScreenExtension } from "../src/lib/grid-screen-anchor";
+import { computeScreenExtension, gridTopOffset } from "../src/lib/grid-screen-anchor";
 
 /**
  * Exhaustive gate matrix for computeScreenExtension.
@@ -185,5 +185,45 @@ describe("grid screen anchor — computeScreenExtension gate matrix (SHELL-R17)"
         isIOS: true,
       }),
     ).toBe(0); // Infinity - finite = Infinity; isFinite check returns 0
+  });
+});
+
+/**
+ * gridTopOffset — the grid's distance from the TOP OF THE PAGE, not from the
+ * top of the viewport (user, 261004: "sometimes when I scroll in spendings I
+ * cannot scroll back; only closing the app helps").
+ *
+ * The grid's height is `100lvh − top`, and `top` came from
+ * `getBoundingClientRect().top`, which is measured against the VIEWPORT. Scroll
+ * the page down by S and that reads S smaller, so the grid is rebuilt S taller
+ * — which keeps the document taller than the viewport, which keeps the page
+ * scrolled. A loop that feeds itself.
+ *
+ * It traps because the grid sets `overscroll-behavior: none` and covers
+ * everything below the band: a swipe over it never chains to the page, and the
+ * grid's own content is too short to scroll. Nothing left to drag the page back
+ * up with.
+ *
+ * Measured from the page instead, `top + height == viewport` whichever way the
+ * page happens to be scrolled, so the document never outgrows the viewport and
+ * the trap cannot form.
+ */
+describe("gridTopOffset", () => {
+  it("is the rect top when the page is not scrolled", () => {
+    expect(gridTopOffset({ rectTop: 220, scrollTop: 0 })).toBe(220);
+  });
+
+  it("adds back the scroll, so a scrolled page measures the same offset", () => {
+    // The banner (135px) has scrolled away: the rect reads 85, but the grid is
+    // still 220 from the top of the page.
+    expect(gridTopOffset({ rectTop: 85, scrollTop: 135 })).toBe(220);
+  });
+
+  it("never goes negative, whatever rubber-banding reports", () => {
+    expect(gridTopOffset({ rectTop: -40, scrollTop: 0 })).toBe(0);
+  });
+
+  it("rounds, so a fractional layout cannot drift the box", () => {
+    expect(gridTopOffset({ rectTop: 85.4, scrollTop: 134.8 })).toBe(220);
   });
 });

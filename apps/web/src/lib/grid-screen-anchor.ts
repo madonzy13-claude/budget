@@ -45,3 +45,31 @@ export function computeScreenExtension(i: ScreenAnchorInput): number {
   // Super-large delta (pathological device) → 140 (max safe extension).
   return Math.min(MAX_EXTENSION, Math.max(0, Math.round(delta)));
 }
+
+/**
+ * How far the grid sits from the top of the PAGE.
+ *
+ * `getBoundingClientRect().top` is measured against the viewport, so it shrinks
+ * as the page scrolls. The grid's height is `100lvh − top`, which means a
+ * scrolled page rebuilt the grid taller by exactly the amount scrolled — the
+ * document stayed taller than the viewport, so the page stayed scrolled, and
+ * the next measurement grew it again. A loop that feeds itself.
+ *
+ * It trapped the user because the grid sets `overscroll-behavior: none` and
+ * covers everything below the band: a swipe over it never chains to the page,
+ * and its own content was too short to scroll. There was nothing left to drag
+ * the page back up with, and only relaunching the app (a fresh measurement at
+ * scroll 0) recovered it (user, 261004).
+ *
+ * Adding the scroll offset back makes this a PAGE coordinate: `top + height`
+ * equals the viewport however the page happens to be scrolled, so the document
+ * never outgrows the viewport and the trap cannot form.
+ */
+export function gridTopOffset(i: {
+  /** getBoundingClientRect().top of the scroller. */
+  rectTop: number;
+  /** scrollTop of whichever ancestor actually scrolls (window or the shell). */
+  scrollTop: number;
+}): number {
+  return Math.max(0, Math.round(i.rectTop + i.scrollTop));
+}
