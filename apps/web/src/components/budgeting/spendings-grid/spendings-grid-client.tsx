@@ -15,6 +15,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
   computeScreenExtension,
+  gridOverscrollY,
   gridTopOffset,
 } from "@/lib/grid-screen-anchor";
 import { useQueryClient } from "@tanstack/react-query";
@@ -756,6 +757,16 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       el!.style.setProperty(
         "--grid-max-h",
         `max(160px, calc(100lvh - ${top}px + ${ext}px))`,
+      );
+
+      // Hold the gesture only while there is something here to scroll. A
+      // column with no transactions has nothing, and the box was still
+      // refusing to chain — so with the page scrolled down, every touch landed
+      // on the grid, which did nothing with it and passed nothing on. Measured
+      // live: canScrollY 0 with overscroll-behavior none under the finger
+      // (user, 261004).
+      el!.style.overscrollBehaviorY = gridOverscrollY(
+        el!.scrollHeight - el!.clientHeight,
       );
 
       // Dynamic spacer — BROWSER ONLY. Standalone keeps the JSX env+64 fallback

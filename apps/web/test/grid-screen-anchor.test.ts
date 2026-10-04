@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeScreenExtension, gridTopOffset } from "../src/lib/grid-screen-anchor";
+import { computeScreenExtension, gridTopOffset, gridOverscrollY } from "../src/lib/grid-screen-anchor";
 
 /**
  * Exhaustive gate matrix for computeScreenExtension.
@@ -225,5 +225,33 @@ describe("gridTopOffset", () => {
 
   it("rounds, so a fractional layout cannot drift the box", () => {
     expect(gridTopOffset({ rectTop: 85.4, scrollTop: 134.8 })).toBe(220);
+  });
+});
+
+/**
+ * gridOverscrollY — the grid must not swallow a gesture it cannot use
+ * (user, 261004).
+ *
+ * `overscroll-behavior: none` is there to stop a vertical or diagonal swipe
+ * inside the grid from bleeding into the page and firing pull-to-refresh. But
+ * it applied even when the grid had NOTHING to scroll: measured on a column
+ * with no transactions, `scrollHeight - clientHeight` is 0 and the box still
+ * refused to chain. With the page scrolled down, every touch landed on the
+ * grid, the grid did nothing with it and passed nothing on, and there was no
+ * way back up short of relaunching.
+ *
+ * Chaining is only dangerous while the grid HAS scroll of its own to protect.
+ */
+describe("gridOverscrollY", () => {
+  it("holds the gesture while the grid has rows to scroll", () => {
+    expect(gridOverscrollY(120)).toBe("none");
+  });
+
+  it("passes it to the page when the grid has nothing to scroll", () => {
+    expect(gridOverscrollY(0)).toBe("auto");
+  });
+
+  it("treats a sub-pixel overflow as nothing — rounding is not content", () => {
+    expect(gridOverscrollY(0.4)).toBe("auto");
   });
 });

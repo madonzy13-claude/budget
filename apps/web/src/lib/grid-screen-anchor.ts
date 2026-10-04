@@ -73,3 +73,18 @@ export function gridTopOffset(i: {
 }): number {
   return Math.max(0, Math.round(i.rectTop + i.scrollTop));
 }
+
+/**
+ * Whether the grid should hold a vertical overscroll or pass it to the page.
+ *
+ * `overscroll-behavior: none` exists so a vertical or diagonal swipe inside the
+ * grid cannot bleed into the page and fire pull-to-refresh. That is only worth
+ * protecting while the grid HAS scroll of its own. Measured on a column with no
+ * transactions, `scrollHeight − clientHeight` is 0 and the box still refused to
+ * chain: with the page scrolled down, every touch landed on the grid, the grid
+ * did nothing with it and passed nothing on, and the only way back was to
+ * relaunch the app (user, 261004).
+ */
+export function gridOverscrollY(canScrollYPx: number): "none" | "auto" {
+  return canScrollYPx >= 1 ? "none" : "auto";
+}

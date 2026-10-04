@@ -177,11 +177,14 @@ export function CategoryColumn({
           small chevron-up cue make the hidden-above content discoverable. */}
       <div
         data-testid={`column-sticky-${category.name.toLowerCase()}`}
-        // touch-action: pan-x — touches on the header strip can still pan the
-        // grid horizontally but cannot scroll the grid vertically. Vertical
-        // scrolling only kicks in when the finger starts inside the
-        // transaction list below.
-        style={{ touchAction: "pan-x" }}
+        // Both axes. This was `pan-x` — horizontal panning only — on the
+        // reasoning that vertical scrolling "kicks in when the finger starts
+        // inside the transaction list below". On a column with NO transactions
+        // there is no list below: this band is most of what is on screen, so
+        // the reasoning inverted and the strip became a dead zone the page
+        // could not be scrolled from at all (user, 261004, measured:
+        // touch-action pan-x under the finger for the whole header block).
+        style={{ touchAction: "pan-x pan-y" }}
         className={cn(
           // border-x + border-t on the sticky band so when it pins at the
           // wrapper top (column's own top has scrolled out of the clip), the
