@@ -98,6 +98,9 @@ export function CategoryColumn({
     isDragging,
   } = useSortable({ id: category.id });
 
+  /** The category's 4px accent, or null. Archived columns stay muted. */
+  const accentHex = archived ? null : hexForColorKey(summary.colorKey);
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -127,29 +130,15 @@ export function CategoryColumn({
       // Every other element is w-0 min-w-full (fills but never drives width),
       // so a long name/note can't widen the column — only the reserve value can.
       className={cn(
-        // `relative` (260613-v1p): positions the absolute accent bar; safe for
-        // the sticky children below (they resolve against the scroll container).
+        // `relative` (260613-v1p): kept as the column's own positioning
+        // context; safe for the sticky children below (they resolve against
+        // the scroll container).
         "relative w-max min-w-[140px] sm:min-w-[160px] flex flex-col flex-shrink-0 rounded-xl bg-[var(--surface-card-dark)] overflow-clip !cursor-default",
         // Archived "keep history": darker #14181D surface (same as excluded
         // reserve rows); the fade comes from the inline `opacity` above.
         archived && "!bg-[#14181D] text-[#7A7C7F]",
       )}
     >
-      {/* 260613-v1p: 4px left accent bar driven by the persisted colorKey.
-          z-0 (below the z-5 backdrop + z-10 sticky band → never breaks the top
-          mask), pointer-events-none + no layout flow → zero impact on drag /
-          horizontal-scroll / sticky / name width. overflow-clip on the card +
-          rounded-l-xl keep it inside the rounded corners. Hidden on archived
-          columns (kept clean/muted) and when there's no color. */}
-      {!archived && hexForColorKey(summary.colorKey) ? (
-        <div
-          aria-hidden="true"
-          data-testid={`category-accent-bar-${category.id}`}
-          className="absolute left-0 top-0 bottom-0 w-1 z-0 rounded-l-xl pointer-events-none"
-          style={{ backgroundColor: hexForColorKey(summary.colorKey)! }}
-        />
-      ) : null}
-
       {/* Top backdrop. Pure-CSS, sticky-pinned at grid.top. Solid canvas-bg
           rectangle covering top 12px of the column (matches the rounded-xl
           radius). Renders ABOVE the column's surface bg + border (the mask
@@ -177,14 +166,16 @@ export function CategoryColumn({
           small chevron-up cue make the hidden-above content discoverable. */}
       <div
         data-testid={`column-sticky-${category.name.toLowerCase()}`}
-        // Both axes. This was `pan-x` — horizontal panning only — on the
-        // reasoning that vertical scrolling "kicks in when the finger starts
-        // inside the transaction list below". On a column with NO transactions
-        // there is no list below: this band is most of what is on screen, so
-        // the reasoning inverted and the strip became a dead zone the page
-        // could not be scrolled from at all (user, 261004, measured:
-        // touch-action pan-x under the finger for the whole header block).
-        style={{ touchAction: "pan-x pan-y" }}
+        // Horizontal only. The summary rows are a FIXED header: a finger on
+        // "limit used" / "reserves used" / "overspent" / "expenses" pans
+        // between categories but must not scroll the transaction list
+        // underneath (user, 261005).
+        //
+        // This briefly became `pan-x pan-y` on 261004, when the page could
+        // still scroll and the band was the only way back to a banner that had
+        // scrolled away. The page is pinned now — nothing can leave the screen
+        // — so the dead-zone worry it was answering no longer exists.
+        style={{ touchAction: "pan-x" }}
         className={cn(
           // border-x + border-t on the sticky band so when it pins at the
           // wrapper top (column's own top has scrolled out of the clip), the
@@ -252,7 +243,34 @@ export function CategoryColumn({
           rows, horizontal drag pans the grid between categories.
           w-0 min-w-full: long notes/amounts truncate within the column
           instead of widening it (only the Reserves row drives width). */}
-      <div className="flex flex-col gap-[var(--spacing-xs)] flex-1 w-0 min-w-full">
+      <div
+        data-testid={`category-accent-lane-${category.id}`}
+        // The 4px category accent is painted HERE — on the lane below the
+        // header band — as a background, not as an absolutely-positioned
+        // child spanning the whole column (user, 261005).
+        //
+        // It used to sit behind the sticky band at z-0, relying on the band's
+        // opaque background to mask it. Two frames of a screen recording show
+        // why that is fragile: as a column scrolls in, the accent paints at
+        // FULL height for a frame and only shrinks to its proper length once
+        // the band rasterises over it. The band is sticky and composites on
+        // its own schedule, so anything hidden behind it can flash through.
+        // Measured in the same recording: 4px wide one frame, 5px the next,
+        // and a 2px jump backwards as the scroll settled — a separate layer
+        // drifting against the column it belongs to.
+        //
+        // Nothing is behind the band now, so there is nothing left to flash,
+        // and a background cannot drift from the box it is painted on. The
+        // visible result is what the masked version was always trying to be.
+        style={
+          accentHex
+            ? {
+                backgroundImage: `linear-gradient(to right, ${accentHex} 0, ${accentHex} 4px, transparent 4px)`,
+              }
+            : undefined
+        }
+        className="flex flex-col gap-[var(--spacing-xs)] flex-1 w-0 min-w-full"
+      >
         {/* "expenses" section label — ONLY for archived columns, which have no
             quick-entry input (a normal column's quick-entry already carries this
             label). A top line separates it from the "left" summary row above. */}

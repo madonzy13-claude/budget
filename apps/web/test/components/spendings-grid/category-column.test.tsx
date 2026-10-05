@@ -159,25 +159,44 @@ describe("CategoryColumn", () => {
     expect(grip?.getAttribute("data-sortable-listener")).toBe("mock");
   });
 
-  // 260613-v1p: 4px left accent bar driven by the persisted colorKey.
-  it("renders a w-1 accent bar with the colorKey hex when colorKey is set", () => {
+  // 260613-v1p: 4px left accent driven by the persisted colorKey.
+  //
+  // It was an absolutely-positioned child. Measured off a screen recording
+  // (user, 261005): during a horizontal scroll that child is rasterised as its
+  // own layer and lands on fractional pixels, so it jitters against the column
+  // it belongs to — 4px wide one frame, 5px the next, and a 2px jump backwards
+  // when the scroll settles. Painting it as the COLUMN'S OWN BACKGROUND means
+  // there is no separate layer left to drift: it moves with the column because
+  // it IS the column.
+  //
+  // The look is unchanged. The sticky header band is an opaque child, so it
+  // still covers the accent beside the summary rows exactly as the z-0 child
+  // did, and the column's rounded corners clip the background for free.
+  it("paints the accent on the lane below the header band", () => {
     renderColumn({ summary: { ...summary, colorKey: "green" } });
-    const bar = screen.getByTestId("category-accent-bar-cat-1");
-    expect(bar).toBeTruthy();
+    const lane = screen.getByTestId("category-accent-lane-cat-1");
     // green → #26A69A (happy-dom preserves the hex literal, no rgb() normalize)
-    expect(bar.style.backgroundColor.toUpperCase()).toBe("#26A69A");
-    expect(bar.className).toContain("w-1");
+    expect(lane.style.backgroundImage.toUpperCase()).toContain("#26A69A");
+    // A hard 4px stop — a stripe, not a gradient.
+    expect(lane.style.backgroundImage).toContain("4px");
   });
 
-  it("renders NO accent bar when colorKey is null", () => {
-    renderColumn({ summary: { ...summary, colorKey: null } });
+  it("carries no separately positioned accent element to drift", () => {
+    renderColumn({ summary: { ...summary, colorKey: "green" } });
     expect(screen.queryByTestId("category-accent-bar-cat-1")).toBeNull();
   });
 
-  it("renders NO accent bar on an archived column even with a colorKey", () => {
+  it("paints no accent when colorKey is null", () => {
+    renderColumn({ summary: { ...summary, colorKey: null } });
+    const lane = screen.getByTestId("category-accent-lane-cat-1");
+    expect(lane.style.backgroundImage).toBe("");
+  });
+
+  it("paints no accent on an archived column even with a colorKey", () => {
     renderColumn({
       summary: { ...summary, colorKey: "green", archived: true },
     });
-    expect(screen.queryByTestId("category-accent-bar-cat-1")).toBeNull();
+    const lane = screen.getByTestId("category-accent-lane-cat-1");
+    expect(lane.style.backgroundImage).toBe("");
   });
 });
