@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeScreenExtension, gridTopOffset, gridOverscrollY } from "../src/lib/grid-screen-anchor";
+import { computeScreenExtension, gridTopOffset, gridOverscrollY, shouldSuppressPullToRefresh } from "../src/lib/grid-screen-anchor";
 
 /**
  * Exhaustive gate matrix for computeScreenExtension.
@@ -273,5 +273,70 @@ describe("gridOverscrollY", () => {
 
   it("treats a sub-pixel overflow as nothing — rounding is not content", () => {
     expect(gridOverscrollY(0.4, false)).toBe("auto");
+  });
+});
+
+/**
+ * shouldSuppressPullToRefresh — the pull-to-refresh suppressor must not eat
+ * every upward scroll (user, 261004/05).
+ *
+ * The grid cancels a downward-cone gesture to stop iOS Safari's
+ * pull-to-refresh. But a downward FINGER drag is how you scroll UP, and the
+ * guard that was supposed to limit this — `startScrollTop > 1` — can never be
+ * true: touchstart pins scrollTop to 1 first, so the start is ALWAYS 1 and the
+ * suppressor always armed. Every attempt to scroll back up over the grid was
+ * preventDefault()ed outright.
+ *
+ * That is why one unbroken drag worked (its scroll was already committed, and
+ * the finger was moving UP on the way down so nothing matched the cone) while
+ * a fresh touch did nothing, and why the month slider worked — it is outside
+ * the element these listeners are bound to.
+ *
+ * Pull-to-refresh can only fire when the PAGE is at its top, and only in the
+ * browser: the installed app has no such gesture.
+ */
+describe("shouldSuppressPullToRefresh", () => {
+  const base = {
+    isStandalone: false,
+    startScrollTop: 1,
+    pageScrollTop: 0,
+    dy: 20,
+    dx: 2,
+  };
+
+  it("suppresses a downward pull at the top of the page in the browser", () => {
+    expect(shouldSuppressPullToRefresh(base)).toBe(true);
+  });
+
+  it("never suppresses in the installed app — there is no native gesture", () => {
+    expect(
+      shouldSuppressPullToRefresh({ ...base, isStandalone: true }),
+    ).toBe(false);
+  });
+
+  it("lets the page be scrolled back up once it is scrolled down", () => {
+    // THE BUG: pull-to-refresh cannot fire here, so cancelling the gesture
+    // only strands the reader.
+    expect(
+      shouldSuppressPullToRefresh({ ...base, pageScrollTop: 150 }),
+    ).toBe(false);
+  });
+
+  it("ignores a gesture that began below the grid's own top", () => {
+    expect(
+      shouldSuppressPullToRefresh({ ...base, startScrollTop: 40 }),
+    ).toBe(false);
+  });
+
+  it("lets a horizontal swipe through, so columns still pan", () => {
+    expect(shouldSuppressPullToRefresh({ ...base, dy: 8, dx: 30 })).toBe(false);
+  });
+
+  it("ignores a drag too small to be a pull", () => {
+    expect(shouldSuppressPullToRefresh({ ...base, dy: 3 })).toBe(false);
+  });
+
+  it("ignores an upward drag — that is a scroll down, never a pull", () => {
+    expect(shouldSuppressPullToRefresh({ ...base, dy: -40 })).toBe(false);
   });
 });

@@ -17,6 +17,7 @@ import {
   computeScreenExtension,
   gridOverscrollY,
   gridTopOffset,
+  shouldSuppressPullToRefresh,
 } from "@/lib/grid-screen-anchor";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -575,8 +576,30 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     el.addEventListener("touchend", onTouchEnd, { passive: true });
     el.addEventListener("touchcancel", onTouchEnd, { passive: true });
 
-    // Layer 2: downward-cone preventDefault.
-    const ACTIVATE_PX = 6;
+    // Layer 2: downward-cone preventDefault — NARROWED (user, 261004/05).
+    //
+    // A downward finger drag is also how you scroll UP, so this has to fire
+    // only when a pull-to-refresh could genuinely start. It was firing for
+    // every gesture: the guard below reads `startScrollTop > 1`, and
+    // `onStart` pins scrollTop to 1 immediately before reading it, so the
+    // start is ALWAYS 1 and the test can never pass. Every attempt to scroll
+    // back up over the grid was cancelled outright — which is why one unbroken
+    // drag worked (already-committed scroll, and the finger travels UP on the
+    // way down so nothing matches the cone) while a fresh touch did nothing,
+    // and why the month slider still worked: it is outside this element.
+    //
+    // `shouldSuppressPullToRefresh` adds the two bounds that were missing —
+    // browser only, and only while the PAGE is at its top.
+    const isStandaloneDisplay =
+      typeof window !== "undefined" &&
+      window.matchMedia("(display-mode: standalone)").matches;
+    const pageScrollTopNow = () => {
+      const shell = el!.closest<HTMLElement>("[data-shell-scroll]");
+      return (
+        (shell?.scrollTop ?? 0) +
+        (window.scrollY || document.documentElement.scrollTop || 0)
+      );
+    };
     let startX = 0;
     let startY = 0;
     let startScrollTop = 0;
@@ -600,10 +623,16 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       if (!t) return;
       const dy = t.clientY - startY;
       const dx = Math.abs(t.clientX - startX);
-      // Block any gesture inside the 90 degree downward cone (dy positive
-      // AND dy >= dx — covers everything from pure vertical to 45 degree
-      // diagonals on both sides). Pure horizontal (dy < dx) passes.
-      if (dy >= ACTIVATE_PX && dy >= dx && e.cancelable) {
+      if (
+        e.cancelable &&
+        shouldSuppressPullToRefresh({
+          isStandalone: isStandaloneDisplay,
+          startScrollTop,
+          pageScrollTop: pageScrollTopNow(),
+          dy,
+          dx,
+        })
+      ) {
         e.preventDefault();
       }
     }
