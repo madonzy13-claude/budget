@@ -17,7 +17,6 @@ import {
   computeScreenExtension,
   gridOverscrollY,
   gridTopOffset,
-  shouldSuppressPullToRefresh,
 } from "@/lib/grid-screen-anchor";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -527,125 +526,20 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     setGridScrolled((prev) => (prev === t ? prev : t));
   }
 
-  // UAT round 12: scrollTop=1 anchor + downward-cone pull-to-refresh
-  // suppressor.
+  // REMOVED (user, 261005): the scrollTop=1 anchor and the downward-cone
+  // pull-to-refresh suppressor.
   //
-  // Background: iOS Safari fires pull-to-refresh when the active scroll
-  // container is at scrollTop === 0 AND the user pulls down — regardless
-  // of how diagonal the gesture is. overscroll-behavior: none alone did
-  // not fully suppress it, and the round-10/11 angle locks either broke
-  // horizontal swipe (round 10) or let 45-degree gestures slip through
-  // (round 11).
+  // They existed to stop iOS Safari firing pull-to-refresh when this scroller
+  // sat at its top. The tab no longer lets the PAGE move at all (global.css,
+  // `[data-lock-page-scroll]`), so neither Safari's gesture nor the app's own
+  // can begin — there is nothing left to suppress.
   //
-  // Two-layer defense:
-  //
-  //  1. Anchor the wrapper's scrollTop to 1 on mount and whenever it
-  //     hits 0 on scroll. The 1-pixel offset is visually imperceptible
-  //     but removes the "at the very top" condition that triggers
-  //     pull-to-refresh.
-  //
-  //  2. Belt-and-braces: in the touchmove listener, if the touch started
-  //     at scrollTop === 0 AND dy >= 6 AND dy >= |dx| (i.e. gesture
-  //     vector inside the downward 90 degree cone — pure vertical
-  //     through 45 degree diagonals), call preventDefault. Pure
-  //     horizontal (dy < dx) passes through, so column scroll works.
-  useEffect(() => {
-    const el = gridRef.current;
-    if (!el) return;
-    // Layer 1: anchor scrollTop away from 0.
-    //
-    // Only while a finger is down. Pull-to-refresh cannot start without a
-    // touch, so correcting on EVERY scroll event bought nothing and cost the
-    // one thing a scroll listener must never do: writing scrollTop cancels an
-    // in-flight smooth scroll. The CONFIRM_DRAFT jump animates this grid, its
-    // first scroll event arrived while scrollTop was still 0, this handler
-    // wrote to it, and the animation died two frames in — then worked on the
-    // next tap, because by then the grid was pinned at 1 and the handler no
-    // longer fired. Measured off a screen recording: 33ms of motion on tap
-    // one, ~300ms on tap two.
-    let touching = false;
-    if (el.scrollTop === 0) el.scrollTop = 1;
-    function onScroll() {
-      if (!el || !touching) return;
-      if (el.scrollTop === 0) el.scrollTop = 1;
-    }
-    function onTouchEnd() {
-      touching = false;
-    }
-    el.addEventListener("scroll", onScroll, { passive: true });
-    el.addEventListener("touchend", onTouchEnd, { passive: true });
-    el.addEventListener("touchcancel", onTouchEnd, { passive: true });
-
-    // Layer 2: downward-cone preventDefault — NARROWED (user, 261004/05).
-    //
-    // A downward finger drag is also how you scroll UP, so this has to fire
-    // only when a pull-to-refresh could genuinely start. It was firing for
-    // every gesture: the guard below reads `startScrollTop > 1`, and
-    // `onStart` pins scrollTop to 1 immediately before reading it, so the
-    // start is ALWAYS 1 and the test can never pass. Every attempt to scroll
-    // back up over the grid was cancelled outright — which is why one unbroken
-    // drag worked (already-committed scroll, and the finger travels UP on the
-    // way down so nothing matches the cone) while a fresh touch did nothing,
-    // and why the month slider still worked: it is outside this element.
-    //
-    // `shouldSuppressPullToRefresh` adds the two bounds that were missing —
-    // browser only, and only while the PAGE is at its top.
-    const isStandaloneDisplay =
-      typeof window !== "undefined" &&
-      window.matchMedia("(display-mode: standalone)").matches;
-    const pageScrollTopNow = () => {
-      const shell = el!.closest<HTMLElement>("[data-shell-scroll]");
-      return (
-        (shell?.scrollTop ?? 0) +
-        (window.scrollY || document.documentElement.scrollTop || 0)
-      );
-    };
-    let startX = 0;
-    let startY = 0;
-    let startScrollTop = 0;
-    function onStart(e: TouchEvent) {
-      if (e.touches.length !== 1 || !el) return;
-      const t = e.touches[0];
-      if (!t) return;
-      // Anchor HERE rather than on every scroll: this is the first moment a
-      // pull-to-refresh could begin, and it is before any touchmove. Layer 2
-      // still arms, since it guards on startScrollTop > 1 and this leaves 1.
-      touching = true;
-      if (el.scrollTop === 0) el.scrollTop = 1;
-      startX = t.clientX;
-      startY = t.clientY;
-      startScrollTop = el.scrollTop;
-    }
-    function onMove(e: TouchEvent) {
-      if (startScrollTop > 1) return;
-      if (e.touches.length !== 1) return;
-      const t = e.touches[0];
-      if (!t) return;
-      const dy = t.clientY - startY;
-      const dx = Math.abs(t.clientX - startX);
-      if (
-        e.cancelable &&
-        shouldSuppressPullToRefresh({
-          isStandalone: isStandaloneDisplay,
-          startScrollTop,
-          pageScrollTop: pageScrollTopNow(),
-          dy,
-          dx,
-        })
-      ) {
-        e.preventDefault();
-      }
-    }
-    el.addEventListener("touchstart", onStart, { passive: true });
-    el.addEventListener("touchmove", onMove, { passive: false });
-    return () => {
-      el.removeEventListener("scroll", onScroll);
-      el.removeEventListener("touchstart", onStart);
-      el.removeEventListener("touchmove", onMove);
-      el.removeEventListener("touchend", onTouchEnd);
-      el.removeEventListener("touchcancel", onTouchEnd);
-    };
-  }, []);
+  // Removing them is not just tidying. The anchor pinned scrollTop to 1 on
+  // every touchstart, which made the suppressor's own guard
+  // (`startScrollTop > 1`) impossible to satisfy, so EVERY downward drag over
+  // the grid was preventDefault()ed — and a downward drag is how you scroll
+  // up. That is what made the transaction list, and the page behind it,
+  // refuse to come back.
 
   // Architecture (a) — runtime-measured grid scroller bound (quick-260612-e82 R3).
   //
@@ -783,10 +677,29 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
         isIOS,
       });
 
-      el!.style.setProperty(
-        "--grid-max-h",
-        `max(160px, calc(100lvh - ${top}px + ${ext}px))`,
-      );
+      // LOCKED TAB (user, 261005): the page cannot scroll here, so size the
+      // box from the shell's REAL client height rather than a viewport unit.
+      // `100lvh` is the height with the browser bar collapsed — and with page
+      // scrolling locked the bar never collapses, so lvh would overshoot the
+      // visible area and hide the last rows under it. Measured heights cannot
+      // drift that way, and no screen extension is needed either.
+      const shell = shellScroller();
+      const locked = !!el!.closest("[data-lock-page-scroll]");
+      if (locked && shell) {
+        const offsetInShell = Math.max(
+          0,
+          Math.round(rect.top - shell.getBoundingClientRect().top),
+        );
+        el!.style.setProperty(
+          "--grid-max-h",
+          `max(160px, ${Math.max(0, shell.clientHeight - offsetInShell)}px)`,
+        );
+      } else {
+        el!.style.setProperty(
+          "--grid-max-h",
+          `max(160px, calc(100lvh - ${top}px + ${ext}px))`,
+        );
+      }
 
       // Hold the gesture only while there is something here to scroll. A
       // column with no transactions has nothing, and the box was still
@@ -794,10 +707,11 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       // on the grid, which did nothing with it and passed nothing on. Measured
       // live: canScrollY 0 with overscroll-behavior none under the finger
       // (user, 261004).
-      el!.style.overscrollBehaviorY = gridOverscrollY(
-        el!.scrollHeight - el!.clientHeight,
-        isStandalone,
-      );
+      // Nothing to chain to on a locked tab — the page cannot move — so the
+      // grid simply keeps its own gesture.
+      el!.style.overscrollBehaviorY = locked
+        ? "none"
+        : gridOverscrollY(el!.scrollHeight - el!.clientHeight, isStandalone);
 
       // Dynamic spacer — BROWSER ONLY. Standalone keeps the JSX env+64 fallback
       // (frozen, user-approved). When ext==0 (desktop/Android/Chromium) → env+96

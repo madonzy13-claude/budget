@@ -969,3 +969,37 @@ html.is-server-down
     animation: none;
   }
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Spendings: the transaction list is the ONLY vertical scroller (user, 261005)
+
+   The column header rows, the tasks banner and the month navigator must stay
+   visible at all times. Anything the PAGE can scroll takes them off screen —
+   and getting them back proved impossible in practice, because every gesture
+   over the grid belongs to the grid.
+
+   So on this tab the page does not scroll at all: the shell is pinned to the
+   viewport and the grid's own scroller owns every vertical gesture. This also
+   retires the pull-to-refresh problem rather than fighting it — neither
+   Safari's gesture nor the app's own can start on a page that cannot move.
+
+   Unlayered, like the display-mode rules above: these must beat the Tailwind
+   utilities on the shell, which live in @layer utilities.
+   ─────────────────────────────────────────────────────────────────────────── */
+html:has([data-lock-page-scroll]),
+body:has([data-lock-page-scroll]) {
+  height: 100lvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+[data-shell-root]:has([data-lock-page-scroll]) {
+  height: 100lvh;
+  min-height: 0;
+  overflow: hidden;
+}
+main[data-shell-scroll]:has([data-lock-page-scroll]) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: hidden;
+  overscroll-behavior-y: none;
+}
