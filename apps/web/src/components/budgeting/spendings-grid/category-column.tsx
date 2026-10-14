@@ -112,24 +112,7 @@ export function CategoryColumn({
   return (
     <div
       ref={setNodeRef}
-      style={{
-        ...style,
-        // 261014 (user's call): the 4px accent runs the FULL card height again,
-        // painted as the column's OWN background.
-        //
-        // Not as a positioned child behind the sticky band — that is the
-        // arrangement that flashed at full height during a horizontal scroll
-        // on 261005, because the band composites on its own schedule and
-        // anything hidden behind it can show through for a frame. There is
-        // nothing hidden now: one element, one layer, and the band opens a
-        // window instead of masking (see its background below). A background
-        // cannot drift from the box it is painted on.
-        ...(accentHex
-          ? {
-              backgroundImage: `linear-gradient(to right, ${accentHex} 0, ${accentHex} 4px, transparent 4px)`,
-            }
-          : {}),
-      }}
+      style={style}
       data-testid={`category-column-${category.id}`}
       {...attributes}
       // UAT round 18: `!cursor-default` (Tailwind `!`-prefix →
@@ -194,12 +177,18 @@ export function CategoryColumn({
         // — so the dead-zone worry it was answering no longer exists.
         style={{
           touchAction: "pan-x",
-          // A 4px WINDOW, not a mask. The band stays opaque everywhere rows
-          // scroll under it and simply stops painting over the card's left
-          // edge, so the column's own accent reads straight through (261014).
+          // The band paints its OWN 4px of the accent, opaquely.
+          //
+          // r1 (261014) left a transparent WINDOW here and painted the stripe
+          // on the column beneath. It flickered and vanished on scroll (user):
+          // the band is pinned and the column scrolls, the two cannot stay
+          // pixel-aligned, and a window in one over a stripe in the other
+          // tears. Nothing is painted through anything now — this surface
+          // draws its own region, the lane below draws its own, and the two
+          // abut into one continuous edge with no overlap to come apart.
           ...(accentHex
             ? {
-                backgroundImage: `linear-gradient(to right, transparent 0, transparent 4px, ${
+                backgroundImage: `linear-gradient(to right, ${accentHex} 0, ${accentHex} 4px, ${
                   archived ? "#14181D" : "var(--surface-card-dark)"
                 } 4px)`,
               }
@@ -274,10 +263,19 @@ export function CategoryColumn({
           instead of widening it (only the Reserves row drives width). */}
       <div
         data-testid={`category-accent-lane-${category.id}`}
-        // The accent moved OFF this lane on 261014 and onto the column itself,
-        // so it no longer vanishes on a column with nothing in it: the lane is
-        // flex-1, and with no rows it collapses to no height at all, leaving
-        // the stripe nowhere to land (user, 261014).
+        // …and the lane carries the edge on down, abutting the band's 4px into
+        // one continuous stripe. The lane is flex-1, so on a column with no
+        // rows it collapses and the edge simply ends at the band — which is
+        // still visible, because the band always exists. That was the whole
+        // complaint: painted only here, the colour vanished entirely until the
+        // first transaction (user, 261014).
+        style={
+          accentHex
+            ? {
+                backgroundImage: `linear-gradient(to right, ${accentHex} 0, ${accentHex} 4px, transparent 4px)`,
+              }
+            : undefined
+        }
         className="flex flex-col gap-[var(--spacing-xs)] flex-1 w-0 min-w-full"
       >
         {/* "expenses" section label — ONLY for archived columns, which have no

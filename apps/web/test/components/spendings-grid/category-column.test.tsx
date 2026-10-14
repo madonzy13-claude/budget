@@ -172,41 +172,56 @@ describe("CategoryColumn", () => {
   // The look is unchanged. The sticky header band is an opaque child, so it
   // still covers the accent beside the summary rows exactly as the z-0 child
   // did, and the column's rounded corners clip the background for free.
-  // 261014: the accent runs the FULL card height again (user's call, option D).
-  // It is the COLUMN'S OWN background — not a positioned child behind the
-  // sticky band, which is the arrangement that flashed at full height during a
-  // horizontal scroll on 261005. One element, one layer, nothing to mask.
-  it("paints the accent down the whole column", () => {
-    renderColumn({ summary: { ...summary, colorKey: "green" } });
-    const col = screen.getByTestId("category-column-cat-1");
-    // green → #26A69A (happy-dom preserves the hex literal, no rgb() normalize)
-    expect(col.style.backgroundImage.toUpperCase()).toContain("#26A69A");
-    // A hard 4px stop — a stripe, not a gradient.
-    expect(col.style.backgroundImage).toContain("4px");
-  });
-
-  it("opens a 4px window in the sticky band so the stripe shows through it", () => {
+  // 261014 r2: the full-height edge is drawn by EACH surface over its own
+  // region — the pinned band paints its 4px, the lane below paints its 4px —
+  // so nothing is ever painted THROUGH anything else.
+  //
+  // r1 put the stripe on the column and opened a transparent window in the
+  // band. It flickered and vanished on scroll (user): a pinned band and a
+  // scrolling column cannot stay pixel-aligned, so a window in one over a
+  // stripe in the other tears. Two abutting stripes have no overlap to tear.
+  it("paints the accent on the pinned band, so it shows with no rows at all", () => {
     renderColumn({ summary: { ...summary, colorKey: "green" } });
     const band = screen.getByTestId("column-sticky-groceries");
-    // Transparent for the first 4px, the card surface after it: the band stays
-    // opaque where rows scroll under it, and stops masking the edge.
-    expect(band.style.backgroundImage).toContain("transparent");
+    // green → #26A69A (happy-dom preserves the hex literal, no rgb() normalize)
+    expect(band.style.backgroundImage.toUpperCase()).toContain("#26A69A");
     expect(band.style.backgroundImage).toContain("4px");
   });
 
-  it("leaves the band plainly opaque when there is no accent", () => {
-    renderColumn({ summary: { ...summary, colorKey: null } });
+  it("continues it down the lane, so the edge reads as one", () => {
+    renderColumn({ summary: { ...summary, colorKey: "green" } });
+    const lane = screen.getByTestId("category-accent-lane-cat-1");
+    expect(lane.style.backgroundImage.toUpperCase()).toContain("#26A69A");
+  });
+
+  it("never opens a transparent window — that is what tore on scroll", () => {
+    renderColumn({ summary: { ...summary, colorKey: "green" } });
     const band = screen.getByTestId("column-sticky-groceries");
-    expect(band.style.backgroundImage).toBe("");
+    expect(band.style.backgroundImage).not.toContain("transparent");
+  });
+
+  it("leaves the column itself unpainted, so nothing shows through the band", () => {
+    renderColumn({ summary: { ...summary, colorKey: "green" } });
+    const col = screen.getByTestId("category-column-cat-1");
+    expect(col.style.backgroundImage).toBe("");
+  });
+
+  it("paints nothing anywhere when colorKey is null", () => {
+    renderColumn({ summary: { ...summary, colorKey: null } });
+    expect(
+      screen.getByTestId("column-sticky-groceries").style.backgroundImage,
+    ).toBe("");
+    expect(
+      screen.getByTestId("category-accent-lane-cat-1").style.backgroundImage,
+    ).toBe("");
   });
 
   it("carries no separately positioned accent element", () => {
     renderColumn({ summary: { ...summary, colorKey: "green" } });
-    // No absolutely-positioned bar, and the lane no longer paints it either —
-    // the column itself does, so there is exactly one painted surface.
+    // The edge is two backgrounds on two surfaces that already exist. No
+    // absolutely-positioned bar sitting behind the band — that one flashed
+    // during a horizontal scroll (261005) and is not coming back.
     expect(screen.queryByTestId("category-accent-bar-cat-1")).toBeNull();
-    const lane = screen.getByTestId("category-accent-lane-cat-1");
-    expect(lane.style.backgroundImage).toBe("");
   });
 
   it("paints no accent when colorKey is null", () => {
