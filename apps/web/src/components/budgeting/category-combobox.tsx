@@ -16,7 +16,7 @@
  * form left unfinished leaves no stray category behind. That is also what keeps
  * this a pure control with no network of its own.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,16 @@ export function CategoryCombobox({
   const t = useTranslations("budgeting.scheduled");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // The dropdown must render INSIDE the sheet that opened it. A Radix Dialog
+  // locks scrolling with react-remove-scroll, which blocks touchmove anywhere
+  // outside its content — and Popover.Portal defaults to document.body. The
+  // list showed, a visible row could be tapped, and it could not be scrolled
+  // by touch at all (user, 261014). Read off the TRIGGER, which exists before
+  // the popover does: Radix gives its own content role="dialog", so searching
+  // the document would find the popover itself.
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const container =
+    triggerRef.current?.closest<HTMLElement>('[role="dialog"]') ?? undefined;
 
   const trimmed = query.trim();
   const hasExact = categories.some(
@@ -84,6 +94,7 @@ export function CategoryCombobox({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          ref={triggerRef}
           type="button"
           id={id}
           variant="outline"
@@ -100,6 +111,7 @@ export function CategoryCombobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent
+        container={container}
         className="w-[var(--radix-popover-trigger-width)] p-0"
         // Don't steal focus into the search box on open: on mobile that throws
         // the keyboard up over the whole field. Tap a category, or tap the box
@@ -134,15 +146,16 @@ export function CategoryCombobox({
                   value={c.name}
                   onSelect={() => pick({ kind: "existing", id: c.id })}
                 >
-                  <Check
-                    className={[
-                      "mr-2 h-4 w-4",
-                      value?.kind === "existing" && value.id === c.id
-                        ? "opacity-100"
-                        : "opacity-0",
-                    ].join(" ")}
-                  />
-                  {c.name}
+                  {/* The tick TRAILS the name. Leading, it reserved a gutter on
+                      every unselected row (opacity-0, still taking its width),
+                      so a list with nothing selected read as uniformly
+                      indented for no reason (user, 261014). Trailing keeps the
+                      names flush left and still reserves nothing that shifts
+                      when the selection moves. */}
+                  <span className="truncate">{c.name}</span>
+                  {value?.kind === "existing" && value.id === c.id && (
+                    <Check className="ml-auto h-4 w-4 shrink-0" />
+                  )}
                 </CommandItem>
               ))}
             </CommandGroup>

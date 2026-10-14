@@ -113,3 +113,50 @@ describe("CategoryCombobox", () => {
     );
   });
 });
+
+/**
+ * The dropdown has to live INSIDE the sheet that opened it (user, 261014:
+ * "I cannot scroll inside the drop-down, I'm only able to select from items
+ * visible in viewport").
+ *
+ * The scheduled-payment form is a Radix Sheet, and a Dialog locks scrolling
+ * through react-remove-scroll: touchmove is blocked everywhere except inside
+ * the dialog's own content. `Popover.Portal` defaults to document.body, which
+ * is outside it — so the list rendered, tapping a visible row worked, and the
+ * list could not be scrolled by touch at all. Portalling into the dialog puts
+ * it back inside the allowed region.
+ */
+describe("CategoryCombobox inside a dialog", () => {
+  it("renders its list inside the dialog, not on document.body", async () => {
+    const onChange = vi.fn();
+    render(
+      <div role="dialog" data-state="open" data-testid="the-sheet">
+        <CategoryCombobox
+          categories={CATEGORIES}
+          value={null}
+          onChange={onChange}
+        />
+      </div>,
+    );
+    fireEvent.click(screen.getByTestId("category-combobox-trigger"));
+    const input = await screen.findByTestId("category-combobox-input");
+    expect(screen.getByTestId("the-sheet").contains(input)).toBe(true);
+  });
+
+  it("still portals to the body when there is no dialog around it", async () => {
+    const onChange = vi.fn();
+    render(
+      <CategoryCombobox
+        categories={CATEGORIES}
+        value={null}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("category-combobox-trigger"));
+    const input = await screen.findByTestId("category-combobox-input");
+    // Radix gives its own popover content role="dialog", so the check is that
+    // no SHEET wrapped it — the list still lands on the body.
+    expect(screen.queryByTestId("the-sheet")).toBeNull();
+    expect(document.body.contains(input)).toBe(true);
+  });
+});

@@ -6,7 +6,7 @@
  * accepts free-typed new groups. Selecting an existing name or creating a new
  * one sets the holding's group; clearing sets it to null (Ungrouped).
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,13 @@ export function GroupCombobox({
   const t = useTranslations("budget.investments");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // Same fix as CategoryCombobox (user, 261014): this sits inside a Sheet, and
+  // a Radix Dialog's react-remove-scroll blocks touchmove outside its content.
+  // Portalled to document.body the list could be tapped but never scrolled.
+  // Read off the TRIGGER — Radix gives popover content its own role="dialog".
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const container =
+    triggerRef.current?.closest<HTMLElement>('[role="dialog"]') ?? undefined;
 
   const trimmed = query.trim();
   const hasExact = groups.some(
@@ -57,6 +64,7 @@ export function GroupCombobox({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          ref={triggerRef}
           type="button"
           variant="outline"
           role="combobox"
@@ -75,6 +83,7 @@ export function GroupCombobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent
+        container={container}
         className="w-[var(--radix-popover-trigger-width)] p-0"
         // Don't auto-focus the search box on open — on mobile that pops the
         // keyboard and covers the whole field. The user can tap an existing
