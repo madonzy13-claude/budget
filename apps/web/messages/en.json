@@ -1214,7 +1214,8 @@
         "createdDueToday": "Payment added — one is waiting for you to confirm.",
         "categoryCreate": "Create \"{name}\"",
         "categoryNoMatch": "No matching category.",
-        "errorCategoryCreate": "Could not create that category. Nothing was saved."
+        "errorCategoryCreate": "Could not create that category. Nothing was saved.",
+        "categorySearchOrCreate": "Search or create a category…"
       },
       "list": {
         "title": "Scheduled payments",

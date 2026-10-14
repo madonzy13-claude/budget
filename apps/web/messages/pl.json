@@ -1237,7 +1237,8 @@
         "createdDueToday": "Płatność dodana — jedna czeka na Twoje potwierdzenie.",
         "categoryCreate": "Utwórz „{name}”",
         "categoryNoMatch": "Brak pasującej kategorii.",
-        "errorCategoryCreate": "Nie udało się utworzyć tej kategorii. Nic nie zostało zapisane."
+        "errorCategoryCreate": "Nie udało się utworzyć tej kategorii. Nic nie zostało zapisane.",
+        "categorySearchOrCreate": "Znajdź lub utwórz kategorię…"
       },
       "list": {
         "title": "Zaplanowane płatności",

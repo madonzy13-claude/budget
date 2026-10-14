@@ -95,11 +95,11 @@ export function CategoryCombobox({
 
   const label =
     value === null
-      ? t("rule.categoryPlaceholder")
+      ? t("rule.categorySearchOrCreate")
       : value.kind === "new"
         ? value.name
         : (categories.find((c) => c.id === value.id)?.name ??
-          t("rule.categoryPlaceholder"));
+          t("rule.categorySearchOrCreate"));
 
   function pick(next: CategoryChoice | null) {
     onChange(next);
@@ -147,7 +147,11 @@ export function CategoryCombobox({
       >
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder={t("rule.categoryLabel")}
+            // Says you can CREATE, not just filter. The `+ Create "…"` row
+            // only appears once a non-matching name has been typed, which is
+            // after the moment someone needs to know it is possible (user,
+            // 261014).
+            placeholder={t("rule.categorySearchOrCreate")}
             value={query}
             onValueChange={setQuery}
             data-testid="category-combobox-input"

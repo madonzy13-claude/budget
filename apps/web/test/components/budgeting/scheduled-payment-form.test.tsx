@@ -457,3 +457,51 @@ describe("Scheduled rule form — a category created on save", () => {
     expect(sentBody()?.category_id).toBe(CATEGORIES[0]!.id);
   });
 });
+
+/**
+ * Save stayed disabled after naming a NEW category (user, 261014, screenshot:
+ * "Some new category" chosen, "Save payment" greyed out).
+ *
+ * The guard read `!categoryId`, and `categoryId` is only set for a category
+ * that already exists — a named-but-not-yet-created one has no id until the
+ * save itself creates it. So the one path the picker was built for could never
+ * be submitted. It has to gate on a CHOICE having been made, whichever kind.
+ */
+describe("Scheduled rule form — Save with a new category named", () => {
+  const saveButton = () =>
+    screen.getByRole("button", { name: /rule.saveButton/i });
+
+  it("enables Save once a new category is named", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByLabelText("rule.nameLabel"), "Test");
+    await user.type(screen.getByLabelText("rule.amountLabel"), "15");
+    expect(saveButton()).toBeDisabled();
+
+    await user.click(screen.getByTestId("category-combobox-trigger"));
+    fireEvent.change(await screen.findByTestId("category-combobox-input"), {
+      target: { value: "Some new category" },
+    });
+    await user.click(screen.getByTestId("category-combobox-create"));
+
+    await waitFor(() => expect(saveButton()).toBeEnabled());
+  });
+
+  it("still enables Save for an existing category", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByLabelText("rule.nameLabel"), "Test");
+    await user.type(screen.getByLabelText("rule.amountLabel"), "15");
+    await user.click(screen.getByTestId("category-combobox-trigger"));
+    await user.click(await screen.findByText("Housing"));
+    await waitFor(() => expect(saveButton()).toBeEnabled());
+  });
+
+  it("keeps Save disabled while no category is chosen at all", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByLabelText("rule.nameLabel"), "Test");
+    await user.type(screen.getByLabelText("rule.amountLabel"), "15");
+    expect(saveButton()).toBeDisabled();
+  });
+});

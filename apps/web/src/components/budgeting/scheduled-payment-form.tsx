@@ -846,7 +846,12 @@ export function ScheduledPaymentForm({
                 // categories.length) closes the race where the categories query
                 // hasn't resolved yet: without it, an empty list slipped through
                 // and a category-less rule was created.
-                (!!budgetId && !categoryId)
+                //
+                // On the CHOICE, not on an id: a category named in the picker
+                // but not yet created has no id until the save creates it, and
+                // gating on `categoryId` left Save permanently disabled on the
+                // one path the picker exists for (user, 261014).
+                (!!budgetId && category === null)
               }
               className="h-14 text-base w-full sm:flex-1 bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-active)]"
             >

@@ -202,3 +202,27 @@ describe("CategoryCombobox — colours", () => {
     expect(dot.style.backgroundColor.toUpperCase()).toBe("#26A69A");
   });
 });
+
+/**
+ * The box said only "Category", so it read as a filter — nothing hinted that
+ * typing an unused name would MAKE one, and the `+ Create "…"` row only
+ * appears after you have already typed it. The invitation has to come before
+ * the typing, not after (user, 261014).
+ */
+describe("CategoryCombobox — says you can create", () => {
+  it("invites creating, not just searching, in the search box", async () => {
+    renderBox();
+    fireEvent.click(screen.getByTestId("category-combobox-trigger"));
+    const input = await screen.findByTestId("category-combobox-input");
+    expect(input.getAttribute("placeholder")).toBe(
+      "rule.categorySearchOrCreate",
+    );
+  });
+
+  it("says the same on the closed field before anything is chosen", () => {
+    renderBox();
+    expect(
+      screen.getByTestId("category-combobox-trigger").textContent,
+    ).toContain("rule.categorySearchOrCreate");
+  });
+});
