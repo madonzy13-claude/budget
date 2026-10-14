@@ -72,7 +72,7 @@
     "validation": {
       "email_invalid": "Adres e-mail jest nieprawidłowy. Sprawdź format i spróbuj ponownie.",
       "password_required": "Hasło jest wymagane.",
-      "password_min_length": "Hasło musi mieć co najmniej 8 znaków.",
+      "password_min_length": "Hasło musi mieć co najmniej {min} znaków.",
       "name_required": "Imię i nazwisko jest wymagane."
     },
     "loading": "Logowanie...",
@@ -1635,6 +1635,10 @@
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",
           "body": "Ten wykres porównuje pełne miesiące z ich budżetem, a trwający miesiąc jeszcze nim nie jest. Wybierz zakres obejmujący zakończony miesiąc."
+        },
+        "noScheduledPayments": {
+          "title": "Brak zaplanowanych płatności",
+          "body": "Ten wykres pokazuje płatności nadchodzące w kolejnych miesiącach. Dodaj płatność cykliczną, a pojawi się tutaj."
         }
       },
       "spendings": {

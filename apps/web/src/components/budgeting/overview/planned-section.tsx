@@ -59,7 +59,9 @@ import { LimitRebalance, type LimitCandidate } from "./limit-rebalance";
 import { ReserveLevelBar } from "./reserve-level-bar";
 import { useSpendingsSummary } from "@/hooks/use-spendings-summary";
 import { useSetCategoryLimit } from "@/hooks/use-set-category-limit";
+import { CalendarOff } from "lucide-react";
 import { ChartNeedsCompletedMonth } from "./chart-needs-completed-month";
+import { ChartStoodDown } from "./chart-stood-down";
 import { rangeHasCompletedMonth } from "@/lib/range-completed-month";
 import { useCategories } from "@/hooks/use-budget-data";
 import { useOneOffCandidates } from "@/hooks/use-one-off-candidates";
@@ -1207,6 +1209,15 @@ export function PlannedSection({
               calendar year of RATES, a yearly renewal divided by twelve; the
               household wanted what is actually coming, so each payment now sits
               in the month it really falls in and the axis is real months. */}
+          {/* Nothing coming means nothing to draw. An area chart over an empty
+              set — or over months that all total zero, which is what a rule
+              that has run out leaves behind — renders as bare axes, and bare
+              axes read as broken rather than as empty. It stands down the same
+              way "How far off plan" does on a range with no finished month
+              (user, 261014). */}
+          {(data.scheduledPerMonth ?? []).some(
+            (m) => Number(m.planned_cents) > 0,
+          ) ? (
           <div className="flex flex-col gap-2">
             <ChartLabel>{t("planned.scheduledPerMonth")}</ChartLabel>
             <OverviewAreaChart
@@ -1235,6 +1246,20 @@ export function PlannedSection({
               }}
             />
           </div>
+          ) : (
+            <ChartStoodDown
+              title={t("planned.scheduledPerMonth")}
+              testId="overview-scheduled-none"
+              icon={
+                <CalendarOff
+                  aria-hidden
+                  className="size-5 text-[var(--muted-foreground)]"
+                />
+              }
+              headline={t("noScheduledPayments.title")}
+              body={t("noScheduledPayments.body")}
+            />
+          )}
 
           {/* A YEAR of standing commitments, by category (user, 260811). The
               chart above answers "what is coming and when"; this answers "where

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { MIN_PASSWORD_LENGTH } from "@/lib/password-rules";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -32,7 +33,12 @@ export function SignUpForm({ defaultLocale }: SignUpFormProps) {
   const signUpSchema = z.object({
     name: z.string().min(1, t("validation.name_required")),
     email: z.string().email(t("validation.email_invalid")),
-    password: z.string().min(8, t("validation.password_min_length")),
+    password: z
+      .string()
+      .min(
+        MIN_PASSWORD_LENGTH,
+        t("validation.password_min_length", { min: MIN_PASSWORD_LENGTH }),
+      ),
     locale: z.string(),
   });
 
@@ -73,10 +79,20 @@ export function SignUpForm({ defaultLocale }: SignUpFormProps) {
         code === "FAILED_TO_CREATE_USER" ||
         message.includes("already exists") ||
         message.includes("failed to create user");
+      // NEVER the raw string. better-auth answers in English and quotes its
+      // own defaults — the password rule it names is 8, while this app is
+      // configured for 10 — so passing it through was both untranslated and
+      // wrong (user, 261014). Map what we know; anything else is generic.
+      const tooShort =
+        code === "PASSWORD_TOO_SHORT" ||
+        message.includes("minimum") ||
+        message.includes("at least");
       setServerError(
         isDuplicate
           ? t("signup.error_email_in_use")
-          : (result.error.message ?? t("signup.error_generic")),
+          : tooShort
+            ? t("validation.password_min_length", { min: MIN_PASSWORD_LENGTH })
+            : t("signup.error_generic"),
       );
       return;
     }

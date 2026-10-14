@@ -10,6 +10,7 @@
  * (T-10-08). Backs BOTH the logged-out reset and the in-app password change (10-04).
  */
 import { useState } from "react";
+import { MIN_PASSWORD_LENGTH } from "@/lib/password-rules";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
@@ -20,8 +21,9 @@ import { Button } from "@/components/ui/button";
 import { AuthCardShell } from "@/components/auth/auth-card-shell";
 import { authClient } from "@/lib/auth-client";
 
-// Mirrors emailAndPassword.minPasswordLength in packages/identity better-auth.ts.
-const MIN_PASSWORD = 10;
+// Shared with the sign-up form so the two cannot drift (user, 261014); it
+// mirrors emailAndPassword.minPasswordLength in packages/identity better-auth.ts.
+const MIN_PASSWORD = MIN_PASSWORD_LENGTH;
 
 export default function ResetPasswordPage() {
   const t = useTranslations("auth");
