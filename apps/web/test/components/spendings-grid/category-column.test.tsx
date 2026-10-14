@@ -238,3 +238,36 @@ describe("CategoryColumn", () => {
     expect(col.style.backgroundImage).toBe("");
   });
 });
+
+/**
+ * The summary rows' separators ran the full width of the card, straight across
+ * the accent, chopping it into segments (user, 261014, screenshot).
+ *
+ * Fixed by reserving the stripe's 4px as PADDING rather than painting the
+ * stripe underneath full-width rows: the gradient fills the padding, the rows
+ * start after it, and a row's border-bottom therefore starts after it too.
+ * No per-row border surgery, and nothing overlaps.
+ */
+describe("the accent is not crossed by row separators", () => {
+  it("insets the band's rows past the stripe", () => {
+    renderColumn({ summary: { ...summary, colorKey: "green" } });
+    const band = screen.getByTestId("column-sticky-groceries");
+    expect(band.className).toContain("pl-1");
+  });
+
+  it("insets the lane's rows past it too", () => {
+    renderColumn({ summary: { ...summary, colorKey: "green" } });
+    const lane = screen.getByTestId("category-accent-lane-cat-1");
+    expect(lane.className).toContain("pl-1");
+  });
+
+  it("adds no inset when there is no accent to clear", () => {
+    renderColumn({ summary: { ...summary, colorKey: null } });
+    expect(
+      screen.getByTestId("column-sticky-groceries").className,
+    ).not.toContain("pl-1");
+    expect(
+      screen.getByTestId("category-accent-lane-cat-1").className,
+    ).not.toContain("pl-1");
+  });
+});

@@ -199,6 +199,12 @@ export function CategoryColumn({
           // wrapper top (column's own top has scrolled out of the clip), the
           // rounded outline still reads as the column's rounded corners.
           "sticky top-0 z-10 bg-[var(--surface-card-dark)] rounded-t-xl border-x border-t border-[var(--border)] -mx-px -mt-px",
+          // Reserve the accent's 4px as PADDING. The summary rows used to span
+          // the whole card and their border-bottoms ran straight across the
+          // stripe, chopping it into segments (user, 261014). Inset, the rows
+          // begin after the stripe and their rules begin with them — no
+          // per-row border surgery, and nothing overlapping.
+          accentHex && "pl-1",
           archived && "!bg-[#14181D]",
           gridScrolled &&
             (transactions.length > 0 || drafts.length > 0) &&
@@ -276,7 +282,10 @@ export function CategoryColumn({
               }
             : undefined
         }
-        className="flex flex-col gap-[var(--spacing-xs)] flex-1 w-0 min-w-full"
+        className={cn(
+          "flex flex-col gap-[var(--spacing-xs)] flex-1 w-0 min-w-full",
+          accentHex && "pl-1",
+        )}
       >
         {/* "expenses" section label — ONLY for archived columns, which have no
             quick-entry input (a normal column's quick-entry already carries this
