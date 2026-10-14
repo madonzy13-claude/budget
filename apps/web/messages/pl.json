@@ -1234,7 +1234,10 @@
         "once": "Jednorazowo",
         "dateLabel": "Data",
         "errorFirstDueInPast": "Pierwsza data nie może być w przeszłości — wybierz dziś lub później.",
-        "createdDueToday": "Płatność dodana — jedna czeka na Twoje potwierdzenie."
+        "createdDueToday": "Płatność dodana — jedna czeka na Twoje potwierdzenie.",
+        "categoryCreate": "Utwórz „{name}”",
+        "categoryNoMatch": "Brak pasującej kategorii.",
+        "errorCategoryCreate": "Nie udało się utworzyć tej kategorii. Nic nie zostało zapisane."
       },
       "list": {
         "title": "Zaplanowane płatności",

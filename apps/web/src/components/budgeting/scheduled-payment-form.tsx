@@ -27,6 +27,10 @@
 import { useState, useRef, useEffect } from "react";
 import { nextDueDate } from "@/lib/next-due-date";
 import { useTranslations } from "next-intl";
+import {
+  CategoryCombobox,
+  type CategoryChoice,
+} from "@/components/budgeting/category-combobox";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -155,9 +159,17 @@ export function ScheduledPaymentForm({
   const [currency, setCurrency] = useState(
     initialValues?.currency ?? defaultCurrency ?? "USD",
   );
-  const [categoryId, setCategoryId] = useState<string | null>(
-    initialValues?.categoryId ?? null,
+  // A CHOICE, not an id: the picker can also hold a name the member typed for
+  // a category that does not exist yet. It is created on save, immediately
+  // before the rule that will carry it (user, 261014), so abandoning the form
+  // leaves nothing behind.
+  const [category, setCategory] = useState<CategoryChoice | null>(
+    initialValues?.categoryId
+      ? { kind: "existing", id: initialValues.categoryId }
+      : null,
   );
+  const categoryId =
+    category?.kind === "existing" ? category.id : null;
   // Edits can only sit in WEEKLY/MONTHLY/YEARLY in the new UI. If an
   // existing rule arrived with the dropped DAILY cadence we coerce it
   // to MONTHLY so the picker has a defined value; the PATCH body never
@@ -329,6 +341,46 @@ export function ScheduledPaymentForm({
         toast.error(t("rule.errorLastBeforeFirst"));
         return;
       }
+      // A category named in the picker is created HERE — immediately before
+      // the rule, so the rule can carry its id, and so a form abandoned
+      // earlier leaves no stray category behind (user, 261014). If it fails,
+      // the rule is not written: a payment filed under the wrong category is
+      // worse than one not filed yet.
+      let resolvedCategoryId = categoryId;
+      if (category?.kind === "new") {
+        const catRes = await doFetch(
+          budgetId
+            ? `/api/budgets/${budgetId}/categories`
+            : `/api/categories`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Idempotency-Key": uuidv4(),
+              ...(budgetId ? { "X-Budget-ID": budgetId } : {}),
+            },
+            // Name only: colorKey and cushionMode default, so what this makes
+            // is a whole category rather than a stub (createCategorySchema).
+            body: JSON.stringify({ name: category.name }),
+          },
+        );
+        if (!catRes.ok) {
+          toast.error(t("rule.errorCategoryCreate"));
+          return;
+        }
+        const created = (await catRes.json()) as {
+          category?: { id?: string };
+        };
+        if (!created.category?.id) {
+          toast.error(t("rule.errorCategoryCreate"));
+          return;
+        }
+        resolvedCategoryId = created.category.id;
+        queryClient.invalidateQueries({
+          queryKey: ["budget", budgetId, "categories"],
+        });
+      }
+
       if (mode === "create") {
         // Backend v1.1 contract: snake_case + cadence-discriminated body.
         // Plain object first, then spread the cadence discriminator into
@@ -361,7 +413,7 @@ export function ScheduledPaymentForm({
           body: JSON.stringify({
             amount: amountValue,
             currency,
-            category_id: categoryId,
+            category_id: resolvedCategoryId,
             note: note || null,
             first_due_date: firstDueDate,
             end_date: endDate,
@@ -414,7 +466,7 @@ export function ScheduledPaymentForm({
             edits: {
               amount: amountValue,
               currency,
-              categoryId,
+              categoryId: resolvedCategoryId,
               note: note || null,
               endDate,
               ...editCadencePart,
@@ -514,36 +566,25 @@ export function ScheduledPaymentForm({
               </div>
             </div>
 
-            {/* Category picker — mandatory. The form blocks Save until
-                a category is chosen so the draft has a column to land
-                in (UAT-Phase6-Test7 retest). Empty state renders an
-                un-selectable placeholder via the Radix `value` prop
-                left unset; once the user picks a value, the Save button
-                un-disables (see the disabled prop on the submit button). */}
-            {categories && categories.length > 0 && (
-              <div>
-                <Label htmlFor="rr-category">{t("rule.categoryLabel")}</Label>
-                <Select
-                  // UAT round 13: keep value undefined when categoryId is
-                  // null so the trigger shows the *placeholder* rather than
-                  // resolving to a category label. Radix only renders the
-                  // SelectValue placeholder when `value` is undefined.
-                  value={categoryId ?? undefined}
-                  onValueChange={(v) => setCategoryId(v)}
-                >
-                  <SelectTrigger id="rr-category">
-                    <SelectValue placeholder={t("rule.categoryPlaceholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            {/* Category — mandatory. The form blocks Save until one is
+                chosen, so the payment has a column to land in
+                (UAT-Phase6-Test7 retest).
+
+                Pick an existing one, or name a new one and the form creates
+                it on save (user, 261014). Rendered even when the budget has
+                no categories yet: the old Select was gated on
+                `categories.length > 0`, which left a fresh budget with no way
+                to attach a payment at all. */}
+            <div>
+              <Label htmlFor="rr-category">{t("rule.categoryLabel")}</Label>
+              <CategoryCombobox
+                id="rr-category"
+                categories={categories ?? []}
+                value={category}
+                onChange={setCategory}
+                aria-label={t("rule.categoryLabel")}
+              />
+            </div>
 
             {/* Cadence + anchor + first-due fields render in both
                 create AND edit modes (UAT-Phase6-Test7 retest: edit

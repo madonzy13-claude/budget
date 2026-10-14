@@ -1,0 +1,115 @@
+/**
+ * category-combobox.test.tsx — pick an existing category or name a new one
+ * without leaving the form (user, 261014).
+ *
+ * The scheduled-payment form only offered a plain Select over whatever
+ * categories already existed, so a payment for something new meant abandoning
+ * the form, creating the category elsewhere, and starting again. Worse, the
+ * picker only rendered `when categories.length > 0` — on a budget with none,
+ * there was no way through at all.
+ *
+ * Modelled on the investments GroupCombobox, which the household already uses:
+ * type to filter, and when nothing matches the first row takes what was typed.
+ *
+ * It creates NOTHING. Naming a category here only records the intent; the form
+ * creates it on submit, immediately before the rule that will carry it (user,
+ * 261014), so abandoning the form leaves no stray category behind. That keeps
+ * this component a pure control with no network of its own.
+ */
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string, vals?: Record<string, unknown>) =>
+    vals ? `${key}(${JSON.stringify(vals)})` : key,
+  useLocale: () => "en",
+}));
+
+import { CategoryCombobox } from "@/components/budgeting/category-combobox";
+
+const CATEGORIES = [
+  { id: "c1", name: "Food & Home" },
+  { id: "c2", name: "Car" },
+];
+
+function renderBox(
+  props: Partial<React.ComponentProps<typeof CategoryCombobox>> = {},
+) {
+  const onChange = vi.fn();
+  render(
+    <CategoryCombobox
+      categories={CATEGORIES}
+      value={null}
+      onChange={onChange}
+      {...props}
+    />,
+  );
+  return { onChange };
+}
+
+async function openAndType(text: string) {
+  fireEvent.click(screen.getByTestId("category-combobox-trigger"));
+  const input = await screen.findByTestId("category-combobox-input");
+  fireEvent.change(input, { target: { value: text } });
+  return input;
+}
+
+describe("CategoryCombobox", () => {
+  it("filters the categories that already exist", async () => {
+    renderBox();
+    await openAndType("Ca");
+    expect(screen.getByText("Car")).toBeTruthy();
+    expect(screen.queryByText("Food & Home")).toBeNull();
+  });
+
+  it("reports an existing pick by id", async () => {
+    const { onChange } = renderBox();
+    await openAndType("Ca");
+    fireEvent.click(screen.getByText("Car"));
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith({ kind: "existing", id: "c2" }),
+    );
+  });
+
+  it("offers to take what was typed when nothing matches", async () => {
+    renderBox();
+    await openAndType("Fuel");
+    expect(screen.getByTestId("category-combobox-create")).toBeTruthy();
+  });
+
+  it("reports a new name as intent, not as an id", async () => {
+    const { onChange } = renderBox();
+    await openAndType("Fuel");
+    fireEvent.click(screen.getByTestId("category-combobox-create"));
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith({ kind: "new", name: "Fuel" }),
+    );
+  });
+
+  it("does not offer to create a name that already exists", async () => {
+    renderBox();
+    await openAndType("Car");
+    expect(screen.queryByTestId("category-combobox-create")).toBeNull();
+  });
+
+  it("ignores case when deciding a name already exists", async () => {
+    renderBox();
+    await openAndType("  car ");
+    expect(screen.queryByTestId("category-combobox-create")).toBeNull();
+  });
+
+  // The old Select rendered only `when categories.length > 0`, so a budget
+  // with none offered no way to attach a payment to anything.
+  it("still offers to create on a budget with no categories at all", async () => {
+    renderBox({ categories: [] });
+    await openAndType("Fuel");
+    expect(screen.getByTestId("category-combobox-create")).toBeTruthy();
+  });
+
+  it("shows a chosen new name on the trigger before it exists", () => {
+    renderBox({ value: { kind: "new", name: "Fuel" } });
+    expect(screen.getByTestId("category-combobox-trigger").textContent).toContain(
+      "Fuel",
+    );
+  });
+});
