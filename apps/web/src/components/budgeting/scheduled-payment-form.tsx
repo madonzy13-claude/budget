@@ -376,8 +376,16 @@ export function ScheduledPaymentForm({
           return;
         }
         resolvedCategoryId = created.category.id;
+        // BOTH keys. The spendings grid reads ["budget", id, "categories"],
+        // the settings list — which is what feeds THIS picker — reads
+        // ["categories-lite", id]. Refreshing only the first left a category
+        // created here invisible in the very next rule's picker until a
+        // reload (user, 261014).
         queryClient.invalidateQueries({
           queryKey: ["budget", budgetId, "categories"],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["categories-lite", budgetId],
         });
       }
 

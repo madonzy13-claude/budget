@@ -505,3 +505,62 @@ describe("Scheduled rule form — Save with a new category named", () => {
     expect(saveButton()).toBeDisabled();
   });
 });
+
+/**
+ * A category created on save has to show up in the picker the NEXT time a rule
+ * is added (user, 261014: "I don't see newly created category in list").
+ *
+ * The form invalidated ["budget", id, "categories"], but the picker's list is
+ * fetched under ["categories-lite", id] — a different key, so nothing
+ * refetched and the new category stayed invisible until a reload. Both keys
+ * are live: the grid and the settings list read different ones.
+ */
+describe("Scheduled rule form — the new category reaches the next picker", () => {
+  it("refreshes the list the picker itself reads", async () => {
+    writeMock.mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          String(url).endsWith("/categories")
+            ? { category: { id: "cat-new" } }
+            : {},
+      }),
+    );
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByLabelText("rule.amountLabel"), "100");
+    await user.click(screen.getByTestId("category-combobox-trigger"));
+    fireEvent.change(await screen.findByTestId("category-combobox-input"), {
+      target: { value: "Fuel" },
+    });
+    await user.click(screen.getByTestId("category-combobox-create"));
+    fireEvent.submit(document.querySelector("form")!);
+
+    await waitFor(() => expect(writeMock).toHaveBeenCalledTimes(2));
+    expect(invalidatedKeys()).toContain("categories-lite.b1");
+  });
+
+  it("still refreshes the grid's own categories key", async () => {
+    writeMock.mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          String(url).endsWith("/categories")
+            ? { category: { id: "cat-new" } }
+            : {},
+      }),
+    );
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByLabelText("rule.amountLabel"), "100");
+    await user.click(screen.getByTestId("category-combobox-trigger"));
+    fireEvent.change(await screen.findByTestId("category-combobox-input"), {
+      target: { value: "Fuel" },
+    });
+    await user.click(screen.getByTestId("category-combobox-create"));
+    fireEvent.submit(document.querySelector("form")!);
+
+    await waitFor(() => expect(writeMock).toHaveBeenCalledTimes(2));
+    expect(invalidatedKeys()).toContain("budget.b1.categories");
+  });
+});
