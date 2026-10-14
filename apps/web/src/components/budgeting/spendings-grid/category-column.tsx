@@ -112,7 +112,24 @@ export function CategoryColumn({
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{
+        ...style,
+        // 261014 (user's call): the 4px accent runs the FULL card height again,
+        // painted as the column's OWN background.
+        //
+        // Not as a positioned child behind the sticky band — that is the
+        // arrangement that flashed at full height during a horizontal scroll
+        // on 261005, because the band composites on its own schedule and
+        // anything hidden behind it can show through for a frame. There is
+        // nothing hidden now: one element, one layer, and the band opens a
+        // window instead of masking (see its background below). A background
+        // cannot drift from the box it is painted on.
+        ...(accentHex
+          ? {
+              backgroundImage: `linear-gradient(to right, ${accentHex} 0, ${accentHex} 4px, transparent 4px)`,
+            }
+          : {}),
+      }}
       data-testid={`category-column-${category.id}`}
       {...attributes}
       // UAT round 18: `!cursor-default` (Tailwind `!`-prefix →
@@ -175,7 +192,19 @@ export function CategoryColumn({
         // still scroll and the band was the only way back to a banner that had
         // scrolled away. The page is pinned now — nothing can leave the screen
         // — so the dead-zone worry it was answering no longer exists.
-        style={{ touchAction: "pan-x" }}
+        style={{
+          touchAction: "pan-x",
+          // A 4px WINDOW, not a mask. The band stays opaque everywhere rows
+          // scroll under it and simply stops painting over the card's left
+          // edge, so the column's own accent reads straight through (261014).
+          ...(accentHex
+            ? {
+                backgroundImage: `linear-gradient(to right, transparent 0, transparent 4px, ${
+                  archived ? "#14181D" : "var(--surface-card-dark)"
+                } 4px)`,
+              }
+            : {}),
+        }}
         className={cn(
           // border-x + border-t on the sticky band so when it pins at the
           // wrapper top (column's own top has scrolled out of the clip), the
@@ -245,30 +274,10 @@ export function CategoryColumn({
           instead of widening it (only the Reserves row drives width). */}
       <div
         data-testid={`category-accent-lane-${category.id}`}
-        // The 4px category accent is painted HERE — on the lane below the
-        // header band — as a background, not as an absolutely-positioned
-        // child spanning the whole column (user, 261005).
-        //
-        // It used to sit behind the sticky band at z-0, relying on the band's
-        // opaque background to mask it. Two frames of a screen recording show
-        // why that is fragile: as a column scrolls in, the accent paints at
-        // FULL height for a frame and only shrinks to its proper length once
-        // the band rasterises over it. The band is sticky and composites on
-        // its own schedule, so anything hidden behind it can flash through.
-        // Measured in the same recording: 4px wide one frame, 5px the next,
-        // and a 2px jump backwards as the scroll settled — a separate layer
-        // drifting against the column it belongs to.
-        //
-        // Nothing is behind the band now, so there is nothing left to flash,
-        // and a background cannot drift from the box it is painted on. The
-        // visible result is what the masked version was always trying to be.
-        style={
-          accentHex
-            ? {
-                backgroundImage: `linear-gradient(to right, ${accentHex} 0, ${accentHex} 4px, transparent 4px)`,
-              }
-            : undefined
-        }
+        // The accent moved OFF this lane on 261014 and onto the column itself,
+        // so it no longer vanishes on a column with nothing in it: the lane is
+        // flex-1, and with no rows it collapses to no height at all, leaving
+        // the stripe nowhere to land (user, 261014).
         className="flex flex-col gap-[var(--spacing-xs)] flex-1 w-0 min-w-full"
       >
         {/* "expenses" section label — ONLY for archived columns, which have no

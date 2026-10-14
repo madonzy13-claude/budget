@@ -172,31 +172,54 @@ describe("CategoryColumn", () => {
   // The look is unchanged. The sticky header band is an opaque child, so it
   // still covers the accent beside the summary rows exactly as the z-0 child
   // did, and the column's rounded corners clip the background for free.
-  it("paints the accent on the lane below the header band", () => {
+  // 261014: the accent runs the FULL card height again (user's call, option D).
+  // It is the COLUMN'S OWN background — not a positioned child behind the
+  // sticky band, which is the arrangement that flashed at full height during a
+  // horizontal scroll on 261005. One element, one layer, nothing to mask.
+  it("paints the accent down the whole column", () => {
     renderColumn({ summary: { ...summary, colorKey: "green" } });
-    const lane = screen.getByTestId("category-accent-lane-cat-1");
+    const col = screen.getByTestId("category-column-cat-1");
     // green → #26A69A (happy-dom preserves the hex literal, no rgb() normalize)
-    expect(lane.style.backgroundImage.toUpperCase()).toContain("#26A69A");
+    expect(col.style.backgroundImage.toUpperCase()).toContain("#26A69A");
     // A hard 4px stop — a stripe, not a gradient.
-    expect(lane.style.backgroundImage).toContain("4px");
+    expect(col.style.backgroundImage).toContain("4px");
   });
 
-  it("carries no separately positioned accent element to drift", () => {
+  it("opens a 4px window in the sticky band so the stripe shows through it", () => {
     renderColumn({ summary: { ...summary, colorKey: "green" } });
+    const band = screen.getByTestId("column-sticky-groceries");
+    // Transparent for the first 4px, the card surface after it: the band stays
+    // opaque where rows scroll under it, and stops masking the edge.
+    expect(band.style.backgroundImage).toContain("transparent");
+    expect(band.style.backgroundImage).toContain("4px");
+  });
+
+  it("leaves the band plainly opaque when there is no accent", () => {
+    renderColumn({ summary: { ...summary, colorKey: null } });
+    const band = screen.getByTestId("column-sticky-groceries");
+    expect(band.style.backgroundImage).toBe("");
+  });
+
+  it("carries no separately positioned accent element", () => {
+    renderColumn({ summary: { ...summary, colorKey: "green" } });
+    // No absolutely-positioned bar, and the lane no longer paints it either —
+    // the column itself does, so there is exactly one painted surface.
     expect(screen.queryByTestId("category-accent-bar-cat-1")).toBeNull();
+    const lane = screen.getByTestId("category-accent-lane-cat-1");
+    expect(lane.style.backgroundImage).toBe("");
   });
 
   it("paints no accent when colorKey is null", () => {
     renderColumn({ summary: { ...summary, colorKey: null } });
-    const lane = screen.getByTestId("category-accent-lane-cat-1");
-    expect(lane.style.backgroundImage).toBe("");
+    const col = screen.getByTestId("category-column-cat-1");
+    expect(col.style.backgroundImage).toBe("");
   });
 
   it("paints no accent on an archived column even with a colorKey", () => {
     renderColumn({
       summary: { ...summary, colorKey: "green", archived: true },
     });
-    const lane = screen.getByTestId("category-accent-lane-cat-1");
-    expect(lane.style.backgroundImage).toBe("");
+    const col = screen.getByTestId("category-column-cat-1");
+    expect(col.style.backgroundImage).toBe("");
   });
 });
