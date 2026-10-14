@@ -108,7 +108,7 @@ export interface ScheduledPaymentFormProps {
    * to the API as `category_id`. Empty / omitted → no picker (the
    * /scheduled legacy stub doesn't have budget context).
    */
-  categories?: Array<{ id: string; name: string }>;
+  categories?: Array<{ id: string; name: string; colorKey?: string | null }>;
   initialValues?: Partial<ScheduledPaymentFormValues>;
   onSaved?: () => void;
   /** For test override; defaults to global fetch. */

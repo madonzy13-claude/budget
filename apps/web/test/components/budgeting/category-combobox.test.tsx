@@ -160,3 +160,45 @@ describe("CategoryCombobox inside a dialog", () => {
     expect(document.body.contains(input)).toBe(true);
   });
 });
+
+/**
+ * A category's colour is how it is recognised everywhere else in the app — the
+ * accent lane on its spendings column, its slice in every chart. The picker
+ * showed names only, so choosing one meant reading rather than recognising
+ * (user, 261014).
+ *
+ * The dot renders only where a colour is set, matching the pickers that
+ * already do this: a category with no colour keeps its name flush left rather
+ * than being indented past an empty swatch.
+ */
+describe("CategoryCombobox — colours", () => {
+  const COLOURED = [
+    { id: "c1", name: "Food & Home", colorKey: "green" },
+    { id: "c2", name: "Car", colorKey: null },
+  ];
+
+  it("shows the category's colour beside its name", async () => {
+    renderBox({ categories: COLOURED });
+    fireEvent.click(screen.getByTestId("category-combobox-trigger"));
+    await screen.findByTestId("category-combobox-input");
+    const dot = screen.getByTestId("category-dot-c1");
+    // green → #26A69A (happy-dom keeps the hex literal)
+    expect(dot.style.backgroundColor.toUpperCase()).toBe("#26A69A");
+  });
+
+  it("renders no swatch for a category without a colour", async () => {
+    renderBox({ categories: COLOURED });
+    fireEvent.click(screen.getByTestId("category-combobox-trigger"));
+    await screen.findByTestId("category-combobox-input");
+    expect(screen.queryByTestId("category-dot-c2")).toBeNull();
+  });
+
+  it("carries the colour onto the trigger once chosen", async () => {
+    renderBox({
+      categories: COLOURED,
+      value: { kind: "existing", id: "c1" },
+    });
+    const dot = screen.getByTestId("category-dot-selected");
+    expect(dot.style.backgroundColor.toUpperCase()).toBe("#26A69A");
+  });
+});

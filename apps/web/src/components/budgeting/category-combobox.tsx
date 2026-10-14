@@ -20,6 +20,7 @@ import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { hexForColorKey } from "@/lib/category-colors";
 import {
   Command,
   CommandEmpty,
@@ -39,6 +40,22 @@ export type CategoryChoice =
   | { kind: "existing"; id: string }
   | { kind: "new"; name: string };
 
+/** The category's colour, or nothing. Rendered only where one is set, so an
+ *  uncoloured category keeps its name flush left instead of sitting past an
+ *  empty swatch (user, 261014). */
+function Dot({ colorKey, testId }: { colorKey?: string | null; testId: string }) {
+  const hex = hexForColorKey(colorKey ?? null);
+  if (!hex) return null;
+  return (
+    <span
+      aria-hidden
+      data-testid={testId}
+      className="h-2.5 w-2.5 shrink-0 rounded-full"
+      style={{ backgroundColor: hex }}
+    />
+  );
+}
+
 export function CategoryCombobox({
   categories,
   value,
@@ -46,7 +63,7 @@ export function CategoryCombobox({
   id,
   "aria-label": ariaLabel,
 }: {
-  categories: { id: string; name: string }[];
+  categories: { id: string; name: string; colorKey?: string | null }[];
   value: CategoryChoice | null;
   onChange: (next: CategoryChoice | null) => void;
   id?: string;
@@ -106,7 +123,17 @@ export function CategoryCombobox({
           // and a hairline border, not the outline button's transparent dark.
           className="h-10 w-full justify-between border border-[var(--input)] bg-[color-mix(in_oklab,var(--card)_92%,transparent)] !px-3 py-2 text-base font-normal text-[var(--foreground)] sm:text-sm"
         >
-          <span className="truncate text-[var(--foreground)]">{label}</span>
+          <span className="flex min-w-0 items-center gap-2">
+            {value?.kind === "existing" && (
+              <Dot
+                colorKey={
+                  categories.find((c) => c.id === value.id)?.colorKey ?? null
+                }
+                testId="category-dot-selected"
+              />
+            )}
+            <span className="truncate text-[var(--foreground)]">{label}</span>
+          </span>
           <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -152,6 +179,7 @@ export function CategoryCombobox({
                       indented for no reason (user, 261014). Trailing keeps the
                       names flush left and still reserves nothing that shifts
                       when the selection moves. */}
+                  <Dot colorKey={c.colorKey} testId={`category-dot-${c.id}`} />
                   <span className="truncate">{c.name}</span>
                   {value?.kind === "existing" && value.id === c.id && (
                     <Check className="ml-auto h-4 w-4 shrink-0" />
