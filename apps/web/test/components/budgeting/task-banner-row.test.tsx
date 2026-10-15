@@ -354,3 +354,44 @@ describe("TaskBannerRow — a draft in another month", () => {
     expect(setMonthMock).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The title was `truncate` — one line, ellipsised. On a narrow phone with a
+ * longer language the task was unreadable: Android, Ukrainian, "Підтвердьте …"
+ * and nothing else (user, 261015, screenshot). A task nobody can read is a
+ * task nobody can act on.
+ *
+ * It wraps now. The row grows instead of hiding its own content, and "More"
+ * stays put beside it.
+ */
+describe("TaskBannerRow — the title stays readable", () => {
+  function titleSpan() {
+    render(
+      <TaskBannerRow
+        task={makeTask("CONFIRM_DRAFT")}
+        budgetId="b1"
+        locale="en"
+      />,
+    );
+    return document.querySelector("[data-task-id] > span") as HTMLElement;
+  }
+
+  it("does not clip the title to one ellipsised line", () => {
+    const span = titleSpan();
+    expect(span.className).not.toContain("truncate");
+  });
+
+  it("lets a long title wrap rather than overflow its row", () => {
+    const span = titleSpan();
+    // min-w-0 is what allows a flex child to wrap at all instead of forcing
+    // the row wider; break-words handles a single unbroken run.
+    expect(span.className).toContain("min-w-0");
+    expect(span.className).toContain("break-words");
+  });
+
+  it("keeps the More trigger from being squeezed by a wrapped title", () => {
+    titleSpan();
+    const more = screen.getByRole("button", { name: /more/i });
+    expect(more.className).toContain("shrink-0");
+  });
+});
