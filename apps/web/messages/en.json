@@ -1972,7 +1972,8 @@
       "row5": {
         "balance": "left"
       },
-      "archived": "archived"
+      "archived": "archived",
+      "usageOfPool": "{pct}% of plan + reserve used"
     },
     "investCat": {
       "header": "Edit Investments",

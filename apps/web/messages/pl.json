@@ -1995,7 +1995,8 @@
       "row5": {
         "balance": "pozostało"
       },
-      "archived": "zarchiwizowano"
+      "archived": "zarchiwizowano",
+      "usageOfPool": "Wykorzystano {pct}% planu i rezerwy"
     },
     "investCat": {
       "header": "Edytuj Inwestycje",
