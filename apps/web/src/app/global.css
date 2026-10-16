@@ -698,6 +698,16 @@ button:disabled,
   [data-bdp-tabs] {
     top: calc(4rem + 1px);
   }
+  /* …except on a tab that pins the page (spendings — data-lock-page-scroll).
+     There `main` is itself the scrollport and it already starts BELOW the
+     4rem header, so the offset above counts the header a second time and
+     parks the band on top of the month navigator. Sticky to the top of that
+     scrollport instead. Without this the @tasks-geometry proof
+     "switching from a scrolled tab to spendings … shows month nav" fails
+     with the navigator at y=127.5 under a band whose bottom edge is 179. */
+  main[data-shell-scroll]:has([data-lock-page-scroll]) [data-bdp-tabs] {
+    top: 0;
+  }
   /* SHELL-R15: grid tail-spacer browser floor. The grid box now extends
      UNDER the Safari bar (100lvh bottom anchor) so content paints beneath
      the translucent bar like a native page — but the last fully-scrolled
