@@ -568,8 +568,26 @@ textarea:focus-visible,
 .recharts-wrapper:focus-visible,
 .recharts-surface:focus,
 .recharts-surface:focus-visible,
-.recharts-wrapper :focus-visible {
+.recharts-wrapper :focus,
+.recharts-wrapper :focus-visible,
+.recharts-wrapper [tabindex]:focus,
+.recharts-wrapper [tabindex]:focus-visible {
   outline: none !important;
+  box-shadow: none !important;
+}
+/* …and Android Chrome paints its own frame on a tapped focusable, which no
+   outline rule touches (user, 261016: a black box around the chart on tap). */
+.recharts-wrapper,
+.recharts-wrapper * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* A chart's tooltip must clear the SECTION BELOW it. Recharts renders the
+   tooltip inside its own wrapper, so a later sibling chart — later in the DOM,
+   both unpositioned — painted straight over it (user, 261016, screenshot: the
+   lower bar chart on top of the upper chart's tooltip). */
+.recharts-tooltip-wrapper {
+  z-index: 60;
 }
 
 /* ───────────────────────────────────────────────────────────────────

@@ -37,7 +37,13 @@ export function useDismissTooltip() {
       onMouseMove: clearIfMoved, // moved to another point → un-dismiss
       onMouseLeave: () => setDismissed(null),
     },
-    tooltipProps: { wrapperStyle: { pointerEvents: "auto" as const } },
+    tooltipProps: {
+      wrapperStyle: { pointerEvents: "auto" as const },
+      // Keep the box inside the chart on both axes. This is recharts' default,
+      // but stated here so a future prop spread cannot quietly drop it: the
+      // tooltip ran off the right edge of a phone (user, 261016).
+      allowEscapeViewBox: { x: false, y: false },
+    },
     contentExtra: {
       suppressedLabel: dismissed,
       onDismiss: (l: IdxLike) => setDismissed(lbl(l)),

@@ -58,15 +58,28 @@ function addMonths(month: string, n: number): string {
  * needs its bar). null when nothing is scheduled — an empty chart, not a year
  * of zeroes.
  */
+/** How far the chart looks ahead when nothing is scheduled beyond it. */
+export const UPCOMING_WINDOW_MONTHS = 12;
+
 export function upcomingHorizon(
   payments: readonly UpcomingPayment[],
   todayISO: string,
 ): string | null {
   if (payments.length === 0) return null;
   const thisMonth = monthOf(todayISO);
+  // A WINDOW, not simply the furthest next-due. `next_due_date` is the NEXT
+  // occurrence and never the last, so a monthly rule's is always a month or
+  // two away — which meant the chart's right edge was decided by whichever
+  // YEARLY rule happened to sit furthest out, and every monthly payment after
+  // that date vanished from the series though it keeps being owed. From
+  // October that drew the year only as far as April (user, 261016).
+  //
+  // Twelve months, extended when something really is scheduled beyond them.
+  // Same rule the reserve runway uses (FORWARD_MONTHS, get-reserve-fit).
+  const windowEnd = addMonths(thisMonth, UPCOMING_WINDOW_MONTHS - 1);
   return payments.reduce(
     (far, p) => (monthOf(p.next_due_date) > far ? monthOf(p.next_due_date) : far),
-    thisMonth,
+    windowEnd,
   );
 }
 

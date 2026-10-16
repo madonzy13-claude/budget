@@ -175,7 +175,11 @@ export function ChartTooltipContent({
         // off the right edge of a phone (user screenshot, 260807). The vw term
         // keeps it inside the narrowest screen we ship to; the px term stops it
         // sprawling on a desktop.
-        maxWidth: "min(280px, 76vw)",
+        // 76vw still left a box too wide to be placed inside a narrow screen
+        // once it was anchored near the right edge — it ran off (user, 261016,
+        // Android screenshot). Bounded by the VIEWPORT less a margin, so there
+        // is always somewhere for it to sit.
+        maxWidth: "min(280px, calc(100vw - 2rem))",
         cursor: onDismiss ? "pointer" : undefined,
       }}
     >
