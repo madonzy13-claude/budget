@@ -587,7 +587,11 @@ textarea:focus-visible,
    both unpositioned — painted straight over it (user, 261016, screenshot: the
    lower bar chart on top of the upper chart's tooltip). */
 .recharts-tooltip-wrapper {
-  z-index: 60;
+  /* Above a later sibling chart (unpositioned, so any positive value wins),
+     and BELOW the sticky range band at 30 — 60 put tooltips over the chrome
+     they used to sit behind, which is how one ended up covering the range
+     pills (user, 261016). */
+  z-index: 20;
 }
 
 /* ───────────────────────────────────────────────────────────────────

@@ -188,12 +188,15 @@ export function OverviewBarChart({
           activeCoordinate?: { x?: number; y?: number } | null;
         }) => {
           setActive(coerceIdx(s?.activeTooltipIndex)); // hover / touch shows + follows
+          // Only ever REPLACE the anchor, never clear it here. Clearing it
+          // on a frame with no coordinate dropped the `position` prop, so
+          // recharts put the box at its own default spot for a beat and it
+          // appeared to leap down from the top before settling (user,
+          // 261016: "jumps from the top ... instead of just simply moving").
           const c = s?.activeCoordinate;
-          setAnchor(
-            typeof c?.x === "number" && typeof c?.y === "number"
-              ? { x: clampAnchorX(c.x, plotW, tipW), y: c.y + 10 }
-              : null,
-          );
+          if (typeof c?.x === "number" && typeof c?.y === "number") {
+            setAnchor({ x: clampAnchorX(c.x, plotW, tipW), y: c.y + 10 });
+          }
         }}
         onMouseLeave={() => {
           setActive(null);
@@ -233,6 +236,10 @@ export function OverviewBarChart({
               formatY={tipFmt}
               series={series}
               labelFormat={labelFormat}
+              // Swallowing the tap is only half of it: without this the box
+              // absorbed the press and did nothing with it, so neither the
+              // tooltip nor the bar closed (user, 261016).
+              onDismiss={() => setActive(null)}
               // Single-series per-point bars (up/down, per-category): the marker
               // matches the bar's own color, not the base fill (item 3).
               colorForRow={

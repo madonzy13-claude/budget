@@ -61,7 +61,7 @@ export function OverviewAreaChart({
   xKey,
   series,
   height = 240,
-  tooltipBelow = false,
+  tooltipBelow = true,
   formatY,
   formatTooltip,
   xTickFormat,
@@ -81,9 +81,10 @@ export function OverviewAreaChart({
   series: ChartSeries[];
   height?: number;
   /** Anchor the tooltip just UNDER the point it describes (10px below the
-   *  dot) instead of letting recharts place a tall box wherever it fits —
-   *  which on a phone meant over the chart, or off the top of the screen
-   *  (user, 261016). */
+   *  dot) instead of letting recharts place the box wherever it fits — which
+   *  on a phone meant over the chart, or reaching up over the sticky range
+   *  band above it (user, 261016). On by default; pass false for a chart that
+   *  wants recharts' own placement. */
   tooltipBelow?: boolean;
   formatY?: (n: number) => string;
   /** Tooltip value formatter — the FULL value on tap; axis stays compact (item 2). */

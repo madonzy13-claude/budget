@@ -1515,7 +1515,8 @@
           "basisPast": "Past",
           "basisFuture": "Future",
           "byCategoryFuture": "How much each limit should change, by category",
-          "expectedSpend": "Expected spend"
+          "expectedSpend": "Expected spend",
+          "scheduledTotal": "Total"
         },
         "wealth": {
           "capitalization": "Capitalization",

@@ -1293,14 +1293,24 @@ export function PlannedSection({
                 series={[
                   {
                     key: "yearly",
-                    label: t("planned.scheduledSeries"),
+                    // "Всього", not the series name: this row IS the total,
+                    // and it states its own working (user, 261016).
+                    label: t("planned.scheduledTotal"),
                     // Theme-aware neutral: darker than the text grey in dark,
                     // lighter in light (see --chart-bar-neutral).
                     color: "var(--chart-bar-neutral)",
                   },
                 ]}
                 formatValue={fmtY}
-                formatTooltip={fmtTooltip}
+                // ONE line: "1,038 ₴ × 12м = 12,456 ₴". The monthly figure is
+                // what a limit is set in, and it belongs on the total rather
+                // than on a row of its own (user, 261016 — "do not create
+                // extra line").
+                formatTooltip={(v: number) =>
+                  `${fmtTooltip(perMonthFromYearlyCents(v))} × 12${t(
+                    RATE_LABEL.MONTHLY!.unit,
+                  )} = ${fmtTooltip(v)}`
+                }
                 maskAmounts={false}
                 // The working behind each bar: "200 × 12m = 2,400" — how the
                 // yearly figure was reached, per payment (user, 260811).
@@ -1317,20 +1327,7 @@ export function PlannedSection({
                   // yearly and one-off rules cannot be divided in the head,
                   // and the monthly figure is the one a limit is set in
                   // (user, 261016).
-                  const yearly = Number(row.yearly ?? 0);
-                  const perMonth = {
-                    label: t("planned.perMonth"),
-                    // The WORKING, on one line — "3,500 × 12m = 42,000" —
-                    // matching how each payment below states itself, rather
-                    // than a bare monthly figure on a row of its own
-                    // (user, 261016).
-                    value: `${fmtTooltip(perMonthFromYearlyCents(yearly))} × 12${t(
-                      RATE_LABEL.MONTHLY!.unit,
-                    )} = ${fmtTooltip(yearly)}`,
-                  };
-                  return [
-                    perMonth,
-                    ...items.map((it) => ({
+                  return items.map((it) => ({
                     label: it.name || t("planned.scheduledNoCategory"),
                     value: `${fmtTooltip(Number(it.amount_cents))} × ${
                       RATE_LABEL[it.cadence]
@@ -1339,8 +1336,7 @@ export function PlannedSection({
                           )}`
                         : "1"
                     } = ${fmtTooltip(Number(it.yearly_cents))}`,
-                    })),
-                  ];
+                  }));
                 }}
               />
             </div>

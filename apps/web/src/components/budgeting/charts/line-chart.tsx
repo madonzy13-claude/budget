@@ -21,7 +21,9 @@ import {
   type ChartSeries,
 } from "./chart-theme";
 import { ChartTooltipContent } from "./chart-tooltip";
+import { useEffect, useRef, useState } from "react";
 import { useDismissTooltip } from "./use-dismiss-tooltip";
+import { clampAnchorX, TOOLTIP_MAX_PX } from "@/lib/chart-tooltip-anchor";
 
 export function OverviewLineChart({
   data,
@@ -45,9 +47,27 @@ export function OverviewLineChart({
   /** Format the tooltip's X label (defaults to xTickFormat). */
   labelFormat?: (label: string | number) => string;
 }) {
-  const { chartProps, tooltipProps, contentExtra, hideCursor } =
+  // Measured so the anchor can be pulled back from the right edge.
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [plotW, setPlotW] = useState(0);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const read = () => setPlotW(el.clientWidth);
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const tipW = Math.min(
+    TOOLTIP_MAX_PX,
+    typeof window === "undefined" ? TOOLTIP_MAX_PX : window.innerWidth - 32,
+  );
+
+  const { chartProps, tooltipProps, contentExtra, hideCursor, anchor } =
     useDismissTooltip();
   return (
+    <div ref={wrapRef} className="w-full">
     <ResponsiveContainer width="100%" height={height}>
       <LineChart
         data={data}
@@ -72,6 +92,17 @@ export function OverviewLineChart({
         />
         <Tooltip
           {...tooltipProps}
+          // Under the point and inside the plot — the same rule the area and
+          // bar charts follow, so no tooltip reaches up over the sticky range
+          // band above the chart (user, 261016).
+          {...(anchor
+            ? {
+                position: {
+                  x: clampAnchorX(anchor.x, plotW, tipW),
+                  y: anchor.y,
+                },
+              }
+            : {})}
           cursor={hideCursor ? false : chartTooltip.cursor}
           content={
             <ChartTooltipContent
@@ -98,5 +129,6 @@ export function OverviewLineChart({
         ))}
       </LineChart>
     </ResponsiveContainer>
+    </div>
   );
 }

@@ -146,6 +146,7 @@ vi.mock("@/components/budgeting/charts/bar-chart", () => ({
     series,
     layout,
     tooltipExtra,
+    formatTooltip,
   }: {
     data: Record<string, unknown>[];
     xKey: string;
@@ -154,6 +155,7 @@ vi.mock("@/components/budgeting/charts/bar-chart", () => ({
     tooltipExtra?: (
       row: Record<string, unknown>,
     ) => { label: string; value: string }[];
+    formatTooltip?: (v: number) => string;
   }) => (
     <div
       data-testid="scheduled-year-chart"
@@ -162,6 +164,8 @@ vi.mock("@/components/budgeting/charts/bar-chart", () => ({
       data-rows={data.map((d) => String(d[xKey])).join(",")}
       data-values={data.map((d) => String(d.yearly)).join(",")}
       data-color={series[0]?.color ?? ""}
+      data-series-label={series[0]?.label ?? ""}
+      data-series-value={formatTooltip ? formatTooltip(1_245_600) : ""}
       data-tooltip={JSON.stringify(
         data[0] ? (tooltipExtra?.(data[0]) ?? []) : [],
       )}
@@ -1304,14 +1308,10 @@ describe("scheduled payments per year, by category", () => {
     }[];
     // The per-month split leads — it is the figure a limit is set in — and
     // the per-payment working follows it (user, 261016).
-    expect(rows.map((r) => r.label)).toEqual([
-      "planned.perMonth",
-      "Domain",
-      "Netflix",
-    ]);
+    expect(rows.map((r) => r.label)).toEqual(["Domain", "Netflix"]);
     // 40 a month × 12 = 480 a year.
-    expect(rows[2]!.value).toContain("× 12");
-    expect(rows[2]!.value).toContain("=");
+    expect(rows[1]!.value).toContain("× 12");
+    expect(rows[1]!.value).toContain("=");
   });
 
   it("leads the tooltip with the year divided by twelve", () => {
@@ -1338,12 +1338,9 @@ describe("scheduled payments per year, by category", () => {
       label: string;
       value: string;
     }[];
-    // ONE line, showing the working — not a bare per-month figure on a row of
-    // its own (user, 261016): 3,500 a month is where 42,000 a year comes from.
-    expect(rows[0]!.label).toBe("planned.perMonth");
-    expect(rows[0]!.value).toContain("3,500");
-    expect(rows[0]!.value).toContain("× 12");
-    expect(rows[0]!.value).toContain("42,000");
+    // NO extra row — the working belongs on the total line itself
+    // (user, 261016). Only the per-payment breakdown follows.
+    expect(rows.map((r) => r.label)).toEqual(["Utilities"]);
   });
 
   it("draws nothing when there is nothing standing", () => {
@@ -1479,5 +1476,41 @@ describe("the by-month tooltip sits below the chart", () => {
     // Exactly one: the by-month scheduled chart. The timeline above it keeps
     // recharts' own placement, where a two-row tooltip is no obstruction.
     expect(belowCharts()).toHaveLength(1);
+  });
+});
+
+/**
+ * The total line says "Всього" and carries the working itself — one line, not
+ * a label row plus a per-month row beneath it (user, 261016).
+ */
+describe("the yearly total line", () => {
+  const yearChart2 = () => screen.queryByTestId("scheduled-year-chart");
+
+  it("is labelled as a total, not as the series name", () => {
+    dto.current = {
+      ...base,
+      scheduledPerYear: [
+        { category_id: "c1", name: "Subscriptions", amount_cents: "1245600" },
+      ],
+    };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    expect(yearChart2()!.getAttribute("data-series-label")).toBe(
+      "planned.scheduledTotal",
+    );
+  });
+
+  it("states the monthly working on that same line", () => {
+    dto.current = {
+      ...base,
+      scheduledPerYear: [
+        { category_id: "c1", name: "Subscriptions", amount_cents: "1245600" },
+      ],
+    };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    // 12,456 a year is 1,038 a month.
+    const v = yearChart2()!.getAttribute("data-series-value")!;
+    expect(v).toContain("1,038");
+    expect(v).toContain("× 12");
+    expect(v).toContain("12,456");
   });
 });
