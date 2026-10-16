@@ -170,13 +170,17 @@ export function ColumnHeader({
               the name after seeing both at the real 140px width (user,
               261016). Semantic colour, not the brand accent: green/amber/red
               say a state here, the same exception the trading tokens take. */}
-          {usage && (
+          {usage && !revealed && (
             <span
               data-testid={`category-usage-${category.name.toLowerCase()}`}
               data-tone={usage.tone}
               title={t("usageOfPool", { pct: usage.pct })}
               className={cn(
                 "shrink-0 rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums",
+                // The action cluster is an absolute overlay pinned right, so a
+                // shown pen sits ON the chip. The pen wins the slot: the chip
+                // goes on reveal, and on desktop hover along with it.
+                "group-hover:invisible",
                 usage.tone === "ok" &&
                   "bg-[color-mix(in_oklab,var(--trading-up)_18%,transparent)] text-[var(--trading-up)]",
                 usage.tone === "warn" &&

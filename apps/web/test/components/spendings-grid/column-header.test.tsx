@@ -495,4 +495,23 @@ describe("ColumnHeader — percent used", () => {
     const name = screen.getByTestId("column-header-groceries");
     expect(name.innerHTML).toContain("truncate");
   });
+
+  // The action cluster is an absolute overlay pinned right, so a revealed
+  // pen lands ON the chip — the screenshot showed "75" with the pen through
+  // it. The pen wins the slot; the percent steps aside (user, 261016).
+  it("steps aside for the pen once the actions are revealed", () => {
+    renderHeader();
+    expect(chip()).not.toBeNull();
+    fireEvent.click(screen.getByText("Groceries"));
+    expect(chip()).toBeNull();
+  });
+
+  it("comes back when the actions are dismissed", () => {
+    renderHeader();
+    const title = screen.getByText("Groceries");
+    fireEvent.click(title);
+    expect(chip()).toBeNull();
+    fireEvent.click(title);
+    expect(chip()).not.toBeNull();
+  });
 });
