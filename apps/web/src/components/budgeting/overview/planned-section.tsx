@@ -1317,11 +1317,16 @@ export function PlannedSection({
                   // yearly and one-off rules cannot be divided in the head,
                   // and the monthly figure is the one a limit is set in
                   // (user, 261016).
+                  const yearly = Number(row.yearly ?? 0);
                   const perMonth = {
                     label: t("planned.perMonth"),
-                    value: fmtTooltip(
-                      perMonthFromYearlyCents(Number(row.yearly ?? 0)),
-                    ),
+                    // The WORKING, on one line — "3,500 × 12m = 42,000" —
+                    // matching how each payment below states itself, rather
+                    // than a bare monthly figure on a row of its own
+                    // (user, 261016).
+                    value: `${fmtTooltip(perMonthFromYearlyCents(yearly))} × 12${t(
+                      RATE_LABEL.MONTHLY!.unit,
+                    )} = ${fmtTooltip(yearly)}`,
                   };
                   return [
                     perMonth,

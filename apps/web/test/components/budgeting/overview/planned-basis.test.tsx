@@ -1338,9 +1338,12 @@ describe("scheduled payments per year, by category", () => {
       label: string;
       value: string;
     }[];
+    // ONE line, showing the working — not a bare per-month figure on a row of
+    // its own (user, 261016): 3,500 a month is where 42,000 a year comes from.
     expect(rows[0]!.label).toBe("planned.perMonth");
-    // 42,000 a year is 3,500 a month.
     expect(rows[0]!.value).toContain("3,500");
+    expect(rows[0]!.value).toContain("× 12");
+    expect(rows[0]!.value).toContain("42,000");
   });
 
   it("draws nothing when there is nothing standing", () => {

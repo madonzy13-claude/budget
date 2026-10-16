@@ -76,11 +76,10 @@ export function OverviewAreaChart({
   xKey: string;
   series: ChartSeries[];
   height?: number;
-  /** Anchor the tooltip UNDER the plot area instead of beside the point.
-   *  A tooltip listing a dozen payments covers the chart it belongs to
-   *  wherever recharts puts it, and near the top of the range it ran off the
-   *  viewport and over the sticky range pills (user, 261016). Pinned to the
-   *  chart's bottom-left it clears the data and cannot escape sideways. */
+  /** Anchor the tooltip just UNDER the point it describes (10px below the
+   *  dot) instead of letting recharts place a tall box wherever it fits —
+   *  which on a phone meant over the chart, or off the top of the screen
+   *  (user, 261016). */
   tooltipBelow?: boolean;
   formatY?: (n: number) => string;
   /** Tooltip value formatter — the FULL value on tap; axis stays compact (item 2). */
@@ -127,7 +126,7 @@ export function OverviewAreaChart({
   /** One tick per calendar month — for an axis that names months, not days. */
   xTickPerMonth?: boolean;
 }) {
-  const { chartProps, tooltipProps, contentExtra, hideCursor } =
+  const { chartProps, tooltipProps, contentExtra, hideCursor, anchor } =
     useDismissTooltip();
   // Unique per chart instance — several charts can live on one page.
   const gradIdBase = useId().replace(/:/g, "");
@@ -191,9 +190,11 @@ export function OverviewAreaChart({
         />
         <Tooltip
           {...tooltipProps}
-          // Both coordinates, because recharts only honours `position` when
-          // it carries x AND y — a y-only override is ignored.
-          {...(tooltipBelow ? { position: { x: 0, y: height } } : {})}
+          // Just under the point it describes — not parked at the bottom of
+          // the plot, which was too far away (user, 261016). Both coordinates
+          // are passed because recharts only honours `position` when it
+          // carries x AND y; a y-only override is silently ignored.
+          {...(tooltipBelow && anchor ? { position: anchor } : {})}
           cursor={hideCursor ? false : chartTooltip.cursor}
           content={
             <ChartTooltipContent
