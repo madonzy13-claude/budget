@@ -109,7 +109,14 @@ export async function startTestcontainer(): Promise<{
         "-p",
         "0:5432",
         "--health-cmd",
-        "pg_isready -U postgres",
+        // Over TCP, deliberately. The official entrypoint runs initdb against a
+        // TEMPORARY server bound to the unix socket only (`listen_addresses=''`)
+        // and then restarts it for real; a socket-based pg_isready calls that
+        // healthy, so the bootstrap below connected to a server that was about
+        // to go away and every file awaiting this promise failed with
+        // `error: Connection terminated unexpectedly`. Rare, because initdb
+        // usually finishes inside the first poll — it takes a loaded runner.
+        "pg_isready -U postgres -h 127.0.0.1",
         "--health-interval",
         "1s",
         "--health-timeout",
