@@ -134,29 +134,41 @@ Both were attempted on 2026-08-14 and reverted with evidence. Neither is a
   `typescript: ">=4.8.4 <6.1.0"`. The documented workaround needs the TS 6 API,
   and TS 6 is beta-only. Unblocks when typescript-eslint supports TS >= 7.1
   (typescript-eslint#10940) or TS 6.0 goes stable.
-- **next: the 16.3.x block is LIFTED — now 16.3.5** (2026-09-22). It stays an
-  exact pin _and_ a root `overrides` entry, but only to keep one Next across
-  the workspaces; it is no longer a known-bad hold.
+- **next: NOT held — now 16.4.2** (2026-10-16). It stays an exact pin _and_ a
+  root `overrides` entry, but only to keep one Next across the workspaces; it
+  is no longer a known-bad hold.
 
   History, because the reason mattered: 16.3.1 and 16.3.2 both failed the
   **image** build while collecting page data — `TypeError: Expected CommonJS
-  module to have a function wrapper` → `Failed to collect page data for
-  /icon.svg`. 16.3.5 does not: `make build-web` exits 0, all four images build,
-  compose-smoke comes up healthy and `/en/health` answers 200.
+module to have a function wrapper` → `Failed to collect page data for
+/icon.svg`. Neither 16.3.5 nor 16.4.2 does: `make build-web` exits 0, all
+  four images build, compose-smoke comes up healthy and `/en/health` answers 200.
 
-  Bumped because staying was the bigger risk: 16.2.12 carries TWO CRITICAL
-  advisories — GHSA-p293-qw3h-jr36 (unauthenticated RCE on Windows-hosted
-  servers) and GHSA-2xp9-vwfh-vxw4 (unauthenticated RCE in the Image
-  Optimization API via AVIF) — both fixed in 16.3.3. `bun audit
-  --audit-level=high` is a blocking CI job, so main was red until this moved.
+  Each bump so far was forced by an advisory, not chosen: 16.2.12 carried two
+  CRITICAL RCEs (GHSA-p293-qw3h-jr36 Windows-hosted servers,
+  GHSA-2xp9-vwfh-vxw4 Image Optimization via AVIF, both fixed in 16.3.3), and
+  16.3.5 carried a CRITICAL RCE in `next/og` ImageResponse
+  (GHSA-vcvr-r3jv-pc5j) plus SSRF in Image Optimization
+  (GHSA-cjq9-62q9-8jv4), both fixed in 16.3.8. `bun audit --audit-level=high`
+  is a blocking CI job, so main was red until each moved.
+
 - **better-auth stays 1.6.28**, likewise pinned in `overrides`. 1.7.1 breaks
   sign-up outright — `BetterAuthError: The field "issuer" does not exist in the
-  "account" Drizzle schema`. 1.7.x added an `issuer` column to its `account`
+"account" Drizzle schema`. 1.7.x added an `issuer` column to its `account`
   model that `identity.account` does not have. Measured 2026-08-28:
   `bun test packages/identity packages/tenancy` is 99 pass / 0 fail on 1.6.28
   and 53 pass / 46 fail on 1.7.1, every red a failed sign-up. Unblocks with a
   migration adding `issuer` to `identity.account` (plus its RLS grant), not
   with a version bump alone.
+
+**Not every `overrides` entry is a hold — most are advisory FLOORS.** `sharp`,
+`brace-expansion`, `source-map-js`, `@grpc/grpc-js`, `postcss`, `browserslist`
+and `vite` sit there only to force a transitive dependency past a published
+advisory. Raise the floor to the lowest fixed version and re-resolve; a bare
+`bun update` cannot help where the existing range already forbids the fix, and
+a stale `bun.lock` will happily keep pinning the vulnerable build inside a
+range that permits the fixed one. `bun audit --audit-level=high` is the gate —
+run it before assuming main is green.
 
 **Gate Next bumps on `make build-web`, not `bun run build`.** A host-side
 `next build` passes on 16.3.1; only the container reproduces the failure. The
