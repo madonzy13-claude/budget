@@ -507,3 +507,35 @@ describe("WalletRow — desktop full-currency-name picker", () => {
     expect(picker.getAttribute("data-desktop")).toBe("0");
   });
 });
+
+/**
+ * A wallet's name is how it is recognised, and `truncate` cut it to one
+ * ellipsised line: on a phone in Ukrainian the list read "Банка на від…",
+ * "На реабіліта…", "На кв-ри G…" — three wallets nobody can tell apart
+ * (user, 261016, screenshot).
+ *
+ * It wraps now. The row grows; the currency and amount keep their places.
+ */
+describe("WalletRow — the name stays readable", () => {
+  function renderRow() {
+    render(
+      <WalletRow
+        mode="persisted"
+        wallet={SPENDINGS_WALLET}
+        budgetCurrency="EUR"
+        onUpdate={vi.fn().mockResolvedValue(undefined)}
+        onArchive={vi.fn()}
+        isReserveSection={false}
+      />,
+    );
+    return screen.getByTestId(`wallet-name-${SPENDINGS_WALLET.id}`);
+  }
+
+  it("does not clip the name to one ellipsised line", () => {
+    expect(renderRow().innerHTML).not.toContain("truncate");
+  });
+
+  it("lets a long name wrap", () => {
+    expect(renderRow().innerHTML).toContain("break-words");
+  });
+});

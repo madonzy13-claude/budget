@@ -725,8 +725,13 @@ function PersistedRow({
             value={wallet.name}
             ariaLabel={t("nameAria")}
             testId={`wallet-name-${wallet.id}`}
+            // break-words, not truncate: a clipped wallet name is
+            // unidentifiable. On a phone in Ukrainian the list read "Банка на
+            // від…", "На реабіліта…", "На кв-ри G…" — three wallets nobody can
+            // tell apart (user, 261016). The row grows; currency and amount
+            // keep their places.
             render={(v) => (
-              <span className="block truncate">
+              <span className="block break-words">
                 {v || (
                   <span className="text-[var(--muted-foreground)]">
                     {t("namePlaceholder")}
