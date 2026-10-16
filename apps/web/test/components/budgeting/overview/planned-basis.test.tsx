@@ -169,6 +169,16 @@ vi.mock("@/components/budgeting/charts/bar-chart", () => ({
   ),
 }));
 
+// The by-month scheduled chart; records where its tooltip is anchored.
+vi.mock("@/components/budgeting/charts/area-chart", () => ({
+  OverviewAreaChart: ({ tooltipBelow }: { tooltipBelow?: boolean }) => (
+    <div
+      data-testid="scheduled-month-chart"
+      data-tooltip-below={tooltipBelow ? "true" : "false"}
+    />
+  ),
+}));
+
 const { PlannedSection } =
   await import("@/components/budgeting/overview/planned-section");
 
@@ -1436,5 +1446,35 @@ describe("Future reading — a No-limit category", () => {
       screen.getByRole("button", { name: "planned.basisFuture" }),
     );
     expect(chart().getAttribute("data-gap")).toBe("40000");
+  });
+});
+
+/**
+ * The by-month tooltip carries a dozen payment rows, so wherever recharts put
+ * it, it covered the chart it belongs to — and near the top of the range it
+ * ran off the viewport and over the sticky range pills (user, 261016,
+ * screenshots).
+ *
+ * It is anchored BELOW the plot area now: the data stays visible, and a box
+ * pinned to the chart's left edge cannot leave the screen sideways however
+ * long a payment name is.
+ */
+describe("the by-month tooltip sits below the chart", () => {
+  /** The section draws more than one area chart; this is the one that opts in. */
+  const belowCharts = () =>
+    screen
+      .queryAllByTestId("scheduled-month-chart")
+      .filter((el) => el.getAttribute("data-tooltip-below") === "true");
+
+  it("anchors the tooltip under the plot area", () => {
+    dto.current = {
+      ...base,
+      // Something must be coming, or the chart stands down entirely.
+      scheduledPerMonth: [{ month: "2026-11", planned_cents: "10000" }],
+    };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    // Exactly one: the by-month scheduled chart. The timeline above it keeps
+    // recharts' own placement, where a two-row tooltip is no obstruction.
+    expect(belowCharts()).toHaveLength(1);
   });
 });

@@ -1222,6 +1222,9 @@ export function PlannedSection({
           <div className="flex flex-col gap-2">
             <ChartLabel>{t("planned.scheduledPerMonth")}</ChartLabel>
             <OverviewAreaChart
+              // A dozen payment rows cover the chart wherever recharts places
+              // them; below the plot they do not (user, 261016).
+              tooltipBelow
               data={data.scheduledPerMonth.map((m) => ({
                 month: String(m.month),
                 planned: Number(m.planned_cents),

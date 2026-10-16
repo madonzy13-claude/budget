@@ -57,6 +57,7 @@ export function OverviewAreaChart({
   xKey,
   series,
   height = 240,
+  tooltipBelow = false,
   formatY,
   formatTooltip,
   xTickFormat,
@@ -75,6 +76,12 @@ export function OverviewAreaChart({
   xKey: string;
   series: ChartSeries[];
   height?: number;
+  /** Anchor the tooltip UNDER the plot area instead of beside the point.
+   *  A tooltip listing a dozen payments covers the chart it belongs to
+   *  wherever recharts puts it, and near the top of the range it ran off the
+   *  viewport and over the sticky range pills (user, 261016). Pinned to the
+   *  chart's bottom-left it clears the data and cannot escape sideways. */
+  tooltipBelow?: boolean;
   formatY?: (n: number) => string;
   /** Tooltip value formatter — the FULL value on tap; axis stays compact (item 2). */
   formatTooltip?: (n: number) => string;
@@ -184,6 +191,9 @@ export function OverviewAreaChart({
         />
         <Tooltip
           {...tooltipProps}
+          // Both coordinates, because recharts only honours `position` when
+          // it carries x AND y — a y-only override is ignored.
+          {...(tooltipBelow ? { position: { x: 0, y: height } } : {})}
           cursor={hideCursor ? false : chartTooltip.cursor}
           content={
             <ChartTooltipContent
