@@ -123,6 +123,23 @@ Then("the row amount editor is open", async ({ page }) => {
   ).toBeVisible({ timeout: 5000 });
 });
 
+/**
+ * Escape closes the editor and hands focus back to the row — and the row's key
+ * handler answers only to keys whose target IS the row, and only while it is
+ * not editing. Both land in the same React commit, so a human never notices;
+ * Playwright can press the next key inside the same frame and did, ~4 runs in
+ * 24, which surfaced as "delete confirmation dialog not found" one step later.
+ * Assert the handoff rather than wait on it.
+ */
+Then("the row amount editor is closed", async ({ page }) => {
+  await expect(page.locator('[data-testid^="txn-row-"] input')).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.activeElement?.getAttribute("data-testid")),
+    )
+    .toMatch(/^txn-row-/);
+});
+
 When("I confirm the delete", async ({ page }) => {
   await page.getByTestId("txn-row-delete-confirm").click();
 });

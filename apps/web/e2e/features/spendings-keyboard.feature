@@ -30,7 +30,8 @@ Feature: Spendings grid — desktop keyboard navigation (r40b)
     When I press "Space" in the grid
     Then the row amount editor is open
     When I press "Escape" in the grid
-    And I press "Backspace" in the grid
+    Then the row amount editor is closed
+    When I press "Backspace" in the grid
     Then the delete confirmation dialog is visible
 
   Scenario: Arrows work immediately after switching to the spendings tab via its pill (no prior page click)
