@@ -39,6 +39,7 @@ import {
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { hexForColorKey } from "@/lib/category-colors";
+import { perMonthFromYearlyCents } from "@/lib/per-month-from-yearly";
 import { assignSliceColors } from "@/lib/slice-colors";
 import { planRing, planSlices, type PlanRingKey } from "@/lib/plan-ring";
 import { Customized } from "recharts";
@@ -1308,7 +1309,20 @@ export function PlannedSection({
                       cadence: string;
                       yearly_cents: string;
                     }[]) ?? [];
-                  return items.map((it) => ({
+                  // The year, divided — FIRST, directly under the total it
+                  // comes from. A category built from a mix of monthly,
+                  // yearly and one-off rules cannot be divided in the head,
+                  // and the monthly figure is the one a limit is set in
+                  // (user, 261016).
+                  const perMonth = {
+                    label: t("planned.perMonth"),
+                    value: fmtTooltip(
+                      perMonthFromYearlyCents(Number(row.yearly ?? 0)),
+                    ),
+                  };
+                  return [
+                    perMonth,
+                    ...items.map((it) => ({
                     label: it.name || t("planned.scheduledNoCategory"),
                     value: `${fmtTooltip(Number(it.amount_cents))} × ${
                       RATE_LABEL[it.cadence]
@@ -1317,7 +1331,8 @@ export function PlannedSection({
                           )}`
                         : "1"
                     } = ${fmtTooltip(Number(it.yearly_cents))}`,
-                  }));
+                    })),
+                  ];
                 }}
               />
             </div>

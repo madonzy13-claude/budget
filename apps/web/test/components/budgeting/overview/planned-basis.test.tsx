@@ -1292,10 +1292,45 @@ describe("scheduled payments per year, by category", () => {
       label: string;
       value: string;
     }[];
-    expect(rows.map((r) => r.label)).toEqual(["Domain", "Netflix"]);
+    // The per-month split leads — it is the figure a limit is set in — and
+    // the per-payment working follows it (user, 261016).
+    expect(rows.map((r) => r.label)).toEqual([
+      "planned.perMonth",
+      "Domain",
+      "Netflix",
+    ]);
     // 40 a month × 12 = 480 a year.
-    expect(rows[1]!.value).toContain("× 12");
-    expect(rows[1]!.value).toContain("=");
+    expect(rows[2]!.value).toContain("× 12");
+    expect(rows[2]!.value).toContain("=");
+  });
+
+  it("leads the tooltip with the year divided by twelve", () => {
+    dto.current = {
+      ...base,
+      scheduledPerYear: [
+        {
+          category_id: "c1",
+          name: "Subscriptions",
+          amount_cents: "4200000",
+          items: [
+            {
+              name: "Utilities",
+              amount_cents: "350000",
+              cadence: "MONTHLY",
+              yearly_cents: "4200000",
+            },
+          ],
+        },
+      ],
+    };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    const rows = JSON.parse(yearChart()!.getAttribute("data-tooltip")!) as {
+      label: string;
+      value: string;
+    }[];
+    expect(rows[0]!.label).toBe("planned.perMonth");
+    // 42,000 a year is 3,500 a month.
+    expect(rows[0]!.value).toContain("3,500");
   });
 
   it("draws nothing when there is nothing standing", () => {
