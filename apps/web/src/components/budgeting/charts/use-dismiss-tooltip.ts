@@ -26,6 +26,42 @@ const ANCHOR_GAP_PX = 10;
  *  rows use (user, 261016: "only one tooltip can be open"). */
 const OPEN_EVENT = "chart-tooltip-open";
 
+/**
+ * Join the "only one tooltip open" protocol.
+ *
+ * Returns `announce`, to call when THIS chart opens one; every other
+ * participant is told to close. The bar chart keeps its own activeIndex state
+ * rather than this hook's dismissed-label one, so the protocol lives here on
+ * its own and both can take part (user, 261016: two tooltips on screen at
+ * once, an area chart's and a bar chart's).
+ */
+export function useCloseOnScroll(close: () => void) {
+  const closeRef = useRef(close);
+  closeRef.current = close;
+  useEffect(() => {
+    const onScroll = () => closeRef.current();
+    // Capture: the shell scroller, the grid, the window — whichever moved.
+    window.addEventListener("scroll", onScroll, true);
+    return () => window.removeEventListener("scroll", onScroll, true);
+  }, []);
+}
+
+export function useTooltipExclusivity(close: () => void) {
+  const id = useId();
+  const closeRef = useRef(close);
+  closeRef.current = close;
+  useEffect(() => {
+    function onOther(e: Event) {
+      if ((e as CustomEvent<{ id: string }>).detail?.id === id) return;
+      closeRef.current();
+    }
+    window.addEventListener(OPEN_EVENT, onOther);
+    return () => window.removeEventListener(OPEN_EVENT, onOther);
+  }, [id]);
+  return () =>
+    window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: { id } }));
+}
+
 type IdxLike = number | string | null | undefined;
 const lbl = (raw: IdxLike): string | null => (raw == null ? null : String(raw));
 
@@ -48,6 +84,10 @@ export function useDismissTooltip() {
     window.addEventListener(OPEN_EVENT, onOther);
     return () => window.removeEventListener(OPEN_EVENT, onOther);
   }, [id]);
+
+  useCloseOnScroll(() => {
+    if (activeRef.current != null) setDismissed(activeRef.current);
+  });
 
   const clearIfMoved = (s: {
     activeLabel?: IdxLike;
