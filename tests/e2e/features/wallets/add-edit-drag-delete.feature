@@ -38,7 +38,9 @@ Feature: Wallets — add, edit, drag, delete (WALT-01..07)
     Then the "Checking" wallet row is highlighted
     When I press "ArrowDown" in the assets tab
     Then the "Savings" wallet row is highlighted
-    When I press "Enter" in the assets tab
+    # Space opens the editor on the assets pill too (88f743d9) — Enter is left
+    # to work the button-like items (toggle a group, open a holding, add).
+    When I press "Space" in the assets tab
     Then the wallet amount editor is open
     When I press "Escape" in the assets tab
     And I press "Delete" in the assets tab
