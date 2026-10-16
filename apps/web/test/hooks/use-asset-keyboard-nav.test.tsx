@@ -15,6 +15,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, fireEvent, act } from "@testing-library/react";
 import { useRef } from "react";
 import { useAssetKeyboardNav } from "../../src/hooks/use-asset-keyboard-nav";
+import { setDndDragging } from "../../src/lib/dnd-dragging";
 
 /** Desktop — the hook is a no-op below md. */
 function setWide() {
@@ -100,5 +101,51 @@ describe("assets pill — the key that opens the amount editor", () => {
     key("ArrowDown");
     key(" ");
     expect(toggleClick).toHaveBeenCalled();
+  });
+});
+
+/**
+ * The hook listens on `document` in the CAPTURE phase and stops propagation on
+ * the Space branch, so it reaches a dnd-kit drag sensor's own listener first.
+ * Space is how a keyboard drag both lifts and drops, so swallowing it left the
+ * drag unable to start — and, once started, unable to finish.
+ */
+describe("assets pill — Space belongs to a drag while one is in flight", () => {
+  beforeEach(() => {
+    setWide();
+    amountClick.mockClear();
+  });
+  afterEach(() => {
+    setDndDragging(false);
+    document.body.innerHTML = "";
+  });
+
+  it("ignores Space while a dnd-kit drag is in flight", () => {
+    render(<Harness />);
+    key("ArrowDown");
+    setDndDragging(true);
+    key(" ");
+    expect(amountClick).not.toHaveBeenCalled();
+  });
+
+  it("ignores Space while a drag handle holds focus (the lift)", () => {
+    const { container } = render(<Harness />);
+    key("ArrowDown");
+    const handle = document.createElement("button");
+    handle.setAttribute("aria-roledescription", "sortable");
+    container.querySelector("#w1")!.appendChild(handle);
+    handle.focus();
+    key(" ");
+    expect(amountClick).not.toHaveBeenCalled();
+  });
+
+  it("still opens the editor once the drag has ended", () => {
+    render(<Harness />);
+    key("ArrowDown");
+    setDndDragging(true);
+    key(" ");
+    setDndDragging(false);
+    key(" ");
+    expect(amountClick).toHaveBeenCalled();
   });
 });

@@ -27,6 +27,7 @@
  */
 import { useEffect, useRef, type RefObject } from "react";
 import { nextNavIndex, nextFieldIndex, NAV_FIELDS } from "@/lib/roving-index";
+import { isDndDragging } from "@/lib/dnd-dragging";
 import { highlightNavItem, shouldGrabAssetFocus } from "@/lib/asset-nav-dom";
 
 function isTextEntry(el: Element | null): boolean {
@@ -79,6 +80,21 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
           "[role='dialog'],[role='menu'],[role='listbox'],[data-editing='true'],[data-radix-popper-content-wrapper]",
         )
       )
+        return;
+      // A dnd-kit drag owns its own keys. This listener is on `document` in the
+      // CAPTURE phase, so the `stopPropagation()` on the Space branch below
+      // reaches it before the drag sensor does — and since Space became "open
+      // the amount editor" a keyboard drag could neither lift
+      // (`keyboard drag never reached section-*`) nor drop.
+      //
+      // Two guards, because one key arrives in each state: the LIFT lands while
+      // the activator handle still holds focus (dnd-kit marks every
+      // sortable/draggable activator with aria-roledescription, and nothing
+      // else in this app uses that attribute); by the DROP the handle has
+      // unmounted into the DragOverlay and focus has fallen back to <body>, so
+      // only the body marker is left to see.
+      if (isDndDragging()) return;
+      if ((ae as HTMLElement | null)?.closest?.("[aria-roledescription]"))
         return;
       // Only act while focus is within the tab (root focused/contains focus, or
       // nothing meaningful focused) — never hijack keys elsewhere on the page.

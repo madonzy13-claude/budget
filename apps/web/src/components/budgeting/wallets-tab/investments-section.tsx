@@ -56,6 +56,7 @@ import { useBudget } from "@/hooks/use-budget-data";
 import { useInvestments, type HoldingDto } from "@/hooks/use-investments";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
 import { parseDecimal } from "@/lib/decimal";
+import { setDndDragging } from "@/lib/dnd-dragging";
 import { useReorderHoldings } from "@/hooks/use-reorder-holdings";
 import { useArchiveHolding } from "@/hooks/use-archive-holding";
 import {
@@ -542,6 +543,7 @@ export function InvestmentsSection({
   }
 
   function handleDragStart(e: DragStartEvent) {
+    setDndDragging(true);
     const id = String(e.active.id);
     const activeGroup = isGroupSortId(id)
       ? null
@@ -593,6 +595,7 @@ export function InvestmentsSection({
   }
 
   function handleDragCancel() {
+    setDndDragging(false);
     setActiveId(null);
     setDragActive(null);
   }
@@ -606,6 +609,7 @@ export function InvestmentsSection({
   // MeasuringStrategy.Always, used to re-fire and crash with React #185.)
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
+    setDndDragging(false);
     setActiveId(null);
     setDragActive(null);
     if (!over) return;
