@@ -192,7 +192,9 @@ export function InvestmentGroupHeader({
               true on mobile, so desktop keeps text-body-md. UAT #1. */}
           <span
             className={[
-              "min-w-0 truncate text-[var(--body-on-dark)]",
+              // Wraps, like the rows beneath it — a clipped group name is as
+                // unidentifiable as a clipped holding (user, 261016).
+                "min-w-0 break-words text-[var(--body-on-dark)]",
               showSum ? "text-num-sm" : "text-body-md",
             ].join(" ")}
           >

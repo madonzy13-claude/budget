@@ -29,6 +29,7 @@ import {
 } from "@dnd-kit/core";
 import { useState, useCallback, useRef } from "react";
 import { useAssetKeyboardNav } from "@/hooks/use-asset-keyboard-nav";
+import { setDndDragging } from "@/lib/dnd-dragging";
 import { navItems, highlightNavItem } from "@/lib/asset-nav-dom";
 import { nextHighlightIndex } from "@/lib/roving-index";
 import { toast } from "sonner";
@@ -230,6 +231,7 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   );
 
   function handleDragStart(e: DragStartEvent) {
+    setDndDragging(true);
     setActiveDragId(String(e.active.id));
     setActiveDragWidth(e.active.rect.current.initial?.width ?? null);
   }
@@ -250,6 +252,7 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   }
 
   function handleDragEnd(e: DragEndEvent) {
+    setDndDragging(false);
     setActiveDragId(null);
     setActiveDragWidth(null);
     setOverSection(null);
@@ -555,6 +558,7 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
       onDragCancel={() => {
+        setDndDragging(false);
         setActiveDragId(null);
         setActiveDragWidth(null);
         setOverSection(null);

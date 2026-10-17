@@ -249,7 +249,9 @@ export function InvestmentRow({
                 shows "TICKER (Name)". Non-tracked holdings show their name. */}
             <span
               className={[
-                "min-w-0 flex-1 truncate sm:hidden",
+                // Wraps rather than truncating — same reason as the wallet
+                // rows: a clipped holding name is unidentifiable (user, 261016).
+                "min-w-0 flex-1 break-words sm:hidden",
                 expanded ? "text-num-sm" : "text-body-md",
                 delisted
                   ? "text-[var(--muted-strong)]"
@@ -260,7 +262,7 @@ export function InvestmentRow({
             </span>
             <span
               className={[
-                "hidden min-w-0 flex-1 truncate text-body-md sm:block",
+                "hidden min-w-0 flex-1 break-words text-body-md sm:block",
                 delisted
                   ? "text-[var(--muted-strong)]"
                   : "text-[var(--body-on-dark)]",

@@ -5,7 +5,11 @@
  * Client component (ResponsiveContainer → ResizeObserver). Data-agnostic: takes
  * already-shaped data + series descriptors; 11-09 wires the data.
  */
-import { useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import {
+  clampAnchorX,
+  TOOLTIP_MAX_PX,
+} from "@/lib/chart-tooltip-anchor";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -57,6 +61,7 @@ export function OverviewAreaChart({
   xKey,
   series,
   height = 240,
+  tooltipBelow = true,
   formatY,
   formatTooltip,
   xTickFormat,
@@ -75,6 +80,12 @@ export function OverviewAreaChart({
   xKey: string;
   series: ChartSeries[];
   height?: number;
+  /** Anchor the tooltip just UNDER the point it describes (10px below the
+   *  dot) instead of letting recharts place the box wherever it fits — which
+   *  on a phone meant over the chart, or reaching up over the sticky range
+   *  band above it (user, 261016). On by default; pass false for a chart that
+   *  wants recharts' own placement. */
+  tooltipBelow?: boolean;
   formatY?: (n: number) => string;
   /** Tooltip value formatter — the FULL value on tap; axis stays compact (item 2). */
   formatTooltip?: (n: number) => string;
@@ -120,7 +131,26 @@ export function OverviewAreaChart({
   /** One tick per calendar month — for an axis that names months, not days. */
   xTickPerMonth?: boolean;
 }) {
-  const { chartProps, tooltipProps, contentExtra, hideCursor } =
+  // Measured so the anchor can be pulled back from the right edge: anchoring
+  // puts the box's LEFT edge at the point, and a point near the end of the
+  // series pushed it off screen (user, 261016).
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [plotW, setPlotW] = useState(0);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const read = () => setPlotW(el.clientWidth);
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const tipW = Math.min(
+    TOOLTIP_MAX_PX,
+    typeof window === "undefined" ? TOOLTIP_MAX_PX : window.innerWidth - 32,
+  );
+
+  const { chartProps, tooltipProps, contentExtra, hideCursor, anchor } =
     useDismissTooltip();
   // Unique per chart instance — several charts can live on one page.
   const gradIdBase = useId().replace(/:/g, "");
@@ -132,6 +162,7 @@ export function OverviewAreaChart({
   const tooltipFmt = hidden ? () => AMOUNT_MASK : (formatTooltip ?? formatY);
   const yFmt = hidden ? () => AMOUNT_MASK : formatY;
   const chart = (
+    <div ref={wrapRef} className="w-full">
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart
         data={data}
@@ -184,6 +215,18 @@ export function OverviewAreaChart({
         />
         <Tooltip
           {...tooltipProps}
+          // Just under the point it describes — not parked at the bottom of
+          // the plot, which was too far away (user, 261016). Both coordinates
+          // are passed because recharts only honours `position` when it
+          // carries x AND y; a y-only override is silently ignored.
+          {...(tooltipBelow && anchor
+            ? {
+                position: {
+                  x: clampAnchorX(anchor.x, plotW, tipW),
+                  y: anchor.y,
+                },
+              }
+            : {})}
           cursor={hideCursor ? false : chartTooltip.cursor}
           content={
             <ChartTooltipContent
@@ -271,6 +314,7 @@ export function OverviewAreaChart({
         {overlay}
       </AreaChart>
     </ResponsiveContainer>
+    </div>
   );
   // Blur only the Y-axis amount ticks when hidden (dates on the X-axis stay
   // sharp). transition matches the SlotAmount reveal feel.

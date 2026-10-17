@@ -83,7 +83,12 @@ function TabPane({
       );
     case "spendings":
       return (
-        <div data-no-page-clearance>
+        // data-lock-page-scroll: on this tab the TRANSACTION LIST is the only
+        // thing that scrolls vertically. The column header rows, the tasks
+        // banner and the month navigator must stay visible at all times
+        // (user, 261005), so global.css pins the shell to the viewport here
+        // and the grid's own scroller takes every vertical gesture.
+        <div data-no-page-clearance data-lock-page-scroll>
           <SpendingsGridClient budgetId={budgetId} />
         </div>
       );

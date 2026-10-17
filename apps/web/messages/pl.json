@@ -72,7 +72,7 @@
     "validation": {
       "email_invalid": "Adres e-mail jest nieprawidłowy. Sprawdź format i spróbuj ponownie.",
       "password_required": "Hasło jest wymagane.",
-      "password_min_length": "Hasło musi mieć co najmniej 8 znaków.",
+      "password_min_length": "Hasło musi mieć co najmniej {min} znaków.",
       "name_required": "Imię i nazwisko jest wymagane."
     },
     "loading": "Logowanie...",
@@ -1234,7 +1234,11 @@
         "once": "Jednorazowo",
         "dateLabel": "Data",
         "errorFirstDueInPast": "Pierwsza data nie może być w przeszłości — wybierz dziś lub później.",
-        "createdDueToday": "Płatność dodana — jedna czeka na Twoje potwierdzenie."
+        "createdDueToday": "Płatność dodana — jedna czeka na Twoje potwierdzenie.",
+        "categoryCreate": "Utwórz „{name}”",
+        "categoryNoMatch": "Brak pasującej kategorii.",
+        "errorCategoryCreate": "Nie udało się utworzyć tej kategorii. Nic nie zostało zapisane.",
+        "categorySearchOrCreate": "Znajdź lub utwórz kategorię…"
       },
       "list": {
         "title": "Zaplanowane płatności",
@@ -1534,7 +1538,8 @@
           "basisPast": "Przeszłość",
           "basisFuture": "Przyszłość",
           "byCategoryFuture": "O ile powinien zmienić się limit, wg kategorii",
-          "expectedSpend": "Oczekiwane wydatki"
+          "expectedSpend": "Oczekiwane wydatki",
+          "scheduledTotal": "Łącznie"
         },
         "wealth": {
           "capitalization": "Kapitalizacja",
@@ -1635,6 +1640,10 @@
         "needsCompletedMonth": {
           "title": "Nie ma jeszcze czego oceniać",
           "body": "Ten wykres porównuje pełne miesiące z ich budżetem, a trwający miesiąc jeszcze nim nie jest. Wybierz zakres obejmujący zakończony miesiąc."
+        },
+        "noScheduledPayments": {
+          "title": "Brak zaplanowanych płatności",
+          "body": "Ten wykres pokazuje płatności nadchodzące w kolejnych miesiącach. Dodaj płatność cykliczną, a pojawi się tutaj."
         }
       },
       "spendings": {
@@ -1986,7 +1995,8 @@
       "row5": {
         "balance": "pozostało"
       },
-      "archived": "zarchiwizowano"
+      "archived": "zarchiwizowano",
+      "usageOfPool": "Wykorzystano {pct}% planu i rezerwy"
     },
     "investCat": {
       "header": "Edytuj Inwestycje",

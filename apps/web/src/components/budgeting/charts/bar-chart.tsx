@@ -5,7 +5,15 @@
  * Supports vertical layout (Y = category) for planned-avg-vs-real, overspent-by-
  * category, and reserves-by-category bars (11-09). Data-agnostic.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  useCloseOnScroll,
+  useTooltipExclusivity,
+} from "./use-dismiss-tooltip";
+import {
+  clampAnchorX,
+  TOOLTIP_MAX_PX,
+} from "@/lib/chart-tooltip-anchor";
 import {
   ResponsiveContainer,
   BarChart,
@@ -90,10 +98,43 @@ export function OverviewBarChart({
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activeRef = useRef<number | null>(null);
   const pressStart = useRef<number | null>(null);
+  const announce = useTooltipExclusivity(() => {
+    activeRef.current = null;
+    setActiveIndex(null);
+  });
   const setActive = (v: number | null) => {
     activeRef.current = v;
     setActiveIndex(v);
+    // Opening ours closes every other chart's (user, 261016).
+    if (v !== null) announce();
   };
+  // Where the tooltip should sit: just under the pointer, pulled back from
+  // the right edge so the box stays inside the plot (user, 261016).
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [plotW, setPlotW] = useState(0);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const read = () => setPlotW(el.clientWidth);
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const tipW = Math.min(
+    TOOLTIP_MAX_PX,
+    typeof window === "undefined" ? TOOLTIP_MAX_PX : window.innerWidth - 32,
+  );
+
+  // A tooltip left open while the page scrolls ends up floating over whatever
+  // is now under it — the sticky range pills, in the report (user, 261016).
+  useCloseOnScroll(() => {
+    activeRef.current = null;
+    setActiveIndex(null);
+    setAnchor(null);
+  });
+
   const coerceIdx = (
     raw: number | string | null | undefined,
   ): number | null => {
@@ -133,6 +174,7 @@ export function OverviewBarChart({
     />
   );
   return (
+    <div ref={wrapRef} className="w-full">
     <ResponsiveContainer width="100%" height={chartHeight}>
       <BarChart
         data={data}
@@ -141,10 +183,25 @@ export function OverviewBarChart({
         onMouseDown={() => {
           pressStart.current = activeRef.current; // what was open BEFORE this press
         }}
-        onMouseMove={(s: { activeTooltipIndex?: number | string | null }) => {
+        onMouseMove={(s: {
+          activeTooltipIndex?: number | string | null;
+          activeCoordinate?: { x?: number; y?: number } | null;
+        }) => {
           setActive(coerceIdx(s?.activeTooltipIndex)); // hover / touch shows + follows
+          // Only ever REPLACE the anchor, never clear it here. Clearing it
+          // on a frame with no coordinate dropped the `position` prop, so
+          // recharts put the box at its own default spot for a beat and it
+          // appeared to leap down from the top before settling (user,
+          // 261016: "jumps from the top ... instead of just simply moving").
+          const c = s?.activeCoordinate;
+          if (typeof c?.x === "number" && typeof c?.y === "number") {
+            setAnchor({ x: clampAnchorX(c.x, plotW, tipW), y: c.y + 10 });
+          }
         }}
-        onMouseLeave={() => setActive(null)}
+        onMouseLeave={() => {
+          setActive(null);
+          setAnchor(null);
+        }}
         onClick={(s: { activeTooltipIndex?: number | string | null }) => {
           const idx = coerceIdx(s?.activeTooltipIndex);
           if (idx == null) return;
@@ -164,14 +221,25 @@ export function OverviewBarChart({
           // Controlled so a re-tap hides it on touch (item 2); on desktop
           // activeIndex tracks hover, so this stays true while hovering.
           active={activeIndex !== null}
-          // Pass-through so a tap ON the tooltip reaches the bar below → toggles.
-          wrapperStyle={{ pointerEvents: "none" }}
+          // The tooltip takes its own taps. With pointer-events none a tap on
+          // the box fell THROUGH to whatever bar sat beneath it, which opened
+          // that bar instead of closing this one — "it just opens another
+          // bar" (user, 261016).
+          wrapperStyle={{ pointerEvents: "auto", cursor: "pointer" }}
+          // …and sits just under the pointer, so it never covers the bar it
+          // describes. Clamped so a bar near the right edge does not push it
+          // off screen.
+          {...(anchor ? { position: anchor } : {})}
           cursor={{ fill: CHART_THEME.grid, fillOpacity: 0.15 }}
           content={
             <ChartTooltipContent
               formatY={tipFmt}
               series={series}
               labelFormat={labelFormat}
+              // Swallowing the tap is only half of it: without this the box
+              // absorbed the press and did nothing with it, so neither the
+              // tooltip nor the bar closed (user, 261016).
+              onDismiss={() => setActive(null)}
               // Single-series per-point bars (up/down, per-category): the marker
               // matches the bar's own color, not the base fill (item 3).
               colorForRow={
@@ -214,5 +282,6 @@ export function OverviewBarChart({
         })}
       </BarChart>
     </ResponsiveContainer>
+    </div>
   );
 }

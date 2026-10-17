@@ -358,3 +358,209 @@ describe("saving a payment refreshes what it changed", () => {
     await waitFor(() => expect(invalidatedKeys()).toContain("drafts.b1"));
   });
 });
+
+/**
+ * Naming a new category in the picker records INTENT only. The category is
+ * created on submit, immediately before the rule that will carry it (user,
+ * 261014) — so a form left unfinished leaves no stray category behind, and the
+ * rule can be attached to an id that did not exist when the form opened.
+ */
+describe("Scheduled rule form — a category created on save", () => {
+  /** Every URL the form wrote to, in order. */
+  const urls = () => writeMock.mock.calls.map((c) => String(c[0]));
+
+  async function nameANewCategory(name: string) {
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByLabelText("rule.amountLabel"), "100");
+    await user.click(screen.getByTestId("category-combobox-trigger"));
+    fireEvent.change(await screen.findByTestId("category-combobox-input"), {
+      target: { value: name },
+    });
+    await user.click(screen.getByTestId("category-combobox-create"));
+    return user;
+  }
+
+  it("creates the category FIRST, then the rule", async () => {
+    writeMock.mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          String(url).endsWith("/categories")
+            ? { category: { id: "cat-new" } }
+            : {},
+      }),
+    );
+    await nameANewCategory("Fuel");
+    fireEvent.submit(document.querySelector("form")!);
+
+    await waitFor(() => expect(writeMock).toHaveBeenCalledTimes(2));
+    expect(urls()[0]).toContain("/categories");
+    expect(urls()[1]).toContain("/scheduled-payments");
+  });
+
+  it("attaches the rule to the id the create returned", async () => {
+    writeMock.mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          String(url).endsWith("/categories")
+            ? { category: { id: "cat-new" } }
+            : {},
+      }),
+    );
+    await nameANewCategory("Fuel");
+    fireEvent.submit(document.querySelector("form")!);
+    await waitFor(() => expect(writeMock).toHaveBeenCalledTimes(2));
+    expect(sentBody()?.category_id).toBe("cat-new");
+  });
+
+  it("sends the typed name to the create", async () => {
+    writeMock.mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          String(url).endsWith("/categories")
+            ? { category: { id: "cat-new" } }
+            : {},
+      }),
+    );
+    await nameANewCategory("Fuel");
+    fireEvent.submit(document.querySelector("form")!);
+    await waitFor(() => expect(writeMock).toHaveBeenCalledTimes(2));
+    const body = JSON.parse(String(writeMock.mock.calls[0]?.[1]?.body));
+    expect(body).toMatchObject({ name: "Fuel" });
+  });
+
+  it("does not write the rule when the category could not be created", async () => {
+    writeMock.mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: !String(url).endsWith("/categories"),
+        json: async () => ({}),
+      }),
+    );
+    await nameANewCategory("Fuel");
+    fireEvent.submit(document.querySelector("form")!);
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    expect(urls().some((u) => u.includes("/scheduled-payments"))).toBe(false);
+  });
+
+  it("writes only the rule when an EXISTING category is picked", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByLabelText("rule.amountLabel"), "100");
+    await user.click(screen.getByTestId("category-combobox-trigger"));
+    await user.click(await screen.findByText("Housing"));
+    fireEvent.submit(document.querySelector("form")!);
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(urls().some((u) => u.includes("/categories"))).toBe(false);
+    expect(sentBody()?.category_id).toBe(CATEGORIES[0]!.id);
+  });
+});
+
+/**
+ * Save stayed disabled after naming a NEW category (user, 261014, screenshot:
+ * "Some new category" chosen, "Save payment" greyed out).
+ *
+ * The guard read `!categoryId`, and `categoryId` is only set for a category
+ * that already exists — a named-but-not-yet-created one has no id until the
+ * save itself creates it. So the one path the picker was built for could never
+ * be submitted. It has to gate on a CHOICE having been made, whichever kind.
+ */
+describe("Scheduled rule form — Save with a new category named", () => {
+  const saveButton = () =>
+    screen.getByRole("button", { name: /rule.saveButton/i });
+
+  it("enables Save once a new category is named", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByLabelText("rule.nameLabel"), "Test");
+    await user.type(screen.getByLabelText("rule.amountLabel"), "15");
+    expect(saveButton()).toBeDisabled();
+
+    await user.click(screen.getByTestId("category-combobox-trigger"));
+    fireEvent.change(await screen.findByTestId("category-combobox-input"), {
+      target: { value: "Some new category" },
+    });
+    await user.click(screen.getByTestId("category-combobox-create"));
+
+    await waitFor(() => expect(saveButton()).toBeEnabled());
+  });
+
+  it("still enables Save for an existing category", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByLabelText("rule.nameLabel"), "Test");
+    await user.type(screen.getByLabelText("rule.amountLabel"), "15");
+    await user.click(screen.getByTestId("category-combobox-trigger"));
+    await user.click(await screen.findByText("Housing"));
+    await waitFor(() => expect(saveButton()).toBeEnabled());
+  });
+
+  it("keeps Save disabled while no category is chosen at all", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByLabelText("rule.nameLabel"), "Test");
+    await user.type(screen.getByLabelText("rule.amountLabel"), "15");
+    expect(saveButton()).toBeDisabled();
+  });
+});
+
+/**
+ * A category created on save has to show up in the picker the NEXT time a rule
+ * is added (user, 261014: "I don't see newly created category in list").
+ *
+ * The form invalidated ["budget", id, "categories"], but the picker's list is
+ * fetched under ["categories-lite", id] — a different key, so nothing
+ * refetched and the new category stayed invisible until a reload. Both keys
+ * are live: the grid and the settings list read different ones.
+ */
+describe("Scheduled rule form — the new category reaches the next picker", () => {
+  it("refreshes the list the picker itself reads", async () => {
+    writeMock.mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          String(url).endsWith("/categories")
+            ? { category: { id: "cat-new" } }
+            : {},
+      }),
+    );
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByLabelText("rule.amountLabel"), "100");
+    await user.click(screen.getByTestId("category-combobox-trigger"));
+    fireEvent.change(await screen.findByTestId("category-combobox-input"), {
+      target: { value: "Fuel" },
+    });
+    await user.click(screen.getByTestId("category-combobox-create"));
+    fireEvent.submit(document.querySelector("form")!);
+
+    await waitFor(() => expect(writeMock).toHaveBeenCalledTimes(2));
+    expect(invalidatedKeys()).toContain("categories-lite.b1");
+  });
+
+  it("still refreshes the grid's own categories key", async () => {
+    writeMock.mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          String(url).endsWith("/categories")
+            ? { category: { id: "cat-new" } }
+            : {},
+      }),
+    );
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByLabelText("rule.amountLabel"), "100");
+    await user.click(screen.getByTestId("category-combobox-trigger"));
+    fireEvent.change(await screen.findByTestId("category-combobox-input"), {
+      target: { value: "Fuel" },
+    });
+    await user.click(screen.getByTestId("category-combobox-create"));
+    fireEvent.submit(document.querySelector("form")!);
+
+    await waitFor(() => expect(writeMock).toHaveBeenCalledTimes(2));
+    expect(invalidatedKeys()).toContain("budget.b1.categories");
+  });
+});

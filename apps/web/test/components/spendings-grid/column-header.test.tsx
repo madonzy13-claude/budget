@@ -419,3 +419,99 @@ describe("ColumnHeader — a No-limit category", () => {
     expect(row.textContent).not.toContain("500");
   });
 });
+
+/**
+ * Percent of the category's pool, on the title row (user, 261016, option A1).
+ *
+ * The pool is plan + reserve available, so a category at its limit with a full
+ * reserve behind it reads as fine rather than as maxed out. The chip wins the
+ * row and the name truncates — chosen knowingly over wrapping the name, after
+ * seeing both at the real 140px column width.
+ */
+describe("ColumnHeader — percent used", () => {
+  const chip = () => screen.queryByTestId("category-usage-groceries");
+
+  it("shows the percent of plan plus reserve", () => {
+    // 620 of (1,100 + 300) = 44%
+    renderHeader({
+      summary: {
+        ...summary,
+        plannedCents: "110000",
+        spentCents: "62000",
+        reserveAvailableCents: "30000",
+      },
+    });
+    expect(chip()!.textContent).toContain("44%");
+  });
+
+  it("reads green while the plan alone covers the spend", () => {
+    renderHeader({
+      summary: { ...summary, plannedCents: "110000", spentCents: "50000" },
+    });
+    expect(chip()!.getAttribute("data-tone")).toBe("ok");
+  });
+
+  it("reads amber once it is into the reserve", () => {
+    renderHeader({
+      summary: {
+        ...summary,
+        plannedCents: "110000",
+        spentCents: "120000",
+        reserveAvailableCents: "30000",
+      },
+    });
+    expect(chip()!.getAttribute("data-tone")).toBe("warn");
+  });
+
+  it("reads red past the pool, and counts past 100", () => {
+    renderHeader({
+      summary: {
+        ...summary,
+        plannedCents: "110000",
+        spentCents: "147000",
+        reserveAvailableCents: "30000",
+      },
+    });
+    expect(chip()!.getAttribute("data-tone")).toBe("bad");
+    expect(chip()!.textContent).toContain("105%");
+  });
+
+  it("measures a cushion month against the cushion limit", () => {
+    // Cushion 2,000; spent 1,000 → half of it, not of the 10,000 normal plan.
+    renderHeader({
+      cushionModeEnabled: true,
+      summary: { ...summary, spentCents: "100000", cushionCents: "200000" },
+    });
+    expect(chip()!.textContent).toContain("50%");
+  });
+
+  it("shows nothing for a category that cannot be overspent", () => {
+    renderHeader({ summary: { ...summary, noLimit: true } });
+    expect(chip()).toBeNull();
+  });
+
+  it("keeps the name on one line — the chip takes the room", () => {
+    renderHeader();
+    const name = screen.getByTestId("column-header-groceries");
+    expect(name.innerHTML).toContain("truncate");
+  });
+
+  // The action cluster is an absolute overlay pinned right, so a revealed
+  // pen lands ON the chip — the screenshot showed "75" with the pen through
+  // it. The pen wins the slot; the percent steps aside (user, 261016).
+  it("steps aside for the pen once the actions are revealed", () => {
+    renderHeader();
+    expect(chip()).not.toBeNull();
+    fireEvent.click(screen.getByText("Groceries"));
+    expect(chip()).toBeNull();
+  });
+
+  it("comes back when the actions are dismissed", () => {
+    renderHeader();
+    const title = screen.getByText("Groceries");
+    fireEvent.click(title);
+    expect(chip()).toBeNull();
+    fireEvent.click(title);
+    expect(chip()).not.toBeNull();
+  });
+});

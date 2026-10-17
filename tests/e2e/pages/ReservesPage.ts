@@ -125,13 +125,25 @@ export class ReservesPage {
     target: import("@playwright/test").Locator,
   ): Promise<void> {
     const landed = target.locator(`[data-category-id="${categoryId}"]`);
+    let lastError: unknown;
     for (let attempt = 1; attempt <= 3; attempt++) {
-      await this._dndKitDrag(
-        this.row(categoryId).getByRole("button", { name: /drag|move/i }),
-        target,
-      );
+      try {
+        await this._dndKitDrag(
+          this.row(categoryId).getByRole("button", { name: /drag|move/i }),
+          target,
+        );
+      } catch (err) {
+        // A drag that could not even be MEASURED is the same class of problem
+        // as a discarded drop — the row was mid-remount after the previous
+        // move — so retry it here rather than letting it escape the loop on
+        // the first try. CI lost the restore-to-Active step this way with
+        // `DnD: bounding boxes unavailable` on all four attempts, because a
+        // throw skipped the retry that exists for exactly this.
+        lastError = err;
+      }
       if ((await landed.count()) > 0) return;
     }
+    if (lastError) throw lastError;
   }
 
   /** dnd-kit drag using page.mouse — PointerSensor requires pointer events on document. */
@@ -139,8 +151,13 @@ export class ReservesPage {
     handle: import("@playwright/test").Locator,
     target: import("@playwright/test").Locator,
   ): Promise<void> {
+    // boundingBox() waits for the element to be ATTACHED but not for it to be
+    // VISIBLE, and returns null rather than waiting when it is not. Re-rendering
+    // the sections after the previous move leaves this handle attached and
+    // invisible for a frame, which on a loaded runner is long enough to measure.
+    await handle.waitFor({ state: "visible", timeout: 10_000 });
     const handleBox = await handle.boundingBox();
-    if (!handleBox) throw new Error("DnD: bounding boxes unavailable");
+    if (!handleBox) throw new Error("DnD: handle bounding box unavailable");
 
     const fromX = handleBox.x + handleBox.width / 2;
     const fromY = handleBox.y + handleBox.height / 2;
@@ -154,8 +171,9 @@ export class ReservesPage {
     // so coordinates taken before mouse.down can point somewhere else entirely by
     // the time the pointer arrives — which is how "drag back to Active" kept
     // dropping the row into Excluded again (~1 run in 4, both projects).
+    await target.waitFor({ state: "visible", timeout: 10_000 });
     const targetBox = await target.boundingBox();
-    if (!targetBox) throw new Error("DnD: bounding boxes unavailable");
+    if (!targetBox) throw new Error("DnD: target bounding box unavailable");
     const toX = targetBox.x + targetBox.width / 2;
     const toY = targetBox.y + targetBox.height / 2;
 

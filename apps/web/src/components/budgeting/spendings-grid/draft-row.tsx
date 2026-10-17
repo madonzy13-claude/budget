@@ -76,9 +76,7 @@ export function DraftRow({
     setRevealed(!revealed);
   }
 
-  function handleDoubleClick(e: React.MouseEvent) {
-    if (readOnly) return;
-    e.stopPropagation();
+  function startEditing() {
     setEditValue((parseInt(draft.amountConvertedCents, 10) / 100).toString());
     cancelledRef.current = false;
     committedRef.current = false;
@@ -86,13 +84,44 @@ export function DraftRow({
     setRevealed(false);
   }
 
-  function commitEdit() {
+  function handleDoubleClick(e: React.MouseEvent) {
+    if (readOnly) return;
+    e.stopPropagation();
+    startEditing();
+  }
+
+  /** The same two keys a confirmed row answers to, plus the one it has no use
+   *  for: Enter is the decision (user, 260930). */
+  function handleRowKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (readOnly || editing || confirmQueued) return;
+    if (e.target !== e.currentTarget) return; // the row itself, not the editor
+    if (e.key === " ") {
+      e.preventDefault();
+      startEditing();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      confirmUnchanged();
+    }
+  }
+
+  function confirmUnchanged() {
+    if (committedRef.current) return;
+    committedRef.current = true;
+    confirmMutation.mutate({ draftId: draft.id });
+    setEditing(false);
+  }
+
+  /** `decides` — Enter means "confirm this", even on an untouched figure
+   *  (user, 260930). Blur does NOT: drifting focus off a row must never
+   *  confirm a payment nobody agreed to, so it closes and leaves it pending. */
+  function commitEdit(decides = false) {
     if (committedRef.current) return;
     const cents = parseDecimal(editValue);
-    // Unchanged value = no-op: closing the editor is the only action. The
-    // draft stays pending until the user actually changes the amount or
-    // clicks Confirm directly.
     if (cents === null || cents === parseInt(draft.amountConvertedCents, 10)) {
+      if (decides) {
+        confirmUnchanged();
+        return;
+      }
       setEditing(false);
       return;
     }
@@ -104,7 +133,7 @@ export function DraftRow({
   function handleEditKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
       e.preventDefault();
-      commitEdit();
+      commitEdit(true);
     }
     if (e.key === "Escape") {
       cancelledRef.current = true;
@@ -127,8 +156,15 @@ export function DraftRow({
       // what the anchor exposes.
       data-draft-id={draft.id}
       onClick={handleClick}
+      onKeyDown={handleRowKeyDown}
       role="row"
-      tabIndex={0}
+      // Walked with ArrowUp/Down like any confirmed row — vertical navigation
+      // enumerates [data-txn-nav], and without it the one row that most wants a
+      // decision was the only one the keyboard could not reach (user, 260930).
+      // tabIndex -1 for the same reason the confirmed rows use it: the tab
+      // order belongs to the quick-add inputs.
+      {...(readOnly ? {} : { "data-txn-nav": "" })}
+      tabIndex={-1}
       style={{
         // Theme-aware sunken lane (was hardcoded #181c22 → stayed dark in light
         // theme, round 18 item 8). --surface-sunken-dark flips to #e7eaef in light.
@@ -151,6 +187,8 @@ export function DraftRow({
             type="text"
             inputMode="decimal"
             autoFocus
+            // Selected, so the first keystroke replaces the figure.
+            onFocus={(e) => e.currentTarget.select()}
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleEditKeyDown}

@@ -352,12 +352,34 @@ describe("TransactionRow", () => {
       expect(row.hasAttribute("data-txn-nav")).toBe(true);
     });
 
-    it("Enter on the focused row opens the inline amount editor", () => {
+    // Space, not Enter (user, 260930). Enter was doing two jobs — opening the
+    // editor here and committing it there — and on an unconfirmed scheduled
+    // payment it is needed for the decision itself (confirm). Space opens the
+    // editor everywhere the grid can be driven from the keyboard.
+    it("Space on the focused row opens the inline amount editor", () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: " " });
+      expect(screen.getByDisplayValue("15")).toBeTruthy();
+    });
+
+    it("opens it with the amount SELECTED, so typing replaces it", () => {
+      renderRow();
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: " " });
+      const editor = screen.getByDisplayValue("15") as HTMLInputElement;
+      expect(editor.selectionStart).toBe(0);
+      expect(editor.selectionEnd).toBe("15".length);
+    });
+
+    it("Enter alone no longer opens the editor", () => {
       renderRow();
       const row = screen.getByTestId("txn-row-1500");
       row.focus();
       fireEvent.keyDown(row, { key: "Enter" });
-      expect(screen.getByDisplayValue("15")).toBeTruthy();
+      expect(screen.queryByDisplayValue("15")).toBeNull();
     });
 
     it("Backspace on the focused row opens the delete confirmation", () => {
@@ -378,23 +400,36 @@ describe("TransactionRow", () => {
       expect(mockDeleteMutate).not.toHaveBeenCalled();
     });
 
-    it("Cmd/Ctrl+Enter opens the FULL editor (pen) instead of the inline edit", () => {
+    // Cmd/Ctrl+SPACE, not Enter (user, 261003): the plain key and its modified
+    // form are now the same key, so "open the editor" and "open the bigger
+    // editor" read as one idea instead of two unrelated chords.
+    it("Cmd/Ctrl+Space opens the FULL editor (pen) instead of the inline edit", () => {
+      const onEdit = vi.fn();
+      renderRow({ onEdit });
+      const row = screen.getByTestId("txn-row-1500");
+      row.focus();
+      fireEvent.keyDown(row, { key: " ", metaKey: true });
+      expect(onEdit).toHaveBeenCalledWith(txn.id);
+      expect(screen.queryByDisplayValue("15")).toBeNull(); // NOT inline editing
+      fireEvent.keyDown(row, { key: " ", ctrlKey: true });
+      expect(onEdit).toHaveBeenCalledTimes(2);
+    });
+
+    it("Cmd/Ctrl+Enter no longer opens anything", () => {
       const onEdit = vi.fn();
       renderRow({ onEdit });
       const row = screen.getByTestId("txn-row-1500");
       row.focus();
       fireEvent.keyDown(row, { key: "Enter", metaKey: true });
-      expect(onEdit).toHaveBeenCalledWith(txn.id);
-      expect(screen.queryByDisplayValue("15")).toBeNull(); // NOT inline editing
-      fireEvent.keyDown(row, { key: "Enter", ctrlKey: true });
-      expect(onEdit).toHaveBeenCalledTimes(2);
+      expect(onEdit).not.toHaveBeenCalled();
+      expect(screen.queryByDisplayValue("15")).toBeNull();
     });
 
     it("Backspace INSIDE the amount editor edits text, never deletes the row", () => {
       renderRow();
       const row = screen.getByTestId("txn-row-1500");
       row.focus();
-      fireEvent.keyDown(row, { key: "Enter" });
+      fireEvent.keyDown(row, { key: " " });
       const editor = screen.getByDisplayValue("15");
       fireEvent.keyDown(editor, { key: "Backspace" });
       expect(screen.queryByTestId("txn-row-delete-confirm")).toBeNull();
@@ -413,7 +448,7 @@ describe("TransactionRow", () => {
       renderRow();
       const row = screen.getByTestId("txn-row-1500");
       row.focus();
-      fireEvent.keyDown(row, { key: "Enter" });
+      fireEvent.keyDown(row, { key: " " });
       const editor = screen.getByDisplayValue("15");
       fireEvent.change(editor, { target: { value: "20" } });
       fireEvent.keyDown(editor, { key: "Enter" });
@@ -424,7 +459,7 @@ describe("TransactionRow", () => {
       renderRow();
       const row = screen.getByTestId("txn-row-1500");
       row.focus();
-      fireEvent.keyDown(row, { key: "Enter" });
+      fireEvent.keyDown(row, { key: " " });
       const editor = screen.getByDisplayValue("15");
       fireEvent.keyDown(editor, { key: "Escape" });
       await vi.waitFor(() => expect(document.activeElement).toBe(row));

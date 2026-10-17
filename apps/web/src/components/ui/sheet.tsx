@@ -86,8 +86,12 @@ const SheetContent = React.forwardRef<
           spacer and above the px-6 py-4 title row. New offset = env(safe-area-inset-top,0px)+22px:
           in browser env→0 so top:22px centers on the py-4/text-xl header (16px pad + ~14px half);
           in standalone it adds the same inset the top spacer applies, dropping X to the title level. */}
-      <SheetClose className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+22px)] rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none">
-        <X className="h-4 w-4" />
+      {/* 44x44 — the thumb minimum (user, 261016). The box grows around the
+          icon's old centre so the X stays on the title line: it sat at right
+          24px / top inset+30px, so a 44px box is pinned 2px from the right
+          and inset+8px from the top. */}
+      <SheetClose className="absolute right-0.5 top-[calc(env(safe-area-inset-top,0px)+8px)] flex h-11 w-11 items-center justify-center rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none">
+        <X className="h-5 w-5" />
         <span className="sr-only">Close</span>
       </SheetClose>
       {children}

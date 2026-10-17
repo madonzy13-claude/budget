@@ -65,7 +65,10 @@ export function SignInForm({ locale }: SignInFormProps) {
       let next: string;
       if (isUnverified) next = t("signin.error_email_not_verified");
       else if (isInvalidCreds) next = t("signin.error_invalid_credentials");
-      else next = result.error.message ?? t("signin.error_generic");
+      // NEVER the raw string: better-auth answers in English whatever the
+      // reader's locale, and quotes its own defaults (user, 261014). An
+      // unrecognised failure is generic, in their language.
+      else next = t("signin.error_generic");
       setServerError(next);
       return;
     }

@@ -602,7 +602,7 @@ export function OverviewCards({
                 data-testid="spend-surplus-row"
                 className="flex items-center justify-between gap-2"
               >
-                <dt className="min-w-0 truncate">{t("cards.deficit")}</dt>
+                <dt className="min-w-0 break-words">{t("cards.deficit")}</dt>
                 {/* The band below paints its red days with this same token, and
                     this figure comes from that same run — so the card is
                     echoing the chart rather than inventing an alarm of its own
@@ -635,7 +635,7 @@ export function OverviewCards({
                     investments or elsewhere — rather than "Surplus", which
                     sounds like leftover budget and sat contradicting the
                     Available-to-spend figure right above it. */}
-                <dt className="min-w-0 truncate">{t("cards.freeToMove")}</dt>
+                <dt className="min-w-0 break-words">{t("cards.freeToMove")}</dt>
                 <dd
                   data-testid="spend-surplus-deficit"
                   className="num"

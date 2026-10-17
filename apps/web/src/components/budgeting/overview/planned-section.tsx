@@ -39,6 +39,7 @@ import {
 } from "@/components/budgeting/charts/diverging-bar-chart";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
 import { hexForColorKey } from "@/lib/category-colors";
+import { perMonthFromYearlyCents } from "@/lib/per-month-from-yearly";
 import { assignSliceColors } from "@/lib/slice-colors";
 import { planRing, planSlices, type PlanRingKey } from "@/lib/plan-ring";
 import { Customized } from "recharts";
@@ -59,7 +60,9 @@ import { LimitRebalance, type LimitCandidate } from "./limit-rebalance";
 import { ReserveLevelBar } from "./reserve-level-bar";
 import { useSpendingsSummary } from "@/hooks/use-spendings-summary";
 import { useSetCategoryLimit } from "@/hooks/use-set-category-limit";
+import { CalendarOff } from "lucide-react";
 import { ChartNeedsCompletedMonth } from "./chart-needs-completed-month";
+import { ChartStoodDown } from "./chart-stood-down";
 import { rangeHasCompletedMonth } from "@/lib/range-completed-month";
 import { useCategories } from "@/hooks/use-budget-data";
 import { useOneOffCandidates } from "@/hooks/use-one-off-candidates";
@@ -1207,9 +1210,21 @@ export function PlannedSection({
               calendar year of RATES, a yearly renewal divided by twelve; the
               household wanted what is actually coming, so each payment now sits
               in the month it really falls in and the axis is real months. */}
+          {/* Nothing coming means nothing to draw. An area chart over an empty
+              set — or over months that all total zero, which is what a rule
+              that has run out leaves behind — renders as bare axes, and bare
+              axes read as broken rather than as empty. It stands down the same
+              way "How far off plan" does on a range with no finished month
+              (user, 261014). */}
+          {(data.scheduledPerMonth ?? []).some(
+            (m) => Number(m.planned_cents) > 0,
+          ) ? (
           <div className="flex flex-col gap-2">
             <ChartLabel>{t("planned.scheduledPerMonth")}</ChartLabel>
             <OverviewAreaChart
+              // A dozen payment rows cover the chart wherever recharts places
+              // them; below the plot they do not (user, 261016).
+              tooltipBelow
               data={data.scheduledPerMonth.map((m) => ({
                 month: String(m.month),
                 planned: Number(m.planned_cents),
@@ -1235,6 +1250,20 @@ export function PlannedSection({
               }}
             />
           </div>
+          ) : (
+            <ChartStoodDown
+              title={t("planned.scheduledPerMonth")}
+              testId="overview-scheduled-none"
+              icon={
+                <CalendarOff
+                  aria-hidden
+                  className="size-5 text-[var(--muted-foreground)]"
+                />
+              }
+              headline={t("noScheduledPayments.title")}
+              body={t("noScheduledPayments.body")}
+            />
+          )}
 
           {/* A YEAR of standing commitments, by category (user, 260811). The
               chart above answers "what is coming and when"; this answers "where
@@ -1264,14 +1293,24 @@ export function PlannedSection({
                 series={[
                   {
                     key: "yearly",
-                    label: t("planned.scheduledSeries"),
+                    // "Всього", not the series name: this row IS the total,
+                    // and it states its own working (user, 261016).
+                    label: t("planned.scheduledTotal"),
                     // Theme-aware neutral: darker than the text grey in dark,
                     // lighter in light (see --chart-bar-neutral).
                     color: "var(--chart-bar-neutral)",
                   },
                 ]}
                 formatValue={fmtY}
-                formatTooltip={fmtTooltip}
+                // ONE line: "1,038 ₴ × 12м = 12,456 ₴". The monthly figure is
+                // what a limit is set in, and it belongs on the total rather
+                // than on a row of its own (user, 261016 — "do not create
+                // extra line").
+                formatTooltip={(v: number) =>
+                  `${fmtTooltip(perMonthFromYearlyCents(v))} × 12${t(
+                    RATE_LABEL.MONTHLY!.unit,
+                  )} = ${fmtTooltip(v)}`
+                }
                 maskAmounts={false}
                 // The working behind each bar: "200 × 12m = 2,400" — how the
                 // yearly figure was reached, per payment (user, 260811).
@@ -1283,6 +1322,11 @@ export function PlannedSection({
                       cadence: string;
                       yearly_cents: string;
                     }[]) ?? [];
+                  // The year, divided — FIRST, directly under the total it
+                  // comes from. A category built from a mix of monthly,
+                  // yearly and one-off rules cannot be divided in the head,
+                  // and the monthly figure is the one a limit is set in
+                  // (user, 261016).
                   return items.map((it) => ({
                     label: it.name || t("planned.scheduledNoCategory"),
                     value: `${fmtTooltip(Number(it.amount_cents))} × ${

@@ -271,33 +271,46 @@ describe("pull-to-refresh scrollTop anchor", () => {
     expect(grid.scrollTop).toBe(0);
   });
 
-  it("anchors away from 0 once a finger is down", () => {
+  // SUPERSEDED (user, 261005). The grid used to pin scrollTop to 1 on
+  // touchstart so iOS Safari could not start a pull-to-refresh from its top
+  // edge. The page on this tab can no longer scroll at all, so that gesture
+  // cannot begin and the anchor has no job.
+  //
+  // It was also the bug. Pinning to 1 made the suppressor's own guard
+  // (`startScrollTop > 1`) impossible to satisfy, so every downward drag over
+  // the grid was preventDefault()ed — and a downward drag is how you scroll
+  // up. These tests now pin the opposite: the grid keeps its hands off the
+  // scroll position, and a downward drag is never cancelled.
+  it("leaves scrollTop alone when a finger lands", () => {
     renderGrid();
     const grid = screen.getByTestId("spendings-grid");
     grid.scrollTop = 0;
     fireEvent.touchStart(grid, { touches: [{ clientX: 10, clientY: 10 }] });
-    expect(grid.scrollTop).toBe(1);
+    expect(grid.scrollTop).toBe(0);
   });
 
-  it("keeps anchoring during a touch-driven scroll", () => {
-    // Momentum can carry the grid back to 0 mid-gesture; that is exactly when
-    // the anchor has to hold.
+  it("leaves it alone during a touch-driven scroll too", () => {
     renderGrid();
     const grid = screen.getByTestId("spendings-grid");
     fireEvent.touchStart(grid, { touches: [{ clientX: 10, clientY: 10 }] });
-    grid.scrollTop = 0;
-    fireEvent.scroll(grid);
-    expect(grid.scrollTop).toBe(1);
-  });
-
-  it("stops anchoring once the finger lifts", () => {
-    renderGrid();
-    const grid = screen.getByTestId("spendings-grid");
-    fireEvent.touchStart(grid, { touches: [{ clientX: 10, clientY: 10 }] });
-    fireEvent.touchEnd(grid, { touches: [] });
     grid.scrollTop = 0;
     fireEvent.scroll(grid);
     expect(grid.scrollTop).toBe(0);
+  });
+
+  it("does not cancel a downward drag — that is how you scroll up", () => {
+    renderGrid();
+    const grid = screen.getByTestId("spendings-grid");
+    fireEvent.touchStart(grid, { touches: [{ clientX: 10, clientY: 10 }] });
+    const move = new TouchEvent("touchmove", {
+      bubbles: true,
+      cancelable: true,
+      touches: [
+        new Touch({ identifier: 0, target: grid, clientX: 10, clientY: 90 }),
+      ],
+    });
+    grid.dispatchEvent(move);
+    expect(move.defaultPrevented).toBe(false);
   });
 });
 

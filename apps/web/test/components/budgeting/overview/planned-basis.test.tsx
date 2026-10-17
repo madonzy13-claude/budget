@@ -146,6 +146,7 @@ vi.mock("@/components/budgeting/charts/bar-chart", () => ({
     series,
     layout,
     tooltipExtra,
+    formatTooltip,
   }: {
     data: Record<string, unknown>[];
     xKey: string;
@@ -154,6 +155,7 @@ vi.mock("@/components/budgeting/charts/bar-chart", () => ({
     tooltipExtra?: (
       row: Record<string, unknown>,
     ) => { label: string; value: string }[];
+    formatTooltip?: (v: number) => string;
   }) => (
     <div
       data-testid="scheduled-year-chart"
@@ -162,9 +164,21 @@ vi.mock("@/components/budgeting/charts/bar-chart", () => ({
       data-rows={data.map((d) => String(d[xKey])).join(",")}
       data-values={data.map((d) => String(d.yearly)).join(",")}
       data-color={series[0]?.color ?? ""}
+      data-series-label={series[0]?.label ?? ""}
+      data-series-value={formatTooltip ? formatTooltip(1_245_600) : ""}
       data-tooltip={JSON.stringify(
         data[0] ? (tooltipExtra?.(data[0]) ?? []) : [],
       )}
+    />
+  ),
+}));
+
+// The by-month scheduled chart; records where its tooltip is anchored.
+vi.mock("@/components/budgeting/charts/area-chart", () => ({
+  OverviewAreaChart: ({ tooltipBelow }: { tooltipBelow?: boolean }) => (
+    <div
+      data-testid="scheduled-month-chart"
+      data-tooltip-below={tooltipBelow ? "true" : "false"}
     />
   ),
 }));
@@ -1292,10 +1306,41 @@ describe("scheduled payments per year, by category", () => {
       label: string;
       value: string;
     }[];
+    // The per-month split leads — it is the figure a limit is set in — and
+    // the per-payment working follows it (user, 261016).
     expect(rows.map((r) => r.label)).toEqual(["Domain", "Netflix"]);
     // 40 a month × 12 = 480 a year.
     expect(rows[1]!.value).toContain("× 12");
     expect(rows[1]!.value).toContain("=");
+  });
+
+  it("leads the tooltip with the year divided by twelve", () => {
+    dto.current = {
+      ...base,
+      scheduledPerYear: [
+        {
+          category_id: "c1",
+          name: "Subscriptions",
+          amount_cents: "4200000",
+          items: [
+            {
+              name: "Utilities",
+              amount_cents: "350000",
+              cadence: "MONTHLY",
+              yearly_cents: "4200000",
+            },
+          ],
+        },
+      ],
+    };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    const rows = JSON.parse(yearChart()!.getAttribute("data-tooltip")!) as {
+      label: string;
+      value: string;
+    }[];
+    // NO extra row — the working belongs on the total line itself
+    // (user, 261016). Only the per-payment breakdown follows.
+    expect(rows.map((r) => r.label)).toEqual(["Utilities"]);
   });
 
   it("draws nothing when there is nothing standing", () => {
@@ -1401,5 +1446,71 @@ describe("Future reading — a No-limit category", () => {
       screen.getByRole("button", { name: "planned.basisFuture" }),
     );
     expect(chart().getAttribute("data-gap")).toBe("40000");
+  });
+});
+
+/**
+ * The by-month tooltip carries a dozen payment rows, so wherever recharts put
+ * it, it covered the chart it belongs to — and near the top of the range it
+ * ran off the viewport and over the sticky range pills (user, 261016,
+ * screenshots).
+ *
+ * It is anchored BELOW the plot area now: the data stays visible, and a box
+ * pinned to the chart's left edge cannot leave the screen sideways however
+ * long a payment name is.
+ */
+describe("the by-month tooltip sits below the chart", () => {
+  /** The section draws more than one area chart; this is the one that opts in. */
+  const belowCharts = () =>
+    screen
+      .queryAllByTestId("scheduled-month-chart")
+      .filter((el) => el.getAttribute("data-tooltip-below") === "true");
+
+  it("anchors the tooltip under the plot area", () => {
+    dto.current = {
+      ...base,
+      // Something must be coming, or the chart stands down entirely.
+      scheduledPerMonth: [{ month: "2026-11", planned_cents: "10000" }],
+    };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    // Exactly one: the by-month scheduled chart. The timeline above it keeps
+    // recharts' own placement, where a two-row tooltip is no obstruction.
+    expect(belowCharts()).toHaveLength(1);
+  });
+});
+
+/**
+ * The total line says "Всього" and carries the working itself — one line, not
+ * a label row plus a per-month row beneath it (user, 261016).
+ */
+describe("the yearly total line", () => {
+  const yearChart2 = () => screen.queryByTestId("scheduled-year-chart");
+
+  it("is labelled as a total, not as the series name", () => {
+    dto.current = {
+      ...base,
+      scheduledPerYear: [
+        { category_id: "c1", name: "Subscriptions", amount_cents: "1245600" },
+      ],
+    };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    expect(yearChart2()!.getAttribute("data-series-label")).toBe(
+      "planned.scheduledTotal",
+    );
+  });
+
+  it("states the monthly working on that same line", () => {
+    dto.current = {
+      ...base,
+      scheduledPerYear: [
+        { category_id: "c1", name: "Subscriptions", amount_cents: "1245600" },
+      ],
+    };
+    render(<PlannedSection budgetId="b1" range={RANGE as never} />);
+    // 12,456 a year is 1,038 a month.
+    const v = yearChart2()!.getAttribute("data-series-value")!;
+    expect(v).toContain("1,038");
+    expect(v).toContain("× 12");
+    expect(v).toContain("12,456");
   });
 });

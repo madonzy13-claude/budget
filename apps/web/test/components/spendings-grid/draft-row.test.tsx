@@ -182,7 +182,12 @@ describe("DraftRow", () => {
     expect(mockConfirmMutate).not.toHaveBeenCalled();
   });
 
-  it("Enter with unchanged value does NOT confirm (draft stays pending)", () => {
+  // SUPERSEDED (user, 260930): Enter used to leave an untouched figure pending,
+  // on the reasoning that only a changed amount was a decision. It is the other
+  // way round — Enter IS the decision, and an unchanged amount means "this
+  // figure is right". Blur still confirms nothing; that guard is the next test,
+  // and it is the one that matters, because focus drifts on its own.
+  it("Enter with an unchanged value confirms it as it stands", () => {
     renderDraftRow();
     const row = screen.getByTestId("draft-row-rent");
     const amountCell = row.querySelector(".flex-1") as HTMLElement;
@@ -192,7 +197,7 @@ describe("DraftRow", () => {
     ) as HTMLInputElement;
     // Pre-filled with original "30" — submit unchanged.
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(mockConfirmMutate).not.toHaveBeenCalled();
+    expect(mockConfirmMutate).toHaveBeenCalledWith({ draftId: "draft-1" });
   });
 
   it("Blur with unchanged value does NOT confirm", () => {
@@ -264,5 +269,75 @@ describe("DraftRow", () => {
       expect(screen.queryByTestId("draft-row-pending")).toBeNull();
       expect(screen.getByTestId("draft-action-confirm")).toBeTruthy();
     });
+  });
+});
+
+/**
+ * An unconfirmed scheduled payment behaves like any other row (user, 260930).
+ *
+ * It sat outside the grid's keyboard model entirely: arrows walked straight
+ * past it, because vertical navigation enumerates `[data-txn-nav]` and only
+ * confirmed rows carried it. So the one row that most wants a decision was the
+ * one the keyboard could not reach.
+ *
+ * Reached, it takes the same two keys as a confirmed row — Space opens the
+ * inline amount editor with the figure selected — and Enter, which a confirmed
+ * row has no use for, confirms the payment. Editing the amount confirms it too:
+ * naming a figure IS the decision.
+ */
+describe("DraftRow — keyboard", () => {
+  beforeEach(() => {
+    mockConfirmMutate.mockClear();
+  });
+
+  it("joins the grid's vertical navigation", () => {
+    const { container } = renderDraftRow();
+    expect(container.querySelector("[data-txn-nav]")).not.toBeNull();
+  });
+
+  it("opens the amount editor on Space, with the figure selected", () => {
+    const { container } = renderDraftRow();
+    const row = container.querySelector('[role="row"]')!;
+    fireEvent.keyDown(row, { key: " " });
+    const input = screen.getByDisplayValue("30") as HTMLInputElement;
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe("30".length);
+  });
+
+  it("confirms on Enter from the row, without touching the amount", () => {
+    const { container } = renderDraftRow();
+    const row = container.querySelector('[role="row"]')!;
+    fireEvent.keyDown(row, { key: "Enter" });
+    expect(mockConfirmMutate).toHaveBeenCalledWith({ draftId: "draft-1" });
+  });
+
+  it("confirms on Enter in the editor even when the amount is unchanged", () => {
+    const { container } = renderDraftRow();
+    const row = container.querySelector('[role="row"]')!;
+    fireEvent.keyDown(row, { key: " " });
+    const input = screen.getByDisplayValue("30");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(mockConfirmMutate).toHaveBeenCalledWith({ draftId: "draft-1" });
+  });
+
+  it("still sends the new figure when the amount WAS changed", () => {
+    const { container } = renderDraftRow();
+    const row = container.querySelector('[role="row"]')!;
+    fireEvent.keyDown(row, { key: " " });
+    const input = screen.getByDisplayValue("30");
+    fireEvent.change(input, { target: { value: "42.50" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(mockConfirmMutate).toHaveBeenCalledWith({
+      draftId: "draft-1",
+      amountOverride: 4250,
+    });
+  });
+
+  it("does not confirm an untouched amount on blur — only Enter decides", () => {
+    const { container } = renderDraftRow();
+    const row = container.querySelector('[role="row"]')!;
+    fireEvent.keyDown(row, { key: " " });
+    fireEvent.blur(screen.getByDisplayValue("30"));
+    expect(mockConfirmMutate).not.toHaveBeenCalled();
   });
 });

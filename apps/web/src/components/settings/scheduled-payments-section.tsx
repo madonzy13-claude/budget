@@ -56,6 +56,9 @@ export interface ScheduledSectionProps {
 interface CategoryLite {
   id: string;
   name: string;
+  /** GET /categories has always returned this; the type simply dropped it, so
+   *  the picker could not show a category's colour (user, 261014). */
+  colorKey?: string | null;
 }
 
 export function ScheduledSection({

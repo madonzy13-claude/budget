@@ -241,7 +241,14 @@ export function TaskBannerRow({ task, budgetId }: TaskBannerRowProps) {
       data-task-kind={task.kind}
       className="flex min-h-12 items-center gap-3 border-b border-[var(--hairline-on-dark)] px-4 py-2 last:border-b-0"
     >
-      <span className="flex-1 truncate text-sm text-[var(--body-on-dark)]">
+      {/* WRAPS, not truncates. `truncate` pinned this to one ellipsised line,
+          and on a narrow phone in a longer language that left "Підтвердьте …"
+          and nothing else — a task nobody can read is a task nobody can act
+          on (user, 261015, Android screenshot). min-w-0 is what lets a flex
+          child wrap instead of forcing the row wider; break-words covers a
+          single unbroken run. The row grows; "More" keeps its place beside
+          it. */}
+      <span className="min-w-0 flex-1 break-words text-sm text-[var(--body-on-dark)]">
         <TaskTitleText task={task} title={title} titleParams={titleParams} />
       </span>
       <Dialog>

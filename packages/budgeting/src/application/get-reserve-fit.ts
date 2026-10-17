@@ -279,6 +279,9 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       ]);
       if (positionsResult.isErr()) return err(positionsResult.error);
       const positions = positionsResult.value.positions;
+      // The month the engine is treating as OPEN — the one that draws on a
+      // reserve without accruing into it yet.
+      const openMonth = positionsResult.value.openMonth;
 
       // Spend to subtract, per (category, month) — everything the budget has
       // un-ticked, straight from the exclusions table. Reading it off the
@@ -410,7 +413,10 @@ export function getReserveFit(deps: GetReserveFitDeps) {
        * Future chart asks every category, not just the buffered ones (user,
        * 260812).
        */
-      const projectedFor = (w: (typeof windows)[number]): bigint => {
+      const projectedFor = (
+        w: (typeof windows)[number],
+        reserveHeldCents: bigint,
+      ): bigint => {
         const scope: string[] = [];
         for (
           let m = from.slice(0, 7);
@@ -437,8 +443,10 @@ export function getReserveFit(deps: GetReserveFitDeps) {
           rules: rules.filter((r) => r.category_id === w.category_id),
           fromMonth: nowMonth,
           // An excluded or untracked category holds nothing against its
-          // one-offs, so there is nothing to credit.
-          reserveHeldCents: positions.get(w.category_id)?.reserveCents ?? 0n,
+          // one-offs, so there is nothing to credit. The caller passes the
+          // reserve to credit against, because during the search below that is
+          // the reserve the CANDIDATE limit would leave (see `heldAt`).
+          reserveHeldCents,
         });
       };
 
@@ -604,15 +612,63 @@ export function getReserveFit(deps: GetReserveFitDeps) {
 
         // What an average month ahead costs (projectedFor, above): the ordinary
         // habit over every month of the RANGE this category existed for, plus
-        // each recurring rule once at its monthly size, less whatever its
-        // reserve already holds against a one-off.
+        // each recurring rule once at its monthly size, less whatever the
+        // reserve holds against a one-off.
         const categoryRules = rules.filter(
           (r) => r.category_id === w.category_id,
         );
         // …the HABIT half of it. What the limit must also carry while the
         // buffer is short is added once the requirement below can be walked
         // (see `sufficientLimit`).
-        const habitProjection = projectedFor(w);
+        // WHAT THE BUFFER HOLDS IS NOT A CONSTANT (user, 260922).
+        //
+        // The open month draws on the reserve for its overspend and accrues
+        // nothing until it closes (`reserve-engine.ts`: "the open month has
+        // not, and must not"). So the very limit being advised decides how much
+        // of the reserve is still there: raise it and less is drawn, lower it
+        // and more is. Solving `needed(L) = held(TODAY)` therefore answers a
+        // question that stops being true the moment the member acts on it —
+        // the reserve moves, and the next read names a different limit. Car,
+        // live on 260922: 8,191 held, 3,086 of it already drawn by September.
+        //
+        // `carriedIn` is what the month started with: what it has drawn plus
+        // what it has left. `openSpend` is recovered from the cell rather than
+        // queried — overage and left are both measured against the limit the
+        // engine used, which `currentLimit` now IS (planned_cents is
+        // cushion-aware, same as `effLimit`).
+        // Optional-chained on purpose: a position without per-month cells (an
+        // older cached payload, a stub) must fall back to the flat reserve, not
+        // throw.
+        const openCell = openMonth
+          ? position.byMonth?.get(openMonth)
+          : undefined;
+        const carriedIn = openCell
+          ? openCell.usedCents + openCell.endReserveCents
+          : position.reserveCents;
+        const openSpend = openCell
+          ? currentLimit + openCell.overageCents - openCell.leftCents
+          : 0n;
+        const drawAt = (limitCents: bigint): bigint => {
+          const over = openSpend - limitCents;
+          const wanted = over > 0n ? over : 0n;
+          return wanted < carriedIn ? wanted : carriedIn;
+        };
+        // The model has to reproduce what the engine ACTUALLY did this month,
+        // or it is a second opinion rather than a projection — reserves turned
+        // off, a draw capped by something this reconstruction cannot see, and
+        // the two would quietly disagree. When it does not reconcile, fall back
+        // to the flat reserve: the old behaviour, wrong in the same small way
+        // it always was rather than newly wrong in a bigger one.
+        const drawModelReconciles =
+          openCell !== undefined && drawAt(currentLimit) === openCell.usedCents;
+        const heldAt = (limitCents: bigint): bigint =>
+          drawModelReconciles
+            ? carriedIn - drawAt(limitCents)
+            : position.reserveCents;
+
+        // The habit is no longer pinned here: it is re-read inside the search
+        // below at each candidate's own reserve, because the credit a one-off
+        // gets depends on what the buffer would hold (see `settledAt`).
 
         // The rules in full: the baseline above has had them taken out of
         // every month, whether the ledger named them or not, so counting them
@@ -640,11 +696,12 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // accrual could fund Japan on its own. Held 17,315, needed 0, and a
         // recommendation that only made sense if the reserve stayed put (user,
         // 260809).
-        const earmarked = earmarkedForOneOffs(
-          categoryRules,
-          nowMonth,
-          position.reserveCents,
-        );
+        // …and it is credited against the reserve the CANDIDATE limit leaves,
+        // for the same reason. It can never exceed what is held ("never more
+        // than is held", projected-monthly.ts), which is what keeps the search
+        // below monotone: the binding term is always the walk.
+        const earmarkedAt = (limitCents: bigint): bigint =>
+          earmarkedForOneOffs(categoryRules, nowMonth, heldAt(limitCents));
         //
         // `needed` stays the requirement at the limit in FORCE — that is what
         // this figure has always meant and what the sizing tests pin. The chart
@@ -664,6 +721,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
                     .neededCents,
             limitCents,
           });
+          const earmarked = earmarkedAt(limitCents);
           return walked > earmarked ? walked : earmarked;
         };
 
@@ -687,24 +745,36 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // always exists: an accrual as large as everything the runway owes
         // clears the walk in its first month, and below that `neededAt` settles
         // at `earmarked`, which can never exceed what is held.
-        const sufficientLimit = (floor: bigint): bigint => {
-          const held = position.reserveCents;
-          if (neededAt(floor) <= held) return floor;
+        // A limit is SETTLED when it funds its own advice: the buffer it
+        // leaves covers what the runway then needs, and it is at least the
+        // habit measured against that same buffer. Both halves are monotone —
+        // `neededAt` falls as the limit rises while `heldAt` rises, and the
+        // habit falls as the buffer credited against it grows — so the set of
+        // settled limits is an upward-closed range and a bisection finds its
+        // floor. That floor is a genuine FIXED POINT: set it, the month draws
+        // exactly what `drawAt` said, and the next read has nothing to add.
+        const settledAt = (limitCents: bigint): boolean =>
+          limitCents >= projectedFor(w, heldAt(limitCents)) &&
+          neededAt(limitCents) <= heldAt(limitCents);
+        const smallestSettledLimit = (): bigint => {
+          if (settledAt(0n)) return 0n;
           const cap =
             baselineSpend +
             forward.reduce((acc, c) => acc + c, 0n) +
             past.neededCents +
+            openSpend +
             1n;
-          let lo = floor;
-          let hi = cap > floor ? cap : floor;
+          if (!settledAt(cap)) return cap;
+          let lo = 0n;
+          let hi = cap;
           while (lo < hi) {
             const mid = lo + (hi - lo) / 2n;
-            if (neededAt(mid) <= held) hi = mid;
+            if (settledAt(mid)) hi = mid;
             else lo = mid + 1n;
           }
           return lo;
         };
-        const projected = sufficientLimit(habitProjection);
+        const projected = smallestSettledLimit();
         projectedByCat.set(w.category_id, projected);
         // No current limit means nothing to suggest a change TO — the row is
         // already being judged on its own history (see currentLimit above).
@@ -825,7 +895,8 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         projected_by_category: windows.map((w) => ({
           category_id: w.category_id,
           projected_monthly_cents: (
-            projectedByCat.get(w.category_id) ?? projectedFor(w)
+            projectedByCat.get(w.category_id) ??
+            projectedFor(w, positions.get(w.category_id)?.reserveCents ?? 0n)
           ).toString(),
         })),
         // …and every large spend that could be set aside, from every category

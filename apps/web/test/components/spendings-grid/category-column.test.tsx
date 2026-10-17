@@ -159,25 +159,115 @@ describe("CategoryColumn", () => {
     expect(grip?.getAttribute("data-sortable-listener")).toBe("mock");
   });
 
-  // 260613-v1p: 4px left accent bar driven by the persisted colorKey.
-  it("renders a w-1 accent bar with the colorKey hex when colorKey is set", () => {
+  // 260613-v1p: 4px left accent driven by the persisted colorKey.
+  //
+  // It was an absolutely-positioned child. Measured off a screen recording
+  // (user, 261005): during a horizontal scroll that child is rasterised as its
+  // own layer and lands on fractional pixels, so it jitters against the column
+  // it belongs to — 4px wide one frame, 5px the next, and a 2px jump backwards
+  // when the scroll settles. Painting it as the COLUMN'S OWN BACKGROUND means
+  // there is no separate layer left to drift: it moves with the column because
+  // it IS the column.
+  //
+  // The look is unchanged. The sticky header band is an opaque child, so it
+  // still covers the accent beside the summary rows exactly as the z-0 child
+  // did, and the column's rounded corners clip the background for free.
+  // 261014 r2: the full-height edge is drawn by EACH surface over its own
+  // region — the pinned band paints its 4px, the lane below paints its 4px —
+  // so nothing is ever painted THROUGH anything else.
+  //
+  // r1 put the stripe on the column and opened a transparent window in the
+  // band. It flickered and vanished on scroll (user): a pinned band and a
+  // scrolling column cannot stay pixel-aligned, so a window in one over a
+  // stripe in the other tears. Two abutting stripes have no overlap to tear.
+  it("paints the accent on the pinned band, so it shows with no rows at all", () => {
     renderColumn({ summary: { ...summary, colorKey: "green" } });
-    const bar = screen.getByTestId("category-accent-bar-cat-1");
-    expect(bar).toBeTruthy();
+    const band = screen.getByTestId("column-sticky-groceries");
     // green → #26A69A (happy-dom preserves the hex literal, no rgb() normalize)
-    expect(bar.style.backgroundColor.toUpperCase()).toBe("#26A69A");
-    expect(bar.className).toContain("w-1");
+    expect(band.style.backgroundImage.toUpperCase()).toContain("#26A69A");
+    expect(band.style.backgroundImage).toContain("4px");
   });
 
-  it("renders NO accent bar when colorKey is null", () => {
+  it("continues it down the lane, so the edge reads as one", () => {
+    renderColumn({ summary: { ...summary, colorKey: "green" } });
+    const lane = screen.getByTestId("category-accent-lane-cat-1");
+    expect(lane.style.backgroundImage.toUpperCase()).toContain("#26A69A");
+  });
+
+  it("never opens a transparent window — that is what tore on scroll", () => {
+    renderColumn({ summary: { ...summary, colorKey: "green" } });
+    const band = screen.getByTestId("column-sticky-groceries");
+    expect(band.style.backgroundImage).not.toContain("transparent");
+  });
+
+  it("leaves the column itself unpainted, so nothing shows through the band", () => {
+    renderColumn({ summary: { ...summary, colorKey: "green" } });
+    const col = screen.getByTestId("category-column-cat-1");
+    expect(col.style.backgroundImage).toBe("");
+  });
+
+  it("paints nothing anywhere when colorKey is null", () => {
     renderColumn({ summary: { ...summary, colorKey: null } });
+    expect(
+      screen.getByTestId("column-sticky-groceries").style.backgroundImage,
+    ).toBe("");
+    expect(
+      screen.getByTestId("category-accent-lane-cat-1").style.backgroundImage,
+    ).toBe("");
+  });
+
+  it("carries no separately positioned accent element", () => {
+    renderColumn({ summary: { ...summary, colorKey: "green" } });
+    // The edge is two backgrounds on two surfaces that already exist. No
+    // absolutely-positioned bar sitting behind the band — that one flashed
+    // during a horizontal scroll (261005) and is not coming back.
     expect(screen.queryByTestId("category-accent-bar-cat-1")).toBeNull();
   });
 
-  it("renders NO accent bar on an archived column even with a colorKey", () => {
+  it("paints no accent when colorKey is null", () => {
+    renderColumn({ summary: { ...summary, colorKey: null } });
+    const col = screen.getByTestId("category-column-cat-1");
+    expect(col.style.backgroundImage).toBe("");
+  });
+
+  it("paints no accent on an archived column even with a colorKey", () => {
     renderColumn({
       summary: { ...summary, colorKey: "green", archived: true },
     });
-    expect(screen.queryByTestId("category-accent-bar-cat-1")).toBeNull();
+    const col = screen.getByTestId("category-column-cat-1");
+    expect(col.style.backgroundImage).toBe("");
+  });
+});
+
+/**
+ * The summary rows' separators ran the full width of the card, straight across
+ * the accent, chopping it into segments (user, 261014, screenshot).
+ *
+ * Fixed by reserving the stripe's 4px as PADDING rather than painting the
+ * stripe underneath full-width rows: the gradient fills the padding, the rows
+ * start after it, and a row's border-bottom therefore starts after it too.
+ * No per-row border surgery, and nothing overlaps.
+ */
+describe("the accent is not crossed by row separators", () => {
+  it("insets the band's rows past the stripe", () => {
+    renderColumn({ summary: { ...summary, colorKey: "green" } });
+    const band = screen.getByTestId("column-sticky-groceries");
+    expect(band.className).toContain("pl-1");
+  });
+
+  it("insets the lane's rows past it too", () => {
+    renderColumn({ summary: { ...summary, colorKey: "green" } });
+    const lane = screen.getByTestId("category-accent-lane-cat-1");
+    expect(lane.className).toContain("pl-1");
+  });
+
+  it("adds no inset when there is no accent to clear", () => {
+    renderColumn({ summary: { ...summary, colorKey: null } });
+    expect(
+      screen.getByTestId("column-sticky-groceries").className,
+    ).not.toContain("pl-1");
+    expect(
+      screen.getByTestId("category-accent-lane-cat-1").className,
+    ).not.toContain("pl-1");
   });
 });

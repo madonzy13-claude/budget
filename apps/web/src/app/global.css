@@ -568,8 +568,30 @@ textarea:focus-visible,
 .recharts-wrapper:focus-visible,
 .recharts-surface:focus,
 .recharts-surface:focus-visible,
-.recharts-wrapper :focus-visible {
+.recharts-wrapper :focus,
+.recharts-wrapper :focus-visible,
+.recharts-wrapper [tabindex]:focus,
+.recharts-wrapper [tabindex]:focus-visible {
   outline: none !important;
+  box-shadow: none !important;
+}
+/* …and Android Chrome paints its own frame on a tapped focusable, which no
+   outline rule touches (user, 261016: a black box around the chart on tap). */
+.recharts-wrapper,
+.recharts-wrapper * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* A chart's tooltip must clear the SECTION BELOW it. Recharts renders the
+   tooltip inside its own wrapper, so a later sibling chart — later in the DOM,
+   both unpositioned — painted straight over it (user, 261016, screenshot: the
+   lower bar chart on top of the upper chart's tooltip). */
+.recharts-tooltip-wrapper {
+  /* Above a later sibling chart (unpositioned, so any positive value wins),
+     and BELOW the sticky range band at 30 — 60 put tooltips over the chrome
+     they used to sit behind, which is how one ended up covering the range
+     pills (user, 261016). */
+  z-index: 20;
 }
 
 /* ───────────────────────────────────────────────────────────────────
@@ -675,6 +697,16 @@ button:disabled,
   }
   [data-bdp-tabs] {
     top: calc(4rem + 1px);
+  }
+  /* …except on a tab that pins the page (spendings — data-lock-page-scroll).
+     There `main` is itself the scrollport and it already starts BELOW the
+     4rem header, so the offset above counts the header a second time and
+     parks the band on top of the month navigator. Sticky to the top of that
+     scrollport instead. Without this the @tasks-geometry proof
+     "switching from a scrolled tab to spendings … shows month nav" fails
+     with the navigator at y=127.5 under a band whose bottom edge is 179. */
+  main[data-shell-scroll]:has([data-lock-page-scroll]) [data-bdp-tabs] {
+    top: 0;
   }
   /* SHELL-R15: grid tail-spacer browser floor. The grid box now extends
      UNDER the Safari bar (100lvh bottom anchor) so content paints beneath
@@ -968,4 +1000,38 @@ html.is-server-down
     background-color: var(--draft-flash-surface);
     animation: none;
   }
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Spendings: the transaction list is the ONLY vertical scroller (user, 261005)
+
+   The column header rows, the tasks banner and the month navigator must stay
+   visible at all times. Anything the PAGE can scroll takes them off screen —
+   and getting them back proved impossible in practice, because every gesture
+   over the grid belongs to the grid.
+
+   So on this tab the page does not scroll at all: the shell is pinned to the
+   viewport and the grid's own scroller owns every vertical gesture. This also
+   retires the pull-to-refresh problem rather than fighting it — neither
+   Safari's gesture nor the app's own can start on a page that cannot move.
+
+   Unlayered, like the display-mode rules above: these must beat the Tailwind
+   utilities on the shell, which live in @layer utilities.
+   ─────────────────────────────────────────────────────────────────────────── */
+html:has([data-lock-page-scroll]),
+body:has([data-lock-page-scroll]) {
+  height: 100lvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+[data-shell-root]:has([data-lock-page-scroll]) {
+  height: 100lvh;
+  min-height: 0;
+  overflow: hidden;
+}
+main[data-shell-scroll]:has([data-lock-page-scroll]) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: hidden;
+  overscroll-behavior-y: none;
 }

@@ -44,7 +44,15 @@ services:
     # No host port published — the DB is reachable only over the compose network.
     # For admin access use `docker compose -f docker-compose.prod.yml exec db psql`.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d budget"]
+      # `-h 127.0.0.1` is load-bearing, not decoration. The official postgres
+      # entrypoint runs initdb and /docker-entrypoint-initdb.d against a
+      # TEMPORARY server started with `listen_addresses=''` — socket only — and
+      # then shuts it down and starts the real one. A socket-based pg_isready
+      # answers YES to that temporary server, so `--wait` released dependents
+      # mid-init and whatever connected first was dropped by the restart
+      # (`error: Connection terminated unexpectedly`). Checking over TCP cannot
+      # see the temporary server at all.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d budget -h 127.0.0.1"]
       interval: 5s
       timeout: 3s
       retries: 30

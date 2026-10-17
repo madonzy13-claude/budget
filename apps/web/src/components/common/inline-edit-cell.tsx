@@ -48,6 +48,9 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
   // session in a ref so subsequent commits within the same session
   // no-op until the next beginEdit cycle.
   const committedRef = React.useRef(false);
+  /** One select per edit session — the ref callback can fire again on a
+   *  re-render, and re-selecting mid-typing would eat the keystroke. */
+  const selectedRef = React.useRef(false);
   const editorRef = React.useRef<HTMLDivElement | null>(null);
 
   // iOS standalone pans the WINDOW on keyboard open (vpdbg: winY/seTop moves,
@@ -89,6 +92,7 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
     if (props.disabled || saving) return;
     setFailed(false);
     committedRef.current = false;
+    selectedRef.current = false;
     // 260625: seed the draft from the LATEST props.value at edit-start, not from
     // the `draft` state synced by the effect below. That effect (deps
     // [props.value, editing]) can be PREEMPTED by this beginEdit: when a
@@ -137,19 +141,29 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
   }, [draft, props]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
+    // Space alone (user, 260930). Enter is no longer an "open the editor" key
+    // anywhere — the spendings grid and the assets pill moved with it — which
+    // leaves Enter free to mean "commit" inside the editor and "decide" on a
+    // row, instead of all three at once.
+    if (e.key === " ") {
       e.preventDefault();
       beginEdit();
+      e.stopPropagation();
     }
   };
 
   const onEditorKeyDown = (e: React.KeyboardEvent) => {
+    // A key this editor acts on is CONSUMED. Without that the commit carried on
+    // up the tree, and an ancestor that reads Enter as "open this row" popped
+    // its sheet on top of the save — investments, live 260930 (user).
     if (e.key === "Escape") {
       e.preventDefault();
+      e.stopPropagation();
       onCancel();
     }
     if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA") {
       e.preventDefault();
+      e.stopPropagation();
       onCommit();
     }
   };
@@ -195,7 +209,20 @@ export function InlineEditCell<T>(props: InlineEditCellProps<T>) {
 
   return (
     <div
-      ref={editorRef}
+      ref={(el) => {
+        editorRef.current = el;
+        if (!el || selectedRef.current) return;
+        // Select the figure as the editor opens, so the first keystroke
+        // replaces it (user, 261003). Done HERE rather than in each
+        // `renderEditor`: every caller supplies its own editor — wallets,
+        // possessions, investments — and none of them remembered to.
+        const field = el.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+          "input, textarea",
+        );
+        if (!field) return;
+        selectedRef.current = true;
+        field.select();
+      }}
       data-testid={props.testId ? `${props.testId}-editor` : undefined}
       // UAT-PH5-T3-36: ancestor scroll containers (e.g. the mobile
       // wallet row swipe wrapper) read this attribute to relax their

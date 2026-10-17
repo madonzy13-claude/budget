@@ -38,7 +38,21 @@ export function plPctDecimals(
   // First significant digit sits at the ceil(-log10) decimal place: 0.0071 →
   // 2.149 → 3 → "0.007". Rounding UP at that place is what keeps 0.049 → "0.05"
   // rather than "0.0".
-  return Math.min(max, Math.ceil(-Math.log10(abs)));
+  let places = Math.min(max, Math.ceil(-Math.log10(abs)));
+  // …but that place is read off the RAW value, and rounding to it can carry the
+  // digit one place left, leaving a zero on the end that says nothing: 0.009774
+  // asks for three and prints "0.010" where "0.01" is the same number (user,
+  // 260930). Give back every place that rounding made redundant.
+  // Only while the shorter rendering still SHOWS something: past the cap a
+  // value rounds to zero at every depth, and trimming there would turn the
+  // capped "0.000000" into "0.0" and lose the cap's whole point.
+  while (
+    places > 1 &&
+    Number(abs.toFixed(places - 1)) !== 0 &&
+    Number(abs.toFixed(places - 1)) === Number(abs.toFixed(places))
+  )
+    places -= 1;
+  return places;
 }
 
 export const PL_TONE_CLASS: Record<PlTone, string> = {

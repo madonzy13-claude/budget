@@ -12,6 +12,7 @@ import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { useRevealActions } from "./reveal-actions";
 import { centsToBare } from "@/lib/cents-format";
 import { cn } from "@/lib/utils";
+import { categoryUsage } from "@/lib/category-usage";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 
 export interface ColumnHeaderProps {
@@ -92,6 +93,15 @@ export function ColumnHeader({
     (showCushionValue ? summary.cushionCents : summary.plannedCents) || "0",
   );
   const spentSoFar = BigInt(summary.spentCents || "0");
+  // How much of the category's pool — plan plus the reserve still available —
+  // has gone (user, 261016). Measured against the limit in force, so a cushion
+  // month is judged by its cushion figure.
+  const usage = categoryUsage({
+    plannedCents: limitOnShow.toString(),
+    spentCents: summary.spentCents || "0",
+    reserveAvailableCents: summary.reserveAvailableCents || "0",
+    noLimit,
+  });
   // 0083: the clamp below exists because a limit cannot be used more than once
   // over. An unbounded category has no limit to clamp to — and its plannedCents
   // holds only its SCHEDULED payments, so clamping there showed 4,485 of a
@@ -155,6 +165,33 @@ export function ColumnHeader({
           <span className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--body-on-dark)]">
             {category.name}
           </span>
+          {/* Percent of plan + reserve. shrink-0, so on a narrow column the
+              NAME gives way and the chip stays whole — chosen over wrapping
+              the name after seeing both at the real 140px width (user,
+              261016). Semantic colour, not the brand accent: green/amber/red
+              say a state here, the same exception the trading tokens take. */}
+          {usage && !revealed && (
+            <span
+              data-testid={`category-usage-${category.name.toLowerCase()}`}
+              data-tone={usage.tone}
+              title={t("usageOfPool", { pct: usage.pct })}
+              className={cn(
+                "shrink-0 rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums",
+                // The action cluster is an absolute overlay pinned right, so a
+                // shown pen sits ON the chip. The pen wins the slot: the chip
+                // goes on reveal, and on desktop hover along with it.
+                "group-hover:invisible",
+                usage.tone === "ok" &&
+                  "bg-[color-mix(in_oklab,var(--trading-up)_18%,transparent)] text-[var(--trading-up)]",
+                usage.tone === "warn" &&
+                  "bg-[color-mix(in_oklab,var(--warning)_20%,transparent)] text-[var(--warning)]",
+                usage.tone === "bad" &&
+                  "bg-[color-mix(in_oklab,var(--trading-down)_20%,transparent)] text-[var(--trading-down)]",
+              )}
+            >
+              {usage.pct}%
+            </span>
+          )}
           {/* "archived" tag — inline + shrink-0 so the row stays single-line and
             aligned with every other column's name row. Only archived columns
             reserve this slot; normal columns give the name the full width. */}
@@ -387,17 +424,16 @@ export function ColumnHeader({
               noLimit
                 ? "text-[var(--muted-foreground)]"
                 : overspentCents > 0n
-                ? // Overinvesting is GOOD → green; overspending is bad → red.
-                  isInvestment
-                  ? "text-[var(--trading-up,#26a69a)]"
-                  : "text-[var(--destructive)]"
-                : "text-[var(--muted-foreground)]",
+                  ? // Overinvesting is GOOD → green; overspending is bad → red.
+                    isInvestment
+                    ? "text-[var(--trading-up,#26a69a)]"
+                    : "text-[var(--destructive)]"
+                  : "text-[var(--muted-foreground)]",
             )}
           >
             {noLimit ? "—" : centsToBare(summary.overspentCents, locale)}
           </span>
         </div>
-
       </div>
     </div>
   );

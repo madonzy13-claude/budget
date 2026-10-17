@@ -6,7 +6,7 @@ Feature: Spendings grid — desktop keyboard navigation (r40b)
     And the budget has a category "Groceries" with a monthly limit of 50000 cents
     And the budget has a category "Rent" with a monthly limit of 100000 cents
 
-  Scenario: Arrows walk rows, hop columns and reveal chips; Enter edits, Backspace deletes
+  Scenario: Arrows walk rows, hop columns and reveal chips; Space edits, Backspace deletes
     When I open the spendings tab for the budget
     And I type a quick-entry of "500" cents into the "Groceries" column
     And I type a quick-entry of "700" cents into the "Groceries" column
@@ -24,10 +24,14 @@ Feature: Spendings grid — desktop keyboard navigation (r40b)
     And the "Rent" column has the focused row
     When I press "ArrowLeft" in the grid
     Then the "Groceries" column has the focused row
-    When I press "Enter" in the grid
+    # Space — not Enter — opens the amount editor since 88f743d9: Enter was
+    # opening, committing and activating the row underneath all at once, so
+    # opening moved to Space and Enter kept only the commit/confirm job.
+    When I press "Space" in the grid
     Then the row amount editor is open
     When I press "Escape" in the grid
-    And I press "Backspace" in the grid
+    Then the row amount editor is closed
+    When I press "Backspace" in the grid
     Then the delete confirmation dialog is visible
 
   Scenario: Arrows work immediately after switching to the spendings tab via its pill (no prior page click)

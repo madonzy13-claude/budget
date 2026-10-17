@@ -394,6 +394,56 @@ describe("charts that need a finished month", () => {
   });
 });
 
+/**
+ * "Upcoming scheduled payments, by month" with nothing upcoming drew an empty
+ * set of axes — a chart that looks broken rather than one that says there is
+ * nothing to show. It now stands down the same way "How far off plan, by
+ * category" does when its range holds no finished month (user, 261014).
+ */
+describe("the scheduled-payments chart with nothing upcoming", () => {
+  it("stands down when no payment is scheduled", async () => {
+    const user = userEvent.setup();
+    plannedMock.mockReturnValue({
+      data: { ...PLANNED, scheduledPerMonth: [] },
+      isPending: false,
+      isError: false,
+    });
+    renderSections();
+    await user.click(screen.getByText("sections.planned"));
+    expect(screen.getByTestId("overview-scheduled-none")).toBeTruthy();
+    // The label stays — the section still reads in order, exactly as the
+    // needs-a-finished-month placeholder keeps its own title.
+    expect(screen.getByText("planned.scheduledPerMonth")).toBeTruthy();
+  });
+
+  it("stands down when every month ahead totals nothing", async () => {
+    // A rule that has run out leaves months on the axis with no money in them.
+    const user = userEvent.setup();
+    plannedMock.mockReturnValue({
+      data: {
+        ...PLANNED,
+        scheduledPerMonth: [
+          { month: 1, planned_cents: "0" },
+          { month: 2, planned_cents: "0" },
+        ],
+      },
+      isPending: false,
+      isError: false,
+    });
+    renderSections();
+    await user.click(screen.getByText("sections.planned"));
+    expect(screen.getByTestId("overview-scheduled-none")).toBeTruthy();
+  });
+
+  it("draws the chart as soon as something is coming", async () => {
+    const user = userEvent.setup();
+    renderSections();
+    await user.click(screen.getByText("sections.planned"));
+    expect(screen.queryByTestId("overview-scheduled-none")).toBeNull();
+    expect(screen.getByText("planned.scheduledPerMonth")).toBeTruthy();
+  });
+});
+
 // 260806 (user request): a collapsed section used to fetch nothing, so opening
 // it cost a wait — and offline a section nobody had opened had nothing at all to
 // show. They warm in the background now, collapsed or not.

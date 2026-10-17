@@ -921,3 +921,21 @@ describe("OverviewCards", () => {
     });
   });
 });
+
+/**
+ * "Вільні кошти" rendered as "Вільні ко…" on a phone (user, 261016): the
+ * label carried `truncate`, and in a longer language the half-width card has
+ * no room for one unbroken line. The figure beside it is short — the label is
+ * what should take the second line, not the ellipsis.
+ */
+describe("Overview cards — the row labels stay readable", () => {
+  it("does not clip the free-to-move or deficit labels", () => {
+    mockUse.mockReturnValue({ data: DTO, isError: false, isPending: false });
+    render(<OverviewCards budgetId="b1" amountPrivacyEnabled={false} />);
+    const label = document.querySelector(
+      '[data-testid="spend-surplus-row"] dt',
+    ) as HTMLElement;
+    expect(label.className).not.toContain("truncate");
+    expect(label.className).toContain("break-words");
+  });
+});
