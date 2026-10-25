@@ -2,7 +2,7 @@ import { ok, err, type Result } from "neverthrow";
 import type { Holding } from "../domain/holding";
 import type { HoldingRepo, NewHolding } from "../ports/holding-repo";
 import type { UpdateHoldingInput } from "../contracts/api";
-import { toCents } from "./create-holding";
+import { toCents, toPriceCents } from "./create-holding";
 
 export function updateHolding(deps: { holdingRepo: HoldingRepo }) {
   return async (
@@ -45,7 +45,7 @@ export function updateHolding(deps: { holdingRepo: HoldingRepo }) {
         quantity: input.quantity ?? current.quantity,
         currentPriceCents:
           input.currentPriceCents !== undefined
-            ? toCents(input.currentPriceCents)
+            ? toPriceCents(input.currentPriceCents)
             : current.currentPriceCents,
         currentPriceCurrency:
           input.currentPriceCurrency !== undefined

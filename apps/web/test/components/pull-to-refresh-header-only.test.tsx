@@ -88,6 +88,18 @@ describe("PullToRefresh — header-only engagement", () => {
     expect(indicatorHidden()).toBe(false); // indicator visible → engaged
   });
 
+  // user, 261023: pulling the header did nothing once the page was scrolled.
+  // The header sits outside the scroller, so where the page is doesn't matter.
+  it("engages from the header even when the page is scrolled down", () => {
+    Object.defineProperty(main, "scrollTop", { value: 500, configurable: true });
+    render(<PullToRefresh />);
+    act(() => {
+      header.dispatchEvent(touch("touchstart", 10));
+      wrapper.dispatchEvent(touch("touchmove", 210));
+    });
+    expect(indicatorHidden()).toBe(false);
+  });
+
   it("does NOT engage when the pull STARTS below the header (page content)", () => {
     render(<PullToRefresh />);
     act(() => {

@@ -64,6 +64,7 @@ import { CalendarOff } from "lucide-react";
 import { ChartNeedsCompletedMonth } from "./chart-needs-completed-month";
 import { ChartStoodDown } from "./chart-stood-down";
 import { rangeHasCompletedMonth } from "@/lib/range-completed-month";
+import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { useCategories } from "@/hooks/use-budget-data";
 import { useOneOffCandidates } from "@/hooks/use-one-off-candidates";
 import {
@@ -280,10 +281,14 @@ export function PlannedSection({
     scheduleMonthLabel(String(m), locale);
   const shortMonthName = (m: string | number) =>
     scheduleMonthTick(String(m), locale);
+  // Months before the budget's own first one are finished on the calendar
+  // only (user, 261017). The cards query is already warm on the Overview.
+  const firstMonth = useOverviewCards(budgetId).data?.first_month;
   const hasCompletedMonth = rangeHasCompletedMonth(
     range.from,
     range.to,
     todayIso,
+    firstMonth,
   );
   const canDropRunningMonth =
     range.from <= todayIso &&

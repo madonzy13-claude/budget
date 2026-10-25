@@ -17,9 +17,18 @@ const _listeners = new Set<Listener>();
 
 export function setDeferredPrompt(prompt: DeferredPrompt | null) {
   _deferredPrompt = prompt;
-  // A real prompt proves the app is NOT installed — undo any heuristic guess.
-  if (prompt && _sessionInstalled) {
+  // A real prompt proves the app is NOT installed — undo the heuristic guess
+  // AND the persisted flag: uninstalling (Android) keeps site storage, so the
+  // old appinstalled flag would otherwise hide every way to reinstall
+  // (user, 261023).
+  if (prompt && isInstalled()) {
     _sessionInstalled = false;
+    _installed = false;
+    try {
+      localStorage.removeItem(INSTALLED_KEY);
+    } catch {
+      // storage unavailable — in-memory state still corrects this session
+    }
     notifyInstalled();
   }
   _listeners.forEach((l) => l(prompt));
@@ -40,7 +49,8 @@ export function subscribeToDeferredPrompt(listener: Listener): () => void {
 // Set by the `appinstalled` listener and persisted so a later browser-tab
 // session still knows the PWA exists (browsers never refire
 // beforeinstallprompt for an installed app, which is indistinguishable from
-// "unsupported" without this flag).
+// "unsupported" without this flag). A captured prompt clears it — see
+// setDeferredPrompt.
 
 const INSTALLED_KEY = "pwa-installed";
 

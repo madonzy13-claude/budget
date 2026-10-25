@@ -16,15 +16,10 @@
  * the gesture automatically (no per-page opt-in needed; new pages added
  * to the shell get PTR for free).
  *
- * Nested-scroll safety:
- *   - On touchstart we walk up from the touch target looking for the
- *     nearest CSS-scrollable ancestor (overflow-y: auto|scroll). If that
- *     inner container has scrolled past the top (scrollTop > 0), the
- *     user's intent is "scroll within this list" — we bail. This keeps
- *     PTR from fighting the spendings grid's inner gridRef scroll, or
- *     any future inner-scroll container.
- *   - Pull engages only when BOTH the main scroll surface AND the
- *     innermost scrollable are at scrollTop=0.
+ * Scroll position does not matter (user 261023): the pull starts on the
+ * header, which sits OUTSIDE every scroller, so a pull there can never be
+ * "scroll this list up". The old scrollTop=0 guards dated from when any part
+ * of the page could start a pull, and left the header dead once scrolled.
  *
  * Behaviour:
  *   - Touch deltaY is dampened 50% for that elastic "rubber-band" feel.
@@ -40,9 +35,7 @@
  *   - Listener is attached to `[data-ptr-blur-target]` (the wrapper that
  *     spans header + main) so iOS touches that start on the `<header>`
  *     element still register (they never bubble into main's touchstart —
- *     UAT round 14). The main element is still consulted for `scrollTop`
- *     (it's the real scroll surface; body is locked overflow:hidden) so PTR
- *     still bails when the user has scrolled into the page.
+ *     UAT round 14).
  *   - HEADER-ONLY engagement (user 260619): the gesture only triggers when
  *     the pull STARTS on the header (`[data-shell-header]`). Pulling anywhere
  *     below the header (page content / lists) scrolls or does nothing — it
@@ -77,10 +70,6 @@ export function PullToRefresh() {
   // without re-registering the listener every render.
   const pullRef = useRef(0);
   const startYRef = useRef<number | null>(null);
-  // The innermost scrollable ancestor of the touch target. Captured on
-  // touchstart so touchmove can re-check its scrollTop without walking
-  // the DOM each frame.
-  const innerScrollRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     // UAT-08: standalone-only. In browser tabs the page scrolls natively
@@ -94,38 +83,11 @@ export function PullToRefresh() {
     if (!standalone) return;
 
     // The gesture surface spans BOTH the header and the main scroll area
-    // (see (app)/layout.tsx — `[data-ptr-blur-target]` wraps them). The
-    // real scroll surface is still `<main>` (body locked overflow:hidden
-    // in global.css), which is what we consult for scrollTop.
+    // (see (app)/layout.tsx — `[data-ptr-blur-target]` wraps them).
     const gestureEl = document.querySelector<HTMLElement>(
       "[data-ptr-blur-target]",
     );
-    const mainEl = document.querySelector<HTMLElement>("main");
-    if (!gestureEl || !mainEl) return;
-
-    /**
-     * Walk up from a touch target to find the nearest CSS-scrollable
-     * ancestor. Stops at the gesture wrapper. If none is found (e.g.
-     * touches that start in `<header>` — header has no scrollable
-     * ancestors before the wrapper), fall through to `mainEl` so the
-     * scrollTop guard checks the page scroll surface.
-     */
-    const findInnerScrollable = (target: EventTarget | null): HTMLElement => {
-      let cur = target instanceof Element ? (target as HTMLElement) : null;
-      while (cur && cur !== gestureEl) {
-        const style = window.getComputedStyle(cur);
-        if (
-          style.overflowY === "auto" ||
-          style.overflowY === "scroll" ||
-          // overlay/overscroll containers also count
-          style.overflowY === "overlay"
-        ) {
-          return cur;
-        }
-        cur = cur.parentElement;
-      }
-      return mainEl;
-    };
+    if (!gestureEl) return;
 
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
@@ -143,29 +105,15 @@ export function PullToRefresh() {
       // listener stays on the header+main wrapper so iOS header touches still
       // register; this guard scopes the gesture to the header.
       if (!startTarget?.closest("[data-shell-header]")) return;
-      // Both the outer main AND any inner scroll container must be at
-      // the top — otherwise the user's gesture is "scroll within that
-      // list", not "pull to refresh".
-      const inner = findInnerScrollable(e.target);
-      if (mainEl.scrollTop !== 0) return;
-      if (inner.scrollTop !== 0) return;
-      innerScrollRef.current = inner;
       startYRef.current = e.touches[0].clientY;
     };
 
     const onTouchMove = (e: TouchEvent) => {
       if (startYRef.current === null) return;
       const deltaY = e.touches[0].clientY - startYRef.current;
-      const inner = innerScrollRef.current;
-      if (
-        deltaY <= 0 ||
-        mainEl.scrollTop !== 0 ||
-        (inner && inner.scrollTop !== 0)
-      ) {
-        // User swiped up, scrolled past top, or an inner container
-        // started scrolling — cancel the pull.
+      if (deltaY <= 0) {
+        // User swiped up — cancel the pull.
         startYRef.current = null;
-        innerScrollRef.current = null;
         if (pullRef.current !== 0) {
           pullRef.current = 0;
           setPull(0);
@@ -207,7 +155,6 @@ export function PullToRefresh() {
         setPull(0);
       }
       startYRef.current = null;
-      innerScrollRef.current = null;
     };
 
     gestureEl.addEventListener("touchstart", onTouchStart, { passive: true });

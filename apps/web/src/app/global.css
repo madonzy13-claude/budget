@@ -981,6 +981,28 @@ html.is-server-down
    normal author declarations in the cascade, inline style included. Holding
    the lift through the first third gives the eye time to arrive before it
    settles back. */
+/* "This amount can't be quick-edited" (user, 261023): a short left-right
+   shake on the tapped number. Reduced motion skips it. */
+@keyframes amount-shake {
+  25% {
+    transform: translateX(-3px);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+  75% {
+    transform: translateX(-2px);
+  }
+}
+[data-shake] {
+  animation: amount-shake 0.32s ease-in-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-shake] {
+    animation: none;
+  }
+}
+
 @keyframes draft-flash {
   0%,
   35% {

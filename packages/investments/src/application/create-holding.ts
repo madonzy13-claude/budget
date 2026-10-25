@@ -1,7 +1,19 @@
 import { ok, err, type Result } from "neverthrow";
+import Big from "big.js";
 import type { Holding } from "../domain/holding";
 import type { HoldingRepo, NewHolding } from "../ports/holding-repo";
 import type { CreateHoldingInput } from "../contracts/api";
+
+/** Like toCents, but keeps 6 places of sub-cent: a total typed for several
+ *  units only multiplies back exactly from a fractional unit price. */
+export const toPriceCents = (
+  v: string | number | null | undefined,
+): string | null =>
+  v === null || v === undefined || v === ""
+    ? null
+    : new Big(String(v).replace(/,/g, ".").replace(/\s/g, ""))
+        .round(6)
+        .toString();
 
 export const toCents = (
   v: string | number | null | undefined,
@@ -32,7 +44,7 @@ export function createHolding(deps: { holdingRepo: HoldingRepo }) {
       buyPriceCents: toCents(input.buyPriceCents),
       buyCurrency: input.buyCurrency ?? null,
       quantity: input.quantity ?? "1",
-      currentPriceCents: toCents(input.currentPriceCents),
+      currentPriceCents: toPriceCents(input.currentPriceCents),
       currentPriceCurrency: input.currentPriceCurrency ?? null,
       metal: input.metal ?? null,
       metalKind: input.metalKind ?? null,

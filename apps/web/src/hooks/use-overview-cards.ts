@@ -12,6 +12,8 @@ import { clientApiFetch } from "@/lib/budget-fetch";
 
 export interface OverviewCardsDTO {
   default_currency: string;
+  /** Budget's first month 'YYYY-MM' (earliest limit); null = no limits. */
+  first_month?: string | null;
   available_to_spend_cents: string;
   spendings: {
     spent_cents: string;

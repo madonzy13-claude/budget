@@ -446,14 +446,18 @@ export function ScheduledPaymentForm({
           ? `/api/budgets/${budgetId}/scheduled-payments/${ruleId}`
           : `/api/scheduled-payments/${ruleId}`;
         // Cadence discriminator (camelCase — the edits schema mirrors
-        // `categoryId`). The backend persists these AND recomputes
-        // next_due_date so a changed day fires on the new schedule.
+        // `categoryId`). Left alone, the backend recomputes next_due_date as
+        // the first match strictly AFTER today — so a date the household
+        // moved TO today landed next month with no draft (user, 261017). A
+        // changed date therefore rides along for every cadence and is kept
+        // as-is; an unchanged one lets a rhythm edit recompute as before.
+        // ONCE has no pattern at all, so its date always rides along — and
+        // the service moves the deadline with it.
+        const dateMoved =
+          cadence === "ONCE" || firstDueDate !== initialValues?.firstDueDate;
         const editCadencePart: Record<string, unknown> =
-          // A one-time payment has no pattern for the backend to recompute
-          // from, so the date rides along explicitly — and the service moves
-          // the deadline with it.
           cadence === "ONCE"
-            ? { cadence: "ONCE", nextDueDate: firstDueDate }
+            ? { cadence: "ONCE" }
             : cadence === "WEEKLY"
               ? { cadence: "WEEKLY", weeklyDow }
               : cadence === "MONTHLY"
@@ -478,6 +482,7 @@ export function ScheduledPaymentForm({
               note: note || null,
               endDate,
               ...editCadencePart,
+              ...(dateMoved ? { nextDueDate: firstDueDate } : {}),
             },
             applyToFuture,
           }),

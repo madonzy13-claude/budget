@@ -189,11 +189,35 @@ describe("InvestmentRow", () => {
     expect(screen.queryByText("Bitcoin (BTC)")).toBeNull();
   });
 
-  it("tracked holding: amount is NOT inline-editable (value = qty × market price)", () => {
-    render(<InvestmentRow holding={holding()} onValueChange={vi.fn()} />);
+  it("auto-priced holding: amount is NOT inline-editable (the feed owns the price)", () => {
+    render(
+      <InvestmentRow
+        holding={holding({ instrumentProvider: "finnhub" })}
+        onValueChange={vi.fn()}
+      />,
+    );
     const row = screen.getByTestId("holding-row-AAPL");
     expect(row.querySelectorAll("input")).toHaveLength(0);
     expect(screen.queryByTestId("holding-amount-h1")).toBeNull();
+  });
+
+  // user, 261023: a tap on an amount that can't be quick-edited did nothing
+  // visible — shake it so the "no" is felt.
+  it("auto-priced holding: tapping the amount shakes it", () => {
+    render(
+      <InvestmentRow
+        holding={holding({ instrumentProvider: "finnhub" })}
+        onValueChange={vi.fn()}
+      />,
+    );
+    const amount = screen.getByTestId("holding-amount-readonly-h1");
+    expect(amount.hasAttribute("data-shake")).toBe(false);
+    fireEvent.click(amount);
+    expect(amount.hasAttribute("data-shake")).toBe(true);
+    // The tap is the amount's, not the row's: no expand to move it away.
+    expect(screen.queryByText(/Share:/)).toBeNull();
+    fireEvent.animationEnd(amount);
+    expect(amount.hasAttribute("data-shake")).toBe(false);
   });
 
   // 260731: manual-value rows (cash / broker / savings — quantity is 1) edit
@@ -289,6 +313,54 @@ describe("InvestmentRow", () => {
         />,
       );
       expect(screen.getByTestId("holding-amount-h1")).toBeInTheDocument();
+    });
+
+    // user, 261023: a holding priced BY HAND (manual-priced instrument, or no
+    // instrument at all) is edited by its total like any other manual row; the
+    // section turns that total into a per-unit price.
+    it("a hand-priced holding with quantity 3 is editable, seeded with its total", () => {
+      render(
+        <InvestmentRow
+          holding={holding({
+            name: "PKN",
+            instrumentProvider: "manual:XWAR",
+            quantity: "3.00000000",
+            currentPriceCents: "10000",
+            valueCents: "30000",
+          })}
+          onValueChange={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByTestId("holding-amount-h1"));
+      const input = screen
+        .getByTestId("holding-row-PKN")
+        .querySelector("input") as HTMLInputElement;
+      expect(input.value).toBe("300");
+    });
+
+    it("a holding with no instrument (typed by hand) is editable too", () => {
+      render(
+        <InvestmentRow
+          holding={holding({ instrumentId: null, instrumentProvider: null })}
+          onValueChange={vi.fn()}
+        />,
+      );
+      expect(screen.getByTestId("holding-amount-h1")).toBeInTheDocument();
+    });
+
+    it("a precious-metal holding keeps its spot-derived value", () => {
+      render(
+        <InvestmentRow
+          holding={holding({
+            holdingType: "commodity",
+            uiType: "precious_metals",
+            instrumentId: null,
+            metal: "XAU",
+          })}
+          onValueChange={vi.fn()}
+        />,
+      );
+      expect(screen.queryByTestId("holding-amount-h1")).toBeNull();
     });
 
     it("a deposit keeps its computed value (no inline editor)", () => {

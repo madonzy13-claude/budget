@@ -20,6 +20,15 @@ export class WalletSectionsPo {
     return this.page.getByTestId(`wallet-section-${type}`);
   }
 
+  sectionTotal(type: string) {
+    return this.page.getByTestId(`section-total-${type}`);
+  }
+
+  /** Phone-only share that trails the section total. */
+  sectionShare(type: string) {
+    return this.page.getByTestId(`section-share-inline-${type}`);
+  }
+
   row(section: string, name: string) {
     return this.section(section)
       .locator('[data-testid="wallet-row"]')

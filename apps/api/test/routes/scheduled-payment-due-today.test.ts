@@ -187,6 +187,48 @@ describe("moving a scheduled payment to today", () => {
     expect(await draftsFor(ruleId)).toEqual([]);
   });
 
+  it("a MONTHLY payment moved to today drafts today, not next month", async () => {
+    // user, 261017: editing a monthly payment's date to today saved it as the
+    // same day NEXT month with no draft. The service recomputed the pointer
+    // "strictly after today" and ignored the date the household picked.
+    const app = await buildApp();
+    const created = await app.request("/scheduled-payments", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        amount: "1300.00",
+        currency: "USD",
+        cadence: "MONTHLY",
+        cadence_anchor: Number(future.slice(8, 10)),
+        first_due_date: future,
+        note: "Rent",
+      }),
+    });
+    expect(created.status).toBe(201);
+    const ruleId = ((await created.json()) as { ruleId: string }).ruleId;
+
+    const res = await app.request(`/scheduled-payments/${ruleId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        edits: {
+          cadence: "MONTHLY",
+          cadenceAnchor: Number(today.slice(8, 10)),
+          nextDueDate: today,
+        },
+        applyToFuture: true,
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(await draftsFor(ruleId)).toEqual([today]);
+  });
+
   it("creating one already due still works", async () => {
     // The path that was already right, kept honest.
     const ruleId = await createRule(today);

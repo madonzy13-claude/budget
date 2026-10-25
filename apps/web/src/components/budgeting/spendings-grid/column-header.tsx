@@ -295,7 +295,15 @@ export function ColumnHeader({
           className="flex flex-col px-2 py-1.5 border-b border-[var(--hairline-dark)]"
         >
           <span className="text-[10px] text-[var(--muted-foreground)]">
-            {t("row2.limitUsed")}
+            {/* Money into investments is not "used up" (user, 261017). */}
+            {/* "(plan)" gives way to the "(cushion)" marker below (user, 261017). */}
+            {t(
+              isInvestment
+                ? "row2.invested"
+                : showCushionValue
+                  ? "row2.used"
+                  : "row2.limitUsed",
+            )}
             {/* Cushion months are the ones people misread, so the marker earns
                 the accent colour rather than the same grey as the label it
                 qualifies (user, 260806). */}

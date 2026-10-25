@@ -152,13 +152,13 @@ export class SpendingsPo {
   }
 
   /**
-   * Row 2 "limit used" label cell — a NON-name header row cell. Clicking it
+   * Row 2 "used (plan)" label cell — a NON-name header row cell. Clicking it
    * toggles the column-wide action reveal (260611-vuo FEATURE3).
-   * EN catalog value: grid.header.row2.limitUsed = "limit used" (was
-   * "planned" until the row started showing spent-against-limit, 260806).
+   * EN catalog value: grid.header.row2.limitUsed = "used (plan)" (was
+   * "limit used" until 261017, "planned" until 260806).
    */
   columnPlannedCell(categoryName: string): Locator {
-    return this.columnHeader(categoryName).getByText("limit used", {
+    return this.columnHeader(categoryName).getByText("used (plan)", {
       exact: true,
     });
   }

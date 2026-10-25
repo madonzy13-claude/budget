@@ -52,6 +52,70 @@ Given(
   },
 );
 
+Given(
+  /^a scheduled rule "(.+?)" is due in (\d+) days in budget "(.+?)"$/,
+  async (
+    { context, baseURL, freshUser },
+    ruleName: string,
+    daysStr: string,
+    _budgetName: string,
+  ) => {
+    const baseUrl =
+      baseURL ?? process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+    const cookies = await context.cookies();
+    const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+    const firstDueDate = new Date(
+      Date.now() + parseInt(daysStr, 10) * 86_400_000,
+    )
+      .toISOString()
+      .slice(0, 10);
+    const categoryId = await createCategoryViaHttp(
+      baseUrl,
+      cookieHeader,
+      freshUser.budgetId,
+      "Housing",
+    );
+    await createScheduledPaymentViaHttp(
+      baseUrl,
+      cookieHeader,
+      freshUser.budgetId,
+      {
+        note: ruleName,
+        amount: "1000.00",
+        currency: "USD",
+        firstDueDate,
+        cadenceAnchor: parseInt(firstDueDate.slice(8, 10), 10),
+        categoryId,
+      },
+    );
+  },
+);
+
+When(
+  /^I move the scheduled rule "(.+?)" to today$/,
+  async ({ page }, ruleName: string) => {
+    await page
+      .getByRole("button", { name: /Scheduled/i })
+      .first()
+      .click();
+    await page
+      .locator("li", { hasText: ruleName })
+      .getByRole("button", { name: /^Edit$/i })
+      .click();
+    await page
+      .locator("#rr-firstdue")
+      .fill(new Date().toISOString().slice(0, 10));
+    const save = page.getByRole("button", { name: /Save rule|Save/i }).last();
+    const patched = page.waitForResponse(
+      (r) =>
+        r.request().method() === "PATCH" &&
+        r.url().includes("/scheduled-payments/"),
+    );
+    await save.click();
+    expect((await patched).ok()).toBe(true);
+  },
+);
+
 // ─── Draft row assertions ────────────────────────────────────────────────────
 
 Then(

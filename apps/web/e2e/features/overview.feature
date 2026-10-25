@@ -63,3 +63,35 @@ Feature: Budget Overview tab
     And I click the "Overview" tab pill
     Then the five overview summary cards are visible
     And the four summary cards are all the same height
+
+  # A big capitalization beside a big day P/L ran the hero number straight
+  # under the percentage on a phone (user screenshot, 261017).
+  Scenario: A big capitalization never runs under its day P/L
+    Given I am on a 320px-wide viewport
+    And the budget has a SPENDINGS wallet holding 1989762500 cents
+    And the budget's capitalization was 41867300 cents at yesterday's close
+    When I open the BDP for "My E2E Budget"
+    And I click the "Overview" tab pill
+    Then the capitalization hero ends before its day P/L begins
+
+  # A budget begun this month had a 12-month range full of calendar months it
+  # never lived through, and both history charts drew from them (user, 261017).
+  Scenario: A budget begun this month has no finished month to judge
+    Given the budget has a category "Food" with a monthly limit of 50000 cents
+    When I open the BDP for "My E2E Budget"
+    And I click the "Overview" tab pill
+    And I select the "1Y" overview range
+    And I expand the "planned" overview section
+    And I expand the "reserves" overview section
+    Then the "overview-planned-needs-month" chart waits for a finished month
+    And the "reserve-fit-needs-month" chart waits for a finished month
+
+  Scenario: A budget with a finished month still draws its history charts
+    Given the budget has a category "Food" with a monthly limit of 50000 cents from 2 months ago
+    When I open the BDP for "My E2E Budget"
+    And I click the "Overview" tab pill
+    And I select the "1Y" overview range
+    And I expand the "planned" overview section
+    And I expand the "reserves" overview section
+    Then the "overview-planned-needs-month" chart does not wait for a finished month
+    And the "reserve-fit-needs-month" chart does not wait for a finished month

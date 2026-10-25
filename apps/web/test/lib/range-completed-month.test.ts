@@ -50,6 +50,26 @@ describe("rangeHasCompletedMonth", () => {
     );
   });
 
+  // user, 261017: a budget started THIS month had a 12-month range full of
+  // calendar months it never lived through, and both charts drew from them.
+  it("says no when every finished month predates the budget", () => {
+    expect(
+      rangeHasCompletedMonth("2025-09-01", "2026-08-04", TODAY, "2026-08"),
+    ).toBe(false);
+  });
+
+  it("says yes once the budget has lived through a month in range", () => {
+    expect(
+      rangeHasCompletedMonth("2025-09-01", "2026-08-04", TODAY, "2026-07"),
+    ).toBe(true);
+  });
+
+  it("says no for a range that ends before the budget began", () => {
+    expect(
+      rangeHasCompletedMonth("2026-01-01", "2026-03-31", TODAY, "2026-05"),
+    ).toBe(false);
+  });
+
   it("survives a range it cannot read", () => {
     expect(rangeHasCompletedMonth("", "", TODAY)).toBe(false);
   });

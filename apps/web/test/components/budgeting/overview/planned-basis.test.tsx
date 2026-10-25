@@ -61,6 +61,10 @@ vi.mock("@/components/budgeting/bdp-ui-state", () => ({
 // The limit dialog reads the current needs/wants split and writes a new one;
 // neither belongs to what this file is about, and both pull in a QueryClient.
 const summaryDto: { current: unknown } = { current: undefined };
+// No first month: the history gate falls back to the range alone.
+vi.mock("@/hooks/use-overview-cards", () => ({
+  useOverviewCards: () => ({ data: undefined }),
+}));
 vi.mock("@/hooks/use-spendings-summary", () => ({
   useSpendingsSummary: () => ({ data: summaryDto.current }),
 }));

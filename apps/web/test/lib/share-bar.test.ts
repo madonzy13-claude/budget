@@ -7,7 +7,11 @@
  * still leave a tiny slice visible enough to hover.
  */
 import { describe, it, expect } from "vitest";
-import { shareBarWidths, MIN_SEGMENT_PCT } from "../../src/lib/share-bar";
+import {
+  shareBarWidths,
+  sharePercentLabel,
+  MIN_SEGMENT_PCT,
+} from "../../src/lib/share-bar";
 
 describe("shareBarWidths", () => {
   it("splits the bar in proportion", () => {
@@ -47,5 +51,23 @@ describe("shareBarWidths", () => {
 
   it("treats a negative value as nothing", () => {
     expect(shareBarWidths([100, -50])).toEqual([100, 0]);
+  });
+});
+
+// user, 261024: section shares show one decimal, without a trailing ".0".
+describe("sharePercentLabel", () => {
+  it("keeps one decimal", () => {
+    expect(sharePercentLabel(1, 3)).toBe("33.3%");
+    expect(sharePercentLabel(1, 6)).toBe("16.7%");
+  });
+
+  it("drops a trailing .0", () => {
+    expect(sharePercentLabel(1, 100)).toBe("1%");
+    expect(sharePercentLabel(3, 4)).toBe("75%");
+  });
+
+  it("has nothing to say without a positive total", () => {
+    expect(sharePercentLabel(5, 0)).toBeNull();
+    expect(sharePercentLabel(5, undefined)).toBeNull();
   });
 });

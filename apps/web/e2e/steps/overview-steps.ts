@@ -255,3 +255,64 @@ Then(
     await new ProjectionTimelinePo(page).expectWindowSpansDays(days);
   },
 );
+
+// Two snapshots make the day P/L render: one at yesterday's close (23:00 UTC,
+// always inside the card's from=yesterday window) and one now at the live value.
+Given(
+  /^the budget's capitalization was (\d+) cents at yesterday's close$/,
+  async ({ freshUser }, cents: string) => {
+    await withTenantClient(freshUser.budgetId, async (client) => {
+      const ccy = await client
+        .query<{
+          default_currency: string;
+        }>(`SELECT default_currency FROM tenancy.budgets WHERE id = $1::uuid`, [
+          freshUser.budgetId,
+        ])
+        .then((r) => (r.rows[0]?.default_currency ?? "USD").trim());
+      await client.query(
+        `INSERT INTO budgeting.budget_wealth_snapshots
+           (tenant_id, budget_id, captured_at, capitalization_cents, investment_value_cents, currency)
+         VALUES ($1::uuid, $1::uuid, date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' - interval '1 hour', $2::bigint, 0, $3),
+                ($1::uuid, $1::uuid, now(), $4::bigint, 0, $3)`,
+        [freshUser.budgetId, cents, ccy, "1989762500"],
+      );
+    });
+  },
+);
+
+Then(
+  /^the capitalization hero ends before its day P\/L begins$/,
+  async ({ page }) => {
+    const hero = page.getByTestId("capitalization-hero");
+    const pl = page.getByTestId("capitalization-pl");
+    await expect(pl).toBeVisible();
+    // Let the count-up animation land on the final figure before measuring.
+    await expect(hero).toContainText("19,897,625");
+    // The hero's TEXT width, not its box: an overflowing number spills past
+    // its own (shrunk) box, so the box alone would pass on the buggy build.
+    const heroRight = await hero.evaluate((el) => {
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      return r.getBoundingClientRect().right;
+    });
+    const plLeft = (await pl.boundingBox())!.x;
+    expect(heroRight).toBeLessThanOrEqual(plLeft);
+  },
+);
+
+Then(
+  /^the "(.+?)" chart waits for a finished month$/,
+  async ({ page }, testId: string) => {
+    await expect(page.getByTestId(testId)).toBeVisible();
+  },
+);
+
+Then(
+  /^the "(.+?)" chart does not wait for a finished month$/,
+  async ({ page }, testId: string) => {
+    // Both bodies open first, so absence is measured on a rendered section.
+    await expect(page.getByTestId("overview-section-planned-body")).toBeVisible();
+    await expect(page.getByTestId("overview-section-reserves-body")).toBeVisible();
+    await expect(page.getByTestId(testId)).toHaveCount(0);
+  },
+);

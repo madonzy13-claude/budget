@@ -6,6 +6,7 @@
  * so tracked holdings read their latest price (custom holdings keep their column).
  * value/P-L math is a use-case concern (P06) — this returns plain Holding entities.
  */
+import Big from "big.js";
 import { sql } from "drizzle-orm";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
@@ -18,6 +19,8 @@ type DrizzleTx = {
 
 const b8 = (v: bigint | null): string | null =>
   v === null ? null : v.toString();
+const dec = (v: bigint | string | null): string | null =>
+  v === null ? null : String(v);
 
 function mapRow(row: Record<string, unknown>): Holding {
   const cents = (k: string): bigint | null => {
@@ -34,7 +37,9 @@ function mapRow(row: Record<string, unknown>): Holding {
     cents("buy_price_cents"),
     (row.buy_currency as string | null) ?? null,
     String(row.quantity),
-    cents("current_price_cents"),
+    row.current_price_cents == null
+      ? null
+      : new Big(String(row.current_price_cents)).toString(),
     (row.current_price_currency as string | null) ?? null,
     Number(row.sort_order),
     row.archived_at ? new Date(String(row.archived_at)) : null,
@@ -85,7 +90,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
              ${input.name}, ${input.holdingType}, ${input.uiType}, ${input.icon}, ${input.color},
              ${input.group},
              ${b8(input.buyPriceCents)}::bigint, ${input.buyCurrency},
-             ${input.quantity}::numeric, ${b8(input.currentPriceCents)}::bigint,
+             ${input.quantity}::numeric, ${dec(input.currentPriceCents)}::numeric,
              ${input.currentPriceCurrency},
              ${input.metal}, ${input.metalKind}, ${input.unitOfMeasure},
              ${input.manualTicker}, ${input.premiumPct ?? null}::numeric,
@@ -135,7 +140,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
             buy_price_cents = ${b8(input.buyPriceCents)}::bigint,
             buy_currency = ${input.buyCurrency},
             quantity = ${input.quantity}::numeric,
-            current_price_cents = ${b8(input.currentPriceCents)}::bigint,
+            current_price_cents = ${dec(input.currentPriceCents)}::numeric,
             current_price_currency = ${input.currentPriceCurrency},
             metal = ${input.metal},
             metal_kind = ${input.metalKind},

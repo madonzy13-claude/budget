@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { readFileSync } from "node:fs";
 import createNextIntlPlugin from "next-intl/plugin";
 import withSerwistInit from "@serwist/next";
 
@@ -17,10 +18,23 @@ const withSerwist = withSerwistInit({
 // footer can confirm on-device which build is running (the q1v debug overlay was
 // removed). Prefers an explicit CI-supplied build id, then a short git SHA, else
 // a build timestamp. Inlined via `env` → readable as NEXT_PUBLIC_BUILD_ID.
+// It is also how the app knows it is stale (lib/app-update.ts compares it with
+// /version.json), so every build must get its own: seconds, not minutes.
 const BUILD_ID =
   process.env["NEXT_PUBLIC_BUILD_ID"] ??
   process.env["NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA"]?.slice(0, 7) ??
-  new Date().toISOString().slice(0, 16).replace("T", " ");
+  new Date().toISOString().slice(0, 19).replace("T", " ");
+
+// Release number shown in Settings — the monorepo root package.json, which
+// release-please bumps. Missing (unusual build context) → 0.0.0.
+let APP_VERSION = "0.0.0";
+try {
+  APP_VERSION = JSON.parse(
+    readFileSync(resolve(__dirname, "../../package.json"), "utf8"),
+  ).version;
+} catch {
+  // keep the fallback
+}
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -41,6 +55,7 @@ const nextConfig = {
   },
   env: {
     NEXT_PUBLIC_BUILD_ID: BUILD_ID,
+    NEXT_PUBLIC_APP_VERSION: APP_VERSION,
   },
   // Force monorepo tracing root so the standalone bundle nests server.js
   // under `apps/web/server.js` in every environment. Without this, the

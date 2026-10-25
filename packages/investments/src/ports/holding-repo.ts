@@ -20,7 +20,7 @@ export interface NewHolding {
   buyPriceCents: bigint | null;
   buyCurrency: string | null;
   quantity: string;
-  currentPriceCents: bigint | null;
+  currentPriceCents: bigint | string | null;
   currentPriceCurrency: string | null;
   metal: string | null;
   metalKind: string | null;

@@ -120,6 +120,21 @@ export function isAutoPriced(provider: string | null | undefined): boolean {
 }
 
 /**
+ * The per-unit price (cents, string) behind a typed TOTAL. A row shows
+ * quantity × price, so an inline edit of that amount has to be divided back
+ * before it is stored as the current price — or a 3-unit holding triples
+ * (user, 261023). Rounds to the cent; an unreadable/zero quantity stores the
+ * total as-is.
+ */
+export function unitPriceCents(totalCents: number, quantity: string): string {
+  const qty = Number(quantity);
+  if (!Number.isFinite(qty) || qty <= 0) return String(totalCents);
+  // Sub-cent precision (numeric(24,6) column): 170 over 3 units must multiply
+  // back to 170, which no whole-cent unit price does.
+  return String(Number((totalCents / qty).toFixed(6)));
+}
+
+/**
  * Types the user may VALUE in a currency of their choosing, with the fetched price
  * FX-converted into it. For these the form keeps the currency picker visible even
  * after an instrument is selected, and changing the currency re-fetches converted.

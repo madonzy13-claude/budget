@@ -52,10 +52,12 @@ import { useLocale, useTranslations } from "next-intl";
 import { DashedAddButton } from "@/components/common/dashed-add-button";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { centsToBare, centsToRounded } from "@/lib/cents-format";
+import { amountColumnChars } from "@/lib/amount-column";
 import { useBudget } from "@/hooks/use-budget-data";
 import { useInvestments, type HoldingDto } from "@/hooks/use-investments";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
 import { parseDecimal } from "@/lib/decimal";
+import { unitPriceCents } from "@/lib/investment-types";
 import { setDndDragging } from "@/lib/dnd-dragging";
 import { useReorderHoldings } from "@/hooks/use-reorder-holdings";
 import { useArchiveHolding } from "@/hooks/use-archive-holding";
@@ -73,6 +75,7 @@ import {
   type GroupGeom,
 } from "@/lib/investment-grouping";
 import { InvestmentRowSheet } from "./investment-row-sheet";
+import { sharePercentLabel } from "@/lib/share-bar";
 import { InvestmentRow } from "./investment-row";
 import { InvestmentGroupHeader } from "./investment-group-header";
 import { HoldingSheet } from "./holding-sheet";
@@ -177,12 +180,14 @@ function GroupBlockPreview({
   budgetCurrency,
   totalBudgetCents,
   maxAmountChars,
+  rowAmountChars,
   expanded,
 }: {
   entry: Extract<InvestmentEntry, { kind: "group" }>;
   budgetCurrency: string;
   totalBudgetCents: number;
   maxAmountChars: number;
+  rowAmountChars: number;
   expanded: boolean;
 }) {
   const agg = groupAggregate(entry.holdings);
@@ -207,7 +212,11 @@ function GroupBlockPreview({
             key={h.id}
             className="relative ml-3 pl-3 before:absolute before:left-0 before:-top-2 before:bottom-0 before:w-px before:bg-[var(--hairline-dark)] before:content-['']"
           >
-            <InvestmentRow holding={h} nested maxAmountChars={maxAmountChars} />
+            <InvestmentRow
+              holding={h}
+              nested
+              maxAmountChars={rowAmountChars}
+            />
           </div>
         ))}
     </div>
@@ -294,12 +303,13 @@ export function InvestmentsSection({
    * price moves; the buy price stays the cost basis, so savings keeps its
    * "started at" figure and the %-change stays honest.
    */
-  async function saveInlineValue(holdingId: string, amount: string) {
+  // The row edits the TOTAL; the price is per unit (user, 261023).
+  async function saveInlineValue(holding: HoldingDto, amount: string) {
     const cents = parseDecimal(amount);
     if (cents === null) return;
     await updateMut.mutateAsync({
-      holdingId,
-      currentPriceCents: String(cents),
+      holdingId: holding.id,
+      currentPriceCents: unitPriceCents(cents, holding.quantity),
     });
   }
 
@@ -325,21 +335,28 @@ export function InvestmentsSection({
       liveHoldings.reduce((s, h) => s + Number(h.valueInBudgetCents || 0), 0),
     [liveHoldings],
   );
+  const investmentsShare = sharePercentLabel(
+    totalBudgetCents,
+    assetsTotalBudgetCents,
+  );
 
-  // Longest formatted amount across the section (group budget-ccy amounts +
-  // every holding's native amount) → drives the dynamic amount-column width so
-  // the currency codes line up in a column (mirrors wallet-row, D-#align).
-  const maxAmountChars = useMemo(() => {
-    let max = 4;
-    for (const h of liveHoldings)
-      max = Math.max(max, centsToBare(h.valueCents, locale).length);
+  // Longest formatted amount → dynamic amount-column width so the currency
+  // codes line up in a column (mirrors wallet-row, D-#align). Group headers and
+  // ungrouped holdings share one width; each group's rows get their own.
+  const amountCols = useMemo(() => {
+    const top: string[] = [];
+    const groups: Record<string, string[]> = {};
     for (const e of entries)
       if (e.kind === "group") {
         const v = groupAggregate(e.holdings).valueBudgetCents;
-        max = Math.max(max, centsToBare(String(Math.round(v)), locale).length);
-      }
-    return max;
-  }, [liveHoldings, entries, locale]);
+        top.push(centsToBare(String(Math.round(v)), locale));
+        groups[e.name] = e.holdings.map((h) =>
+          centsToBare(h.valueCents, locale),
+        );
+      } else top.push(centsToBare(e.holding.valueCents, locale));
+    return amountColumnChars(top, groups);
+  }, [entries, locale]);
+  const maxAmountChars = amountCols.top;
 
   // ── Collapse state (localStorage, default expanded) ──
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
@@ -701,12 +718,24 @@ export function InvestmentsSection({
       {/* Same treatment as every wallet section: one formatted string with the
           short currency sign, so nothing has to align against the rows. */}
       <h3 className="flex items-center gap-2 px-3 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
-        <span className="min-w-0 flex-1 truncate">{t("section.title")}</span>
+        <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+          <span className="min-w-0 truncate">{t("section.title")}</span>
+          {/* Phone has no share column, so the share sits beside the name,
+              as on every wallet section (user, 261024). */}
+          {investmentsShare !== null && (
+            <span
+              data-testid="section-share-inline-INVESTMENTS"
+              className="shrink-0 normal-case tabular-nums tracking-normal opacity-60 sm:hidden"
+            >
+              {investmentsShare}
+            </span>
+          )}
+        </span>
         <span
           data-testid="section-total-INVESTMENTS"
           // normal-case: the h3 is uppercase for its LABEL, and that was
           // turning the currency sign into "ZŁ" (user, 260823).
-          className="shrink-0 text-caption normal-case tabular-nums tracking-normal"
+          className="shrink-0 normal-case tabular-nums tracking-normal opacity-60"
         >
           {centsToRounded(
             String(Math.round(totalBudgetCents)),
@@ -719,9 +748,7 @@ export function InvestmentsSection({
           data-testid="section-share-INVESTMENTS"
           className="hidden w-16 shrink-0 text-right text-num-sm tabular-nums tracking-normal sm:block"
         >
-          {assetsTotalBudgetCents && assetsTotalBudgetCents > 0
-            ? `${Math.round((totalBudgetCents / assetsTotalBudgetCents) * 100)}%`
-            : ""}
+          {investmentsShare ?? ""}
         </span>
         <span className="hidden w-7 shrink-0 sm:block" aria-hidden="true" />
       </h3>
@@ -770,11 +797,11 @@ export function InvestmentsSection({
                             // Dim the children of the group being dragged — the
                             // lifted copy lives in the DragOverlay (cohesive block).
                             ghost={activeGroupName === entry.name}
-                            maxAmountChars={maxAmountChars}
+                            maxAmountChars={amountCols.group[entry.name]}
                             onEdit={openEdit}
                             onArchive={(id) => archiveMut.mutate(id)}
                             onValueChange={(amount) =>
-                              saveInlineValue(h.id, amount)
+                              saveInlineValue(h, amount)
                             }
                           />
                         ))
@@ -789,7 +816,7 @@ export function InvestmentsSection({
                       onEdit={openEdit}
                       onArchive={(id) => archiveMut.mutate(id)}
                       onValueChange={(amount) =>
-                        saveInlineValue(entry.holding.id, amount)
+                        saveInlineValue(entry.holding, amount)
                       }
                     />,
                   ],
@@ -813,6 +840,7 @@ export function InvestmentsSection({
               budgetCurrency={budgetCurrency}
               totalBudgetCents={totalBudgetCents}
               maxAmountChars={maxAmountChars}
+              rowAmountChars={amountCols.group[activeGroupEntry.name] ?? 4}
               expanded={isExpanded(activeGroupEntry.name)}
             />
           ) : null}

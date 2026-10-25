@@ -22,6 +22,7 @@ import {
 } from "@/components/settings/profile-section";
 import { SecuritySection } from "@/components/settings/security-section";
 import { AccountDangerZone } from "@/components/settings/account-danger-zone";
+import { AppVersionInfo } from "@/components/settings/app-version-info";
 
 interface UserSettingsShellProps {
   initialLocale: string;
@@ -99,6 +100,8 @@ export function UserSettingsShell({
           </AccordionContent>
         </AccordionItem>
       </Accordion>
+
+      <AppVersionInfo />
     </main>
   );
 }

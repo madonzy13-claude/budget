@@ -190,6 +190,37 @@ describe("Investments routes", () => {
     expect(row.valueInBudgetCents).toBe("250000");
   });
 
+  // user, 261023: typing 170 for 3 units stored 56.67/unit and showed 169.98.
+  it("keeps a sub-cent unit price so the total typed for many units survives", async () => {
+    const fix = await createFixture("PLN");
+    const app = await buildApp(fix);
+
+    const postRes = await app.request("/investments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Land plot",
+        holdingType: "other",
+        quantity: "3",
+        currentPriceCents: 10000,
+        currentPriceCurrency: "PLN",
+      }),
+    });
+    const created = (await postRes.json()) as any;
+
+    const patchRes = await app.request(`/investments/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPriceCents: "5666.666667" }),
+    });
+    expect(patchRes.status).toBe(200);
+
+    const body = (await (await app.request("/investments")).json()) as any;
+    const row = body.holdings.find((h: any) => h.id === created.id);
+    expect(row.currentPriceCents).toBe("5666.666667");
+    expect(row.valueCents).toBe("17000");
+  });
+
   it("a holding created under tenant B is NOT visible in tenant A's GET (RLS, INV-03)", async () => {
     const a = await createFixture("EUR");
     const b = await createFixture("EUR");

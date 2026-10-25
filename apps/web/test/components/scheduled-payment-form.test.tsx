@@ -147,6 +147,80 @@ describe("ScheduledPaymentForm — applyToFuture is forced on (UAT-7 retest)", (
     expect(body.applyToFuture).toBe(true);
   });
 
+  it("edit mode sends the picked date for a MONTHLY payment (user, 261017)", async () => {
+    // Without it the server recomputed "strictly after today", so a monthly
+    // payment moved TO today was saved as the same day next month.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({}) });
+    render(
+      <ScheduledPaymentForm
+        open={true}
+        onOpenChange={vi.fn()}
+        mode="edit"
+        initialValues={{
+          ruleId: "rule-3",
+          amount: "1300",
+          currency: "USD",
+          cadence: "MONTHLY",
+          cadenceAnchor: 28,
+          weeklyDow: null,
+          yearlyMonth: null,
+          firstDueDate: "2026-10-28",
+          categoryId: null,
+          note: "Rent",
+        }}
+        fetchImpl={fetchMock as unknown as typeof fetch}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(/rule.nextDueLabel/), {
+      target: { value: "2026-10-17" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Save rule/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
+      edits: Record<string, unknown>;
+    };
+    expect(body.edits).toMatchObject({
+      cadence: "MONTHLY",
+      cadenceAnchor: 17,
+      nextDueDate: "2026-10-17",
+    });
+  });
+
+  it("edit mode leaves the date to the backend when it was not moved", async () => {
+    // A rhythm-only edit must still recompute the pointer server-side.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({}) });
+    render(
+      <ScheduledPaymentForm
+        open={true}
+        onOpenChange={vi.fn()}
+        mode="edit"
+        initialValues={{
+          ruleId: "rule-4",
+          amount: "1300",
+          currency: "USD",
+          cadence: "MONTHLY",
+          cadenceAnchor: 28,
+          weeklyDow: null,
+          yearlyMonth: null,
+          firstDueDate: "2026-10-28",
+          categoryId: null,
+          note: "Rent",
+        }}
+        fetchImpl={fetchMock as unknown as typeof fetch}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Save rule/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
+      edits: Record<string, unknown>;
+    };
+    expect(body.edits).not.toHaveProperty("nextDueDate");
+  });
+
   it("create mode does NOT render the apply-to-future checkbox", () => {
     render(
       <ScheduledPaymentForm open={true} onOpenChange={vi.fn()} mode="create" />,
