@@ -34,6 +34,7 @@ export function registerOverviewCardsRoutes(r: Hono, deps: BootedDeps) {
     return c.json(
       {
         default_currency: dto.default_currency,
+        first_month: dto.first_month,
         available_to_spend_cents: dto.available_to_spend_cents.toString(),
         spendings: {
           spent_cents: dto.spendings.spent_cents.toString(),

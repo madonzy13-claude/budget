@@ -390,6 +390,15 @@
       "helper": "Dates and times are shown in this timezone.",
       "search": "Search timezone…",
       "no_results": "No matching timezone"
+    },
+    "version": {
+      "label": "Version {version}",
+      "checking": "Checking…",
+      "latest": "Up to date",
+      "stale": "Update available",
+      "updateNow": "Update now",
+      "updated": "Updated to the newest version ({version})",
+      "build": "Built {date}"
     }
   },
   "budgets": {
@@ -1960,14 +1969,16 @@
         "planned": "planned",
         "cushion": "cushion",
         "plannedCushion": "planned (cushion)",
-        "limitUsed": "limit used"
+        "limitUsed": "used (plan)",
+        "used": "used",
+        "invested": "invested"
       },
       "row3": {
         "overspent": "overspent",
         "overinvested": "overinvested"
       },
       "row4": {
-        "reservesUsed": "reserves used"
+        "reservesUsed": "used (reserve)"
       },
       "row5": {
         "balance": "left"

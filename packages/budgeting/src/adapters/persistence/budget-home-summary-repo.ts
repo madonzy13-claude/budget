@@ -57,7 +57,10 @@ export function createBudgetHomeSummaryRepo(): BudgetHomeSummaryRepo {
         async (tx) => {
           const drizzleTx = tx as DrizzleTx;
           const res = await drizzleTx.execute(sql`
-            SELECT name, kind::text AS kind, default_currency, cushion_mode_enabled
+            SELECT name, kind::text AS kind, default_currency, cushion_mode_enabled,
+                   (SELECT to_char(min(cl.effective_from), 'YYYY-MM')
+                      FROM budgeting.category_limits cl
+                     WHERE cl.tenant_id = ${budgetId}::uuid) AS first_month
               FROM tenancy.budgets
              WHERE id = ${budgetId}::uuid
              LIMIT 1
@@ -73,6 +76,7 @@ export function createBudgetHomeSummaryRepo(): BudgetHomeSummaryRepo {
         kind: row.kind as BudgetKind,
         default_currency: row.default_currency as string,
         cushion_mode_enabled: Boolean(row.cushion_mode_enabled),
+        first_month: (row.first_month as string | null) ?? null,
       };
     },
 

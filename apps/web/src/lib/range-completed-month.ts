@@ -15,10 +15,17 @@ export function rangeHasCompletedMonth(
   from: string,
   to: string,
   todayIso: string,
+  /** The budget's own first month, 'YYYY-MM'. A month before it is finished on
+   *  the calendar but the budget never lived through it — a budget begun this
+   *  month had a year of them in "12M" and drew both charts from nothing
+   *  (user, 261017). Absent = no floor. */
+  firstMonth?: string | null,
 ): boolean {
   const month = (iso: string) => iso.slice(0, 7);
-  const [f, t, now] = [month(from), month(to), month(todayIso)];
-  if (f.length !== 7 || t.length !== 7 || now.length !== 7) return false;
+  const [rangeStart, t, now] = [month(from), month(to), month(todayIso)];
+  if (rangeStart.length !== 7 || t.length !== 7 || now.length !== 7)
+    return false;
+  const f = firstMonth && firstMonth > rangeStart ? firstMonth : rangeStart;
   // Any month in range that is strictly before the running one is finished.
   return f < now && t >= f;
 }

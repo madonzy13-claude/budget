@@ -54,7 +54,7 @@ export const investments = budgeting.table(
     buyPriceCents: bigint("buy_price_cents", { mode: "bigint" }),
     buyCurrency: char("buy_currency", { length: 3 }),
     quantity: numeric("quantity", { precision: 28, scale: 8 }).notNull(),
-    currentPriceCents: bigint("current_price_cents", { mode: "bigint" }),
+    currentPriceCents: numeric("current_price_cents", { precision: 24, scale: 6 }),
     currentPriceCurrency: char("current_price_currency", { length: 3 }),
     // Deposit-only (holding_type = 'deposit'): principal + currency ride
     // buy_price_cents/buy_currency; these describe how it accrues. Value is

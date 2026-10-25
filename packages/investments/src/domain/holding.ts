@@ -65,7 +65,8 @@ export class Holding {
     public buyCurrency: string | null,
     /** big.js-precision string (fractional shares / crypto). */
     public quantity: string,
-    public currentPriceCents: bigint | null,
+    /** Cents; a decimal string when stored with sub-cent precision. */
+    public currentPriceCents: bigint | string | null,
     public currentPriceCurrency: string | null,
     public sortOrder: number,
     public archivedAt: Date | null,

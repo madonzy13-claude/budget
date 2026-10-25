@@ -596,6 +596,13 @@
       "when": 1782742801011,
       "tag": "0085_investment_limit_mode_none",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1782742801012,
+      "tag": "0086_investment_price_subcent",
+      "breakpoints": true
     }
   ]
 }

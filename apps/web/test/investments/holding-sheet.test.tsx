@@ -669,6 +669,30 @@ describe("HoldingSheet — type-first", () => {
     expect(payload.buyCurrency).toBe("PLN");
   });
 
+  // user, 261023: a quick-edited 170 over 3 units stores 5666.666667/unit;
+  // saving the sheet untouched must not round it back and show 170.01.
+  it("saving untouched keeps a sub-cent current price", () => {
+    updateMutate.mockClear();
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({
+          holdingType: "other",
+          uiType: "collectibles",
+          instrumentId: null,
+          name: "Land plot",
+          quantity: "3",
+          currentPriceCents: "5666.666667",
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
+    expect(updateMutate.mock.calls[0][0].currentPriceCents).toBe(
+      "5666.666667",
+    );
+  });
+
   // 260721 user feedback (3): the editable current-price must NOT seed a
   // placeholder from the buy price — an empty field looked already filled.
   it("manual current-price field has no placeholder (was seeded from buy price)", () => {

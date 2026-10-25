@@ -24,13 +24,25 @@ const FALLBACK_ZONES = [
   "Australia/Sydney",
 ];
 
+/**
+ * Legacy ids browsers still list, mapped to their current IANA name (same
+ * zone; Intl accepts both). Kyiv is how Ukraine spells it (user, 261023).
+ */
+const RENAMED_ZONES: Record<string, string> = {
+  "Europe/Kiev": "Europe/Kyiv",
+};
+
+export function canonicalZone(zone: string): string {
+  return RENAMED_ZONES[zone] ?? zone;
+}
+
 export function listTimezones(): string[] {
   try {
     const sv = (
       Intl as unknown as { supportedValuesOf?: (k: string) => string[] }
     ).supportedValuesOf;
     const zones = sv?.("timeZone");
-    if (zones && zones.length) return zones;
+    if (zones && zones.length) return zones.map(canonicalZone);
   } catch {
     /* fall through */
   }

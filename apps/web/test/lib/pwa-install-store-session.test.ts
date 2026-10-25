@@ -46,6 +46,19 @@ describe("session installed flag", () => {
     expect(isInstalled()).toBe(true);
   });
 
+  // user, 261023: an Android customer uninstalled the app and could not
+  // reinstall it — the persisted flag survives an uninstall (site storage is
+  // kept), so banner + menu stayed hidden even though Chrome offered a prompt.
+  test("capturing a real prompt clears the PERSISTED flag too (app was uninstalled)", () => {
+    setInstalled(true);
+    setDeferredPrompt({
+      prompt: async () => {},
+      userChoice: Promise.resolve({ outcome: "accepted" as const }),
+    });
+    expect(isInstalled()).toBe(false);
+    expect(localStorage.getItem("pwa-installed")).toBeNull();
+  });
+
   test("subscribers notified on session flag changes", () => {
     const seen: boolean[] = [];
     const unsub = subscribeToInstalled((v) => seen.push(v));

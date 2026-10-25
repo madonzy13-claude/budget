@@ -68,7 +68,20 @@ describe("ColumnHeader — Investments (r33)", () => {
     expect(screen.getByText("row3.overspent")).toBeTruthy();
   });
 
-  it("in cushion mode, Investments shows 0 (no cushion) under 'limit used (cushion)'", () => {
+  it("Investments captions row2 'invested', not 'limit used' (user, 261017)", () => {
+    render(
+      <ColumnHeader
+        category={category}
+        summary={summary("0", true)}
+        cushionModeEnabled={false}
+        onEdit={() => {}}
+      />,
+    );
+    expect(screen.getByText("row2.invested")).toBeTruthy();
+    expect(screen.queryByText("row2.limitUsed")).toBeNull();
+  });
+
+  it("in cushion mode, Investments shows 0 (no cushion) under 'invested (cushion)'", () => {
     const s = summary("100000", true);
     s.plannedCents = "170000";
     s.cushionCents = "0";
@@ -88,7 +101,7 @@ describe("ColumnHeader — Investments (r33)", () => {
     ).toMatch(/0/);
     // 260806: the caption is "limit used", with "(cushion)" as its own accent-
     // coloured marker rather than part of a single translated string.
-    expect(screen.getByText("row2.limitUsed")).toBeTruthy();
+    expect(screen.getByText("row2.invested")).toBeTruthy();
     expect(screen.getByText(/\(cushion\)/)).toBeTruthy();
   });
 
@@ -104,9 +117,10 @@ describe("ColumnHeader — Investments (r33)", () => {
         onEdit={() => {}}
       />,
     );
-    // 260806: the caption is "limit used", with "(cushion)" as its own accent-
-    // coloured marker rather than part of a single translated string.
-    expect(screen.getByText("row2.limitUsed")).toBeTruthy();
+    // 261017: the plain caption is "used (plan)"; in cushion mode the
+    // "(plan)" gives way to the accent "(cushion)" marker, so the caption
+    // is a bare "used".
+    expect(screen.getByText("row2.used")).toBeTruthy();
     expect(screen.getByText(/\(cushion\)/)).toBeTruthy();
     // Value is the cushion figure (50000 → "500").
     expect(

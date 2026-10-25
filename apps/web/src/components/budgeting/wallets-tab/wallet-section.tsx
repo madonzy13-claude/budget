@@ -18,6 +18,7 @@ import { useTranslations } from "next-intl";
 import { DashedAddButton } from "@/components/common/dashed-add-button";
 import { WalletRow } from "./wallet-row";
 import { centsToBare, centsToRounded } from "@/lib/cents-format";
+import { sharePercentLabel } from "@/lib/share-bar";
 import type { WalletDto } from "@/hooks/use-wallets";
 
 type WalletType = WalletDto["walletType"];
@@ -121,10 +122,10 @@ export function WalletSection({
   // Share of EVERY asset on the tab, not of this section — a section's share of
   // itself is always 100% and says nothing (user, 260823). Desktop only, in the
   // column the rows already keep for their own within-section share.
-  const sectionSharePct =
-    assetsTotalBudgetCents && assetsTotalBudgetCents > 0
-      ? Math.round((sectionTotalBudgetCents / assetsTotalBudgetCents) * 100)
-      : null;
+  const sectionShare = sharePercentLabel(
+    sectionTotalBudgetCents,
+    assetsTotalBudgetCents,
+  );
 
   return (
     <section
@@ -146,14 +147,24 @@ export function WalletSection({
           — four rounds went into trying to align one, and the rows read better
           with their own tight currency-to-amount pairing anyway. */}
       <h3 className="flex items-center gap-2 px-3 text-caption uppercase tracking-wider text-[var(--muted-foreground)]">
-        <span className="min-w-0 flex-1 truncate">
-          {t(`section.${sectionKey}`)}
+        <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+          <span className="min-w-0 truncate">{t(`section.${sectionKey}`)}</span>
+          {/* Phone has no share column, so the share sits beside the name
+              (user, 261024). */}
+          {sectionShare !== null && (
+            <span
+              data-testid={`section-share-inline-${type}`}
+              className="shrink-0 normal-case tabular-nums tracking-normal opacity-60 sm:hidden"
+            >
+              {sectionShare}
+            </span>
+          )}
         </span>
         <span
           data-testid={`section-total-${type}`}
           // normal-case: the h3 is uppercase for its LABEL, and that was
           // turning the currency sign into "ZŁ" (user, 260823).
-          className="shrink-0 text-caption normal-case tabular-nums tracking-normal"
+          className="shrink-0 normal-case tabular-nums tracking-normal opacity-60"
         >
           {centsToRounded(
             String(Math.round(sectionTotalBudgetCents)),
@@ -168,7 +179,7 @@ export function WalletSection({
           data-testid={`section-share-${type}`}
           className="hidden w-[64px] shrink-0 text-right text-num-sm tabular-nums tracking-normal sm:block sm:w-[80px]"
         >
-          {sectionSharePct === null ? "" : `${sectionSharePct}%`}
+          {sectionShare ?? ""}
         </span>
         <span className="hidden w-7 shrink-0 sm:block" aria-hidden="true" />
       </h3>

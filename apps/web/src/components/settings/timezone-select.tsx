@@ -25,7 +25,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { listTimezones, tzOffsetLabel } from "@/lib/timezones";
+import { canonicalZone, listTimezones, tzOffsetLabel } from "@/lib/timezones";
 import { api } from "@/lib/api-client";
 
 interface TimezoneSelectProps {
@@ -36,7 +36,7 @@ export function TimezoneSelect({ initialTimezone }: TimezoneSelectProps) {
   const t = useTranslations("settings");
   const locale = useLocale();
   const [open, setOpen] = useState(false);
-  const [tz, setTz] = useState(initialTimezone ?? "UTC");
+  const [tz, setTz] = useState(canonicalZone(initialTimezone ?? "UTC"));
   const [saving, setSaving] = useState(false);
 
   // Zone list + current offset label, computed once per mount.

@@ -75,6 +75,7 @@ export interface OverviewMetaReader {
   getBudgetMeta(budgetId: string): Promise<{
     default_currency: string;
     cushion_mode_enabled: boolean;
+    first_month?: string | null;
   } | null>;
 }
 
@@ -128,6 +129,9 @@ export interface OverviewOverspentTop {
 
 export interface OverviewCards {
   default_currency: string;
+  /** The budget's first month ('YYYY-MM', earliest category limit) — the
+   *  history charts judge nothing before it (user, 261017). null = no limits. */
+  first_month: string | null;
   available_to_spend_cents: bigint;
   /** Available-to-spend breakdown (item 1): spent this month, budget left, wallet
    * cash, and whether the wallets cover what's left to spend. */
@@ -414,6 +418,7 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
 
       return ok({
         default_currency: defaultCcy,
+        first_month: meta.first_month ?? null,
         available_to_spend_cents: availableToSpend,
         monthly_planned_cents: monthlyEffectivePlanned,
         spendings: {

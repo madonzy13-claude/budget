@@ -20,6 +20,7 @@ import { todayInTz } from "@/lib/overview-range";
 import { useUserTimezone } from "@/components/common/user-timezone-provider";
 import { assignSliceColors } from "@/lib/slice-colors";
 import { useOverviewOverspent } from "@/hooks/use-overview-overspent";
+import { useOverviewCards } from "@/hooks/use-overview-cards";
 import {
   useReserveFit,
   useSaveReserveFitExclusions,
@@ -114,10 +115,14 @@ export function OverspentReservesSection({
   // percentage of a buffer is a step away from that. The percent view went with
   // the switch — nobody was reaching for it, and its absence buys the header
   // back for the two dialogs.
+  // Months before the budget's own first one are finished on the calendar
+  // only (user, 261017). The cards query is already warm on the Overview.
+  const firstMonth = useOverviewCards(budgetId).data?.first_month;
   const hasCompletedMonth = rangeHasCompletedMonth(
     range.from,
     range.to,
     todayInTz(useUserTimezone()).toString(),
+    firstMonth,
   );
 
   const ccy = data?.currency ?? "USD";

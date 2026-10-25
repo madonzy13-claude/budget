@@ -23,6 +23,7 @@ import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
 import { holdingIcon } from "@/lib/investment-icons";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
+import { isAutoPriced } from "@/lib/investment-types";
 import { AssetClassChip } from "./asset-class-chip";
 
 interface InvestmentRowProps {
@@ -82,6 +83,7 @@ export function InvestmentRow({
     mq.addEventListener?.("change", sync);
     return () => mq.removeEventListener?.("change", sync);
   }, []);
+  const [shaking, setShaking] = useState(false);
   const activate = () => {
     if (isDesktop) onEdit?.();
     else
@@ -118,12 +120,23 @@ export function InvestmentRow({
     : holding.quantity;
   // Savings: show the starting amount ("Started: $X") in the expanded caption
   // where qty would go — the %change already shows current-vs-starting.
-  // 260731: value is STORED (quantity 1), not derived from a market price or an
-  // interest formula — so a typed number can simply be saved. Tracked holdings
-  // (qty × price) and deposits (rate-computed) keep the sheet.
+  // 260731: a value the household keeps BY HAND can be typed straight into the
+  // row. 261023: that includes a hand-priced instrument of any quantity — the
+  // typed figure is the TOTAL and the section stores total ÷ quantity as the
+  // price. What stays read-only is what something else prices: a feed
+  // (auto-priced instrument), the spot price (metals) or the rate (deposits).
   const valueIsManual =
     !!onValueChange &&
-    (isCash || holding.uiType === "broker" || holding.uiType === "savings");
+    holding.holdingType !== "deposit" &&
+    holding.uiType !== "deposit" &&
+    holding.metal == null &&
+    holding.uiType !== "precious_metals" &&
+    (isCash ||
+      holding.uiType === "broker" ||
+      holding.uiType === "savings" ||
+      holding.instrumentId == null ||
+      (holding.instrumentProvider != null &&
+        !isAutoPriced(holding.instrumentProvider)));
   const isSavings = holding.uiType === "savings";
   const startedDisplay =
     isSavings && holding.buyPriceCents != null
@@ -380,9 +393,19 @@ export function InvestmentRow({
                 }}
               />
             ) : (
+              // A tap here can't edit (the price is fetched or derived), so
+              // shake the amount to say so (user, 261023). It doesn't expand the
+              // row either: on a phone that moves the amount, hiding the shake.
               <span
+                data-testid={`holding-amount-readonly-${holding.id}`}
+                data-shake={shaking || undefined}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShaking(true);
+                }}
+                onAnimationEnd={() => setShaking(false)}
                 className={[
-                  "text-num-md",
+                  "inline-block text-num-md",
                   delisted
                     ? "text-[var(--muted-strong)]"
                     : "text-[var(--body-on-dark)]",

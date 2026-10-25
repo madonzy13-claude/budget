@@ -227,3 +227,32 @@ export function navigationFetch(
     return fallbackFetch(req);
   };
 }
+
+/**
+ * Caches a newly activated worker deletes.
+ *
+ * - Legacy and superseded static generations: a worker that pinned a stale
+ *   CSS/JS bundle starts from empty and refetches.
+ * - EVERY cached page document and RSC payload, current generation included.
+ *   Their cache names don't change between builds, and a page cached by an old
+ *   build loads that build's code — cache-first navigation then kept an
+ *   installed app on old screens while network-first /settings said "latest"
+ *   (user, 261023). A new worker means a new build, so they are all stale; each
+ *   route re-caches on its next online visit.
+ *
+ * Never the precache (Serwist cleans it) or the pending push deep-link.
+ */
+export function cachesToPurgeOnActivate(
+  keys: string[],
+  current: Set<string>,
+  legacy: string[],
+): string[] {
+  return keys.filter(
+    (key) =>
+      legacy.includes(key) ||
+      key.startsWith("nav-docs-") ||
+      key.startsWith("rsc-") ||
+      ((key.startsWith("static-styles") || key.startsWith("static-assets")) &&
+        !current.has(key)),
+  );
+}

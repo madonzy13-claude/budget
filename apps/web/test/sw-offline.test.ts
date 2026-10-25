@@ -16,10 +16,14 @@
  * Playwright's `context.setOffline()` does NOT make the service worker's own
  * fetch reject, so the genuine failure branch is impossible to cover end-to-end.
  */
-import { describe, test, expect, vi } from "vitest";
+import { describe, test, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { handleNavigationRequest, navigationFetch } from "../sw-offline";
+import {
+  cachesToPurgeOnActivate,
+  handleNavigationRequest,
+  navigationFetch,
+} from "../sw-offline";
 
 const ORIGIN = "http://localhost:3000";
 
@@ -637,5 +641,33 @@ describe("navigationFetch — the browser already asked", () => {
     );
     expect(await (await f(req)).text()).toContain("network");
     expect(fallback).toHaveBeenCalledTimes(1);
+  });
+});
+
+// user, 261023: the reinstalled Android app showed an old build's Assets tab
+// while Settings (network-first) said "latest". The nav-doc cache keeps one
+// name across builds, so the activate purge never touched it: pages cached by
+// an old build kept loading that build's code. A new worker IS a new build.
+describe("cachesToPurgeOnActivate", () => {
+  const current = new Set(["static-styles-v2", "static-assets-v2", "nav-docs-v2", "rsc-v3"]);
+
+  it("drops cached pages and RSC payloads even of the current generation", () => {
+    expect(
+      cachesToPurgeOnActivate(
+        ["nav-docs-v2", "rsc-v3", "static-styles-v2", "static-assets-v2", "budget-deeplink"],
+        current,
+        ["static-assets", "static-styles"],
+      ).sort(),
+    ).toEqual(["nav-docs-v2", "rsc-v3"]);
+  });
+
+  it("still drops superseded and legacy static caches", () => {
+    expect(
+      cachesToPurgeOnActivate(
+        ["static-styles-v1", "static-assets", "nav-docs-v1", "static-assets-v2"],
+        current,
+        ["static-assets", "static-styles"],
+      ).sort(),
+    ).toEqual(["nav-docs-v1", "static-assets", "static-styles-v1"]);
   });
 });

@@ -1,4 +1,4 @@
-import { expect } from "@playwright/test";
+import { expect, type Locator } from "@playwright/test";
 import { createBdd } from "playwright-bdd";
 import { test } from "../fixtures/fresh-user-per-scenario";
 import { InvestmentsPo } from "../page-objects/InvestmentsPo";
@@ -192,5 +192,138 @@ Then(
     // No page.reload() here — the optimistic mutation (INV-16) must surface the
     // row from cache alone.
     await new InvestmentsPo(page).row(name).waitFor({ state: "visible" });
+  },
+);
+
+Given(
+  "a custom holding {string} of {int} units at {int} cents each exists in my budget",
+  async ({ freshUser }, name: string, qty: number, priceCents: number) => {
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      await client.query(
+        `INSERT INTO budgeting.investments
+           (id, tenant_id, budget_id, name, holding_type, quantity,
+            current_price_cents, current_price_currency, sort_order, created_at)
+         VALUES (gen_random_uuid(), $1::uuid, $1::uuid, $2, 'other', $3, $4, 'USD', 0, now())`,
+        [freshUser.budgetId, name, String(qty), priceCents],
+      );
+    });
+  },
+);
+
+When(
+  "I set the amount of holding {string} to {string}",
+  async ({ page }, name: string, amount: string) => {
+    const row = new InvestmentsPo(page).row(name);
+    await row.locator('[data-testid^="holding-amount-"]').click();
+    const input = row.locator("input");
+    await input.fill(amount);
+    const saved = page.waitForResponse(
+      (r) =>
+        r.request().method() === "PATCH" && r.url().includes("/investments/"),
+    );
+    await input.press("Enter");
+    expect((await saved).ok()).toBe(true);
+  },
+);
+
+Then(
+  "the holding {string} is priced at {string} cents per unit",
+  async ({ freshUser }, name: string, priceCents: string) => {
+    let stored = "";
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      const r = await client.query<{ p: string }>(
+        `SELECT current_price_cents::text AS p FROM budgeting.investments
+          WHERE budget_id = $1::uuid AND name = $2`,
+        [freshUser.budgetId, name],
+      );
+      stored = r.rows[0]?.p ?? "";
+    });
+    expect(Number(stored)).toBe(Number(priceCents));
+  },
+);
+
+Then(
+  "the holding row {string} shows the amount {string}",
+  async ({ page }, name: string, amount: string) => {
+    await expect(
+      new InvestmentsPo(page)
+        .row(name)
+        .locator('[data-testid^="holding-amount-"]'),
+    ).toHaveText(amount);
+  },
+);
+
+Then(
+  "the amounts inside group {string} are narrower than the group total",
+  async ({ page }, group: string) => {
+    const box = (scope: Locator) =>
+      scope.locator('div[style*="min-width"]').first().boundingBox();
+    const header = await box(page.getByTestId(`investment-group-${group}`));
+    const rows = new InvestmentsPo(page);
+    const a = await box(rows.row("Flat A"));
+    const b = await box(rows.row("Flat B"));
+    expect(header && a && b).toBeTruthy();
+    // Rows line up with each other…
+    expect(Math.abs(a!.x - b!.x)).toBeLessThan(1);
+    // …on their own width, not the group total's.
+    expect(a!.width).toBeLessThan(header!.width - 2);
+  },
+);
+
+Given(
+  "a deposit {string} of {int} cents exists in my budget",
+  async ({ freshUser }, name: string, cents: number) => {
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      await client.query(
+        `INSERT INTO budgeting.investments
+           (id, tenant_id, budget_id, name, holding_type, ui_type, quantity,
+            buy_price_cents, buy_currency, current_price_cents, current_price_currency,
+            deposit_rate_bps, deposit_start_date, deposit_cap_frequency, sort_order, created_at)
+         VALUES (gen_random_uuid(), $1::uuid, $1::uuid, $2, 'deposit', 'deposit', '1',
+                 $3::bigint, 'USD', $3::numeric, 'USD', 0, CURRENT_DATE, 'monthly', 0, now())`,
+        [freshUser.budgetId, name, cents],
+      );
+    });
+  },
+);
+
+When(
+  "I tap the amount of holding {string}",
+  async ({ page }, name: string) => {
+    await new InvestmentsPo(page)
+      .row(name)
+      .locator('[data-testid^="holding-amount-readonly-"]')
+      .click();
+  },
+);
+
+Then(
+  "the amount of holding {string} shakes",
+  async ({ page }, name: string) => {
+    // The attribute lives for one 0.32s animation, then clears itself.
+    const amount = new InvestmentsPo(page)
+      .row(name)
+      .locator('[data-testid^="holding-amount-readonly-"]');
+    await expect(amount).toHaveAttribute("data-shake", "true", {
+      timeout: 300,
+    });
+    await expect(amount).not.toHaveAttribute("data-shake", /.*/);
+  },
+);
+
+Given(
+  "{int} custom holdings exist in my budget",
+  async ({ freshUser }, count: number) => {
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      await client.query(
+        `INSERT INTO budgeting.investments
+           (id, tenant_id, budget_id, name, holding_type, quantity,
+            current_price_cents, current_price_currency, sort_order, created_at)
+         SELECT gen_random_uuid(), $1::uuid, $1::uuid, 'Holding ' || n, 'other', '1',
+                10000 * n, 'USD', n, now()
+           FROM generate_series(1, $2::int) AS n`,
+        [freshUser.budgetId, count],
+      );
+    });
   },
 );

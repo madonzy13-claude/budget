@@ -121,12 +121,13 @@ export function updateScheduledPayment(deps: {
               (before.yearly_month as number | null) ??
               undefined,
           };
-          const nextDue = nextDueDateAfter(merged, Temporal.Now.plainDateISO());
-          await deps.ruleRepo.advanceNextDueDate(
-            tx,
-            input.ruleId,
-            nextDue.toString(),
-          );
+          // A date the household picked wins — recomputing "strictly after
+          // today" turned a payment moved TO today into the same day next
+          // month, with no draft (user, 261017).
+          const nextDue =
+            input.edits.nextDueDate ??
+            nextDueDateAfter(merged, Temporal.Now.plainDateISO()).toString();
+          await deps.ruleRepo.advanceNextDueDate(tx, input.ruleId, nextDue);
         }
 
         // Build draft edits (subset of rule edits applicable to expense_ledger drafts)

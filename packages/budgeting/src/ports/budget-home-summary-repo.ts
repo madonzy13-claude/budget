@@ -16,6 +16,9 @@ export interface BudgetHomeSummaryMeta {
   kind: BudgetKind;
   default_currency: string;
   cushion_mode_enabled: boolean;
+  /** Earliest category-limit month, 'YYYY-MM' — where the budget's own history
+   *  starts (an imported budget predates its created_at). null = no limits. */
+  first_month?: string | null;
 }
 
 export interface BudgetWalletRow {

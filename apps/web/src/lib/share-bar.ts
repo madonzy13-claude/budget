@@ -50,3 +50,12 @@ export function shareLabel(value: number, total: number): string {
   const pct = (100 * value) / total;
   return `${pct < 10 ? Math.round(pct * 10) / 10 : Math.round(pct)}%`;
 }
+
+/** "16.7%", or "75%" when the decimal is zero; null without a positive total. */
+export function sharePercentLabel(
+  part: number,
+  total: number | undefined,
+): string | null {
+  if (!total || total <= 0) return null;
+  return `${Number(((part / total) * 100).toFixed(1))}%`;
+}

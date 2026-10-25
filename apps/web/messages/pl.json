@@ -390,6 +390,15 @@
       "helper": "Daty i godziny są wyświetlane w tej strefie czasowej.",
       "search": "Szukaj strefy czasowej…",
       "no_results": "Brak pasującej strefy czasowej"
+    },
+    "version": {
+      "label": "Wersja {version}",
+      "checking": "Sprawdzanie…",
+      "latest": "Aktualna",
+      "stale": "Dostępna aktualizacja",
+      "updateNow": "Zaktualizuj teraz",
+      "updated": "Zainstalowano najnowszą wersję ({version})",
+      "build": "Zbudowano {date}"
     }
   },
   "budgets": {
@@ -1983,14 +1992,16 @@
         "planned": "plan",
         "cushion": "poduszka",
         "plannedCushion": "plan (poduszka)",
-        "limitUsed": "limit wykorzystany"
+        "limitUsed": "wykorzystano (plan)",
+        "used": "wykorzystano",
+        "invested": "zainwestowane"
       },
       "row3": {
         "overspent": "przekroczenie",
         "overinvested": "nadwyżka inwestycji"
       },
       "row4": {
-        "reservesUsed": "rezerwy użyte"
+        "reservesUsed": "wykorzystano (rezerwa)"
       },
       "row5": {
         "balance": "pozostało"

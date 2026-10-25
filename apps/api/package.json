@@ -21,7 +21,7 @@
     "nanoid": "^6",
     "hono": "^4.12.16",
     "@hono/zod-validator": "^0.9.0",
-    "zod": "^4.4.3",
+    "zod": "^4.6.6",
     "pino": "^10.0.0"
   },
   "devDependencies": {

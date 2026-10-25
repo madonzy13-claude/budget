@@ -59,11 +59,9 @@ function sumCents(rows: AggregateBudgetRow[], key: keyof AggregateBudgetRow) {
   return rows.reduce((total, r) => total + BigInt(r[key] as string), 0n);
 }
 
-/** Exact copy of overview-cards.tsx's heroFontClass (BDP capitalization card). */
-function heroFontClass(s: string): string {
-  if (s.length >= 13) return "text-[24px] font-bold leading-[1.1]";
-  if (s.length >= 10) return "text-[32px] font-bold leading-[1.1]";
-  return "text-num-display";
+/** Exact copy of overview-cards.tsx's heroFontSize (BDP capitalization card). */
+function heroFontSize(s: string): string {
+  return `min(40px, calc(100cqi / ${(s.length * 0.6).toFixed(2)}))`;
 }
 
 // ponytail: copy of overview-cards.tsx's formatRunway (a private fn there) —
@@ -344,11 +342,14 @@ export function AggregateOverview() {
                 {t("hero_label")}
               </p>
               <div className="mt-1 flex flex-nowrap items-center justify-between gap-x-3">
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex min-w-0 flex-1 flex-col gap-1 [container-type:inline-size]">
                   <p
                     data-testid="aggregate-hero"
-                    className={`num ${heroFontClass(heroValue)}`}
-                    style={{ color: "var(--num-hero)" }}
+                    className="num text-num-display"
+                    style={{
+                      color: "var(--num-hero)",
+                      fontSize: heroFontSize(heroValue),
+                    }}
                   >
                     <SlotAmount value={heroValue} />
                   </p>

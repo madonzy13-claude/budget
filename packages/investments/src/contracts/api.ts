@@ -155,7 +155,12 @@ export const createHoldingSchema = z.object({
 });
 export type CreateHoldingInput = z.infer<typeof createHoldingSchema>;
 
-export const updateHoldingSchema = createHoldingSchema.partial();
+// `.partial()` keeps quantity's create-time `.default("1")`, which turned every
+// PATCH that left quantity out into "quantity = 1" (user, 261023). An update
+// changes only what it sends.
+export const updateHoldingSchema = createHoldingSchema
+  .partial()
+  .extend({ quantity: numericString.optional() });
 export type UpdateHoldingInput = z.infer<typeof updateHoldingSchema>;
 
 export const reorderHoldingsSchema = z.object({

@@ -265,8 +265,8 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
             {/* Offline indicator moved INTO the TopNav header (260614-rwt): a
               zero-height inline pill in the header right cluster, no layout
               shift. See components/budgeting/top-nav.tsx. */}
-            {/* Offline resilience island: mounts SwUpdateReloader (auto-reload
-              installed PWA on SW update). Client leaf inside the app-wide
+            {/* Offline resilience island: mounts AppUpdater (keeps the
+              installed PWA on the latest build). Client leaf inside the app-wide
               QueryClientProvider. */}
             <OfflineResilience />
             {/* Persists the resolved iOS top safe-area inset so the header padding

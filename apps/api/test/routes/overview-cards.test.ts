@@ -351,6 +351,23 @@ describe("GET /budgets/:id/overview/cards", () => {
     expect(body.overspent.top).toEqual([]);
   });
 
+  // user, 261017: the history charts need to know where the budget's own life
+  // starts, or a budget begun this month judges a year of months it never had.
+  it("reports the budget's first month (earliest category limit)", async () => {
+    const app = await buildApp({
+      userId: fix.userId,
+      allowedTenantIds: [fix.budgetId, other.budgetId],
+    });
+    const res = await app.request(`/budgets/${fix.budgetId}/overview/cards`);
+    expect(((await res.json()) as { first_month: string }).first_month).toBe(
+      "2026-01",
+    );
+    const none = await app.request(`/budgets/${other.budgetId}/overview/cards`);
+    expect(
+      ((await none.json()) as { first_month: string | null }).first_month,
+    ).toBeNull();
+  });
+
   it("returns 401 without a session", async () => {
     const { budgetsRoutesFactory } = await import("../../src/routes/budgets");
     const noAuth = new Hono();

@@ -118,12 +118,15 @@ function formatRunway(
   return parts.length ? parts.join(" ") : `0${units.d}`;
 }
 
-/** Shrink the hero number's font as the string grows so a big value still leaves
- * room for the P/L beside it (item 1). */
-function heroFontClass(s: string): string {
-  if (s.length >= 13) return "text-[24px] font-bold leading-[1.1]";
-  if (s.length >= 10) return "text-[32px] font-bold leading-[1.1]";
-  return "text-num-display";
+/** The hero number's font size: as large as the display size, but never wider
+ * than its column, which is whatever the P/L beside it leaves free. Sized to
+ * the column (container query units), not guessed from the string length — a
+ * length cut-off had no idea how wide the P/L was, and a big capitalization
+ * beside a big day P/L ran under the percentage (user, 261017).
+ * ponytail: ~0.6em per glyph (bold tabular digits); separators are narrower,
+ * so the estimate errs small. */
+function heroFontSize(s: string): string {
+  return `min(40px, calc(100cqi / ${(s.length * 0.6).toFixed(2)}))`;
 }
 
 export function OverviewCards({
@@ -426,18 +429,18 @@ export function OverviewCards({
                     cover (max-w-full) cap within it — otherwise a wide redaction
                     bar wrapped the P/L onto its own line (privacy mode). */}
                 <div className="mt-1 flex flex-nowrap items-center justify-between gap-x-3">
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1 [container-type:inline-size]">
                     <p
+                      data-testid="capitalization-hero"
                       // Inline color: tailwind-merge can't tell the custom
                       // `text-num-display` size class from a text-color and was
                       // dropping the color class, rendering the number grey. An
                       // inline style bypasses the merge entirely (UAT item 3).
                       // --num-hero = brand yellow (dark) → dark gold (light) so it
                       // stays legible on the pale light card.
-                      style={{ color: "var(--num-hero)" }}
-                      className={cn(
-                        "num",
-                        heroFontClass(
+                      style={{
+                        color: "var(--num-hero)",
+                        fontSize: heroFontSize(
                           centsToRounded(
                             data.capitalization_cents,
                             ccy,
@@ -445,7 +448,8 @@ export function OverviewCards({
                             true,
                           ),
                         ),
-                      )}
+                      }}
+                      className="num text-num-display"
                     >
                       {animRounded(data.capitalization_cents)}
                     </p>
@@ -468,6 +472,7 @@ export function OverviewCards({
                   </div>
                   {pl && pl.delta_pct !== null && (
                     <div
+                      data-testid="capitalization-pl"
                       className={cn(
                         // Tight P/L stack (%, $, "since"), vertically centred
                         // against the hero number (the row is items-center).

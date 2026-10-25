@@ -67,3 +67,44 @@ Feature: Investments wallet — section, holdings, grouping, optimistic add
     When I open the investments wallets tab
     And I add a custom holding "Cottage" worth 9000000 cents via the sheet
     Then the holding "Cottage" appears without a page reload
+
+  # user, 261023: tapping the amount of a hand-priced holding with quantity > 1
+  # did nothing. The amount is the TOTAL; it is stored as total ÷ quantity.
+  Scenario: Quick-editing a multi-unit holding's total stores the per-unit price
+    Given I am on a phone-sized viewport
+    And investments are enabled for my budget
+    And a custom holding "Land plot" of 3 units at 10000 cents each exists in my budget
+    When I open the investments wallets tab
+    And I set the amount of holding "Land plot" to "450"
+    Then the holding "Land plot" is priced at "15000" cents per unit
+    And the holding row "Land plot" shows the amount "450"
+
+  # user, 261023: 170 over 3 units showed 169,98 — the unit price was cut to whole cents.
+  Scenario: A total that does not split into whole cents per unit stays as typed
+    Given I am on a phone-sized viewport
+    And investments are enabled for my budget
+    And a custom holding "Land plot" of 3 units at 10000 cents each exists in my budget
+    When I open the investments wallets tab
+    And I set the amount of holding "Land plot" to "170"
+    Then the holding "Land plot" is priced at "5666.666667" cents per unit
+    And the holding row "Land plot" shows the amount "170"
+
+  # user, 261023: a group's big total set the amount width for every row, so the
+  # rows inside the group lost room for their names.
+  Scenario: Rows inside a group size their amounts by the group, not its total
+    Given I am on a phone-sized viewport
+    And investments are enabled for my budget
+    And a custom holding "Flat A" worth 90000000 cents in group "Flats" exists in my budget
+    And a custom holding "Flat B" worth 90000000 cents in group "Flats" exists in my budget
+    When I open the investments wallets tab
+    And I expand the group "Flats"
+    Then the amounts inside group "Flats" are narrower than the group total
+
+  # user, 261023: tapping an amount that can't be quick-edited did nothing.
+  Scenario: Tapping an amount that can't be quick-edited shakes it
+    Given I am on a phone-sized viewport
+    And investments are enabled for my budget
+    And a deposit "Term deposit" of 500000 cents exists in my budget
+    When I open the investments wallets tab
+    And I tap the amount of holding "Term deposit"
+    Then the amount of holding "Term deposit" shakes

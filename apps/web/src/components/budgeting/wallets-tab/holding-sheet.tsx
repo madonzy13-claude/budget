@@ -87,11 +87,13 @@ interface HoldingSheetProps {
   holding?: HoldingDto | null;
 }
 
-/** Decimal string → integer-cents string, or null. */
+/** Decimal string → cents string (sub-cent kept to 6 places), or null. The
+ *  current price is stored to 6 places so a total split over several units
+ *  survives a re-save; integer columns round on the server. */
 function toCents(value: string): string | null {
   const n = Number(value.replace(/\s/g, "").replace(/,/g, ".").trim());
   if (!value.trim() || !Number.isFinite(n)) return null;
-  return String(Math.round(n * 100));
+  return String(Number((n * 100).toFixed(6)));
 }
 function centsToDecimal(cents: string | null): string {
   if (cents == null) return "";

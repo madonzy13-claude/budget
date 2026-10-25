@@ -31,7 +31,11 @@ import {
   StaleWhileRevalidate,
   Serwist,
 } from "serwist";
-import { handleNavigationRequest, navigationFetch } from "./sw-offline";
+import {
+  cachesToPurgeOnActivate,
+  handleNavigationRequest,
+  navigationFetch,
+} from "./sw-offline";
 
 // Bump this suffix whenever the static-asset caching strategy changes so a new
 // service worker abandons the old runtime cache instead of inheriting a stuck
@@ -424,31 +428,19 @@ self.addEventListener("notificationclick", (event: any) => {
   );
 });
 
-// Self-heal stuck clients: on activate, delete the legacy static-asset runtime
-// caches (and any static cache that is not the current generation) so a worker
-// that pinned a stale CSS/JS bundle starts from an empty cache and refetches.
-// Runs alongside Serwist's own precache cleanup; only touches our named runtime
-// caches — never the precache or the /api NetworkOnly path.
+// Self-heal stuck clients: on activate, drop every cache an older build could
+// answer from — see cachesToPurgeOnActivate. Runs alongside Serwist's own
+// precache cleanup; never the precache or the /api NetworkOnly path.
 self.addEventListener("activate", (event: any) => {
   event.waitUntil(
     (async () => {
-      const keys = await caches.keys();
+      const keys: string[] = await caches.keys();
       await Promise.all(
-        keys
-          .filter(
-            (key: string) =>
-              LEGACY_STATIC_CACHES.includes(key) ||
-              ((key.startsWith("static-styles") ||
-                key.startsWith("static-assets") ||
-                key.startsWith("rsc-") ||
-                // nav-docs-* MUST be purged when superseded: the nav handler's
-                // caches.match(ignoreSearch) searches ALL caches, so a leftover
-                // stale generation (e.g. pre-SPA-refactor nav-docs-v1) would be
-                // served offline → blank/black tab pages (260616 bug).
-                key.startsWith("nav-docs-")) &&
-                !CURRENT_STATIC_CACHES.has(key)),
-          )
-          .map((key: string) => caches.delete(key)),
+        cachesToPurgeOnActivate(
+          keys,
+          CURRENT_STATIC_CACHES,
+          LEGACY_STATIC_CACHES,
+        ).map((key) => caches.delete(key)),
       );
     })(),
   );

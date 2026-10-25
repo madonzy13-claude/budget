@@ -299,6 +299,42 @@ describe("WalletsSectionedList", () => {
       expect(screen.queryByTestId("section-total-currency-CUSHION")).toBeNull();
     });
 
+    // user, 261024: the phone hides the desktop share column, so the share of
+    // all assets sits beside the section's name, before its total.
+    it("shows each section's share of all assets beside its name", () => {
+      renderWithQuery([
+        {
+          id: "s1",
+          name: "Erste",
+          walletType: "SPENDINGS",
+          currency: "EUR",
+          currentBalanceCents: "2500000",
+          archivedAt: null,
+        },
+        {
+          id: "c1",
+          name: "Pekao",
+          walletType: "CUSHION",
+          currency: "EUR",
+          currentBalanceCents: "7500000",
+          archivedAt: null,
+        },
+      ] as WalletDto[]);
+      const share = screen.getByTestId("section-share-inline-CUSHION");
+      expect(share.textContent).toBe("75%");
+      const total = screen.getByTestId("section-total-CUSHION");
+      expect(
+        total.compareDocumentPosition(share) & Node.DOCUMENT_POSITION_PRECEDING,
+      ).toBeTruthy();
+      expect(
+        screen.getByTestId("section-share-inline-SPENDINGS").textContent,
+      ).toBe("25%");
+      // user, 261024: the total reads in the same font and tone as the share.
+      const styleOf = (el: HTMLElement) =>
+        el.className.split(" ").filter((c) => !c.startsWith("sm:")).sort();
+      expect(styleOf(total)).toEqual(styleOf(share));
+    });
+
     // Without the FX figure the raw balance is all there is — a fixture or a
     // caller that bypasses the route layer must still add up, not blank out.
     it("falls back to the raw balance when FX has not enriched a wallet", () => {
