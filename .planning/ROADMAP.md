@@ -412,21 +412,24 @@ Plans:
 
 **Requirements**: CONTEXT D-01..D-19 (no REQ IDs registered)
 **Depends on:** Phase 12
-**Plans:** 11 plans
+**Plans:** 14 plans
 
 Plans:
 
-- [ ] 13-01-PLAN.md — Pure sell/withdraw/add booking math, TDD on CONTEXT fixtures (wave 1)
-- [ ] 13-02-PLAN.md — History contributions reader + Overview hybrid "without contributions" (wave 1)
-- [ ] 13-03-PLAN.md — Migration 0087: investment_history + RLS, stocks merge, Start backfill, type order; registries; apply (wave 1)
+- [ ] 13-01-PLAN.md — Pure booking math incl. reverseEntry (full undo) and partial deposit sale, TDD (wave 1)
+- [ ] 13-02-PLAN.md — History contributions reader + Overview hybrid with missing-FX fallback (wave 1)
+- [ ] 13-03-PLAN.md — Migration 0087: investment_history (+undo columns) + RLS, stocks merge, Start backfill, type order; registries; apply (wave 1)
 - [ ] 13-04-PLAN.md — Web foundation: all i18n, stocks type config, type-group math, type header (wave 1)
-- [ ] 13-05-PLAN.md — Backend: drop custom groups, weights by type, stocks search (wave 2)
-- [ ] 13-06-PLAN.md — Sell API (new/existing/out), create entry with date, Overview wiring (wave 3)
-- [ ] 13-07-PLAN.md — Adjust, history list/delete, type summary + order, hard delete API (wave 4)
-- [ ] 13-08-PLAN.md — Web type blocks, block DnD + saved order, remove custom-group UI (wave 5)
-- [ ] 13-09-PLAN.md — Web Sell sheet, row Sell action, hard Delete (wave 6)
-- [ ] 13-10-PLAN.md — Web Edit "What happened?", History section, Add date (wave 7)
-- [ ] 13-11-PLAN.md — E2E Gherkin, full gate, user real-data acceptance (wave 8)
+- [ ] 13-05-PLAN.md — Backend contracts: stocks + legacy normalization, typeWeights (compat kept) (wave 2)
+- [ ] 13-06-PLAN.md — Backend adapters: combined stocks search, route tests, api/worker rebuild (wave 3)
+- [ ] 13-07-PLAN.md — Sell API (new/existing/out, partial deposit), create entry with date, Overview wiring (wave 4)
+- [ ] 13-08-PLAN.md — Adjust, full-undo delete, history/type summary/order, hard delete, PATCH cost guard (wave 5)
+- [ ] 13-09-PLAN.md — Web type blocks + type-summary hook (wave 6)
+- [ ] 13-10-PLAN.md — Web DnD (blocks + within type) + custom-group UI removal + web rebuild (wave 7)
+- [ ] 13-11-PLAN.md — Web Sell sheet, row Sell action, hard Delete (wave 8)
+- [ ] 13-12-PLAN.md — Backend custom-group compat removal (wave 8)
+- [ ] 13-13-PLAN.md — Web Edit "What happened?", History with full undo, Add date (wave 9)
+- [ ] 13-14-PLAN.md — E2E Gherkin (sell + history), full gate, user real-data acceptance (wave 10)
 
 ---
 

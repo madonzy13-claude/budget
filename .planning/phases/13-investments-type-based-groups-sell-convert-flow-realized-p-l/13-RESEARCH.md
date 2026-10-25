@@ -206,10 +206,10 @@ Reverted ledger broke 4 optimistic mutations by changing cache shape (commit 7b0
 3. **FORCE RLS on a JOINed table silences INSERT** (memory): the Start-entry backfill INSERT...SELECT joins `investments`; run migration as migrator (owner/bypass) and verify rowcount equals non-archived holdings in an integration test. Statement separators `--> statement-breakpoint` as in 0054.
 4. **`make migrate` no-ops on stale migrator image** - rebuild migrator before DB tests; DB tests need `infisical run`.
 5. **Hybrid boundary**: D-08 "first history entry" is per budget = min(effective_date) over non-deleted entries. Start entries are dated `created_at`, so the boundary can sit BEFORE some old snapshots whose holdings predate nothing: after the Start backfill, points between boundary and now switch to history-based contributions which count only held-and-started holdings; archived holdings the user has not backfilled contribute 0. This is intended (D-07) but will visibly shift the line; E2E/UAT must assert only the 24 Oct jump disappears after backfill, not exact historic values.
-6. **Deleting a history entry vs holding state**: deleting a `sell` row removes its realized/flow/sold-cost effect but cannot restore the holding's qty/cost/archived state. Recommended: delete only reverses ledger aggregates, UI confirm text says so; deleting a `start` row removes its flow and cost (user intent: replace with real history). OPEN QUESTION (see below).
+6. **Deleting a history entry vs holding state**: deleting a `sell` row removes its realized/flow/sold-cost effect but cannot restore the holding's qty/cost/archived state. Recommended: delete only reverses ledger aggregates, UI confirm text says so; deleting a `start` row removes its flow and cost (user intent: replace with real history). OPEN QUESTION (see below). **SUPERSEDED by D-06:** delete = full undo (holding state restored from the entry's deltas).
 7. **Deleted convert leg**: delete both legs by `transfer_id`.
 8. **Rounding**: fixture 17.2k is rounded; assert exact bigint cents from the formula, not the prose number.
-9. **Deposit holdings** are compute-on-read from principal; partial sell would change principal. Recommend: Sell on deposit = complete only (archive + realized = received - principal-cost? value at sale). Flag to planner/user.
+9. **Deposit holdings** are compute-on-read from principal; partial sell would change principal. Recommend: Sell on deposit = complete only (archive + realized = received - principal-cost? value at sale). Flag to planner/user. **SUPERSEDED by D-20:** partial deposit sell allowed; all interest becomes realized, remainder principal = cost = value left, start date = sale date.
 10. **Rates for Out-of-investments received in non-budget ccy**: need rate asOf effective date; `NoFxRateAvailable` must return 422 with message, not 1.
 11. **Query keys / invalidation**: sell must invalidate investments, type-summary, history, overview wealth + cards, tasks? (txn CRUD invalidates overview key; mimic).
 12. **Docker staleness**: after FE/API edits `make dev-build`/`restart-*`; verify served bundle; worker must be force-recreated if snapshot code changes.
@@ -244,23 +244,28 @@ Prior ledger (0054-0058, reverted 7b0664a) keyed gains by free-text `group_name`
 
 ## Assumptions Log
 
-| #   | Claim                                                                             | Section        | Risk                                                                             |
-| --- | --------------------------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------- |
-| A1  | Soft-delete (`deleted_at`) acceptable for "entries can be deleted" vs hard delete | History schema | Low; audit-friendly                                                              |
-| A2  | Two-row `transfer_id` pairing preferred over single row                           | History schema | Low                                                                              |
-| A3  | Type-group order stored in per-member `ui_prefs` (not per budget for all members) | Architecture   | Medium: D-12 says "per budget"; per-member pref is the existing pattern; confirm |
-| A4  | Deposit sell = complete only                                                      | Pitfalls       | Medium; user may want partial                                                    |
-| A5  | Deleting a sell entry does not restore holding qty/cost                           | Pitfalls       | High UX; needs user confirm                                                      |
-| A6  | New stocks rows pick holding_type (equities/etf) from instrument asset class      | Merge          | Low                                                                              |
-| A7  | Same-date rate on both sides for realized                                         | Booking rule   | Low; matches D-18                                                                |
+| #   | Claim                                                                             | Section        | Risk                                                                                            |
+| --- | --------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- |
+| A1  | Soft-delete (`deleted_at`) acceptable for "entries can be deleted" vs hard delete | History schema | Low; audit-friendly                                                                             |
+| A2  | Two-row `transfer_id` pairing preferred over single row                           | History schema | Low                                                                                             |
+| A3  | Type-group order stored in per-member `ui_prefs` (not per budget for all members) | Architecture   | RESOLVED: per budget (`tenancy.budgets.investment_type_order`, plan 13-03) per D-12             |
+| A4  | Deposit sell = complete only                                                      | Pitfalls       | SUPERSEDED by D-20 (user 261025): partial deposit sell allowed; remainder restarts at sale date |
+| A5  | Deleting a sell entry does not restore holding qty/cost                           | Pitfalls       | SUPERSEDED by D-06 (user 261025): delete = full undo, qty/cost restored                         |
+| A6  | New stocks rows pick holding_type (equities/etf) from instrument asset class      | Merge          | Low                                                                                             |
+| A7  | Same-date rate on both sides for realized                                         | Booking rule   | Low; matches D-18                                                                               |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Delete semantic for sell/withdraw entries** (A5). Recommendation: ledger-only reversal + explicit confirm copy; do not auto-restore holding. Raise to user before planning the History section task.
+   - RESOLVED: full undo (user, 261025; CONTEXT D-06). Deleting an entry subtracts its own stored deltas from the current holding state (quantity, cost, value; deposit sales restore stored prior principal + start date), the conversion destination loses what it received (both legs together), realized + contributions reverse; delete then re-enter does not double-count. Plans 13-01 (reverseEntry), 13-08 (reversal use-case), 13-13 (UI), 13-14 (E2E).
 2. **Sell into an Existing holding of a different type** (deferred gray area). Recommend allow; realized stays with source type, dest cost += received, flow 0.
+   - RESOLVED: allowed (UI-SPEC assumption 5; plan 13-07).
 3. **Delete row action when holding has history**: recommend Delete = archive and keep entries (realized survives, D-14), with confirm saying history stays; hard purge only via account deletion (GDPR cascade: add the new table to the Phase 10-06 deletion list!).
+   - RESOLVED: hard delete per the locked roadmap ("erases the holding and its history as if it never existed"), superseding the archive recommendation; partner legs of its conversions are deleted too (plan 13-08). New table added to the GDPR purge list (plan 13-03).
 4. **Quantity entry for Existing/New investment destination** when tracked (buy qty/price from received).
+   - RESOLVED: user enters "Quantity bought"; unit buy price = received / quantity (round half-even); amount destinations take buy = current = received (plans 13-07, 13-11).
 5. **Realized on Overview cards**: deferred; do not touch cards this phase.
+   - RESOLVED: deferred (CONTEXT Deferred Ideas); no plan touches Overview cards.
 
 ## Environment Availability
 
