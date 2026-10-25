@@ -384,6 +384,50 @@ Plans:
 - [ ] 12-03 — Isolation gate test, demoGuard middleware, outbound suppression (wave 3)
 - [ ] 12-04 — /demo route, welcome dialog + language picker, banner, i18n, E2E (wave 3)
 
+### Phase 13: Investments: type-based groups, sell/convert flow, realized P/L and contributions history
+
+**Goal:** Moving money between investments (selling, converting, buying with proceeds) no longer distorts contributions or erases gains. Every holding keeps a history of changes, so gain is tracked per investment type and survives sales.
+
+**Why (user, 261024):** archiving 3 broker holdings and adding 2 cash holdings dropped contributions by ~240k zł (the brokers' cost left with them, cash has no cost) and erased ~182k zł of real broker gain, while the Overview "without contributions" line jumped +275k that never happened. Buying/selling crypto (BTC → USDT) has the same problem.
+
+**Scope (agreed in discussion):**
+
+1. **Groups = investment type, automatic.** Custom groups are removed; holdings group by their type (broker, crypto, precious metals, deposit, cash, ETF, …). Drag only reorders within a type. A holding cannot be dragged to another type.
+2. **Row actions: Sell, Withdraw, Delete.**
+   - **Sell** (new swipe-left icon): popup like "add investment". First "How much is left?" (all sold / part left), then "Where did the money go?": a _new_ investment (pick from the full type list → type-specific form, same as adding) or an _existing_ investment (e.g. top up USDT). "Amount received" is prefilled with today's value of the sold part and is editable (fees, actual sale price).
+   - **Withdraw**: money leaves investments. Placement (own swipe icon vs a destination inside Sell) still to be decided.
+   - **Delete**: for something entered by mistake. Erases the holding and its history as if it never existed.
+3. **Gain on a sale stays with the type that made it.** The source records a realized gain (received − cost of the sold part). The destination starts with cost = amount received, so cash never shows a gain earned by brokers. Per-type P/L = unrealized + realized. Realized gain is also shown at portfolio level and survives when a type has no holdings left.
+4. **Contributions = money put in − money taken out** (portfolio-level history), not the sum of current costs. Sells and conversions don't change it; only new money and withdrawals do. The Overview "without contributions" line uses this.
+5. **Editing a hand-entered value asks what happened**: _Value changed_ (market move → gain), _Added money_ or _Withdrew money_ (→ contributions). Quick edit defaults to _Value changed_.
+6. **Wrong type = correction, not a sale.** "Change type" in edit moves the holding to the right group and keeps its history.
+7. **What a partial sell changes on the row (user, 261025):** the row P/L shows only what is left; the gain on the sold part becomes realized and shows in the type group header (and the portfolio total), never on the row.
+   - _Quantity holdings_ (crypto, metals, ETF): **quantity** goes down; buy price per unit and current price stay. P/L % stays, P/L amount shrinks. Example: 0.4 BTC bought at 25k, now 60k (+14k, +140%). Sell 0.1 for 6k → 0.3 BTC, +10.5k (+140%) on the row; realized = 6k − 0.1×25k = +3.5k in the Crypto header.
+   - _Amount holdings_ (broker, cash, other; quantity is always 1): "how much is left" is an **amount**. Current amount = what is left, and cost goes down by the same share, so P/L % stays. Example: broker 96k, cost 55k (+41k, +75%). Keep 30k → cost 17.2k (55k×30/96), +12.8k (+75%) on the row; realized = received − 37.8k sold cost (+28.2k if exactly 66k received) in the Broker header.
+   - _Sold completely_: the row disappears, its history stays, and the realized gain stays in the group header.
+   - _Destination_: cost = amount received, so its P/L starts at 0. Cash then shows P/L only from currency moves against the budget currency (e.g. EUR cash in a PLN budget); it never inherits the source's gain.
+8. **Existing data gets a starting entry**: each current holding starts with one history entry at its current cost, so no past trades have to be reconstructed. The user will supply real history for manually valued holdings (BOSSA - IKE; the archived Exante – World, Interactive Brokers and Exante (GPW); Erste EUR/USD; the 8 "Tato …" deposits). For live-priced holdings (crypto, metals) they will supply buys/sells. The 24 Oct broker → Erste move is entered as a conversion, which restores the ~182k realized gain and the contributions.
+
+**Prior art — do not repeat:** a per-_group-name_ gain ledger was built and reverted (7b0664a, migrations 0054–0058): empty groups showed "—", recreated same-name groups inherited stale P/L, half-built groups showed inflated amounts. Fixed type keys avoid all three; keep realized gain off user-named entities.
+
+**Requirements**: CONTEXT D-01..D-19 (no REQ IDs registered)
+**Depends on:** Phase 12
+**Plans:** 11 plans
+
+Plans:
+
+- [ ] 13-01-PLAN.md — Pure sell/withdraw/add booking math, TDD on CONTEXT fixtures (wave 1)
+- [ ] 13-02-PLAN.md — History contributions reader + Overview hybrid "without contributions" (wave 1)
+- [ ] 13-03-PLAN.md — Migration 0087: investment_history + RLS, stocks merge, Start backfill, type order; registries; apply (wave 1)
+- [ ] 13-04-PLAN.md — Web foundation: all i18n, stocks type config, type-group math, type header (wave 1)
+- [ ] 13-05-PLAN.md — Backend: drop custom groups, weights by type, stocks search (wave 2)
+- [ ] 13-06-PLAN.md — Sell API (new/existing/out), create entry with date, Overview wiring (wave 3)
+- [ ] 13-07-PLAN.md — Adjust, history list/delete, type summary + order, hard delete API (wave 4)
+- [ ] 13-08-PLAN.md — Web type blocks, block DnD + saved order, remove custom-group UI (wave 5)
+- [ ] 13-09-PLAN.md — Web Sell sheet, row Sell action, hard Delete (wave 6)
+- [ ] 13-10-PLAN.md — Web Edit "What happened?", History section, Add date (wave 7)
+- [ ] 13-11-PLAN.md — E2E Gherkin, full gate, user real-data acceptance (wave 8)
+
 ---
 
 _Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.1 requirements mapped. Phase 7 rescoped 2026-05-30: 3-kind set (RESERVE_TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET); TASK-05 dropped from v1.1; TASK-04 reassigned semantic to CUSHION_BELOW_TARGET. Phase 11 added 2026-06-28 (v1.2 Overview tab — single phase; budget-side compute-on-read + per-budget 3h wealth aggregate snapshot)._
