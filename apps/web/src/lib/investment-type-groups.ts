@@ -120,17 +120,17 @@ export function portfolioPL(
 ): TypeGroupPL & { hiddenRealizedCents: number } {
   const held = new Set(holdings.map(typeOf));
   let realized = 0n;
-  let soldCost = 0n;
+  let sold = 0n;
   let hidden = 0n;
   for (const [t, s] of Object.entries(summary?.types ?? {})) {
     realized += BigInt(s.realizedBudgetCents);
-    soldCost += BigInt(s.soldCostBudgetCents);
+    sold += BigInt(s.soldCostBudgetCents);
     if (!held.has(t as UiType)) hidden += BigInt(s.realizedBudgetCents);
   }
   return {
     ...typeGroupPL(holdings, {
       realizedBudgetCents: String(realized),
-      soldCostBudgetCents: String(soldCost),
+      soldCostBudgetCents: String(sold),
     }),
     hiddenRealizedCents: Number(hidden),
   };
