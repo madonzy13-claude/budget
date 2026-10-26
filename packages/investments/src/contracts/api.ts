@@ -93,6 +93,13 @@ export type CapFrequencyInput = z.infer<typeof capFrequencySchema>;
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
+/** A user-picked entry date: past allowed, future refused (D-06). One day of
+ *  slack so a user ahead of UTC can still pick their own today. */
+export const notFutureIsoDate = isoDate.refine(
+  (d) => d <= new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
+  "future_date",
+);
+
 export const metalSchema = z.enum(["gold", "silver", "platinum", "palladium"]);
 export const metalKindSchema = z.enum(["coin", "bar", "other"]);
 export const uomSchema = z.enum(["g", "oz", "kg"]);
@@ -164,6 +171,8 @@ export const createHoldingSchema = z.object({
   /** Optional maturity 'YYYY-MM-DD'; value freezes on/after it. */
   depositEndDate: isoDate.nullish(),
   depositCapFrequency: capFrequencySchema.nullish(),
+  /** Phase 13: date of the first history entry (default today). */
+  openedOn: notFutureIsoDate.optional(),
 });
 export type CreateHoldingInput = z.infer<typeof createHoldingSchema>;
 
@@ -174,6 +183,34 @@ export const updateHoldingSchema = createHoldingSchema
   .partial()
   .extend({ quantity: numericString.optional() });
 export type UpdateHoldingInput = z.infer<typeof updateHoldingSchema>;
+
+/** Phase 13 Sell → "Where did the money go?" (D-01..D-04, D-17). `left` is what
+ *  stays: a quantity for quantity holdings, a value for amount holdings and
+ *  deposits; 0 sells everything. */
+export const sellHoldingSchema = z.object({
+  effectiveDate: notFutureIsoDate,
+  left: z.union([
+    z.object({ quantity: numericString }),
+    z.object({ valueCents: centsInput }),
+  ]),
+  destination: z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("new"),
+      holding: createHoldingSchema
+        .omit({ buyPriceCents: true, currentPriceCents: true, openedOn: true })
+        .extend({ quantity: numericString.optional() }),
+    }),
+    z.object({
+      kind: z.literal("existing"),
+      holdingId: z.string().uuid(),
+      quantityBought: numericString.optional(),
+    }),
+    z.object({ kind: z.literal("out") }),
+  ]),
+  receivedCents: centsInput.refine((v) => Number(v) > 0, "received_positive"),
+  receivedCurrency: currencyCode,
+});
+export type SellHoldingInput = z.infer<typeof sellHoldingSchema>;
 
 export const reorderHoldingsSchema = z.object({
   orderedIds: z.array(z.string().uuid()).min(1).max(500),

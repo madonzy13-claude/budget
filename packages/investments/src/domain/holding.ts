@@ -50,6 +50,29 @@ export function isHoldingType(value: string): value is HoldingType {
   return HOLDING_TYPE_SET.has(value);
 }
 
+/** Phase 13: priced per unit (sell by quantity) vs a single hand-valued
+ *  amount (qty 1, sell by value left). Deposits are amount holdings whose
+ *  remainder restarts (D-20). */
+export function isQuantityHolding(uiType: string | null): boolean {
+  return (
+    uiType === "stocks" || uiType === "crypto" || uiType === "precious_metals"
+  );
+}
+
+export type HoldingShape = "quantity" | "amount" | "deposit";
+
+export function holdingShape(h: {
+  holdingType: string;
+  uiType: string | null;
+  quantity: string;
+}): HoldingShape {
+  if (h.holdingType === "deposit") return "deposit";
+  // ponytail: a hand-valued type stored with qty ≠ 1 is still sold by quantity.
+  if (isQuantityHolding(h.uiType) || Number(h.quantity) !== 1)
+    return "quantity";
+  return "amount";
+}
+
 export class Holding {
   constructor(
     public readonly id: string,

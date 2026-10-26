@@ -6,10 +6,12 @@
 import type { Pool } from "pg";
 import type { FxProvider } from "@budget/shared-kernel";
 import type { HoldingRepo } from "../ports/holding-repo";
+import type { HistoryRepo } from "../ports/history-repo";
 import type { InstrumentRepo } from "../ports/instrument-repo";
 import type { PriceCacheRepo } from "../ports/price-cache-repo";
 import type { PriceProvider } from "../ports/price-provider";
 import { createHolding } from "../application/create-holding";
+import { sellHolding } from "../application/sell-holding";
 import { updateHolding } from "../application/update-holding";
 import { archiveHolding } from "../application/archive-holding";
 import { listHoldings } from "../application/list-holdings";
@@ -22,12 +24,22 @@ export function createInvestmentsModule(deps: {
   pool: Pool;
   fxProvider: FxProvider;
   holdingRepo: HoldingRepo;
+  /** Phase 13 history ledger (sell / first entry / delete). */
+  historyRepo: HistoryRepo;
   instrumentRepo: InstrumentRepo;
   priceCacheRepo: PriceCacheRepo;
   priceProvider: PriceProvider;
 }) {
   return {
-    createHolding: createHolding({ holdingRepo: deps.holdingRepo }),
+    createHolding: createHolding({
+      holdingRepo: deps.holdingRepo,
+      historyRepo: deps.historyRepo,
+    }),
+    sellHolding: sellHolding({
+      holdingRepo: deps.holdingRepo,
+      historyRepo: deps.historyRepo,
+      fxProvider: deps.fxProvider,
+    }),
     updateHolding: updateHolding({ holdingRepo: deps.holdingRepo }),
     archiveHolding: archiveHolding({ holdingRepo: deps.holdingRepo }),
     listHoldings: listHoldings({
