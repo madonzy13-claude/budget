@@ -15,7 +15,7 @@
  */
 import { useState, useEffect } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { TrendingUp, TrendingDown, Trash2 } from "lucide-react";
+import { ArrowRightLeft, TrendingUp, TrendingDown, Trash2 } from "lucide-react";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { Input } from "@/components/ui/input";
 import { centsToBare } from "@/lib/cents-format";
@@ -38,6 +38,8 @@ interface InvestmentRowProps {
   maxAmountChars?: number;
   onEdit?: () => void;
   onDelete?: () => void;
+  /** Phase 13: open the Sell sheet (D-01). */
+  onSell?: () => void;
   /**
    * 260731: save an inline-edited VALUE (decimal string, row currency) for
    * manual-value holdings — cash / broker / savings, where quantity is 1 so the
@@ -60,6 +62,7 @@ export function InvestmentRow({
   maxAmountChars,
   onEdit,
   onDelete,
+  onSell,
   onValueChange,
 }: InvestmentRowProps) {
   const locale = useLocale();
@@ -428,12 +431,28 @@ export function InvestmentRow({
           group header's trailing spacer so right edges line up. */}
       <div
         className={[
-          "hidden w-7 shrink-0 items-center justify-end sm:flex",
+          "hidden shrink-0 items-center justify-end gap-1 sm:flex",
+          onSell ? "w-[60px]" : "w-7",
           delisted ? "opacity-50" : "",
         ]
           .filter(Boolean)
           .join(" ")}
       >
+        {onSell && (
+          <button
+            type="button"
+            data-testid={`investment-sell-desktop-${holding.id}`}
+            aria-label={`${t("sell.action")} ${holding.name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSell();
+            }}
+            className="invisible flex h-7 w-7 items-center justify-center rounded group-hover:visible group-data-[nav-highlighted=true]:visible"
+            style={{ color: "var(--body-on-dark)" }}
+          >
+            <ArrowRightLeft className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
         <button
           type="button"
           data-nav-delete

@@ -15,7 +15,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Pencil, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Pencil, Trash2 } from "lucide-react";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { InvestmentRow } from "./investment-row";
@@ -32,13 +32,16 @@ interface InvestmentRowSheetProps {
   maxAmountChars?: number;
   onEdit: (holding: HoldingDto) => void;
   onArchive: (holdingId: string) => void;
+  /** Phase 13: open the Sell sheet for this holding (D-01). */
+  onSell?: (holding: HoldingDto) => void;
   /** Save an inline-edited value (manual-value holdings only — see InvestmentRow). */
   onValueChange?: (amount: string) => Promise<void> | void;
 }
 
 // Two rounded action buttons (w-14=56) + the gap between them (gap-3=12) + an
 // equal lead gap between the row and the edit button (12) → 56+12+56+12.
-const ACTION_W = 136;
+// Three 56px buttons (Sell · Edit · Delete) + two 12px gaps + 12px inset.
+const ACTION_W = 204;
 
 export function InvestmentRowSheet({
   holding,
@@ -47,6 +50,7 @@ export function InvestmentRowSheet({
   maxAmountChars,
   onEdit,
   onArchive,
+  onSell,
   onValueChange,
 }: InvestmentRowSheetProps) {
   const t = useTranslations("budget.investments");
@@ -227,8 +231,23 @@ export function InvestmentRowSheet({
         }}
         className="absolute right-0 top-0 bottom-0 flex items-stretch gap-3 sm:hidden"
       >
-        {/* Two separate rounded buttons (edit + delete) with empty space between
-            them — mirrors the wallets swipe button style (D-#swipe). */}
+        {/* Separate rounded buttons (sell + edit + delete) with empty space
+            between them — mirrors the wallets swipe button style (D-#swipe).
+            Sell is neutral (not green/red): red is reserved for destructive. */}
+        <button
+          type="button"
+          data-no-swipe
+          data-testid={`investment-sell-${holding.id}`}
+          aria-label={`${t("sell.action")} ${holding.name}`}
+          tabIndex={offset === 0 ? -1 : 0}
+          onClick={() => {
+            setOffset(0);
+            onSell?.(holding);
+          }}
+          className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
+        >
+          <ArrowRightLeft className="h-5 w-5" aria-hidden="true" />
+        </button>
         <button
           type="button"
           data-no-swipe
@@ -281,6 +300,7 @@ export function InvestmentRowSheet({
           }
           onEdit={() => onEdit(holding)}
           onDelete={() => setConfirmOpen(true)}
+          onSell={onSell ? () => onSell(holding) : undefined}
           onValueChange={onValueChange}
         />
       </div>

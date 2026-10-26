@@ -19,8 +19,11 @@ import type { ReactNode } from "react";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string, params?: Record<string, unknown>) =>
-    params ? `${key}:${Object.values(params).join(",")}` : key,
+  useTranslations:
+    (ns: string) => (key: string, params?: Record<string, unknown>) => {
+      const k = `${ns.split(".").pop()}.${key}`;
+      return params ? `${k}:${Object.values(params).join(",")}` : k;
+    },
   useLocale: () => "en",
 }));
 const writeMock = vi.hoisted(() => vi.fn());
@@ -36,20 +39,42 @@ vi.mock("../../src/hooks/use-offline-write-toast", () => ({
 import { InvestmentRowSheet } from "../../src/components/budgeting/wallets-tab/investment-row-sheet";
 import { useDeleteHolding } from "../../src/hooks/use-delete-holding";
 
-const h = {
+const h: HoldingDto = {
   id: "h1",
   name: "BTC",
   holdingType: "crypto",
   uiType: "crypto",
+  icon: null,
+  color: null,
+  instrumentId: null,
+  metal: null,
+  metalKind: null,
+  unitOfMeasure: null,
+  premiumPct: null,
+  symbol: null,
+  instrumentName: null,
+  instrumentProvider: null,
+  isCustom: true,
+  isDelisted: false,
   quantity: "1",
+  buyPriceCents: "100",
+  buyCurrency: "PLN",
+  currentPriceCents: "100",
+  currentPriceCurrency: "PLN",
+  priceFetchedAt: null,
   valueCents: "100",
   valueInBudgetCents: "100",
-  currentPriceCurrency: "PLN",
-  buyCurrency: "PLN",
-  profitLossPct: null,
-  profitLossCents: null,
+  costInBudgetCents: "100",
+  profitLossPct: 0,
+  profitLossCents: "0",
+  weightPct: 100,
   sortOrder: 1,
-} as unknown as HoldingDto;
+  createdAt: "2026-01-01T00:00:00Z",
+  depositRateBps: null,
+  depositStartDate: null,
+  depositEndDate: null,
+  depositCapFrequency: null,
+};
 
 function renderRow(
   props: { onSell?: () => void; onArchive?: (id: string) => void } = {},
@@ -81,12 +106,12 @@ describe("Row actions", () => {
     expect(onSell).toHaveBeenCalledWith(h);
   });
 
-  it("Delete asks with the erase-history copy before deleting", () => {
+  it("Delete asks with the erase-history copy before deleting", async () => {
     const onArchive = vi.fn();
     renderRow({ onArchive });
     fireEvent.click(screen.getByTestId("holding-swipe-delete-h1"));
-    expect(screen.getByText("deleteHolding.body")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("holding-delete-confirm-action"));
+    expect(await screen.findByText("deleteHolding.body")).toBeInTheDocument();
+    fireEvent.click(await screen.findByTestId("holding-delete-confirm-action"));
     expect(onArchive).toHaveBeenCalledWith("h1");
   });
 });

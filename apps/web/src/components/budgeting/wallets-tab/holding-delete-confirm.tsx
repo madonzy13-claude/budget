@@ -1,10 +1,10 @@
 "use client";
 /**
- * holding-delete-confirm.tsx — AlertDialog wrapper for holding archive (Phase 9).
+ * holding-delete-confirm.tsx — AlertDialog before erasing a holding (Phase 13).
  *
- * Soft-archive, no restore. Body literally says "This can't be undone here."
- * per D-03 — identical wording to the wallet delete confirm. All strings via
- * next-intl + JSX auto-escape (T-9-19: no raw HTML).
+ * Delete erases the holding and its entire history (realized + contributions
+ * recompute), so the copy says exactly that. All strings via next-intl + JSX
+ * auto-escape (T-9-19: no raw HTML).
  */
 import {
   AlertDialog,
@@ -23,8 +23,6 @@ interface HoldingDeleteConfirmProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
-  /** i18n namespace for the confirm strings — possessions override the default. */
-  namespace?: string;
 }
 
 export function HoldingDeleteConfirm({
@@ -32,9 +30,8 @@ export function HoldingDeleteConfirm({
   open,
   onOpenChange,
   onConfirm,
-  namespace = "budget.investments.confirm.delete",
 }: HoldingDeleteConfirmProps) {
-  const t = useTranslations(namespace);
+  const t = useTranslations("budget.investments.deleteHolding");
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -54,13 +51,13 @@ export function HoldingDeleteConfirm({
           <AlertDialogDescription>{t("body")}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+          <AlertDialogCancel>{t("keep", { name })}</AlertDialogCancel>
           <AlertDialogAction
             data-testid="holding-delete-confirm-action"
             className="bg-[var(--destructive)] text-[var(--on-primary)]"
             onClick={onConfirm}
           >
-            {t("cta")}
+            {t("confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -1,9 +1,10 @@
 "use client";
 /**
- * use-archive-holding.ts — Optimistic POST /investments/:id/archive (Phase 9).
+ * use-delete-holding.ts — Optimistic DELETE /investments/:id (Phase 13).
  *
- * Soft-archive (no restore here, D-03). Removes the row from the cache
- * optimistically; rolls back on error. clientApiWrite → honest-offline.
+ * Erases the holding and its history; the server first undoes the conversions
+ * it took part in (both sides). Removes the row from the cache optimistically;
+ * rolls back on error. clientApiWrite → honest-offline.
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -12,7 +13,7 @@ import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { toast } from "sonner";
 import type { HoldingDto } from "./use-investments";
 
-export function useArchiveHolding(
+export function useDeleteHolding(
   budgetId: string,
   // Possessions pass their own "removed" toast; defaults to the investment copy.
   opts?: { successMessage?: string },
@@ -25,12 +26,9 @@ export function useArchiveHolding(
   return useMutation({
     mutationFn: async (holdingId: string) => {
       const res = await clientApiWrite(
-        `/budgets/${budgetId}/investments/${holdingId}/archive`,
-        {
-          method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
+        `/budgets/${budgetId}/investments/${holdingId}`,
+        { method: "DELETE" },
+      );
       if (!res.ok) throw new Error(await res.text());
       return await res.json();
     },
@@ -57,7 +55,10 @@ export function useArchiveHolding(
     onSuccess: () => toast.success(opts?.successMessage ?? t("archived")),
 
     onSettled: () => {
+      // Prefix match: holdings, type summary and histories (realized and
+      // contributions change when conversions are undone).
       qc.invalidateQueries({ queryKey: key });
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "overview"] });
     },
   });
 }

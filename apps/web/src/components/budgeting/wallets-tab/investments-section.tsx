@@ -48,7 +48,7 @@ import { setDndDragging } from "@/lib/dnd-dragging";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
 import { parseDecimal } from "@/lib/decimal";
 import { unitPriceCents, type UiType } from "@/lib/investment-types";
-import { useArchiveHolding } from "@/hooks/use-archive-holding";
+import { useDeleteHolding } from "@/hooks/use-delete-holding";
 import {
   buildTypeBlocks,
   moveTypeBlock,
@@ -61,6 +61,7 @@ import { InvestmentRowSheet } from "./investment-row-sheet";
 import { sharePercentLabel } from "@/lib/share-bar";
 import { InvestmentTypeHeader } from "./investment-type-header";
 import { HoldingSheet } from "./holding-sheet";
+import { SellSheet } from "./sell-sheet";
 
 interface InvestmentsSectionProps {
   budgetId: string;
@@ -177,7 +178,9 @@ export function InvestmentsSection({
   const updateMut = useUpdateHolding(budgetId);
   const reorderMut = useReorderHoldings(budgetId);
   const setOrderMut = useSetTypeOrder(budgetId);
-  const archiveMut = useArchiveHolding(budgetId);
+  const deleteMut = useDeleteHolding(budgetId);
+  // One Sell sheet for the section (D-01).
+  const [selling, setSelling] = useState<HoldingDto | null>(null);
 
   /**
    * 260731: inline value edit on a manual-value row (cash / broker / savings —
@@ -485,7 +488,8 @@ export function InvestmentsSection({
                           nested
                           maxAmountChars={amountCols.group[block.uiType]}
                           onEdit={openEdit}
-                          onArchive={(id) => archiveMut.mutate(id)}
+                          onArchive={(id) => deleteMut.mutate(id)}
+                          onSell={setSelling}
                           onValueChange={(amount) => saveInlineValue(h, amount)}
                         />
                       ))}
@@ -514,6 +518,17 @@ export function InvestmentsSection({
         budgetCurrency={budgetCurrency}
         holding={sheet.holding}
       />
+      {selling && (
+        <SellSheet
+          key={selling.id}
+          open
+          onOpenChange={(o) => !o && setSelling(null)}
+          budgetId={budgetId}
+          budgetCurrency={budgetCurrency}
+          holding={selling}
+          holdings={holdings}
+        />
+      )}
     </section>
   );
 }
