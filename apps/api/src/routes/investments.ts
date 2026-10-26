@@ -220,5 +220,57 @@ export function createInvestmentsRoute(deps: BootedDeps) {
     return c.json(r.value);
   });
 
+  // POST /:id/sell — Phase 13 Sell / convert / withdraw (one transaction).
+  const SELL_ERRORS = new Set([
+    "keep_out_of_range",
+    "sell_qty_out_of_range",
+    "no_value",
+    "left_shape_mismatch",
+    "currency_mismatch",
+    "same_holding",
+    "unsupported_destination",
+    "quantity_required",
+  ]);
+  app.post("/:id/sell", async (c) => {
+    const { sellHoldingSchema } = await getSchemas();
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+    const tenantId = pickTenant(c);
+    const userId = (c.get("userId") as string) ?? session?.user?.id;
+    const { id: holdingId } = c.req.param();
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: "Invalid JSON" }, 422);
+    const parsed = sellHoldingSchema.safeParse(body);
+    if (!parsed.success)
+      return c.json(
+        {
+          error: parsed.error.issues[0]?.message ?? "validation_error",
+          issues: parsed.error.issues,
+        },
+        422,
+      );
+    const budget = await deps.tenancy.workspaceRepo.findById(tenantId);
+    const r = await deps.investments.sellHolding({
+      ...parsed.data,
+      tenantId,
+      budgetId: tenantId,
+      actorUserId: userId,
+      budgetCurrency: budget?.default_currency ?? "EUR",
+      holdingId,
+    });
+    if (r.isErr()) {
+      const e = r.error as Error & { currency?: string; date?: string };
+      if (e.message === "not_found") return c.json({ error: "not_found" }, 404);
+      if (e.message === "fx_unavailable")
+        return c.json(
+          { error: "fx_unavailable", currency: e.currency, date: e.date },
+          422,
+        );
+      if (SELL_ERRORS.has(e.message)) return c.json({ error: e.message }, 422);
+      return serverError(c, "sell_holding_failed", e);
+    }
+    return c.json({ ok: true, ...r.value });
+  });
+
   return app;
 }

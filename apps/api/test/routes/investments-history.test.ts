@@ -241,3 +241,333 @@ describe("History repo", () => {
     expect(flows.map((f) => f.flowCents)).toEqual([100n]);
   });
 });
+
+async function buildApp(fix: Fixture) {
+  const { createInvestmentsModule } =
+    await import("@budget/investments/src/contracts/factory");
+  const { DrizzleInstrumentRepo } =
+    await import("@budget/investments/src/adapters/persistence/instrument-repo");
+  const { DrizzlePriceCacheRepo } =
+    await import("@budget/investments/src/adapters/persistence/price-cache-repo");
+  const { InMemoryPriceProvider } =
+    await import("@budget/investments/src/ports/price-provider");
+  const { appPool } = await import("@budget/platform");
+  const { createInvestmentsRoute } =
+    await import("../../src/routes/investments");
+  const fxProvider = {
+    rateAsOf: async () => ({ rate: "1", provider: "stub", isStale: false }),
+  } as never;
+  const investments = createInvestmentsModule({
+    pool: appPool(),
+    fxProvider,
+    holdingRepo,
+    historyRepo,
+    instrumentRepo: new DrizzleInstrumentRepo(appPool()),
+    priceCacheRepo: new DrizzlePriceCacheRepo(appPool()),
+    priceProvider: new InMemoryPriceProvider({}),
+  });
+  const deps = {
+    investments,
+    tenancy: {
+      workspaceRepo: { findById: async () => ({ default_currency: "PLN" }) },
+    },
+    identity: { userRepo: { findById: async () => null } },
+  } as never;
+  const app = new Hono();
+  app.use(async (c: any, next: any) => {
+    c.set("session", { user: { id: fix.userId } });
+    c.set("tenantId", fix.tenantId);
+    c.set("tenantIds", [fix.tenantId]);
+    c.set("userId", fix.userId);
+    await next();
+  });
+  app.route("/investments", createInvestmentsRoute(deps));
+  return app;
+}
+
+const sell = (app: Hono, id: string, body: Record<string, unknown>) =>
+  app.request(`/investments/${id}/sell`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      effectiveDate: "2026-10-24",
+      receivedCurrency: "PLN",
+      ...body,
+    }),
+  });
+
+const flowSum = async (fix: Fixture) =>
+  BigInt(
+    (
+      await q<{ s: string }>(
+        fix,
+        `SELECT COALESCE(sum(flow_cents), 0)::text AS s FROM budgeting.investment_history
+          WHERE budget_id = $1 AND deleted_at IS NULL`,
+        [fix.tenantId],
+      )
+    )[0]!.s,
+  );
+
+describe("Sell route", () => {
+  it("out of investments, partial: source updated, one withdraw row", async () => {
+    const fix = await createFixture();
+    const app = await buildApp(fix);
+    const b = await seed(fix, {
+      name: "Broker",
+      uiType: "broker",
+      holdingType: "other",
+      buyPriceCents: 5_500_000n,
+      currentPriceCents: 9_600_000n,
+    });
+    const res = await sell(app, b, {
+      left: { valueCents: "3000000" },
+      destination: { kind: "out" },
+      receivedCents: "6600000",
+    });
+    expect(res.status).toBe(200);
+    const [h] = await q<{ buy: string; cur: string }>(
+      fix,
+      `SELECT buy_price_cents::text AS buy, current_price_cents::bigint::text AS cur
+         FROM budgeting.investments WHERE id = $1`,
+      [b],
+    );
+    expect(h).toEqual({ buy: "1718750", cur: "3000000" });
+    const rows = await q<{
+      kind: string;
+      vd: string;
+      flow: string;
+      realized: string;
+    }>(
+      fix,
+      `SELECT kind, value_delta_cents::text AS vd, flow_cents::text AS flow,
+              realized_budget_cents::text AS realized
+         FROM budgeting.investment_history WHERE holding_id = $1`,
+      [b],
+    );
+    expect(rows).toEqual([
+      {
+        kind: "withdraw",
+        vd: "-6600000",
+        flow: "-6600000",
+        realized: "2818750",
+      },
+    ]);
+  });
+
+  it("into a new holding: pair shares a transfer id, contributions unchanged", async () => {
+    const fix = await createFixture();
+    const app = await buildApp(fix);
+    const b = await seed(fix, {
+      name: "Broker",
+      uiType: "broker",
+      holdingType: "other",
+      buyPriceCents: 5_500_000n,
+      currentPriceCents: 9_600_000n,
+    });
+    const before = await flowSum(fix);
+    const res = await sell(app, b, {
+      left: { valueCents: "0" },
+      destination: {
+        kind: "new",
+        holding: { name: "Erste", holdingType: "cash_fx", uiType: "cash" },
+      },
+      receivedCents: "9600000",
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      archived: boolean;
+      newHoldingId: string;
+    };
+    expect(body.archived).toBe(true);
+    const legs = await q<{ transfer_id: string }>(
+      fix,
+      `SELECT transfer_id::text FROM budgeting.investment_history
+        WHERE budget_id = $1 AND kind IN ('convert_out','convert_in')`,
+      [fix.tenantId],
+    );
+    expect(legs).toHaveLength(2);
+    expect(legs[0]!.transfer_id).toBe(legs[1]!.transfer_id);
+    expect(await flowSum(fix)).toBe(before);
+    const [n] = await q<{ buy: string }>(
+      fix,
+      `SELECT buy_price_cents::text AS buy FROM budgeting.investments WHERE id = $1`,
+      [body.newHoldingId],
+    );
+    expect(n!.buy).toBe("9600000");
+  });
+
+  it("partial deposit: remainder restarts; prior principal + start kept for undo", async () => {
+    const fix = await createFixture();
+    const app = await buildApp(fix);
+    const d = await seed(fix, {
+      name: "Lokata",
+      uiType: "deposit",
+      holdingType: "deposit",
+      buyPriceCents: 1_000_000n,
+      currentPriceCents: null,
+      depositRateBps: 500,
+      depositStartDate: "2025-10-24",
+      depositCapFrequency: "yearly",
+    });
+    const res = await sell(app, d, {
+      left: { valueCents: "650000" },
+      destination: { kind: "out" },
+      receivedCents: "400000",
+    });
+    expect(res.status).toBe(200);
+    const [h] = await q<{ buy: string; start: string }>(
+      fix,
+      `SELECT buy_price_cents::text AS buy, deposit_start_date::text AS start
+         FROM budgeting.investments WHERE id = $1`,
+      [d],
+    );
+    expect(h).toEqual({ buy: "650000", start: "2026-10-24" });
+    const [e] = await q<{ pp: string; ps: string; realized: string }>(
+      fix,
+      `SELECT prior_principal_cents::text AS pp, prior_start_date::text AS ps,
+              realized_budget_cents::text AS realized
+         FROM budgeting.investment_history WHERE holding_id = $1 AND kind = 'withdraw'`,
+      [d],
+    );
+    expect(e).toEqual({ pp: "1000000", ps: "2025-10-24", realized: "50000" });
+  });
+
+  it("another tenant's destination or source → 404 and nothing written", async () => {
+    const a = await createFixture();
+    const b = await createFixture();
+    const app = await buildApp(a);
+    const mine = await seed(a, { name: "Mine" });
+    const theirs = await seed(b, { name: "Theirs" });
+    const r1 = await sell(app, mine, {
+      left: { valueCents: "0" },
+      destination: { kind: "existing", holdingId: theirs },
+      receivedCents: "1000000",
+    });
+    expect(r1.status).toBe(404);
+    const r2 = await sell(app, theirs, {
+      left: { valueCents: "0" },
+      destination: { kind: "out" },
+      receivedCents: "1000000",
+    });
+    expect(r2.status).toBe(404);
+    expect(
+      await q(
+        a,
+        `SELECT 1 FROM budgeting.investment_history WHERE budget_id = $1`,
+        [a.tenantId],
+      ),
+    ).toHaveLength(0);
+    expect(
+      await q(
+        b,
+        `SELECT 1 FROM budgeting.investment_history WHERE budget_id = $1`,
+        [b.tenantId],
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("rejects a future date, zero received and keep ≥ value", async () => {
+    const fix = await createFixture();
+    const app = await buildApp(fix);
+    const h = await seed(fix);
+    const future = new Date(Date.now() + 3 * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    expect(
+      (
+        await sell(app, h, {
+          effectiveDate: future,
+          left: { valueCents: "0" },
+          destination: { kind: "out" },
+          receivedCents: "1",
+        })
+      ).status,
+    ).toBe(422);
+    expect(
+      (
+        await sell(app, h, {
+          left: { valueCents: "0" },
+          destination: { kind: "out" },
+          receivedCents: "0",
+        })
+      ).status,
+    ).toBe(422);
+    const r = await sell(app, h, {
+      left: { valueCents: "1000000" },
+      destination: { kind: "out" },
+      receivedCents: "1",
+    });
+    expect(r.status).toBe(422);
+    expect(((await r.json()) as { error: string }).error).toBe(
+      "keep_out_of_range",
+    );
+  });
+
+  it("a failure mid-commit leaves no partial rows", async () => {
+    const fix = await createFixture();
+    const h = await seed(fix);
+    await expect(
+      historyRepo.commit(fix.tenantId, fix.userId, {
+        budgetId: fix.tenantId,
+        patches: [{ id: h, buyPriceCents: 1n }],
+        entries: [
+          entry({
+            holdingRef: h,
+            kind: "withdraw",
+            effectiveDate: "2026-10-24",
+          }),
+          // invalid kind → CHECK violation after the patch + first row
+          entry({
+            holdingRef: h,
+            kind: "bogus" as never,
+            effectiveDate: "2026-10-24",
+          }),
+        ],
+      }),
+    ).rejects.toThrow();
+    const [row] = await q<{ buy: string }>(
+      fix,
+      `SELECT buy_price_cents::text AS buy FROM budgeting.investments WHERE id = $1`,
+      [h],
+    );
+    expect(row!.buy).toBe("1000000");
+    expect(
+      await q(
+        fix,
+        `SELECT 1 FROM budgeting.investment_history WHERE holding_id = $1`,
+        [h],
+      ),
+    ).toHaveLength(0);
+  });
+});
+
+describe("Create entry", () => {
+  it("POST / with openedOn writes the first history row", async () => {
+    const fix = await createFixture();
+    const app = await buildApp(fix);
+    const res = await app.request("/investments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "BOSSA - IKE",
+        holdingType: "other",
+        uiType: "broker",
+        quantity: "1",
+        buyPriceCents: 5500000,
+        buyCurrency: "PLN",
+        currentPriceCents: 9600000,
+        currentPriceCurrency: "PLN",
+        openedOn: "2023-05-01",
+      }),
+    });
+    expect(res.status).toBe(201);
+    const { id } = (await res.json()) as { id: string };
+    const rows = await q<{ kind: string; d: string; flow: string }>(
+      fix,
+      `SELECT kind, effective_date::text AS d, flow_cents::text AS flow
+         FROM budgeting.investment_history WHERE holding_id = $1`,
+      [id],
+    );
+    expect(rows).toEqual([{ kind: "add", d: "2023-05-01", flow: "5500000" }]);
+  });
+});

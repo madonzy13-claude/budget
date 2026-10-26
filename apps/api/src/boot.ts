@@ -21,6 +21,8 @@ import {
 } from "@budget/platform";
 import { createInvestmentsModule } from "@budget/investments/src/contracts/factory";
 import { DrizzleHoldingRepo } from "@budget/investments/src/adapters/persistence/holding-repo";
+import { DrizzleHistoryRepo } from "@budget/investments/src/adapters/persistence/history-repo";
+import { makeContributionsReader } from "@budget/investments/src/domain/contributions";
 import { DrizzleInstrumentRepo } from "@budget/investments/src/adapters/persistence/instrument-repo";
 import { DrizzlePriceCacheRepo } from "@budget/investments/src/adapters/persistence/price-cache-repo";
 import { CompositePriceProvider } from "@budget/investments/src/adapters/price/composite-price-provider";
@@ -396,10 +398,12 @@ export async function boot(): Promise<BootedDeps> {
   // Phase 9: Investments module. HoldingRepo uses withTenantTx internally (no pool);
   // instrument/price-cache repos + the rate-limit counter run on the app_role pool.
   // Reuse baseBudgeting.fxProvider for enrichment (no second FX path — SPEC).
+  const historyRepo = new DrizzleHistoryRepo();
   const investments = createInvestmentsModule({
     pool: appPool(),
     fxProvider: baseBudgeting.fxProvider,
     holdingRepo: new DrizzleHoldingRepo(),
+    historyRepo,
     instrumentRepo: new DrizzleInstrumentRepo(appPool()),
     priceCacheRepo: new DrizzlePriceCacheRepo(appPool()),
     priceProvider: new CompositePriceProvider({
@@ -576,6 +580,23 @@ export async function boot(): Promise<BootedDeps> {
         },
       },
       metaReader: summaryRepo,
+      // Phase 13 (D-08/D-19): "without contributions" from the history ledger
+      // from its first entry on, each point's flows converted at that point's
+      // date. The cache-only FX provider answers with the nearest earlier stored
+      // rate; no rate at all → null → that point keeps its snapshot cost.
+      contributionsHistory: async ({ tenantId, budgetId, budgetCurrency }) =>
+        makeContributionsReader(
+          await historyRepo.listFlows(tenantId, budgetId),
+          budgetCurrency,
+          async (from, to, date) =>
+            (
+              await baseBudgeting.fxProvider.rateAsOf(
+                from as never,
+                to as never,
+                new Date(`${date}T00:00:00Z`),
+              )
+            ).rate,
+        ),
       // "Invested" metric = the smart Investments category's spend over [from,to],
       // keyed YYYY-MM. null when the budget has no Investments category. The Excl.
       // net adjustment uses each snapshot's stored cost basis, not this.

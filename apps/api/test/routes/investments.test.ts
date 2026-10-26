@@ -82,6 +82,8 @@ async function buildApp(fix: Fixture, priceSymbol?: string | string[]) {
     await import("@budget/investments/src/contracts/factory");
   const { DrizzleHoldingRepo } =
     await import("@budget/investments/src/adapters/persistence/holding-repo");
+  const { DrizzleHistoryRepo } =
+    await import("@budget/investments/src/adapters/persistence/history-repo");
   const { DrizzleInstrumentRepo } =
     await import("@budget/investments/src/adapters/persistence/instrument-repo");
   const { DrizzlePriceCacheRepo } =
@@ -109,6 +111,7 @@ async function buildApp(fix: Fixture, priceSymbol?: string | string[]) {
     pool: appPool(),
     fxProvider,
     holdingRepo: new DrizzleHoldingRepo(),
+    historyRepo: new DrizzleHistoryRepo(),
     instrumentRepo: new DrizzleInstrumentRepo(appPool()),
     priceCacheRepo: new DrizzlePriceCacheRepo(appPool()),
     priceProvider,

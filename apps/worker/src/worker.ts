@@ -48,6 +48,7 @@ import { registerBudgetReminder } from "./handlers/budget-reminder";
 import { registerBudgetWealthSnapshot3h } from "./handlers/budget-wealth-snapshot-3h";
 import { createInvestmentsModule } from "@budget/investments/src/contracts/factory";
 import { DrizzleHoldingRepo } from "@budget/investments/src/adapters/persistence/holding-repo";
+import { DrizzleHistoryRepo } from "@budget/investments/src/adapters/persistence/history-repo";
 import { DrizzleInstrumentRepo } from "@budget/investments/src/adapters/persistence/instrument-repo";
 import { DrizzlePriceCacheRepo } from "@budget/investments/src/adapters/persistence/price-cache-repo";
 import { createOverviewCardsRepo } from "@budget/budgeting/src/adapters/persistence/overview-cards-repo";
@@ -446,6 +447,7 @@ async function main() {
     pool: appPool(),
     fxProvider,
     holdingRepo: new DrizzleHoldingRepo(),
+    historyRepo: new DrizzleHistoryRepo(),
     instrumentRepo: new DrizzleInstrumentRepo(appPool()),
     priceCacheRepo: new DrizzlePriceCacheRepo(appPool()),
     priceProvider,
