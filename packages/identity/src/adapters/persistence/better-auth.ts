@@ -108,6 +108,7 @@ const TENANT_TABLES = [
   "budgeting.category_limits",
   "budgeting.category_share_overrides",
   "budgeting.expense_ledger",
+  "budgeting.investment_history",
   "budgeting.investments",
   "budgeting.scheduled_payments",
   "budgeting.spending_by_category_month",

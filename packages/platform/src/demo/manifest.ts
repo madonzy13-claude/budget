@@ -70,6 +70,8 @@ export const demoManifest: TableManifest[] = [
       cushion_enabled: ts,
       cushion_target_months: ts,
       investments_enabled: ts,
+      // Phase 13 (0087): fixed type keys, no PII.
+      investment_type_order: ts,
       // Forced false by the copy — see copyIntoDemoTenant. The rule stays COPY
       // so the preflight still accounts for the column.
       amount_privacy_enabled: ts,
@@ -340,6 +342,39 @@ export const demoManifest: TableManifest[] = [
     },
   },
   {
+    // Phase 13 (0087). Cost/flow/realized amounts scale like the holding's
+    // cost (qty is money4-scaled, price kept) so Σhistory still matches the
+    // holding; qty_delta scales exactly like investments.quantity.
+    table: "budgeting.investment_history",
+    mode: "copy",
+    columns: {
+      id,
+      tenant_id: tenant,
+      budget_id: ref("tenancy.budgets"),
+      holding_id: ref("budgeting.investments"),
+      kind: ts,
+      effective_date: ts,
+      amount_cents: money0,
+      amount_currency: ccy,
+      qty_delta: money4,
+      cost_delta_cents: money0,
+      cost_currency: ccy,
+      flow_cents: money0,
+      flow_currency: ccy,
+      sold_cost_budget_cents: money0,
+      realized_budget_cents: money0,
+      budget_currency: ccy,
+      value_delta_cents: money0,
+      prior_principal_cents: money0,
+      prior_start_date: ts,
+      // Shared by both legs of a conversion. The global id map sends one
+      // source uuid to one destination uuid, so the legs stay paired.
+      transfer_id: id,
+      created_at: ts,
+      deleted_at: ts,
+    },
+  },
+  {
     table: "budgeting.reserve_fit_exclusions",
     mode: "copy",
     columns: {
@@ -546,6 +581,7 @@ export const DEMO_COPY_ORDER = [
   "budgeting.reserve_fit_exclusions",
   "budgeting.incomes",
   "budgeting.investments",
+  "budgeting.investment_history",
   "budgeting.budget_mode_history",
   "budgeting.budget_templates",
   "budgeting.budget_template_items",

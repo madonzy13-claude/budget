@@ -57,6 +57,11 @@ export const budgets = tenancy.table(
     amountPrivacyEnabled: boolean("amount_privacy_enabled")
       .notNull()
       .default(true),
+    // Phase 13 (D-12): investment type-group order, saved per budget (0087).
+    investmentTypeOrder: text("investment_type_order")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     // Phase 6 (D-09): soft-delete timestamp. NULL = active, non-NULL = archived.
     archivedAt: timestamp("archived_at", { withTimezone: true }),
   },

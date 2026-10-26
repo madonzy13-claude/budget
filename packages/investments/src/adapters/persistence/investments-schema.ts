@@ -54,7 +54,10 @@ export const investments = budgeting.table(
     buyPriceCents: bigint("buy_price_cents", { mode: "bigint" }),
     buyCurrency: char("buy_currency", { length: 3 }),
     quantity: numeric("quantity", { precision: 28, scale: 8 }).notNull(),
-    currentPriceCents: numeric("current_price_cents", { precision: 24, scale: 6 }),
+    currentPriceCents: numeric("current_price_cents", {
+      precision: 24,
+      scale: 6,
+    }),
     currentPriceCurrency: char("current_price_currency", { length: 3 }),
     // Deposit-only (holding_type = 'deposit'): principal + currency ride
     // buy_price_cents/buy_currency; these describe how it accrues. Value is
@@ -76,7 +79,7 @@ export const investments = budgeting.table(
     ),
     check(
       "investments_ui_type_chk",
-      sql`${t.uiType} IS NULL OR ${t.uiType} IN ('equity','etf','etb','reit','crypto','treasury_bond','collectibles','real_estate','other','precious_metals','cash','broker','deposit','savings','possession')`,
+      sql`${t.uiType} IS NULL OR ${t.uiType} IN ('stocks','crypto','treasury_bond','collectibles','real_estate','other','precious_metals','cash','broker','deposit','savings','possession')`,
     ),
     check(
       "investments_deposit_cap_frequency_chk",
