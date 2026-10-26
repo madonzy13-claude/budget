@@ -70,6 +70,7 @@ export interface StoredEntry {
   valueDeltaCents: bigint;
   flowCents: bigint;
   realizedBudgetCents: bigint | null;
+  soldCostBudgetCents: bigint | null;
   budgetCurrency: string | null;
   priorPrincipalCents: bigint | null;
   priorStartDate: string | null;

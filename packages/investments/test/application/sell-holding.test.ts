@@ -71,7 +71,7 @@ function fakes(holdings: Holding[], rates: Record<string, string> = {}) {
       holdings.find((h) => h.id === id) ?? null,
   } as unknown as HoldingRepo;
   const historyRepo = {
-    commit: async (_t, _u, plan) => {
+    commit: async (_t: string, _u: string, plan: BookingPlan) => {
       plans.push(plan);
       return {
         newHoldingId: plan.newHolding ? "new-id" : null,
@@ -406,12 +406,12 @@ describe("Create writes the first history entry", () => {
         hold({ id: "new-id", uiType: "broker", buy: 1n, current: 1n }),
     } as unknown as HoldingRepo;
     const historyRepo = {
-      commit: async (_t, _u, plan) => {
+      commit: async (_t: string, _u: string, plan: BookingPlan) => {
         plans.push(plan);
         return { newHoldingId: "new-id", transferId: null };
       },
       listFlows: async () => [],
-    };
+    } as unknown as HistoryRepo;
     return {
       create: createHolding({ holdingRepo, historyRepo }),
       plans,

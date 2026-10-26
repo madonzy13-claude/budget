@@ -152,6 +152,7 @@ export class MemoryWorld {
           valueDeltaCents: e.valueDeltaCents,
           flowCents: e.flowCents,
           realizedBudgetCents: e.realizedBudgetCents,
+          soldCostBudgetCents: e.soldCostBudgetCents,
           budgetCurrency: e.budgetCurrency,
           priorPrincipalCents: e.priorPrincipalCents,
           priorStartDate: e.priorStartDate,
@@ -197,6 +198,7 @@ export class MemoryWorld {
         const t = this.holdings.get(row.holdingId)?.uiType ?? "other";
         const cur = by.get(t) ?? { r: 0n, s: 0n };
         cur.r += row.realizedBudgetCents ?? 0n;
+        cur.s += row.soldCostBudgetCents ?? 0n;
         by.set(t, cur);
       }
       return [...by].map(([uiType, v]) => ({
