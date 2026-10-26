@@ -43,6 +43,7 @@ vi.mock("next-intl", () => ({
         "row.delisted": "Delisted",
         "row.editAria": "Edit {name}",
         "row.deleteAria": "Archive {name}",
+        "sell.action": "Sell",
         "uitype.cash": "Cash",
         "row.qty": "Qty: {qty}",
         "row.started": "Started: {amount}",
@@ -576,5 +577,22 @@ describe("InvestmentRow", () => {
       "opacity-50",
     );
     expect(screen.getByText("Delisted")).toBeInTheDocument();
+  });
+
+  // Phase 13 (D-01): Sell sits next to Delete on desktop.
+  it("desktop: a Sell action opens the sale", () => {
+    const onSell = vi.fn();
+    render(
+      <InvestmentRow
+        holding={holding()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onSell={onSell}
+      />,
+    );
+    fireEvent.click(
+      screen.getByTestId(`investment-sell-desktop-${holding().id}`),
+    );
+    expect(onSell).toHaveBeenCalledTimes(1);
   });
 });
