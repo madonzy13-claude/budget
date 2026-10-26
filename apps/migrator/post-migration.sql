@@ -799,6 +799,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.instruments, budgeting.instrum
 -- Phase 9 (09-06): the on-add instant fetch (app_role path) upserts the price cache.
 GRANT INSERT, UPDATE ON budgeting.instrument_price_cache TO app_role;
 
+-- Phase 13 (migration 0087): investment history ledger. Policy lives in 0087.
+GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.investment_history TO app_role, worker_role;
+ALTER TABLE budgeting.investment_history FORCE ROW LEVEL SECURITY;
+
 -- INV-14 / T-9-16: per-user throttle (no RLS). app_role upserts on the on-add fetch path;
 -- worker_role mirrored for defense-in-depth.
 GRANT SELECT, INSERT, UPDATE ON budgeting.api_rate_limits TO app_role;
