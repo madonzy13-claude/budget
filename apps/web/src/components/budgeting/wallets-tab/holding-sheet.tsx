@@ -410,6 +410,14 @@ export function HoldingSheet({
   function changeType(next: UiType) {
     markDirty();
     setUiType(next);
+    // Edit: a type change is a correction (roadmap 13.6). Between types with the
+    // same field-set (broker ↔ savings, manual ↔ manual) keep what is entered.
+    if (
+      mode === "edit" &&
+      uiType &&
+      UI_TYPE_META[next].behavior === UI_TYPE_META[uiType].behavior
+    )
+      return;
     // Reset type-specific fields so stale values don't leak across behaviors.
     setInstrumentId(null);
     setInstrumentProvider(null);
