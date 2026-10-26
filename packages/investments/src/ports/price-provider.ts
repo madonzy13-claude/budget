@@ -7,7 +7,11 @@
  * JS float never crosses into the domain math (T-9-04).
  */
 export type ProviderId =
-  "twelve_data" | "coingecko" | "metals_dev" | "finnhub" | "gold_api";
+  | "twelve_data"
+  | "coingecko"
+  | "metals_dev"
+  | "finnhub"
+  | "gold_api";
 
 /** Pitfall 3: metals.dev is gated to the daily refresh only (100 req/month tier). */
 export type PriceContext = "hourly" | "daily";

@@ -14,7 +14,11 @@ import { Temporal } from "temporal-polyfill";
 // freezes there — it keeps every cent earned but stops accruing.
 
 export type CapFrequency =
-  "daily" | "monthly" | "quarterly" | "semiannual" | "yearly";
+  | "daily"
+  | "monthly"
+  | "quarterly"
+  | "semiannual"
+  | "yearly";
 
 export const CAP_FREQUENCIES: CapFrequency[] = [
   "daily",

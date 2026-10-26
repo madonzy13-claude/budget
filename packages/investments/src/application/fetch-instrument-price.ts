@@ -3,10 +3,7 @@ import { ok, err, type Result } from "neverthrow";
 import type { Pool } from "pg";
 import type { FxProvider } from "@budget/shared-kernel";
 import type { PriceProvider, ProviderId } from "../ports/price-provider";
-import {
-  type InstrumentRepo,
-  isManualProvider,
-} from "../ports/instrument-repo";
+import { type InstrumentRepo, isManualProvider } from "../ports/instrument-repo";
 import type { PriceCacheRepo } from "../ports/price-cache-repo";
 
 /** The on-add instant fetch hit the per-user/minute cap (INV-14 / T-9-16). */
