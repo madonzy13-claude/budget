@@ -412,7 +412,7 @@ Plans:
 
 **Requirements**: CONTEXT D-01..D-19 (no REQ IDs registered)
 **Depends on:** Phase 12
-**Plans:** 5/14 plans executed
+**Plans:** 6/14 plans executed
 
 Plans:
 
@@ -421,7 +421,7 @@ Plans:
 - [x] 13-03-PLAN.md — Migration 0087: investment_history (+undo columns) + RLS, stocks merge, Start backfill, type order; registries; apply (wave 1)
 - [x] 13-04-PLAN.md — Web foundation: all i18n, stocks type config, type-group math, type header (wave 1)
 - [x] 13-05-PLAN.md — Backend contracts: stocks + legacy normalization, typeWeights (compat kept) (wave 2)
-- [ ] 13-06-PLAN.md — Backend adapters: combined stocks search, route tests, api/worker rebuild (wave 3)
+- [x] 13-06-PLAN.md — Backend adapters: combined stocks search, route tests, api/worker rebuild (wave 3)
 - [ ] 13-07-PLAN.md — Sell API (new/existing/out, partial deposit), create entry with date, Overview wiring (wave 4)
 - [ ] 13-08-PLAN.md — Adjust, full-undo delete, history/type summary/order, hard delete, PATCH cost guard (wave 5)
 - [ ] 13-09-PLAN.md — Web type blocks + type-summary hook (wave 6)
