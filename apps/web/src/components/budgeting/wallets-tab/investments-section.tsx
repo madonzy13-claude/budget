@@ -10,6 +10,8 @@
  * still shows as a muted line under the section total (D-14). Block order =
  * the budget's saved type order, then picker order (D-12).
  *
+ * Drag: a block moves by its header handle (order saved per budget); a row
+ * moves only within its own type — a drop on another type is a no-op.
  * ⚠️ Before changing ANY drag logic, read ./INVESTMENTS-DND.md.
  */
 import {
@@ -21,9 +23,15 @@ import {
   TouchSensor,
   KeyboardSensor,
   MeasuringStrategy,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import {
   SortableContext,
+  arrayMove,
+  useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { useEffect, useMemo, useState } from "react";
@@ -33,15 +41,21 @@ import { centsToBare, centsToRounded } from "@/lib/cents-format";
 import { amountColumnChars } from "@/lib/amount-column";
 import { useBudget } from "@/hooks/use-budget-data";
 import { useInvestments, type HoldingDto } from "@/hooks/use-investments";
-import { useTypeSummary } from "@/hooks/use-type-summary";
+import { useSetTypeOrder, useTypeSummary } from "@/hooks/use-type-summary";
+import { useReorderHoldings } from "@/hooks/use-reorder-holdings";
+import { RowDragHandle } from "@/components/common/row-drag-handle";
+import { setDndDragging } from "@/lib/dnd-dragging";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
 import { parseDecimal } from "@/lib/decimal";
 import { unitPriceCents, type UiType } from "@/lib/investment-types";
 import { useArchiveHolding } from "@/hooks/use-archive-holding";
 import {
   buildTypeBlocks,
+  moveTypeBlock,
   portfolioPL,
   typeGroupPL,
+  typeOf,
+  type TypeBlock,
 } from "@/lib/investment-type-groups";
 import { InvestmentRowSheet } from "./investment-row-sheet";
 import { sharePercentLabel } from "@/lib/share-bar";
@@ -54,6 +68,57 @@ interface InvestmentsSectionProps {
   /** Every asset on the tab, in budget currency — denominator for the header's
    *  share. Share BETWEEN sections, not within one (user, 260823). */
   assetsTotalBudgetCents?: number;
+}
+
+const BLOCK = "type:";
+const blockId = (ui: UiType) => `${BLOCK}${ui}`;
+const isBlockId = (id: string) => id.startsWith(BLOCK);
+
+/** A type block as ONE sortable item: its header carries the drag handle, so
+ *  header + rows move together. Rows sort in the block's own context. */
+function SortableTypeBlock({
+  uiType,
+  children,
+  header,
+}: {
+  uiType: UiType;
+  header: (handle: React.ReactNode) => React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const t = useTranslations("budget.investments");
+  const {
+    setNodeRef,
+    attributes,
+    listeners,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: blockId(uiType), animateLayoutChanges: () => false });
+  const name = t(`uitype.${uiType}`);
+  return (
+    <div
+      ref={setNodeRef}
+      data-testid={`investment-type-block-${uiType}`}
+      style={{
+        transform: CSS.Transform.toString(transform) ?? undefined,
+        transition,
+      }}
+      className={[
+        "flex flex-col gap-2",
+        isDragging ? "relative z-50" : "",
+      ].join(" ")}
+    >
+      {header(
+        <RowDragHandle
+          name={`type ${uiType}`}
+          listeners={listeners}
+          attributes={attributes}
+          ariaLabel={t("group.dragAria", { name })}
+        />,
+      )}
+      {children}
+    </div>
+  );
 }
 
 export function InvestmentsSection({
@@ -82,7 +147,7 @@ export function InvestmentsSection({
 
   const investmentsQuery = useInvestments(budgetId);
   const summary = useTypeSummary(budgetId).data;
-  const holdings = useMemo(
+  const serverHoldings = useMemo(
     // Possessions share the holdings endpoint but render in their own section.
     () =>
       (investmentsQuery.data ?? []).filter(
@@ -90,7 +155,28 @@ export function InvestmentsSection({
       ),
     [investmentsQuery.data],
   );
+  // Post-drop optimistic orders, applied synchronously on drop so the DOM is
+  // final on the pointer-up frame (the mutations' cache updates land a tick
+  // later, after `await cancelQueries` → one frame of snap-back). Each clears
+  // once the live data matches it.
+  const [committed, setCommitted] = useState<HoldingDto[] | null>(null);
+  const [committedOrder, setCommittedOrder] = useState<UiType[] | null>(null);
+  const holdings = committed ?? serverHoldings;
+  const typeOrder = committedOrder ?? summary?.order ?? [];
+  useEffect(() => {
+    if (!committed) return;
+    const live = [...serverHoldings].sort((a, b) => a.sortOrder - b.sortOrder);
+    if (live.map((h) => h.id).join() === committed.map((h) => h.id).join())
+      setCommitted(null);
+  }, [serverHoldings, committed]);
+  useEffect(() => {
+    if (committedOrder && summary?.order.join() === committedOrder.join())
+      setCommittedOrder(null);
+  }, [summary?.order, committedOrder]);
+  const [draggingBlock, setDraggingBlock] = useState(false);
   const updateMut = useUpdateHolding(budgetId);
+  const reorderMut = useReorderHoldings(budgetId);
+  const setOrderMut = useSetTypeOrder(budgetId);
   const archiveMut = useArchiveHolding(budgetId);
 
   /**
@@ -118,8 +204,8 @@ export function InvestmentsSection({
 
   // ── Type blocks (D-12..D-16) ──
   const blocks = useMemo(
-    () => buildTypeBlocks(holdings, summary?.order ?? []),
-    [holdings, summary?.order],
+    () => buildTypeBlocks(holdings, typeOrder),
+    [holdings, typeOrder],
   );
   const blockPL = useMemo(
     () =>
@@ -182,7 +268,8 @@ export function InvestmentsSection({
       return next;
     });
   }, [typesKey, budgetId]);
-  const isExpanded = (ui: UiType) => !collapsed[ui];
+  // Blocks collapse while one is dragged, for a stable target (UI-SPEC).
+  const isExpanded = (ui: UiType) => !draggingBlock && !collapsed[ui];
   const toggleType = (ui: UiType) =>
     setCollapsed((prev) => {
       const nowCollapsed = !prev[ui];
@@ -197,7 +284,7 @@ export function InvestmentsSection({
       return { ...prev, [ui]: nowCollapsed };
     });
 
-  // ── DnD (block + within-type reorder lands in 13-10) ──
+  // ── DnD (D-12) ──
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, {
@@ -205,6 +292,77 @@ export function InvestmentsSection({
     }),
     useSensor(KeyboardSensor),
   );
+
+  // Blocks and rows share one DndContext, so the big block droppables would win
+  // closestCenter for a row drag. Each drag only sees its own kind: a block sees
+  // blocks, a row sees rows of ITS type (cross-type drop impossible, D-12).
+  const collisionDetection: CollisionDetection = (args) => {
+    const aId = String(args.active.id);
+    const aType = isBlockId(aId) ? null : holdings.find((h) => h.id === aId);
+    return closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((c) => {
+        const id = String(c.id);
+        if (!aType) return isBlockId(id);
+        const o = holdings.find((h) => h.id === id);
+        return !!o && typeOf(o) === typeOf(aType);
+      }),
+    });
+  };
+
+  function handleDragStart(e: DragStartEvent) {
+    setDndDragging(true);
+    if (isBlockId(String(e.active.id))) setDraggingBlock(true);
+  }
+
+  function handleDragEnd(e: DragEndEvent) {
+    setDndDragging(false);
+    setDraggingBlock(false);
+    const { active, over } = e;
+    if (!over) return;
+    const aId = String(active.id);
+    const oId = String(over.id);
+    const typeOfId = (id: string): UiType | null => {
+      if (isBlockId(id)) return id.slice(BLOCK.length) as UiType;
+      const h = holdings.find((x) => x.id === id);
+      return h ? typeOf(h) : null;
+    };
+
+    if (isBlockId(aId)) {
+      const from = typeOfId(aId);
+      const to = typeOfId(oId);
+      if (!from || !to || from === to) return;
+      const next = moveTypeBlock(
+        blocks.map((b) => b.uiType),
+        from,
+        to,
+      );
+      setCommittedOrder(next);
+      setOrderMut.mutate(next);
+      return;
+    }
+
+    // A row moves only within its own type (D-12): anything else is a no-op.
+    const from = typeOfId(aId);
+    if (!from || isBlockId(oId) || typeOfId(oId) !== from || aId === oId)
+      return;
+    const moved: TypeBlock[] = blocks.map((b) => {
+      if (b.uiType !== from) return b;
+      const ids = b.holdings.map((h) => h.id);
+      return {
+        ...b,
+        holdings: arrayMove(b.holdings, ids.indexOf(aId), ids.indexOf(oId)),
+      };
+    });
+    const flat = moved.flatMap((b) => b.holdings);
+    setCommitted(flat.map((h, i) => ({ ...h, sortOrder: i + 1 })));
+    reorderMut.mutate({ orderedIds: flat.map((h) => h.id) });
+  }
+
+  function handleDragCancel() {
+    setDndDragging(false);
+    setDraggingBlock(false);
+  }
 
   function openEdit(holding: HoldingDto) {
     setSheet({ open: true, mode: "edit", holding });
@@ -281,53 +439,63 @@ export function InvestmentsSection({
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={collisionDetection}
         measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
-        <div className="flex flex-col gap-2">
-          {blocks.map((block) => {
-            const pl = blockPL.get(block.uiType)!;
-            return (
-              <div
-                key={block.uiType}
-                data-testid={`investment-type-block-${block.uiType}`}
-                className="flex flex-col gap-2"
-              >
-                <InvestmentTypeHeader
+        <SortableContext
+          items={blocks.map((b) => blockId(b.uiType))}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="flex flex-col gap-2">
+            {blocks.map((block) => {
+              const pl = blockPL.get(block.uiType)!;
+              return (
+                <SortableTypeBlock
+                  key={block.uiType}
                   uiType={block.uiType}
-                  budgetCurrency={budgetCurrency}
-                  pl={pl}
-                  portfolioPct={
-                    totalBudgetCents > 0
-                      ? (pl.valueBudgetCents / totalBudgetCents) * 100
-                      : 0
-                  }
-                  maxAmountChars={amountCols.top}
-                  expanded={isExpanded(block.uiType)}
-                  onToggle={() => toggleType(block.uiType)}
-                />
-                {isExpanded(block.uiType) && (
-                  <SortableContext
-                    items={block.holdings.map((h) => h.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {block.holdings.map((h) => (
-                      <InvestmentRowSheet
-                        key={h.id}
-                        holding={h}
-                        nested
-                        maxAmountChars={amountCols.group[block.uiType]}
-                        onEdit={openEdit}
-                        onArchive={(id) => archiveMut.mutate(id)}
-                        onValueChange={(amount) => saveInlineValue(h, amount)}
-                      />
-                    ))}
-                  </SortableContext>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  header={(handle) => (
+                    <InvestmentTypeHeader
+                      dragHandle={handle}
+                      uiType={block.uiType}
+                      budgetCurrency={budgetCurrency}
+                      pl={pl}
+                      portfolioPct={
+                        totalBudgetCents > 0
+                          ? (pl.valueBudgetCents / totalBudgetCents) * 100
+                          : 0
+                      }
+                      maxAmountChars={amountCols.top}
+                      expanded={isExpanded(block.uiType)}
+                      onToggle={() => toggleType(block.uiType)}
+                    />
+                  )}
+                >
+                  {isExpanded(block.uiType) && (
+                    <SortableContext
+                      items={block.holdings.map((h) => h.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {block.holdings.map((h) => (
+                        <InvestmentRowSheet
+                          key={h.id}
+                          holding={h}
+                          nested
+                          maxAmountChars={amountCols.group[block.uiType]}
+                          onEdit={openEdit}
+                          onArchive={(id) => archiveMut.mutate(id)}
+                          onValueChange={(amount) => saveInlineValue(h, amount)}
+                        />
+                      ))}
+                    </SortableContext>
+                  )}
+                </SortableTypeBlock>
+              );
+            })}
+          </div>
+        </SortableContext>
       </DndContext>
 
       <DashedAddButton
