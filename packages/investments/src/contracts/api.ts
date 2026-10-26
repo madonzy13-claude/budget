@@ -26,12 +26,16 @@ export const holdingTypeSchema = z.enum([
 ]);
 export type HoldingTypeInput = z.infer<typeof holdingTypeSchema>;
 
-/** Phase 9.1/9.2 — user-facing type the add/edit form was filled with. */
-export const uiTypeSchema = z.enum([
-  "equity",
-  "etf",
-  "etb",
-  "reit",
+/** Phase 13 (D-11): a stale client may still send the pre-merge type names. */
+export function normalizeLegacyUiType(v: unknown): unknown {
+  if (v === "equity" || v === "etf" || v === "reit") return "stocks";
+  if (v === "etb") return "treasury_bond";
+  return v;
+}
+
+const UI_TYPES = [
+  // Phase 13 (D-10): equity + ETF are one type; search returns both.
+  "stocks",
   "crypto",
   "treasury_bond",
   "collectibles",
@@ -47,15 +51,23 @@ export const uiTypeSchema = z.enum([
   "savings",
   // Physical possession: name + single current amount + a per-item icon.
   "possession",
-]);
-export type UiTypeInput = z.infer<typeof uiTypeSchema>;
+] as const;
+
+/** Phase 9.1/9.2 — user-facing type the add/edit form was filled with. */
+export const uiTypeSchema = z.preprocess(
+  normalizeLegacyUiType,
+  z.enum(UI_TYPES),
+);
+export type UiTypeInput = (typeof UI_TYPES)[number];
+
+/** The investment type-group keys (possessions are wallets, not a group). */
+export const UI_TYPE_KEYS = UI_TYPES.filter(
+  (t): t is Exclude<UiTypeInput, "possession"> => t !== "possession",
+);
 
 /** Coarse holding_type each ui_type maps to (price routing / asset_class). */
 export const UI_TYPE_TO_HOLDING_TYPE: Record<UiTypeInput, HoldingTypeInput> = {
-  equity: "equities",
-  etf: "etf",
-  etb: "bond",
-  reit: "reit",
+  stocks: "equities",
   crypto: "crypto",
   treasury_bond: "bond",
   collectibles: "other",

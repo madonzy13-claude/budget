@@ -18,7 +18,7 @@ describe("ui type contract after the stocks merge", () => {
     ["stocks", "stocks"],
     ["crypto", "crypto"],
   ])("%s parses as %s", (input, out) => {
-    expect(uiTypeSchema.parse(input)).toBe(out);
+    expect(uiTypeSchema.parse(input) as string).toBe(out);
   });
 
   test("unknown types are rejected", () => {
