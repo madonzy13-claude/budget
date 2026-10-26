@@ -1475,7 +1475,7 @@ function HoldingPreviewBlock({
   );
 }
 
-function Field({
+export function Field({
   label,
   children,
 }: {
@@ -1492,7 +1492,7 @@ function Field({
   );
 }
 
-function NumericInput({
+export function NumericInput({
   value,
   onChange,
   testId,
