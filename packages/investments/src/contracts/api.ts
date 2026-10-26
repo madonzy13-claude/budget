@@ -212,6 +212,65 @@ export const sellHoldingSchema = z.object({
 });
 export type SellHoldingInput = z.infer<typeof sellHoldingSchema>;
 
+/** Phase 13 Edit → "What happened?" (D-03). Withdraw books like Sell → Out. */
+export const adjustHoldingSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("value_change"),
+    newValueCents: centsInput,
+    effectiveDate: notFutureIsoDate,
+  }),
+  z.object({
+    kind: z.literal("add"),
+    newValueCents: centsInput,
+    effectiveDate: notFutureIsoDate,
+  }),
+  z.object({
+    kind: z.literal("withdraw"),
+    newValueCents: centsInput,
+    receivedCents: centsInput,
+    receivedCurrency: currencyCode,
+    effectiveDate: notFutureIsoDate,
+  }),
+  z.object({
+    kind: z.literal("buy"),
+    addQuantity: numericString,
+    paidCents: centsInput,
+    effectiveDate: notFutureIsoDate,
+  }),
+]);
+export type AdjustHoldingInput = z.infer<typeof adjustHoldingSchema>;
+
+/** D-12: per-budget type-group order. */
+export const typeOrderSchema = z.object({
+  order: z
+    .array(z.enum(UI_TYPE_KEYS as [string, ...string[]]))
+    .max(11)
+    .refine((a) => new Set(a).size === a.length, "duplicate_type"),
+});
+
+export interface HistoryEntryDto {
+  id: string;
+  kind: string;
+  effectiveDate: string;
+  amountCents: string | null;
+  amountCurrency: string | null;
+  qtyDelta: string | null;
+  realizedBudgetCents: string | null;
+  budgetCurrency: string | null;
+  transferId: string | null;
+  counterpartyName: string | null;
+  createdAt: string;
+}
+
+export interface TypeSummaryDto {
+  currency: string;
+  order: string[];
+  types: Record<
+    string,
+    { realizedBudgetCents: string; soldCostBudgetCents: string }
+  >;
+}
+
 export const reorderHoldingsSchema = z.object({
   orderedIds: z.array(z.string().uuid()).min(1).max(500),
 });

@@ -1,4 +1,5 @@
 import { ok, err, type Result } from "neverthrow";
+import Big from "big.js";
 import type { Holding } from "../domain/holding";
 import type { HoldingRepo, NewHolding } from "../ports/holding-repo";
 import type { UpdateHoldingInput } from "../contracts/api";
@@ -19,6 +20,20 @@ export function updateHolding(deps: { holdingRepo: HoldingRepo }) {
         input.holdingId,
       );
       if (!current) return err(new Error("not_found"));
+
+      // Phase 13: cost basis and quantity live on the history ledger. Changing
+      // them here would drift contributions — go through /adjust or /sell
+      // (a mistaken entry is deleted and re-entered, D-06). Re-sent unchanged
+      // values are fine: the edit form sends the whole holding.
+      if (current.holdingType !== "possession") {
+        const buyChanged =
+          input.buyPriceCents !== undefined &&
+          toCents(input.buyPriceCents) !== current.buyPriceCents;
+        const qtyChanged =
+          input.quantity !== undefined &&
+          !new Big(input.quantity).eq(new Big(current.quantity));
+        if (buyChanged || qtyChanged) return err(new Error("use_adjust"));
+      }
 
       // Merge: `undefined` = field absent from the patch; explicit null clears it.
       const merged: NewHolding = {
@@ -53,8 +68,7 @@ export function updateHolding(deps: { holdingRepo: HoldingRepo }) {
             : current.currentPriceCurrency,
         uiType:
           input.uiType !== undefined ? (input.uiType ?? null) : current.uiType,
-        icon:
-          input.icon !== undefined ? (input.icon ?? null) : current.icon,
+        icon: input.icon !== undefined ? (input.icon ?? null) : current.icon,
         color:
           input.color !== undefined ? (input.color ?? null) : current.color,
         metal:

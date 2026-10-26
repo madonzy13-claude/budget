@@ -105,7 +105,8 @@ export class MemoryWorld {
   holdingRepo: HoldingRepo = {
     listForBudget: async () =>
       [...this.holdings.values()].filter((h) => !h.archivedAt),
-    findById: async (_t, _u, id) => this.holdings.get(id) ?? null,
+    findById: async (_t: string, _u: string, id: string) =>
+      this.holdings.get(id) ?? null,
   } as unknown as HoldingRepo;
 
   historyRepo: HistoryRepo = {
