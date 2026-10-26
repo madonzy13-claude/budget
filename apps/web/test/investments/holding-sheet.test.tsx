@@ -63,6 +63,7 @@ vi.mock(
         quoteCurrency: string;
         symbol: string;
         provider?: string;
+        assetClass?: string;
       }) => void;
       onSelectCustom: () => void;
     }) => (
@@ -93,6 +94,22 @@ vi.mock(
           }
         >
           pick
+        </button>
+        <button
+          type="button"
+          data-testid="pick-etf"
+          onClick={() =>
+            onSelectInstrument({
+              id: "i3",
+              displayName: "Vanguard S&P 500 ETF",
+              quoteCurrency: "USD",
+              symbol: "VOO",
+              provider: "finnhub",
+              assetClass: "etf",
+            })
+          }
+        >
+          pick-etf
         </button>
         <button
           type="button"
@@ -144,8 +161,7 @@ function holding(over: Partial<HoldingDto> = {}): HoldingDto {
     id: "h1",
     name: "Test",
     holdingType: "equities",
-    uiType: "equity",
-    group: null,
+    uiType: "stocks",
     instrumentId: "i1",
     metal: null,
     metalKind: null,
@@ -179,7 +195,6 @@ const baseProps = {
   onOpenChange: vi.fn(),
   budgetId: "b1",
   budgetCurrency: "USD",
-  groups: ["Broker A"],
 };
 
 describe("HoldingSheet — type-first", () => {
@@ -199,7 +214,8 @@ describe("HoldingSheet — type-first", () => {
     expect(screen.getByTestId("holding-sheet-amount")).toBeInTheDocument();
     expect(screen.queryByTestId("holding-sheet-buy-price")).toBeNull();
     expect(screen.queryByTestId("holding-sheet-quantity")).toBeNull();
-    expect(screen.getByTestId("holding-sheet-group")).toBeInTheDocument();
+    // Phase 13: groups are the investment type — no Group field.
+    expect(screen.queryByTestId("holding-sheet-group")).toBeNull();
   });
 
   it("tracked type: read-only current price, editable buy price + quantity", () => {
@@ -688,9 +704,7 @@ describe("HoldingSheet — type-first", () => {
       />,
     );
     fireEvent.click(screen.getByTestId("holding-sheet-submit"));
-    expect(updateMutate.mock.calls[0][0].currentPriceCents).toBe(
-      "5666.666667",
-    );
+    expect(updateMutate.mock.calls[0][0].currentPriceCents).toBe("5666.666667");
   });
 
   // 260721 user feedback (3): the editable current-price must NOT seed a
@@ -755,6 +769,41 @@ describe("HoldingSheet — type-first", () => {
     fireEvent.click(screen.getByText("sheet.cancel"));
     await waitFor(() => {
       expect(screen.getByText("confirm.discard.title")).toBeInTheDocument();
+    });
+  });
+
+  // Phase 13 (D-10, RESEARCH A6): Stocks & ETFs is one type; the holding_type
+  // (price routing) follows the picked instrument.
+  it("picking an ETF under Stocks & ETFs saves holdingType etf", () => {
+    vi.mocked(clientApiFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ priceCents: "50000", currency: "USD" }),
+    } as unknown as Response);
+    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    fireEvent.click(screen.getByTestId("pick-etf"));
+    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
+    const payload = updateMutate.mock.calls.at(-1)![0];
+    expect(payload).toMatchObject({ uiType: "stocks", holdingType: "etf" });
+    expect("group" in payload).toBe(false);
+  });
+
+  it("picking a stock under Stocks & ETFs saves holdingType equities", () => {
+    vi.mocked(clientApiFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ priceCents: "19800", currency: "USD" }),
+    } as unknown as Response);
+    render(
+      <HoldingSheet
+        {...baseProps}
+        mode="edit"
+        holding={holding({ holdingType: "etf" })}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("pick-instrument"));
+    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
+    expect(updateMutate.mock.calls.at(-1)![0]).toMatchObject({
+      uiType: "stocks",
+      holdingType: "equities",
     });
   });
 });
