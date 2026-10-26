@@ -96,12 +96,21 @@ describe("typeWeights (Phase 13: share of portfolio per investment type)", () =>
   test("two stocks (60/40) + one crypto (100) → stocks 50, crypto 50", async () => {
     const { typeWeights } = await import("../../src/domain/portfolio-metrics");
     const s = (id: string, cents: bigint, uiType: string | null) => {
-      const h = mk({ id, group: null, currentPriceCents: cents, quantity: "1" });
+      const h = mk({
+        id,
+        group: null,
+        currentPriceCents: cents,
+        quantity: "1",
+      });
       h.uiType = uiType;
       return h;
     };
     const w = typeWeights(
-      [s("a", 6000n, "stocks"), s("b", 4000n, "stocks"), s("c", 10000n, "crypto")],
+      [
+        s("a", 6000n, "stocks"),
+        s("b", 4000n, "stocks"),
+        s("c", 10000n, "crypto"),
+      ],
       {},
       "USD",
     );
@@ -111,7 +120,12 @@ describe("typeWeights (Phase 13: share of portfolio per investment type)", () =>
 
   test("a holding without a ui type counts as other", async () => {
     const { typeWeights } = await import("../../src/domain/portfolio-metrics");
-    const h = mk({ id: "x", group: null, currentPriceCents: 100n, quantity: "1" });
+    const h = mk({
+      id: "x",
+      group: null,
+      currentPriceCents: 100n,
+      quantity: "1",
+    });
     h.uiType = null;
     expect(typeWeights([h], {}, "USD").get("other")).toBe(100);
   });

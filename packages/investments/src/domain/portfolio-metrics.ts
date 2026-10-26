@@ -198,3 +198,25 @@ export function groupWeights(
   }
   return out;
 }
+
+/**
+ * Type-% of the whole portfolio keyed by ui type (Phase 13: groups = type).
+ * Same algorithm as groupWeights; a holding without a ui type counts as other.
+ */
+export function typeWeights(
+  holdings: Holding[],
+  rates: RateMap,
+  budgetCurrency: string,
+): Map<string, number> {
+  let portfolioTotal = new Big(0);
+  const typeTotals = new Map<string, Big>();
+  for (const h of holdings) {
+    const v = toBudgetCcyValue(h, rates, budgetCurrency);
+    portfolioTotal = portfolioTotal.plus(v);
+    const key = h.uiType ?? "other";
+    typeTotals.set(key, (typeTotals.get(key) ?? new Big(0)).plus(v));
+  }
+  const out = new Map<string, number>();
+  for (const [t, total] of typeTotals) out.set(t, pct2(total, portfolioTotal));
+  return out;
+}

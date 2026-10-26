@@ -9,6 +9,7 @@ import {
   profitLossCents,
   portfolioWeights,
   groupWeights,
+  typeWeights,
   type RateMap,
 } from "../domain/portfolio-metrics";
 import {
@@ -38,7 +39,11 @@ export function listHoldings(deps: {
     timezone?: string;
   }): Promise<
     Result<
-      { holdings: EnrichedHoldingDto[]; groupWeights: Record<string, number> },
+      {
+        holdings: EnrichedHoldingDto[];
+        groupWeights: Record<string, number>;
+        typeWeights: Record<string, number>;
+      },
       Error
     >
   > => {
@@ -131,6 +136,7 @@ export function listHoldings(deps: {
 
       const weights = portfolioWeights(holdings, rateMap, budgetCcy);
       const gWeights = groupWeights(holdings, rateMap, budgetCcy);
+      const tWeights = typeWeights(holdings, rateMap, budgetCcy);
 
       const enriched: EnrichedHoldingDto[] = [];
       for (const h of holdings) {
@@ -212,6 +218,7 @@ export function listHoldings(deps: {
       return ok({
         holdings: enriched,
         groupWeights: Object.fromEntries(gWeights),
+        typeWeights: Object.fromEntries(tWeights),
       });
     } catch (e) {
       return err(e as Error);
