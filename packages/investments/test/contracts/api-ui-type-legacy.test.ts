@@ -48,3 +48,14 @@ describe("ui type contract after the stocks merge", () => {
     expect("quantity" in updateHoldingSchema.parse({})).toBe(false);
   });
 });
+
+describe("custom groups are gone (Phase 13)", () => {
+  test("create drops a stale client's group", () => {
+    const parsed = createHoldingSchema.parse({
+      name: "X",
+      holdingType: "other",
+      group: "Brokerage",
+    } as never);
+    expect("group" in parsed).toBe(false);
+  });
+});
