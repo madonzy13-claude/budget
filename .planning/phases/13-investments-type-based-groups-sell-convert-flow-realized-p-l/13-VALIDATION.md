@@ -105,4 +105,5 @@ _Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky_
 | Tenant leak | `make ci-gate` | ✅ 76 pass / 0 fail (exit 1 = known coverage-threshold artifact); stack restarted after |
 | make test | `make test` | 1998 pass / 6 fail (baseline ~292): 3 planned (pre-existing), demoGuard `/auth/change-password` + push-suppression demo (fail identically at pre-phase commit 4cc772d7), 1 unnamed 23505 unique-key seed collision while E2E ran concurrently (demo-copy passes in isolation) |
 | E2E (phase tags) | `PLAYWRIGHT_BASE_URL=https://budget-dev.madonzy.com bunx playwright test --grep "@investments-history\|@investments-wallet\|@investments-sell"` | ✅ 62 pass / 0 fail (chromium + mobile; incl. EN/PL/UK phone layout) |
+| Full E2E | `PLAYWRIGHT_BASE_URL=https://budget-dev.madonzy.com make test-e2e` | 435 passed / 45 flaky / 1 failed (1.0h, run concurrently with `make test`); the 1 failure passed on `--last-failed` rerun → load flake, not a phase regression |
 
