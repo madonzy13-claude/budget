@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: track)_
-status: completed
-stopped_at: Phase 13 context gathered
-last_updated: "2026-10-25T18:27:22.069Z"
-last_activity: 2026-06-28 -- Phase 11 complete + verified
+status: executing
+stopped_at: Phase 13 UI-SPEC approved
+last_updated: "2026-10-26T05:43:07.706Z"
+last_activity: 2026-10-26
 progress:
   total_phases: 13
   completed_phases: 11
-  total_plans: 90
-  completed_plans: 91
+  total_plans: 104
+  completed_plans: 95
   percent: 85
 ---
 
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 **Core value:** A family can replace a complex personal-budget spreadsheet with a multi-user, multi-currency tool that tells them — through a single Tasks queue — exactly what to do this week to keep budget, reserve, and cushion healthy.
-**Current focus:** Phase 11 — budget-overview
+**Current focus:** Phase 13 — investments-type-based-groups-sell-convert-flow-realized-p-l
 
 ## Current Position
 
-Phase: 11 (budget-overview) — COMPLETE
-Plan: 10 of 10
+Phase: 13 (investments-type-based-groups-sell-convert-flow-realized-p-l) — EXECUTING
+Plan: 2 of 14
 Next: Phase 11 milestone done — Budget Overview tab live (cards + 4 chart sections + 3h wealth snapshot), localized EN/PL/UK, E2E-verified on dev host.
-Status: Phase 11 complete (all 11 phases done)
-Last activity: 2026-06-28 -- Phase 11 complete + verified
+Status: Ready to execute
+Last activity: 2026-10-26
 
 ### Known test-debt (non-CI, non-blocking)
 
@@ -260,9 +260,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-10-25T18:27:22.020Z
-Stopped at: Phase 13 context gathered
-Resume file: .planning/phases/13-investments-type-based-groups-sell-convert-flow-realized-p-l/13-CONTEXT.md
+Last session: 2026-10-25T19:37:21.833Z
+Stopped at: Phase 13 UI-SPEC approved
+Resume file: .planning/phases/13-investments-type-based-groups-sell-convert-flow-realized-p-l/13-UI-SPEC.md
 
 ## v1.0 History (archived)
 

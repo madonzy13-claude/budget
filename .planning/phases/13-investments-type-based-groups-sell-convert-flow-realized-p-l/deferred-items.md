@@ -1,0 +1,1 @@
+- 13-02: packages/budgeting/test/overview planned tests (3) fail on HEAD independent of phase 13 (getOverviewPlanned / planned averages) — date-dependent, pre-existing.
