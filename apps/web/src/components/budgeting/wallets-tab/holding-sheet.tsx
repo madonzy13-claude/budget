@@ -263,7 +263,9 @@ export function HoldingSheet({
   // the same gesture → it never closes. Suppress any "open" that fires right
   // after a "close" so a trigger tap reliably toggles it shut. Open by default on
   // create so the user sees the type options immediately on opening the sheet.
-  const [typeOpen, setTypeOpen] = useState(mode === "create");
+  // Create auto-opens the Type list — but never as an embedded sale destination
+  // (a modal list there swallows input meant for the Sell sheet).
+  const [typeOpen, setTypeOpen] = useState(mode === "create" && !dest);
   const reopenBlockUntil = useRef(0);
   const onTypeOpenChange = (next: boolean) => {
     const now = Date.now();

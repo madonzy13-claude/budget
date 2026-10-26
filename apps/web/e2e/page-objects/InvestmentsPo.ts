@@ -183,6 +183,78 @@ export class InvestmentsPo {
     if (!res.ok()) throw new Error(`type-order PUT failed: ${res.status()}`);
   }
 
+  // ── Phase 13: Sell (D-01) ──
+
+  private wrapper(name: string) {
+    return this.page.locator(
+      `[data-investment-row-wrapper]:has([data-testid="holding-row-${name}"])`,
+    );
+  }
+
+  /** Open the Sell sheet: swipe on a phone (touch pointer — the row ignores
+   *  mouse pointers), hover + the row's Sell action on desktop. */
+  async openSell(name: string): Promise<void> {
+    const wrapper = this.wrapper(name);
+    await wrapper.waitFor({ state: "visible" });
+    const id = (await wrapper.getAttribute("data-investment-row-wrapper"))!;
+    const width = this.page.viewportSize()?.width ?? 1280;
+    if (width < 640) {
+      await wrapper.evaluate((el: HTMLElement) => {
+        const r = el.getBoundingClientRect();
+        const y = r.top + r.height / 2;
+        const x0 = r.right - 20;
+        const fire = (type: string, x: number) =>
+          el.dispatchEvent(
+            new PointerEvent(type, {
+              pointerId: 9002,
+              pointerType: "touch",
+              clientX: x,
+              clientY: y,
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+        fire("pointerdown", x0);
+        fire("pointermove", x0 - 20);
+        fire("pointermove", x0 - 220);
+        return new Promise<void>((done) =>
+          setTimeout(() => {
+            fire("pointerup", x0 - 220);
+            done();
+          }, 80),
+        );
+      });
+      await this.page.waitForTimeout(500); // ghost-click guard after pointerup
+      await this.page.getByTestId(`investment-sell-${id}`).click();
+    } else {
+      await this.row(name).hover();
+      await this.page.getByTestId(`investment-sell-desktop-${id}`).click();
+    }
+    await this.page.getByTestId("sell-sheet").waitFor({ state: "visible" });
+  }
+
+  /** Fill and submit the Sell sheet; resolves with the POST /sell status. */
+  async sell(opts: {
+    left: string;
+    dest: "new" | "existing" | "out";
+    received: string;
+    existingName?: string;
+  }): Promise<number> {
+    const sheet = this.page.getByTestId("sell-sheet");
+    await sheet.getByTestId("sell-left").fill(opts.left);
+    await sheet.getByTestId(`sell-dest-${opts.dest}`).click();
+    if (opts.dest === "existing" && opts.existingName)
+      await sheet.getByTestId("sell-existing").selectOption({
+        label: new RegExp(`^${opts.existingName} ·`) as never,
+      });
+    await sheet.getByTestId("sell-received").fill(opts.received);
+    const res = this.page.waitForResponse(
+      (r) => r.url().endsWith("/sell") && r.request().method() === "POST",
+    );
+    await sheet.getByTestId("sell-submit").click();
+    return (await res).status();
+  }
+
   async assertSectionIsLast(): Promise<void> {
     const sections = this.page.locator('[data-testid^="wallet-section-"]');
     await expect(this.section()).toBeVisible();

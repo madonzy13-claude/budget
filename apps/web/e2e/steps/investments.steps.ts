@@ -361,3 +361,60 @@ Then(
       .toEqual(order.split(",").map((s) => s.trim()));
   },
 );
+
+// ── Phase 13: Sell (D-01/D-02/D-20) ──
+
+Given(
+  "a deposit {string} of {int} cents at {int}% yearly started a year ago exists in my budget",
+  async ({ freshUser }, name: string, principal: number, pct: number) => {
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      await client.query(
+        `INSERT INTO budgeting.investments
+           (id, tenant_id, budget_id, name, holding_type, ui_type, quantity,
+            buy_price_cents, buy_currency, current_price_currency,
+            deposit_rate_bps, deposit_start_date, deposit_cap_frequency,
+            sort_order, created_at)
+         VALUES (gen_random_uuid(), $1::uuid, $1::uuid, $2, 'deposit', 'deposit', '1',
+                 $3::bigint, 'USD', 'USD', $4::int,
+                 (current_date - interval '1 year')::date, 'yearly', 0, now())`,
+        [freshUser.budgetId, name, principal, pct * 100],
+      );
+    });
+  },
+);
+
+When(
+  "I sell {string} leaving {string} out of investments receiving {string}",
+  async ({ page }, name: string, left: string, received: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openSell(name);
+    expect(await po.sell({ left, dest: "out", received })).toBe(200);
+  },
+);
+
+Then(
+  "the deposit {string} restarts today with principal {int} cents",
+  async ({ freshUser }, name: string, principal: number) => {
+    let row: { p: string; d: string; today: string } | undefined;
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      const r = await client.query<{ p: string; d: string; today: string }>(
+        `SELECT buy_price_cents::text AS p, deposit_start_date::text AS d,
+                current_date::text AS today
+           FROM budgeting.investments WHERE budget_id = $1::uuid AND name = $2`,
+        [freshUser.budgetId, name],
+      );
+      row = r.rows[0];
+    });
+    expect(row?.p).toBe(String(principal));
+    expect(row?.d).toBe(row?.today);
+  },
+);
+
+Then(
+  "the {string} type shows realized {string}",
+  async ({ page }, uiType: string, amount: string) => {
+    await expect(
+      page.getByTestId(`investment-type-realized-${uiType}`),
+    ).toContainText(amount);
+  },
+);

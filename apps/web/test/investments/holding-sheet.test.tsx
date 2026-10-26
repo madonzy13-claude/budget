@@ -880,4 +880,22 @@ describe("HoldingFormFields — sale destination", () => {
       ),
     );
   });
+
+  // Live bug (13-11): the create form auto-opens its Type list; embedded in
+  // the Sell sheet that modal list swallowed every keystroke in "Value left".
+  it("does not auto-open the Type list as a sale destination", () => {
+    render(
+      <HoldingFormFields
+        budgetId="b1"
+        budgetCurrency="USD"
+        receivedCurrency="PLN"
+        initialUiType="cash"
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("holding-sheet-type")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
 });
