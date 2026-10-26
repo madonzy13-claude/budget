@@ -418,3 +418,142 @@ Then(
     ).toContainText(amount);
   },
 );
+
+// ── Phase 13: seeding in the budget's own currency (no FX in E2E) ──
+
+Given(
+  "a {string} holding {string} deposited {int} cents worth {int} cents exists in my budget",
+  async (
+    { freshUser },
+    uiType: string,
+    name: string,
+    buy: number,
+    value: number,
+  ) => {
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      await client.query(
+        `INSERT INTO budgeting.investments
+           (id, tenant_id, budget_id, name, holding_type, ui_type, quantity,
+            buy_price_cents, buy_currency, current_price_cents, current_price_currency,
+            sort_order, created_at)
+         SELECT gen_random_uuid(), $1::uuid, $1::uuid, $2,
+                CASE $3::text WHEN 'cash' THEN 'cash_fx' WHEN 'savings' THEN 'savings' ELSE 'other' END,
+                $3::text, '1', $4::bigint, b.default_currency, $5::numeric, b.default_currency,
+                0, now()
+           FROM tenancy.budgets b WHERE b.id = $1::uuid`,
+        [freshUser.budgetId, name, uiType, buy, value],
+      );
+    });
+  },
+);
+
+Given(
+  "a crypto holding {string} of {string} bought at {int} cents now {int} cents exists in my budget",
+  async (
+    { freshUser },
+    name: string,
+    qty: string,
+    buy: number,
+    price: number,
+  ) => {
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      await client.query(
+        `INSERT INTO budgeting.investments
+           (id, tenant_id, budget_id, name, holding_type, ui_type, quantity,
+            buy_price_cents, buy_currency, current_price_cents, current_price_currency,
+            sort_order, created_at)
+         SELECT gen_random_uuid(), $1::uuid, $1::uuid, $2, 'crypto', 'crypto', $3::numeric,
+                $4::bigint, b.default_currency, $5::numeric, b.default_currency, 0, now()
+           FROM tenancy.budgets b WHERE b.id = $1::uuid`,
+        [freshUser.budgetId, name, qty, buy, price],
+      );
+    });
+  },
+);
+
+When(
+  "I sell {string} leaving {string} into a new cash holding {string} receiving {string}",
+  async (
+    { page },
+    name: string,
+    left: string,
+    cash: string,
+    received: string,
+  ) => {
+    const po = new InvestmentsPo(page);
+    await po.openSell(name);
+    expect(await po.sell({ left, dest: "new", newName: cash, received })).toBe(
+      200,
+    );
+  },
+);
+
+When(
+  "I sell {string} leaving {string} into {string} receiving {string}",
+  async (
+    { page },
+    name: string,
+    left: string,
+    target: string,
+    received: string,
+  ) => {
+    const po = new InvestmentsPo(page);
+    await po.openSell(name);
+    expect(
+      await po.sell({ left, dest: "existing", existingName: target, received }),
+    ).toBe(200);
+  },
+);
+
+When("I open the sale of {string}", async ({ page }, name: string) => {
+  await new InvestmentsPo(page).openSell(name);
+});
+
+When(
+  "I set {string} in the sale to {string}",
+  async ({ page }, field: string, v: string) => {
+    const id = field === "Value left" ? "sell-left" : "sell-received";
+    await page.getByTestId("sell-sheet").getByTestId(id).fill(v);
+  },
+);
+
+Then("the sale says {string}", async ({ page }, copy: string) => {
+  await expect(page.getByTestId("sell-sheet").getByText(copy)).toBeVisible();
+});
+
+Then("the sale cannot be recorded", async ({ page }) => {
+  await expect(page.getByTestId("sell-submit")).toBeDisabled();
+});
+
+Then("the sale date cannot be after today", async ({ page }) => {
+  const today = new Date().toLocaleDateString("en-CA");
+  await expect(page.getByTestId("sell-date")).toHaveAttribute("max", today);
+});
+
+Then(
+  "the holding row {string} shows {string}",
+  async ({ page }, name: string, text: string) => {
+    await expect(new InvestmentsPo(page).row(name)).toContainText(text);
+  },
+);
+
+Then("the holding row {string} is gone", async ({ page }, name: string) => {
+  await expect(new InvestmentsPo(page).row(name)).toHaveCount(0);
+});
+
+Then("there is no {string} type block", async ({ page }, uiType: string) => {
+  await expect(new InvestmentsPo(page).typeBlock(uiType)).toHaveCount(0);
+});
+
+Then("there is a {string} type block", async ({ page }, uiType: string) => {
+  await expect(new InvestmentsPo(page).typeBlock(uiType)).toBeVisible();
+});
+
+Then(
+  "the investments total shows realized {string}",
+  async ({ page }, amount: string) => {
+    await expect(page.getByTestId("investments-total-realized")).toContainText(
+      amount,
+    );
+  },
+);

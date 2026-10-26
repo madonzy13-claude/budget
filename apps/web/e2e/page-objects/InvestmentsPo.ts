@@ -239,13 +239,23 @@ export class InvestmentsPo {
     dest: "new" | "existing" | "out";
     received: string;
     existingName?: string;
+    newName?: string;
   }): Promise<number> {
     const sheet = this.page.getByTestId("sell-sheet");
     await sheet.getByTestId("sell-left").fill(opts.left);
     await sheet.getByTestId(`sell-dest-${opts.dest}`).click();
+    if (opts.dest === "new" && opts.newName)
+      await sheet
+        .getByTestId("holding-form-destination")
+        .getByTestId("holding-sheet-name")
+        .fill(opts.newName);
     if (opts.dest === "existing" && opts.existingName)
       await sheet.getByTestId("sell-existing").selectOption({
-        label: new RegExp(`^${opts.existingName} ·`) as never,
+        value: (await sheet
+          .getByTestId("sell-existing")
+          .locator("option", { hasText: `${opts.existingName} ·` })
+          .first()
+          .getAttribute("value"))!,
       });
     await sheet.getByTestId("sell-received").fill(opts.received);
     const res = this.page.waitForResponse(
