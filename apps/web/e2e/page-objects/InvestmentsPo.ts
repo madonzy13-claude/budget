@@ -143,6 +143,46 @@ export class InvestmentsPo {
     await this.row(name).dragTo(this.groupHeader(group));
   }
 
+  // ── Phase 13: type blocks (D-12) ──
+
+  typeBlock(uiType: string) {
+    return this.page.getByTestId(`investment-type-block-${uiType}`);
+  }
+
+  /** Block order as rendered, e.g. ["crypto", "other"]. */
+  async typeBlockOrder(): Promise<string[]> {
+    return this.page
+      .locator('[data-testid^="investment-type-block-"]')
+      .evaluateAll((els) =>
+        els.map((e) =>
+          (e.getAttribute("data-testid") ?? "").replace(
+            "investment-type-block-",
+            "",
+          ),
+        ),
+      );
+  }
+
+  /** Drag block `a` above block `b` with real mouse input (PointerSensor needs
+   *  primary-button pointer events; Playwright's mouse produces them). Resolves
+   *  once the order write has been answered. */
+  async dragTypeBlockAbove(a: string, b: string): Promise<void> {
+    const grip = this.page.getByTestId(`drag-grip-type ${a}`);
+    const g = (await grip.boundingBox())!;
+    const target = (await this.typeBlock(b).boundingBox())!;
+    const saved = this.page.waitForResponse(
+      (r) =>
+        r.url().includes("/investments/type-order") &&
+        r.request().method() === "PUT",
+    );
+    await this.page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+    await this.page.mouse.down();
+    await this.page.mouse.move(g.x + g.width / 2, target.y + 4, { steps: 20 });
+    await this.page.mouse.up();
+    const res = await saved;
+    if (!res.ok()) throw new Error(`type-order PUT failed: ${res.status()}`);
+  }
+
   async assertSectionIsLast(): Promise<void> {
     const sections = this.page.locator('[data-testid^="wallet-section-"]');
     await expect(this.section()).toBeVisible();

@@ -287,15 +287,12 @@ Given(
   },
 );
 
-When(
-  "I tap the amount of holding {string}",
-  async ({ page }, name: string) => {
-    await new InvestmentsPo(page)
-      .row(name)
-      .locator('[data-testid^="holding-amount-readonly-"]')
-      .click();
-  },
-);
+When("I tap the amount of holding {string}", async ({ page }, name: string) => {
+  await new InvestmentsPo(page)
+    .row(name)
+    .locator('[data-testid^="holding-amount-readonly-"]')
+    .click();
+});
 
 Then(
   "the amount of holding {string} shakes",
@@ -325,5 +322,42 @@ Given(
         [freshUser.budgetId, count],
       );
     });
+  },
+);
+
+// ── Phase 13: type blocks (D-12/D-13) ──
+
+Given(
+  "a {string} holding {string} worth {int} cents exists in my budget",
+  async ({ freshUser }, uiType: string, name: string, amountCents: number) => {
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      await client.query(
+        `INSERT INTO budgeting.investments
+           (id, tenant_id, budget_id, name, holding_type, ui_type, quantity,
+            buy_price_cents, buy_currency,
+            current_price_cents, current_price_currency, sort_order, created_at)
+         VALUES (gen_random_uuid(), $1::uuid, $1::uuid, $2,
+                 CASE $3::text WHEN 'crypto' THEN 'crypto' WHEN 'cash' THEN 'cash_fx' ELSE 'other' END,
+                 $3::text, '1', $4::bigint, 'USD', $4::numeric, 'USD', 0, now())`,
+        [freshUser.budgetId, name, uiType, amountCents],
+      );
+    });
+  },
+);
+
+When(
+  "I drag the {string} type block above the {string} type block",
+  async ({ page }, a: string, b: string) => {
+    await new InvestmentsPo(page).dragTypeBlockAbove(a, b);
+  },
+);
+
+Then(
+  "the type blocks are in order {string}",
+  async ({ page }, order: string) => {
+    const po = new InvestmentsPo(page);
+    await expect
+      .poll(() => po.typeBlockOrder())
+      .toEqual(order.split(",").map((s) => s.trim()));
   },
 );

@@ -108,3 +108,18 @@ Feature: Investments wallet — section, holdings, grouping, optimistic add
     When I open the investments wallets tab
     And I tap the amount of holding "Term deposit"
     Then the amount of holding "Term deposit" shakes
+
+  # Phase 13 (D-12/D-13): groups are the investment type. Every held type gets a
+  # header; blocks drag by their header grip and the order is saved per budget.
+  Scenario: Dragging a type block saves the block order across a reload
+    Given I am on a phone-sized viewport
+    And investments are enabled for my budget
+    And a "broker" holding "IBKR" worth 500000 cents exists in my budget
+    And a "crypto" holding "Cold wallet" worth 200000 cents exists in my budget
+    When I open the investments wallets tab
+    Then the type blocks are in order "crypto, broker"
+    When I drag the "broker" type block above the "crypto" type block
+    Then the type blocks are in order "broker, crypto"
+    When I reload the wallets tab
+    Then the type blocks are in order "broker, crypto"
+
