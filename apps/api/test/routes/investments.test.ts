@@ -315,3 +315,68 @@ describe("Investments routes", () => {
     expect(statuses[10]).toBe(429);
   });
 });
+
+describe("Stocks type (Phase 13, D-10/D-11)", () => {
+  const post = (app: Awaited<ReturnType<typeof buildApp>>, uiType: string) =>
+    app.request("/investments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: `S-${uiType}`,
+        holdingType: "equities",
+        uiType,
+        quantity: "1",
+        buyPriceCents: 10000,
+        buyCurrency: "EUR",
+        currentPriceCents: 12000,
+        currentPriceCurrency: "EUR",
+      }),
+    });
+  const storedUiType = async (fix: Fixture, id: string) => {
+    const pool = new Pool({ connectionString: DB_APP });
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+        `{"${fix.tenantId}"}`,
+      ]);
+      const r = await c.query<{ ui_type: string }>(
+        `SELECT ui_type FROM budgeting.investments WHERE id = $1`,
+        [id],
+      );
+      await c.query("COMMIT");
+      return r.rows[0]?.ui_type;
+    } finally {
+      c.release();
+      await pool.end();
+    }
+  };
+
+  it("POST uiType stocks stores stocks", async () => {
+    const fix = await createFixture("EUR");
+    const app = await buildApp(fix);
+    const res = await post(app, "stocks");
+    expect(res.status).toBe(201);
+    const { id } = (await res.json()) as { id: string };
+    expect(await storedUiType(fix, id)).toBe("stocks");
+  });
+
+  it("a stale client's legacy 'equity' is stored as stocks", async () => {
+    const fix = await createFixture("EUR");
+    const app = await buildApp(fix);
+    const res = await post(app, "equity");
+    expect(res.status).toBe(201);
+    const { id } = (await res.json()) as { id: string };
+    expect(await storedUiType(fix, id)).toBe("stocks");
+  });
+
+  it("GET carries typeWeights and keeps the compat group fields", async () => {
+    const fix = await createFixture("EUR");
+    const app = await buildApp(fix);
+    await post(app, "stocks");
+    const body = (await (await app.request("/investments")).json()) as any;
+    expect(body.typeWeights).toEqual({ stocks: 100 });
+    expect(body.groupWeights).toBeDefined();
+    expect("group" in body.holdings[0]).toBe(true);
+  });
+});

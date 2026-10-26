@@ -68,7 +68,7 @@ const SEED: Seed[] = [
   {
     name: "Apple shares",
     holding_type: "equities",
-    ui_type: "equity",
+    ui_type: "stocks",
     group: "Brokerage",
     qty: "10",
     curCents: 1980000,
