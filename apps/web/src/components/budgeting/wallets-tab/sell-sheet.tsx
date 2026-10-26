@@ -526,7 +526,7 @@ export function SellSheet({
           )}
 
           <div
-            className="flex items-center gap-2 border-t pt-4"
+            className="flex flex-wrap items-center gap-2 border-t pt-4"
             style={{ borderColor: "var(--hairline-dark)" }}
           >
             <Button

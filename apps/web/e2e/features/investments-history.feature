@@ -87,3 +87,18 @@ Feature: Investments — edit "What happened?", history and full undo (Phase 13)
     And I delete the holding "IBKR"
     And I reload the wallets tab
     Then the holding row "IBKR" is gone
+
+  # UI-SPEC: the new copy fits a phone in every launch locale.
+  Scenario Outline: What happened and History fit a phone in <locale>
+    Given I am on a phone-sized viewport
+    And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab in "<locale>"
+    And I start editing "IBKR" to a value of "80000"
+    Then the edit sheet shows What happened and History without overflow
+
+    Examples:
+      | locale |
+      | en     |
+      | pl     |
+      | uk     |
+

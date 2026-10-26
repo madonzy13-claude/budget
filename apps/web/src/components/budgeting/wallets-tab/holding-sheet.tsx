@@ -1505,7 +1505,7 @@ export function HoldingSheet({
               the user scrolls down to reach Save. */}
           <div
             data-testid="holding-sheet-actions"
-            className="mt-2 flex items-center gap-2 border-t border-[var(--hairline-dark)] pt-4"
+            className="mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--hairline-dark)] pt-4"
           >
             <Button
               type="button"

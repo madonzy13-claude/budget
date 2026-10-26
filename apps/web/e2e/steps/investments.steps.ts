@@ -677,3 +677,41 @@ When("I delete the holding {string}", async ({ page }, name: string) => {
   await page.getByTestId("holding-delete-confirm-action").click();
   expect((await res).ok()).toBe(true);
 });
+
+When(
+  "I open the investments wallets tab in {string}",
+  async ({ page, freshUser }, locale: string) => {
+    await page.goto(`/${locale}/budgets/${freshUser.budgetId}/wallets`);
+    await page
+      .waitForLoadState("networkidle", { timeout: 10000 })
+      .catch(() => {});
+  },
+);
+
+When(
+  "I start editing {string} to a value of {string}",
+  async ({ page }, name: string, value: string) => {
+    await new InvestmentsPo(page).openEdit(name);
+    await page.getByTestId("holding-sheet-actual").fill(value);
+  },
+);
+
+Then(
+  "the edit sheet shows What happened and History without overflow",
+  async ({ page }) => {
+    const po = new InvestmentsPo(page);
+    await expect(page.getByTestId("happened-withdraw")).toBeVisible();
+    await po.openHistory();
+    const sheet = po.sheet();
+    const overflow = await sheet.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return [...el.querySelectorAll<HTMLElement>("*")]
+        .filter((c) => {
+          const b = c.getBoundingClientRect();
+          return b.width > 0 && b.right > r.right + 1;
+        })
+        .map((c) => `${c.tagName}[${c.getAttribute("data-testid") ?? ""}] "${(c.textContent ?? "").slice(0, 40)}"`);
+    });
+    expect(overflow).toEqual([]);
+  },
+);
