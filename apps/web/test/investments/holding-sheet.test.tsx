@@ -9,7 +9,10 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { HoldingSheet } from "../../src/components/budgeting/wallets-tab/holding-sheet";
+import {
+  HoldingSheet,
+  HoldingFormFields,
+} from "../../src/components/budgeting/wallets-tab/holding-sheet";
 import { clientApiFetch } from "../../src/lib/budget-fetch";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 
@@ -811,5 +814,70 @@ describe("HoldingSheet — type-first", () => {
       uiType: "stocks",
       holdingType: "equities",
     });
+  });
+});
+
+// Phase 13 Sell → "New investment" reuses the Add form's type fields.
+describe("HoldingFormFields — sale destination", () => {
+  it("cash: just a name; emits a cash holding in the received currency", async () => {
+    const onChange = vi.fn();
+    render(
+      <HoldingFormFields
+        budgetId="b1"
+        budgetCurrency="USD"
+        receivedCurrency="PLN"
+        initialUiType="cash"
+        onChange={onChange}
+      />,
+    );
+    expect(screen.queryByTestId("holding-sheet")).toBeNull();
+    expect(screen.queryByTestId("holding-sheet-amount")).toBeNull();
+    expect(screen.queryByTestId("holding-sheet-submit")).toBeNull();
+    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+      target: { value: "Erste PLN" },
+    });
+    await waitFor(() =>
+      expect(onChange).toHaveBeenLastCalledWith({
+        name: "Erste PLN",
+        uiType: "cash",
+        holdingType: "cash_fx",
+        instrumentId: null,
+        manualTicker: null,
+        currentPriceCurrency: "PLN",
+      }),
+    );
+  });
+
+  it("crypto: asks Quantity bought, hides buy and current price", async () => {
+    vi.mocked(clientApiFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ priceCents: "100", currency: "USD" }),
+    } as unknown as Response);
+    const onChange = vi.fn();
+    render(
+      <HoldingFormFields
+        budgetId="b1"
+        budgetCurrency="USD"
+        receivedCurrency="PLN"
+        initialUiType="crypto"
+        onChange={onChange}
+      />,
+    );
+    expect(screen.queryByTestId("holding-sheet-buy-price")).toBeNull();
+    expect(screen.queryByTestId("holding-sheet-current-price")).toBeNull();
+    expect(screen.getByText("sell.qtyBought")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("pick-instrument"));
+    fireEvent.change(screen.getByTestId("holding-sheet-quantity"), {
+      target: { value: "0,5" },
+    });
+    await waitFor(() =>
+      expect(onChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          uiType: "crypto",
+          instrumentId: "i1",
+          quantity: "0.5",
+        }),
+      ),
+    );
   });
 });

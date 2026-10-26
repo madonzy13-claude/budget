@@ -14,7 +14,7 @@
  * shadcn <Sheet side="right"> (controlled, no
  * trigger). Optimistic save via the create/update hooks; discard-confirm on dirty.
  */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations, useLocale, useFormatter } from "next-intl";
 import { UI_TYPE_ICON } from "@/lib/investment-icons";
 import {
@@ -83,6 +83,29 @@ interface HoldingSheetProps {
   budgetId: string;
   budgetCurrency: string;
   holding?: HoldingDto | null;
+  /** Phase 13 Sell → "New investment": render ONLY the type + type fields (no
+   *  sheet shell, amounts, preview or actions). The amount is what was
+   *  received, so price/amount/currency inputs hide; quantity types ask for
+   *  "Quantity bought". Emits the new holding (or null while incomplete). */
+  destination?: {
+    receivedCurrency: string;
+    initialUiType?: UiType;
+    onChange: (h: DestinationHolding | null) => void;
+  };
+}
+
+/** The "new" destination of a sale, as POST /:id/sell expects it. */
+export interface DestinationHolding {
+  name: string;
+  holdingType: HoldingType;
+  uiType: UiType;
+  instrumentId?: string | null;
+  manualTicker?: string | null;
+  metal?: Metal;
+  metalKind?: MetalKind;
+  unitOfMeasure?: Uom;
+  quantity?: string;
+  currentPriceCurrency: string;
 }
 
 /** Decimal string → cents string (sub-cent kept to 6 places), or null. The
@@ -111,6 +134,7 @@ export function HoldingSheet({
   budgetId,
   budgetCurrency,
   holding,
+  destination: dest,
 }: HoldingSheetProps) {
   const t = useTranslations("budget.investments");
   const fmt = useFormatter();
@@ -122,7 +146,7 @@ export function HoldingSheet({
   const [uiType, setUiType] = useState<UiType | "">(
     holding
       ? deriveUiType(holding.uiType, holding.holdingType, holding.isCustom)
-      : "",
+      : (dest?.initialUiType ?? ""),
   );
   // For a tracked (auto-fetch) holding, `name` drives the Asset search box and
   // holds the INSTRUMENT label; the optional user override lives in `customName`.
@@ -250,6 +274,8 @@ export function HoldingSheet({
 
   const meta = uiType ? UI_TYPE_META[uiType] : null;
   const behavior = meta?.behavior ?? null;
+  // Sell → New investment: priced-per-unit types ask how many units were bought.
+  const destQuantity = behavior === "tracked" || behavior === "metals";
   // A tracked type whose price the user enters by hand: either a selected non-US
   // instrument (provider='manual', no free quote) OR a manual entry (ticker not in
   // the catalog, no instrument). Both ⇒ editable current-price field.
@@ -642,455 +668,480 @@ export function HoldingSheet({
     onOpenChange(false);
   }
 
-  return (
-    <Sheet
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) {
-          attemptClose();
-          return;
-        }
-        onOpenChange(true);
-      }}
-    >
-      <SheetContent
-        side="right"
-        data-testid="holding-sheet"
-        // pointer-events-auto: an open <Select> (Radix modal) locks body
-        // pointer-events to none; the sheet's own overlay stays interactive and
-        // would steal clicks meant for the Type trigger (re-click reopened the
-        // dropdown instead of closing it). Forcing the content interactive keeps
-        // the trigger clickable so it toggles closed normally.
-        className="!pointer-events-auto flex w-full flex-col overflow-y-auto bg-[var(--canvas-dark)] sm:max-w-[480px]"
-        // Close ONLY via the explicit X / Cancel / Discard buttons. The discard
-        // AlertDialog portals OUTSIDE this content, so any click on it counts as
-        // "interact outside"; letting that close the sheet re-ran attemptClose →
-        // re-opened the discard dialog (Keep editing looked dead). Suppressing
-        // outside-close unconditionally breaks that loop (no stale-state race).
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onInteractOutside={(e) => e.preventDefault()}
-      >
-        <SheetHeader className="mb-2">
-          <SheetTitle className="text-[var(--body-on-dark)]">
-            {mode === "create" ? t("sheet.title.add") : t("sheet.title.edit")}
-          </SheetTitle>
-        </SheetHeader>
+  const destOnChange = dest?.onChange;
+  const destCcy = dest?.receivedCurrency;
+  useEffect(() => {
+    if (!destOnChange || !destCcy) return;
+    const ut = uiType;
+    const label = (customName.trim() || name.trim()).trim();
+    const qtyOk = !destQuantity || Number(quantity.replace(",", ".")) > 0;
+    const instrumentOk =
+      behavior === "metals" || (behavior === "tracked" && !manualEntry)
+        ? instrumentId != null
+        : true;
+    if (!ut || !label || !qtyOk || !instrumentOk) {
+      destOnChange(null);
+      return;
+    }
+    destOnChange({
+      name: label,
+      uiType: ut,
+      holdingType: (ut === "stocks" && instrumentAssetClass === "etf"
+        ? "etf"
+        : UI_TYPE_META[ut].holdingType) as HoldingType,
+      instrumentId,
+      manualTicker: manualEntry ? manualTicker.trim() || null : null,
+      ...(behavior === "metals"
+        ? { metal, metalKind, unitOfMeasure: uom }
+        : {}),
+      ...(destQuantity ? { quantity: quantity.replace(",", ".") } : {}),
+      currentPriceCurrency: destCcy,
+    });
+  }, [
+    destOnChange,
+    destCcy,
+    uiType,
+    name,
+    customName,
+    quantity,
+    destQuantity,
+    behavior,
+    manualEntry,
+    manualTicker,
+    instrumentId,
+    instrumentAssetClass,
+    metal,
+    metalKind,
+    uom,
+  ]);
 
-        <div className="space-y-4 px-1 pb-4">
-          {/* 1. Type — always first; drives the rest of the form. */}
-          <Field label={t("field.type")}>
-            <Select
-              value={uiType}
-              open={typeOpen}
-              onOpenChange={onTypeOpenChange}
-              onValueChange={(v) => changeType(v as UiType)}
-            >
-              <SelectTrigger
-                aria-label={t("field.type")}
-                data-testid="holding-sheet-type"
-              >
-                <SelectValue placeholder={t("field.typePlaceholder")}>
-                  {uiType ? (
-                    <span className="flex items-center gap-2">
-                      {(() => {
-                        const Icon = UI_TYPE_ICON[uiType];
-                        return (
-                          <Icon className="h-4 w-4 text-[var(--body-on-dark)]" />
-                        );
-                      })()}
-                      <span>{t(`uitype.${uiType}`)}</span>
-                    </span>
-                  ) : null}
-                </SelectValue>
-              </SelectTrigger>
-              {/* Grow to the available viewport height (12 types) instead of the
+  // The type + type-specific fields — shared by the sheet and the Sell
+  // "New investment" destination (one source of truth for type fields).
+  const formFields = (
+    <>
+      {/* 1. Type — always first; drives the rest of the form. */}
+      <Field label={t("field.type")}>
+        <Select
+          value={uiType}
+          open={typeOpen}
+          onOpenChange={onTypeOpenChange}
+          onValueChange={(v) => changeType(v as UiType)}
+        >
+          <SelectTrigger
+            aria-label={t("field.type")}
+            data-testid="holding-sheet-type"
+          >
+            <SelectValue placeholder={t("field.typePlaceholder")}>
+              {uiType ? (
+                <span className="flex items-center gap-2">
+                  {(() => {
+                    const Icon = UI_TYPE_ICON[uiType];
+                    return (
+                      <Icon className="h-4 w-4 text-[var(--body-on-dark)]" />
+                    );
+                  })()}
+                  <span>{t(`uitype.${uiType}`)}</span>
+                </span>
+              ) : null}
+            </SelectValue>
+          </SelectTrigger>
+          {/* Grow to the available viewport height (12 types) instead of the
                   shared 384px cap — scrolls only when the screen is truly short. */}
-              <SelectContent className="max-h-[var(--radix-select-content-available-height)]">
-                {UI_TYPE_ORDER.map((tp) => {
-                  const Icon = UI_TYPE_ICON[tp];
-                  return (
-                    <SelectItem
-                      key={tp}
-                      value={tp}
-                      data-testid={`holding-type-${tp}`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <Icon className="h-4 w-4 text-[var(--muted-foreground)]" />
-                        <span>{t(`uitype.${tp}`)}</span>
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </Field>
+          <SelectContent className="max-h-[var(--radix-select-content-available-height)]">
+            {UI_TYPE_ORDER.filter(
+              // A sale cannot open a deposit (it accrues from a principal).
+              (tp) => !dest || tp !== "deposit",
+            ).map((tp) => {
+              const Icon = UI_TYPE_ICON[tp];
+              return (
+                <SelectItem
+                  key={tp}
+                  value={tp}
+                  data-testid={`holding-type-${tp}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Icon className="h-4 w-4 text-[var(--muted-foreground)]" />
+                    <span>{t(`uitype.${tp}`)}</span>
+                  </span>
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
+      </Field>
 
-          {/* 2. Name / Asset — only once a Type is chosen (no field is focused on
+      {/* 2. Name / Asset — only once a Type is chosen (no field is focused on
               open: no type → no Asset/Name field, and neither input auto-focuses). */}
-          {behavior === "tracked" && !manualEntry ? (
-            <>
-              <Field label={t("field.asset")}>
-                <InstrumentSearchInput
-                  budgetId={budgetId}
-                  assetClass={meta?.assetClass}
-                  hideCustom
-                  allowManualEntry
-                  name={name}
-                  onNameChange={(v) => {
-                    markDirty();
-                    setName(v);
-                    if (instrumentId != null) {
-                      setInstrumentId(null);
-                      setSymbol(null);
-                    }
-                  }}
-                  onSelectInstrument={selectInstrument}
-                  onSelectCustom={enableManualEntry}
-                />
-              </Field>
-              {/* Optional custom name for the auto-fetch asset — when set it's shown
+      {behavior === "tracked" && !manualEntry ? (
+        <>
+          <Field label={t("field.asset")}>
+            <InstrumentSearchInput
+              budgetId={budgetId}
+              assetClass={meta?.assetClass}
+              hideCustom
+              allowManualEntry
+              name={name}
+              onNameChange={(v) => {
+                markDirty();
+                setName(v);
+                if (instrumentId != null) {
+                  setInstrumentId(null);
+                  setSymbol(null);
+                }
+              }}
+              onSelectInstrument={selectInstrument}
+              onSelectCustom={enableManualEntry}
+            />
+          </Field>
+          {/* Optional custom name for the auto-fetch asset — when set it's shown
                   in the list instead of the auto "TICKER (Name)" label. */}
-              {instrumentId != null && (
-                <Field label={t("field.nameOptional")}>
-                  <Input
-                    data-testid="holding-sheet-custom-name"
-                    value={customName}
-                    placeholder={name}
-                    onChange={(e) => {
-                      markDirty();
-                      setCustomName(e.target.value);
-                    }}
-                  />
-                </Field>
-              )}
-            </>
-          ) : behavior === "tracked" && manualEntry ? (
-            // Manual entry (ticker not in the catalog): plain name + ticker fields.
-            <>
-              <Field label={t("field.name")}>
-                <Input
-                  data-testid="holding-sheet-name"
-                  value={name}
-                  onChange={(e) => {
-                    markDirty();
-                    setName(e.target.value);
-                  }}
-                />
-              </Field>
-              <Field label={t("field.ticker")}>
-                <Input
-                  data-testid="holding-sheet-ticker"
-                  value={manualTicker}
-                  onChange={(e) => {
-                    markDirty();
-                    setManualTicker(e.target.value.toUpperCase());
-                  }}
-                  placeholder={t("field.tickerPlaceholder")}
-                />
-              </Field>
-            </>
-          ) : behavior ? (
-            <Field label={t("field.name")}>
+          {instrumentId != null && (
+            <Field label={t("field.nameOptional")}>
               <Input
-                data-testid="holding-sheet-name"
-                value={name}
+                data-testid="holding-sheet-custom-name"
+                value={customName}
+                placeholder={name}
                 onChange={(e) => {
                   markDirty();
-                  setName(e.target.value);
+                  setCustomName(e.target.value);
                 }}
               />
             </Field>
-          ) : null}
-
-          {/* 3. Metals: metal + kind + UoM */}
-          {behavior === "metals" && (
-            <>
-              <Field label={t("field.metal")}>
-                <SimpleSelect
-                  testId="holding-sheet-metal"
-                  value={metal}
-                  options={METALS.map((m) => ({
-                    value: m,
-                    label: t(`metalOption.${m}`),
-                  }))}
-                  onChange={(v) => {
-                    markDirty();
-                    setMetal(v as Metal);
-                    void resolveMetal(v as Metal);
-                  }}
-                  ariaLabel={t("field.metal")}
-                />
-              </Field>
-              <Field label={t("field.kind")}>
-                <SimpleSelect
-                  testId="holding-sheet-kind"
-                  value={metalKind}
-                  options={METAL_KINDS.map((k) => ({
-                    value: k,
-                    label: t(`kindOption.${k}`),
-                  }))}
-                  onChange={(v) => {
-                    markDirty();
-                    setMetalKind(v as MetalKind);
-                  }}
-                  ariaLabel={t("field.kind")}
-                />
-              </Field>
-              <Field label={t("field.uom")}>
-                <SimpleSelect
-                  testId="holding-sheet-uom"
-                  value={uom}
-                  options={UOMS.map((u) => ({
-                    value: u,
-                    label: t(`uomOption.${u}`),
-                  }))}
-                  onChange={(v) => {
-                    markDirty();
-                    setUom(v as Uom);
-                  }}
-                  ariaLabel={t("field.uom")}
-                />
-              </Field>
-            </>
           )}
+        </>
+      ) : behavior === "tracked" && manualEntry ? (
+        // Manual entry (ticker not in the catalog): plain name + ticker fields.
+        <>
+          <Field label={t("field.name")}>
+            <Input
+              data-testid="holding-sheet-name"
+              value={name}
+              onChange={(e) => {
+                markDirty();
+                setName(e.target.value);
+              }}
+            />
+          </Field>
+          <Field label={t("field.ticker")}>
+            <Input
+              data-testid="holding-sheet-ticker"
+              value={manualTicker}
+              onChange={(e) => {
+                markDirty();
+                setManualTicker(e.target.value.toUpperCase());
+              }}
+              placeholder={t("field.tickerPlaceholder")}
+            />
+          </Field>
+        </>
+      ) : behavior ? (
+        <Field label={t("field.name")}>
+          <Input
+            data-testid="holding-sheet-name"
+            value={name}
+            onChange={(e) => {
+              markDirty();
+              setName(e.target.value);
+            }}
+          />
+        </Field>
+      ) : null}
 
-          {/* 4. Cash: currency + amount */}
-          {behavior === "cash" ? (
-            <>
-              <Field label={t("field.currency")}>
-                <CurrencyPicker
-                  variant="field"
-                  richLabel
-                  desktopDropdown
-                  value={currentPriceCurrency}
-                  onSelect={(v) => {
-                    markDirty();
-                    setCurrentPriceCurrency(v);
-                  }}
-                  aria-label={t("field.currency")}
-                />
-              </Field>
-              <Field label={t("field.amount")}>
-                <NumericInput
-                  testId="holding-sheet-amount"
-                  value={currentPrice}
-                  onChange={(v) => {
-                    markDirty();
-                    setCurrentPrice(v);
-                  }}
-                />
-              </Field>
-            </>
-          ) : behavior === "broker" ? (
-            /* 4b. Broker / Savings: two amounts + currency, no quantity. Savings
+      {/* 3. Metals: metal + kind + UoM */}
+      {behavior === "metals" && (
+        <>
+          <Field label={t("field.metal")}>
+            <SimpleSelect
+              testId="holding-sheet-metal"
+              value={metal}
+              options={METALS.map((m) => ({
+                value: m,
+                label: t(`metalOption.${m}`),
+              }))}
+              onChange={(v) => {
+                markDirty();
+                setMetal(v as Metal);
+                void resolveMetal(v as Metal);
+              }}
+              ariaLabel={t("field.metal")}
+            />
+          </Field>
+          <Field label={t("field.kind")}>
+            <SimpleSelect
+              testId="holding-sheet-kind"
+              value={metalKind}
+              options={METAL_KINDS.map((k) => ({
+                value: k,
+                label: t(`kindOption.${k}`),
+              }))}
+              onChange={(v) => {
+                markDirty();
+                setMetalKind(v as MetalKind);
+              }}
+              ariaLabel={t("field.kind")}
+            />
+          </Field>
+          <Field label={t("field.uom")}>
+            <SimpleSelect
+              testId="holding-sheet-uom"
+              value={uom}
+              options={UOMS.map((u) => ({
+                value: u,
+                label: t(`uomOption.${u}`),
+              }))}
+              onChange={(v) => {
+                markDirty();
+                setUom(v as Uom);
+              }}
+              ariaLabel={t("field.uom")}
+            />
+          </Field>
+        </>
+      )}
+
+      {/* 4. Cash: currency + amount */}
+      {dest &&
+      (behavior === "cash" || behavior === "broker") ? null : behavior ===
+        "cash" ? (
+        <>
+          <Field label={t("field.currency")}>
+            <CurrencyPicker
+              variant="field"
+              richLabel
+              desktopDropdown
+              value={currentPriceCurrency}
+              onSelect={(v) => {
+                markDirty();
+                setCurrentPriceCurrency(v);
+              }}
+              aria-label={t("field.currency")}
+            />
+          </Field>
+          <Field label={t("field.amount")}>
+            <NumericInput
+              testId="holding-sheet-amount"
+              value={currentPrice}
+              onChange={(v) => {
+                markDirty();
+                setCurrentPrice(v);
+              }}
+            />
+          </Field>
+        </>
+      ) : behavior === "broker" ? (
+        /* 4b. Broker / Savings: two amounts + currency, no quantity. Savings
                    relabels them Starting / Current (same field-set). */
-            <>
-              <Field
-                label={t(
-                  uiType === "savings"
-                    ? "field.startingAmount"
-                    : "field.depositedValue",
-                )}
-              >
-                <NumericInput
-                  testId="holding-sheet-deposited"
-                  value={buyPrice}
-                  onChange={(v) => {
-                    markDirty();
-                    setBuyPrice(v);
-                  }}
-                />
-              </Field>
-              <Field label={t("field.currency")}>
-                <CurrencyPicker
-                  variant="field"
-                  richLabel
-                  desktopDropdown
-                  value={buyCurrency}
-                  onSelect={(v) => {
-                    markDirty();
-                    setBuyCurrency(v);
-                    setCurrentPriceCurrency(v);
-                  }}
-                  aria-label={t("field.currency")}
-                />
-              </Field>
-              <Field
-                label={t(
-                  uiType === "savings"
-                    ? "field.currentAmount"
-                    : "field.actualValue",
-                )}
-              >
-                <NumericInput
-                  testId="holding-sheet-actual"
-                  value={currentPrice}
-                  onChange={(v) => {
-                    markDirty();
-                    setCurrentPrice(v);
-                  }}
-                />
-              </Field>
-            </>
-          ) : behavior === "deposit" ? (
-            /* 4c. Deposit: currency + principal + annual rate + capitalization
+        <>
+          <Field
+            label={t(
+              uiType === "savings"
+                ? "field.startingAmount"
+                : "field.depositedValue",
+            )}
+          >
+            <NumericInput
+              testId="holding-sheet-deposited"
+              value={buyPrice}
+              onChange={(v) => {
+                markDirty();
+                setBuyPrice(v);
+              }}
+            />
+          </Field>
+          <Field label={t("field.currency")}>
+            <CurrencyPicker
+              variant="field"
+              richLabel
+              desktopDropdown
+              value={buyCurrency}
+              onSelect={(v) => {
+                markDirty();
+                setBuyCurrency(v);
+                setCurrentPriceCurrency(v);
+              }}
+              aria-label={t("field.currency")}
+            />
+          </Field>
+          <Field
+            label={t(
+              uiType === "savings"
+                ? "field.currentAmount"
+                : "field.actualValue",
+            )}
+          >
+            <NumericInput
+              testId="holding-sheet-actual"
+              value={currentPrice}
+              onChange={(v) => {
+                markDirty();
+                setCurrentPrice(v);
+              }}
+            />
+          </Field>
+        </>
+      ) : behavior === "deposit" ? (
+        /* 4c. Deposit: currency + principal + annual rate + capitalization
                frequency + start date + optional maturity. Value accrues on read. */
-            <>
-              <Field label={t("field.currency")}>
-                <CurrencyPicker
-                  variant="field"
-                  richLabel
-                  desktopDropdown
-                  value={buyCurrency}
-                  onSelect={(v) => {
-                    markDirty();
-                    setBuyCurrency(v);
-                    setCurrentPriceCurrency(v);
-                  }}
-                  aria-label={t("field.currency")}
-                />
-              </Field>
-              <Field label={t("field.principal")}>
-                <NumericInput
-                  testId="holding-sheet-principal"
-                  value={buyPrice}
-                  onChange={(v) => {
-                    markDirty();
-                    setBuyPrice(v);
-                  }}
-                />
-              </Field>
-              <Field label={t("field.rate")}>
-                <NumericInput
-                  testId="holding-sheet-rate"
-                  value={depositRate}
-                  onChange={(v) => {
-                    markDirty();
-                    setDepositRate(v);
-                  }}
-                  placeholder="0"
-                />
-              </Field>
-              <Field label={t("field.capFrequency")}>
-                <Select
-                  value={depositFreq}
-                  onValueChange={(v) => {
-                    markDirty();
-                    setDepositFreq(v as CapFrequency);
-                  }}
-                >
-                  <SelectTrigger
-                    aria-label={t("field.capFrequency")}
-                    data-testid="holding-sheet-cap-frequency"
+        <>
+          <Field label={t("field.currency")}>
+            <CurrencyPicker
+              variant="field"
+              richLabel
+              desktopDropdown
+              value={buyCurrency}
+              onSelect={(v) => {
+                markDirty();
+                setBuyCurrency(v);
+                setCurrentPriceCurrency(v);
+              }}
+              aria-label={t("field.currency")}
+            />
+          </Field>
+          <Field label={t("field.principal")}>
+            <NumericInput
+              testId="holding-sheet-principal"
+              value={buyPrice}
+              onChange={(v) => {
+                markDirty();
+                setBuyPrice(v);
+              }}
+            />
+          </Field>
+          <Field label={t("field.rate")}>
+            <NumericInput
+              testId="holding-sheet-rate"
+              value={depositRate}
+              onChange={(v) => {
+                markDirty();
+                setDepositRate(v);
+              }}
+              placeholder="0"
+            />
+          </Field>
+          <Field label={t("field.capFrequency")}>
+            <Select
+              value={depositFreq}
+              onValueChange={(v) => {
+                markDirty();
+                setDepositFreq(v as CapFrequency);
+              }}
+            >
+              <SelectTrigger
+                aria-label={t("field.capFrequency")}
+                data-testid="holding-sheet-cap-frequency"
+              >
+                <SelectValue>{t(`capFrequency.${depositFreq}`)}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {CAP_FREQUENCIES.map((f) => (
+                  <SelectItem
+                    key={f}
+                    value={f}
+                    data-testid={`cap-frequency-${f}`}
                   >
-                    <SelectValue>
-                      {t(`capFrequency.${depositFreq}`)}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CAP_FREQUENCIES.map((f) => (
-                      <SelectItem
-                        key={f}
-                        value={f}
-                        data-testid={`cap-frequency-${f}`}
-                      >
-                        {t(`capFrequency.${f}`)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label={t("field.startDate")}>
-                <Input
-                  type="date"
-                  data-testid="holding-sheet-start-date"
-                  value={depositStart}
-                  onChange={(e) => {
-                    markDirty();
-                    setDepositStart(e.target.value);
-                  }}
-                />
-              </Field>
-              <Field label={t("field.endDateOptional")}>
-                <Input
-                  type="date"
-                  data-testid="holding-sheet-end-date"
-                  value={depositEnd}
-                  min={depositStart || undefined}
-                  onChange={(e) => {
-                    markDirty();
-                    setDepositEnd(e.target.value);
-                  }}
-                />
-              </Field>
-            </>
-          ) : behavior ? (
-            <>
-              {/* 5. Currency + buy price + quantity (tracked / manual / metals).
+                    {t(`capFrequency.${f}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label={t("field.startDate")}>
+            <Input
+              type="date"
+              data-testid="holding-sheet-start-date"
+              value={depositStart}
+              onChange={(e) => {
+                markDirty();
+                setDepositStart(e.target.value);
+              }}
+            />
+          </Field>
+          <Field label={t("field.endDateOptional")}>
+            <Input
+              type="date"
+              data-testid="holding-sheet-end-date"
+              value={depositEnd}
+              min={depositStart || undefined}
+              onChange={(e) => {
+                markDirty();
+                setDepositEnd(e.target.value);
+              }}
+            />
+          </Field>
+        </>
+      ) : behavior ? (
+        <>
+          {/* 5. Currency + buy price + quantity (tracked / manual / metals).
                   Currency comes FIRST (before buy price) so the user picks the
                   denomination before typing an amount. The picker hides once an
                   instrument is chosen (its quote currency is used); the price
                   labels then show that currency. */}
-              {showBuyCurrency && (
-                <Field
-                  label={
-                    behavior === "metals" || userChosenCurrency
-                      ? t("field.currency")
-                      : t("field.buyCurrency")
-                  }
-                >
-                  <CurrencyPicker
-                    variant="field"
-                    richLabel
-                    desktopDropdown
-                    value={
-                      behavior === "metals" || userChosenCurrency
-                        ? currentPriceCurrency
-                        : buyCurrency
-                    }
-                    onSelect={(v) => {
-                      markDirty();
-                      setBuyCurrency(v);
-                      // A manual value is a single currency: keep the current-price
-                      // currency in lock-step so the saved value is unambiguous.
-                      setCurrentPriceCurrency(v);
-                      // Metals: re-fetch the spot converted into the new currency.
-                      if (behavior === "metals") void resolveMetal(metal, v);
-                      // Crypto: re-fetch the instrument's USD quote converted to it.
-                      else if (userChosenCurrency && instrumentId != null)
-                        void fetchPrice(instrumentId, v);
-                    }}
-                    aria-label={t("field.currency")}
-                  />
-                </Field>
-              )}
-              <Field
-                label={
-                  showBuyCurrency
-                    ? t("field.buyPrice")
-                    : `${t("field.buyPrice")} (${buyCurrency})`
+          {showBuyCurrency && !dest && (
+            <Field
+              label={
+                behavior === "metals" || userChosenCurrency
+                  ? t("field.currency")
+                  : t("field.buyCurrency")
+              }
+            >
+              <CurrencyPicker
+                variant="field"
+                richLabel
+                desktopDropdown
+                value={
+                  behavior === "metals" || userChosenCurrency
+                    ? currentPriceCurrency
+                    : buyCurrency
                 }
-              >
-                <NumericInput
-                  testId="holding-sheet-buy-price"
-                  value={buyPrice}
-                  onChange={(v) => {
-                    markDirty();
-                    setBuyPrice(v);
-                  }}
-                />
-              </Field>
-              <Field label={t("field.quantity")}>
-                <NumericInput
-                  testId="holding-sheet-quantity"
-                  value={quantity}
-                  onChange={(v) => {
-                    markDirty();
-                    setQuantity(v);
-                  }}
-                />
-              </Field>
+                onSelect={(v) => {
+                  markDirty();
+                  setBuyCurrency(v);
+                  // A manual value is a single currency: keep the current-price
+                  // currency in lock-step so the saved value is unambiguous.
+                  setCurrentPriceCurrency(v);
+                  // Metals: re-fetch the spot converted into the new currency.
+                  if (behavior === "metals") void resolveMetal(metal, v);
+                  // Crypto: re-fetch the instrument's USD quote converted to it.
+                  else if (userChosenCurrency && instrumentId != null)
+                    void fetchPrice(instrumentId, v);
+                }}
+                aria-label={t("field.currency")}
+              />
+            </Field>
+          )}
+          {!dest && (
+            <Field
+              label={
+                showBuyCurrency
+                  ? t("field.buyPrice")
+                  : `${t("field.buyPrice")} (${buyCurrency})`
+              }
+            >
+              <NumericInput
+                testId="holding-sheet-buy-price"
+                value={buyPrice}
+                onChange={(v) => {
+                  markDirty();
+                  setBuyPrice(v);
+                }}
+              />
+            </Field>
+          )}
+          {(!dest || destQuantity) && (
+            <Field label={dest ? t("sell.qtyBought") : t("field.quantity")}>
+              <NumericInput
+                testId="holding-sheet-quantity"
+                value={quantity}
+                onChange={(v) => {
+                  markDirty();
+                  setQuantity(v);
+                }}
+              />
+            </Field>
+          )}
 
+          {!dest && (
+            <>
               {/* 6. Current price — editable for manual types AND for tracked
                   instruments the user prices by hand (non-US instrument or manual
                   entry). The currency is shown in the label when it's fixed by a
@@ -1159,7 +1210,55 @@ export function HoldingSheet({
                 </Field>
               )}
             </>
-          ) : null}
+          )}
+        </>
+      ) : null}
+    </>
+  );
+
+  if (dest)
+    return (
+      <div data-testid="holding-form-destination" className="space-y-4">
+        {formFields}
+      </div>
+    );
+
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) {
+          attemptClose();
+          return;
+        }
+        onOpenChange(true);
+      }}
+    >
+      <SheetContent
+        side="right"
+        data-testid="holding-sheet"
+        // pointer-events-auto: an open <Select> (Radix modal) locks body
+        // pointer-events to none; the sheet's own overlay stays interactive and
+        // would steal clicks meant for the Type trigger (re-click reopened the
+        // dropdown instead of closing it). Forcing the content interactive keeps
+        // the trigger clickable so it toggles closed normally.
+        className="!pointer-events-auto flex w-full flex-col overflow-y-auto bg-[var(--canvas-dark)] sm:max-w-[480px]"
+        // Close ONLY via the explicit X / Cancel / Discard buttons. The discard
+        // AlertDialog portals OUTSIDE this content, so any click on it counts as
+        // "interact outside"; letting that close the sheet re-ran attemptClose →
+        // re-opened the discard dialog (Keep editing looked dead). Suppressing
+        // outside-close unconditionally breaks that loop (no stale-state race).
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+      >
+        <SheetHeader className="mb-2">
+          <SheetTitle className="text-[var(--body-on-dark)]">
+            {mode === "create" ? t("sheet.title.add") : t("sheet.title.edit")}
+          </SheetTitle>
+        </SheetHeader>
+
+        <div className="space-y-4 px-1 pb-4">
+          {formFields}
 
           {/* 8. Preview — "what will be created" sum-up (all types). */}
           {preview && (
@@ -1460,5 +1559,29 @@ function SimpleSelect({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+/** Sell → "New investment": the Add form's type + fields, nothing else. */
+export function HoldingFormFields(props: {
+  budgetId: string;
+  budgetCurrency: string;
+  receivedCurrency: string;
+  initialUiType?: UiType;
+  onChange: (h: DestinationHolding | null) => void;
+}) {
+  return (
+    <HoldingSheet
+      open
+      onOpenChange={() => {}}
+      mode="create"
+      budgetId={props.budgetId}
+      budgetCurrency={props.budgetCurrency}
+      destination={{
+        receivedCurrency: props.receivedCurrency,
+        initialUiType: props.initialUiType,
+        onChange: props.onChange,
+      }}
+    />
   );
 }
