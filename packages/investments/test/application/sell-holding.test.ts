@@ -70,7 +70,7 @@ function fakes(holdings: Holding[], rates: Record<string, string> = {}) {
     findById: async (_t: string, _u: string, id: string) =>
       holdings.find((h) => h.id === id) ?? null,
   } as unknown as HoldingRepo;
-  const historyRepo: HistoryRepo = {
+  const historyRepo = {
     commit: async (_t, _u, plan) => {
       plans.push(plan);
       return {
@@ -79,7 +79,7 @@ function fakes(holdings: Holding[], rates: Record<string, string> = {}) {
       };
     },
     listFlows: async () => [],
-  };
+  } as unknown as HistoryRepo;
   const fxProvider = {
     rateAsOf: async (from: string, to: string, date: Date | string) => {
       const d =
@@ -405,7 +405,7 @@ describe("Create writes the first history entry", () => {
       findById: async () =>
         hold({ id: "new-id", uiType: "broker", buy: 1n, current: 1n }),
     } as unknown as HoldingRepo;
-    const historyRepo: HistoryRepo = {
+    const historyRepo = {
       commit: async (_t, _u, plan) => {
         plans.push(plan);
         return { newHoldingId: "new-id", transferId: null };

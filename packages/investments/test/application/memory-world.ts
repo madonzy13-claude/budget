@@ -93,7 +93,8 @@ export class MemoryWorld {
     const partner = r.transferId
       ? this.live().find((x) => x.transferId === r.transferId && x.id !== r.id)
       : undefined;
-    const { deleted: _d, ...rest } = r;
+    const rest: StoredEntry & { deleted?: boolean } = { ...r };
+    delete rest.deleted;
     return {
       ...rest,
       counterpartyName: partner
