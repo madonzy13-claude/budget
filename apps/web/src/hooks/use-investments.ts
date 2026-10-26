@@ -70,6 +70,8 @@ export interface HoldingDto {
   valueCents: string;
   /** value in the budget default currency (cents, string). */
   valueInBudgetCents: string;
+  /** held cost (buy price × qty) in the budget currency (cents, string). */
+  costInBudgetCents: string;
   /** signed P/L %, 1 decimal; null for cash / no-basis. */
   profitLossPct: number | null;
   /** signed absolute P/L in cents (server-computed); null for cash / no-basis. */

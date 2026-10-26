@@ -87,6 +87,8 @@ function optimisticRow(input: CreateHoldingInput): HoldingDto {
     // Optimistic row: the real fetch time arrives with the list refetch.
     priceFetchedAt: null,
     valueCents,
+    // Server fills the real cost on refetch; no P/L % yet, so it is unused.
+    costInBudgetCents: "0",
     valueInBudgetCents: valueCents,
     profitLossPct: null,
     profitLossCents: null,
