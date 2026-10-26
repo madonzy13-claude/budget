@@ -73,21 +73,6 @@ Given(
   },
 );
 
-Given(
-  "a custom holding {string} worth {int} cents in group {string} exists in my budget",
-  async ({ freshUser }, name: string, amountCents: number, group: string) => {
-    await withBudgetGuc(freshUser.budgetId, async (client) => {
-      await client.query(
-        `INSERT INTO budgeting.investments
-           (id, tenant_id, budget_id, name, holding_type, group_name, quantity,
-            current_price_cents, current_price_currency, sort_order, created_at)
-         VALUES (gen_random_uuid(), $1::uuid, $1::uuid, $2, 'other', $4, '1', $3, 'USD', 0, now())`,
-        [freshUser.budgetId, name, amountCents, group],
-      );
-    });
-  },
-);
-
 When("I open the investments wallets tab", async ({ page, freshUser }) => {
   await page.goto(`/en/budgets/${freshUser.budgetId}/wallets`);
   await page
@@ -150,10 +135,6 @@ Then(
   },
 );
 
-When("I expand the group {string}", async ({ page }, group: string) => {
-  await new InvestmentsPo(page).expandGroup(group);
-});
-
 // Distinct phrasing from the global "I reload the page" (workspace.steps.ts) so
 // this feature stays on a single test fixture (fresh-user-per-scenario).
 When("I reload the wallets tab", async ({ page }) => {
@@ -162,29 +143,6 @@ When("I reload the wallets tab", async ({ page }) => {
     .waitForLoadState("networkidle", { timeout: 10000 })
     .catch(() => {});
 });
-
-Then("the group {string} is expanded", async ({ page }, group: string) => {
-  await expect(new InvestmentsPo(page).groupToggle(group)).toHaveAttribute(
-    "aria-expanded",
-    "true",
-  );
-});
-
-When(
-  "I drag the holding {string} into group {string}",
-  async ({ page }, name: string, group: string) => {
-    await new InvestmentsPo(page).dragIntoGroup(name, group);
-  },
-);
-
-Then(
-  "the holding {string} is in group {string}",
-  async ({ page }, name: string, group: string) => {
-    const po = new InvestmentsPo(page);
-    await po.groupHeader(group).waitFor({ state: "visible" });
-    await po.row(name).waitFor({ state: "visible" });
-  },
-);
 
 Then(
   "the holding {string} appears without a page reload",
@@ -253,19 +211,36 @@ Then(
   },
 );
 
+When("I collapse the {string} type block", async ({ page }, uiType: string) => {
+  await page.getByTestId(`investment-group-chevron-${uiType}`).click();
+});
+
 Then(
-  "the amounts inside group {string} are narrower than the group total",
-  async ({ page }, group: string) => {
+  "the {string} type block is collapsed",
+  async ({ page }, uiType: string) => {
+    await expect(
+      page.getByTestId(`investment-group-chevron-${uiType}`),
+    ).toHaveAttribute("aria-expanded", "false");
+  },
+);
+
+Then("the holding row {string} is hidden", async ({ page }, name: string) => {
+  await expect(new InvestmentsPo(page).row(name)).toHaveCount(0);
+});
+
+Then(
+  "the amounts inside the {string} type block are narrower than its total",
+  async ({ page }, uiType: string) => {
     const box = (scope: Locator) =>
-      scope.locator('div[style*="min-width"]').first().boundingBox();
-    const header = await box(page.getByTestId(`investment-group-${group}`));
+      scope.locator('[style*="min-width"]').first().boundingBox();
+    const header = await box(page.getByTestId(`investment-group-${uiType}`));
     const rows = new InvestmentsPo(page);
     const a = await box(rows.row("Flat A"));
     const b = await box(rows.row("Flat B"));
     expect(header && a && b).toBeTruthy();
     // Rows line up with each other…
     expect(Math.abs(a!.x - b!.x)).toBeLessThan(1);
-    // …on their own width, not the group total's.
+    // …on their own width, not the block total's.
     expect(a!.width).toBeLessThan(header!.width - 2);
   },
 );
@@ -443,6 +418,17 @@ Given(
            FROM tenancy.budgets b WHERE b.id = $1::uuid`,
         [freshUser.budgetId, name, uiType, buy, value],
       );
+      // Its automatic Start entry, as migration 0087 backfilled for live rows.
+      await client.query(
+        `INSERT INTO budgeting.investment_history
+           (tenant_id, budget_id, holding_id, kind, effective_date, amount_cents,
+            amount_currency, cost_delta_cents, cost_currency, flow_cents, flow_currency)
+         SELECT i.tenant_id, i.budget_id, i.id, 'start', current_date, i.buy_price_cents,
+                i.buy_currency, i.buy_price_cents, i.buy_currency, i.buy_price_cents, i.buy_currency
+           FROM budgeting.investments i
+          WHERE i.budget_id = $1::uuid AND i.name = $2`,
+        [freshUser.budgetId, name],
+      );
     });
   },
 );
@@ -557,3 +543,137 @@ Then(
     );
   },
 );
+
+// ── Phase 13: Edit "What happened?", History, Delete ──
+
+const HAPPENED: Record<string, string> = {
+  "Value changed": "value_change",
+  "Added money": "add",
+  "Withdrew money": "withdraw",
+};
+
+When(
+  "I edit {string} to a value of {string} because I {string}",
+  async ({ page }, name: string, value: string, what: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openEdit(name);
+    await page.getByTestId("holding-sheet-actual").fill(value);
+    await page.getByTestId(`happened-${HAPPENED[what]}`).click();
+    await po.saveEdit("adjust");
+  },
+);
+
+When(
+  "I edit {string} to a quantity of {string} paying {string}",
+  async ({ page }, name: string, qty: string, paid: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openEdit(name);
+    await page.getByTestId("holding-sheet-quantity").fill(qty);
+    await page.getByTestId("happened-paid").fill(paid);
+    await po.saveEdit("adjust");
+  },
+);
+
+When(
+  "I edit {string} to a quantity of {string}",
+  async ({ page }, name: string, qty: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openEdit(name);
+    await page.getByTestId("holding-sheet-quantity").fill(qty);
+    await po.saveEdit("none");
+  },
+);
+
+Then("the sale opens with {string} left", async ({ page }, left: string) => {
+  const sheet = page.getByTestId("sell-sheet");
+  await sheet.waitFor({ state: "visible" });
+  await expect(sheet.getByTestId("sell-left")).toHaveValue(left);
+});
+
+When(
+  "I finish the sale out of investments receiving {string}",
+  async ({ page }, received: string) => {
+    const sheet = page.getByTestId("sell-sheet");
+    await sheet.getByTestId("sell-dest-out").click();
+    await sheet.getByTestId("sell-received").fill(received);
+    const res = page.waitForResponse(
+      (r) => r.url().endsWith("/sell") && r.request().method() === "POST",
+    );
+    await sheet.getByTestId("sell-submit").click();
+    expect((await res).status()).toBe(200);
+  },
+);
+
+When(
+  "I change the type of {string} to {string}",
+  async ({ page }, name: string, uiType: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openEdit(name);
+    await page.getByTestId("holding-sheet-type").click();
+    await page.getByTestId(`holding-type-${uiType}`).click();
+    await po.saveEdit("patch");
+  },
+);
+
+When(
+  "I add a broker {string} deposited {string} worth {string} opened on {string}",
+  async ({ page }, name: string, dep: string, cur: string, date: string) => {
+    await new InvestmentsPo(page).addBroker(name, dep, cur, date);
+  },
+);
+
+Then(
+  "the history of {string} lists {string}",
+  async ({ page }, name: string, text: string) => {
+    const po = new InvestmentsPo(page);
+    if (
+      !(await po
+        .sheet()
+        .isVisible()
+        .catch(() => false))
+    )
+      await po.openEdit(name);
+    const h = await po.openHistory();
+    await expect(h).toContainText(text);
+  },
+);
+
+When(
+  "I delete the {string} entry of {string}",
+  async ({ page }, kind: string, name: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openEdit(name);
+    await po.deleteHistoryEntry(kind);
+    await page.keyboard.press("Escape");
+  },
+);
+
+Then(
+  "the {string} type shows no realized gain",
+  async ({ page }, uiType: string) => {
+    await expect(
+      page.getByTestId(`investment-type-realized-${uiType}`),
+    ).toHaveCount(0);
+  },
+);
+
+Then(
+  "the {string} type shows realized exactly {string}",
+  async ({ page }, uiType: string, amount: string) => {
+    await expect(
+      page.getByTestId(`investment-type-realized-${uiType}`),
+    ).toHaveText(`incl. realized ${amount}`);
+  },
+);
+
+When("I delete the holding {string}", async ({ page }, name: string) => {
+  const dialog = await new InvestmentsPo(page).askDelete(name);
+  await expect(dialog).toContainText("entire history");
+  const res = page.waitForResponse(
+    (r) =>
+      /\/investments\/[0-9a-f-]+$/.test(r.url()) &&
+      r.request().method() === "DELETE",
+  );
+  await page.getByTestId("holding-delete-confirm-action").click();
+  expect((await res).ok()).toBe(true);
+});

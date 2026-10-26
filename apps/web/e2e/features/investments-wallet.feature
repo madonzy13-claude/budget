@@ -1,11 +1,8 @@
 @investments-wallet
-Feature: Investments wallet — section, holdings, grouping, optimistic add
-  # Plan 09-07 built the UI and un-skipped the viable scenarios. The
-  # drag-into-group scenario stays @skip-phase-09-debt: @dnd-kit uses pointer
-  # sensors (not HTML5 DnD) and a group header only exists once a holding has
-  # that group, so Playwright's dragTo onto a not-yet-existent group header is
-  # not reproducible here — DnD reassignment is covered by the human-verify
-  # checkpoint instead.
+Feature: Investments wallet — section, holdings, type groups, optimistic add
+  # Since Phase 13 the groups are the investment type (no user-named groups),
+  # so there is no drag-into-group; block order and in-type drag are covered
+  # with real mouse input below and in @investments-sell.
 
   Background:
     Given I am signed in as a fresh user
@@ -38,28 +35,18 @@ Feature: Investments wallet — section, holdings, grouping, optimistic add
     Then the holding row "Emergency fund" is visible
     And the holding row "Emergency fund" persists after a reload
 
-  # INV-11 — drag a holding into a group; assignment persists.
-  @skip-phase-09-debt
-  Scenario: Drag a holding into a group persists the group assignment
+  # INV-13 (Phase 13): a type block's collapsed state persists across a reload
+  # (localStorage inv-type-<budget>-<type>); other blocks stay as they were.
+  Scenario: A type block's collapsed state persists across a reload
     Given investments are enabled for my budget
-    And a custom holding "Gold Bar" worth 500000 cents exists in my budget
+    And a "broker" holding "IBKR" worth 198000 cents exists in my budget
+    And a "crypto" holding "Cold wallet" worth 115000 cents exists in my budget
     When I open the investments wallets tab
-    And I drag the holding "Gold Bar" into group "Precious Metals"
-    Then the holding "Gold Bar" is in group "Precious Metals"
-
-  # INV-13 — a group's expanded/collapsed state persists across a reload
-  # (localStorage inv-group-<budget>-<slug>); ungrouped rows are always visible.
-  Scenario: A group's expanded state persists across a reload
-    Given investments are enabled for my budget
-    And a custom holding "Apple" worth 198000 cents in group "Brokerage" exists in my budget
-    And a custom holding "Vanguard" worth 115000 cents in group "Brokerage" exists in my budget
-    And a custom holding "Vintage Car" worth 4500000 cents exists in my budget
-    When I open the investments wallets tab
-    And I expand the group "Brokerage"
+    And I collapse the "broker" type block
     And I reload the wallets tab
-    Then the group "Brokerage" is expanded
-    And the holding row "Apple" is visible
-    And the holding row "Vintage Car" is visible
+    Then the "broker" type block is collapsed
+    And the holding row "IBKR" is hidden
+    And the holding row "Cold wallet" is visible
 
   # INV-16 — optimistic create reflects without a reload.
   Scenario: Optimistic create reflects the new holding without a page reload
@@ -89,16 +76,15 @@ Feature: Investments wallet — section, holdings, grouping, optimistic add
     Then the holding "Land plot" is priced at "5666.666667" cents per unit
     And the holding row "Land plot" shows the amount "170"
 
-  # user, 261023: a group's big total set the amount width for every row, so the
-  # rows inside the group lost room for their names.
-  Scenario: Rows inside a group size their amounts by the group, not its total
+  # user, 261023: a block's big total set the amount width for every row, so
+  # the rows inside it lost room for their names.
+  Scenario: Rows inside a type block size their amounts by the block, not its total
     Given I am on a phone-sized viewport
     And investments are enabled for my budget
-    And a custom holding "Flat A" worth 90000000 cents in group "Flats" exists in my budget
-    And a custom holding "Flat B" worth 90000000 cents in group "Flats" exists in my budget
+    And a "real_estate" holding "Flat A" worth 90000000 cents exists in my budget
+    And a "real_estate" holding "Flat B" worth 90000000 cents exists in my budget
     When I open the investments wallets tab
-    And I expand the group "Flats"
-    Then the amounts inside group "Flats" are narrower than the group total
+    Then the amounts inside the "real_estate" type block are narrower than its total
 
   # user, 261023: tapping an amount that can't be quick-edited did nothing.
   Scenario: Tapping an amount that can't be quick-edited shakes it
