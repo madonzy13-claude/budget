@@ -412,7 +412,7 @@ Plans:
 
 **Requirements**: CONTEXT D-01..D-19 (no REQ IDs registered)
 **Depends on:** Phase 12
-**Plans:** 10/14 plans executed
+**Plans:** 11/14 plans executed
 
 Plans:
 
@@ -427,7 +427,7 @@ Plans:
 - [x] 13-09-PLAN.md — Web type blocks + type-summary hook (wave 6)
 - [x] 13-10-PLAN.md — Web DnD (blocks + within type) + custom-group UI removal + web rebuild (wave 7)
 - [ ] 13-11-PLAN.md — Web Sell sheet, row Sell action, hard Delete (wave 8)
-- [ ] 13-12-PLAN.md — Backend custom-group compat removal (wave 8)
+- [x] 13-12-PLAN.md — Backend custom-group compat removal (wave 8)
 - [ ] 13-13-PLAN.md — Web Edit "What happened?", History with full undo, Add date (wave 9)
 - [ ] 13-14-PLAN.md — E2E Gherkin (sell + history), full gate, user real-data acceptance (wave 10)
 
