@@ -51,6 +51,39 @@ export interface BookingPlan {
   patches: HoldingPatch[];
   newHolding?: NewHolding;
   entries: NewHistoryEntry[];
+  /** D-06 undo: entries to soft-delete (deleted_at = now()). */
+  softDeleteEntryIds?: string[];
+  /** Holdings to hard-delete (FK cascades their own history). */
+  deleteHoldingIds?: string[];
+}
+
+/** A live ledger row with everything its undo needs. */
+export interface StoredEntry {
+  id: string;
+  holdingId: string;
+  kind: HistoryKind;
+  effectiveDate: string;
+  amountCents: bigint | null;
+  amountCurrency: string | null;
+  qtyDelta: string | null;
+  costDeltaCents: bigint;
+  valueDeltaCents: bigint;
+  flowCents: bigint;
+  realizedBudgetCents: bigint | null;
+  budgetCurrency: string | null;
+  priorPrincipalCents: bigint | null;
+  priorStartDate: string | null;
+  transferId: string | null;
+  createdAt: string;
+  /** Name of the other leg's holding (conversions only). */
+  counterpartyName: string | null;
+}
+
+export interface RealizedRow {
+  uiType: string;
+  budgetCurrency: string;
+  realizedBudgetCents: bigint;
+  soldCostBudgetCents: bigint;
 }
 
 export interface FlowRow {
@@ -68,6 +101,37 @@ export interface HistoryRepo {
   /** Live (not deleted) entries' flows. Flow-0 rows included — they set the
    *  D-08 boundary. */
   listFlows(tenantId: string, budgetId: string): Promise<FlowRow[]>;
+  /** The live entry plus its live transfer partner (empty when gone). */
+  findLegs(
+    tenantId: string,
+    userId: string,
+    entryId: string,
+  ): Promise<StoredEntry[]>;
+  /** A holding's live entries, oldest first (effective_date, created_at). */
+  listForHolding(
+    tenantId: string,
+    userId: string,
+    holdingId: string,
+  ): Promise<StoredEntry[]>;
+  /** Realized + sold cost of live withdraw/convert_out rows per CURRENT
+   *  ui_type, archived holdings included (D-14). */
+  realizedByType(
+    tenantId: string,
+    userId: string,
+    budgetId: string,
+  ): Promise<RealizedRow[]>;
+  // ponytail: the type order is one budgets column — no port of its own.
+  getTypeOrder(
+    tenantId: string,
+    userId: string,
+    budgetId: string,
+  ): Promise<string[]>;
+  setTypeOrder(
+    tenantId: string,
+    userId: string,
+    budgetId: string,
+    order: string[],
+  ): Promise<void>;
 }
 
 /** Defaults for the fields most entries leave empty. */
