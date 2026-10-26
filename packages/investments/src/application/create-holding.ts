@@ -33,7 +33,6 @@ export function toNewHolding(input: CreateHoldingInput): NewHolding {
     uiType: input.uiType ?? null,
     icon: input.icon ?? null,
     color: input.color ?? null,
-    group: input.group ?? null,
     instrumentId: input.instrumentId ?? null,
     manualTicker: input.manualTicker ?? null,
     buyPriceCents: toCents(input.buyPriceCents),

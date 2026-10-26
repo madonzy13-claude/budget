@@ -13,7 +13,6 @@ export interface NewHolding {
   icon: string | null;
   /** Possession-only hex color (e.g. "#e63946"); null for every other type. */
   color: string | null;
-  group: string | null;
   instrumentId: string | null;
   /** User-typed ticker for a manual (no-instrument) tracked holding. */
   manualTicker: string | null;

@@ -37,7 +37,6 @@ export function hold(h: H): Holding {
     h.name ?? h.id,
     (h.holdingType ?? "other") as never,
     null,
-    null,
     h.buy,
     h.buyCcy ?? "PLN",
     h.qty ?? "1",

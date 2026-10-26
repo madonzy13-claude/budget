@@ -11,7 +11,6 @@ interface Init {
   tenantId?: string;
   name?: string;
   holdingType?: HoldingType;
-  group?: string | null;
   instrumentId?: string | null;
   buyPriceCents?: bigint | null;
   buyCurrency?: string | null;
@@ -36,7 +35,6 @@ export const mk = (o: Init = {}): Holding =>
     o.tenantId ?? "t1",
     o.name ?? "Apple",
     o.holdingType ?? "equities",
-    o.group === undefined ? null : o.group,
     o.instrumentId === undefined ? "i1" : o.instrumentId,
     o.buyPriceCents === undefined ? 10000n : o.buyPriceCents,
     o.buyCurrency === undefined ? "USD" : o.buyCurrency,

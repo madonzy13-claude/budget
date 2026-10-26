@@ -5,7 +5,7 @@
  * Query key: ["budget", budgetId, "investments"]  (INV-16)
  * Mirrors use-wallets.ts: plain client fetch, offline handled by React Query
  * networkMode + the persisted query cache. GET /investments returns an enriched
- * payload ({ holdings, groupWeights }); the hook returns the holdings array.
+ * payload ({ holdings, typeWeights }); the hook returns the holdings array.
  */
 import { useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";

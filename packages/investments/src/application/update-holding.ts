@@ -39,8 +39,6 @@ export function updateHolding(deps: { holdingRepo: HoldingRepo }) {
       const merged: NewHolding = {
         name: input.name ?? current.name,
         holdingType: input.holdingType ?? current.holdingType,
-        group:
-          input.group !== undefined ? (input.group ?? null) : current.group,
         instrumentId:
           input.instrumentId !== undefined
             ? (input.instrumentId ?? null)

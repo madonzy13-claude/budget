@@ -373,13 +373,14 @@ describe("Stocks type (Phase 13, D-10/D-11)", () => {
     expect(await storedUiType(fix, id)).toBe("stocks");
   });
 
-  it("GET carries typeWeights and keeps the compat group fields", async () => {
+  it("GET carries typeWeights and no custom-group fields", async () => {
     const fix = await createFixture("EUR");
     const app = await buildApp(fix);
     await post(app, "stocks");
     const body = (await (await app.request("/investments")).json()) as any;
     expect(body.typeWeights).toEqual({ stocks: 100 });
-    expect(body.groupWeights).toBeDefined();
-    expect("group" in body.holdings[0]).toBe(true);
+    // 13-12: custom-group compat fields are gone.
+    expect(body.groupWeights).toBeUndefined();
+    expect("group" in body.holdings[0]).toBe(false);
   });
 });

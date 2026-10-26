@@ -14,7 +14,6 @@ function depositHolding(): Holding {
     "tenant-1",
     "Savings @ 12%",
     "deposit",
-    null, // group
     null, // instrumentId
     100_000n, // principal (buyPriceCents) = $1000
     "USD",

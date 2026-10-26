@@ -79,8 +79,6 @@ export class Holding {
     public readonly tenantId: string,
     public name: string,
     public holdingType: HoldingType,
-    /** User-defined grouping label within the Investments section; null = ungrouped. */
-    public group: string | null,
     /** null = custom/cash holding (no tracked instrument). */
     public readonly instrumentId: string | null,
     /** null for cash / no buy basis. */

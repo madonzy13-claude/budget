@@ -136,9 +136,9 @@ const pct2 = (num: Big, denom: Big): number =>
   denom.eq(0) ? 0 : Number(num.div(denom).times(100).toFixed(2));
 
 /**
- * Per-holding weight % keyed by holding id (INV-10).
- * Grouped holding -> share of its group total; ungrouped -> share of the whole
- * portfolio. Denominators are computed in the budget default currency.
+ * Per-holding weight % keyed by holding id (INV-10): the holding's share of
+ * its TYPE (groups are the investment type since Phase 13). Denominators are
+ * computed in the budget default currency.
  */
 export function portfolioWeights(
   holdings: Holding[],
@@ -148,60 +148,26 @@ export function portfolioWeights(
   const values = new Map<string, Big>(
     holdings.map((h) => [h.id, toBudgetCcyValue(h, rates, budgetCurrency)]),
   );
-
-  let portfolioTotal = new Big(0);
-  const groupTotals = new Map<string, Big>();
+  const typeTotals = new Map<string, Big>();
   for (const h of holdings) {
-    const v = values.get(h.id)!;
-    portfolioTotal = portfolioTotal.plus(v);
-    if (h.group !== null) {
-      groupTotals.set(
-        h.group,
-        (groupTotals.get(h.group) ?? new Big(0)).plus(v),
-      );
-    }
+    const key = h.uiType ?? "other";
+    typeTotals.set(
+      key,
+      (typeTotals.get(key) ?? new Big(0)).plus(values.get(h.id)!),
+    );
   }
-
   const out = new Map<string, number>();
-  for (const h of holdings) {
-    const denom = h.group !== null ? groupTotals.get(h.group)! : portfolioTotal;
-    out.set(h.id, pct2(values.get(h.id)!, denom));
-  }
-  return out;
-}
-
-/**
- * Group-% of the whole portfolio keyed by group name (INV-10).
- * Denominator is the portfolio total in the budget default currency.
- */
-export function groupWeights(
-  holdings: Holding[],
-  rates: RateMap,
-  budgetCurrency: string,
-): Map<string, number> {
-  let portfolioTotal = new Big(0);
-  const groupTotals = new Map<string, Big>();
-  for (const h of holdings) {
-    const v = toBudgetCcyValue(h, rates, budgetCurrency);
-    portfolioTotal = portfolioTotal.plus(v);
-    if (h.group !== null) {
-      groupTotals.set(
-        h.group,
-        (groupTotals.get(h.group) ?? new Big(0)).plus(v),
-      );
-    }
-  }
-
-  const out = new Map<string, number>();
-  for (const [group, total] of groupTotals) {
-    out.set(group, pct2(total, portfolioTotal));
-  }
+  for (const h of holdings)
+    out.set(
+      h.id,
+      pct2(values.get(h.id)!, typeTotals.get(h.uiType ?? "other")!),
+    );
   return out;
 }
 
 /**
  * Type-% of the whole portfolio keyed by ui type (Phase 13: groups = type).
- * Same algorithm as groupWeights; a holding without a ui type counts as other.
+ * A holding without a ui type counts as other.
  */
 export function typeWeights(
   holdings: Holding[],

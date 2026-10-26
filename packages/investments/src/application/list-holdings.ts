@@ -8,7 +8,6 @@ import {
   profitLossPct,
   profitLossCents,
   portfolioWeights,
-  groupWeights,
   typeWeights,
   type RateMap,
 } from "../domain/portfolio-metrics";
@@ -41,7 +40,6 @@ export function listHoldings(deps: {
     Result<
       {
         holdings: EnrichedHoldingDto[];
-        groupWeights: Record<string, number>;
         typeWeights: Record<string, number>;
       },
       Error
@@ -135,7 +133,6 @@ export function listHoldings(deps: {
       for (const c of valueCcys) rateMap[c] = await getRate(c, budgetCcy);
 
       const weights = portfolioWeights(holdings, rateMap, budgetCcy);
-      const gWeights = groupWeights(holdings, rateMap, budgetCcy);
       const tWeights = typeWeights(holdings, rateMap, budgetCcy);
 
       const enriched: EnrichedHoldingDto[] = [];
@@ -175,7 +172,6 @@ export function listHoldings(deps: {
           uiType: h.uiType,
           icon: h.icon,
           color: h.color,
-          group: h.group,
           instrumentId: h.instrumentId,
           metal: h.metal,
           metalKind: h.metalKind,
@@ -217,7 +213,6 @@ export function listHoldings(deps: {
 
       return ok({
         holdings: enriched,
-        groupWeights: Object.fromEntries(gWeights),
         typeWeights: Object.fromEntries(tWeights),
       });
     } catch (e) {
