@@ -128,4 +128,18 @@ describe("Contributions from history (D-19)", () => {
     await r.at("2025-01-01");
     expect(calls.n).toBe(0);
   });
+
+  test("zero flows (conversions) need no rate even without a currency", async () => {
+    const { rateFor, calls } = fakeRates({});
+    const r = makeContributionsReader(
+      [
+        pln("2024-01-10", 5_500_000n),
+        { effectiveDate: "2024-02-01", flowCents: 0n, flowCurrency: "" },
+      ],
+      "PLN",
+      rateFor,
+    );
+    expect(await r.at("2024-03-01")).toBe(5_500_000n);
+    expect(calls.n).toBe(0);
+  });
 });

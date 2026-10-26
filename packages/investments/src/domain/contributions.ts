@@ -48,7 +48,7 @@ export function makeContributionsReader(
     async at(date) {
       let sum = new Big(0);
       for (const e of entries) {
-        if (e.effectiveDate > date) continue;
+        if (e.effectiveDate > date || e.flowCents === 0n) continue;
         const r = await rate(e.flowCurrency, date);
         if (r === null) return null;
         sum = sum.plus(new Big(e.flowCents.toString()).times(r).round(0, 2));

@@ -66,6 +66,50 @@ function mapRow(row: Record<string, unknown>): Holding {
   );
 }
 
+/** The one INSERT of a holding. Shared by create() and the Phase 13 booking
+ *  commit (a sale into a NEW holding), so both run inside the caller's tx. */
+export async function insertHoldingTx(
+  tx: unknown,
+  tenantId: string,
+  budgetId: string,
+  input: NewHolding,
+): Promise<Holding> {
+  const dt = tx as DrizzleTx;
+  const res = await dt.execute(sql`
+      INSERT INTO budgeting.investments
+        (id, tenant_id, budget_id, instrument_id, name, holding_type, ui_type, icon, color,
+         group_name, buy_price_cents, buy_currency, quantity, current_price_cents,
+         current_price_currency, metal, metal_kind, unit_of_measure, manual_ticker,
+         premium_pct, deposit_rate_bps, deposit_start_date, deposit_end_date,
+         deposit_cap_frequency, sort_order, created_at)
+      VALUES
+        (gen_random_uuid(), ${tenantId}::uuid, ${budgetId}::uuid, ${input.instrumentId}::uuid,
+         ${input.name}, ${input.holdingType}, ${input.uiType}, ${input.icon}, ${input.color},
+         ${input.group},
+         ${b8(input.buyPriceCents)}::bigint, ${input.buyCurrency},
+         ${input.quantity}::numeric, ${dec(input.currentPriceCents)}::numeric,
+         ${input.currentPriceCurrency},
+         ${input.metal}, ${input.metalKind}, ${input.unitOfMeasure},
+         ${input.manualTicker}, ${input.premiumPct ?? null}::numeric,
+         ${input.depositRateBps ?? null}::integer, ${input.depositStartDate ?? null}::date,
+         ${input.depositEndDate ?? null}::date, ${input.depositCapFrequency ?? null},
+         COALESCE((SELECT MAX(sort_order) + 1 FROM budgeting.investments
+                    WHERE budget_id = ${budgetId}::uuid AND archived_at IS NULL), 0),
+         now())
+      RETURNING id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
+                ui_type, icon, color, group_name, instrument_id::text AS instrument_id,
+                buy_price_cents::text AS buy_price_cents, buy_currency,
+                quantity::text AS quantity,
+                current_price_cents::text AS current_price_cents,
+                current_price_currency, metal, metal_kind, unit_of_measure,
+                manual_ticker, manual_ticker AS symbol, premium_pct::text AS premium_pct,
+                deposit_rate_bps, deposit_start_date::text AS deposit_start_date,
+                deposit_end_date::text AS deposit_end_date, deposit_cap_frequency,
+                sort_order, archived_at, created_at
+    `);
+  return mapRow(res.rows[0]);
+}
+
 export class DrizzleHoldingRepo implements HoldingRepo {
   async create(
     tenantId: string,
@@ -77,40 +121,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
       TenantId(tenantId),
       UserId(userId),
       async (tx) => {
-        const dt = tx as DrizzleTx;
-        const res = await dt.execute(sql`
-          INSERT INTO budgeting.investments
-            (id, tenant_id, budget_id, instrument_id, name, holding_type, ui_type, icon, color,
-             group_name, buy_price_cents, buy_currency, quantity, current_price_cents,
-             current_price_currency, metal, metal_kind, unit_of_measure, manual_ticker,
-             premium_pct, deposit_rate_bps, deposit_start_date, deposit_end_date,
-             deposit_cap_frequency, sort_order, created_at)
-          VALUES
-            (gen_random_uuid(), ${tenantId}::uuid, ${budgetId}::uuid, ${input.instrumentId}::uuid,
-             ${input.name}, ${input.holdingType}, ${input.uiType}, ${input.icon}, ${input.color},
-             ${input.group},
-             ${b8(input.buyPriceCents)}::bigint, ${input.buyCurrency},
-             ${input.quantity}::numeric, ${dec(input.currentPriceCents)}::numeric,
-             ${input.currentPriceCurrency},
-             ${input.metal}, ${input.metalKind}, ${input.unitOfMeasure},
-             ${input.manualTicker}, ${input.premiumPct ?? null}::numeric,
-             ${input.depositRateBps ?? null}::integer, ${input.depositStartDate ?? null}::date,
-             ${input.depositEndDate ?? null}::date, ${input.depositCapFrequency ?? null},
-             COALESCE((SELECT MAX(sort_order) + 1 FROM budgeting.investments
-                        WHERE budget_id = ${budgetId}::uuid AND archived_at IS NULL), 0),
-             now())
-          RETURNING id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
-                    ui_type, icon, color, group_name, instrument_id::text AS instrument_id,
-                    buy_price_cents::text AS buy_price_cents, buy_currency,
-                    quantity::text AS quantity,
-                    current_price_cents::text AS current_price_cents,
-                    current_price_currency, metal, metal_kind, unit_of_measure,
-                    manual_ticker, manual_ticker AS symbol, premium_pct::text AS premium_pct,
-                    deposit_rate_bps, deposit_start_date::text AS deposit_start_date,
-                    deposit_end_date::text AS deposit_end_date, deposit_cap_frequency,
-                    sort_order, archived_at, created_at
-        `);
-        return mapRow(res.rows[0]);
+        return insertHoldingTx(tx, tenantId, budgetId, input);
       },
     );
     if (r.isErr()) throw r.error;
