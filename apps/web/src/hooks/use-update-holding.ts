@@ -12,6 +12,7 @@ import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
 import type { HoldingDto, HoldingType } from "./use-investments";
+import { typeSummaryKey } from "./use-type-summary";
 
 export interface UpdateHoldingInput {
   holdingId: string;
@@ -130,6 +131,8 @@ export function useUpdateHolding(budgetId: string) {
 
     onSettled: () => {
       qc.invalidateQueries({ queryKey: key });
+      qc.invalidateQueries({ queryKey: typeSummaryKey(budgetId) });
+      qc.invalidateQueries({ queryKey: ["budget", budgetId, "overview"] });
     },
   });
 }

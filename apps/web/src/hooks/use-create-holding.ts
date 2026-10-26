@@ -15,6 +15,7 @@ import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
 import type { HoldingDto, HoldingType } from "./use-investments";
+import { typeSummaryKey } from "./use-type-summary";
 
 export interface CreateHoldingInput {
   name: string;
@@ -165,6 +166,9 @@ export function useCreateHolding(budgetId: string) {
       // Revalidate, then persist the server-reconciled list so the durable cache
       // holds the real (enriched) row rather than the optimistic placeholder.
       await qc.invalidateQueries({ queryKey: key });
+      // A new holding writes its first history entry (a contribution).
+      void qc.invalidateQueries({ queryKey: typeSummaryKey(budgetId) });
+      void qc.invalidateQueries({ queryKey: ["budget", budgetId, "overview"] });
       void persistNow(qc);
     },
   });
