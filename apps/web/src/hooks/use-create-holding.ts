@@ -18,6 +18,8 @@ import type { HoldingDto, HoldingType } from "./use-investments";
 import { typeSummaryKey } from "./use-type-summary";
 
 export interface CreateHoldingInput {
+  /** Phase 13: date of the first history entry (default today). */
+  openedOn?: string;
   name: string;
   holdingType: HoldingType;
   uiType?: string | null;

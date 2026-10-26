@@ -181,6 +181,7 @@ export function InvestmentsSection({
   const deleteMut = useDeleteHolding(budgetId);
   // One Sell sheet for the section (D-01).
   const [selling, setSelling] = useState<HoldingDto | null>(null);
+  const [sellLeft, setSellLeft] = useState<string | undefined>(undefined);
 
   /**
    * 260731: inline value edit on a manual-value row (cash / broker / savings —
@@ -489,7 +490,10 @@ export function InvestmentsSection({
                           maxAmountChars={amountCols.group[block.uiType]}
                           onEdit={openEdit}
                           onArchive={(id) => deleteMut.mutate(id)}
-                          onSell={setSelling}
+                          onSell={(h) => {
+                            setSellLeft(undefined);
+                            setSelling(h);
+                          }}
                           onValueChange={(amount) => saveInlineValue(h, amount)}
                         />
                       ))}
@@ -517,6 +521,10 @@ export function InvestmentsSection({
         budgetId={budgetId}
         budgetCurrency={budgetCurrency}
         holding={sheet.holding}
+        onSoldSome={(h, left) => {
+          setSellLeft(left);
+          setSelling(h);
+        }}
       />
       {selling && (
         <SellSheet
@@ -527,6 +535,7 @@ export function InvestmentsSection({
           budgetCurrency={budgetCurrency}
           holding={selling}
           holdings={holdings}
+          initialLeft={sellLeft}
         />
       )}
     </section>

@@ -548,9 +548,10 @@ describe("HoldingSheet — type-first", () => {
       depositStartDate: "2025-01-01",
       depositEndDate: null,
       depositCapFrequency: "monthly",
-      buyPriceCents: "500000",
-      quantity: "1",
     });
+    // Phase 13: principal (cost) and quantity never travel in a PATCH.
+    expect("buyPriceCents" in payload).toBe(false);
+    expect("quantity" in payload).toBe(false);
   });
 
   it("equity: keeps the currency picker visible WITH an instrument (re-denominate + FX)", () => {

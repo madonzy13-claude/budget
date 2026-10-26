@@ -189,3 +189,18 @@ export function deriveUiType(
       return "other";
   }
 }
+
+/** Mirror of the server's holdingShape (Phase 13): quantity holdings sell and
+ *  buy by units; amount holdings (qty 1) by value; deposits restart (D-20). */
+export function holdingShape(h: {
+  holdingType: string;
+  uiType: string | null;
+  isCustom: boolean;
+  quantity: string;
+}): "quantity" | "amount" | "deposit" {
+  if (h.holdingType === "deposit") return "deposit";
+  const ui = deriveUiType(h.uiType, h.holdingType, h.isCustom);
+  if (ui === "stocks" || ui === "crypto" || ui === "precious_metals")
+    return "quantity";
+  return Number(h.quantity) === 1 ? "amount" : "quantity";
+}

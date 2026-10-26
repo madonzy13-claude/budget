@@ -25,7 +25,11 @@ import { Input } from "@/components/ui/input";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { centsToBare } from "@/lib/cents-format";
-import { deriveUiType, type UiType } from "@/lib/investment-types";
+import {
+  deriveUiType,
+  holdingShape,
+  type UiType,
+} from "@/lib/investment-types";
 import { isOfflineWriteError } from "@/lib/offline-write";
 import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import type { HoldingDto } from "@/hooks/use-investments";
@@ -40,14 +44,7 @@ import {
 type Dest = "new" | "existing" | "out";
 const DESTS: Dest[] = ["new", "existing", "out"];
 
-/** Mirror of the server's holdingShape (packages/investments domain). */
-function shapeOf(h: HoldingDto): "quantity" | "amount" | "deposit" {
-  if (h.holdingType === "deposit") return "deposit";
-  const ui = deriveUiType(h.uiType, h.holdingType, h.isCustom);
-  if (ui === "stocks" || ui === "crypto" || ui === "precious_metals")
-    return "quantity";
-  return Number(h.quantity) === 1 ? "amount" : "quantity";
-}
+const shapeOf = holdingShape;
 
 const num = (s: string) => Number(s.replace(/\s/g, "").replace(/,/g, "."));
 const today = () => new Date().toLocaleDateString("en-CA");
@@ -69,6 +66,7 @@ export function SellSheet({
   budgetCurrency,
   holding,
   holdings,
+  initialLeft,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -76,6 +74,8 @@ export function SellSheet({
   budgetCurrency: string;
   holding: HoldingDto;
   holdings: HoldingDto[];
+  /** Edit → "Sold some" hands over the quantity left. */
+  initialLeft?: string;
 }) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
@@ -88,7 +88,7 @@ export function SellSheet({
   const buyCents = Number(holding.buyPriceCents ?? 0);
   const srcCcy = ccyOf(holding);
 
-  const [left, setLeft] = useState("");
+  const [left, setLeft] = useState(initialLeft ?? "");
   const [dest, setDest] = useState<Dest>("new");
   const [newHolding, setNewHolding] = useState<DestinationHolding | null>(null);
   const [existingId, setExistingId] = useState("");

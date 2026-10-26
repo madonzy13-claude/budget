@@ -47,8 +47,11 @@ import { clientApiFetch } from "@/lib/budget-fetch";
 import { centsToBare } from "@/lib/cents-format";
 import { useCreateHolding } from "@/hooks/use-create-holding";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
+import { useAdjustHolding, type AdjustBody } from "@/hooks/use-adjust-holding";
+import { HistorySection } from "./history-section";
 import type { HoldingDto, HoldingType } from "@/hooks/use-investments";
 import {
+  holdingShape,
   UI_TYPE_META,
   UI_TYPE_ORDER,
   METAL_TO_SYMBOL,
@@ -83,6 +86,9 @@ interface HoldingSheetProps {
   budgetId: string;
   budgetCurrency: string;
   holding?: HoldingDto | null;
+  /** Phase 13: a quantity cut in Edit is a sale — hand off to the Sell sheet
+   *  with that many units left. */
+  onSoldSome?: (holding: HoldingDto, left: string) => void;
   /** Phase 13 Sell → "New investment": render ONLY the type + type fields (no
    *  sheet shell, amounts, preview or actions). The amount is what was
    *  received, so price/amount/currency inputs hide; quantity types ask for
@@ -134,12 +140,14 @@ export function HoldingSheet({
   budgetId,
   budgetCurrency,
   holding,
+  onSoldSome,
   destination: dest,
 }: HoldingSheetProps) {
   const t = useTranslations("budget.investments");
   const fmt = useFormatter();
   const createMut = useCreateHolding(budgetId);
   const updateMut = useUpdateHolding(budgetId);
+  const adjustMut = useAdjustHolding(budgetId);
 
   // Create mode starts with NO type chosen ("") so nothing is preselected; edit
   // mode derives the existing holding's type.
@@ -278,6 +286,41 @@ export function HoldingSheet({
   const behavior = meta?.behavior ?? null;
   // Sell → New investment: priced-per-unit types ask how many units were bought.
   const destQuantity = behavior === "tracked" || behavior === "metals";
+
+  // ── Phase 13 Edit: cost basis + quantity move only through the ledger ──
+  const isEdit = mode === "edit" && !!holding && !dest;
+  const editShape = isEdit ? holdingShape(holding!) : null;
+  const today = new Date().toLocaleDateString("en-CA");
+  const cents = (v: string) =>
+    Math.round(Number(v.replace(/\s/g, "").replace(/,/g, ".")) * 100);
+  const storedValue = isEdit
+    ? Math.round(Number(holding!.currentPriceCents ?? 0))
+    : 0;
+  const newValue = currentPrice.trim() ? cents(currentPrice) : storedValue;
+  const valueDelta =
+    editShape === "amount" && behavior !== "deposit"
+      ? newValue - storedValue
+      : 0;
+  const qtyDelta =
+    editShape === "quantity" && quantity.trim()
+      ? Number(quantity.replace(/,/g, ".")) - Number(holding!.quantity)
+      : 0;
+  const [happened, setHappened] = useState<"value_change" | "add" | "withdraw">(
+    "value_change",
+  );
+  // An increase can't be a withdrawal, a decrease can't be added money.
+  const happenedNow =
+    (happened === "withdraw" && valueDelta > 0) ||
+    (happened === "add" && valueDelta < 0)
+      ? "value_change"
+      : happened;
+  const [happenedDate, setHappenedDate] = useState(today);
+  const [received, setReceived] = useState<string | null>(null);
+  const receivedShown = received ?? String(Math.abs(valueDelta) / 100);
+  const [paid, setPaid] = useState<string | null>(null);
+  const unitCents = Number(holding?.currentPriceCents ?? 0);
+  const paidShown = paid ?? String(Math.round(qtyDelta * unitCents) / 100);
+  const [openedOn, setOpenedOn] = useState(today);
   // A tracked type whose price the user enters by hand: either a selected non-US
   // instrument (provider='manual', no free quote) OR a manual entry (ticker not in
   // the catalog, no instrument). Both ⇒ editable current-price field.
@@ -658,14 +701,60 @@ export function HoldingSheet({
 
   function handleSave() {
     if (!canSave) return;
-    const payload = buildPayload();
+    const payload: Record<string, unknown> = buildPayload();
     if (mode === "create") {
-      createMut.mutate(payload as Parameters<typeof createMut.mutate>[0]);
-    } else if (holding) {
-      updateMut.mutate({
+      createMut.mutate({ ...payload, openedOn } as unknown as Parameters<
+        typeof createMut.mutate
+      >[0]);
+      onOpenChange(false);
+      return;
+    }
+    if (!holding) return;
+    // Phase 13: never PATCH cost basis or quantity (server: use_adjust); a
+    // changed value on an amount holding is booked below instead.
+    delete payload.buyPriceCents;
+    delete payload.quantity;
+    if (valueDelta !== 0) delete payload.currentPriceCents;
+    updateMut.mutate({
+      holdingId: holding.id,
+      ...payload,
+    } as Parameters<typeof updateMut.mutate>[0]);
+
+    const q = (n: number) => String(Number(n.toFixed(8)));
+    if (qtyDelta < 0) {
+      onSoldSome?.(holding, q(Number(quantity.replace(/,/g, "."))));
+    } else if (qtyDelta > 0) {
+      adjustMut.mutate({
         holdingId: holding.id,
-        ...payload,
-      } as Parameters<typeof updateMut.mutate>[0]);
+        body: {
+          kind: "buy",
+          addQuantity: q(qtyDelta),
+          paidCents: String(cents(paidShown)),
+          effectiveDate: happenedDate,
+        },
+      });
+    } else if (valueDelta !== 0) {
+      const body: AdjustBody =
+        happenedNow === "withdraw"
+          ? {
+              kind: "withdraw",
+              newValueCents: String(newValue),
+              receivedCents: String(cents(receivedShown)),
+              receivedCurrency: holding.buyCurrency ?? currentPriceCurrency,
+              effectiveDate: happenedDate,
+            }
+          : happenedNow === "add"
+            ? {
+                kind: "add",
+                newValueCents: String(newValue),
+                effectiveDate: happenedDate,
+              }
+            : {
+                kind: "value_change",
+                newValueCents: String(newValue),
+                effectiveDate: happenedDate,
+              };
+      adjustMut.mutate({ holdingId: holding.id, body });
     }
     onOpenChange(false);
   }
@@ -771,6 +860,14 @@ export function HoldingSheet({
           </SelectContent>
         </Select>
       </Field>
+      {isEdit && (
+        <p
+          className="-mt-2 text-[12px] leading-[1.4]"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          {t("changeTypeHelper")}
+        </p>
+      )}
 
       {/* 2. Name / Asset — only once a Type is chosen (no field is focused on
               open: no type → no Asset/Name field, and neither input auto-focuses). */}
@@ -943,6 +1040,7 @@ export function HoldingSheet({
           >
             <NumericInput
               testId="holding-sheet-deposited"
+              readOnly={isEdit}
               value={buyPrice}
               onChange={(v) => {
                 markDirty();
@@ -1002,6 +1100,7 @@ export function HoldingSheet({
           <Field label={t("field.principal")}>
             <NumericInput
               testId="holding-sheet-principal"
+              readOnly={isEdit}
               value={buyPrice}
               onChange={(v) => {
                 markDirty();
@@ -1121,6 +1220,7 @@ export function HoldingSheet({
             >
               <NumericInput
                 testId="holding-sheet-buy-price"
+                readOnly={isEdit}
                 value={buyPrice}
                 onChange={(v) => {
                   markDirty();
@@ -1271,6 +1371,128 @@ export function HoldingSheet({
             />
           )}
 
+          {mode === "create" && (
+            <Field label={t("addDate")}>
+              <Input
+                type="date"
+                data-testid="holding-sheet-date"
+                value={openedOn}
+                max={today}
+                onChange={(e) => setOpenedOn(e.target.value)}
+              />
+            </Field>
+          )}
+
+          {(valueDelta !== 0 || qtyDelta > 0) && (
+            <section className="space-y-2">
+              <h3
+                className="text-[16px] font-semibold"
+                style={{ color: "var(--body-on-dark)" }}
+              >
+                {t("whatHappened.title")}
+              </h3>
+              {valueDelta !== 0 && (
+                <div
+                  role="radiogroup"
+                  aria-label={t("whatHappened.title")}
+                  className="space-y-2"
+                  onKeyDown={(e) => {
+                    const opts = [
+                      "value_change",
+                      valueDelta > 0 ? "add" : "withdraw",
+                    ] as const;
+                    if (
+                      ![
+                        "ArrowDown",
+                        "ArrowUp",
+                        "ArrowLeft",
+                        "ArrowRight",
+                      ].includes(e.key)
+                    )
+                      return;
+                    e.preventDefault();
+                    setHappened(
+                      opts[(opts.indexOf(happenedNow as never) + 1) % 2]!,
+                    );
+                  }}
+                >
+                  {(
+                    [
+                      ["value_change", "valueChanged"],
+                      valueDelta > 0
+                        ? ["add", "added"]
+                        : ["withdraw", "withdrew"],
+                    ] as const
+                  ).map(([k, label]) => (
+                    <button
+                      key={k}
+                      type="button"
+                      role="radio"
+                      aria-checked={happenedNow === k}
+                      tabIndex={happenedNow === k ? 0 : -1}
+                      data-testid={`happened-${k}`}
+                      onClick={() => setHappened(k as typeof happened)}
+                      className="flex min-h-11 w-full flex-col items-start rounded-[var(--radius-md)] border px-4 py-2 text-left"
+                      style={{
+                        background: "var(--surface-card-dark)",
+                        borderColor:
+                          happenedNow === k
+                            ? "var(--primary)"
+                            : "var(--hairline-dark)",
+                      }}
+                    >
+                      <span
+                        className="text-[14px] font-semibold"
+                        style={{ color: "var(--body-on-dark)" }}
+                      >
+                        {t(`whatHappened.${label}`)}
+                      </span>
+                      <span
+                        className="text-[12px]"
+                        style={{ color: "var(--muted-foreground)" }}
+                      >
+                        {t(`whatHappened.${label}Desc`)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {valueDelta !== 0 && happenedNow === "withdraw" && (
+                <Field
+                  label={`${t("sell.received")} (${holding!.buyCurrency ?? currentPriceCurrency})`}
+                >
+                  <NumericInput
+                    testId="happened-received"
+                    value={receivedShown}
+                    onChange={setReceived}
+                  />
+                </Field>
+              )}
+              {qtyDelta > 0 && (
+                <Field
+                  label={`${t("whatHappened.boughtMore")} (${holding!.buyCurrency ?? currentPriceCurrency})`}
+                >
+                  <NumericInput
+                    testId="happened-paid"
+                    value={paidShown}
+                    onChange={setPaid}
+                  />
+                </Field>
+              )}
+              {(happenedNow !== "value_change" || qtyDelta > 0) && (
+                <Field label={t("sell.date")}>
+                  <Input
+                    type="date"
+                    data-testid="happened-date"
+                    value={happenedDate}
+                    max={today}
+                    onChange={(e) => setHappenedDate(e.target.value)}
+                  />
+                </Field>
+              )}
+            </section>
+          )}
+
           {/* Actions live at the END of the scrolling form (NOT a pinned footer):
               the user scrolls down to reach Save. */}
           <div
@@ -1285,12 +1507,26 @@ export function HoldingSheet({
               onClick={handleSave}
               className="flex-1"
             >
-              {t("sheet.save")}
+              {qtyDelta < 0
+                ? t("whatHappened.soldSome")
+                : qtyDelta > 0
+                  ? t("whatHappened.boughtMore")
+                  : valueDelta === 0
+                    ? t("sheet.save")
+                    : happenedNow === "add"
+                      ? t("whatHappened.saveAdded")
+                      : happenedNow === "withdraw"
+                        ? t("whatHappened.saveWithdraw")
+                        : t("whatHappened.saveValue")}
             </Button>
             <Button type="button" variant="ghost" onClick={attemptClose}>
               {t("sheet.cancel")}
             </Button>
           </div>
+
+          {isEdit && (
+            <HistorySection budgetId={budgetId} holdingId={holding!.id} />
+          )}
         </div>
       </SheetContent>
 
@@ -1499,11 +1735,13 @@ export function NumericInput({
   onChange,
   testId,
   placeholder,
+  readOnly,
 }: {
   value: string;
   onChange: (v: string) => void;
   testId?: string;
   placeholder?: string;
+  readOnly?: boolean;
 }) {
   return (
     <Input
@@ -1511,6 +1749,7 @@ export function NumericInput({
       inputMode="decimal"
       data-testid={testId}
       value={value}
+      readOnly={readOnly}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       className="text-num-md tabular-nums"
