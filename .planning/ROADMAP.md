@@ -412,7 +412,7 @@ Plans:
 
 **Requirements**: CONTEXT D-01..D-19 (no REQ IDs registered)
 **Depends on:** Phase 12
-**Plans:** 8/14 plans executed
+**Plans:** 9/14 plans executed
 
 Plans:
 
@@ -424,7 +424,7 @@ Plans:
 - [x] 13-06-PLAN.md — Backend adapters: combined stocks search, route tests, api/worker rebuild (wave 3)
 - [x] 13-07-PLAN.md — Sell API (new/existing/out, partial deposit), create entry with date, Overview wiring (wave 4)
 - [x] 13-08-PLAN.md — Adjust, full-undo delete, history/type summary/order, hard delete, PATCH cost guard (wave 5)
-- [ ] 13-09-PLAN.md — Web type blocks + type-summary hook (wave 6)
+- [x] 13-09-PLAN.md — Web type blocks + type-summary hook (wave 6)
 - [ ] 13-10-PLAN.md — Web DnD (blocks + within type) + custom-group UI removal + web rebuild (wave 7)
 - [ ] 13-11-PLAN.md — Web Sell sheet, row Sell action, hard Delete (wave 8)
 - [ ] 13-12-PLAN.md — Backend custom-group compat removal (wave 8)
