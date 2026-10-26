@@ -473,11 +473,12 @@ describe("Overview without contributions — history hybrid (D-08)", () => {
       return opening;
     },
   });
-  const history = (
-    firstDate: string | null,
-    at: (d: string) => bigint | null,
-    seen: string[] = [],
-  ): GetOverviewWealthDeps["contributionsHistory"] =>
+  const history =
+    (
+      firstDate: string | null,
+      at: (d: string) => bigint | null,
+      seen: string[] = [],
+    ): GetOverviewWealthDeps["contributionsHistory"] =>
     async () => ({
       firstDate,
       async at(d: string) {
@@ -497,7 +498,11 @@ describe("Overview without contributions — history hybrid (D-08)", () => {
   const go = async (
     over: Partial<GetOverviewWealthDeps>,
     input: Partial<typeof oct> = {},
-  ) => getOverviewWealth(deps({ snapshotRepo: repo(), ...over }))({ ...oct, ...input });
+  ) =>
+    getOverviewWealth(deps({ snapshotRepo: repo(), ...over }))({
+      ...oct,
+      ...input,
+    });
 
   test("post-boundary points subtract history contributions; the jump disappears", async () => {
     const dto = (
@@ -562,7 +567,10 @@ describe("Overview without contributions — history hybrid (D-08)", () => {
       });
     };
     await go({ contributionsHistory: dep }, { net: false });
-    await go({ contributionsHistory: dep }, { view: "capitalization" as never });
+    await go(
+      { contributionsHistory: dep },
+      { view: "capitalization" as never },
+    );
     expect(called).toBe(0);
   });
 
