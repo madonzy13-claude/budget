@@ -21,6 +21,10 @@
 ALTER TABLE budgeting.investments NO FORCE ROW LEVEL SECURITY;
 
 --> statement-breakpoint
+-- Dropped BEFORE the remap: the old CHECK has no 'stocks'.
+ALTER TABLE budgeting.investments DROP CONSTRAINT IF EXISTS investments_ui_type_chk;
+
+--> statement-breakpoint
 -- D-10/D-11: equity + ETF (+ legacy reit) → stocks, etb → treasury_bond, null →
 -- derived from holding_type. holding_type is untouched (it routes pricing).
 UPDATE budgeting.investments
@@ -43,9 +47,6 @@ UPDATE budgeting.investments
      END
    END
  WHERE ui_type IS NULL OR ui_type IN ('equity', 'etf', 'reit', 'etb');
-
---> statement-breakpoint
-ALTER TABLE budgeting.investments DROP CONSTRAINT IF EXISTS investments_ui_type_chk;
 
 --> statement-breakpoint
 ALTER TABLE budgeting.investments ADD CONSTRAINT investments_ui_type_chk
