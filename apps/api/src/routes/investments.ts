@@ -3,7 +3,7 @@
  * Mirrors wallets.ts: zValidator on every state-changing endpoint; tenant from
  * pickTenant (never client-supplied — T-9-14); RLS is the second layer.
  */
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { UserId } from "@budget/shared-kernel";
 import type { BootedDeps } from "../boot";
 import { serverError } from "../middleware/server-error";
@@ -270,6 +270,131 @@ export function createInvestmentsRoute(deps: BootedDeps) {
       return serverError(c, "sell_holding_failed", e);
     }
     return c.json({ ok: true, ...r.value });
+  });
+
+  // ── Phase 13: history, edit bookings, type groups, delete ──────────────
+  const who = (c: Context) => {
+    const tenantId = pickTenant(c);
+    const userId = (c.get("userId") as string) ?? c.get("session")?.user?.id;
+    return { tenantId, budgetId: tenantId, actorUserId: userId };
+  };
+  const UNDO_ERRORS = new Set([
+    "undo_later_first",
+    "would_empty_holding",
+    "would_go_negative",
+  ]);
+  const ADJUST_ERRORS = new Set([
+    ...SELL_ERRORS,
+    "nothing_added",
+    "wrong_shape",
+  ]);
+  const fail = (
+    c: Context,
+    e: Error & { currency?: string; date?: string },
+    known: Set<string>,
+    code: string,
+  ) => {
+    if (e.message === "not_found") return c.json({ error: "not_found" }, 404);
+    if (e.message === "fx_unavailable")
+      return c.json(
+        { error: "fx_unavailable", currency: e.currency, date: e.date },
+        422,
+      );
+    if (known.has(e.message)) return c.json({ error: e.message }, 422);
+    return serverError(c, code, e);
+  };
+
+  // GET /type-summary — realized + sold cost per type, saved order (D-12/D-14)
+  app.get("/type-summary", async (c) => {
+    if (!c.get("session")) return c.json({ error: "unauthorized" }, 401);
+    const w = who(c);
+    const budget = await deps.tenancy.workspaceRepo.findById(w.tenantId);
+    const r = await deps.investments.typeSummary({
+      ...w,
+      budgetCurrency: budget?.default_currency ?? "EUR",
+    });
+    if (r.isErr()) return serverError(c, "type_summary_failed", r.error);
+    return c.json(r.value);
+  });
+
+  // PUT /type-order — per-budget type-group order (D-12)
+  app.put("/type-order", async (c) => {
+    const { typeOrderSchema } = await getSchemas();
+    if (!c.get("session")) return c.json({ error: "unauthorized" }, 401);
+    const body = await c.req.json().catch(() => null);
+    const parsed = typeOrderSchema.safeParse(body);
+    if (!parsed.success)
+      return c.json(
+        { error: "validation_error", issues: parsed.error.issues },
+        422,
+      );
+    const r = await deps.investments.setTypeOrder({
+      ...who(c),
+      order: parsed.data.order,
+    });
+    if (r.isErr()) return fail(c, r.error, new Set(), "type_order_failed");
+    return c.json(r.value);
+  });
+
+  // DELETE /history/:entryId — full undo (D-06)
+  app.delete("/history/:entryId", async (c) => {
+    if (!c.get("session")) return c.json({ error: "unauthorized" }, 401);
+    const r = await deps.investments.reverseHistoryEntry({
+      ...who(c),
+      entryId: c.req.param("entryId"),
+    });
+    if (r.isErr()) return fail(c, r.error, UNDO_ERRORS, "undo_entry_failed");
+    return c.json(r.value);
+  });
+
+  // GET /:id/history — the edit sheet's History section (D-05)
+  app.get("/:id/history", async (c) => {
+    if (!c.get("session")) return c.json({ error: "unauthorized" }, 401);
+    const r = await deps.investments.listHistory({
+      ...who(c),
+      holdingId: c.req.param("id"),
+    });
+    if (r.isErr()) return serverError(c, "list_history_failed", r.error);
+    return c.json(r.value);
+  });
+
+  // POST /:id/adjust — Edit → "What happened?" (D-03)
+  app.post("/:id/adjust", async (c) => {
+    const { adjustHoldingSchema } = await getSchemas();
+    if (!c.get("session")) return c.json({ error: "unauthorized" }, 401);
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: "Invalid JSON" }, 422);
+    const parsed = adjustHoldingSchema.safeParse(body);
+    if (!parsed.success)
+      return c.json(
+        {
+          error: parsed.error.issues[0]?.message ?? "validation_error",
+          issues: parsed.error.issues,
+        },
+        422,
+      );
+    const w = who(c);
+    const budget = await deps.tenancy.workspaceRepo.findById(w.tenantId);
+    const r = await deps.investments.adjustHolding({
+      ...parsed.data,
+      ...w,
+      budgetCurrency: budget?.default_currency ?? "EUR",
+      holdingId: c.req.param("id"),
+    });
+    if (r.isErr()) return fail(c, r.error, ADJUST_ERRORS, "adjust_failed");
+    return c.json(r.value);
+  });
+
+  // DELETE /:id — erase the holding and its history, undoing its conversions
+  app.delete("/:id", async (c) => {
+    if (!c.get("session")) return c.json({ error: "unauthorized" }, 401);
+    const r = await deps.investments.deleteHolding({
+      ...who(c),
+      holdingId: c.req.param("id"),
+    });
+    if (r.isErr())
+      return fail(c, r.error, UNDO_ERRORS, "delete_holding_failed");
+    return c.json(r.value);
   });
 
   return app;

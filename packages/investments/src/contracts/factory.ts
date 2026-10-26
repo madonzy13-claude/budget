@@ -12,6 +12,14 @@ import type { PriceCacheRepo } from "../ports/price-cache-repo";
 import type { PriceProvider } from "../ports/price-provider";
 import { createHolding } from "../application/create-holding";
 import { sellHolding } from "../application/sell-holding";
+import { adjustHolding } from "../application/adjust-holding";
+import { reverseHistoryEntry } from "../application/reverse-history-entry";
+import {
+  deleteHolding,
+  listHistory,
+  setTypeOrder,
+  typeSummary,
+} from "../application/history-queries";
 import { updateHolding } from "../application/update-holding";
 import { archiveHolding } from "../application/archive-holding";
 import { listHoldings } from "../application/list-holdings";
@@ -30,15 +38,29 @@ export function createInvestmentsModule(deps: {
   priceCacheRepo: PriceCacheRepo;
   priceProvider: PriceProvider;
 }) {
+  const sell = sellHolding({
+    holdingRepo: deps.holdingRepo,
+    historyRepo: deps.historyRepo,
+    fxProvider: deps.fxProvider,
+  });
+  const ledger = {
+    holdingRepo: deps.holdingRepo,
+    historyRepo: deps.historyRepo,
+  };
   return {
+    sellHolding: sell,
+    adjustHolding: adjustHolding({ ...ledger, sellHolding: sell }),
+    reverseHistoryEntry: reverseHistoryEntry(ledger),
+    deleteHolding: deleteHolding(ledger),
+    listHistory: listHistory(ledger),
+    typeSummary: typeSummary({
+      historyRepo: deps.historyRepo,
+      fxProvider: deps.fxProvider,
+    }),
+    setTypeOrder: setTypeOrder(ledger),
     createHolding: createHolding({
       holdingRepo: deps.holdingRepo,
       historyRepo: deps.historyRepo,
-    }),
-    sellHolding: sellHolding({
-      holdingRepo: deps.holdingRepo,
-      historyRepo: deps.historyRepo,
-      fxProvider: deps.fxProvider,
     }),
     updateHolding: updateHolding({ holdingRepo: deps.holdingRepo }),
     archiveHolding: archiveHolding({ holdingRepo: deps.holdingRepo }),
