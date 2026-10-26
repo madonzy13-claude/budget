@@ -512,7 +512,6 @@ export function InvestmentsSection({
         mode={sheet.mode}
         budgetId={budgetId}
         budgetCurrency={budgetCurrency}
-        groups={[]}
         holding={sheet.holding}
       />
     </section>

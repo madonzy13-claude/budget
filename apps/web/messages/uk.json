@@ -607,7 +607,6 @@
         "nameOptional": "Назва (необов’язково)",
         "type": "Тип",
         "typePlaceholder": "Виберіть тип",
-        "group": "Група",
         "groupPlaceholder": "Без групи",
         "buyPrice": "Ціна купівлі",
         "buyCurrency": "Валюта купівлі",
@@ -635,10 +634,6 @@
         "tickerPlaceholder": "напр. AAPL"
       },
       "uitype": {
-        "equity": "Акції",
-        "etf": "ETF",
-        "etb": "Біржові облігації",
-        "reit": "REIT",
         "crypto": "Крипто",
         "treasury_bond": "Роздрібні казначейські облігації",
         "collectibles": "Колекції",
@@ -686,14 +681,10 @@
         "other": "Інше"
       },
       "group": {
-        "portfolioSuffix": "портфеля",
-        "noGroups": "Поки що немає груп.",
-        "create": "Створити \"{name}\"",
         "headerAria": "{name}, {pct} портфеля. {state}.",
         "expanded": "Розгорнуто",
         "collapsed": "Згорнуто",
-        "dragAria": "Перетягніть, щоб перемістити групу {name}.",
-        "metricsAria": "Показати прибуток/збиток і частку портфеля для {name}."
+        "dragAria": "Перетягніть, щоб перемістити групу {name}."
       },
       "row": {
         "delisted": "Знято з торгів",
@@ -707,8 +698,6 @@
       },
       "rowExpandAria": "Розгорнути деталі {name}.",
       "plAria": "{value} прибуток/збиток",
-      "ungroupZone": "Перетягніть сюди, щоб прибрати з групи",
-      "looseZone": "Перетягніть сюди, щоб залишити окремо",
       "search": {
         "placeholder": "Пошук інструментів…",
         "loading": "Пошук…",

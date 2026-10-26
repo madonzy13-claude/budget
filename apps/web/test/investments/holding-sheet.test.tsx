@@ -774,20 +774,23 @@ describe("HoldingSheet — type-first", () => {
 
   // Phase 13 (D-10, RESEARCH A6): Stocks & ETFs is one type; the holding_type
   // (price routing) follows the picked instrument.
-  it("picking an ETF under Stocks & ETFs saves holdingType etf", () => {
+  it("picking an ETF under Stocks & ETFs saves holdingType etf", async () => {
     vi.mocked(clientApiFetch).mockResolvedValue({
       ok: true,
       json: async () => ({ priceCents: "50000", currency: "USD" }),
     } as unknown as Response);
     render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
     fireEvent.click(screen.getByTestId("pick-etf"));
+    await waitFor(() =>
+      expect(screen.getByTestId("holding-sheet-submit")).not.toBeDisabled(),
+    );
     fireEvent.click(screen.getByTestId("holding-sheet-submit"));
     const payload = updateMutate.mock.calls.at(-1)![0];
     expect(payload).toMatchObject({ uiType: "stocks", holdingType: "etf" });
     expect("group" in payload).toBe(false);
   });
 
-  it("picking a stock under Stocks & ETFs saves holdingType equities", () => {
+  it("picking a stock under Stocks & ETFs saves holdingType equities", async () => {
     vi.mocked(clientApiFetch).mockResolvedValue({
       ok: true,
       json: async () => ({ priceCents: "19800", currency: "USD" }),
@@ -800,6 +803,9 @@ describe("HoldingSheet — type-first", () => {
       />,
     );
     fireEvent.click(screen.getByTestId("pick-instrument"));
+    await waitFor(() =>
+      expect(screen.getByTestId("holding-sheet-submit")).not.toBeDisabled(),
+    );
     fireEvent.click(screen.getByTestId("holding-sheet-submit"));
     expect(updateMutate.mock.calls.at(-1)![0]).toMatchObject({
       uiType: "stocks",

@@ -607,7 +607,6 @@
         "nameOptional": "Nazwa (opcjonalnie)",
         "type": "Typ",
         "typePlaceholder": "Wybierz typ",
-        "group": "Grupa",
         "groupPlaceholder": "Bez grupy",
         "buyPrice": "Cena zakupu",
         "buyCurrency": "Waluta zakupu",
@@ -635,10 +634,6 @@
         "tickerPlaceholder": "np. AAPL"
       },
       "uitype": {
-        "equity": "Akcje",
-        "etf": "ETF",
-        "etb": "Obligacje giełdowe",
-        "reit": "REIT",
         "crypto": "Krypto",
         "treasury_bond": "Detaliczne obligacje skarbowe",
         "collectibles": "Kolekcje",
@@ -686,14 +681,10 @@
         "other": "Inne"
       },
       "group": {
-        "portfolioSuffix": "portfela",
-        "noGroups": "Brak grup.",
-        "create": "Utwórz \"{name}\"",
         "headerAria": "{name}, {pct} portfela. {state}.",
         "expanded": "Rozwinięte",
         "collapsed": "Zwinięte",
-        "dragAria": "Przeciągnij, aby przenieść grupę {name}.",
-        "metricsAria": "Pokaż zysk/stratę i udział w portfelu dla {name}."
+        "dragAria": "Przeciągnij, aby przenieść grupę {name}."
       },
       "row": {
         "delisted": "Wycofany",
@@ -707,8 +698,6 @@
       },
       "rowExpandAria": "Rozwiń szczegóły {name}.",
       "plAria": "{value} zysk/strata",
-      "ungroupZone": "Upuść tutaj, aby usunąć z grupy",
-      "looseZone": "Upuść tutaj, aby zostawić luzem",
       "search": {
         "placeholder": "Szukaj instrumentów…",
         "loading": "Szukanie…",

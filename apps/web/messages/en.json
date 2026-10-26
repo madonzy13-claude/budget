@@ -607,7 +607,6 @@
         "nameOptional": "Name (optional)",
         "type": "Type",
         "typePlaceholder": "Select a type",
-        "group": "Group",
         "groupPlaceholder": "Ungrouped",
         "buyPrice": "Buy price",
         "buyCurrency": "Buy currency",
@@ -635,10 +634,6 @@
         "tickerPlaceholder": "e.g. AAPL"
       },
       "uitype": {
-        "equity": "Equity",
-        "etf": "ETF",
-        "etb": "Exchange-traded bonds",
-        "reit": "REIT",
         "crypto": "Crypto",
         "treasury_bond": "Retail treasury bonds",
         "collectibles": "Collectibles",
@@ -686,14 +681,10 @@
         "other": "Other"
       },
       "group": {
-        "portfolioSuffix": "of portfolio",
-        "noGroups": "No groups yet.",
-        "create": "Create \"{name}\"",
         "headerAria": "{name}, {pct} of portfolio. {state}.",
         "expanded": "Expanded",
         "collapsed": "Collapsed",
-        "dragAria": "Drag to move the {name} group.",
-        "metricsAria": "Show {name} profit/loss and portfolio percentage."
+        "dragAria": "Drag to move the {name} group."
       },
       "row": {
         "delisted": "Delisted",
@@ -707,8 +698,6 @@
       },
       "rowExpandAria": "Expand {name} details.",
       "plAria": "{value} profit/loss",
-      "ungroupZone": "Drop here to remove from group",
-      "looseZone": "Drop here to keep it separate",
       "search": {
         "placeholder": "Search instruments…",
         "loading": "Searching…",

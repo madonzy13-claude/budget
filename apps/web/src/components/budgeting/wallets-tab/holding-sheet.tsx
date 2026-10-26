@@ -4,14 +4,14 @@
  *
  * The FIRST field is Type; the chosen UI type drives which fields render and how
  * the holding is priced (see lib/investment-types.ts):
- *   tracked (equity/etf/etb/reit/crypto) — Asset autocomplete (filtered to the
+ *   tracked (stocks/crypto) — Asset autocomplete (filtered to the
  *     type) + buy price/ccy + quantity + read-only fetched current price.
  *   manual (treasury_bond/collectibles/real_estate/other) — name + buy price/ccy +
  *     quantity + editable current price.
  *   precious_metals — name + metal + kind + UoM + quantity + buy price/ccy +
  *     fetched-and-converted read-only current price (spot/oz → UoM).
  *   cash — name + currency + amount.
- * Group is optional on every type. shadcn <Sheet side="right"> (controlled, no
+ * shadcn <Sheet side="right"> (controlled, no
  * trigger). Optimistic save via the create/update hooks; discard-confirm on dirty.
  */
 import { useMemo, useRef, useState } from "react";
@@ -70,7 +70,6 @@ import {
   computeHoldingPreview,
   type HoldingPreview,
 } from "@/lib/holding-preview";
-import { GroupCombobox } from "./group-combobox";
 import { PriceBlockedBanner } from "./price-blocked-banner";
 import {
   InstrumentSearchInput,
@@ -83,7 +82,6 @@ interface HoldingSheetProps {
   mode: "create" | "edit";
   budgetId: string;
   budgetCurrency: string;
-  groups: string[];
   holding?: HoldingDto | null;
 }
 
@@ -112,7 +110,6 @@ export function HoldingSheet({
   mode,
   budgetId,
   budgetCurrency,
-  groups,
   holding,
 }: HoldingSheetProps) {
   const t = useTranslations("budget.investments");
@@ -203,7 +200,11 @@ export function HoldingSheet({
   const [priceFetchedAt, setPriceFetchedAt] = useState<string | null>(
     holding?.priceFetchedAt ?? null,
   );
-  const [group, setGroup] = useState<string | null>(holding?.group ?? null);
+  // Stocks & ETFs is one type (D-10); the coarse holding_type (price routing)
+  // follows the picked instrument's asset class (RESEARCH A6).
+  const [instrumentAssetClass, setInstrumentAssetClass] = useState<
+    string | null
+  >(holding?.holdingType === "etf" ? "etf" : null);
   const [metal, setMetal] = useState<Metal>(
     (holding?.metal as Metal) ?? "gold",
   );
@@ -367,6 +368,7 @@ export function HoldingSheet({
     setManualEntry(false);
     setInstrumentId(inst.id);
     setInstrumentProvider(inst.provider ?? null);
+    setInstrumentAssetClass(inst.assetClass ?? null);
     setSymbol(inst.symbol);
     setName(inst.displayName);
     // Default the holding's currency on select:
@@ -528,8 +530,12 @@ export function HoldingSheet({
   function buildPayload() {
     // Only reached via handleSave after canSave, which guarantees uiType is set.
     const ut = uiType as UiType;
-    const holdingType = UI_TYPE_META[ut].holdingType as HoldingType;
-    const common = { uiType: ut, holdingType, group };
+    const holdingType = (
+      ut === "stocks" && instrumentAssetClass === "etf"
+        ? "etf"
+        : UI_TYPE_META[ut].holdingType
+    ) as HoldingType;
+    const common = { uiType: ut, holdingType };
     if (behavior === "cash") {
       return {
         ...common,
@@ -1154,22 +1160,6 @@ export function HoldingSheet({
               )}
             </>
           ) : null}
-
-          {/* 7. Group (every type) — only once a Type is chosen, so the open
-              form is just the Type picker until then. */}
-          {behavior && (
-            <Field label={t("field.group")}>
-              <GroupCombobox
-                value={group}
-                groups={groups}
-                onChange={(v) => {
-                  markDirty();
-                  setGroup(v);
-                }}
-                aria-label={t("field.group")}
-              />
-            </Field>
-          )}
 
           {/* 8. Preview — "what will be created" sum-up (all types). */}
           {preview && (
