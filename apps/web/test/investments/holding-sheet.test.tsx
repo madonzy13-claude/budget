@@ -7,7 +7,7 @@
  * - Precious metals type: metal + kind + UoM fields present
  * - Dirty close fires the discard-confirm dialog
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import {
   HoldingSheet,
@@ -41,6 +41,15 @@ const createMutate = vi.fn();
 const updateMutate = vi.fn();
 vi.mock("../../src/hooks/use-create-holding", () => ({
   useCreateHolding: () => ({ mutate: createMutate }),
+}));
+const adjustMutate = vi.fn();
+vi.mock("../../src/hooks/use-adjust-holding", () => ({
+  useAdjustHolding: () => ({ mutate: adjustMutate }),
+}));
+vi.mock("../../src/components/budgeting/wallets-tab/history-section", () => ({
+  HistorySection: ({ holdingId }: { holdingId: string }) => (
+    <div data-testid={`history-stub-${holdingId}`} />
+  ),
 }));
 vi.mock("../../src/hooks/use-update-holding", () => ({
   useUpdateHolding: () => ({ mutate: updateMutate }),
@@ -897,5 +906,183 @@ describe("HoldingFormFields — sale destination", () => {
       "aria-expanded",
       "false",
     );
+  });
+});
+
+// Phase 13 (D-03, UI-SPEC §4): Edit asks "What happened?" — cost basis and
+// quantity move only through the ledger, never through PATCH.
+describe("HoldingSheet — edit books what happened", () => {
+  const today = new Date().toLocaleDateString("en-CA");
+  const broker = () =>
+    holding({
+      holdingType: "other",
+      uiType: "broker",
+      instrumentId: null,
+      instrumentProvider: null,
+      name: "IBKR",
+      buyPriceCents: "5500000",
+      buyCurrency: "PLN",
+      currentPriceCents: "9600000",
+      currentPriceCurrency: "PLN",
+    });
+  const crypto = () =>
+    holding({
+      holdingType: "crypto",
+      uiType: "crypto",
+      name: "BTC",
+      quantity: "0.40000000",
+      buyPriceCents: "2500000",
+      buyCurrency: "PLN",
+      currentPriceCents: "7000000",
+      currentPriceCurrency: "PLN",
+    });
+  const setActual = (v: string) =>
+    fireEvent.change(screen.getByTestId("holding-sheet-actual"), {
+      target: { value: v },
+    });
+  beforeEach(() => {
+    adjustMutate.mockReset();
+    updateMutate.mockReset();
+  });
+
+  it("cost basis is read-only in edit", () => {
+    render(<HoldingSheet {...baseProps} mode="edit" holding={broker()} />);
+    expect(screen.getByTestId("holding-sheet-deposited")).toHaveAttribute(
+      "readonly",
+    );
+  });
+
+  it("withdrew money 96,000 → 80,000 books a withdrawal, PATCH keeps cost", () => {
+    render(<HoldingSheet {...baseProps} mode="edit" holding={broker()} />);
+    setActual("80000");
+    expect(
+      screen.getByRole("radiogroup", { name: "whatHappened.title" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("happened-value_change")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    fireEvent.click(screen.getByTestId("happened-withdraw"));
+    expect(
+      (screen.getByTestId("happened-received") as HTMLInputElement).value,
+    ).toBe("16000");
+    expect(screen.getByTestId("holding-sheet-submit")).toHaveTextContent(
+      "whatHappened.saveWithdraw",
+    );
+    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
+    expect(adjustMutate.mock.calls[0]![0]).toEqual({
+      holdingId: "h1",
+      body: {
+        kind: "withdraw",
+        newValueCents: "8000000",
+        receivedCents: "1600000",
+        receivedCurrency: "PLN",
+        effectiveDate: today,
+      },
+    });
+    const patch = updateMutate.mock.calls[0]?.[0] ?? {};
+    expect("buyPriceCents" in patch).toBe(false);
+    expect("quantity" in patch).toBe(false);
+    expect("currentPriceCents" in patch).toBe(false);
+  });
+
+  it("added money on an increase books an add", () => {
+    render(<HoldingSheet {...baseProps} mode="edit" holding={broker()} />);
+    setActual("106000");
+    expect(screen.queryByTestId("happened-withdraw")).toBeNull();
+    fireEvent.click(screen.getByTestId("happened-add"));
+    expect(screen.getByTestId("holding-sheet-submit")).toHaveTextContent(
+      "whatHappened.saveAdded",
+    );
+    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
+    expect(adjustMutate.mock.calls[0]![0].body).toEqual({
+      kind: "add",
+      newValueCents: "10600000",
+      effectiveDate: today,
+    });
+  });
+
+  it("value changed is the default", () => {
+    render(<HoldingSheet {...baseProps} mode="edit" holding={broker()} />);
+    setActual("90000");
+    expect(screen.getByTestId("holding-sheet-submit")).toHaveTextContent(
+      "whatHappened.saveValue",
+    );
+    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
+    expect(adjustMutate.mock.calls[0]![0].body).toEqual({
+      kind: "value_change",
+      newValueCents: "9000000",
+      effectiveDate: today,
+    });
+  });
+
+  it("a rename alone is a plain PATCH without cost or quantity", () => {
+    render(<HoldingSheet {...baseProps} mode="edit" holding={broker()} />);
+    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+      target: { value: "IBKR main" },
+    });
+    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
+    const patch = updateMutate.mock.calls[0]![0];
+    expect(patch).toMatchObject({ holdingId: "h1", name: "IBKR main" });
+    expect("buyPriceCents" in patch).toBe(false);
+    expect("quantity" in patch).toBe(false);
+    expect(adjustMutate).not.toHaveBeenCalled();
+  });
+
+  it("bought more BTC 0.4 → 0.5 books a buy with paid prefilled", () => {
+    render(<HoldingSheet {...baseProps} mode="edit" holding={crypto()} />);
+    fireEvent.change(screen.getByTestId("holding-sheet-quantity"), {
+      target: { value: "0.5" },
+    });
+    expect(
+      (screen.getByTestId("happened-paid") as HTMLInputElement).value,
+    ).toBe("7000");
+    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
+    expect(adjustMutate.mock.calls[0]![0].body).toEqual({
+      kind: "buy",
+      addQuantity: "0.1",
+      paidCents: "700000",
+      effectiveDate: today,
+    });
+  });
+
+  it("sold some BTC 0.4 → 0.3 hands off to the Sell sheet", () => {
+    const onSoldSome = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <HoldingSheet
+        {...baseProps}
+        onOpenChange={onOpenChange}
+        mode="edit"
+        holding={crypto()}
+        onSoldSome={onSoldSome}
+      />,
+    );
+    fireEvent.change(screen.getByTestId("holding-sheet-quantity"), {
+      target: { value: "0.3" },
+    });
+    expect(screen.getByTestId("holding-sheet-submit")).toHaveTextContent(
+      "whatHappened.soldSome",
+    );
+    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
+    expect(onSoldSome).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "h1" }),
+      "0.3",
+    );
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(adjustMutate).not.toHaveBeenCalled();
+  });
+
+  it("edit explains that a type change only corrects a mistake, and shows History", () => {
+    render(<HoldingSheet {...baseProps} mode="edit" holding={broker()} />);
+    expect(screen.getByText("changeTypeHelper")).toBeInTheDocument();
+    expect(screen.getByTestId("history-stub-h1")).toBeInTheDocument();
+  });
+
+  it("create has a Date (default today, no future) sent as openedOn", () => {
+    render(<HoldingSheet {...baseProps} mode="create" holding={null} />);
+    const date = screen.getByTestId("holding-sheet-date") as HTMLInputElement;
+    expect(date.value).toBe(today);
+    expect(date.max).toBe(today);
   });
 });
