@@ -59,7 +59,13 @@ describe("Contributions from history (D-19)", () => {
       "EUR|2026-01-01": "4.50",
     });
     const r = makeContributionsReader(
-      [{ effectiveDate: "2025-01-01", flowCents: 100_000n, flowCurrency: "EUR" }],
+      [
+        {
+          effectiveDate: "2025-01-01",
+          flowCents: 100_000n,
+          flowCurrency: "EUR",
+        },
+      ],
       "PLN",
       rateFor,
     );
@@ -73,7 +79,13 @@ describe("Contributions from history (D-19)", () => {
   test("rate looked up once per currency and date", async () => {
     const { rateFor, calls } = fakeRates({ "EUR|2025-06-01": "4.30" });
     const r = makeContributionsReader(
-      [{ effectiveDate: "2025-01-01", flowCents: 100_000n, flowCurrency: "EUR" }],
+      [
+        {
+          effectiveDate: "2025-01-01",
+          flowCents: 100_000n,
+          flowCurrency: "EUR",
+        },
+      ],
       "PLN",
       rateFor,
     );
@@ -93,7 +105,13 @@ describe("Contributions from history (D-19)", () => {
   test("missing historic rate resolves null instead of failing", async () => {
     const { rateFor } = fakeRates({});
     const r = makeContributionsReader(
-      [{ effectiveDate: "2024-01-01", flowCents: 100_000n, flowCurrency: "EUR" }],
+      [
+        {
+          effectiveDate: "2024-01-01",
+          flowCents: 100_000n,
+          flowCurrency: "EUR",
+        },
+      ],
       "PLN",
       rateFor,
     );
