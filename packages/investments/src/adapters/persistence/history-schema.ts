@@ -17,6 +17,7 @@ import {
   timestamp,
   date,
   check,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { budgeting, appRole, workerRole } from "@budget/platform";
 
@@ -47,6 +48,17 @@ export const investmentHistory = budgeting.table(
     priorPrincipalCents: bigint("prior_principal_cents", { mode: "bigint" }),
     priorStartDate: date("prior_start_date"),
     transferId: uuid("transfer_id"),
+    // 0088 (Phase 13.1): sell → wallet link (D-20/D-21), prior price snapshot
+    // for value/price undo (D-18), D-35 backfill marker.
+    walletId: uuid("wallet_id"),
+    walletDeltaNumeric: numeric("wallet_delta_numeric", {
+      precision: 19,
+      scale: 4,
+    }),
+    walletCreated: boolean("wallet_created").notNull().default(false),
+    priorPriceCents: numeric("prior_price_cents", { precision: 24, scale: 6 }),
+    priorPriceCurrency: char("prior_price_currency", { length: 3 }),
+    backfilled: boolean("backfilled").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -55,7 +67,7 @@ export const investmentHistory = budgeting.table(
   (t) => [
     check(
       "investment_history_kind_chk",
-      sql`${t.kind} IN ('start','buy','add','value_change','withdraw','convert_out','convert_in')`,
+      sql`${t.kind} IN ('start','buy','add','value_change','withdraw','convert_out','convert_in','transfer_out','transfer_in','price_change')`,
     ),
     pgPolicy("investment_history_tenant_isolation", {
       as: "permissive",

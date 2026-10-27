@@ -75,3 +75,9 @@ identity.users                            EXCLUDED      # Phase 1: SELECT permis
 identity.accounts                         EXCLUDED      # Phase 1: SELECT permissive for Better Auth password-hash lookup during sign-in. Password column is hashed (argon2/bcrypt). UPDATE/DELETE remain RLS-gated.
 # pgboss.*                               EXCLUDED      # job queue infrastructure (separate pgboss schema)
 # drizzle.*                              EXCLUDED      # migration metadata (separate drizzle schema)
+
+# 0088 (Phase 13.1) pre-merge backups. Owner-only (REVOKE ALL from app/worker).
+# TEMPORARY: drop in a follow-up migration once the merge is verified (0075 precedent: GDPR cascade).
+budgeting._investments_bak_0088           EXCLUDED      # migration backup, owner-only
+budgeting._investment_history_bak_0088    EXCLUDED      # migration backup, owner-only
+budgeting._tasks_bak_0088                 EXCLUDED      # migration backup, owner-only

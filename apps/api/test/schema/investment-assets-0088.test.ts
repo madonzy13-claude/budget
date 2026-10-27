@@ -93,8 +93,22 @@ describe.skipIf(!URL)("Migration 0088 investment assets — data", () => {
       .map((s) => s.trim())
       .filter((s) => s.replace(/^--.*$/gm, "").trim().length > 0);
 
+  const LIFTED = [
+    "identity.users",
+    "tenancy.budgets",
+    "tenancy.budget_members",
+    "budgeting.investments",
+    "budgeting.investment_history",
+    "budgeting.tasks",
+  ];
+  const lift = async () => {
+    for (const t of LIFTED)
+      await c.query(`ALTER TABLE ${t} NO FORCE ROW LEVEL SECURITY`);
+  };
+  // The migration restores FORCE at its end; lift again so the owner can read back.
   const run = async () => {
     for (const s of statements()) await c.query(s);
+    await lift();
   };
 
   let seq = 0;
@@ -185,15 +199,7 @@ describe.skipIf(!URL)("Migration 0088 investment assets — data", () => {
   beforeAll(async () => {
     c = await pool.connect();
     await c.query("BEGIN");
-    for (const t of [
-      "identity.users",
-      "tenancy.budgets",
-      "tenancy.budget_members",
-      "budgeting.investments",
-      "budgeting.investment_history",
-      "budgeting.tasks",
-    ])
-      await c.query(`ALTER TABLE ${t} NO FORCE ROW LEVEL SECURITY`);
+    await lift();
     await c.query(`DROP INDEX IF EXISTS budgeting.investments_label_uq`);
     await c.query(
       `INSERT INTO identity.users (id, email, name, email_verified, created_at, updated_at)
@@ -437,10 +443,10 @@ describe.skipIf(!URL)("Migration 0088 investment assets — data", () => {
     // (3,000,000×1 + 4,000,000×2 + 5,000,000×0.5) / 3.5 = 3,857,142.857
     expect(rows[0].buy).toBe("3857143");
     const h = await one(
-      `SELECT count(*)::int AS n, count(*) FILTER (WHERE holding_id = $2)::int AS on_survivor
+      `SELECT count(*)::int AS n, count(*) FILTER (WHERE holding_id = $1)::int AS on_survivor
          FROM budgeting.investment_history
-        WHERE holding_id IN ($2, $3, $4)`,
-      [budgetId, ids.btc1, ids.btc2, ids.btc3],
+        WHERE holding_id IN ($1, $2, $3)`,
+      [ids.btc1, ids.btc2, ids.btc3],
     );
     expect(h).toEqual({ n: 3, on_survivor: 3 });
   });
