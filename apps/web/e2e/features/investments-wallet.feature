@@ -1,4 +1,4 @@
-@investments-wallet
+@investments @investments-wallet
 Feature: Investments wallet — section, holdings, type groups, optimistic add
   # Since Phase 13 the groups are the investment type (no user-named groups),
   # so there is no drag-into-group; block order and in-type drag are covered

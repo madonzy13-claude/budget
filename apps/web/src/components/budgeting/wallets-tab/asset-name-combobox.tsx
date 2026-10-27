@@ -15,6 +15,20 @@ import { centsToBare } from "@/lib/cents-format";
 import { useAssetNames, type AssetNameDto } from "@/hooks/use-asset-names";
 
 const MAX = 6;
+
+/** Sheet `onEscapeKeyDown`: Radix handles Escape in the capture phase, before
+ *  the combobox can stop it — keep the sheet open while a list is showing so
+ *  Escape closes only the list (UI-SPEC §3). */
+export function keepSheetOnListEscape(e: KeyboardEvent): void {
+  const t = (
+    e.target instanceof Element ? e.target : document.activeElement
+  ) as Element | null;
+  if (
+    t?.getAttribute("role") === "combobox" &&
+    t.getAttribute("aria-expanded") === "true"
+  )
+    e.preventDefault();
+}
 const norm = (s: string) => s.trim().toLowerCase();
 
 interface Props {

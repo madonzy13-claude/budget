@@ -51,7 +51,10 @@ import {
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { centsToBare } from "@/lib/cents-format";
 import { useCreateHolding } from "@/hooks/use-create-holding";
-import { AssetNameCombobox } from "./asset-name-combobox";
+import {
+  AssetNameCombobox,
+  keepSheetOnListEscape,
+} from "./asset-name-combobox";
 import type { HoldingDto, HoldingType } from "@/hooks/use-investments";
 import {
   UI_TYPE_META,
@@ -1253,6 +1256,7 @@ export function HoldingSheet({
         // outside-close unconditionally breaks that loop (no stale-state race).
         onPointerDownOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={keepSheetOnListEscape}
       >
         <SheetHeader className="mb-2">
           <SheetTitle className="text-[var(--body-on-dark)]">

@@ -19,6 +19,7 @@ import { SwapBuyTab } from "./swap-buy-tab";
 import { SwapSellTab } from "./swap-sell-tab";
 import { SwapTransferTab } from "./swap-transfer-tab";
 import { today } from "./swap-shared";
+import { keepSheetOnListEscape } from "./asset-name-combobox";
 
 type Tab = "buy" | "sell" | "transfer";
 const TABS: Tab[] = ["buy", "sell", "transfer"];
@@ -83,6 +84,7 @@ export function SwapSheet({
         data-testid="swap-sheet"
         className="!pointer-events-auto flex w-full flex-col overflow-y-auto bg-[var(--canvas-dark)] pb-8 sm:max-w-[480px]"
         onCloseAutoFocus={(e) => e.preventDefault()}
+        onEscapeKeyDown={keepSheetOnListEscape}
       >
         <SheetHeader className="mb-2">
           <SheetTitle

@@ -13,7 +13,10 @@ import { expect, type Page } from "@playwright/test";
  *   data-testid="holding-row-<name>"                 a holding row (read-only)
  *   data-testid="investment-group-<type>"            a type block header
  *
- * Until 09-07 lands these ids the @investments-wallet feature stays @skip-phase-09-debt.
+ *
+ * 13.1: rows are assets (Swap · Edit, tap opens the L3 ledger); the Swap sheet
+ * replaces the Phase 13 Sell sheet and the slim Edit sheet replaces the edit
+ * mode of the holding sheet.
  */
 export class InvestmentsPo {
   constructor(private page: Page) {}
@@ -153,7 +156,7 @@ export class InvestmentsPo {
     if (!res.ok()) throw new Error(`type-order PUT failed: ${res.status()}`);
   }
 
-  // ── Phase 13: Sell (D-01) ──
+  // ── 13.1: asset rows, Swap / Edit sheets, L3 ledger ──
 
   private wrapper(name: string) {
     return this.page.locator(
@@ -161,15 +164,20 @@ export class InvestmentsPo {
     );
   }
 
+  async assetId(name: string): Promise<string> {
+    const w = this.wrapper(name);
+    await w.waitFor({ state: "visible" });
+    return (await w.getAttribute("data-investment-row-wrapper"))!;
+  }
+
   /** Reveal a row action: swipe on a phone (touch pointer — the row ignores
-   *  mouse pointers), hover on desktop. Returns the holding id. */
+   *  mouse pointers), hover on desktop (D-05: Swap · Edit). */
   private async rowAction(
     name: string,
-    action: "sell" | "edit" | "delete",
+    action: "swap" | "edit",
   ): Promise<void> {
     const wrapper = this.wrapper(name);
     await wrapper.waitFor({ state: "visible" });
-    const id = (await wrapper.getAttribute("data-investment-row-wrapper"))!;
     const width = this.page.viewportSize()?.width ?? 1280;
     if (width < 640) {
       // A freshly created row is re-keyed from its optimistic id to the server
@@ -203,84 +211,183 @@ export class InvestmentsPo {
         });
         await this.page.waitForTimeout(500); // ghost-click guard after pointerup
         const tid =
-          action === "sell"
-            ? `investment-sell-${id}`
-            : `holding-swipe-${action}-${id}`;
+          action === "swap"
+            ? `investment-swap-${id}`
+            : `holding-swipe-edit-${id}`;
         await this.page.getByTestId(tid).click({ timeout: 3000 });
       }).toPass({ timeout: 20_000 });
       return;
     }
-    if (action === "edit") {
-      // Desktop: a row click opens the edit sheet.
-      await this.row(name).click();
-      return;
-    }
+    const id = (await wrapper.getAttribute("data-investment-row-wrapper"))!;
     await this.row(name).hover();
-    if (action === "sell")
-      await this.page.getByTestId(`investment-sell-desktop-${id}`).click();
-    else await this.wrapper(name).locator("[data-nav-delete]").click();
+    await this.page.getByTestId(`investment-${action}-desktop-${id}`).click();
   }
 
-  /** Open the Sell sheet for a holding. */
-  async openSell(name: string): Promise<void> {
-    await this.rowAction(name, "sell");
-    await this.page.getByTestId("sell-sheet").waitFor({ state: "visible" });
+  swapSheet() {
+    return this.page.getByTestId("swap-sheet");
   }
 
-  /** Open the edit sheet for a holding. */
+  /** Open the Swap sheet on a tab (deposits have no tabs — Sell only). */
+  async openSwap(
+    name: string,
+    tab: "buy" | "sell" | "transfer",
+  ): Promise<void> {
+    await this.rowAction(name, "swap");
+    await this.swapSheet().waitFor({ state: "visible" });
+    const t = this.page.getByTestId(`swap-tab-${tab}`);
+    if (await t.isVisible().catch(() => false)) await t.click();
+  }
+
+  /** Open the slim Edit sheet (D-06). */
   async openEdit(name: string): Promise<void> {
     await this.rowAction(name, "edit");
-    await this.sheet().waitFor({ state: "visible" });
+    await this.page
+      .getByTestId("edit-asset-sheet")
+      .waitFor({ state: "visible" });
   }
 
-  /** Swipe/hover Delete; returns the confirm dialog. */
-  async askDelete(name: string) {
-    await this.rowAction(name, "delete");
-    const dialog = this.page.getByRole("alertdialog");
-    await dialog.waitFor({ state: "visible" });
-    return dialog;
-  }
-
-  /** Save the edit sheet and wait for the booking (adjust) or PATCH. */
-  async saveEdit(wait: "adjust" | "patch" | "none"): Promise<void> {
-    const res =
-      wait === "none"
-        ? null
-        : this.page.waitForResponse(
-            (r) =>
-              (wait === "adjust"
-                ? r.url().endsWith("/adjust")
-                : /\/investments\/[0-9a-f-]+$/.test(r.url())) &&
-              ["POST", "PATCH"].includes(r.request().method()),
-            { timeout: 15000 },
-          );
-    await this.page.getByTestId("holding-sheet-submit").click();
-    if (res && !(await res).ok()) throw new Error("edit save failed");
-  }
-
-  /** Open the History section of the open edit sheet. */
-  async openHistory() {
-    const h = this.sheet().getByTestId("history-section");
-    await h.waitFor({ state: "visible" });
-    if ((await h.getAttribute("open")) === null)
-      await h.locator("summary").click();
-    return h;
-  }
-
-  /** Delete the newest history entry of a kind and wait for the undo. */
-  async deleteHistoryEntry(kind: string): Promise<void> {
-    const h = await this.openHistory();
-    const row = h.locator(`[data-history-kind="${kind}"]`).first();
-    await row.waitFor({ state: "visible" });
-    await row.locator('[data-testid^="history-delete-"]').click();
-    const undone = this.page.waitForResponse(
-      (r) =>
-        r.url().includes("/investments/history/") &&
-        r.request().method() === "DELETE",
+  /** Submit the Swap sheet; resolves with the status of the POST it sends. */
+  async submitSwap(
+    pathSuffix: "/buy" | "/sell" | "/transfer",
+  ): Promise<number> {
+    const res = this.page.waitForResponse(
+      (r) => r.url().endsWith(pathSuffix) && r.request().method() === "POST",
       { timeout: 15000 },
     );
-    await this.page.getByTestId("history-delete-confirm").click();
-    if (!(await undone).ok()) throw new Error("undo failed");
+    await this.page.getByTestId("swap-submit").click();
+    return (await res).status();
+  }
+
+  /** Fill the open Sell tab and submit it. Amount received is typed LAST:
+   *  picking a destination or wallet re-prefills it. */
+  async sell(opts: {
+    left: string;
+    dest: "new" | "existing" | "out";
+    received: string;
+    existingName?: string;
+    newName?: string;
+    wallet?:
+      | { kind: "existing"; name: string }
+      | { kind: "new"; name: string; type: string };
+  }): Promise<number> {
+    const sheet = this.swapSheet();
+    await sheet.getByTestId("swap-sell-left").fill(opts.left);
+    await sheet.getByTestId(`swap-dest-${opts.dest}`).click();
+    if (opts.dest === "new" && opts.newName)
+      await sheet
+        .getByTestId("holding-form-destination")
+        .getByTestId("holding-sheet-name")
+        .fill(opts.newName);
+    if (opts.dest === "existing" && opts.existingName) {
+      const select = sheet.getByTestId("swap-sell-existing");
+      const value = await select
+        .locator("option", { hasText: `${opts.existingName} ·` })
+        .first()
+        .getAttribute("value");
+      await select.selectOption({ value: value! });
+    }
+    if (opts.wallet?.kind === "existing") {
+      await sheet.getByTestId("wallet-target-existing").click();
+      const select = sheet.getByTestId("swap-wallet-select");
+      await expect(
+        select.locator("option", { hasText: opts.wallet.name }),
+      ).toHaveCount(1);
+      const value = await select
+        .locator("option", { hasText: opts.wallet.name })
+        .first()
+        .getAttribute("value");
+      await select.selectOption({ value: value! });
+    } else if (opts.wallet?.kind === "new") {
+      await sheet.getByTestId("wallet-target-new").click();
+      await sheet.getByTestId("swap-wallet-name").fill(opts.wallet.name);
+      await sheet
+        .getByTestId("swap-wallet-type")
+        .selectOption(opts.wallet.type);
+    }
+    await sheet.getByTestId("swap-sell-received").fill(opts.received);
+    return this.submitSwap("/sell");
+  }
+
+  // ── L3 ledger (D-12..D-18) ──
+
+  async ledger(name: string) {
+    return this.page.getByTestId(`asset-ledger-${await this.assetId(name)}`);
+  }
+
+  /** Tap the asset open (stats + ledger strip) unless it already is. A just
+   *  created row is re-keyed from its optimistic id to the server id on
+   *  refetch, so the id is re-read on every attempt. */
+  async openLedger(name: string) {
+    let ledger = await this.ledger(name);
+    await expect(async () => {
+      ledger = await this.ledger(name);
+      if (!(await ledger.isVisible().catch(() => false)))
+        await this.row(name).locator('[data-testid^="asset-row-"]').click();
+      await expect(ledger).toBeVisible({ timeout: 3000 });
+      await expect(ledger.getByTestId("ledger-skeleton")).toHaveCount(0, {
+        timeout: 5000,
+      });
+    }).toPass({ timeout: 30_000 });
+    return ledger;
+  }
+
+  /** Delete the asset's newest entry through the confirm dialog. */
+  async deleteNewestEntry(name: string): Promise<number> {
+    const ledger = await this.openLedger(name);
+    const rows = ledger.getByRole("row");
+    const n = await rows.count();
+    for (let i = 0; i < n; i++) {
+      await rows.nth(i).click();
+      const del = ledger.locator('[data-testid^="ledger-delete-"]');
+      if (await del.isVisible().catch(() => false)) {
+        await del.click();
+        const res = this.page.waitForResponse(
+          (r) =>
+            r.url().includes("/investments/entries/") &&
+            r.request().method() === "DELETE",
+          { timeout: 15000 },
+        );
+        await this.page.getByTestId("ledger-delete-confirm-action").click();
+        return (await res).status();
+      }
+    }
+    throw new Error(`no deletable entry in ${name}'s ledger`);
+  }
+
+  /** Add a hand-priced quantity asset (manual type) through the Add sheet. */
+  async addManual(opts: {
+    type: string;
+    name: string;
+    qty: string;
+    buy: string;
+    current: string;
+    pickExisting?: boolean;
+  }) {
+    await this.addButton().click();
+    await this.sheet().waitFor({ state: "visible" });
+    const opt = this.page.getByTestId(`holding-type-${opts.type}`);
+    if (!(await opt.isVisible().catch(() => false)))
+      await this.page.getByTestId("holding-sheet-type").click();
+    await opt.click();
+    const name = this.page.getByTestId("holding-sheet-name");
+    await name.waitFor({ state: "visible" });
+    await name.fill(opts.name);
+    if (opts.pickExisting) {
+      await this.page.getByTestId("asset-name-option-0").click();
+    }
+    await this.page.getByTestId("holding-sheet-buy-price").fill(opts.buy);
+    await this.page.getByTestId("holding-sheet-quantity").fill(opts.qty);
+    await this.page.getByTestId("holding-sheet-amount").fill(opts.current);
+    const posted = this.page.waitForResponse(
+      (r) =>
+        /\/budgets\/[^/]+\/investments(\?.*)?$/.test(r.url()) &&
+        r.request().method() === "POST",
+      { timeout: 15000 },
+    );
+    await this.page.getByTestId("holding-sheet-submit").click();
+    const res = await posted;
+    if (!res.ok()) throw new Error(`create asset POST failed: ${res.status()}`);
+    return (await res.json()) as { id: string; joined: boolean };
   }
 
   /** Add a broker holding with an opening date (deposited/current in major units). */
@@ -313,36 +420,13 @@ export class InvestmentsPo {
     if (!(await posted).ok()) throw new Error("create broker failed");
   }
 
-  /** Fill and submit the Sell sheet; resolves with the POST /sell status. */
-  async sell(opts: {
-    left: string;
-    dest: "new" | "existing" | "out";
-    received: string;
-    existingName?: string;
-    newName?: string;
-  }): Promise<number> {
-    const sheet = this.page.getByTestId("sell-sheet");
-    await sheet.getByTestId("sell-left").fill(opts.left);
-    await sheet.getByTestId(`sell-dest-${opts.dest}`).click();
-    if (opts.dest === "new" && opts.newName)
-      await sheet
-        .getByTestId("holding-form-destination")
-        .getByTestId("holding-sheet-name")
-        .fill(opts.newName);
-    if (opts.dest === "existing" && opts.existingName)
-      await sheet.getByTestId("sell-existing").selectOption({
-        value: (await sheet
-          .getByTestId("sell-existing")
-          .locator("option", { hasText: `${opts.existingName} ·` })
-          .first()
-          .getAttribute("value"))!,
-      });
-    await sheet.getByTestId("sell-received").fill(opts.received);
-    const res = this.page.waitForResponse(
-      (r) => r.url().endsWith("/sell") && r.request().method() === "POST",
-    );
-    await sheet.getByTestId("sell-submit").click();
-    return (await res).status();
+  /** Tap a type header's value to show its sum-up (D-26). */
+  async typeSumUp(uiType: string) {
+    const split = this.page.getByTestId(`investment-type-split-${uiType}`);
+    if (!(await split.isVisible().catch(() => false)))
+      await this.page.getByTestId(`investment-group-toggle-${uiType}`).click();
+    await split.waitFor({ state: "visible" });
+    return split;
   }
 
   async assertSectionIsLast(): Promise<void> {

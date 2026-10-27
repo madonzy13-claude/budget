@@ -1,5 +1,5 @@
-@investments-sell
-Feature: Investments — sell, convert, withdraw (Phase 13)
+@investments @investments-sell
+Feature: Investments — Swap → Sell (Phase 13 → 13.1)
   Selling moves money without distorting contributions or erasing gains:
   realized gain stays with the source type, every sale has a destination.
 
