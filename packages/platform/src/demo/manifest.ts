@@ -313,7 +313,8 @@ export const demoManifest: TableManifest[] = [
       // Instruments are global reference data, not tenant data — the demo
       // points at the same rows so live prices still resolve.
       instrument_id: ts,
-      name: fake("holding"),
+      // 0088: UNIQUE (budget_id, ui_type, lower(btrim(name))) — the label is the asset key.
+      name: { ...fake("holding"), unique: true as const },
       holding_type: ts,
       group_name: fake("holding"),
       // Prices are market facts and must stay real, or the holding's price
@@ -372,6 +373,13 @@ export const demoManifest: TableManifest[] = [
       transfer_id: id,
       created_at: ts,
       deleted_at: ts,
+      // 0088 (Phase 13.1): sell → wallet credit scales like wallets.current_balance.
+      wallet_id: ref("budgeting.wallets"),
+      wallet_delta_numeric: money4,
+      wallet_created: ts,
+      prior_price_cents: ts,
+      prior_price_currency: ccy,
+      backfilled: ts,
     },
   },
   {
