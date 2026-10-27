@@ -48,6 +48,9 @@ vi.mock("next-intl", () => ({
         "row.qty": "Qty: {qty}",
         "row.started": "Started: {amount}",
         "row.share": "Share: {pct}",
+        "typeGroup.stats.avgPrice": "Avg price {price}",
+        "asset.swipe.swap": "Swap",
+        "asset.swipe.edit": "Edit",
         rowExpandAria: "Expand {name}",
         plAria: "{value} profit/loss",
       };
@@ -536,24 +539,55 @@ describe("InvestmentRow", () => {
     expect(screen.getByTestId("holding-qty-USD Cash")).toHaveTextContent("");
   });
 
-  // UAT #7: the hover edit pen is removed; editing moves to a desktop row-click.
-  it("desktop: no edit pen button — only the delete/trash hover action remains", () => {
+  // 13.1 D-27: the row toggles on every viewport; Edit is an explicit action.
+  it("desktop: hover offers Swap and Edit, no delete or sell", () => {
+    const onSwap = vi.fn();
+    const onEdit = vi.fn();
     render(
-      <InvestmentRow holding={holding()} onEdit={vi.fn()} onDelete={vi.fn()} />,
+      <InvestmentRow holding={holding()} onSwap={onSwap} onEdit={onEdit} />,
     );
-    expect(screen.queryByRole("button", { name: "Edit AAPL" })).toBeNull();
-    expect(
-      screen.getByRole("button", { name: "Archive AAPL" }),
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Swap AAPL" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit AAPL" }));
+    expect(onSwap).toHaveBeenCalledTimes(1);
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Archive AAPL" })).toBeNull();
   });
 
-  it("desktop: clicking the row opens the edit sheet (does not toggle expand)", () => {
-    mockMatchMedia(true); // desktop viewport
+  it("desktop: clicking the row toggles it open and reports the toggle", () => {
+    mockMatchMedia(true);
+    const onToggle = vi.fn();
     const onEdit = vi.fn();
-    render(<InvestmentRow holding={holding()} onEdit={onEdit} />);
-    // On desktop the body is labelled Edit (not Expand) and a click edits.
-    fireEvent.click(screen.getByLabelText("Edit AAPL"));
-    expect(onEdit).toHaveBeenCalledTimes(1);
+    render(
+      <InvestmentRow holding={holding()} onToggle={onToggle} onEdit={onEdit} />,
+    );
+    const body = screen.getByTestId("asset-row-h1");
+    expect(body).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(body);
+    expect(body).toHaveAttribute("aria-expanded", "true");
+    expect(onToggle).toHaveBeenCalledWith("h1", true);
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it("expanded caption shows the average buy price (D-29)", () => {
+    render(<InvestmentRow holding={holding()} />);
+    fireEvent.click(screen.getByLabelText("Expand AAPL"));
+    expect(screen.getByText("Avg price 300")).toBeInTheDocument();
+  });
+
+  it("expanded caption has no average price for an amount asset", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          name: "Pot",
+          holdingType: "cash_fx",
+          uiType: "cash",
+          quantity: "1",
+          buyPriceCents: "100",
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Expand Pot"));
+    expect(screen.queryByText(/Avg price/)).toBeNull();
   });
 
   it("dims a delisted holding's content but keeps the drag handle full opacity", () => {
@@ -577,22 +611,5 @@ describe("InvestmentRow", () => {
       "opacity-50",
     );
     expect(screen.getByText("Delisted")).toBeInTheDocument();
-  });
-
-  // Phase 13 (D-01): Sell sits next to Delete on desktop.
-  it("desktop: a Sell action opens the sale", () => {
-    const onSell = vi.fn();
-    render(
-      <InvestmentRow
-        holding={holding()}
-        onEdit={vi.fn()}
-        onDelete={vi.fn()}
-        onSell={onSell}
-      />,
-    );
-    fireEvent.click(
-      screen.getByTestId(`investment-sell-desktop-${holding().id}`),
-    );
-    expect(onSell).toHaveBeenCalledTimes(1);
   });
 });

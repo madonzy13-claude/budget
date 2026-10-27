@@ -1,7 +1,7 @@
 /**
- * investment-row-sheet-actions.test.tsx — Phase 13 row actions (D-01, UI-SPEC
- * §2/§6): swipe reveals Sell · Edit · Delete; Delete confirms with the
- * erase-history copy and hard-deletes via DELETE /investments/:id.
+ * investment-row-sheet-actions.test.tsx — asset row actions (13.1 D-05):
+ * swipe reveals Swap · Edit only. No asset delete — entries are deleted in
+ * the ledger, and deleting the last one wipes the asset (D-17).
  */
 import { describe, it, expect, vi } from "vitest";
 import {
@@ -76,17 +76,14 @@ const h: HoldingDto = {
   depositCapFrequency: null,
 };
 
-function renderRow(
-  props: { onSell?: () => void; onArchive?: (id: string) => void } = {},
-) {
+function renderRow(props: { onSwap?: (h: HoldingDto) => void } = {}) {
   return render(
     <DndContext>
       <SortableContext items={[h.id]}>
         <InvestmentRowSheet
           holding={h}
           onEdit={vi.fn()}
-          onArchive={props.onArchive ?? vi.fn()}
-          onSell={props.onSell ?? vi.fn()}
+          onSwap={props.onSwap ?? vi.fn()}
         />
       </SortableContext>
     </DndContext>,
@@ -94,25 +91,19 @@ function renderRow(
 }
 
 describe("Row actions", () => {
-  it("swipe panel offers Sell before Edit and Delete", () => {
-    const onSell = vi.fn();
-    renderRow({ onSell });
-    const sell = screen.getByTestId("investment-sell-h1");
+  it("swipe panel offers exactly Swap then Edit", () => {
+    const onSwap = vi.fn();
+    renderRow({ onSwap });
+    const swap = screen.getByTestId("investment-swap-h1");
     const edit = screen.getByTestId("holding-swipe-edit-h1");
     expect(
-      sell.compareDocumentPosition(edit) & Node.DOCUMENT_POSITION_FOLLOWING,
+      swap.compareDocumentPosition(edit) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    fireEvent.click(sell);
-    expect(onSell).toHaveBeenCalledWith(h);
-  });
-
-  it("Delete asks with the erase-history copy before deleting", async () => {
-    const onArchive = vi.fn();
-    renderRow({ onArchive });
-    fireEvent.click(screen.getByTestId("holding-swipe-delete-h1"));
-    expect(await screen.findByText("deleteHolding.body")).toBeInTheDocument();
-    fireEvent.click(await screen.findByTestId("holding-delete-confirm-action"));
-    expect(onArchive).toHaveBeenCalledWith("h1");
+    expect(swap).toHaveAccessibleName("investments.asset.swipe.swap BTC");
+    expect(screen.queryByTestId("holding-swipe-delete-h1")).toBeNull();
+    expect(screen.queryByTestId("investment-sell-h1")).toBeNull();
+    fireEvent.click(swap);
+    expect(onSwap).toHaveBeenCalledWith(h);
   });
 });
 

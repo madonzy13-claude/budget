@@ -1,7 +1,8 @@
 /**
- * investment-type-header.test.tsx — Phase 13 type group header (D-13..D-16):
- * value · total P/L (amount + % over lifetime cost), realized sub-line only
- * when realized ≠ 0, tap on the value area toggles the P/L split.
+ * investment-type-header.test.tsx — L1 type header (13.1 D-26, Phase 13 UAT
+ * test 2): no indent before the name, value only by default, and the tap
+ * sum-up mirrors the asset row — "% then amount", then a muted caption
+ * "unrealized · realized · share" with sign-coloured figures.
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -14,11 +15,7 @@ vi.mock("next-intl", () => ({
       const map: Record<string, string> = {
         "uitype.stocks": "Stocks & ETFs",
         "uitype.crypto": "Crypto",
-        "typeGroup.inclRealized": "incl. realized {amount}",
-        "typeGroup.unrealized": "Unrealized",
-        "typeGroup.realized": "Realized",
-        "typeGroup.totalPl": "Total P/L",
-        "typeGroup.lifetimeReturn": "Lifetime return",
+        "typeGroup.summaryCaption": "unrealized {u} · realized {r} · share {s}",
         "group.headerAria": "{name}, {pct} of portfolio. {state}.",
         "group.expanded": "Expanded",
         "group.collapsed": "Collapsed",
@@ -63,48 +60,49 @@ function renderHeader(
 }
 
 describe("InvestmentTypeHeader", () => {
-  it("shows type name, value and total P/L amount + %", () => {
+  it("shows the type name and value only by default", () => {
     renderHeader();
     expect(screen.getByText("Stocks & ETFs")).toBeInTheDocument();
     expect(screen.getByText("80,000")).toBeInTheDocument();
-    expect(screen.getByText("+51,000")).toBeInTheDocument();
-    expect(screen.getByText("+53.7%")).toBeInTheDocument();
+    expect(screen.queryByText("+51,000")).toBeNull();
+    expect(screen.queryByText("+53.7%")).toBeNull();
     expect(screen.getByTestId("type-handle")).toBeInTheDocument();
   });
 
-  it("realized sub-line shown when realized ≠ 0, colored by sign", () => {
+  it("has no realized sub-line and no indent before the name", () => {
     renderHeader();
-    const sub = screen.getByTestId("investment-type-realized-stocks");
-    expect(sub).toHaveTextContent("incl. realized +28,200");
-    expect(sub.querySelector("[data-signed]")!.getAttribute("style")).toContain(
-      "var(--trading-up)",
-    );
-  });
-
-  it("no realized sub-line when realized is 0", () => {
-    renderHeader({ pl: pl({ realizedCents: 0 }) });
     expect(screen.queryByTestId("investment-type-realized-stocks")).toBeNull();
+    const name = screen.getByText("Stocks & ETFs");
+    for (
+      let el: HTMLElement | null = name;
+      el && !el.dataset.testid;
+      el = el.parentElement
+    )
+      expect(el.className).not.toMatch(/(^|\s)(pl|ml|ps|ms)-/);
   });
 
-  it("pct null renders a muted dash", () => {
+  it("tap shows % before the amount, then the unrealized · realized · share caption", () => {
+    renderHeader();
+    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
+    const sum = screen.getByTestId("investment-type-split-stocks");
+    const line1 = sum.querySelector("[data-pl-line]")!;
+    expect(line1.textContent).toMatch(/^\+53\.7%\s*\+51,000$/);
+    const cap = sum.querySelector("[data-pl-caption]")!;
+    expect(cap).toHaveTextContent(
+      "unrealized +22,800 · realized +28,200 · share 60.0%",
+    );
+    const figs = cap.querySelectorAll("[data-signed]");
+    expect(figs[0]!.getAttribute("style")).toContain("var(--trading-up)");
+    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
+    expect(screen.queryByTestId("investment-type-split-stocks")).toBeNull();
+  });
+
+  it("pct null renders a muted dash in the sum-up", () => {
     renderHeader({ pl: pl({ pct: null }) });
+    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
     expect(screen.getByText("—").getAttribute("style")).toContain(
       "var(--muted-strong)",
     );
-  });
-
-  it("tapping the value area toggles the P/L split", () => {
-    renderHeader();
-    expect(screen.queryByTestId("investment-type-split-stocks")).toBeNull();
-    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
-    const split = screen.getByTestId("investment-type-split-stocks");
-    expect(split).toHaveTextContent("Unrealized");
-    expect(split).toHaveTextContent("+22,800");
-    expect(split).toHaveTextContent("Realized");
-    expect(split).toHaveTextContent("Total P/L");
-    expect(split).toHaveTextContent("Lifetime return");
-    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
-    expect(screen.queryByTestId("investment-type-split-stocks")).toBeNull();
   });
 
   it("chevron calls onToggle and reflects expanded", () => {
