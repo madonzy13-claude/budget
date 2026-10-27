@@ -786,7 +786,11 @@
         "unrealized": "Unrealized",
         "realized": "Realized",
         "totalPl": "Total P/L",
-        "lifetimeReturn": "Lifetime return"
+        "lifetimeReturn": "Lifetime return",
+        "summaryCaption": "unrealized {u} · realized {r} · share {s}",
+        "stats": {
+          "avgPrice": "Avg price {price}"
+        }
       },
       "whatHappened": {
         "title": "What happened?",
@@ -837,7 +841,170 @@
         "confirm": "Delete holding",
         "keep": "Keep {name}"
       },
-      "addDate": "Date"
+      "addDate": "Date",
+      "asset": {
+        "swipe": {
+          "swap": "Swap",
+          "edit": "Edit"
+        },
+        "name": {
+          "label": "Name",
+          "create": "Create \"{name}\"",
+          "closed": "Closed",
+          "joins": "This joins {name} (currently {value}).",
+          "reopens": "This reopens {name}.",
+          "taken": "This type already has an asset with that name."
+        }
+      },
+      "swap": {
+        "title": "Swap {name}",
+        "tab": {
+          "buy": "Buy",
+          "sell": "Sell",
+          "transfer": "Transfer"
+        },
+        "sellTitle": "Sell {name}",
+        "cta": {
+          "buy": "Add to {name}",
+          "sell": "Record sale",
+          "sellOut": "Record withdrawal",
+          "transfer": "Move to {target}",
+          "transferNoTarget": "Move asset"
+        },
+        "discard": "Discard",
+        "saving": "Saving…",
+        "dateMin": "Not before {date} — the latest entry on this asset.",
+        "buy": {
+          "amountAdded": "Amount added",
+          "valueAfter": "Account value after",
+          "valueAfterHelp": "Was {current} + {amount}. Set it to what your broker app shows.",
+          "split": "P/L {market} from market move · {deposit} from deposit",
+          "cashHelp": "Cost and value both go up by this amount. P/L doesn't change.",
+          "quantity": "Quantity",
+          "price": "Buy price",
+          "total": "Total {amount}"
+        },
+        "locked": "Locked",
+        "sell": {
+          "left": "How much is left?",
+          "everything": "Sell everything",
+          "where": "Where did the money go?",
+          "dest": {
+            "new": "New investment",
+            "existing": "Existing investment",
+            "out": "Out of investments",
+            "newDesc": "Open a new asset with the money",
+            "existingDesc": "Add the money to an asset you already have",
+            "outDesc": "It leaves your investments"
+          },
+          "linked": "Linked",
+          "received": "Amount received",
+          "receivedHelp": "Prefilled from today's value. Change it to what actually landed.",
+          "walletTitle": "Where should the money go?",
+          "wallet": {
+            "existing": "Existing wallet",
+            "new": "New wallet",
+            "nowhere": "Nowhere",
+            "help": "Added to the wallet balance. Not counted as income.",
+            "newHelp": "The wallet starts with this amount.",
+            "name": "Wallet name",
+            "type": "Wallet type"
+          }
+        },
+        "transfer": {
+          "everything": "Move everything",
+          "to": "To",
+          "existing": "Existing asset",
+          "new": "New asset",
+          "newName": "New asset name",
+          "sameInstrument": "Same instrument only.",
+          "none": "No other asset of this type yet. Create a new one.",
+          "note": "Not a sale: no realized gain, cost moves with it.",
+          "moveQty": "Quantity to move",
+          "moveAmount": "Amount to move"
+        },
+        "sum": {
+          "title": "What will happen",
+          "empty": "Fill in the fields above to see what will happen.",
+          "line": "{label}: {before} → {after}",
+          "gone": "gone from your list",
+          "created": "New asset {name} created with {amount}",
+          "walletNew": "New wallet {name} starts with {amount}",
+          "leaves": "Leaves your investments",
+          "plUnchanged": "P/L unchanged",
+          "realized": "Realized {amount}",
+          "realizedUnchanged": "Realized unchanged"
+        },
+        "err": {
+          "leftTooHigh": "Value left must be less than what you hold.",
+          "received": "Enter an amount received greater than 0.",
+          "positive": "Enter an amount greater than 0.",
+          "futureDate": "Date can't be in the future.",
+          "beforeLatest": "Date can't be before the latest entry ({date}).",
+          "fx": "No exchange rate for {currency} on {date}. Pick another date or currency.",
+          "walletRequired": "Pick a wallet or choose Nowhere.",
+          "nameRequired": "Enter a name.",
+          "saveFailed": "Couldn't save this. Check your connection and try again.",
+          "staleEntry": "This asset changed. Reload and try again."
+        }
+      },
+      "edit": {
+        "label": "Name",
+        "displayCurrency": "Display currency",
+        "displayCurrencyHelp": "Only changes how this asset is shown. Entries keep their own currency.",
+        "currentValue": "Current value",
+        "currentPrice": "Current price per unit",
+        "save": "Save changes",
+        "saved": "Saved"
+      },
+      "ledger": {
+        "kind": {
+          "bought": "Bought",
+          "sold": "Sold",
+          "transferIn": "Transfer in",
+          "transferOut": "Transfer out",
+          "convertedIn": "Converted in",
+          "convertedOut": "Converted out",
+          "added": "Added money",
+          "valueUpdated": "Value updated",
+          "priceUpdated": "Price updated",
+          "interest": "Interest"
+        },
+        "auto": "Auto-calculated",
+        "realized": "realized {amount}",
+        "toAsset": "to {name}",
+        "fromAsset": "from {name}",
+        "deleteAria": "Delete {kind} from {date}",
+        "onlyLatest": "Only the latest entry can be deleted.",
+        "removeLaterIn": "Remove the later entries in {name} first.",
+        "deleted": "Entry deleted",
+        "confirm": {
+          "entry": {
+            "title": "Delete this entry?",
+            "body": "This undoes the {kind} from {date}. Quantity, cost, value, realized gain and contributions go back to what they were before it.",
+            "confirm": "Delete entry",
+            "cancel": "Keep entry"
+          },
+          "wallet": {
+            "title": "Delete this sale?",
+            "body": "This undoes the sale from {date} and takes {amount} back out of {wallet}. A wallet created by this sale stays, with the amount removed.",
+            "confirm": "Delete sale",
+            "cancel": "Keep sale"
+          },
+          "linked": {
+            "title": "Delete both sides?",
+            "body": "This entry is linked. Deleting it also removes the matching entry in {other}. Both assets go back to what they were before it.",
+            "confirm": "Delete both entries",
+            "cancel": "Keep entries"
+          },
+          "last": {
+            "title": "Delete {name}?",
+            "body": "This is the only entry. Deleting it removes {name} completely, with its history and realized gain. This can't be undone.",
+            "confirm": "Delete asset",
+            "cancel": "Keep asset"
+          }
+        }
+      }
     },
     "cushionMode": {
       "name": "Cushion",

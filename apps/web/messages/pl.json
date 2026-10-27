@@ -786,7 +786,11 @@
         "unrealized": "Niezrealizowane",
         "realized": "Zrealizowane",
         "totalPl": "Łączny zysk/strata",
-        "lifetimeReturn": "Zwrot od początku"
+        "lifetimeReturn": "Zwrot od początku",
+        "summaryCaption": "niezrealizowany {u} · zrealizowany {r} · udział {s}",
+        "stats": {
+          "avgPrice": "Śr. cena {price}"
+        }
       },
       "whatHappened": {
         "title": "Co się stało?",
@@ -837,7 +841,170 @@
         "confirm": "Usuń pozycję",
         "keep": "Zostaw {name}"
       },
-      "addDate": "Data"
+      "addDate": "Data",
+      "asset": {
+        "swipe": {
+          "swap": "Zamień",
+          "edit": "Edytuj"
+        },
+        "name": {
+          "label": "Nazwa",
+          "create": "Utwórz „{name}”",
+          "closed": "Zamknięte",
+          "joins": "Dołączy do {name} (obecnie {value}).",
+          "reopens": "Ponownie otworzy {name}.",
+          "taken": "Ten typ ma już aktywo o takiej nazwie."
+        }
+      },
+      "swap": {
+        "title": "Zamień {name}",
+        "tab": {
+          "buy": "Kup",
+          "sell": "Sprzedaj",
+          "transfer": "Przenieś"
+        },
+        "sellTitle": "Sprzedaj {name}",
+        "cta": {
+          "buy": "Dodaj do {name}",
+          "sell": "Zapisz sprzedaż",
+          "sellOut": "Zapisz wypłatę",
+          "transfer": "Przenieś do {target}",
+          "transferNoTarget": "Przenieś aktywo"
+        },
+        "discard": "Odrzuć",
+        "saving": "Zapisywanie…",
+        "dateMin": "Nie wcześniej niż {date} — ostatni wpis tego aktywa.",
+        "buy": {
+          "amountAdded": "Wpłacona kwota",
+          "valueAfter": "Wartość konta po wpłacie",
+          "valueAfterHelp": "Było {current} + {amount}. Wpisz wartość z aplikacji brokera.",
+          "split": "Zysk/strata {market} z ruchu rynku · {deposit} z wpłaty",
+          "cashHelp": "Koszt i wartość rosną o tę kwotę. Zysk/strata się nie zmienia.",
+          "quantity": "Ilość",
+          "price": "Cena zakupu",
+          "total": "Razem {amount}"
+        },
+        "locked": "Zablokowane",
+        "sell": {
+          "left": "Ile zostaje?",
+          "everything": "Sprzedaj wszystko",
+          "where": "Gdzie trafiły pieniądze?",
+          "dest": {
+            "new": "Nowa inwestycja",
+            "existing": "Istniejąca inwestycja",
+            "out": "Poza inwestycjami",
+            "newDesc": "Otwórz nowe aktywo za te pieniądze",
+            "existingDesc": "Dodaj pieniądze do posiadanego aktywa",
+            "outDesc": "Opuszczają Twoje inwestycje"
+          },
+          "linked": "Powiązane",
+          "received": "Otrzymana kwota",
+          "receivedHelp": "Wstępnie wg dzisiejszej wartości. Zmień na kwotę, która faktycznie wpłynęła.",
+          "walletTitle": "Gdzie mają trafić pieniądze?",
+          "wallet": {
+            "existing": "Istniejący portfel",
+            "new": "Nowy portfel",
+            "nowhere": "Nigdzie",
+            "help": "Dodane do salda portfela. Nie liczy się jako przychód.",
+            "newHelp": "Portfel zaczyna od tej kwoty.",
+            "name": "Nazwa portfela",
+            "type": "Typ portfela"
+          }
+        },
+        "transfer": {
+          "everything": "Przenieś wszystko",
+          "to": "Do",
+          "existing": "Istniejące aktywo",
+          "new": "Nowe aktywo",
+          "newName": "Nazwa nowego aktywa",
+          "sameInstrument": "Tylko ten sam instrument.",
+          "none": "Brak innych aktywów tego typu. Utwórz nowe.",
+          "note": "To nie sprzedaż: brak zrealizowanego zysku, koszt przechodzi razem.",
+          "moveQty": "Ilość do przeniesienia",
+          "moveAmount": "Kwota do przeniesienia"
+        },
+        "sum": {
+          "title": "Co się stanie",
+          "empty": "Wypełnij pola powyżej, aby zobaczyć, co się stanie.",
+          "line": "{label}: {before} → {after}",
+          "gone": "zniknie z listy",
+          "created": "Nowe aktywo {name} z kwotą {amount}",
+          "walletNew": "Nowy portfel {name} zaczyna od {amount}",
+          "leaves": "Opuszcza Twoje inwestycje",
+          "plUnchanged": "Zysk/strata bez zmian",
+          "realized": "Zrealizowano {amount}",
+          "realizedUnchanged": "Zrealizowany zysk bez zmian"
+        },
+        "err": {
+          "leftTooHigh": "Pozostała wartość musi być mniejsza niż to, co posiadasz.",
+          "received": "Wpisz otrzymaną kwotę większą od 0.",
+          "positive": "Wpisz kwotę większą od 0.",
+          "futureDate": "Data nie może być w przyszłości.",
+          "beforeLatest": "Data nie może być wcześniejsza niż ostatni wpis ({date}).",
+          "fx": "Brak kursu dla {currency} na {date}. Wybierz inną datę lub walutę.",
+          "walletRequired": "Wybierz portfel lub opcję Nigdzie.",
+          "nameRequired": "Wpisz nazwę.",
+          "saveFailed": "Nie udało się zapisać. Sprawdź połączenie i spróbuj ponownie.",
+          "staleEntry": "To aktywo się zmieniło. Odśwież i spróbuj ponownie."
+        }
+      },
+      "edit": {
+        "label": "Nazwa",
+        "displayCurrency": "Waluta wyświetlania",
+        "displayCurrencyHelp": "Zmienia tylko sposób wyświetlania. Wpisy zachowują własną walutę.",
+        "currentValue": "Aktualna wartość",
+        "currentPrice": "Aktualna cena za jednostkę",
+        "save": "Zapisz zmiany",
+        "saved": "Zapisano"
+      },
+      "ledger": {
+        "kind": {
+          "bought": "Zakup",
+          "sold": "Sprzedaż",
+          "transferIn": "Przeniesienie z",
+          "transferOut": "Przeniesienie do",
+          "convertedIn": "Wymiana (wpływ)",
+          "convertedOut": "Wymiana (wypływ)",
+          "added": "Wpłata",
+          "valueUpdated": "Zaktualizowana wartość",
+          "priceUpdated": "Zaktualizowana cena",
+          "interest": "Odsetki"
+        },
+        "auto": "Wyliczone automatycznie",
+        "realized": "zrealizowano {amount}",
+        "toAsset": "do {name}",
+        "fromAsset": "z {name}",
+        "deleteAria": "Usuń: {kind} z {date}",
+        "onlyLatest": "Można usunąć tylko ostatni wpis.",
+        "removeLaterIn": "Najpierw usuń późniejsze wpisy w {name}.",
+        "deleted": "Wpis usunięty",
+        "confirm": {
+          "entry": {
+            "title": "Usunąć ten wpis?",
+            "body": "To cofa operację „{kind}” z {date}. Ilość, koszt, wartość, zrealizowany zysk i wpłaty wrócą do stanu sprzed niej.",
+            "confirm": "Usuń wpis",
+            "cancel": "Zachowaj wpis"
+          },
+          "wallet": {
+            "title": "Usunąć tę sprzedaż?",
+            "body": "To cofa sprzedaż z {date} i zabiera {amount} z portfela {wallet}. Portfel utworzony przy tej sprzedaży zostaje, tylko bez tej kwoty.",
+            "confirm": "Usuń sprzedaż",
+            "cancel": "Zachowaj sprzedaż"
+          },
+          "linked": {
+            "title": "Usunąć obie strony?",
+            "body": "Ten wpis jest powiązany. Usunięcie go usunie też odpowiadający wpis w {other}. Oba aktywa wrócą do stanu sprzed niego.",
+            "confirm": "Usuń oba wpisy",
+            "cancel": "Zachowaj wpisy"
+          },
+          "last": {
+            "title": "Usunąć {name}?",
+            "body": "To jedyny wpis. Usunięcie go całkowicie usunie {name} razem z historią i zrealizowanym zyskiem. Tego nie można cofnąć.",
+            "confirm": "Usuń aktywo",
+            "cancel": "Zachowaj aktywo"
+          }
+        }
+      }
     },
     "cushionMode": {
       "name": "Poduszka",
