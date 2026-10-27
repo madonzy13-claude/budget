@@ -66,7 +66,8 @@ describe("Migration 0087 investment history", () => {
   test("kind CHECK allows the seven kinds and not 'sell'", async () => {
     const r = await one<{ def: string }>(
       `SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
-        WHERE conname = 'investment_history_kind_chk'`,
+        WHERE conname = 'investment_history_kind_chk'
+          AND conrelid = 'budgeting.investment_history'::regclass`,
     );
     for (const k of [
       "start",

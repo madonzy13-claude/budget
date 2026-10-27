@@ -46,7 +46,8 @@ describe.skipIf(!URL)("Migration 0088 investment assets — catalog", () => {
     if (!applied) return; // plan 13.1-05 applies 0088 to dev
     const chk = await pool.query(
       `SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
-        WHERE conname = 'investment_history_kind_chk'`,
+        WHERE conname = 'investment_history_kind_chk'
+          AND conrelid = 'budgeting.investment_history'::regclass`,
     );
     for (const k of ["transfer_out", "transfer_in", "price_change"])
       expect(chk.rows[0].def).toContain(`'${k}'`);
