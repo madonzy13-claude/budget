@@ -4,13 +4,13 @@ milestone: v1.1
 milestone_name: track)_
 status: executing
 stopped_at: Phase 13.1 UI-SPEC approved
-last_updated: "2026-10-27T22:47:32.569Z"
+last_updated: "2026-10-27T22:53:48.686Z"
 last_activity: 2026-10-27
 progress:
   total_phases: 14
   completed_phases: 11
   total_plans: 120
-  completed_plans: 117
+  completed_plans: 118
   percent: 79
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 ## Current Position
 
 Phase: 13.1 (investments-assets-with-transactions) — EXECUTING
-Plan: 14 of 16
+Plan: 15 of 16
 Next: Phase 13.1 inserted — /gsd:discuss-phase 13.1 (assets with transactions redesign); Phase 13 UAT paused at test 7
 Status: Ready to execute
 Last activity: 2026-10-27
