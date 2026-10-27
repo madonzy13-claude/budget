@@ -5,12 +5,9 @@
 import { vi } from "vitest";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 
-export const fetchMock = vi.hoisted(() => vi.fn());
-export const writeMock = vi.hoisted(() => vi.fn());
-export const toastMock = vi.hoisted(() => ({
-  success: vi.fn(),
-  error: vi.fn(),
-}));
+export const fetchMock = vi.fn();
+export const writeMock = vi.fn();
+export const toastMock = { success: vi.fn(), error: vi.fn() };
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string, params?: Record<string, unknown>) =>
