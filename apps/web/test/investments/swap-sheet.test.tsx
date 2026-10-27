@@ -3,7 +3,7 @@
  * (13.1 D-08, D-10, D-11, D-15, D-31; UI-SPEC §2, 2a, 2c, 2d).
  */
 import "./_swap-fixtures";
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -231,5 +231,35 @@ describe("Transfer tab", () => {
     expect(
       document.querySelector('[data-testid="swap-sheet"] .truncate'),
     ).toBeNull();
+  });
+
+  // E2E 13.1-16: Radix closes on Escape in the CAPTURE phase, so the
+  // combobox's stopPropagation came too late and the whole sheet closed.
+  it("Escape in an open name list closes the list, not the sheet", async () => {
+    const onOpenChange = vi.fn();
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={qc}>
+        <SwapSheet
+          open
+          onOpenChange={onOpenChange}
+          budgetId="b1"
+          budgetCurrency="PLN"
+          holding={btc}
+          holdings={[btc, btcCold]}
+        />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByTestId("swap-tab-transfer"));
+    fireEvent.click(screen.getByTestId("swap-transfer-to-new"));
+    const input = screen.getByTestId("swap-transfer-name");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "Vault" } });
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByTestId("swap-sheet")).toBeInTheDocument();
   });
 });
