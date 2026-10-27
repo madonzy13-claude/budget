@@ -102,7 +102,7 @@ export function editAsset(deps: {
             holdingRef: h.id,
             kind: amountAsset ? "value_change" : "price_change",
             effectiveDate: input.today,
-            amountCents: BigInt(newPrice),
+            amountCents: cents(big(newPrice)),
             amountCurrency: ccy,
             valueDeltaCents: cents(big(newPrice).minus(big(prior)).times(qty)),
             priorPriceCents:

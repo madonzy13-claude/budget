@@ -391,7 +391,13 @@ export const editAssetSchema = z
     name: label(120).optional(),
     displayCurrency: currencyCode.optional(),
     currentValueCents: centsString.optional(),
-    currentPriceCents: positiveCents.optional(),
+    // A unit price keeps 6 sub-cent places: a total typed for several units
+    // only multiplies back exactly from a fractional unit price (261023).
+    currentPriceCents: z
+      .string()
+      .regex(/^\d{1,18}(\.\d{1,6})?$/, "invalid_cents")
+      .refine((v) => Number(v) > 0, "positive")
+      .optional(),
   })
   .refine((v) => Object.keys(v).length > 0, "empty_edit");
 export type EditAssetInput = z.infer<typeof editAssetSchema>;

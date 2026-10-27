@@ -224,6 +224,36 @@ describe("Investments routes", () => {
     expect(row.valueCents).toBe("17000");
   });
 
+  // 13.1 CR-01 regression: a label edit never writes quantity or cost.
+  it("a label PATCH leaves quantity and buy price unchanged", async () => {
+    const fix = await createFixture("PLN");
+    const app = await buildApp(fix);
+    const created = (await (
+      await app.request("/investments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Bond fund",
+          holdingType: "other",
+          uiType: "other",
+          quantity: "3",
+          buyPriceCents: "1000",
+          buyCurrency: "PLN",
+          currentPriceCents: "1200",
+          currentPriceCurrency: "PLN",
+        }),
+      })
+    ).json()) as any;
+    const res = await app.request(`/investments/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Bond fund II" }),
+    });
+    expect(res.status).toBe(200);
+    const after = (await res.json()) as any;
+    expect(after).toMatchObject({ name: "Bond fund II", quantity: "3.00000000", buyPriceCents: "1000" });
+  });
+
   it("a holding created under tenant B is NOT visible in tenant A's GET (RLS, INV-03)", async () => {
     const a = await createFixture("EUR");
     const b = await createFixture("EUR");
