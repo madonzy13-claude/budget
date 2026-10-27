@@ -290,6 +290,28 @@ export function createInvestmentsRoute(deps: BootedDeps) {
     return c.json(r.value);
   });
 
+  // POST /:id/transfer — Swap → Transfer (D-10): same type, linked flow-0 legs.
+  app.post("/:id/transfer", async (c) => {
+    const { transferAssetSchema } = await getSchemas();
+    if (!c.get("session")) return c.json({ error: "unauthorized" }, 401);
+    const id = c.req.param("id");
+    if (await badId(id)) return c.json({ error: "not_found" }, 404);
+    const body = await c.req.json().catch(() => null);
+    const parsed = transferAssetSchema.safeParse(body);
+    if (!parsed.success) return invalid(c, parsed.error.issues);
+    const w = who(c);
+    const budget = await deps.tenancy.workspaceRepo.findById(w.tenantId);
+    const r = await deps.investments.transferAsset({
+      ...parsed.data,
+      ...w,
+      budgetCurrency: budget?.default_currency ?? "EUR",
+      holdingId: id,
+    });
+    if (r.isErr())
+      return fail(c, r.error, await assetErrors(), "transfer_failed");
+    return c.json(r.value, 201);
+  });
+
   // POST /:id/sell — Swap → Sell (13.1 D-09): new / existing asset, or Out
   // of investments optionally into a wallet (D-20..D-23), one transaction.
   const SELL_ERRORS = new Set([

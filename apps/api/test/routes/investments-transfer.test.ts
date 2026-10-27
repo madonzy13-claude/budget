@@ -180,11 +180,30 @@ const xfer = (app: Hono, id: string, body: Record<string, unknown>) =>
     body: JSON.stringify({ effectiveDate: "2026-10-24", ...body }),
   });
 const flowSum = async (fix: Fixture) =>
-  (await q<{ s: string }>(fix, `SELECT COALESCE(sum(flow_cents),0)::text AS s FROM budgeting.investment_history WHERE budget_id = $1 AND deleted_at IS NULL`, [fix.tenantId]))[0]!.s;
+  (
+    await q<{ s: string }>(
+      fix,
+      `SELECT COALESCE(sum(flow_cents),0)::text AS s FROM budgeting.investment_history WHERE budget_id = $1 AND deleted_at IS NULL`,
+      [fix.tenantId],
+    )
+  )[0]!.s;
 const realized = async (fix: Fixture) =>
-  (await q<{ s: string }>(fix, `SELECT COALESCE(sum(realized_budget_cents),0)::text AS s FROM budgeting.investment_history WHERE budget_id = $1 AND deleted_at IS NULL`, [fix.tenantId]))[0]!.s;
+  (
+    await q<{ s: string }>(
+      fix,
+      `SELECT COALESCE(sum(realized_budget_cents),0)::text AS s FROM budgeting.investment_history WHERE budget_id = $1 AND deleted_at IS NULL`,
+      [fix.tenantId],
+    )
+  )[0]!.s;
 const coin = (fix: Fixture, name: string) =>
-  seed(fix, { name, uiType: "collectibles", holdingType: "other", quantity: "4", buyPriceCents: 2_500n, currentPriceCents: 3_000n });
+  seed(fix, {
+    name,
+    uiType: "collectibles",
+    holdingType: "other",
+    quantity: "4",
+    buyPriceCents: 2_500n,
+    currentPriceCents: 3_000n,
+  });
 
 describe("Transfer route", () => {
   it("moves quantity between same-type assets as linked flow-0 legs", async () => {
@@ -194,9 +213,15 @@ describe("Transfer route", () => {
     const b = await coin(fix, "Coins B");
     const flow0 = await flowSum(fix);
     const realized0 = await realized(fix);
-    const res = await xfer(app, a, { move: { quantity: "1" }, to: { kind: "existing", holdingId: b } });
+    const res = await xfer(app, a, {
+      move: { quantity: "1" },
+      to: { kind: "existing", holdingId: b },
+    });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { transferId: string; newHoldingId: string | null };
+    const body = (await res.json()) as {
+      transferId: string;
+      newHoldingId: string | null;
+    };
     expect(body.transferId).toBeTruthy();
     expect(body.newHoldingId).toBeNull();
     const rows = await q<{ kind: string; holding_id: string; t: string }>(
@@ -217,12 +242,23 @@ describe("Transfer route", () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
     const a = await coin(fix, "Coins A");
-    const res = await xfer(app, a, { move: { quantity: "4" }, to: { kind: "new", name: "Vault" } });
+    const res = await xfer(app, a, {
+      move: { quantity: "4" },
+      to: { kind: "new", name: "Vault" },
+    });
     expect(res.status).toBe(201);
     const { newHoldingId } = (await res.json()) as { newHoldingId: string };
-    const [n] = await q<{ name: string; quantity: string }>(fix, `SELECT name, quantity::text FROM budgeting.investments WHERE id = $1`, [newHoldingId]);
+    const [n] = await q<{ name: string; quantity: string }>(
+      fix,
+      `SELECT name, quantity::text FROM budgeting.investments WHERE id = $1`,
+      [newHoldingId],
+    );
     expect(n).toEqual({ name: "Vault", quantity: "4.00000000" });
-    const [src] = await q<{ archived: boolean }>(fix, `SELECT archived_at IS NOT NULL AS archived FROM budgeting.investments WHERE id = $1`, [a]);
+    const [src] = await q<{ archived: boolean }>(
+      fix,
+      `SELECT archived_at IS NOT NULL AS archived FROM budgeting.investments WHERE id = $1`,
+      [a],
+    );
     expect(src!.archived).toBe(true);
   });
 
@@ -236,7 +272,10 @@ describe("Transfer route", () => {
       `INSERT INTO budgeting.investment_history (tenant_id, budget_id, holding_id, kind, effective_date) VALUES ($1, $1, $2, 'add', '2026-10-25')`,
       [fix.tenantId, b],
     );
-    const res = await xfer(app, a, { move: { quantity: "1" }, to: { kind: "existing", holdingId: b } });
+    const res = await xfer(app, a, {
+      move: { quantity: "1" },
+      to: { kind: "existing", holdingId: b },
+    });
     expect(res.status).toBe(422);
     expect(await res.json()).toEqual({ error: "before_latest_entry" });
   });
@@ -247,10 +286,26 @@ describe("Transfer route", () => {
     const app = await buildApp(fix);
     const a = await coin(fix, "Coins A");
     const theirs = await coin(other, "Theirs");
-    expect((await xfer(app, "nope", { move: { quantity: "1" }, to: { kind: "new", name: "X" } })).status).toBe(404);
-    const res = await xfer(app, a, { move: { quantity: "1" }, to: { kind: "existing", holdingId: theirs } });
+    expect(
+      (
+        await xfer(app, "nope", {
+          move: { quantity: "1" },
+          to: { kind: "new", name: "X" },
+        })
+      ).status,
+    ).toBe(404);
+    const res = await xfer(app, a, {
+      move: { quantity: "1" },
+      to: { kind: "existing", holdingId: theirs },
+    });
     expect(res.status).toBe(404);
-    expect(await q(fix, `SELECT 1 FROM budgeting.investment_history WHERE budget_id = $1 AND kind LIKE 'transfer%'`, [fix.tenantId])).toHaveLength(0);
+    expect(
+      await q(
+        fix,
+        `SELECT 1 FROM budgeting.investment_history WHERE budget_id = $1 AND kind LIKE 'transfer%'`,
+        [fix.tenantId],
+      ),
+    ).toHaveLength(0);
   });
 
   it("a different type is 422 transfer_type_mismatch", async () => {
@@ -258,7 +313,10 @@ describe("Transfer route", () => {
     const app = await buildApp(fix);
     const a = await coin(fix, "Coins A");
     const cash = await seed(fix, { name: "Cash" });
-    const res = await xfer(app, a, { move: { quantity: "1" }, to: { kind: "existing", holdingId: cash } });
+    const res = await xfer(app, a, {
+      move: { quantity: "1" },
+      to: { kind: "existing", holdingId: cash },
+    });
     expect(res.status).toBe(422);
     expect(await res.json()).toEqual({ error: "transfer_type_mismatch" });
   });
