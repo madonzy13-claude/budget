@@ -5,19 +5,21 @@
  * server books in BigInt and is authoritative.
  */
 
+export type MoveLine = {
+  key: "swap.sum.line";
+  /** Asset / wallet name, or an i18n key for a generic label. */
+  label?: string;
+  labelKey?: string;
+  before: number;
+  after: number;
+  ccy: string;
+  unit?: "qty";
+  /** Sold everything: "gone from your list" instead of the after figure. */
+  gone?: boolean;
+};
+
 export type SumLine =
-  | {
-      key: "swap.sum.line";
-      /** Asset / wallet name, or an i18n key for a generic label. */
-      label?: string;
-      labelKey?: string;
-      before: number;
-      after: number;
-      ccy: string;
-      unit?: "qty";
-      /** Sold everything: "gone from your list" instead of the after figure. */
-      gone?: boolean;
-    }
+  | MoveLine
   | {
       key: "swap.sum.created" | "swap.sum.walletNew";
       name: string;
@@ -103,7 +105,7 @@ const move = (
   before: number,
   after: number,
   ccy: string,
-): SumLine => ({
+): MoveLine => ({
   key: "swap.sum.line",
   label,
   before,
