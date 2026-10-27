@@ -1,71 +1,62 @@
 "use client";
 /**
- * use-sell-holding.ts — POST /investments/:id/sell (Phase 13, D-01..D-04).
+ * use-sell-holding.ts — POST /investments/:id/sell (Phase 13 → 13.1 Swap → Sell).
  *
  * One request, one server transaction. No optimistic rewrite: a sale touches
- * the source, maybe a destination, realized and history, so the lists are
- * refetched instead. Honest-offline via clientApiWrite (no queue).
+ * the source, maybe a destination asset or a wallet, realized and history, so
+ * the lists are refetched. A sale into a wallet (D-20) also refreshes the
+ * wallet family. Honest-offline via clientApiWrite (no queue).
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { clientApiWrite } from "@/lib/offline-write";
+import { isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
+import {
+  AssetWriteError,
+  assetWrite,
+  invalidateInvestments,
+} from "@/lib/investment-invalidate";
+
+export type WalletTarget =
+  | { kind: "existing"; walletId: string }
+  | { kind: "new"; name: string; walletType: string; currency: string }
+  | { kind: "nowhere" };
 
 export interface SellHoldingBody {
   effectiveDate: string;
   left: { quantity: string } | { valueCents: string };
   destination:
-    | { kind: "new"; holding: Record<string, unknown> }
+    | { kind: "new"; holding: Record<string, unknown>; priceCents?: string }
     | { kind: "existing"; holdingId: string; quantityBought?: string }
-    | { kind: "out" };
+    | { kind: "out"; wallet?: WalletTarget };
   receivedCents: string;
   receivedCurrency: string;
 }
 
-/** Server refusal with its code (e.g. fx_unavailable + currency/date). */
-export class SellError extends Error {
-  constructor(
-    public readonly code: string,
-    public readonly currency?: string,
-    public readonly date?: string,
-  ) {
-    super(code);
-  }
-}
+/** Kept for the Phase 13 sheet; same class as every 13.1 write refusal. */
+export { AssetWriteError as SellError };
 
 export function useSellHolding(budgetId: string) {
   const qc = useQueryClient();
+  const offlineToast = useOfflineWriteToast();
   return useMutation({
-    mutationFn: async ({
+    mutationFn: ({
       holdingId,
       body,
     }: {
       holdingId: string;
       body: SellHoldingBody;
-    }) => {
-      const res = await clientApiWrite(
-        `/budgets/${budgetId}/investments/${holdingId}/sell`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-      );
-      if (!res.ok) {
-        const j = (await res.json().catch(() => ({}))) as {
-          error?: string;
-          currency?: string;
-          date?: string;
-        };
-        throw new SellError(j.error ?? "sell_failed", j.currency, j.date);
-      }
-      return (await res.json()) as {
-        archived: boolean;
+    }) =>
+      assetWrite<{
+        transferId: string | null;
         newHoldingId: string | null;
-      };
+        walletId: string | null;
+      }>(`/budgets/${budgetId}/investments/${holdingId}/sell`, "POST", body),
+    onError: (e) => {
+      if (isOfflineWriteError(e)) offlineToast();
     },
-    onSettled: () => {
-      // Prefix match: holdings, type summary and every holding's history.
-      void qc.invalidateQueries({ queryKey: ["budget", budgetId, "investments"] });
-      void qc.invalidateQueries({ queryKey: ["budget", budgetId, "overview"] });
-    },
+    onSettled: (data) =>
+      invalidateInvestments(qc, budgetId, {
+        walletTouched: (data?.walletId ?? null) !== null,
+      }),
   });
 }

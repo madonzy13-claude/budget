@@ -541,15 +541,15 @@ describe("HoldingSheet — type-first", () => {
     fireEvent.click(screen.getByTestId("holding-sheet-submit"));
     expect(updateMutate).toHaveBeenCalledTimes(1);
     const payload = updateMutate.mock.calls[0][0];
-    expect(payload).toMatchObject({
-      holdingType: "deposit",
-      uiType: "deposit",
-      depositRateBps: 525,
-      depositStartDate: "2025-01-01",
-      depositEndDate: null,
-      depositCapFrequency: "monthly",
-    });
-    // Phase 13: principal (cost) and quantity never travel in a PATCH.
+    // 13.1 (D-06, CR-01): Edit sends only label / display currency / hand
+    // price — deposit terms, type, principal and quantity are ledger-owned.
+    for (const k of Object.keys(payload))
+      expect([
+        "currentPriceCents",
+        "displayCurrency",
+        "holdingId",
+        "name",
+      ]).toContain(k);
     expect("buyPriceCents" in payload).toBe(false);
     expect("quantity" in payload).toBe(false);
   });
@@ -694,8 +694,9 @@ describe("HoldingSheet — type-first", () => {
     fireEvent.click(screen.getByTestId("holding-sheet-submit"));
     expect(updateMutate).toHaveBeenCalledTimes(1);
     const payload = updateMutate.mock.calls[0][0];
-    expect(payload.currentPriceCurrency).toBe("PLN");
-    expect(payload.buyCurrency).toBe("PLN");
+    // 13.1 D-36: display currency only; cost keeps its own currency.
+    expect(payload.displayCurrency).toBe("PLN");
+    expect("buyCurrency" in payload).toBe(false);
   });
 
   // user, 261023: a quick-edited 170 over 3 units stores 5666.666667/unit;
@@ -799,8 +800,14 @@ describe("HoldingSheet — type-first", () => {
     );
     fireEvent.click(screen.getByTestId("holding-sheet-submit"));
     const payload = updateMutate.mock.calls.at(-1)![0];
-    expect(payload).toMatchObject({ uiType: "stocks", holdingType: "etf" });
-    expect("group" in payload).toBe(false);
+    // 13.1 (D-06): type is not editable on an asset.
+    for (const k of Object.keys(payload))
+      expect([
+        "currentPriceCents",
+        "displayCurrency",
+        "holdingId",
+        "name",
+      ]).toContain(k);
   });
 
   it("picking a stock under Stocks & ETFs saves holdingType equities", async () => {
@@ -820,10 +827,8 @@ describe("HoldingSheet — type-first", () => {
       expect(screen.getByTestId("holding-sheet-submit")).not.toBeDisabled(),
     );
     fireEvent.click(screen.getByTestId("holding-sheet-submit"));
-    expect(updateMutate.mock.calls.at(-1)![0]).toMatchObject({
-      uiType: "stocks",
-      holdingType: "equities",
-    });
+    // 13.1 (D-06): type is not editable on an asset.
+    expect("holdingType" in updateMutate.mock.calls.at(-1)![0]).toBe(false);
   });
 });
 

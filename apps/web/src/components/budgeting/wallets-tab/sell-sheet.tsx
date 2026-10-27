@@ -31,7 +31,6 @@ import {
   type UiType,
 } from "@/lib/investment-types";
 import { isOfflineWriteError } from "@/lib/offline-write";
-import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { SellError, useSellHolding } from "@/hooks/use-sell-holding";
 import {
@@ -80,7 +79,6 @@ export function SellSheet({
   const t = useTranslations("budget.investments");
   const locale = useLocale();
   const sellMut = useSellHolding(budgetId);
-  const offlineToast = useOfflineWriteToast();
 
   const shape = shapeOf(holding);
   const held = num(holding.quantity);
@@ -238,7 +236,8 @@ export function SellSheet({
         },
         onError: (e: Error) => {
           const se = e as SellError;
-          if (isOfflineWriteError(e)) return offlineToast();
+          // The hook already showed the offline toast.
+          if (isOfflineWriteError(e)) return;
           if (se.code === "fx_unavailable")
             return setServerError(
               t("sell.errFx", {

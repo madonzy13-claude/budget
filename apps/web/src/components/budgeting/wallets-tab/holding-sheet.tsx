@@ -723,10 +723,17 @@ export function HoldingSheet({
     delete payload.buyPriceCents;
     delete payload.quantity;
     if (valueDelta !== 0) delete payload.currentPriceCents;
+    // 13.1 (D-06, CR-01): Edit sends only label / display currency / hand price.
     updateMut.mutate({
       holdingId: holding.id,
-      ...payload,
-    } as Parameters<typeof updateMut.mutate>[0]);
+      name: payload.name as string | undefined,
+      ...(payload.currentPriceCurrency
+        ? { displayCurrency: payload.currentPriceCurrency as string }
+        : {}),
+      ...(payload.currentPriceCents != null
+        ? { currentPriceCents: String(payload.currentPriceCents) }
+        : {}),
+    });
 
     const q = (n: number) => String(Number(n.toFixed(8)));
     if (qtyDelta < 0) {

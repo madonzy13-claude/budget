@@ -1,136 +1,78 @@
 "use client";
 /**
- * use-update-holding.ts — Optimistic PATCH /investments/:id mutation (Phase 9).
+ * use-update-holding.ts — PATCH /investments/:id = asset Edit (Phase 13.1, D-06).
  *
- * Mirrors use-update-wallet: optimistic field patch on the cached row, rollback
- * on error, invalidate on settle. clientApiWrite gives honest-offline behaviour.
+ * Sends ONLY label, display currency and the hand value/price. Quantity, cost
+ * and type are ledger-owned: a PATCH that wrote them raced /adjust (Phase 13
+ * CR-01, UAT T6). Optimistic name/price patch, rollback on error.
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
-import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
-import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
-import type { HoldingDto, HoldingType } from "./use-investments";
-import { typeSummaryKey } from "./use-type-summary";
+import { isOfflineWriteError } from "@/lib/offline-write";
+import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
+import {
+  AssetWriteError,
+  assetRefusalKey,
+  assetWrite,
+  invalidateInvestments,
+} from "@/lib/investment-invalidate";
+import type { HoldingDto } from "./use-investments";
 
 export interface UpdateHoldingInput {
   holdingId: string;
   name?: string;
-  holdingType?: HoldingType;
-  uiType?: string | null;
-  /** Possession-only curated icon key (e.g. "car"). */
-  icon?: string | null;
-  /** Possession-only hex color (e.g. "#e63946"). */
-  color?: string | null;
-  instrumentId?: string | null;
-  buyPriceCents?: string | number | null;
-  buyCurrency?: string | null;
-  quantity?: string;
-  currentPriceCents?: string | number | null;
-  currentPriceCurrency?: string | null;
-  metal?: string | null;
-  metalKind?: string | null;
-  unitOfMeasure?: string | null;
-  manualTicker?: string | null;
-  /** Web-only optimistic ticker; the server derives the persisted symbol. */
-  symbol?: string | null;
-  // Deposit-only.
-  depositRateBps?: number | null;
-  depositStartDate?: string | null;
-  depositEndDate?: string | null;
-  depositCapFrequency?: string | null;
-  /** Suppress the "saved" toast — drag-to-group reassignment is silent (UAT). */
+  /** D-36: the server converts the stored current value at today's rate. */
+  displayCurrency?: string;
+  /** Hand-valued amount assets: new total value. */
+  currentValueCents?: string;
+  /** Hand-priced quantity assets: new price per unit. */
+  currentPriceCents?: string;
+  /** Suppress the error toast; the caller shows it inline. */
   silent?: boolean;
 }
 
 export function useUpdateHolding(budgetId: string) {
   const qc = useQueryClient();
-  const t = useTranslations("budget.investments.toast");
+  const t = useTranslations("budget.investments");
   const offlineToast = useOfflineWriteToast();
   const key = ["budget", budgetId, "investments"] as const;
 
   return useMutation({
-    mutationFn: async (input: UpdateHoldingInput) => {
-      // `silent` is a client-only toast flag — strip it from the PATCH body.
-      const { holdingId, ...rest } = input;
-      const payload: Record<string, unknown> = { ...rest };
-      delete payload.silent;
-      const res = await clientApiWrite(
+    mutationFn: ({ holdingId, silent: _silent, ...edit }: UpdateHoldingInput) =>
+      assetWrite<{ id: string }>(
         `/budgets/${budgetId}/investments/${holdingId}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            "Idempotency-Key": generateIdempotencyKey(),
-          },
-          body: JSON.stringify(payload),
-        },
-      );
-      if (!res.ok) {
-        const body = await res.text();
-        const err: Error & { code?: string | null } = new Error(body);
-        try {
-          err.code = (JSON.parse(body) as { error?: string })?.error ?? null;
-        } catch {
-          err.code = null;
-        }
-        throw err;
-      }
-      return (await res.json()) as { id: string };
-    },
+        "PATCH",
+        edit,
+      ),
 
     onMutate: async (input) => {
-      await qc.cancelQueries({ queryKey: key });
+      await qc.cancelQueries({ queryKey: key, exact: true });
       const previous = qc.getQueryData<HoldingDto[]>(key);
-      qc.setQueryData<HoldingDto[]>(key, (old) => {
-        if (!old) return old;
-        return old.map((h) =>
+      qc.setQueryData<HoldingDto[]>(key, (old) =>
+        old?.map((h) =>
           h.id === input.holdingId
             ? {
                 ...h,
                 ...(input.name !== undefined ? { name: input.name } : {}),
-                ...(input.holdingType !== undefined
-                  ? { holdingType: input.holdingType }
-                  : {}),
-                ...(input.icon !== undefined ? { icon: input.icon } : {}),
-                ...(input.color !== undefined ? { color: input.color } : {}),
                 ...(input.currentPriceCents !== undefined
-                  ? { currentPriceCents: String(input.currentPriceCents) }
+                  ? { currentPriceCents: input.currentPriceCents }
                   : {}),
-                ...(input.currentPriceCurrency !== undefined
-                  ? { currentPriceCurrency: input.currentPriceCurrency }
-                  : {}),
-                ...(input.buyCurrency !== undefined
-                  ? { buyCurrency: input.buyCurrency }
-                  : {}),
-                ...(input.quantity !== undefined
-                  ? { quantity: input.quantity }
-                  : {}),
-                ...(input.symbol !== undefined ? { symbol: input.symbol } : {}),
               }
             : h,
-        );
-      });
+        ),
+      );
       return { previous };
     },
 
-    onError: (err, _input, ctx) => {
+    onError: (err, input, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous);
-      if (isOfflineWriteError(err)) {
-        offlineToast();
-        return;
-      }
-      toast.error(t("saveFailed"));
+      if (isOfflineWriteError(err)) return offlineToast();
+      if (input.silent) return;
+      toast.error(t(assetRefusalKey((err as AssetWriteError).code ?? "")));
     },
 
-    // No success toast — a holding edit is a quiet inline action (user request
-    // 260721). Errors still toast via onError.
-
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: key });
-      qc.invalidateQueries({ queryKey: typeSummaryKey(budgetId) });
-      qc.invalidateQueries({ queryKey: ["budget", budgetId, "overview"] });
-    },
+    onSettled: () =>
+      invalidateInvestments(qc, budgetId, { walletTouched: false }),
   });
 }
