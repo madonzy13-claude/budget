@@ -372,3 +372,47 @@ describe("reverseEntry (D-06 full undo)", () => {
     ).toThrow("would_go_negative");
   });
 });
+
+describe("Booking guards (CR-03, IN-02)", () => {
+  test("buyMore refuses a zero or negative quantity", () => {
+    for (const addQuantity of ["0", "-1"])
+      expect(() =>
+        buyMore({
+          quantity: "1",
+          buyPriceCents: 100n,
+          addQuantity,
+          paidCents: 100n,
+        }),
+      ).toThrow("buy_positive");
+  });
+
+  test("buyMore refuses a zero paid amount", () => {
+    expect(() =>
+      buyMore({
+        quantity: "1",
+        buyPriceCents: 100n,
+        addQuantity: "1",
+        paidCents: 0n,
+      }),
+    ).toThrow("buy_positive");
+  });
+
+  test("addMoney refuses a non-positive amount", () => {
+    expect(() => addMoney({ buyCents: 100n, amountCents: 0n })).toThrow(
+      "amount_positive",
+    );
+    expect(() => addMoney({ buyCents: 100n, amountCents: -5n })).toThrow(
+      "amount_positive",
+    );
+  });
+
+  test("a sell leaving more than 8 decimals is refused, not rounded up to a full sale", () => {
+    expect(() =>
+      sellQuantityHolding({
+        quantity: "1",
+        buyPriceCents: 100n,
+        sellQuantity: "0.999999996",
+      }),
+    ).toThrow("qty_precision");
+  });
+});
