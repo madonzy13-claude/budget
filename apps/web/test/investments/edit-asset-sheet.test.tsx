@@ -7,26 +7,51 @@ import "./_swap-fixtures";
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { btc, cash, H, writeMock, toastMock, lastBody, lastUrl } from "./_swap-fixtures";
+import {
+  btc,
+  cash,
+  H,
+  writeMock,
+  toastMock,
+  lastBody,
+  lastUrl,
+} from "./_swap-fixtures";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 import { EditAssetSheet } from "../../src/components/budgeting/wallets-tab/edit-asset-sheet";
 
-const coin = H({ id: "77777777-7777-7777-7777-777777777777", name: "Gold coin", uiType: "collectibles", holdingType: "other", instrumentId: null, quantity: "3", currentPriceCents: "200000" });
+const coin = H({
+  id: "77777777-7777-7777-7777-777777777777",
+  name: "Gold coin",
+  uiType: "collectibles",
+  holdingType: "other",
+  instrumentId: null,
+  quantity: "3",
+  currentPriceCents: "200000",
+});
 
 function mount(holding: HoldingDto) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <EditAssetSheet open onOpenChange={() => {}} budgetId="b1" budgetCurrency="PLN" holding={holding} />
+      <EditAssetSheet
+        open
+        onOpenChange={() => {}}
+        budgetId="b1"
+        budgetCurrency="PLN"
+        holding={holding}
+      />
     </QueryClientProvider>,
   );
 }
-const type = (id: string, v: string) => fireEvent.change(screen.getByTestId(id), { target: { value: v } });
+const type = (id: string, v: string) =>
+  fireEvent.change(screen.getByTestId(id), { target: { value: v } });
 
 beforeEach(() => {
   writeMock.mockReset();
   toastMock.success.mockReset();
-  writeMock.mockResolvedValue(new Response(JSON.stringify({ id: "x" }), { status: 200 }));
+  writeMock.mockResolvedValue(
+    new Response(JSON.stringify({ id: "x" }), { status: 200 }),
+  );
 });
 
 describe("Edit asset sheet", () => {
@@ -36,7 +61,11 @@ describe("Edit asset sheet", () => {
     expect(screen.getByText("edit.displayCurrencyHelp")).toBeInTheDocument();
     expect(screen.getByTestId("edit-asset-value")).toHaveValue("1000");
     expect(screen.queryByTestId("edit-asset-price")).toBeNull();
-    for (const gone of ["holding-sheet-type", "holding-sheet-quantity", "holding-sheet-buy-price"])
+    for (const gone of [
+      "holding-sheet-type",
+      "holding-sheet-quantity",
+      "holding-sheet-buy-price",
+    ])
       expect(screen.queryByTestId(gone)).toBeNull();
     expect(screen.queryByText(/whatHappened|history\./)).toBeNull();
   });
@@ -61,7 +90,9 @@ describe("Edit asset sheet", () => {
     await waitFor(() => expect(writeMock).toHaveBeenCalled());
     expect(lastUrl()).toBe(`/budgets/b1/investments/${cash.id}`);
     expect(lastBody()).toEqual({ name: "Pot", currentValueCents: "130000" });
-    await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("edit.saved"));
+    await waitFor(() =>
+      expect(toastMock.success).toHaveBeenCalledWith("edit.saved"),
+    );
   });
 
   it("a display currency change is sent alone", async () => {
@@ -73,7 +104,9 @@ describe("Edit asset sheet", () => {
   });
 
   it("a taken label shows inline and blocks Save until the label changes", async () => {
-    writeMock.mockResolvedValue(new Response(JSON.stringify({ error: "label_taken" }), { status: 422 }));
+    writeMock.mockResolvedValue(
+      new Response(JSON.stringify({ error: "label_taken" }), { status: 422 }),
+    );
     mount(cash);
     type("edit-asset-name", "BTC");
     fireEvent.click(screen.getByTestId("edit-asset-save"));

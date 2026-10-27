@@ -67,7 +67,8 @@ import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { sharePercentLabel } from "@/lib/share-bar";
 import { InvestmentTypeHeader } from "./investment-type-header";
 import { HoldingSheet } from "./holding-sheet";
-import { SellSheet } from "./sell-sheet";
+import { SwapSheet } from "./swap-sheet";
+import { EditAssetSheet } from "./edit-asset-sheet";
 
 interface InvestmentsSectionProps {
   budgetId: string;
@@ -217,9 +218,9 @@ export function InvestmentsSection({
   const updateMut = useUpdateHolding(budgetId);
   const reorderMut = useReorderHoldings(budgetId);
   const setOrderMut = useSetTypeOrder(budgetId);
-  // One Sell sheet for the section (D-01).
-  const [selling, setSelling] = useState<HoldingDto | null>(null);
-  const [sellLeft, setSellLeft] = useState<string | undefined>(undefined);
+  // One Swap and one Edit sheet for the section (13.1 D-05).
+  const [swapping, setSwapping] = useState<HoldingDto | null>(null);
+  const [editing, setEditing] = useState<HoldingDto | null>(null);
 
   /**
    * 260731: inline value edit on a manual-value row (cash / broker / savings —
@@ -242,12 +243,8 @@ export function InvestmentsSection({
     );
   }
 
-  // ── Sheet state (single shared instance for add + edit) ──
-  const [sheet, setSheet] = useState<{
-    open: boolean;
-    mode: "create" | "edit";
-    holding: HoldingDto | null;
-  }>({ open: false, mode: "create", holding: null });
+  // ── Add sheet ──
+  const [adding, setAdding] = useState(false);
 
   // ── Type blocks (D-12..D-16) ──
   const blocks = useMemo(
@@ -415,10 +412,10 @@ export function InvestmentsSection({
   }
 
   function openEdit(holding: HoldingDto) {
-    setSheet({ open: true, mode: "edit", holding });
+    setEditing(holding);
   }
   function openAdd() {
-    setSheet({ open: true, mode: "create", holding: null });
+    setAdding(true);
   }
 
   if (!investmentsEnabled) return null;
@@ -537,11 +534,7 @@ export function InvestmentsSection({
                             open={openAssets.has(h.id)}
                             onToggle={toggleAsset}
                             onEdit={openEdit}
-                            // ponytail: Swap opens the Phase 13 sell sheet until 13.1-11 wires the Swap sheet.
-                            onSwap={(h) => {
-                              setSellLeft(undefined);
-                              setSelling(h);
-                            }}
+                            onSwap={setSwapping}
                             onValueChange={(amount) =>
                               saveInlineValue(h, amount)
                             }
@@ -573,28 +566,31 @@ export function InvestmentsSection({
       />
 
       <HoldingSheet
-        key={`${sheet.mode}-${sheet.holding?.id ?? "new"}-${sheet.open}`}
-        open={sheet.open}
-        onOpenChange={(open) => setSheet((s) => ({ ...s, open }))}
-        mode={sheet.mode}
+        key={`add-${adding}`}
+        open={adding}
+        onOpenChange={setAdding}
         budgetId={budgetId}
         budgetCurrency={budgetCurrency}
-        holding={sheet.holding}
-        onSoldSome={(h, left) => {
-          setSellLeft(left);
-          setSelling(h);
-        }}
       />
-      {selling && (
-        <SellSheet
-          key={selling.id}
+      {swapping && (
+        <SwapSheet
+          key={swapping.id}
           open
-          onOpenChange={(o) => !o && setSelling(null)}
+          onOpenChange={(o) => !o && setSwapping(null)}
           budgetId={budgetId}
           budgetCurrency={budgetCurrency}
-          holding={selling}
+          holding={swapping}
           holdings={holdings}
-          initialLeft={sellLeft}
+        />
+      )}
+      {editing && (
+        <EditAssetSheet
+          key={editing.id}
+          open
+          onOpenChange={(o) => !o && setEditing(null)}
+          budgetId={budgetId}
+          budgetCurrency={budgetCurrency}
+          holding={editing}
         />
       )}
     </section>

@@ -1,6 +1,11 @@
 "use client";
 /**
- * holding-sheet.tsx — Type-first add / edit holding Sheet (Phase 9.1).
+ * holding-sheet.tsx — Type-first ADD sheet (Phase 9.1; 13.1 Add-only).
+ *
+ * 13.1: editing an asset is EditAssetSheet (label / display currency / hand
+ * value) and buying more is the Swap sheet; this sheet only adds. The Name is
+ * an autocomplete over the type's assets — the same name joins that asset
+ * (D-02). `holding` only pre-fills the form.
  *
  * The FIRST field is Type; the chosen UI type drives which fields render and how
  * the holding is priced (see lib/investment-types.ts):
@@ -46,12 +51,9 @@ import {
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { centsToBare } from "@/lib/cents-format";
 import { useCreateHolding } from "@/hooks/use-create-holding";
-import { useUpdateHolding } from "@/hooks/use-update-holding";
-import { useAdjustHolding, type AdjustBody } from "@/hooks/use-adjust-holding";
-import { HistorySection } from "./history-section";
+import { AssetNameCombobox } from "./asset-name-combobox";
 import type { HoldingDto, HoldingType } from "@/hooks/use-investments";
 import {
-  holdingShape,
   UI_TYPE_META,
   UI_TYPE_ORDER,
   METAL_TO_SYMBOL,
@@ -82,13 +84,10 @@ import {
 interface HoldingSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  mode: "create" | "edit";
   budgetId: string;
   budgetCurrency: string;
+  /** Pre-fill the form from an existing holding's fields. */
   holding?: HoldingDto | null;
-  /** Phase 13: a quantity cut in Edit is a sale — hand off to the Sell sheet
-   *  with that many units left. */
-  onSoldSome?: (holding: HoldingDto, left: string) => void;
   /** Phase 13 Sell → "New investment": render ONLY the type + type fields (no
    *  sheet shell, amounts, preview or actions). The amount is what was
    *  received, so price/amount/currency inputs hide; quantity types ask for
@@ -136,21 +135,19 @@ function trimQty(q: string): string {
 export function HoldingSheet({
   open,
   onOpenChange,
-  mode,
   budgetId,
   budgetCurrency,
   holding,
-  onSoldSome,
   destination: dest,
 }: HoldingSheetProps) {
   const t = useTranslations("budget.investments");
   const fmt = useFormatter();
   const createMut = useCreateHolding(budgetId);
-  const updateMut = useUpdateHolding(budgetId);
-  const adjustMut = useAdjustHolding(budgetId);
+  // Picked an existing asset from the Name autocomplete → the type is its.
+  const [joining, setJoining] = useState(false);
 
-  // Create mode starts with NO type chosen ("") so nothing is preselected; edit
-  // mode derives the existing holding's type.
+  // Starts with NO type chosen ("") so nothing is preselected; a pre-fill
+  // derives the holding's type.
   const [uiType, setUiType] = useState<UiType | "">(
     holding
       ? deriveUiType(holding.uiType, holding.holdingType, holding.isCustom)
@@ -273,7 +270,7 @@ export function HoldingSheet({
   // create so the user sees the type options immediately on opening the sheet.
   // Create auto-opens the Type list — but never as an embedded sale destination
   // (a modal list there swallows input meant for the Sell sheet).
-  const [typeOpen, setTypeOpen] = useState(mode === "create" && !dest);
+  const [typeOpen, setTypeOpen] = useState(!dest && !holding);
   const reopenBlockUntil = useRef(0);
   const onTypeOpenChange = (next: boolean) => {
     const now = Date.now();
@@ -287,39 +284,7 @@ export function HoldingSheet({
   // Sell → New investment: priced-per-unit types ask how many units were bought.
   const destQuantity = behavior === "tracked" || behavior === "metals";
 
-  // ── Phase 13 Edit: cost basis + quantity move only through the ledger ──
-  const isEdit = mode === "edit" && !!holding && !dest;
-  const editShape = isEdit ? holdingShape(holding!) : null;
   const today = new Date().toLocaleDateString("en-CA");
-  const cents = (v: string) =>
-    Math.round(Number(v.replace(/\s/g, "").replace(/,/g, ".")) * 100);
-  const storedValue = isEdit
-    ? Math.round(Number(holding!.currentPriceCents ?? 0))
-    : 0;
-  const newValue = currentPrice.trim() ? cents(currentPrice) : storedValue;
-  const valueDelta =
-    editShape === "amount" && behavior !== "deposit"
-      ? newValue - storedValue
-      : 0;
-  const qtyDelta =
-    editShape === "quantity" && quantity.trim()
-      ? Number(quantity.replace(/,/g, ".")) - Number(holding!.quantity)
-      : 0;
-  const [happened, setHappened] = useState<"value_change" | "add" | "withdraw">(
-    "value_change",
-  );
-  // An increase can't be a withdrawal, a decrease can't be added money.
-  const happenedNow =
-    (happened === "withdraw" && valueDelta > 0) ||
-    (happened === "add" && valueDelta < 0)
-      ? "value_change"
-      : happened;
-  const [happenedDate, setHappenedDate] = useState(today);
-  const [received, setReceived] = useState<string | null>(null);
-  const receivedShown = received ?? String(Math.abs(valueDelta) / 100);
-  const [paid, setPaid] = useState<string | null>(null);
-  const unitCents = Number(holding?.currentPriceCents ?? 0);
-  const paidShown = paid ?? String(Math.round(qtyDelta * unitCents) / 100);
   const [openedOn, setOpenedOn] = useState(today);
   // A tracked type whose price the user enters by hand: either a selected non-US
   // instrument (provider='manual', no free quote) OR a manual entry (ticker not in
@@ -410,14 +375,6 @@ export function HoldingSheet({
   function changeType(next: UiType) {
     markDirty();
     setUiType(next);
-    // Edit: a type change is a correction (roadmap 13.6). Between types with the
-    // same field-set (broker ↔ savings, manual ↔ manual) keep what is entered.
-    if (
-      mode === "edit" &&
-      uiType &&
-      UI_TYPE_META[next].behavior === UI_TYPE_META[uiType].behavior
-    )
-      return;
     // Reset type-specific fields so stale values don't leak across behaviors.
     setInstrumentId(null);
     setInstrumentProvider(null);
@@ -709,68 +666,9 @@ export function HoldingSheet({
 
   function handleSave() {
     if (!canSave) return;
-    const payload: Record<string, unknown> = buildPayload();
-    if (mode === "create") {
-      createMut.mutate({ ...payload, openedOn } as unknown as Parameters<
-        typeof createMut.mutate
-      >[0]);
-      onOpenChange(false);
-      return;
-    }
-    if (!holding) return;
-    // Phase 13: never PATCH cost basis or quantity (server: use_adjust); a
-    // changed value on an amount holding is booked below instead.
-    delete payload.buyPriceCents;
-    delete payload.quantity;
-    if (valueDelta !== 0) delete payload.currentPriceCents;
-    // 13.1 (D-06, CR-01): Edit sends only label / display currency / hand price.
-    updateMut.mutate({
-      holdingId: holding.id,
-      name: payload.name as string | undefined,
-      ...(payload.currentPriceCurrency
-        ? { displayCurrency: payload.currentPriceCurrency as string }
-        : {}),
-      ...(payload.currentPriceCents != null
-        ? { currentPriceCents: String(payload.currentPriceCents) }
-        : {}),
-    });
-
-    const q = (n: number) => String(Number(n.toFixed(8)));
-    if (qtyDelta < 0) {
-      onSoldSome?.(holding, q(Number(quantity.replace(/,/g, "."))));
-    } else if (qtyDelta > 0) {
-      adjustMut.mutate({
-        holdingId: holding.id,
-        body: {
-          kind: "buy",
-          addQuantity: q(qtyDelta),
-          paidCents: String(cents(paidShown)),
-          effectiveDate: happenedDate,
-        },
-      });
-    } else if (valueDelta !== 0) {
-      const body: AdjustBody =
-        happenedNow === "withdraw"
-          ? {
-              kind: "withdraw",
-              newValueCents: String(newValue),
-              receivedCents: String(cents(receivedShown)),
-              receivedCurrency: holding.buyCurrency ?? currentPriceCurrency,
-              effectiveDate: happenedDate,
-            }
-          : happenedNow === "add"
-            ? {
-                kind: "add",
-                newValueCents: String(newValue),
-                effectiveDate: happenedDate,
-              }
-            : {
-                kind: "value_change",
-                newValueCents: String(newValue),
-                effectiveDate: happenedDate,
-              };
-      adjustMut.mutate({ holdingId: holding.id, body });
-    }
+    createMut.mutate({ ...buildPayload(), openedOn } as unknown as Parameters<
+      typeof createMut.mutate
+    >[0]);
     onOpenChange(false);
   }
 
@@ -821,6 +719,23 @@ export function HoldingSheet({
     uom,
   ]);
 
+  // D-02: the same name in the type joins that asset (hidden ones reopen).
+  const nameField = (
+    <AssetNameCombobox
+      budgetId={budgetId}
+      uiType={uiType || null}
+      value={name}
+      testId="holding-sheet-name"
+      ariaLabel={t("field.name")}
+      onChange={(v) => {
+        markDirty();
+        setName(v);
+        setJoining(false);
+      }}
+      onPickExisting={() => setJoining(true)}
+    />
+  );
+
   // The type + type-specific fields — shared by the sheet and the Sell
   // "New investment" destination (one source of truth for type fields).
   const formFields = (
@@ -832,6 +747,7 @@ export function HoldingSheet({
           open={typeOpen}
           onOpenChange={onTypeOpenChange}
           onValueChange={(v) => changeType(v as UiType)}
+          disabled={joining}
         >
           <SelectTrigger
             aria-label={t("field.type")}
@@ -875,15 +791,6 @@ export function HoldingSheet({
           </SelectContent>
         </Select>
       </Field>
-      {isEdit && (
-        <p
-          className="-mt-2 text-[12px] leading-[1.4]"
-          style={{ color: "var(--muted-foreground)" }}
-        >
-          {t("changeTypeHelper")}
-        </p>
-      )}
-
       {/* 2. Name / Asset — only once a Type is chosen (no field is focused on
               open: no type → no Asset/Name field, and neither input auto-focuses). */}
       {behavior === "tracked" && !manualEntry ? (
@@ -926,16 +833,7 @@ export function HoldingSheet({
       ) : behavior === "tracked" && manualEntry ? (
         // Manual entry (ticker not in the catalog): plain name + ticker fields.
         <>
-          <Field label={t("field.name")}>
-            <Input
-              data-testid="holding-sheet-name"
-              value={name}
-              onChange={(e) => {
-                markDirty();
-                setName(e.target.value);
-              }}
-            />
-          </Field>
+          <Field label={t("field.name")}>{nameField}</Field>
           <Field label={t("field.ticker")}>
             <Input
               data-testid="holding-sheet-ticker"
@@ -949,16 +847,7 @@ export function HoldingSheet({
           </Field>
         </>
       ) : behavior ? (
-        <Field label={t("field.name")}>
-          <Input
-            data-testid="holding-sheet-name"
-            value={name}
-            onChange={(e) => {
-              markDirty();
-              setName(e.target.value);
-            }}
-          />
-        </Field>
+        <Field label={t("field.name")}>{nameField}</Field>
       ) : null}
 
       {/* 3. Metals: metal + kind + UoM */}
@@ -1055,7 +944,6 @@ export function HoldingSheet({
           >
             <NumericInput
               testId="holding-sheet-deposited"
-              readOnly={isEdit}
               value={buyPrice}
               onChange={(v) => {
                 markDirty();
@@ -1115,7 +1003,6 @@ export function HoldingSheet({
           <Field label={t("field.principal")}>
             <NumericInput
               testId="holding-sheet-principal"
-              readOnly={isEdit}
               value={buyPrice}
               onChange={(v) => {
                 markDirty();
@@ -1235,7 +1122,6 @@ export function HoldingSheet({
             >
               <NumericInput
                 testId="holding-sheet-buy-price"
-                readOnly={isEdit}
                 value={buyPrice}
                 onChange={(v) => {
                   markDirty();
@@ -1370,7 +1256,7 @@ export function HoldingSheet({
       >
         <SheetHeader className="mb-2">
           <SheetTitle className="text-[var(--body-on-dark)]">
-            {mode === "create" ? t("sheet.title.add") : t("sheet.title.edit")}
+            {t("sheet.title.add")}
           </SheetTitle>
         </SheetHeader>
 
@@ -1386,7 +1272,7 @@ export function HoldingSheet({
             />
           )}
 
-          {mode === "create" && (
+          {
             <Field label={t("addDate")}>
               <Input
                 type="date"
@@ -1396,117 +1282,7 @@ export function HoldingSheet({
                 onChange={(e) => setOpenedOn(e.target.value)}
               />
             </Field>
-          )}
-
-          {(valueDelta !== 0 || qtyDelta > 0) && (
-            <section className="space-y-2">
-              <h3
-                className="text-[16px] font-semibold"
-                style={{ color: "var(--body-on-dark)" }}
-              >
-                {t("whatHappened.title")}
-              </h3>
-              {valueDelta !== 0 && (
-                <div
-                  role="radiogroup"
-                  aria-label={t("whatHappened.title")}
-                  className="space-y-2"
-                  onKeyDown={(e) => {
-                    const opts = [
-                      "value_change",
-                      valueDelta > 0 ? "add" : "withdraw",
-                    ] as const;
-                    if (
-                      ![
-                        "ArrowDown",
-                        "ArrowUp",
-                        "ArrowLeft",
-                        "ArrowRight",
-                      ].includes(e.key)
-                    )
-                      return;
-                    e.preventDefault();
-                    setHappened(
-                      opts[(opts.indexOf(happenedNow as never) + 1) % 2]!,
-                    );
-                  }}
-                >
-                  {(
-                    [
-                      ["value_change", "valueChanged"],
-                      valueDelta > 0
-                        ? ["add", "added"]
-                        : ["withdraw", "withdrew"],
-                    ] as const
-                  ).map(([k, label]) => (
-                    <button
-                      key={k}
-                      type="button"
-                      role="radio"
-                      aria-checked={happenedNow === k}
-                      tabIndex={happenedNow === k ? 0 : -1}
-                      data-testid={`happened-${k}`}
-                      onClick={() => setHappened(k as typeof happened)}
-                      className="flex min-h-11 w-full flex-col items-start rounded-[var(--radius-md)] border px-4 py-2 text-left"
-                      style={{
-                        background: "var(--surface-card-dark)",
-                        borderColor:
-                          happenedNow === k
-                            ? "var(--primary)"
-                            : "var(--hairline-dark)",
-                      }}
-                    >
-                      <span
-                        className="text-[14px] font-semibold"
-                        style={{ color: "var(--body-on-dark)" }}
-                      >
-                        {t(`whatHappened.${label}`)}
-                      </span>
-                      <span
-                        className="text-[12px]"
-                        style={{ color: "var(--muted-foreground)" }}
-                      >
-                        {t(`whatHappened.${label}Desc`)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {valueDelta !== 0 && happenedNow === "withdraw" && (
-                <Field
-                  label={`${t("sell.received")} (${holding!.buyCurrency ?? currentPriceCurrency})`}
-                >
-                  <NumericInput
-                    testId="happened-received"
-                    value={receivedShown}
-                    onChange={setReceived}
-                  />
-                </Field>
-              )}
-              {qtyDelta > 0 && (
-                <Field
-                  label={`${t("whatHappened.boughtMore")} (${holding!.buyCurrency ?? currentPriceCurrency})`}
-                >
-                  <NumericInput
-                    testId="happened-paid"
-                    value={paidShown}
-                    onChange={setPaid}
-                  />
-                </Field>
-              )}
-              {(happenedNow !== "value_change" || qtyDelta > 0) && (
-                <Field label={t("sell.date")}>
-                  <Input
-                    type="date"
-                    data-testid="happened-date"
-                    value={happenedDate}
-                    max={today}
-                    onChange={(e) => setHappenedDate(e.target.value)}
-                  />
-                </Field>
-              )}
-            </section>
-          )}
+          }
 
           {/* Actions live at the END of the scrolling form (NOT a pinned footer):
               the user scrolls down to reach Save. */}
@@ -1522,26 +1298,12 @@ export function HoldingSheet({
               onClick={handleSave}
               className="flex-1"
             >
-              {qtyDelta < 0
-                ? t("whatHappened.soldSome")
-                : qtyDelta > 0
-                  ? t("whatHappened.boughtMore")
-                  : valueDelta === 0
-                    ? t("sheet.save")
-                    : happenedNow === "add"
-                      ? t("whatHappened.saveAdded")
-                      : happenedNow === "withdraw"
-                        ? t("whatHappened.saveWithdraw")
-                        : t("whatHappened.saveValue")}
+              {t("sheet.save")}
             </Button>
             <Button type="button" variant="ghost" onClick={attemptClose}>
               {t("sheet.cancel")}
             </Button>
           </div>
-
-          {isEdit && (
-            <HistorySection budgetId={budgetId} holdingId={holding!.id} />
-          )}
         </div>
       </SheetContent>
 
@@ -1830,7 +1592,6 @@ export function HoldingFormFields(props: {
     <HoldingSheet
       open
       onOpenChange={() => {}}
-      mode="create"
       budgetId={props.budgetId}
       budgetCurrency={props.budgetCurrency}
       destination={{

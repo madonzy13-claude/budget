@@ -46,7 +46,16 @@ vi.mock("../../src/hooks/use-asset-names", () => ({
   useAssetNames: (_b: string, type: string | null) => ({
     data:
       type === "cash"
-        ? [{ id: "pot", name: "Pot", archived: false, instrumentId: null, valueCents: "50000", valueCurrency: "USD" }]
+        ? [
+            {
+              id: "pot",
+              name: "Pot",
+              archived: false,
+              instrumentId: null,
+              valueCents: "50000",
+              valueCurrency: "USD",
+            },
+          ]
         : [],
   }),
 }));
@@ -783,10 +792,7 @@ describe("HoldingSheet — type-first", () => {
       json: async () => ({ priceCents: "19800", currency: "USD" }),
     } as unknown as Response);
     render(
-      <HoldingSheet
-        {...baseProps}
-        holding={holding({ holdingType: "etf" })}
-      />,
+      <HoldingSheet {...baseProps} holding={holding({ holdingType: "etf" })} />,
     );
     fireEvent.click(screen.getByTestId("pick-instrument"));
     await waitFor(() =>
@@ -891,24 +897,38 @@ describe("HoldingSheet — add joins by name (13.1 D-02)", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        holding={holding({ holdingType: "cash_fx", uiType: "cash", instrumentId: null, name: "" })}
+        holding={holding({
+          holdingType: "cash_fx",
+          uiType: "cash",
+          instrumentId: null,
+          name: "",
+        })}
       />,
     );
     const name = screen.getByTestId("holding-sheet-name");
     expect(name).toHaveAttribute("role", "combobox");
     fireEvent.focus(name);
-    expect(screen.getByRole("option")).toHaveTextContent("Pot");
+    expect(screen.getByTestId("asset-name-option-0")).toHaveTextContent("Pot");
   });
 
   it("an existing name shows the join note; a new one shows none", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        holding={holding({ holdingType: "cash_fx", uiType: "cash", instrumentId: null, name: "pot" })}
+        holding={holding({
+          holdingType: "cash_fx",
+          uiType: "cash",
+          instrumentId: null,
+          name: "pot",
+        })}
       />,
     );
-    expect(screen.getByTestId("asset-name-note")).toHaveTextContent("asset.name.joins");
-    fireEvent.change(screen.getByTestId("holding-sheet-name"), { target: { value: "New pot" } });
+    expect(screen.getByTestId("asset-name-note")).toHaveTextContent(
+      "asset.name.joins",
+    );
+    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+      target: { value: "New pot" },
+    });
     expect(screen.queryByTestId("asset-name-note")).toBeNull();
   });
 
