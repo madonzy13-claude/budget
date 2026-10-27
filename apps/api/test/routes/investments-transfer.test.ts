@@ -24,7 +24,6 @@ const { DrizzleHoldingRepo } =
   await import("@budget/investments/src/adapters/persistence/holding-repo");
 const { DrizzleHistoryRepo } =
   await import("@budget/investments/src/adapters/persistence/history-repo");
-const { entry } = await import("@budget/investments/src/ports/history-repo");
 type NewHolding =
   import("@budget/investments/src/ports/holding-repo").NewHolding;
 

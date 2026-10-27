@@ -24,7 +24,6 @@ const { DrizzleHoldingRepo } =
   await import("@budget/investments/src/adapters/persistence/holding-repo");
 const { DrizzleHistoryRepo } =
   await import("@budget/investments/src/adapters/persistence/history-repo");
-const { entry } = await import("@budget/investments/src/ports/history-repo");
 type NewHolding =
   import("@budget/investments/src/ports/holding-repo").NewHolding;
 
@@ -173,21 +172,6 @@ async function buildApp(
   return app;
 }
 
-async function wallet(
-  fix: Fixture,
-  type = "SPENDINGS",
-  currency = "PLN",
-  archived = false,
-) {
-  const id = crypto.randomUUID();
-  await q(
-    fix,
-    `INSERT INTO budgeting.wallets (id, tenant_id, name, wallet_type, currency, current_balance, created_at, actor_user_id, sort_order, archived_at)
-     VALUES ($1, $2, 'Bank', $3, $4, 100, now(), $5, 1, CASE WHEN $6 THEN now() END)`,
-    [id, fix.tenantId, type, currency, fix.userId, archived],
-  );
-  return id;
-}
 const call = (app: Hono, method: string, path: string, body?: unknown) =>
   app.request(`/investments${path}`, {
     method,
