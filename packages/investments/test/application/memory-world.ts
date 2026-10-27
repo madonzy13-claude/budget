@@ -29,6 +29,8 @@ export interface H {
   rateBps?: number;
   start?: string;
   cap?: string;
+  inst?: string | null;
+  archived?: boolean;
 }
 
 export function hold(h: H): Holding {
@@ -37,14 +39,14 @@ export function hold(h: H): Holding {
     T,
     h.name ?? h.id,
     (h.holdingType ?? "other") as never,
-    null,
+    h.inst ?? null,
     h.buy,
     h.buyCcy ?? "PLN",
     h.qty ?? "1",
     h.current,
     h.curCcy ?? h.buyCcy ?? "PLN",
     0,
-    null,
+    h.archived ? new Date("2024-06-01T00:00:00Z") : null,
     new Date("2024-01-10T00:00:00Z"),
     h.uiType,
     null,
@@ -348,6 +350,7 @@ function fromNew(id: string, n: NewHolding): Holding {
     qty: n.quantity,
     current: n.currentPriceCents,
     curCcy: n.currentPriceCurrency ?? n.buyCurrency ?? "PLN",
+    inst: n.instrumentId,
   });
   h.depositStartDate = n.depositStartDate;
   return h;

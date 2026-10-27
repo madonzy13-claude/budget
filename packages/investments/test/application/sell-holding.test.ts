@@ -403,6 +403,7 @@ describe("Create writes the first history entry", () => {
       },
       findById: async () =>
         hold({ id: "new-id", uiType: "broker", buy: 1n, current: 1n }),
+      findByLabel: async () => null,
     } as unknown as HoldingRepo;
     const historyRepo = {
       commit: async (_t: string, _u: string, plan: BookingPlan) => {
@@ -433,7 +434,7 @@ describe("Create writes the first history entry", () => {
       currentPriceCurrency: "PLN",
       openedOn: "2023-05-01",
     });
-    expect(r._unsafeUnwrap().id).toBe("new-id");
+    expect(r._unsafeUnwrap().holding.id).toBe("new-id");
     const e = f.plans[0]!.entries[0]!;
     expect(e).toMatchObject({
       holdingRef: "$new",
