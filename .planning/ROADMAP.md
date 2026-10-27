@@ -440,13 +440,13 @@ _Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.
 **Goal:** Every investment type becomes type → asset → entries: same-name buys join one asset (DCA), each asset has Swap (Buy / Sell / Transfer) and a slim Edit, entries are an immutable date-ordered ledger deletable newest-first only, and selling out of investments can credit a budget wallet. Migration 0088 merges existing same-name holdings.
 **Requirements**: CONTEXT decisions D-01..D-37 (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 2/16 plans executed
+**Plans:** 3/16 plans executed
 
 Plans:
 
 - [x] 13.1-01-PLAN.md — Domain math: newest-entry rule, date guard, transfer cost, broker add, interest rows, CR-03 guards (wave 1)
 - [x] 13.1-02-PLAN.md — Migration 0088 (merge / rename / backfill / unique label) + data-conservation test (wave 1)
-- [ ] 13.1-03-PLAN.md — Contracts (Zod) + extended ports + memory-world (wave 1)
+- [x] 13.1-03-PLAN.md — Contracts (Zod) + extended ports + memory-world (wave 1)
 - [ ] 13.1-04-PLAN.md — i18n EN/PL/UK for all 13.1 copy (wave 1)
 - [ ] 13.1-05-PLAN.md — [BLOCKING] Dump, rehearse, approve, apply 0088 to dev (wave 2, checkpoint)
 - [ ] 13.1-06-PLAN.md — Web hooks: buy/sell/transfer/edit/delete-entry/entries/names (wave 2)
