@@ -599,36 +599,32 @@ const holdingState = async (fix: Fixture, id: string) =>
     )
   )[0];
 
-describe("Edit, history, undo, type summary, delete (13-08)", () => {
-  it("adjust withdraw 96k → 80k books like Sell → Out (D-03)", async () => {
-    const fix = await createFixture();
-    const app = await buildApp(fix);
-    const b = await brokerSeed(fix);
-    const res = await req(app, "POST", `/${b}/adjust`, {
-      kind: "withdraw",
-      newValueCents: "8000000",
-      receivedCents: "1600000",
-      receivedCurrency: "PLN",
-      effectiveDate: "2026-10-24",
-    });
-    expect(res.status).toBe(200);
-    expect(await holdingState(fix, b)).toMatchObject({
-      buy: "4583333",
-      cur: "8000000",
-    });
-    const [e] = await q<{ realized: string; flow: string }>(
-      fix,
-      `SELECT realized_budget_cents::text AS realized, flow_cents::text AS flow
-         FROM budgeting.investment_history WHERE holding_id = $1`,
-      [b],
-    );
-    expect(e).toEqual({ realized: "683333", flow: "-1600000" });
-  });
+// 13.1: every asset carries a ledger entry (D-35); seed one like 0088 did.
+const startEntry = (fix: Fixture, id: string) =>
+  q(
+    fix,
+    `INSERT INTO budgeting.investment_history (tenant_id, budget_id, holding_id, kind, effective_date)
+     VALUES ($1, $1, $2, 'start', '2026-09-01')`,
+    [fix.tenantId, id],
+  );
+const entryIds = async (app: Hono, id: string) =>
+  (
+    (await (await req(app, "GET", `/${id}/entries`)).json()) as {
+      entries: {
+        id: string | null;
+        kind: string;
+        counterpartyName: string | null;
+        realizedBudgetCents: string | null;
+      }[];
+    }
+  ).entries;
 
-  it("history lists the conversion with the other holding's name", async () => {
+describe("Ledger, undo, type summary (13-08 → 13.1)", () => {
+  it("the ledger lists the conversion with the other asset's name", async () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
     const b = await brokerSeed(fix);
+    await startEntry(fix, b);
     await sell(app, b, {
       left: { valueCents: "3000000" },
       destination: {
@@ -637,14 +633,7 @@ describe("Edit, history, undo, type summary, delete (13-08)", () => {
       },
       receivedCents: "6600000",
     });
-    const body = (await (await req(app, "GET", `/${b}/history`)).json()) as {
-      entries: {
-        kind: string;
-        counterpartyName: string | null;
-        realizedBudgetCents: string;
-      }[];
-    };
-    expect(body.entries[0]).toMatchObject({
+    expect((await entryIds(app, b))[0]).toMatchObject({
       kind: "convert_out",
       counterpartyName: "Erste",
       realizedBudgetCents: "2818750",
@@ -656,6 +645,8 @@ describe("Edit, history, undo, type summary, delete (13-08)", () => {
     const app = await buildApp(fix);
     const b = await brokerSeed(fix);
     const cash = await seed(fix, { name: "Cash" });
+    await startEntry(fix, b);
+    await startEntry(fix, cash);
     const flowBefore = await flowSum(fix);
     await sell(app, b, {
       left: { valueCents: "3000000" },
@@ -669,14 +660,9 @@ describe("Edit, history, undo, type summary, delete (13-08)", () => {
         }
       ).types;
     expect((await summary()).broker?.realizedBudgetCents).toBe("2818750");
-    const [out] = await q<{ id: string }>(
-      fix,
-      `SELECT id::text FROM budgeting.investment_history WHERE kind = 'convert_out' AND holding_id = $1`,
-      [b],
-    );
-    const del = await req(app, "DELETE", `/history/${out!.id}`);
+    const [out] = await entryIds(app, b);
+    const del = await req(app, "DELETE", `/entries/${out!.id}`);
     expect(del.status).toBe(200);
-    expect(((await del.json()) as { undone: number }).undone).toBe(2);
     expect(await holdingState(fix, b)).toMatchObject({
       buy: "5500000",
       cur: "9600000",
@@ -701,6 +687,7 @@ describe("Edit, history, undo, type summary, delete (13-08)", () => {
       const fix = await createFixture();
       const app = await buildApp(fix);
       const b = await brokerSeed(fix);
+      await startEntry(fix, b);
       const s = () =>
         sell(app, b, {
           left: { valueCents: "3000000" },
@@ -709,19 +696,13 @@ describe("Edit, history, undo, type summary, delete (13-08)", () => {
         });
       await s();
       if (twice) {
-        const [row] = await q<{ id: string }>(
-          fix,
-          `SELECT id::text FROM budgeting.investment_history WHERE holding_id = $1`,
-          [b],
-        );
-        await req(app, "DELETE", `/history/${row!.id}`);
+        const [row] = await entryIds(app, b);
+        await req(app, "DELETE", `/entries/${row!.id}`);
         await s();
       }
       const summary = (await (
         await req(app, "GET", "/type-summary")
-      ).json()) as {
-        types: Record<string, unknown>;
-      };
+      ).json()) as { types: Record<string, unknown> };
       return {
         h: await holdingState(fix, b),
         flow: await flowSum(fix),
@@ -731,25 +712,66 @@ describe("Edit, history, undo, type summary, delete (13-08)", () => {
     expect(await state(true)).toEqual(await state(false));
   });
 
-  it("another tenant's entry or holding → 404, untouched", async () => {
+  it("another tenant's entry → 404, untouched", async () => {
     const a = await createFixture();
     const b = await createFixture();
     const appA = await buildApp(a);
     const appB = await buildApp(b);
     const theirs = await brokerSeed(b);
+    await startEntry(b, theirs);
     await sell(appB, theirs, {
       left: { valueCents: "3000000" },
       destination: { kind: "out" },
       receivedCents: "6600000",
     });
-    const [row] = await q<{ id: string }>(
-      b,
-      `SELECT id::text FROM budgeting.investment_history WHERE holding_id = $1`,
-      [theirs],
-    );
-    expect((await req(appA, "DELETE", `/history/${row!.id}`)).status).toBe(404);
-    expect((await req(appA, "DELETE", `/${theirs}`)).status).toBe(404);
+    const [row] = await entryIds(appB, theirs);
+    expect((await req(appA, "DELETE", `/entries/${row!.id}`)).status).toBe(404);
     expect(await holdingState(b, theirs)).toMatchObject({ buy: "1718750" });
+  });
+
+  it("deleting a conversion's new destination wipes it and restores the source", async () => {
+    const fix = await createFixture();
+    const app = await buildApp(fix);
+    const b = await brokerSeed(fix);
+    await startEntry(fix, b);
+    const res = await sell(app, b, {
+      left: { valueCents: "0" },
+      destination: {
+        kind: "new",
+        holding: { name: "Erste", holdingType: "cash_fx", uiType: "cash" },
+      },
+      receivedCents: "9600000",
+    });
+    const { newHoldingId } = (await res.json()) as { newHoldingId: string };
+    const [leg] = await entryIds(app, newHoldingId);
+    expect((await req(app, "DELETE", `/entries/${leg!.id}`)).status).toBe(200);
+    expect(await holdingState(fix, newHoldingId)).toBeUndefined();
+    expect(await holdingState(fix, b)).toEqual({
+      buy: "5500000",
+      cur: "9600000",
+      qty: "1.00000000",
+      archived: false,
+    });
+  });
+
+  it("the Phase 13 adjust / delete-holding / history routes are gone", async () => {
+    const fix = await createFixture();
+    const app = await buildApp(fix);
+    const b = await brokerSeed(fix);
+    await startEntry(fix, b);
+    const [row] = await entryIds(app, b);
+    expect(
+      (
+        await req(app, "POST", `/${b}/adjust`, {
+          kind: "value_change",
+          newValueCents: "1",
+          effectiveDate: "2026-10-24",
+        })
+      ).status,
+    ).toBe(404);
+    expect((await req(app, "DELETE", `/${b}`)).status).toBe(404);
+    expect((await req(app, "DELETE", `/history/${row!.id}`)).status).toBe(404);
+    expect((await req(app, "GET", `/${b}/history`)).status).toBe(404);
   });
 
   // 13.1 (D-06, CR-01): the Edit body is strict — cost is not a field at all.
@@ -803,28 +825,5 @@ describe("Edit, history, undo, type summary, delete (13-08)", () => {
       (await req(app, "PUT", "/type-order", { order: ["stocks", "stocks"] }))
         .status,
     ).toBe(422);
-  });
-
-  it("deleting a conversion's destination restores the source", async () => {
-    const fix = await createFixture();
-    const app = await buildApp(fix);
-    const b = await brokerSeed(fix);
-    const res = await sell(app, b, {
-      left: { valueCents: "0" },
-      destination: {
-        kind: "new",
-        holding: { name: "Erste", holdingType: "cash_fx", uiType: "cash" },
-      },
-      receivedCents: "9600000",
-    });
-    const { newHoldingId } = (await res.json()) as { newHoldingId: string };
-    expect((await req(app, "DELETE", `/${newHoldingId}`)).status).toBe(200);
-    expect(await holdingState(fix, newHoldingId)).toBeUndefined();
-    expect(await holdingState(fix, b)).toEqual({
-      buy: "5500000",
-      cur: "9600000",
-      qty: "1.00000000",
-      archived: false,
-    });
   });
 });
