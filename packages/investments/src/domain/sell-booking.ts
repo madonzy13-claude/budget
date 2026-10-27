@@ -49,6 +49,8 @@ export function sellQuantityHolding(i: {
   const sell = big(i.sellQuantity);
   if (sell.lte(0) || sell.gt(held))
     throw new RangeError("sell_qty_out_of_range");
+  // IN-02: rounding to 8 dp could turn a part-sale into a full sale.
+  if (!sell.eq(sell.round(8, 0))) throw new RangeError("qty_precision");
   return {
     newQuantity: qty(held.minus(sell)),
     soldCostCents: cents(big(i.buyPriceCents).times(sell)),
@@ -84,6 +86,8 @@ export function buyMore(i: {
   addQuantity: string;
   paidCents: bigint;
 }): { newQuantity: string; newBuyPriceCents: bigint } {
+  if (big(i.addQuantity).lte(0) || i.paidCents <= 0n)
+    throw new RangeError("buy_positive");
   const held = big(i.quantity);
   const total = held.plus(big(i.addQuantity));
   const cost = big(i.buyPriceCents).times(held).plus(big(i.paidCents));
@@ -94,6 +98,7 @@ export function buyMore(i: {
 export function addMoney(i: { buyCents: bigint; amountCents: bigint }): {
   newBuyCents: bigint;
 } {
+  if (i.amountCents <= 0n) throw new RangeError("amount_positive");
   return { newBuyCents: i.buyCents + i.amountCents };
 }
 
