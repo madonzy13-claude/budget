@@ -437,10 +437,25 @@ _Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.
 
 ### Phase 13.1: Investments: assets with transactions (type → asset → transaction, Swap buy/sell/transfer, sell to wallet) (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** Every investment type becomes type → asset → entries: same-name buys join one asset (DCA), each asset has Swap (Buy / Sell / Transfer) and a slim Edit, entries are an immutable date-ordered ledger deletable newest-first only, and selling out of investments can credit a budget wallet. Migration 0088 merges existing same-name holdings.
+**Requirements**: CONTEXT decisions D-01..D-37 (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 0 plans
+**Plans:** 15 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 13.1 to break down)
+
+- [ ] 13.1-01-PLAN.md — Domain math: newest-entry rule, date guard, transfer cost, broker add, interest rows, CR-03 guards (wave 1)
+- [ ] 13.1-02-PLAN.md — Migration 0088 (merge / rename / backfill / unique label) + data-conservation test (wave 1)
+- [ ] 13.1-03-PLAN.md — Contracts (Zod) + extended ports + memory-world (wave 1)
+- [ ] 13.1-04-PLAN.md — i18n EN/PL/UK for all 13.1 copy (wave 1)
+- [ ] 13.1-05-PLAN.md — [BLOCKING] Dump, rehearse, approve, apply 0088 to dev (wave 2, checkpoint)
+- [ ] 13.1-06-PLAN.md — Web hooks: buy/sell/transfer/edit/delete-entry/entries/names (wave 2)
+- [ ] 13.1-07-PLAN.md — Adapter: locked commit, stale check, wallet credit/reverse, label lookup (wave 3)
+- [ ] 13.1-08-PLAN.md — Web L1/L2/L3 list, ledger strip, newest-only delete, same-level DnD (wave 3)
+- [ ] 13.1-09-PLAN.md — Web Swap sheet (Buy/Sell/Transfer), sum-up card, wallet target, name combobox (wave 3)
+- [ ] 13.1-10-PLAN.md — Backend create-or-join, Swap Buy, slim Edit, names endpoint (wave 4)
+- [ ] 13.1-11-PLAN.md — Web Add autocomplete, Edit sheet, wiring, remove Phase 13 sell/history UI (wave 4)
+- [ ] 13.1-12-PLAN.md — Backend Sell with destination-by-label + sell to wallet + RESERVE/CUSHION recompute (wave 5)
+- [ ] 13.1-13-PLAN.md — Backend Transfer (wave 6)
+- [ ] 13.1-14-PLAN.md — Backend ledger list + LIFO delete, remove legacy routes, tenant-leak, CR re-check (wave 7)
+- [ ] 13.1-15-PLAN.md — E2E Gherkin, rebuild, full gate, 3-locale phone drive, user check (wave 8, checkpoint)
