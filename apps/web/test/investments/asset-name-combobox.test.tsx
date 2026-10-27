@@ -1,0 +1,132 @@
+/**
+ * asset-name-combobox.test.tsx — the Add/Transfer name field (13.1 D-02, D-07,
+ * UI-SPEC §3). Filters the type's assets (hidden ones marked Closed), offers
+ * "Create" on an exact miss, keyboard-selectable, Esc closes only the list.
+ */
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import type { AssetNameDto } from "../../src/hooks/use-asset-names";
+
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string, p?: Record<string, unknown>) =>
+    p ? `${key}(${Object.values(p).join(",")})` : key,
+}));
+const names: AssetNameDto[] = [
+  {
+    id: "a",
+    name: "BTC Ledger",
+    archived: false,
+    instrumentId: "i1",
+    valueCents: "9020000",
+    valueCurrency: "PLN",
+  },
+  {
+    id: "b",
+    name: "BTC Binance",
+    archived: true,
+    instrumentId: "i1",
+    valueCents: "0",
+    valueCurrency: "PLN",
+  },
+  {
+    id: "c",
+    name: "ETH",
+    archived: false,
+    instrumentId: "i2",
+    valueCents: "100",
+    valueCurrency: "PLN",
+  },
+];
+vi.mock("../../src/hooks/use-asset-names", () => ({
+  useAssetNames: (_b: string, type: string | null) => ({
+    data: type === "crypto" ? names : [],
+  }),
+}));
+
+import { AssetNameCombobox } from "../../src/components/budgeting/wallets-tab/asset-name-combobox";
+
+function mount(value = "") {
+  const onChange = vi.fn();
+  const onPickExisting = vi.fn();
+  const onKeyDownOuter = vi.fn();
+  const utils = render(
+    <div onKeyDown={onKeyDownOuter}>
+      <AssetNameCombobox
+        budgetId="b1"
+        uiType="crypto"
+        value={value}
+        onChange={onChange}
+        onPickExisting={onPickExisting}
+      />
+    </div>,
+  );
+  return { onChange, onPickExisting, onKeyDownOuter, ...utils };
+}
+
+describe("Asset name combobox", () => {
+  it("is an ARIA list combobox filtered by the typed text, hidden assets marked Closed", () => {
+    mount("btc");
+    const input = screen.getByRole("combobox");
+    expect(input).toHaveAttribute("aria-autocomplete", "list");
+    fireEvent.focus(input);
+    const opts = screen.getAllByRole("option");
+    expect(opts.map((o) => o.textContent)).toEqual([
+      expect.stringContaining("BTC Ledger"),
+      expect.stringContaining("BTC Binance"),
+      "asset.name.create(btc)",
+    ]);
+    expect(opts[1]).toHaveTextContent("asset.name.closed");
+  });
+
+  it("an exact (trimmed, case-insensitive) match offers no Create row", () => {
+    mount(" eth ");
+    fireEvent.focus(screen.getByRole("combobox"));
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
+      expect.stringContaining("ETH"),
+    ]);
+  });
+
+  it("ArrowDown + Enter picks an existing asset and shows the join note", () => {
+    const { onPickExisting, onChange, rerender } = mount("btc");
+    const input = screen.getByRole("combobox");
+    fireEvent.focus(input);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPickExisting).toHaveBeenCalledWith(names[0]);
+    expect(onChange).toHaveBeenCalledWith("BTC Ledger");
+    rerender(
+      <AssetNameCombobox
+        budgetId="b1"
+        uiType="crypto"
+        value="BTC Ledger"
+        onChange={onChange}
+        onPickExisting={onPickExisting}
+      />,
+    );
+    expect(screen.getByTestId("asset-name-note")).toHaveTextContent(
+      "asset.name.joins",
+    );
+  });
+
+  it("a hidden asset says it reopens", () => {
+    mount("BTC Binance");
+    expect(screen.getByTestId("asset-name-note")).toHaveTextContent(
+      "asset.name.reopens",
+    );
+  });
+
+  it("Esc closes the list without reaching the sheet", () => {
+    const { onKeyDownOuter } = mount("btc");
+    const input = screen.getByRole("combobox");
+    fireEvent.focus(input);
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
+    expect(onKeyDownOuter).not.toHaveBeenCalled();
+  });
+
+  it("shows at most 6 options", () => {
+    mount("");
+    fireEvent.focus(screen.getByRole("combobox"));
+    expect(screen.getAllByRole("option").length).toBeLessThanOrEqual(6);
+  });
+});
