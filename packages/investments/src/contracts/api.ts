@@ -335,3 +335,204 @@ export interface EnrichedHoldingDto {
   depositEndDate: string | null;
   depositCapFrequency: string | null;
 }
+
+// ─── Phase 13.1: assets with a ledger ────────────────────────────────────────
+// Every id is a uuid and every cents field is a plain digit string BEFORE it
+// reaches BigInt() (13 review WR-01/WR-02: SyntaxError used to surface as 500).
+
+/** Non-negative integer cents, digits only (no sign, decimals, exponent). */
+export const centsString = z
+  .string()
+  .regex(/^\d{1,18}$/, "invalid_cents")
+  .refine(isSaneMagnitude, "cents out of range");
+/** CR-03: money the user moves must be > 0. */
+export const positiveCents = centsString.refine(
+  (v) => BigInt(v) > 0n,
+  "positive",
+);
+/** Quantity > 0 with at most 8 decimals (IN-02: no rounding up to a full sale). */
+const qtyString = numericString.refine(
+  (v) => /^\d+(\.\d{1,8})?$/.test(v),
+  "qty_precision",
+);
+export const positiveQty = qtyString.refine((v) => Number(v) > 0, "positive");
+export const uuidParam = z.uuid();
+
+const label = (max: number) => z.string().trim().min(1).max(max);
+
+/** D-08 Swap → Buy. Quantity types / cash & savings / broker add. */
+export const buyAssetSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("quantity"),
+    quantity: positiveQty,
+    priceCents: positiveCents,
+    currency: currencyCode,
+    effectiveDate: notFutureIsoDate,
+  }),
+  z.object({
+    kind: z.literal("amount"),
+    amountCents: positiveCents,
+    currency: currencyCode,
+    effectiveDate: notFutureIsoDate,
+  }),
+  z.object({
+    kind: z.literal("broker"),
+    amountCents: positiveCents,
+    valueAfterCents: centsString,
+    effectiveDate: notFutureIsoDate,
+  }),
+]);
+export type BuyAssetInput = z.infer<typeof buyAssetSchema>;
+
+/** D-06 Edit: label, display currency, hand value/price — nothing ledger-owned
+ *  (CR-01 root cause). strict: unknown keys are a 400, not silently dropped. */
+export const editAssetSchema = z
+  .strictObject({
+    name: label(120).optional(),
+    displayCurrency: currencyCode.optional(),
+    currentValueCents: centsString.optional(),
+    currentPriceCents: positiveCents.optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, "empty_edit");
+export type EditAssetInput = z.infer<typeof editAssetSchema>;
+
+export const WALLET_TYPES = [
+  "SPENDINGS",
+  "CUSHION",
+  "RESERVE",
+  "POSSESSION",
+  "OTHER",
+] as const;
+
+/** D-20/D-22/D-23 where Out-of-investments money lands. */
+export const walletTargetSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("existing"), walletId: z.uuid() }),
+  z.object({
+    kind: z.literal("new"),
+    name: label(80),
+    walletType: z.enum(WALLET_TYPES),
+    currency: currencyCode,
+  }),
+  z.object({ kind: z.literal("nowhere") }),
+]);
+export type WalletTargetInput = z.infer<typeof walletTargetSchema>;
+
+/** D-09 Swap → Sell. `left` = what stays; destination New names an asset label
+ *  (find-or-create), Out may credit a wallet. */
+export const sellAssetSchema = z.object({
+  effectiveDate: notFutureIsoDate,
+  left: z.union([
+    z.object({ quantity: qtyString }),
+    z.object({ valueCents: centsString }),
+  ]),
+  destination: z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("new"),
+      holding: createHoldingSchema
+        .omit({ buyPriceCents: true, currentPriceCents: true, openedOn: true })
+        .extend({ name: label(120), quantity: positiveQty.optional() }),
+      priceCents: positiveCents.optional(),
+    }),
+    z.object({
+      kind: z.literal("existing"),
+      holdingId: z.uuid(),
+      quantityBought: positiveQty.optional(),
+    }),
+    z.object({
+      kind: z.literal("out"),
+      wallet: walletTargetSchema.default({ kind: "nowhere" }),
+    }),
+  ]),
+  receivedCents: positiveCents,
+  receivedCurrency: currencyCode,
+});
+export type SellAssetInput = z.infer<typeof sellAssetSchema>;
+
+/** D-10 Swap → Transfer: same type, existing asset or a new label. */
+export const transferAssetSchema = z.object({
+  effectiveDate: notFutureIsoDate,
+  move: z.union([
+    z.object({ quantity: positiveQty }),
+    z.object({ valueCents: positiveCents }),
+  ]),
+  to: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("existing"), holdingId: z.uuid() }),
+    z.object({ kind: z.literal("new"), name: label(120) }),
+  ]),
+});
+export type TransferAssetInput = z.infer<typeof transferAssetSchema>;
+
+/** D-02 autocomplete over a type's assets, hidden ones included. */
+export const assetNamesQuerySchema = z.object({ type: uiTypeSchema });
+
+export interface AssetNameDto {
+  id: string;
+  name: string;
+  archived: boolean;
+  instrumentId: string | null;
+  valueCents: string | null;
+  valueCurrency: string | null;
+}
+
+export type EntryKind =
+  | "start"
+  | "buy"
+  | "add"
+  | "value_change"
+  | "withdraw"
+  | "convert_out"
+  | "convert_in"
+  | "transfer_out"
+  | "transfer_in"
+  | "price_change"
+  | "interest";
+
+/** One L3 ledger line. `deletable` is computed by the server (D-14/D-16). */
+export interface EntryDto {
+  /** null for synthesized deposit interest rows (D-19). */
+  id: string | null;
+  kind: EntryKind;
+  effectiveDate: string;
+  createdAt: string | null;
+  qtyDelta: string | null;
+  priceCents: string | null;
+  /** Signed, in amountCurrency. */
+  amountCents: string | null;
+  amountCurrency: string | null;
+  displayAmountCents: string | null;
+  displayCurrency: string | null;
+  realizedBudgetCents: string | null;
+  budgetCurrency: string | null;
+  counterpartyName: string | null;
+  linked: boolean;
+  walletName: string | null;
+  walletDelta: string | null;
+  backfilled: boolean;
+  deletable: boolean;
+  blockedReason: "not_newest" | "linked_not_newest" | "interest" | null;
+  /** Deleting it wipes the asset (D-17). */
+  isLastEntry: boolean;
+}
+
+/** Error codes the 13.1 routes may return, by HTTP status. */
+export const INVESTMENT_ERRORS = {
+  422: [
+    "label_taken",
+    "instrument_mismatch",
+    "before_latest_entry",
+    "before_deposit_start",
+    "wallet_currency_mismatch",
+    "fx_unavailable",
+    "deposit_not_allowed",
+    "shape_mismatch",
+    "transfer_type_mismatch",
+    "transfer_same_asset",
+    "transfer_instrument_mismatch",
+    "move_qty_out_of_range",
+    "sell_qty_out_of_range",
+    "qty_precision",
+    "invalid_cents",
+  ],
+  409: ["not_newest", "linked_not_newest", "stale"],
+  404: ["not_found"],
+} as const;
