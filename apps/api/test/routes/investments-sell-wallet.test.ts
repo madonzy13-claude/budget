@@ -125,7 +125,10 @@ const seed = async (fix: Fixture, over: Partial<NewHolding> = {}) =>
   (await holdingRepo.create(fix.tenantId, fix.tenantId, fix.userId, nh(over)))
     .id;
 
-async function buildApp(fix: Fixture, spies = { reserve: [] as unknown[], cushion: [] as unknown[] }) {
+async function buildApp(
+  fix: Fixture,
+  spies = { reserve: [] as unknown[], cushion: [] as unknown[] },
+) {
   const { createInvestmentsModule } =
     await import("@budget/investments/src/contracts/factory");
   const { DrizzleInstrumentRepo } =
@@ -157,7 +160,8 @@ async function buildApp(fix: Fixture, spies = { reserve: [] as unknown[], cushio
     identity: { userRepo: { findById: async () => null } },
     budgeting: {
       recomputeReserveTopup: async (i: unknown) => void spies.reserve.push(i),
-      recomputeCushionTaskRunner: async (i: unknown) => void spies.cushion.push(i),
+      recomputeCushionTaskRunner: async (i: unknown) =>
+        void spies.cushion.push(i),
     },
   } as never;
   const app = new Hono();
@@ -172,8 +176,12 @@ async function buildApp(fix: Fixture, spies = { reserve: [] as unknown[], cushio
   return app;
 }
 
-
-async function wallet(fix: Fixture, type = "SPENDINGS", currency = "PLN", archived = false) {
+async function wallet(
+  fix: Fixture,
+  type = "SPENDINGS",
+  currency = "PLN",
+  archived = false,
+) {
   const id = crypto.randomUUID();
   await q(
     fix,
@@ -184,15 +192,32 @@ async function wallet(fix: Fixture, type = "SPENDINGS", currency = "PLN", archiv
   return id;
 }
 const balance = async (fix: Fixture, id: string) =>
-  (await q<{ b: string }>(fix, `SELECT current_balance::text AS b FROM budgeting.wallets WHERE id = $1`, [id]))[0]?.b;
+  (
+    await q<{ b: string }>(
+      fix,
+      `SELECT current_balance::text AS b FROM budgeting.wallets WHERE id = $1`,
+      [id],
+    )
+  )[0]?.b;
 const history = async (fix: Fixture) =>
-  q<{ kind: string; wallet_id: string | null; wd: string | null; flow: string }>(
+  q<{
+    kind: string;
+    wallet_id: string | null;
+    wd: string | null;
+    flow: string;
+  }>(
     fix,
     `SELECT kind, wallet_id::text, wallet_delta_numeric::text AS wd, flow_cents::text AS flow
        FROM budgeting.investment_history WHERE budget_id = $1 AND kind = 'withdraw'`,
     [fix.tenantId],
   );
-const sellOut = (app: Hono, id: string, wallet: unknown, receivedCents = "1234500", receivedCurrency = "PLN") =>
+const sellOut = (
+  app: Hono,
+  id: string,
+  wallet: unknown,
+  receivedCents = "1234500",
+  receivedCurrency = "PLN",
+) =>
   app.request(`/investments/${id}/sell`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -215,7 +240,9 @@ describe("Sell to wallet", () => {
     expect(res.status).toBe(201);
     expect(((await res.json()) as { walletId: string }).walletId).toBe(w);
     expect(await balance(fix, w)).toBe("12445.0000");
-    expect(await history(fix)).toEqual([{ kind: "withdraw", wallet_id: w, wd: "12345.0000", flow: "-1234500" }]);
+    expect(await history(fix)).toEqual([
+      { kind: "withdraw", wallet_id: w, wd: "12345.0000", flow: "-1234500" },
+    ]);
   });
 
   it("a wallet in another currency rolls the whole sale back", async () => {
@@ -228,7 +255,11 @@ describe("Sell to wallet", () => {
     expect(await res.json()).toEqual({ error: "wallet_currency_mismatch" });
     expect(await history(fix)).toHaveLength(0);
     expect(await balance(fix, w)).toBe("100.0000");
-    const [row] = await q<{ archived: boolean }>(fix, `SELECT archived_at IS NOT NULL AS archived FROM budgeting.investments WHERE id = $1`, [h]);
+    const [row] = await q<{ archived: boolean }>(
+      fix,
+      `SELECT archived_at IS NOT NULL AS archived FROM budgeting.investments WHERE id = $1`,
+      [h],
+    );
     expect(row!.archived).toBe(false);
   });
 
@@ -251,7 +282,12 @@ describe("Sell to wallet", () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
     const h = await seed(fix);
-    const res = await sellOut(app, h, { kind: "new", name: "From cash", walletType: "OTHER", currency: "PLN" });
+    const res = await sellOut(app, h, {
+      kind: "new",
+      name: "From cash",
+      walletType: "OTHER",
+      currency: "PLN",
+    });
     expect(res.status).toBe(201);
     const { walletId } = (await res.json()) as { walletId: string };
     const [w] = await q<{ name: string; wallet_type: string; b: string }>(
@@ -259,7 +295,11 @@ describe("Sell to wallet", () => {
       `SELECT name, wallet_type, current_balance::text AS b FROM budgeting.wallets WHERE id = $1`,
       [walletId],
     );
-    expect(w).toEqual({ name: "From cash", wallet_type: "OTHER", b: "12345.0000" });
+    expect(w).toEqual({
+      name: "From cash",
+      wallet_type: "OTHER",
+      b: "12345.0000",
+    });
   });
 
   it("RESERVE and CUSHION targets recompute their task; others do not", async () => {
@@ -274,9 +314,18 @@ describe("Sell to wallet", () => {
       const app = await buildApp(fix, spies);
       const h = await seed(fix);
       const w = await wallet(fix, type);
-      expect((await sellOut(app, h, { kind: "existing", walletId: w })).status).toBe(201);
-      expect([spies.reserve.length, spies.cushion.length]).toEqual([reserve, cushion]);
-      if (reserve) expect(spies.reserve[0]).toMatchObject({ tenantId: fix.tenantId, budgetId: fix.tenantId });
+      expect(
+        (await sellOut(app, h, { kind: "existing", walletId: w })).status,
+      ).toBe(201);
+      expect([spies.reserve.length, spies.cushion.length]).toEqual([
+        reserve,
+        cushion,
+      ]);
+      if (reserve)
+        expect(spies.reserve[0]).toMatchObject({
+          tenantId: fix.tenantId,
+          budgetId: fix.tenantId,
+        });
     }
   });
 
@@ -286,9 +335,17 @@ describe("Sell to wallet", () => {
     const h = await seed(fix);
     const w = await wallet(fix);
     await sellOut(app, h, { kind: "existing", walletId: w });
-    const flows = await q<{ s: string }>(fix, `SELECT COALESCE(sum(flow_cents),0)::text AS s FROM budgeting.investment_history WHERE budget_id = $1`, [fix.tenantId]);
+    const flows = await q<{ s: string }>(
+      fix,
+      `SELECT COALESCE(sum(flow_cents),0)::text AS s FROM budgeting.investment_history WHERE budget_id = $1`,
+      [fix.tenantId],
+    );
     expect(flows[0]!.s).toBe("-1234500");
-    expect(await q(fix, `SELECT 1 FROM budgeting.incomes WHERE tenant_id = $1`, [fix.tenantId])).toHaveLength(0);
+    expect(
+      await q(fix, `SELECT 1 FROM budgeting.incomes WHERE tenant_id = $1`, [
+        fix.tenantId,
+      ]),
+    ).toHaveLength(0);
   });
 
   it("zero / negative received and a malformed wallet id are 422", async () => {
@@ -297,7 +354,16 @@ describe("Sell to wallet", () => {
     const h = await seed(fix);
     expect((await sellOut(app, h, null, "0")).status).toBe(422);
     expect((await sellOut(app, h, null, "-5")).status).toBe(422);
-    expect((await sellOut(app, h, { kind: "existing", walletId: "nope" })).status).toBe(422);
-    expect((await app.request("/investments/nope/sell", { method: "POST", body: "{}" })).status).toBe(404);
+    expect(
+      (await sellOut(app, h, { kind: "existing", walletId: "nope" })).status,
+    ).toBe(422);
+    expect(
+      (
+        await app.request("/investments/nope/sell", {
+          method: "POST",
+          body: "{}",
+        })
+      ).status,
+    ).toBe(404);
   });
 });

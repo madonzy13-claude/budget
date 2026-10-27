@@ -290,7 +290,8 @@ export function createInvestmentsRoute(deps: BootedDeps) {
     return c.json(r.value);
   });
 
-  // POST /:id/sell — Phase 13 Sell / convert / withdraw (one transaction).
+  // POST /:id/sell — Swap → Sell (13.1 D-09): new / existing asset, or Out
+  // of investments optionally into a wallet (D-20..D-23), one transaction.
   const SELL_ERRORS = new Set([
     "keep_out_of_range",
     "sell_qty_out_of_range",
@@ -302,44 +303,50 @@ export function createInvestmentsRoute(deps: BootedDeps) {
     "quantity_required",
   ]);
   app.post("/:id/sell", async (c) => {
-    const { sellHoldingSchema } = await getSchemas();
-    const session = c.get("session");
-    if (!session) return c.json({ error: "unauthorized" }, 401);
-    const tenantId = pickTenant(c);
-    const userId = (c.get("userId") as string) ?? session?.user?.id;
-    const { id: holdingId } = c.req.param();
+    const { sellAssetSchema } = await getSchemas();
+    if (!c.get("session")) return c.json({ error: "unauthorized" }, 401);
+    const id = c.req.param("id");
+    if (await badId(id)) return c.json({ error: "not_found" }, 404);
     const body = await c.req.json().catch(() => null);
-    if (!body) return c.json({ error: "Invalid JSON" }, 422);
-    const parsed = sellHoldingSchema.safeParse(body);
-    if (!parsed.success)
-      return c.json(
-        {
-          error: parsed.error.issues[0]?.message ?? "validation_error",
-          issues: parsed.error.issues,
-        },
-        422,
-      );
-    const budget = await deps.tenancy.workspaceRepo.findById(tenantId);
+    const parsed = sellAssetSchema.safeParse(body);
+    if (!parsed.success) return invalid(c, parsed.error.issues);
+    const w = who(c);
+    const budget = await deps.tenancy.workspaceRepo.findById(w.tenantId);
     const r = await deps.investments.sellHolding({
       ...parsed.data,
-      tenantId,
-      budgetId: tenantId,
-      actorUserId: userId,
+      ...w,
       budgetCurrency: budget?.default_currency ?? "EUR",
-      holdingId,
+      holdingId: id,
     });
-    if (r.isErr()) {
-      const e = r.error as Error & { currency?: string; date?: string };
-      if (e.message === "not_found") return c.json({ error: "not_found" }, 404);
-      if (e.message === "fx_unavailable")
-        return c.json(
-          { error: "fx_unavailable", currency: e.currency, date: e.date },
-          422,
-        );
-      if (SELL_ERRORS.has(e.message)) return c.json({ error: e.message }, 422);
-      return serverError(c, "sell_holding_failed", e);
+    if (r.isErr())
+      return fail(
+        c,
+        r.error,
+        new Set([...SELL_ERRORS, ...(await assetErrors())]),
+        "sell_holding_failed",
+      );
+    // D-37: a wallet credit moves the same tasks a manual balance edit does.
+    // Best-effort after commit (own tx); the hourly sweep is the backstop.
+    try {
+      if (r.value.walletType === "RESERVE")
+        await deps.budgeting.recomputeReserveTopup(w);
+      else if (r.value.walletType === "CUSHION")
+        await deps.budgeting.recomputeCushionTaskRunner(w);
+    } catch (e) {
+      console.warn(
+        "[investments] wallet task recompute failed",
+        (e as Error).name,
+      );
     }
-    return c.json({ ok: true, ...r.value });
+    return c.json(
+      {
+        transferId: r.value.transferId,
+        newHoldingId: r.value.newHoldingId,
+        walletId: r.value.walletId,
+        archived: r.value.archived,
+      },
+      201,
+    );
   });
 
   // ── Phase 13: history, edit bookings, type groups, delete ──────────────

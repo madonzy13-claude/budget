@@ -324,7 +324,7 @@ describe("Sell route", () => {
       destination: { kind: "out" },
       receivedCents: "6600000",
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     const [h] = await q<{ buy: string; cur: string }>(
       fix,
       `SELECT buy_price_cents::text AS buy, current_price_cents::bigint::text AS cur
@@ -373,7 +373,7 @@ describe("Sell route", () => {
       },
       receivedCents: "9600000",
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     const body = (await res.json()) as {
       archived: boolean;
       newHoldingId: string;
@@ -414,7 +414,7 @@ describe("Sell route", () => {
       destination: { kind: "out" },
       receivedCents: "400000",
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     const [h] = await q<{ buy: string; start: string }>(
       fix,
       `SELECT buy_price_cents::text AS buy, deposit_start_date::text AS start
