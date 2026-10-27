@@ -175,70 +175,6 @@ export const createHoldingSchema = z.object({
 });
 export type CreateHoldingInput = z.infer<typeof createHoldingSchema>;
 
-// `.partial()` keeps quantity's create-time `.default("1")`, which turned every
-// PATCH that left quantity out into "quantity = 1" (user, 261023). An update
-// changes only what it sends.
-export const updateHoldingSchema = createHoldingSchema
-  .partial()
-  .extend({ quantity: numericString.optional() });
-export type UpdateHoldingInput = z.infer<typeof updateHoldingSchema>;
-
-/** Phase 13 Sell → "Where did the money go?" (D-01..D-04, D-17). `left` is what
- *  stays: a quantity for quantity holdings, a value for amount holdings and
- *  deposits; 0 sells everything. */
-export const sellHoldingSchema = z.object({
-  effectiveDate: notFutureIsoDate,
-  left: z.union([
-    z.object({ quantity: numericString }),
-    z.object({ valueCents: centsInput }),
-  ]),
-  destination: z.discriminatedUnion("kind", [
-    z.object({
-      kind: z.literal("new"),
-      holding: createHoldingSchema
-        .omit({ buyPriceCents: true, currentPriceCents: true, openedOn: true })
-        .extend({ quantity: numericString.optional() }),
-    }),
-    z.object({
-      kind: z.literal("existing"),
-      holdingId: z.string().uuid(),
-      quantityBought: numericString.optional(),
-    }),
-    z.object({ kind: z.literal("out") }),
-  ]),
-  receivedCents: centsInput.refine((v) => Number(v) > 0, "received_positive"),
-  receivedCurrency: currencyCode,
-});
-export type SellHoldingInput = z.infer<typeof sellHoldingSchema>;
-
-/** Phase 13 Edit → "What happened?" (D-03). Withdraw books like Sell → Out. */
-export const adjustHoldingSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("value_change"),
-    newValueCents: centsInput,
-    effectiveDate: notFutureIsoDate,
-  }),
-  z.object({
-    kind: z.literal("add"),
-    newValueCents: centsInput,
-    effectiveDate: notFutureIsoDate,
-  }),
-  z.object({
-    kind: z.literal("withdraw"),
-    newValueCents: centsInput,
-    receivedCents: centsInput,
-    receivedCurrency: currencyCode,
-    effectiveDate: notFutureIsoDate,
-  }),
-  z.object({
-    kind: z.literal("buy"),
-    addQuantity: numericString,
-    paidCents: centsInput,
-    effectiveDate: notFutureIsoDate,
-  }),
-]);
-export type AdjustHoldingInput = z.infer<typeof adjustHoldingSchema>;
-
 /** D-12: per-budget type-group order. */
 export const typeOrderSchema = z.object({
   order: z
@@ -246,20 +182,6 @@ export const typeOrderSchema = z.object({
     .max(11)
     .refine((a) => new Set(a).size === a.length, "duplicate_type"),
 });
-
-export interface HistoryEntryDto {
-  id: string;
-  kind: string;
-  effectiveDate: string;
-  amountCents: string | null;
-  amountCurrency: string | null;
-  qtyDelta: string | null;
-  realizedBudgetCents: string | null;
-  budgetCurrency: string | null;
-  transferId: string | null;
-  counterpartyName: string | null;
-  createdAt: string;
-}
 
 export interface TypeSummaryDto {
   currency: string;

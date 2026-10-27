@@ -12,14 +12,7 @@ import type { PriceCacheRepo } from "../ports/price-cache-repo";
 import type { PriceProvider } from "../ports/price-provider";
 import { createHolding } from "../application/create-holding";
 import { sellHolding } from "../application/sell-holding";
-import { adjustHolding } from "../application/adjust-holding";
-import { reverseHistoryEntry } from "../application/reverse-history-entry";
-import {
-  deleteHolding,
-  listHistory,
-  setTypeOrder,
-  typeSummary,
-} from "../application/history-queries";
+import { setTypeOrder, typeSummary } from "../application/history-queries";
 import { buyIntoAsset } from "../application/buy-into-asset";
 import { editAsset } from "../application/edit-asset";
 import { listAssetNames } from "../application/list-asset-names";
@@ -54,10 +47,6 @@ export function createInvestmentsModule(deps: {
   };
   return {
     sellHolding: sell,
-    adjustHolding: adjustHolding({ ...ledger, sellHolding: sell }),
-    reverseHistoryEntry: reverseHistoryEntry(ledger),
-    deleteHolding: deleteHolding(ledger),
-    listHistory: listHistory(ledger),
     typeSummary: typeSummary({
       historyRepo: deps.historyRepo,
       fxProvider: deps.fxProvider,

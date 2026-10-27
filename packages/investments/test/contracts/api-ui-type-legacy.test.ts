@@ -2,7 +2,6 @@ import { describe, test, expect } from "bun:test";
 import {
   uiTypeSchema,
   createHoldingSchema,
-  updateHoldingSchema,
   UI_TYPE_KEYS,
   UI_TYPE_TO_HOLDING_TYPE,
 } from "../../src/contracts/api";
@@ -42,10 +41,6 @@ describe("ui type contract after the stocks merge", () => {
     expect(UI_TYPE_KEYS).toHaveLength(11);
     expect(UI_TYPE_KEYS).toContain("stocks");
     expect(UI_TYPE_KEYS).not.toContain("possession");
-  });
-
-  test("an empty PATCH still invents no quantity", () => {
-    expect("quantity" in updateHoldingSchema.parse({})).toBe(false);
   });
 });
 
