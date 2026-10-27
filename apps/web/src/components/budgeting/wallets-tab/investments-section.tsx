@@ -10,8 +10,13 @@
  * still shows as a muted line under the section total (D-14). Block order =
  * the budget's saved type order, then picker order (D-12).
  *
+ * Three levels (13.1): type block → asset row → the asset's ledger strip,
+ * opened by tapping the asset (open set remembered per device in
+ * localStorage `inv.assetOpen.v1`). Assets with quantity 0 are hidden (D-17).
+ *
  * Drag: a block moves by its header handle (order saved per budget); a row
- * moves only within its own type — a drop on another type is a no-op.
+ * moves only within its own type — a drop on another type is a no-op. Ledger
+ * strips are never sortable and collapse while an asset is dragged (D-30).
  * ⚠️ Before changing ANY drag logic, read ./INVESTMENTS-DND.md.
  */
 import {
@@ -57,6 +62,8 @@ import {
   type TypeBlock,
 } from "@/lib/investment-type-groups";
 import { InvestmentRowSheet } from "./investment-row-sheet";
+import { AssetLedger } from "./asset-ledger";
+import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { sharePercentLabel } from "@/lib/share-bar";
 import { InvestmentTypeHeader } from "./investment-type-header";
 import { HoldingSheet } from "./holding-sheet";
@@ -71,6 +78,16 @@ interface InvestmentsSectionProps {
 }
 
 const BLOCK = "type:";
+const OPEN_KEY = "inv.assetOpen.v1";
+
+function readOpen(): Set<string> {
+  try {
+    const raw = localStorage.getItem(OPEN_KEY);
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
 const blockId = (ui: UiType) => `${BLOCK}${ui}`;
 const isBlockId = (id: string) => id.startsWith(BLOCK);
 
@@ -151,7 +168,8 @@ export function InvestmentsSection({
     // Possessions share the holdings endpoint but render in their own section.
     () =>
       (investmentsQuery.data ?? []).filter(
-        (h) => h.holdingType !== "possession",
+        // D-17: a sold-out asset (quantity 0) is hidden; its ledger stays.
+        (h) => h.holdingType !== "possession" && Number(h.quantity) !== 0,
       ),
     [investmentsQuery.data],
   );
@@ -174,6 +192,28 @@ export function InvestmentsSection({
       setCommittedOrder(null);
   }, [summary?.order, committedOrder]);
   const [draggingBlock, setDraggingBlock] = useState(false);
+  const [draggingRow, setDraggingRow] = useState(false);
+  // D-27: open assets, per device. Seeded into the BDP store so the row's own
+  // tap state survives pill navigation too.
+  const bdpStore = useBdpUiStore();
+  const [openAssets, setOpenAssets] = useState<Set<string>>(() => {
+    const set = readOpen();
+    if (bdpStore)
+      for (const id of set) bdpStore.wallets.expandedRows[id] = true;
+    return set;
+  });
+  const toggleAsset = (id: string, open: boolean) =>
+    setOpenAssets((prev) => {
+      const next = new Set(prev);
+      if (open) next.add(id);
+      else next.delete(id);
+      try {
+        localStorage.setItem(OPEN_KEY, JSON.stringify([...next]));
+      } catch {
+        /* private mode: per-session only */
+      }
+      return next;
+    });
   const updateMut = useUpdateHolding(budgetId);
   const reorderMut = useReorderHoldings(budgetId);
   const setOrderMut = useSetTypeOrder(budgetId);
@@ -187,14 +227,19 @@ export function InvestmentsSection({
    * price moves; the buy price stays the cost basis, so savings keeps its
    * "started at" figure and the %-change stays honest.
    */
-  // The row edits the TOTAL; the price is per unit (user, 261023).
+  // The row edits the TOTAL; the price is per unit (user, 261023). 13.1
+  // WR-06: the server books it as a Value/Price updated ledger entry.
   async function saveInlineValue(holding: HoldingDto, amount: string) {
     const cents = parseDecimal(amount);
     if (cents === null) return;
-    await updateMut.mutateAsync({
-      holdingId: holding.id,
-      currentPriceCents: unitPriceCents(cents, holding.quantity),
-    });
+    await updateMut.mutateAsync(
+      Number(holding.quantity) === 1
+        ? { holdingId: holding.id, currentValueCents: String(cents) }
+        : {
+            holdingId: holding.id,
+            currentPriceCents: unitPriceCents(cents, holding.quantity),
+          },
+    );
   }
 
   // ── Sheet state (single shared instance for add + edit) ──
@@ -315,11 +360,13 @@ export function InvestmentsSection({
   function handleDragStart(e: DragStartEvent) {
     setDndDragging(true);
     if (isBlockId(String(e.active.id))) setDraggingBlock(true);
+    else setDraggingRow(true);
   }
 
   function handleDragEnd(e: DragEndEvent) {
     setDndDragging(false);
     setDraggingBlock(false);
+    setDraggingRow(false);
     const { active, over } = e;
     if (!over) return;
     const aId = String(active.id);
@@ -364,6 +411,7 @@ export function InvestmentsSection({
   function handleDragCancel() {
     setDndDragging(false);
     setDraggingBlock(false);
+    setDraggingRow(false);
   }
 
   function openEdit(holding: HoldingDto) {
@@ -481,19 +529,32 @@ export function InvestmentsSection({
                       strategy={verticalListSortingStrategy}
                     >
                       {block.holdings.map((h) => (
-                        <InvestmentRowSheet
-                          key={h.id}
-                          holding={h}
-                          nested
-                          maxAmountChars={amountCols.group[block.uiType]}
-                          onEdit={openEdit}
-                          // ponytail: Swap opens the Phase 13 sell sheet until 13.1-11 wires the Swap sheet.
-                          onSwap={(h) => {
-                            setSellLeft(undefined);
-                            setSelling(h);
-                          }}
-                          onValueChange={(amount) => saveInlineValue(h, amount)}
-                        />
+                        <div key={h.id} className="flex flex-col">
+                          <InvestmentRowSheet
+                            holding={h}
+                            nested
+                            maxAmountChars={amountCols.group[block.uiType]}
+                            open={openAssets.has(h.id)}
+                            onToggle={toggleAsset}
+                            onEdit={openEdit}
+                            // ponytail: Swap opens the Phase 13 sell sheet until 13.1-11 wires the Swap sheet.
+                            onSwap={(h) => {
+                              setSellLeft(undefined);
+                              setSelling(h);
+                            }}
+                            onValueChange={(amount) =>
+                              saveInlineValue(h, amount)
+                            }
+                          />
+                          {/* L3: same left edge as the asset, outside the sortable
+                            row; collapsed while an asset is dragged (D-28/D-30). */}
+                          <AssetLedger
+                            budgetId={budgetId}
+                            assetId={h.id}
+                            assetName={h.name}
+                            open={openAssets.has(h.id) && !draggingRow}
+                          />
+                        </div>
                       ))}
                     </SortableContext>
                   )}

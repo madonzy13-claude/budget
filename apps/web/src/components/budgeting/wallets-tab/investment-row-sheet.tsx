@@ -184,16 +184,8 @@ export function InvestmentRowSheet({
       }}
       className={[
         "relative",
-        // Grouped child: indent + a continuous left rail. The flat list has no
-        // nested container to carry a `border-l`, so each child draws its own 1px
-        // rail via a ::before that extends up into the gap-2 above it (−top-2),
-        // joining the header's rail through to the last child (D-#flat-rail). Kept
-        // while dragging too: a grouped child reordered in place must keep its
-        // indent (matching its slot geometry) or the in-group reorder gap can't
-        // animate and the row reads as un-nested (UAT).
-        nested
-          ? "ml-3 pl-3 before:absolute before:left-0 before:-top-2 before:bottom-0 before:w-px before:bg-[var(--hairline-dark)] before:content-['']"
-          : "",
+        // 13.1 D-26: rows start at the header's left edge — no nesting indent
+        // or rail; the darker `nested` surface alone marks the level.
         // Lift above siblings while dragging (z) / HIDE when this row's group is
         // dragged as a block (ghost → opacity-0). The cohesive copy lives in the
         // DragOverlay; a dimmed in-place child slid independently of its header and

@@ -148,10 +148,11 @@ describe("Asset ledger strip", () => {
     expect(screen.queryByTestId("ledger-delete-w1")).toBeNull();
     fireEvent.click(screen.getByTestId("ledger-row-c1"));
     expect(screen.getByText("ledger.removeLaterIn")).toBeInTheDocument();
+    // One row is revealed at a time, and an interest row never offers delete.
     fireEvent.click(screen.getByTestId("ledger-row-interest-2026-10-20"));
     expect(
       document.querySelectorAll('[data-testid^="ledger-delete-"]'),
-    ).toHaveLength(1);
+    ).toHaveLength(0);
   });
 
   it("confirming a plain entry delete calls DELETE /entries/:id", async () => {
