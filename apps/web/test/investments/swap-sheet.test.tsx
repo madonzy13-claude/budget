@@ -1,0 +1,235 @@
+/**
+ * swap-sheet.test.tsx — Swap sheet shell, Buy and Transfer tabs, sum-up card
+ * (13.1 D-08, D-10, D-11, D-15, D-31; UI-SPEC §2, 2a, 2c, 2d).
+ */
+import "./_swap-fixtures";
+import { describe, it, expect, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  btc,
+  btcCold,
+  sol,
+  broker,
+  cash,
+  deposit,
+  routeFetch,
+  okWrite,
+  lastBody,
+  lastUrl,
+  writeMock,
+} from "./_swap-fixtures";
+import type { HoldingDto } from "../../src/hooks/use-investments";
+import { SwapSheet } from "../../src/components/budgeting/wallets-tab/swap-sheet";
+
+function mount(
+  holding: HoldingDto,
+  holdings: HoldingDto[] = [btc, btcCold, sol, broker, cash, deposit],
+) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={qc}>
+      <SwapSheet
+        open
+        onOpenChange={() => {}}
+        budgetId="b1"
+        budgetCurrency="PLN"
+        holding={holding}
+        holdings={holdings}
+      />
+    </QueryClientProvider>,
+  );
+}
+const type = (id: string, v: string) =>
+  fireEvent.change(screen.getByTestId(id), { target: { value: v } });
+
+beforeEach(() => {
+  writeMock.mockReset();
+  routeFetch();
+  okWrite({
+    entryId: "x",
+    transferId: "t",
+    newHoldingId: null,
+    walletId: null,
+  });
+});
+
+describe("Swap sheet", () => {
+  it("offers Buy / Sell / Transfer as a radio group, Buy first", () => {
+    mount(btc);
+    expect(screen.getByTestId("swap-sheet")).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup")).toBeInTheDocument();
+    expect(screen.getByTestId("swap-tab-buy")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByText("swap.title(name=BTC)")).toBeInTheDocument();
+  });
+
+  it("a deposit only sells — no tabs, Sell title", () => {
+    mount(deposit);
+    expect(screen.queryByTestId("swap-tab-buy")).toBeNull();
+    expect(
+      screen.getByText("swap.sellTitle(name=Bank 5%)"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("swap-sell-left")).toBeInTheDocument();
+  });
+
+  it("switching tabs keeps the date and resets the rest", () => {
+    mount(btc);
+    type("swap-date", "2026-10-01");
+    type("swap-buy-qty", "1");
+    fireEvent.click(screen.getByTestId("swap-tab-transfer"));
+    fireEvent.click(screen.getByTestId("swap-tab-buy"));
+    expect(screen.getByTestId("swap-date")).toHaveValue("2026-10-01");
+    expect(screen.getByTestId("swap-buy-qty")).toHaveValue("");
+  });
+
+  it("the date cannot go before the latest entry (D-15)", async () => {
+    routeFetch({ latest: "2026-09-15" });
+    mount(btc);
+    await waitFor(() =>
+      expect(screen.getByTestId("swap-date")).toHaveAttribute(
+        "min",
+        "2026-09-15",
+      ),
+    );
+    expect(
+      screen.getByText("swap.dateMin(date=2026-09-15)"),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("Buy tab", () => {
+  it("quantity: locked type/name/instrument, total helper, books {kind:quantity}", async () => {
+    mount(btc);
+    for (const id of [
+      "swap-locked-type",
+      "swap-locked-name",
+      "swap-locked-instrument",
+    ])
+      expect(screen.getByTestId(id)).toHaveAttribute("aria-readonly", "true");
+    type("swap-buy-qty", "0,5");
+    type("swap-buy-price", "70000");
+    expect(screen.getByTestId("swap-buy-total")).toHaveTextContent(
+      "swap.buy.total",
+    );
+    type("swap-date", "2026-10-01");
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastUrl()).toBe(`/budgets/b1/investments/${btc.id}/buy`);
+    expect(lastBody()).toEqual({
+      kind: "quantity",
+      quantity: "0.5",
+      priceCents: "7000000",
+      currency: "PLN",
+      effectiveDate: "2026-10-01",
+    });
+  });
+
+  it("refuses a zero amount and keeps the sum-up empty", () => {
+    mount(btc);
+    type("swap-buy-qty", "0");
+    type("swap-buy-price", "100");
+    expect(screen.getByText("swap.err.positive")).toBeInTheDocument();
+    expect(screen.getByTestId("swap-summary")).toHaveTextContent(
+      "swap.sum.empty",
+    );
+    expect(screen.getByTestId("swap-submit")).toBeDisabled();
+  });
+
+  it("broker: value after follows the amount until edited, then stays", async () => {
+    mount(broker);
+    type("swap-buy-amount", "10000");
+    expect(screen.getByTestId("swap-buy-value-after")).toHaveValue("130000");
+    type("swap-buy-value-after", "133250");
+    type("swap-buy-amount", "20000");
+    expect(screen.getByTestId("swap-buy-value-after")).toHaveValue("133250");
+    expect(screen.getByTestId("swap-buy-split")).toHaveTextContent(
+      "swap.buy.split",
+    );
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody()).toMatchObject({
+      kind: "broker",
+      amountCents: "2000000",
+      valueAfterCents: "13325000",
+    });
+  });
+
+  it("cash: amount + currency with the P/L-unchanged helper", async () => {
+    mount(cash);
+    expect(screen.getByText("swap.buy.cashHelp")).toBeInTheDocument();
+    type("swap-buy-amount", "50");
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody()).toMatchObject({
+      kind: "amount",
+      amountCents: "5000",
+      currency: "PLN",
+    });
+  });
+});
+
+describe("Transfer tab", () => {
+  it("existing targets are same type and, for crypto, same instrument only", () => {
+    mount(btc);
+    fireEvent.click(screen.getByTestId("swap-tab-transfer"));
+    fireEvent.click(screen.getByTestId("swap-transfer-to-existing"));
+    const opts = [
+      ...(screen.getByTestId("swap-transfer-existing") as HTMLSelectElement)
+        .options,
+    ]
+      .map((o) => o.value)
+      .filter(Boolean);
+    expect(opts).toEqual([btcCold.id]);
+    expect(
+      screen.getByText("swap.transfer.sameInstrument"),
+    ).toBeInTheDocument();
+  });
+
+  it("no other asset of the type shows the empty hint", () => {
+    mount(sol, [sol, btc]);
+    fireEvent.click(screen.getByTestId("swap-tab-transfer"));
+    fireEvent.click(screen.getByTestId("swap-transfer-to-existing"));
+    expect(screen.getByText("swap.transfer.none")).toBeInTheDocument();
+  });
+
+  it("a new label that is taken blocks the submit", async () => {
+    mount(btc);
+    fireEvent.click(screen.getByTestId("swap-tab-transfer"));
+    type("swap-transfer-qty", "1");
+    fireEvent.click(screen.getByTestId("swap-transfer-to-new"));
+    type("swap-transfer-name", "btc cold");
+    expect(await screen.findByText("asset.name.taken")).toBeInTheDocument();
+    expect(screen.getByTestId("swap-submit")).toBeDisabled();
+  });
+
+  it("Move everything moves all held and books the transfer", async () => {
+    mount(btc);
+    fireEvent.click(screen.getByTestId("swap-tab-transfer"));
+    fireEvent.click(screen.getByTestId("swap-transfer-all"));
+    expect(screen.getByTestId("swap-transfer-qty")).toHaveValue("2");
+    fireEvent.click(screen.getByTestId("swap-transfer-to-new"));
+    type("swap-transfer-name", "Cold 2");
+    expect(screen.getByTestId("swap-summary")).toHaveTextContent(
+      "swap.sum.created",
+    );
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastUrl()).toBe(`/budgets/b1/investments/${btc.id}/transfer`);
+    expect(lastBody()).toMatchObject({
+      move: { quantity: "2" },
+      to: { kind: "new", name: "Cold 2" },
+    });
+  });
+
+  it("footer stacks full-width and nothing truncates", () => {
+    mount(btc);
+    const footer = screen.getByTestId("swap-footer");
+    expect(footer.className).toContain("flex-col");
+    expect(
+      document.querySelector('[data-testid="swap-sheet"] .truncate'),
+    ).toBeNull();
+  });
+});
