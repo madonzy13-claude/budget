@@ -5,7 +5,6 @@
 import { describe, test, expect } from "bun:test";
 import { adjustHolding } from "../../src/application/adjust-holding";
 import { sellHolding } from "../../src/application/sell-holding";
-import { updateHolding } from "../../src/application/update-holding";
 import { MemoryWorld, hold, rates1, T, U } from "./memory-world";
 
 const who = { tenantId: T, budgetId: T, actorUserId: U, budgetCurrency: "PLN" };
@@ -137,64 +136,5 @@ describe("Edit: what happened?", () => {
       effectiveDate: date,
     });
     expect(r._unsafeUnwrapErr().message).toBe("wrong_shape");
-  });
-});
-
-describe("PATCH keeps cost basis on the ledger", () => {
-  function patcher() {
-    const w = new MemoryWorld([
-      hold({
-        id: "broker",
-        uiType: "broker",
-        buy: 5_500_000n,
-        current: 9_600_000n,
-      }),
-      hold({
-        id: "car",
-        holdingType: "possession",
-        uiType: "possession",
-        buy: 100n,
-        current: 100n,
-      }),
-    ]);
-    const repo = Object.assign(w.holdingRepo, {
-      update: async (_t: string, _u: string, id: string) => w.get(id),
-    });
-    return updateHolding({ holdingRepo: repo });
-  }
-  const base = { tenantId: T, actorUserId: U };
-
-  test("changing the buy price is refused", async () => {
-    const r = await patcher()({
-      ...base,
-      holdingId: "broker",
-      buyPriceCents: "1",
-    });
-    expect(r._unsafeUnwrapErr().message).toBe("use_adjust");
-  });
-
-  test("changing the quantity is refused", async () => {
-    const r = await patcher()({ ...base, holdingId: "broker", quantity: "2" });
-    expect(r._unsafeUnwrapErr().message).toBe("use_adjust");
-  });
-
-  test("re-sending the same values with a new name is fine", async () => {
-    const r = await patcher()({
-      ...base,
-      holdingId: "broker",
-      name: "Renamed",
-      buyPriceCents: "5500000",
-      quantity: "1.00000000",
-    });
-    expect(r.isOk()).toBe(true);
-  });
-
-  test("a possession's buy price can still change", async () => {
-    const r = await patcher()({
-      ...base,
-      holdingId: "car",
-      buyPriceCents: "200",
-    });
-    expect(r.isOk()).toBe(true);
   });
 });

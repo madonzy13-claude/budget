@@ -413,7 +413,11 @@ describe("Create writes the first history entry", () => {
       listFlows: async () => [],
     } as unknown as HistoryRepo;
     return {
-      create: createHolding({ holdingRepo, historyRepo }),
+      create: createHolding({
+        holdingRepo,
+        historyRepo,
+        fxProvider: {} as never,
+      }),
       plans,
       created: () => created,
     };

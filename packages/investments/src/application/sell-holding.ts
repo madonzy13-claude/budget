@@ -40,15 +40,9 @@ import {
 } from "../ports/history-repo";
 import type { SellHoldingInput } from "../contracts/api";
 import { toNewHolding } from "./create-holding";
+import { FxUnavailableError, makeRate } from "./fx-memo";
 
-export class FxUnavailableError extends Error {
-  constructor(
-    public readonly currency: string,
-    public readonly date: string,
-  ) {
-    super("fx_unavailable");
-  }
-}
+export { FxUnavailableError };
 
 const fail = (code: string) => new Error(code);
 const big = (v: bigint | string) => new Big(v.toString());
@@ -78,22 +72,7 @@ export function sellHolding(deps: {
     >
   > => {
     const date = input.effectiveDate;
-    const rates = new Map<string, Promise<string>>();
-    const rate = (from: string, to: string): Promise<string> => {
-      if (from === to) return Promise.resolve("1");
-      const k = `${from}>${to}`;
-      let p = rates.get(k);
-      if (!p) {
-        p = deps.fxProvider
-          .rateAsOf(from as never, to as never, new Date(`${date}T00:00:00Z`))
-          .then((r) => r.rate)
-          .catch(() => {
-            throw new FxUnavailableError(from, date);
-          });
-        rates.set(k, p);
-      }
-      return p;
-    };
+    const rate = makeRate(deps.fxProvider, date);
 
     /** Value in the holding's own currency on the sale date. */
     const valueOf = async (h: Holding): Promise<bigint> => {

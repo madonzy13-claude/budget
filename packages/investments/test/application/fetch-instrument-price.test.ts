@@ -69,7 +69,10 @@ describe("fetchInstrumentPrice — read-through cache", () => {
       userId: "u1",
     });
     expect(res.isOk()).toBe(true);
-    expect(res._unsafeUnwrap()).toMatchObject({ price: "297.50", currency: "USD" });
+    expect(res._unsafeUnwrap()).toMatchObject({
+      price: "297.50",
+      currency: "USD",
+    });
     expect(calls.providerCalls).toBe(0);
     expect(calls.rateLimitQueries).toBe(0);
   });
@@ -81,7 +84,10 @@ describe("fetchInstrumentPrice — read-through cache", () => {
       userId: "u1",
     });
     expect(res.isOk()).toBe(true);
-    expect(res._unsafeUnwrap()).toMatchObject({ price: "298.00", currency: "USD" });
+    expect(res._unsafeUnwrap()).toMatchObject({
+      price: "298.00",
+      currency: "USD",
+    });
     expect(calls.providerCalls).toBe(1);
     expect(calls.rateLimitQueries).toBe(1);
     expect(calls.upserts).toBe(1);
@@ -129,7 +135,10 @@ describe("fetchInstrumentPrice — read-through cache", () => {
       userId: "u1",
       targetCurrency: "USD",
     });
-    expect(res._unsafeUnwrap()).toMatchObject({ price: "2000.00", currency: "USD" });
+    expect(res._unsafeUnwrap()).toMatchObject({
+      price: "2000.00",
+      currency: "USD",
+    });
   });
 
   test("a STALE cache entry (older than the TTL) refetches from the provider", async () => {

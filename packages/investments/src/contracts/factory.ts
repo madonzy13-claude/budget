@@ -20,7 +20,9 @@ import {
   setTypeOrder,
   typeSummary,
 } from "../application/history-queries";
-import { updateHolding } from "../application/update-holding";
+import { buyIntoAsset } from "../application/buy-into-asset";
+import { editAsset } from "../application/edit-asset";
+import { listAssetNames } from "../application/list-asset-names";
 import { archiveHolding } from "../application/archive-holding";
 import { listHoldings } from "../application/list-holdings";
 import { reorderHoldings } from "../application/reorder-holdings";
@@ -58,11 +60,10 @@ export function createInvestmentsModule(deps: {
       fxProvider: deps.fxProvider,
     }),
     setTypeOrder: setTypeOrder(ledger),
-    createHolding: createHolding({
-      holdingRepo: deps.holdingRepo,
-      historyRepo: deps.historyRepo,
-    }),
-    updateHolding: updateHolding({ holdingRepo: deps.holdingRepo }),
+    createHolding: createHolding({ ...ledger, fxProvider: deps.fxProvider }),
+    buyIntoAsset: buyIntoAsset({ ...ledger, fxProvider: deps.fxProvider }),
+    editAsset: editAsset({ ...ledger, fxProvider: deps.fxProvider }),
+    listAssetNames: listAssetNames({ holdingRepo: deps.holdingRepo }),
     archiveHolding: archiveHolding({ holdingRepo: deps.holdingRepo }),
     listHoldings: listHoldings({
       holdingRepo: deps.holdingRepo,
