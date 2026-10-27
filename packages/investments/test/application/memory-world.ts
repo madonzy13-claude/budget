@@ -5,6 +5,7 @@
  * can sell, undo and re-sell and then assert the resulting state.
  */
 import { Holding } from "../../src/domain/holding";
+import { newestEntry } from "../../src/domain/asset-ledger";
 import type { HoldingRepo, NewHolding } from "../../src/ports/holding-repo";
 import type {
   BookingPlan,
@@ -67,11 +68,21 @@ interface Row extends StoredEntry {
   deleted: boolean;
 }
 
+export interface MemWallet {
+  id: string;
+  name: string;
+  walletType: string;
+  currency: string;
+  /** Major units, decimal string. */
+  balance: string;
+}
+
 export class MemoryWorld {
   holdings = new Map<string, Holding>();
   rows: Row[] = [];
   plans: BookingPlan[] = [];
   typeOrder: string[] = [];
+  wallets = new Map<string, MemWallet>();
   private seq = 0;
 
   constructor(holdings: Holding[] = []) {
@@ -99,7 +110,19 @@ export class MemoryWorld {
       counterpartyName: partner
         ? (this.holdings.get(partner.holdingId)?.name ?? null)
         : null,
+      counterpartyHoldingId: partner?.holdingId ?? null,
     };
+  }
+
+  /** Newest live entry of a holding — the domain rule (D-14). */
+  newest(holdingId: string): Row | null {
+    const own = this.live().filter((r) => r.holdingId === holdingId);
+    const top = newestEntry(own);
+    return top ? (own.find((r) => r.id === top.id) ?? null) : null;
+  }
+
+  private sameLabel(a: string, b: string): boolean {
+    return a.trim().toLowerCase() === b.trim().toLowerCase();
   }
 
   holdingRepo: HoldingRepo = {
@@ -107,11 +130,85 @@ export class MemoryWorld {
       [...this.holdings.values()].filter((h) => !h.archivedAt),
     findById: async (_t: string, _u: string, id: string) =>
       this.holdings.get(id) ?? null,
+    findByLabel: async (_t: string, _b: string, uiType: string, name: string) =>
+      [...this.holdings.values()].find(
+        (h) => h.uiType === uiType && this.sameLabel(h.name, name),
+      ) ?? null,
+    listNames: async (_t: string, _b: string, uiType: string) =>
+      [...this.holdings.values()]
+        .filter((h) => h.uiType === uiType)
+        .map((h) => ({
+          id: h.id,
+          name: h.name,
+          archived: h.archivedAt !== null,
+          instrumentId: h.instrumentId,
+          quantity: h.quantity,
+          currentPriceCents:
+            h.currentPriceCents === null ? null : String(h.currentPriceCents),
+          currentPriceCurrency: h.currentPriceCurrency,
+        })),
   } as unknown as HoldingRepo;
 
   historyRepo: HistoryRepo = {
     commit: async (_t, _u, plan) => {
       this.plans.push(plan);
+      // Preconditions re-checked "under the lock" (lockHoldingIds is a no-op here).
+      for (const x of plan.expectedNewestEntryId ?? [])
+        if ((this.newest(x.holdingId)?.id ?? null) !== x.entryId)
+          throw new Error("stale");
+      for (const x of plan.minEffectiveDate ?? []) {
+        const top = this.newest(x.holdingId);
+        if (top && x.date < top.effectiveDate)
+          throw new Error("before_latest_entry");
+      }
+      if (plan.renameHolding) {
+        const r = plan.renameHolding;
+        const h = this.get(r.id);
+        const taken = [...this.holdings.values()].some(
+          (o) =>
+            o.id !== r.id &&
+            o.uiType === h.uiType &&
+            this.sameLabel(o.name, r.name),
+        );
+        if (taken) throw new Error("label_taken");
+      }
+      let walletId: string | null = null;
+      let walletType: string | null = null;
+      if (plan.walletCredit) {
+        const c = plan.walletCredit;
+        let w: MemWallet | undefined;
+        if ("create" in c.target) {
+          w = {
+            id: `w-${++this.seq}`,
+            name: c.target.create.name,
+            walletType: c.target.create.walletType,
+            currency: c.target.create.currency,
+            balance: "0",
+          };
+          this.wallets.set(w.id, w);
+        } else {
+          w = this.wallets.get(c.target.walletId);
+          if (!w && !c.reverse) throw new Error("not_found");
+        }
+        if (w) {
+          if (w.currency !== c.currency)
+            throw new Error("wallet_currency_mismatch");
+          const sign = c.reverse ? -1 : 1;
+          w.balance = (
+            Number(w.balance) +
+            sign * Number(c.amountMajor)
+          ).toFixed(4);
+          walletId = w.id;
+          walletType = w.walletType;
+        }
+      }
+      if (plan.renameHolding)
+        this.get(plan.renameHolding.id).name = plan.renameHolding.name.trim();
+      if (plan.restorePrice) {
+        const h = this.get(plan.restorePrice.id);
+        h.currentPriceCents = plan.restorePrice.priceCents;
+        h.currentPriceCurrency = plan.restorePrice.currency;
+      }
       let newHoldingId: string | null = null;
       if (plan.newHolding) {
         newHoldingId = `new-${++this.seq}`;
@@ -124,6 +221,8 @@ export class MemoryWorld {
         if (p.buyPriceCents !== undefined) h.buyPriceCents = p.buyPriceCents;
         if (p.currentPriceCents !== undefined)
           h.currentPriceCents = p.currentPriceCents;
+        if (p.currentPriceCurrency !== undefined)
+          h.currentPriceCurrency = p.currentPriceCurrency;
         if (p.depositStartDate !== undefined)
           h.depositStartDate = p.depositStartDate;
         if (p.archive) h.archivedAt = new Date();
@@ -158,6 +257,13 @@ export class MemoryWorld {
           transferId: e.transfer ? transferId : null,
           createdAt: String(this.seq).padStart(6, "0"),
           counterpartyName: null,
+          counterpartyHoldingId: null,
+          walletId: e.walletId === "$newWallet" ? walletId : e.walletId,
+          walletDeltaNumeric: e.walletDeltaNumeric,
+          walletCreated: e.walletCreated,
+          priorPriceCents: e.priorPriceCents,
+          priorPriceCurrency: e.priorPriceCurrency,
+          backfilled: e.backfilled,
           deleted: false,
         });
       }
@@ -165,7 +271,15 @@ export class MemoryWorld {
         this.holdings.delete(id);
         this.rows = this.rows.filter((r) => r.holdingId !== id);
       }
-      return { newHoldingId, transferId };
+      return { newHoldingId, transferId, walletId, walletType };
+    },
+    newestFor: async (_t, _u, holdingIds) => {
+      const out = new Map<string, StoredEntry | null>();
+      for (const id of holdingIds) {
+        const r = this.newest(id);
+        out.set(id, r ? this.stored(r) : null);
+      }
+      return out;
     },
     listFlows: async () =>
       this.live().map((r) => ({

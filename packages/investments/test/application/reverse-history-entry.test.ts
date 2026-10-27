@@ -256,6 +256,12 @@ describe("Delete an entry = full undo (D-06)", () => {
           priorPrincipalCents: null,
           priorStartDate: null,
           transfer: false,
+          walletId: null,
+          walletDeltaNumeric: null,
+          walletCreated: false,
+          priorPriceCents: null,
+          priorPriceCurrency: null,
+          backfilled: false,
         },
       ],
     });

@@ -33,6 +33,25 @@ export interface NewHolding {
   depositCapFrequency: string | null;
 }
 
+/** D-06 Edit: the only mutable asset fields. Quantity / cost / type are
+ *  ledger-owned (CR-01: a PATCH that wrote them raced /adjust). */
+export interface AssetEdit {
+  name?: string;
+  currentPriceCurrency?: string | null;
+  currentPriceCents?: bigint | string | null;
+}
+
+/** Autocomplete row (D-02): hidden (archived) assets included. */
+export interface AssetNameRow {
+  id: string;
+  name: string;
+  archived: boolean;
+  instrumentId: string | null;
+  quantity: string;
+  currentPriceCents: string | null;
+  currentPriceCurrency: string | null;
+}
+
 export interface HoldingRepo {
   create(
     tenantId: string,
@@ -40,13 +59,24 @@ export interface HoldingRepo {
     userId: string,
     input: NewHolding,
   ): Promise<Holding>;
-  /** Overwrites the mutable fields (callers read-modify-write). */
   update(
     tenantId: string,
     userId: string,
     id: string,
-    input: NewHolding,
+    input: AssetEdit,
   ): Promise<Holding | null>;
+  /** Case-insensitive, trimmed label match within a type; archived included. */
+  findByLabel(
+    tenantId: string,
+    budgetId: string,
+    uiType: string,
+    name: string,
+  ): Promise<Holding | null>;
+  listNames(
+    tenantId: string,
+    budgetId: string,
+    uiType: string,
+  ): Promise<AssetNameRow[]>;
   archive(tenantId: string, userId: string, id: string): Promise<void>;
   /** Active (non-archived) holdings; tracked-instrument current price joined from the cache. */
   listForBudget(

@@ -39,6 +39,8 @@ function stubRepo(holdings: Holding[]): HoldingRepo {
     archive: async () => {},
     reorder: async () => {},
     findById: async () => holdings[0] ?? null,
+    findByLabel: async () => null,
+    listNames: async () => [],
   };
 }
 

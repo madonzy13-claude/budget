@@ -12,7 +12,11 @@ export type HistoryKind =
   | "value_change"
   | "withdraw"
   | "convert_out"
-  | "convert_in";
+  | "convert_in"
+  // Phase 13.1 (0088): transfer legs (D-10) and hand-priced quantity updates (D-18).
+  | "transfer_out"
+  | "transfer_in"
+  | "price_change";
 
 export interface NewHistoryEntry {
   /** Holding id, or "$new" for the booking's newHolding. */
@@ -34,6 +38,29 @@ export interface NewHistoryEntry {
   priorStartDate: string | null;
   /** Both legs of a conversion carry true and share one transfer id. */
   transfer: boolean;
+  /** Wallet credited by an Out sale (D-20); "$newWallet" = the plan's created wallet. */
+  walletId: string | null;
+  /** Amount credited, wallet currency, major units (D-21). */
+  walletDeltaNumeric: string | null;
+  walletCreated: boolean;
+  /** Snapshot before value_change / price_change / broker add (D-18 undo). */
+  priorPriceCents: string | null;
+  priorPriceCurrency: string | null;
+  /** D-35 placeholder Start (migration only). */
+  backfilled: boolean;
+}
+
+/** D-21: a wallet balance moves by a delta inside the booking transaction. */
+export interface WalletCredit {
+  target:
+    | { walletId: string }
+    | { create: { name: string; walletType: string; currency: string } };
+  /** Positive major-unit decimal string. */
+  amountMajor: string;
+  /** Must equal the wallet's currency (WALT-04) or the commit rolls back. */
+  currency: string;
+  /** Undo of a sale: subtract instead of add (wallet missing → skipped). */
+  reverse?: boolean;
 }
 
 export interface HoldingPatch {
@@ -41,6 +68,7 @@ export interface HoldingPatch {
   quantity?: string;
   buyPriceCents?: bigint;
   currentPriceCents?: bigint | string | null;
+  currentPriceCurrency?: string | null;
   depositStartDate?: string;
   archive?: boolean;
   unarchive?: boolean;
@@ -55,6 +83,21 @@ export interface BookingPlan {
   softDeleteEntryIds?: string[];
   /** Holdings to hard-delete (FK cascades their own history). */
   deleteHoldingIds?: string[];
+  /** Phase 13.1: rows locked FOR UPDATE (sorted) before anything is checked. */
+  lockHoldingIds?: string[];
+  /** Re-checked under the lock; a different newest entry → "stale" (D-14). */
+  expectedNewestEntryId?: { holdingId: string; entryId: string | null }[];
+  /** Re-checked under the lock; an entry dated after `date` → "before_latest_entry" (D-15). */
+  minEffectiveDate?: { holdingId: string; date: string }[];
+  walletCredit?: WalletCredit;
+  /** Label change; a taken label → "label_taken" (D-07). */
+  renameHolding?: { id: string; name: string };
+  /** Snapshot undo of a price/value update (D-18). */
+  restorePrice?: {
+    id: string;
+    priceCents: string | null;
+    currency: string | null;
+  };
 }
 
 /** A live ledger row with everything its undo needs. */
@@ -78,6 +121,13 @@ export interface StoredEntry {
   createdAt: string;
   /** Name of the other leg's holding (conversions only). */
   counterpartyName: string | null;
+  counterpartyHoldingId: string | null;
+  walletId: string | null;
+  walletDeltaNumeric: string | null;
+  walletCreated: boolean;
+  priorPriceCents: string | null;
+  priorPriceCurrency: string | null;
+  backfilled: boolean;
 }
 
 export interface RealizedRow {
@@ -98,7 +148,19 @@ export interface HistoryRepo {
     tenantId: string,
     userId: string,
     plan: BookingPlan,
-  ): Promise<{ newHoldingId: string | null; transferId: string | null }>;
+  ): Promise<{
+    newHoldingId: string | null;
+    transferId: string | null;
+    /** Wallet the plan credited/created (for RESERVE/CUSHION recompute, D-37). */
+    walletId: string | null;
+    walletType: string | null;
+  }>;
+  /** Newest live entry per holding by (effective_date, created_at, id). */
+  newestFor(
+    tenantId: string,
+    userId: string,
+    holdingIds: string[],
+  ): Promise<Map<string, StoredEntry | null>>;
   /** Live (not deleted) entries' flows. Flow-0 rows included — they set the
    *  D-08 boundary. */
   listFlows(tenantId: string, budgetId: string): Promise<FlowRow[]>;
@@ -155,6 +217,12 @@ export function entry(
     priorPrincipalCents: null,
     priorStartDate: null,
     transfer: false,
+    walletId: null,
+    walletDeltaNumeric: null,
+    walletCreated: false,
+    priorPriceCents: null,
+    priorPriceCurrency: null,
+    backfilled: false,
     ...e,
   };
 }
