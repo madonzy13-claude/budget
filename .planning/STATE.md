@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: track)_
-status: executing
-stopped_at: Phase 13 UI-SPEC approved
-last_updated: "2026-10-26T11:20:44.037Z"
-last_activity: 2026-10-26
+status: Phase 13.1 ready to discuss
+stopped_at: Phase 13.1 context gathered
+last_updated: "2026-10-27T12:17:29.091Z"
+last_activity: 2026-10-27
 progress:
-  total_phases: 13
+  total_phases: 14
   completed_phases: 11
   total_plans: 104
   completed_plans: 104
-  percent: 85
+  percent: 79
 ---
 
 # Project State
@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 Phase: 13 (investments-type-based-groups-sell-convert-flow-realized-p-l) — EXECUTING
 Plan: 11 of 14
-Next: Phase 11 milestone done — Budget Overview tab live (cards + 4 chart sections + 3h wealth snapshot), localized EN/PL/UK, E2E-verified on dev host.
-Status: Ready to execute
-Last activity: 2026-10-26
+Next: Phase 13.1 inserted — /gsd:discuss-phase 13.1 (assets with transactions redesign); Phase 13 UAT paused at test 7
+Status: Phase 13.1 ready to discuss
+Last activity: 2026-10-27
 
 ### Known test-debt (non-CI, non-blocking)
 
@@ -115,6 +115,7 @@ _Updated after each plan completion_
 - Phase 10 added (2026-06-26): User Settings Redesign — 2-pill carousel (General · User) reusing the BDP pill/prefetch frame + Settings-tab accordion; remove AI/voice Provider feature end-to-end (incl. column-drop migration); add profile name/email edit (email re-verify), email-gated password change (reuses reset flow), active-sessions revoke + sign-out-others, Danger Zone account deletion (GDPR); build the missing logged-out forgot/reset-password pages + fix the dead sign-in link. Depends on Phase 3 (BDP frame) + Phase 6 (settings). _(v1.2 track)_
 - Phase 12 added (2026-08-29): Demo Account — one shared login for prospect walkthroughs, backed by a nightly pg-boss job that wipes and re-copies two real budgets (`Private Budget` → demo personal, `Family Budget` → demo family) into a demo tenant through an allowlist scrub manifest. Decided with the user: shared login (not per-visitor sandboxes), copied-from-live (not synthetic), nightly re-pull (not a frozen fixture) — the re-pull risk is bought off by the manifest preflight, which ABORTS the refresh on any unmanifested column instead of publishing it. Money uniformly scaled + PLN relabeled USD; demo user is a member of the demo budgets only, so RLS is the isolation guarantee (pinned by a new ci-gate test). Depends on Phase 9 (investments), Phase 10 (`purgeUserData` cascade order, reused for the wipe), Phase 11 (all-budgets aggregate, which the 2nd demo budget populates). _(v1.2 track)_
 - Phase 13 added (2026-10-25): Investments — type-based groups, sell/convert flow, realized P/L and contributions history. Groups become the investment type (no custom groups, no cross-type drag). Row actions Sell / Withdraw / Delete. A sale records realized gain on the source type, and the destination starts at the amount received. Contributions become money in − money out. Hand-entered value edits ask "value changed / added / withdrew". Existing holdings get a starting history entry, and the user supplies real history. Avoids the reverted per-group-name ledger (7b0664a) by keying on fixed types. Depends on Phase 12.
+- Phase 13.1 inserted after Phase 13: Redesign investments as assets grouping transactions; replaces Phase 13 sell sheet + edit 'What happened?' flows; Phase 13 UAT paused at test 7 (URGENT)
 
 ### Decisions
 
@@ -260,9 +261,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-10-25T19:37:21.833Z
-Stopped at: Phase 13 UI-SPEC approved
-Resume file: .planning/phases/13-investments-type-based-groups-sell-convert-flow-realized-p-l/13-UI-SPEC.md
+Last session: 2026-10-27T12:17:29.034Z
+Stopped at: Phase 13.1 context gathered
+Resume file: .planning/phases/13.1-investments-assets-with-transactions-type-asset-transaction-/13.1-CONTEXT.md
 
 ## v1.0 History (archived)
 

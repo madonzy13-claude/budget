@@ -434,3 +434,13 @@ Plans:
 ---
 
 _Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.1 requirements mapped. Phase 7 rescoped 2026-05-30: 3-kind set (RESERVE_TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET); TASK-05 dropped from v1.1; TASK-04 reassigned semantic to CUSHION_BELOW_TARGET. Phase 11 added 2026-06-28 (v1.2 Overview tab — single phase; budget-side compute-on-read + per-budget 3h wealth aggregate snapshot)._
+
+### Phase 13.1: Investments: assets with transactions (type → asset → transaction, Swap buy/sell/transfer, sell to wallet) (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 13
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 13.1 to break down)
