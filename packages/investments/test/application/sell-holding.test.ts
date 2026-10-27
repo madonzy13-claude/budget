@@ -68,6 +68,7 @@ function fakes(holdings: Holding[], rates: Record<string, string> = {}) {
     listForBudget: async () => holdings,
     findById: async (_t: string, _u: string, id: string) =>
       holdings.find((h) => h.id === id) ?? null,
+    findByLabel: async () => null,
   } as unknown as HoldingRepo;
   const historyRepo = {
     commit: async (_t: string, _u: string, plan: BookingPlan) => {

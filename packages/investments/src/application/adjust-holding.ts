@@ -37,7 +37,9 @@ export function adjustHolding(deps: {
       if (input.kind === "withdraw") {
         const r = await deps.sellHolding({
           ...input,
-          left: { valueCents: input.newValueCents },
+          // ponytail: adjust is removed in 13.1-15; its loose cents pass as strings.
+          receivedCents: String(input.receivedCents),
+          left: { valueCents: String(input.newValueCents) },
           destination: { kind: "out" },
         });
         return r.isErr() ? err(r.error) : ok({ ok: true });
