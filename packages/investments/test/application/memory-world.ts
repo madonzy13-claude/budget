@@ -113,6 +113,9 @@ export class MemoryWorld {
         ? (this.holdings.get(partner.holdingId)?.name ?? null)
         : null,
       counterpartyHoldingId: partner?.holdingId ?? null,
+      walletName: r.walletId
+        ? (this.wallets.get(r.walletId)?.name ?? null)
+        : null,
     };
   }
 
@@ -260,6 +263,7 @@ export class MemoryWorld {
           createdAt: String(this.seq).padStart(6, "0"),
           counterpartyName: null,
           counterpartyHoldingId: null,
+          walletName: null,
           walletId: e.walletId === "$newWallet" ? walletId : e.walletId,
           walletDeltaNumeric: e.walletDeltaNumeric,
           walletCreated: e.walletCreated,

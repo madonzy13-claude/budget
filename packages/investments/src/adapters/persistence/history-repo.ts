@@ -44,6 +44,7 @@ const ENTRY_SELECT = sql`
          h.prior_start_date::text AS prior_start_date,
          h.transfer_id::text AS transfer_id, h.created_at,
          h.wallet_id::text AS wallet_id,
+         (SELECT w.name FROM budgeting.wallets w WHERE w.id = h.wallet_id) AS wallet_name,
          h.wallet_delta_numeric::text AS wallet_delta_numeric, h.wallet_created,
          h.prior_price_cents::text AS prior_price_cents, h.prior_price_currency,
          h.backfilled,
@@ -89,6 +90,7 @@ function mapEntry(row: Record<string, unknown>): StoredEntry {
     counterpartyHoldingId:
       (row.counterparty_holding_id as string | null) ?? null,
     walletId: (row.wallet_id as string | null) ?? null,
+    walletName: (row.wallet_name as string | null) ?? null,
     walletDeltaNumeric: (row.wallet_delta_numeric as string | null) ?? null,
     walletCreated: row.wallet_created === true,
     priorPriceCents: (row.prior_price_cents as string | null) ?? null,

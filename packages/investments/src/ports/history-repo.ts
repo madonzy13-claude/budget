@@ -123,6 +123,8 @@ export interface StoredEntry {
   counterpartyName: string | null;
   counterpartyHoldingId: string | null;
   walletId: string | null;
+  /** Credited wallet's current name (null when none / deleted). */
+  walletName: string | null;
   walletDeltaNumeric: string | null;
   walletCreated: boolean;
   priorPriceCents: string | null;
