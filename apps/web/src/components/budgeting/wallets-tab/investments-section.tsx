@@ -48,7 +48,6 @@ import { setDndDragging } from "@/lib/dnd-dragging";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
 import { parseDecimal } from "@/lib/decimal";
 import { unitPriceCents, type UiType } from "@/lib/investment-types";
-import { useDeleteHolding } from "@/hooks/use-delete-holding";
 import {
   buildTypeBlocks,
   moveTypeBlock,
@@ -178,7 +177,6 @@ export function InvestmentsSection({
   const updateMut = useUpdateHolding(budgetId);
   const reorderMut = useReorderHoldings(budgetId);
   const setOrderMut = useSetTypeOrder(budgetId);
-  const deleteMut = useDeleteHolding(budgetId);
   // One Sell sheet for the section (D-01).
   const [selling, setSelling] = useState<HoldingDto | null>(null);
   const [sellLeft, setSellLeft] = useState<string | undefined>(undefined);
@@ -489,8 +487,8 @@ export function InvestmentsSection({
                           nested
                           maxAmountChars={amountCols.group[block.uiType]}
                           onEdit={openEdit}
-                          onArchive={(id) => deleteMut.mutate(id)}
-                          onSell={(h) => {
+                          // ponytail: Swap opens the Phase 13 sell sheet until 13.1-11 wires the Swap sheet.
+                          onSwap={(h) => {
                             setSellLeft(undefined);
                             setSelling(h);
                           }}

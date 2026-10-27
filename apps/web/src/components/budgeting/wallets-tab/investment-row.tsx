@@ -1,6 +1,11 @@
 "use client";
 /**
- * investment-row.tsx — Read-only holding row presentation (Phase 9, INV-06/09).
+ * investment-row.tsx — L2 asset row (Phase 9 holding row → 13.1 D-27/D-29).
+ *
+ * A tap toggles the row on every viewport: stats on the row's own background
+ * (P/L, Avg price · Qty · Share) and, via onToggle, the L3 ledger strip the
+ * section renders underneath. No chevron. Swap · Edit are explicit actions
+ * (hover on desktop, swipe on mobile, D-05) — no asset delete.
  *
  * Pure presentational: NO inline inputs (editing is sheet-only). Desktop renders
  * all fields on one line with hover pen + trash; mobile collapses to
@@ -13,9 +18,9 @@
  * exception); cash / no-basis renders "—" in --muted-strong; a delisted row is
  * dimmed (opacity-50, --muted-strong) which overrides any P/L color (D-09/25).
  */
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { ArrowRightLeft, TrendingUp, TrendingDown, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Pencil, TrendingUp, TrendingDown } from "lucide-react";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { Input } from "@/components/ui/input";
 import { centsToBare } from "@/lib/cents-format";
@@ -37,9 +42,12 @@ interface InvestmentRowProps {
    *  the currency codes line up in a column (mirrors wallet-row). */
   maxAmountChars?: number;
   onEdit?: () => void;
-  onDelete?: () => void;
-  /** Phase 13: open the Sell sheet (D-01). */
-  onSell?: () => void;
+  /** 13.1 D-05: open the Swap sheet (Buy / Sell / Transfer). */
+  onSwap?: () => void;
+  /** 13.1 D-27: the row opened/closed — the section shows/hides its ledger. */
+  onToggle?: (id: string, open: boolean) => void;
+  /** Open state owned by the section (persisted per device); seeds local state. */
+  open?: boolean;
   /**
    * 260731: save an inline-edited VALUE (decimal string, row currency) for
    * manual-value holdings — cash / broker / savings, where quantity is 1 so the
@@ -61,8 +69,9 @@ export function InvestmentRow({
   nested,
   maxAmountChars,
   onEdit,
-  onDelete,
-  onSell,
+  onSwap,
+  onToggle,
+  open,
   onValueChange,
 }: InvestmentRowProps) {
   const locale = useLocale();
@@ -71,30 +80,14 @@ export function InvestmentRow({
   // lifetime (round 18 item 2) — seed from + write to the BDP store by holding id.
   const bdpStore = useBdpUiStore();
   const [expanded, setExpanded] = useState(
-    () => bdpStore?.wallets.expandedRows[holding.id] ?? false,
+    () => open ?? bdpStore?.wallets.expandedRows[holding.id] ?? false,
   );
-
-  // Desktop has no hover edit pen anymore (UAT #7) — a desktop row-click opens the
-  // edit sheet instead. On mobile the same click toggles the inline P/L (the pen
-  // lives in the swipe panel). matchMedia drives which behaviour the body click
-  // uses; defaults to mobile until mounted (SSR-safe, test-safe).
-  const [isDesktop, setIsDesktop] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 640px)");
-    const sync = () => setIsDesktop(mq.matches);
-    sync();
-    mq.addEventListener?.("change", sync);
-    return () => mq.removeEventListener?.("change", sync);
-  }, []);
   const [shaking, setShaking] = useState(false);
   const activate = () => {
-    if (isDesktop) onEdit?.();
-    else
-      setExpanded((e) => {
-        const next = !e;
-        if (bdpStore) bdpStore.wallets.expandedRows[holding.id] = next;
-        return next;
-      });
+    const next = !expanded;
+    setExpanded(next);
+    if (bdpStore) bdpStore.wallets.expandedRows[holding.id] = next;
+    onToggle?.(holding.id, next);
   };
 
   const currency = holding.currentPriceCurrency ?? holding.buyCurrency ?? "";
@@ -141,6 +134,12 @@ export function InvestmentRow({
       (holding.instrumentProvider != null &&
         !isAutoPriced(holding.instrumentProvider)));
   const isSavings = holding.uiType === "savings";
+  // D-29: average buy price per unit, quantity assets only (an amount asset's
+  // "price" is its total cost).
+  const avgPrice =
+    showQty && holding.buyPriceCents != null
+      ? centsToBare(holding.buyPriceCents, locale)
+      : null;
   const startedDisplay =
     isSavings && holding.buyPriceCents != null
       ? centsToBare(holding.buyPriceCents, locale)
@@ -231,12 +230,9 @@ export function InvestmentRow({
         role="button"
         tabIndex={0}
         data-nav-open
-        aria-expanded={isDesktop ? undefined : expanded}
-        aria-label={
-          isDesktop
-            ? t("row.editAria", { name: holding.name })
-            : t("rowExpandAria", { name: holding.name })
-        }
+        data-testid={`asset-row-${holding.id}`}
+        aria-expanded={expanded}
+        aria-label={t("rowExpandAria", { name: holding.name })}
         onClick={activate}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -319,6 +315,14 @@ export function InvestmentRow({
                 </span>
               </div>
               <div className="text-caption text-[var(--muted-foreground)] tabular-nums">
+                {avgPrice != null && (
+                  <>
+                    <span>
+                      {t("typeGroup.stats.avgPrice", { price: avgPrice })}
+                    </span>
+                    <span aria-hidden="true"> · </span>
+                  </>
+                )}
                 {showQty && (
                   <>
                     <span>{t("row.qty", { qty: qtyDisplay })}</span>
@@ -425,46 +429,39 @@ export function InvestmentRow({
         </span>
       </div>
 
-      {/* Desktop hover action — trash only (the edit pen was removed in UAT #7;
-          a desktop row-click opens the edit sheet). Dimmed with the content when
-          delisted; the handle (left) stays full opacity. The fixed w-7 matches the
-          group header's trailing spacer so right edges line up. */}
+      {/* Desktop hover actions: Swap · Edit (D-05). Dimmed with the content
+          when delisted; the handle (left) stays full opacity. */}
       <div
         className={[
-          "hidden shrink-0 items-center justify-end gap-1 sm:flex",
-          onSell ? "w-[60px]" : "w-7",
+          "hidden w-[60px] shrink-0 items-center justify-end gap-1 sm:flex",
           delisted ? "opacity-50" : "",
         ]
           .filter(Boolean)
           .join(" ")}
       >
-        {onSell && (
-          <button
-            type="button"
-            data-testid={`investment-sell-desktop-${holding.id}`}
-            aria-label={`${t("sell.action")} ${holding.name}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onSell();
-            }}
-            className="invisible flex h-7 w-7 items-center justify-center rounded group-hover:visible group-data-[nav-highlighted=true]:visible"
-            style={{ color: "var(--body-on-dark)" }}
-          >
-            <ArrowRightLeft className="h-4 w-4" aria-hidden="true" />
-          </button>
+        {(
+          [
+            [onSwap, ArrowRightLeft, "asset.swipe.swap", "swap"],
+            [onEdit, Pencil, "asset.swipe.edit", "edit"],
+          ] as const
+        ).map(([fn, Icon, key, id]) =>
+          fn ? (
+            <button
+              key={id}
+              type="button"
+              data-testid={`investment-${id}-desktop-${holding.id}`}
+              aria-label={`${t(key)} ${holding.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                fn();
+              }}
+              className="invisible flex h-7 w-7 items-center justify-center rounded group-hover:visible group-focus-within:visible group-data-[nav-highlighted=true]:visible"
+              style={{ color: "var(--body-on-dark)" }}
+            >
+              <Icon className="h-4 w-4" aria-hidden="true" />
+            </button>
+          ) : null,
         )}
-        <button
-          type="button"
-          data-nav-delete
-          aria-label={t("row.deleteAria", { name: holding.name })}
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete?.();
-          }}
-          className="invisible flex h-7 w-7 items-center justify-center rounded text-[var(--destructive)] group-hover:visible group-data-[nav-highlighted=true]:visible"
-        >
-          <Trash2 className="h-4 w-4" aria-hidden="true" />
-        </button>
       </div>
     </div>
   );

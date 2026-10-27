@@ -1,12 +1,12 @@
 "use client";
 /**
- * investment-type-header.tsx — Phase 13 type group header (D-13..D-16).
+ * investment-type-header.tsx — L1 type header (Phase 13 D-13..D-16, 13.1 D-26).
  *
- * Groups are the holding's TYPE. Left: drag handle · chevron · type name with a
- * muted "incl. realized +X" sub-line (only when realized ≠ 0). Right: value
- * over total P/L amount + % (P/L % = total ÷ lifetime cost, D-16). Tapping the
- * value area toggles the split: Unrealized / Realized / Total P/L / Lifetime
- * return.
+ * Left: drag handle · chevron · type name, no indent (UAT test 2). Right: the
+ * type value only. Tapping the value area shows a sum-up that mirrors the asset
+ * row: line 1 total P/L % then amount (P/L % = total ÷ lifetime cost, D-16),
+ * line 2 a muted caption "unrealized · realized · share" with each figure
+ * coloured by sign.
  *
  * Color: P/L via inline style tokens only (tailwind-merge drops var() text colors).
  * Testids keep the investment-group-* names so existing page objects still work.
@@ -108,68 +108,62 @@ export function InvestmentTypeHeader({
         >
           {name}
         </span>
-        {pl.realizedCents !== 0 && (
-          <span
-            data-testid={`investment-type-realized-${uiType}`}
-            className="text-[12px] leading-[1.4]"
-            style={{ color: "var(--muted-foreground)" }}
-          >
-            {/* Words muted, amount colored: split the message at the amount. */}
-            {t("typeGroup.inclRealized", { amount: SLOT })
-              .split(SLOT)
-              .flatMap((part, i) =>
-                i === 0
-                  ? [part]
-                  : [
-                      <span
-                        key="amt"
-                        data-signed
-                        className="num"
-                        style={{ color: signColor(pl.realizedCents) }}
-                      >
-                        {signed(pl.realizedCents)}
-                      </span>,
-                      part,
-                    ],
-              )}
-          </span>
-        )}
         {showSplit && (
-          <dl
+          <div
             data-testid={`investment-type-split-${uiType}`}
-            className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 pt-1 text-[12px] leading-[1.4]"
+            className="flex min-w-0 flex-col gap-0.5"
           >
-            {(
-              [
-                [
-                  "typeGroup.unrealized",
-                  signed(pl.unrealizedCents),
-                  pl.unrealizedCents,
-                ],
-                [
-                  "typeGroup.realized",
-                  signed(pl.realizedCents),
-                  pl.realizedCents,
-                ],
-                ["typeGroup.totalPl", signed(pl.totalPLCents), pl.totalPLCents],
-                [
-                  "typeGroup.lifetimeReturn",
-                  pl.pct == null ? "—" : pctText(pl.pct),
-                  pl.pct ?? 0,
-                ],
-              ] as const
-            ).map(([k, v, n]) => (
-              <div key={k} className="contents">
-                <dt style={{ color: "var(--muted-foreground)" }}>{t(k)}</dt>
-                <dd
-                  className="num text-right tabular-nums"
-                  style={{ color: signColor(n) }}
+            <span
+              data-pl-line
+              className="num flex items-baseline gap-2 text-[14px] leading-[1.5] tabular-nums"
+            >
+              {pl.pct == null ? (
+                <span style={{ color: "var(--muted-strong)" }}>—</span>
+              ) : (
+                <span
+                  aria-label={t("plAria", { value: pctText(pl.pct) })}
+                  style={{ color: signColor(pl.pct) }}
                 >
-                  {v}
-                </dd>
-              </div>
-            ))}
-          </dl>
+                  {pctText(pl.pct)}
+                </span>
+              )}
+              <span style={{ color: signColor(pl.totalPLCents) }}>
+                {signed(pl.totalPLCents)}
+              </span>
+            </span>
+            <span
+              data-pl-caption
+              className="min-w-0 break-words text-[12px] leading-[1.4]"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              {/* Words muted, figures coloured: split the message at each slot. */}
+              {t("typeGroup.summaryCaption", { u: SLOT, r: SLOT, s: SLOT })
+                .split(SLOT)
+                .flatMap((part, i) => {
+                  if (i === 0) return [part];
+                  const [text, n] = (
+                    [
+                      [signed(pl.unrealizedCents), pl.unrealizedCents],
+                      [signed(pl.realizedCents), pl.realizedCents],
+                      [`${portfolioPct.toFixed(1)}%`, 0],
+                    ] as const
+                  )[i - 1]!;
+                  return [
+                    <span
+                      key={i}
+                      data-signed
+                      className="num"
+                      style={{
+                        color: i === 3 ? "var(--body-on-dark)" : signColor(n),
+                      }}
+                    >
+                      {text}
+                    </span>,
+                    part,
+                  ];
+                })}
+            </span>
+          </div>
         )}
       </div>
 
@@ -204,21 +198,6 @@ export function InvestmentTypeHeader({
           >
             {money(pl.valueBudgetCents)}
           </span>
-        </span>
-        <span className="num flex items-baseline gap-2 text-[14px] leading-[1.5]">
-          <span style={{ color: signColor(pl.totalPLCents) }}>
-            {signed(pl.totalPLCents)}
-          </span>
-          {pl.pct == null ? (
-            <span style={{ color: "var(--muted-strong)" }}>—</span>
-          ) : (
-            <span
-              aria-label={t("plAria", { value: pctText(pl.pct) })}
-              style={{ color: signColor(pl.pct) }}
-            >
-              {pctText(pl.pct)}
-            </span>
-          )}
         </span>
       </div>
     </div>
