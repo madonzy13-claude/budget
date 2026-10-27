@@ -440,7 +440,7 @@ _Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.
 **Goal:** Every investment type becomes type → asset → entries: same-name buys join one asset (DCA), each asset has Swap (Buy / Sell / Transfer) and a slim Edit, entries are an immutable date-ordered ledger deletable newest-first only, and selling out of investments can credit a budget wallet. Migration 0088 merges existing same-name holdings.
 **Requirements**: CONTEXT decisions D-01..D-37 (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 12/16 plans executed
+**Plans:** 13/16 plans executed
 
 Plans:
 
@@ -456,7 +456,7 @@ Plans:
 - [x] 13.1-10-PLAN.md — Backend create-or-join, Swap Buy, slim Edit, names endpoint (wave 4)
 - [x] 13.1-11-PLAN.md — Web Add autocomplete, Edit sheet, wiring, remove Phase 13 sell/history UI (wave 4)
 - [x] 13.1-12-PLAN.md — Backend Sell with destination-by-label + sell to wallet + RESERVE/CUSHION recompute (wave 5)
-- [ ] 13.1-13-PLAN.md — Backend Transfer (wave 6)
+- [x] 13.1-13-PLAN.md — Backend Transfer (wave 6)
 - [ ] 13.1-14-PLAN.md — Backend ledger list + LIFO delete use cases + routes (wave 7)
 - [ ] 13.1-15-PLAN.md — Remove legacy adjust/delete/history paths, tenant-leak, D-32 CR re-check (wave 8)
 - [ ] 13.1-16-PLAN.md — E2E Gherkin, rebuild, full gate, 3-locale phone drive, user check (wave 9, checkpoint)
