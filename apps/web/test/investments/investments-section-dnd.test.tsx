@@ -230,3 +230,104 @@ describe("Type-block drag and drop (D-12)", () => {
     expect(sent.order).toEqual(["crypto", "stocks"]);
   });
 });
+
+describe("Asset rows and ledger (13.1 D-17, D-27, D-28, D-30)", () => {
+  it("opening an asset remembers it per device and shows its ledger outside the sortable row", async () => {
+    const { unmount } = mount();
+    expect(
+      document.querySelector('[data-testid="asset-ledger-s1"]'),
+    ).toBeNull();
+    await act(async () => {
+      (
+        document.querySelector('[data-testid="asset-row-s1"]') as HTMLElement
+      ).click();
+    });
+    expect(JSON.parse(localStorage.getItem("inv.assetOpen.v1")!)).toEqual([
+      "s1",
+    ]);
+    const strip = document.querySelector('[data-testid="asset-ledger-s1"]');
+    expect(strip).not.toBeNull();
+    expect(strip!.closest("[data-investment-row-wrapper]")).toBeNull();
+    unmount();
+    mount();
+    expect(
+      document.querySelector('[data-testid="asset-ledger-s1"]'),
+    ).not.toBeNull();
+  });
+
+  it("an asset with quantity 0 is not rendered", () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    qc.setQueryData(["budget", B, "detail"], {
+      investmentsEnabled: true,
+      defaultCurrency: "PLN",
+    });
+    qc.setQueryData(
+      ["budget", B, "investments"],
+      [...holdings(), { ...base("z0", "crypto", 4), quantity: "0" }],
+    );
+    qc.setQueryData<TypeSummaryDto>(typeSummaryKey(B), {
+      currency: "PLN",
+      order: [],
+      types: {},
+    });
+    render(
+      <QueryClientProvider client={qc}>
+        <InvestmentsSection budgetId={B} budgetCurrency="PLN" />
+      </QueryClientProvider>,
+    );
+    expect(
+      document.querySelector('[data-investment-row-wrapper="z0"]'),
+    ).toBeNull();
+    expect(
+      document.querySelector('[data-investment-row-wrapper="c1"]'),
+    ).not.toBeNull();
+  });
+
+  it("an inline value edit is booked as a value update (currentValueCents), never a raw price", async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    qc.setQueryData(["budget", B, "detail"], {
+      investmentsEnabled: true,
+      defaultCurrency: "PLN",
+    });
+    qc.setQueryData(
+      ["budget", B, "investments"],
+      [{ ...base("k1", "cash", 1), holdingType: "cash_fx", name: "Pot" }],
+    );
+    qc.setQueryData<TypeSummaryDto>(typeSummaryKey(B), {
+      currency: "PLN",
+      order: [],
+      types: {},
+    });
+    render(
+      <QueryClientProvider client={qc}>
+        <InvestmentsSection budgetId={B} budgetCurrency="PLN" />
+      </QueryClientProvider>,
+    );
+    await act(async () => {
+      (
+        document.querySelector(
+          '[data-testid="holding-amount-k1"]',
+        ) as HTMLElement
+      ).click();
+    });
+    const input = document.querySelector(
+      '[data-testid="holding-amount-k1"] input, input[inputmode="decimal"]',
+    ) as HTMLInputElement;
+    const { fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "123.45" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+    });
+    const patch = mockWrite.mock.calls.find(
+      ([, init]) => (init as RequestInit).method === "PATCH",
+    );
+    expect(patch).toBeDefined();
+    expect(JSON.parse(String((patch![1] as RequestInit).body))).toEqual({
+      currentValueCents: "12345",
+    });
+  });
+});
