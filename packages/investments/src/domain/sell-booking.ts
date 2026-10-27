@@ -18,9 +18,10 @@ import Big from "big.js";
 
 const HALF_EVEN = 2;
 
-const big = (n: bigint | string): Big => new Big(n.toString());
-const cents = (b: Big): bigint => BigInt(b.round(0, HALF_EVEN).toFixed(0));
-const qty = (b: Big): string => {
+export const big = (n: bigint | string): Big => new Big(n.toString());
+export const cents = (b: Big): bigint =>
+  BigInt(b.round(0, HALF_EVEN).toFixed(0));
+export const qty = (b: Big): string => {
   const s = b.toFixed(8);
   return s.includes(".") ? s.replace(/\.?0+$/, "") : s;
 };
