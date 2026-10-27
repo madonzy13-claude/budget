@@ -26,7 +26,7 @@ vi.mock("next-intl", () => ({
           {
             "uitype.stocks": "Stocks & ETFs",
             "uitype.crypto": "Crypto",
-            "typeGroup.inclRealized": "incl. realized {amount}",
+            "ledger.realized": "realized {amount}",
           } as Record<string, string>
         )[key] ?? key;
       if (params)
@@ -165,7 +165,7 @@ describe("Investments as type groups", () => {
     ]);
     expect(screen.queryByTestId("investment-group-broker")).toBeNull();
     expect(screen.getByTestId("investments-total-realized")).toHaveTextContent(
-      "incl. realized +5,000",
+      "realized +5,000",
     );
   });
 

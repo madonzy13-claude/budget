@@ -478,7 +478,7 @@ export function InvestmentsSection({
           className="px-3 text-[12px] leading-[1.4]"
           style={{ color: "var(--muted-foreground)" }}
         >
-          {t("typeGroup.inclRealized", {
+          {t("ledger.realized", {
             amount: signed(total.hiddenRealizedCents),
           })}
         </p>

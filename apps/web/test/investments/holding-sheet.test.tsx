@@ -7,7 +7,7 @@
  * - Precious metals type: metal + kind + UoM fields present
  * - Dirty close fires the discard-confirm dialog
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import {
   HoldingSheet,

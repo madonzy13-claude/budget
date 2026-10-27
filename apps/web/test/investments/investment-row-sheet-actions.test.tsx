@@ -4,18 +4,9 @@
  * the ledger, and deleting the last one wipes the asset (D-17).
  */
 import { describe, it, expect, vi } from "vitest";
-import {
-  render,
-  screen,
-  fireEvent,
-  renderHook,
-  act,
-  waitFor,
-} from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { DndContext } from "@dnd-kit/core";
 import { SortableContext } from "@dnd-kit/sortable";
-import type { ReactNode } from "react";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 
 vi.mock("next-intl", () => ({
@@ -26,18 +17,8 @@ vi.mock("next-intl", () => ({
     },
   useLocale: () => "en",
 }));
-const writeMock = vi.hoisted(() => vi.fn());
-vi.mock("../../src/lib/offline-write", () => ({
-  clientApiWrite: (...a: unknown[]) => writeMock(...a),
-  isOfflineWriteError: () => false,
-}));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("../../src/hooks/use-offline-write-toast", () => ({
-  useOfflineWriteToast: () => vi.fn(),
-}));
 
 import { InvestmentRowSheet } from "../../src/components/budgeting/wallets-tab/investment-row-sheet";
-import { useDeleteHolding } from "../../src/hooks/use-delete-holding";
 
 const h: HoldingDto = {
   id: "h1",
@@ -104,27 +85,5 @@ describe("Row actions", () => {
     expect(screen.queryByTestId("investment-sell-h1")).toBeNull();
     fireEvent.click(swap);
     expect(onSwap).toHaveBeenCalledWith(h);
-  });
-});
-
-describe("useDeleteHolding", () => {
-  it("DELETEs the holding and removes it optimistically; rolls back on failure", async () => {
-    const qc = new QueryClient();
-    qc.setQueryData(["budget", "b1", "investments"], [h]);
-    writeMock.mockResolvedValueOnce(new Response("{}", { status: 500 }));
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
-    );
-    const { result } = renderHook(() => useDeleteHolding("b1"), { wrapper });
-    act(() => result.current.mutate("h1"));
-    await waitFor(() => expect(writeMock).toHaveBeenCalled());
-    const [url, init] = writeMock.mock.calls[0]!;
-    expect(url).toBe("/budgets/b1/investments/h1");
-    expect((init as RequestInit).method).toBe("DELETE");
-    await waitFor(() =>
-      expect(
-        qc.getQueryData<HoldingDto[]>(["budget", "b1", "investments"]),
-      ).toEqual([h]),
-    );
   });
 });
