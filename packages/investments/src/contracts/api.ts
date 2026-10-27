@@ -346,8 +346,9 @@ export const centsString = z
   .regex(/^\d{1,18}$/, "invalid_cents")
   .refine(isSaneMagnitude, "cents out of range");
 /** CR-03: money the user moves must be > 0. */
+// Zod v4 still runs refines after a failed regex — guard before BigInt().
 export const positiveCents = centsString.refine(
-  (v) => BigInt(v) > 0n,
+  (v) => /^\d+$/.test(v) && BigInt(v) > 0n,
   "positive",
 );
 /** Quantity > 0 with at most 8 decimals (IN-02: no rounding up to a full sale). */

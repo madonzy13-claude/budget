@@ -251,7 +251,11 @@ describe("Investments routes", () => {
     });
     expect(res.status).toBe(200);
     const after = (await res.json()) as any;
-    expect(after).toMatchObject({ name: "Bond fund II", quantity: "3.00000000", buyPriceCents: "1000" });
+    expect(after).toMatchObject({
+      name: "Bond fund II",
+      quantity: "3.00000000",
+      buyPriceCents: "1000",
+    });
   });
 
   it("a holding created under tenant B is NOT visible in tenant A's GET (RLS, INV-03)", async () => {

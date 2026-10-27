@@ -752,13 +752,14 @@ describe("Edit, history, undo, type summary, delete (13-08)", () => {
     expect(await holdingState(b, theirs)).toMatchObject({ buy: "1718750" });
   });
 
-  it("PATCH that changes the buy price → 422 use_adjust", async () => {
+  // 13.1 (D-06, CR-01): the Edit body is strict — cost is not a field at all.
+  it("PATCH that sends a buy price → 422 (ledger-owned field)", async () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
     const b = await brokerSeed(fix);
     const res = await req(app, "PATCH", `/${b}`, { buyPriceCents: "1" });
     expect(res.status).toBe(422);
-    expect(((await res.json()) as { error: string }).error).toBe("use_adjust");
+    expect(await holdingState(fix, b)).toMatchObject({ buy: "5500000" });
   });
 
   it("type summary keeps a sold-out type's realized (D-14)", async () => {

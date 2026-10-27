@@ -12,6 +12,7 @@
  *               prior price kept for snapshot undo.
  */
 import { ok, err, type Result } from "neverthrow";
+import { Temporal } from "temporal-polyfill";
 import type { FxProvider } from "@budget/shared-kernel";
 import type { Holding } from "../domain/holding";
 import { priceChange } from "../domain/asset-ledger";
@@ -41,8 +42,9 @@ export function editAsset(deps: {
       actorUserId: string;
       budgetCurrency: string;
       holdingId: string;
-      /** Viewer-timezone today: value/price entries are dated by it. */
-      today: string;
+      /** Value/price entries are dated by the viewer's today (their timezone). */
+      today?: string;
+      timezone?: string;
     },
   ): Promise<Result<Holding, Error>> => {
     try {
@@ -52,7 +54,10 @@ export function editAsset(deps: {
         input.holdingId,
       );
       if (!h) return err(fail("not_found"));
-      const rate = makeRate(deps.fxProvider, input.today);
+      const today =
+        input.today ??
+        Temporal.Now.plainDateISO(input.timezone ?? "UTC").toString();
+      const rate = makeRate(deps.fxProvider, today);
       const patch: HoldingPatch = { id: h.id };
       const plan: BookingPlan = {
         budgetId: input.budgetId,
@@ -101,7 +106,7 @@ export function editAsset(deps: {
           entry({
             holdingRef: h.id,
             kind: amountAsset ? "value_change" : "price_change",
-            effectiveDate: input.today,
+            effectiveDate: today,
             amountCents: cents(big(newPrice)),
             amountCurrency: ccy,
             valueDeltaCents: cents(big(newPrice).minus(big(prior)).times(qty)),
@@ -110,7 +115,7 @@ export function editAsset(deps: {
             priorPriceCurrency: ccy,
           }),
         );
-        plan.minEffectiveDate = [{ holdingId: h.id, date: input.today }];
+        plan.minEffectiveDate = [{ holdingId: h.id, date: today }];
         patch.currentPriceCents = newPrice;
         patch.currentPriceCurrency = ccy;
       }

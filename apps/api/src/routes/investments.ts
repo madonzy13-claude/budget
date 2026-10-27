@@ -69,14 +69,95 @@ export function createInvestmentsRoute(deps: BootedDeps) {
     const session = c.get("session");
     const tenantId = pickTenant(c);
     const userId = (c.get("userId") as string) ?? session?.user?.id;
+    const budget = await deps.tenancy.workspaceRepo.findById(tenantId);
     const r = await deps.investments.createHolding({
       ...parsed.data,
       tenantId,
       budgetId: tenantId,
       actorUserId: userId,
+      budgetCurrency: budget?.default_currency ?? "EUR",
     });
     if (r.isErr()) return c.json({ error: r.error.message }, 422);
-    return c.json(serializeHolding(r.value), 201);
+    // 13.1 D-02: a name that already exists in the type joined that asset.
+    return c.json(
+      { ...serializeHolding(r.value.holding), joined: r.value.joined },
+      201,
+    );
+  });
+
+  // ── 13.1: shared error mapping + id validation ─────────────────────────
+  const CONFLICT = new Set(["not_newest", "linked_not_newest", "stale"]);
+  const fail = (
+    c: Context,
+    e: Error & { currency?: string; date?: string },
+    known: Set<string>,
+    code: string,
+  ) => {
+    if (e.message === "not_found") return c.json({ error: "not_found" }, 404);
+    if (e.message === "fx_unavailable")
+      return c.json(
+        { error: "fx_unavailable", currency: e.currency, date: e.date },
+        422,
+      );
+    if (CONFLICT.has(e.message)) return c.json({ error: e.message }, 409);
+    if (known.has(e.message)) return c.json({ error: e.message }, 422);
+    // Backstop: a malformed number reaching BigInt() (WR-01).
+    if (e instanceof SyntaxError)
+      return c.json({ error: "invalid_cents" }, 422);
+    return serverError(c, code, e);
+  };
+  const who = (c: Context) => {
+    const tenantId = pickTenant(c);
+    const userId = (c.get("userId") as string) ?? c.get("session")?.user?.id;
+    return { tenantId, budgetId: tenantId, actorUserId: userId };
+  };
+  /** WR-02: a non-uuid id never reaches Postgres (would be a 500). */
+  const badId = async (id: string) =>
+    !(await getSchemas()).uuidParam.safeParse(id).success;
+  const assetErrors = async () =>
+    new Set<string>((await getSchemas()).INVESTMENT_ERRORS[422]);
+  const viewerTz = async (userId: string) =>
+    (await deps.identity.userRepo.findById(UserId(userId)))?.timezone ?? "UTC";
+  const invalid = (c: Context, issues: { message: string }[]) =>
+    c.json({ error: issues[0]?.message ?? "validation_error", issues }, 422);
+
+  // GET /names?type= — autocomplete over a type's assets, hidden included
+  // (D-02). Registered before every /:id route so "names" is never an id.
+  app.get("/names", async (c) => {
+    const { assetNamesQuerySchema } = await getSchemas();
+    if (!c.get("session")) return c.json({ error: "unauthorized" }, 401);
+    const parsed = assetNamesQuerySchema.safeParse({
+      type: c.req.query("type"),
+    });
+    if (!parsed.success) return invalid(c, parsed.error.issues);
+    const w = who(c);
+    const r = await deps.investments.listAssetNames({
+      ...w,
+      uiType: parsed.data.type,
+    });
+    if (r.isErr()) return serverError(c, "asset_names_failed", r.error);
+    return c.json({ names: r.value });
+  });
+
+  // POST /:id/buy — Swap → Buy (D-08)
+  app.post("/:id/buy", async (c) => {
+    const { buyAssetSchema } = await getSchemas();
+    if (!c.get("session")) return c.json({ error: "unauthorized" }, 401);
+    const id = c.req.param("id");
+    if (await badId(id)) return c.json({ error: "not_found" }, 404);
+    const body = await c.req.json().catch(() => null);
+    const parsed = buyAssetSchema.safeParse(body);
+    if (!parsed.success) return invalid(c, parsed.error.issues);
+    const w = who(c);
+    const budget = await deps.tenancy.workspaceRepo.findById(w.tenantId);
+    const r = await deps.investments.buyIntoAsset({
+      ...parsed.data,
+      ...w,
+      budgetCurrency: budget?.default_currency ?? "EUR",
+      holdingId: id,
+    });
+    if (r.isErr()) return fail(c, r.error, await assetErrors(), "buy_failed");
+    return c.json(r.value, 201);
   });
 
   // GET / — enriched list (value / P-L % / weight %)
@@ -170,37 +251,27 @@ export function createInvestmentsRoute(deps: BootedDeps) {
     return c.json(r.value, 200);
   });
 
-  // PATCH /:id — partial update
+  // PATCH /:id — asset Edit (D-06): label, display currency, hand value or
+  // price. Strict body: quantity / cost / type are ledger-owned (CR-01).
   app.patch("/:id", async (c) => {
-    const { updateHoldingSchema } = await getSchemas();
-    const session = c.get("session");
-    if (!session) return c.json({ error: "unauthorized" }, 401);
-    const tenantId = pickTenant(c);
-    const userId = (c.get("userId") as string) ?? session?.user?.id;
-    const { id: holdingId } = c.req.param();
+    const { editAssetSchema } = await getSchemas();
+    if (!c.get("session")) return c.json({ error: "unauthorized" }, 401);
+    const id = c.req.param("id");
+    if (await badId(id)) return c.json({ error: "not_found" }, 404);
     const body = await c.req.json().catch(() => null);
-    if (!body) return c.json({ error: "Invalid JSON" }, 422);
-    const parsed = updateHoldingSchema.safeParse(body);
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: parsed.error.issues[0]?.message ?? "validation_error",
-          issues: parsed.error.issues,
-        },
-        422,
-      );
-    }
-    const r = await deps.investments.updateHolding({
+    const parsed = editAssetSchema.safeParse(body);
+    if (!parsed.success) return invalid(c, parsed.error.issues);
+    const w = who(c);
+    const budget = await deps.tenancy.workspaceRepo.findById(w.tenantId);
+    const r = await deps.investments.editAsset({
       ...parsed.data,
-      tenantId,
-      holdingId,
-      actorUserId: userId,
+      ...w,
+      budgetCurrency: budget?.default_currency ?? "EUR",
+      holdingId: id,
+      timezone: await viewerTz(w.actorUserId),
     });
-    if (r.isErr()) {
-      const msg = r.error.message;
-      if (msg === "not_found") return c.json({ error: "not_found" }, 404);
-      return c.json({ error: msg }, 422);
-    }
+    if (r.isErr())
+      return fail(c, r.error, await assetErrors(), "edit_asset_failed");
     return c.json(serializeHolding(r.value), 200);
   });
 
@@ -272,11 +343,6 @@ export function createInvestmentsRoute(deps: BootedDeps) {
   });
 
   // ── Phase 13: history, edit bookings, type groups, delete ──────────────
-  const who = (c: Context) => {
-    const tenantId = pickTenant(c);
-    const userId = (c.get("userId") as string) ?? c.get("session")?.user?.id;
-    return { tenantId, budgetId: tenantId, actorUserId: userId };
-  };
   const UNDO_ERRORS = new Set([
     "undo_later_first",
     "would_empty_holding",
@@ -287,22 +353,6 @@ export function createInvestmentsRoute(deps: BootedDeps) {
     "nothing_added",
     "wrong_shape",
   ]);
-  const fail = (
-    c: Context,
-    e: Error & { currency?: string; date?: string },
-    known: Set<string>,
-    code: string,
-  ) => {
-    if (e.message === "not_found") return c.json({ error: "not_found" }, 404);
-    if (e.message === "fx_unavailable")
-      return c.json(
-        { error: "fx_unavailable", currency: e.currency, date: e.date },
-        422,
-      );
-    if (known.has(e.message)) return c.json({ error: e.message }, 422);
-    return serverError(c, code, e);
-  };
-
   // GET /type-summary — realized + sold cost per type, saved order (D-12/D-14)
   app.get("/type-summary", async (c) => {
     if (!c.get("session")) return c.json({ error: "unauthorized" }, 401);

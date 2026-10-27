@@ -168,7 +168,6 @@ async function buildApp(fix: Fixture) {
   return app;
 }
 
-
 const json = (app: Hono, path: string, method: string, body?: unknown) =>
   app.request(`/investments${path}`, {
     method,
@@ -187,7 +186,13 @@ const coin = (over: Record<string, unknown> = {}) => ({
 });
 const row = async (fix: Fixture, id: string) =>
   (
-    await q<{ quantity: string; buy: string; cur: string | null; name: string; archived: boolean }>(
+    await q<{
+      quantity: string;
+      buy: string;
+      cur: string | null;
+      name: string;
+      archived: boolean;
+    }>(
       fix,
       `SELECT quantity::text, buy_price_cents::text AS buy, current_price_cents::numeric::text AS cur,
               name, archived_at IS NOT NULL AS archived
@@ -196,14 +201,28 @@ const row = async (fix: Fixture, id: string) =>
     )
   )[0];
 const entryCount = async (fix: Fixture, id: string) =>
-  (await q(fix, `SELECT 1 FROM budgeting.investment_history WHERE holding_id = $1 AND deleted_at IS NULL`, [id])).length;
+  (
+    await q(
+      fix,
+      `SELECT 1 FROM budgeting.investment_history WHERE holding_id = $1 AND deleted_at IS NULL`,
+      [id],
+    )
+  ).length;
 
 describe("Investment assets", () => {
   it("adding the same name twice joins one asset (DCA)", async () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
-    const a = (await (await json(app, "", "POST", coin())).json()) as { id: string; joined: boolean };
-    const res = await json(app, "", "POST", coin({ name: " mycoin ", quantity: "2", openedOn: "2026-10-02" }));
+    const a = (await (await json(app, "", "POST", coin())).json()) as {
+      id: string;
+      joined: boolean;
+    };
+    const res = await json(
+      app,
+      "",
+      "POST",
+      coin({ name: " mycoin ", quantity: "2", openedOn: "2026-10-02" }),
+    );
     expect(res.status).toBe(201);
     const b = (await res.json()) as { id: string; joined: boolean };
     expect(a.joined).toBe(false);
@@ -215,12 +234,26 @@ describe("Investment assets", () => {
   it("Swap → Buy books a quantity buy and refuses a date before the latest entry", async () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
-    const { id } = (await (await json(app, "", "POST", coin())).json()) as { id: string };
-    const ok = await json(app, `/${id}/buy`, "POST", { kind: "quantity", quantity: "1", priceCents: "20000", currency: "PLN", effectiveDate: "2026-10-05" });
+    const { id } = (await (await json(app, "", "POST", coin())).json()) as {
+      id: string;
+    };
+    const ok = await json(app, `/${id}/buy`, "POST", {
+      kind: "quantity",
+      quantity: "1",
+      priceCents: "20000",
+      currency: "PLN",
+      effectiveDate: "2026-10-05",
+    });
     expect(ok.status).toBe(201);
     expect(Number((await row(fix, id))!.quantity)).toBe(2);
     expect((await row(fix, id))!.buy).toBe("15000");
-    const early = await json(app, `/${id}/buy`, "POST", { kind: "quantity", quantity: "1", priceCents: "1", currency: "PLN", effectiveDate: "2026-10-04" });
+    const early = await json(app, `/${id}/buy`, "POST", {
+      kind: "quantity",
+      quantity: "1",
+      priceCents: "1",
+      currency: "PLN",
+      effectiveDate: "2026-10-04",
+    });
     expect(early.status).toBe(422);
     expect(await early.json()).toEqual({ error: "before_latest_entry" });
   });
@@ -228,8 +261,19 @@ describe("Investment assets", () => {
   it("broker add books the deposit and sets the value after", async () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
-    const id = await seed(fix, { name: "IKE", uiType: "broker", holdingType: "other", buyPriceCents: 10_000_000n, currentPriceCents: 12_000_000n });
-    const res = await json(app, `/${id}/buy`, "POST", { kind: "broker", amountCents: "1000000", valueAfterCents: "13325000", effectiveDate: "2026-10-05" });
+    const id = await seed(fix, {
+      name: "IKE",
+      uiType: "broker",
+      holdingType: "other",
+      buyPriceCents: 10_000_000n,
+      currentPriceCents: 12_000_000n,
+    });
+    const res = await json(app, `/${id}/buy`, "POST", {
+      kind: "broker",
+      amountCents: "1000000",
+      valueAfterCents: "13325000",
+      effectiveDate: "2026-10-05",
+    });
     expect(res.status).toBe(201);
     const r = (await row(fix, id))!;
     expect(r.buy).toBe("11000000");
@@ -245,8 +289,17 @@ describe("Investment assets", () => {
   it("a deposit cannot be bought into", async () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
-    const id = await seed(fix, { name: "Bank", uiType: "deposit", holdingType: "deposit" });
-    const res = await json(app, `/${id}/buy`, "POST", { kind: "amount", amountCents: "100", currency: "PLN", effectiveDate: "2026-10-05" });
+    const id = await seed(fix, {
+      name: "Bank",
+      uiType: "deposit",
+      holdingType: "deposit",
+    });
+    const res = await json(app, `/${id}/buy`, "POST", {
+      kind: "amount",
+      amountCents: "100",
+      currency: "PLN",
+      effectiveDate: "2026-10-05",
+    });
     expect(res.status).toBe(422);
     expect(await res.json()).toEqual({ error: "deposit_not_allowed" });
   });
@@ -255,10 +308,16 @@ describe("Investment assets", () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
     const id = await seed(fix, { name: "Pot", quantity: "1" });
-    expect((await json(app, `/${id}`, "PATCH", { quantity: "2" })).status).toBe(422);
+    expect((await json(app, `/${id}`, "PATCH", { quantity: "2" })).status).toBe(
+      422,
+    );
     const res = await json(app, `/${id}`, "PATCH", { name: "Pot renamed" });
     expect(res.status).toBe(200);
-    expect(await row(fix, id)).toMatchObject({ name: "Pot renamed", quantity: "1.00000000", buy: "1000000" });
+    expect(await row(fix, id)).toMatchObject({
+      name: "Pot renamed",
+      quantity: "1.00000000",
+      buy: "1000000",
+    });
   });
 
   it("Edit refuses a label already used in the type", async () => {
@@ -275,8 +334,15 @@ describe("Investment assets", () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
     const id = await seed(fix, { name: "Pot" });
-    expect((await json(app, `/${id}`, "PATCH", { currentValueCents: "1300000" })).status).toBe(200);
-    const kinds = await q<{ kind: string }>(fix, `SELECT kind FROM budgeting.investment_history WHERE holding_id = $1`, [id]);
+    expect(
+      (await json(app, `/${id}`, "PATCH", { currentValueCents: "1300000" }))
+        .status,
+    ).toBe(200);
+    const kinds = await q<{ kind: string }>(
+      fix,
+      `SELECT kind FROM budgeting.investment_history WHERE holding_id = $1`,
+      [id],
+    );
     expect(kinds.map((k) => k.kind)).toEqual(["value_change"]);
     expect(Number((await row(fix, id))!.cur)).toBe(1_300_000);
   });
@@ -284,22 +350,44 @@ describe("Investment assets", () => {
   it("GET /names lists the type's assets, hidden ones included", async () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
-    const { id } = (await (await json(app, "", "POST", coin())).json()) as { id: string };
-    await q(fix, `UPDATE budgeting.investments SET archived_at = now() WHERE id = $1`, [id]);
+    const { id } = (await (await json(app, "", "POST", coin())).json()) as {
+      id: string;
+    };
+    await q(
+      fix,
+      `UPDATE budgeting.investments SET archived_at = now() WHERE id = $1`,
+      [id],
+    );
     const res = await app.request("/investments/names?type=crypto");
     expect(res.status).toBe(200);
-    const { names } = (await res.json()) as { names: Array<{ id: string; archived: boolean }> };
-    expect(names).toEqual([expect.objectContaining({ id, archived: true, name: "MyCoin" })]);
-    expect((await app.request("/investments/names?type=nope")).status).toBe(422);
+    const { names } = (await res.json()) as {
+      names: Array<{ id: string; archived: boolean }>;
+    };
+    expect(names).toEqual([
+      expect.objectContaining({ id, archived: true, name: "MyCoin" }),
+    ]);
+    expect((await app.request("/investments/names?type=nope")).status).toBe(
+      422,
+    );
   });
 
   it("a malformed id is 404 and malformed cents are 422", async () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
-    const bad = await json(app, "/not-a-uuid/buy", "POST", { kind: "amount", amountCents: "1", currency: "PLN", effectiveDate: "2026-10-05" });
+    const bad = await json(app, "/not-a-uuid/buy", "POST", {
+      kind: "amount",
+      amountCents: "1",
+      currency: "PLN",
+      effectiveDate: "2026-10-05",
+    });
     expect(bad.status).toBe(404);
     const id = await seed(fix, { name: "Pot" });
-    const cents = await json(app, `/${id}/buy`, "POST", { kind: "amount", amountCents: "12.5", currency: "PLN", effectiveDate: "2026-10-05" });
+    const cents = await json(app, `/${id}/buy`, "POST", {
+      kind: "amount",
+      amountCents: "12.5",
+      currency: "PLN",
+      effectiveDate: "2026-10-05",
+    });
     expect(cents.status).toBe(422);
   });
 
@@ -308,7 +396,12 @@ describe("Investment assets", () => {
     const b = await createFixture();
     const foreign = await seed(b, { name: "Theirs" });
     const app = await buildApp(a);
-    const res = await json(app, `/${foreign}/buy`, "POST", { kind: "amount", amountCents: "100", currency: "PLN", effectiveDate: "2026-10-05" });
+    const res = await json(app, `/${foreign}/buy`, "POST", {
+      kind: "amount",
+      amountCents: "100",
+      currency: "PLN",
+      effectiveDate: "2026-10-05",
+    });
     expect(res.status).toBe(404);
     expect(await entryCount(b, foreign)).toBe(0);
   });
