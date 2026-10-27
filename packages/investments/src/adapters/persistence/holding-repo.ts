@@ -11,7 +11,12 @@ import { sql } from "drizzle-orm";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import { Holding, type HoldingType } from "../../domain/holding";
-import type { HoldingRepo, NewHolding } from "../../ports/holding-repo";
+import type {
+  AssetEdit,
+  AssetNameRow,
+  HoldingRepo,
+  NewHolding,
+} from "../../ports/holding-repo";
 
 type DrizzleTx = {
   execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
@@ -64,6 +69,18 @@ function mapRow(row: Record<string, unknown>): Holding {
     (row.color as string | null) ?? null,
   );
 }
+
+const RETURNING = sql`
+  id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
+  ui_type, icon, color, instrument_id::text AS instrument_id,
+  buy_price_cents::text AS buy_price_cents, buy_currency,
+  quantity::text AS quantity,
+  current_price_cents::text AS current_price_cents,
+  current_price_currency, metal, metal_kind, unit_of_measure,
+  manual_ticker, manual_ticker AS symbol, premium_pct::text AS premium_pct,
+  deposit_rate_bps, deposit_start_date::text AS deposit_start_date,
+  deposit_end_date::text AS deposit_end_date, deposit_cap_frequency,
+  sort_order, archived_at, created_at`;
 
 /** The one INSERT of a holding. Shared by create() and the Phase 13 booking
  *  commit (a sale into a NEW holding), so both run inside the caller's tx. */
@@ -126,11 +143,14 @@ export class DrizzleHoldingRepo implements HoldingRepo {
     return r.value;
   }
 
+  /** D-06 Edit: label + display value only. Quantity, cost and type are
+   *  ledger-owned (CR-01: a PATCH that wrote them raced /adjust). Archived
+   *  assets are editable too (rename a hidden label). */
   async update(
     tenantId: string,
     userId: string,
     id: string,
-    input: NewHolding,
+    input: AssetEdit,
   ): Promise<Holding | null> {
     const r = await withTenantTx(
       TenantId(tenantId),
@@ -139,39 +159,73 @@ export class DrizzleHoldingRepo implements HoldingRepo {
         const dt = tx as DrizzleTx;
         const res = await dt.execute(sql`
           UPDATE budgeting.investments SET
-            instrument_id = ${input.instrumentId}::uuid,
-            name = ${input.name},
-            holding_type = ${input.holdingType},
-            ui_type = ${input.uiType},
-            icon = ${input.icon},
-            color = ${input.color},
-            buy_price_cents = ${b8(input.buyPriceCents)}::bigint,
-            buy_currency = ${input.buyCurrency},
-            quantity = ${input.quantity}::numeric,
-            current_price_cents = ${dec(input.currentPriceCents)}::numeric,
-            current_price_currency = ${input.currentPriceCurrency},
-            metal = ${input.metal},
-            metal_kind = ${input.metalKind},
-            unit_of_measure = ${input.unitOfMeasure},
-            manual_ticker = ${input.manualTicker},
-            premium_pct = ${input.premiumPct ?? null}::numeric,
-            deposit_rate_bps = ${input.depositRateBps ?? null}::integer,
-            deposit_start_date = ${input.depositStartDate ?? null}::date,
-            deposit_end_date = ${input.depositEndDate ?? null}::date,
-            deposit_cap_frequency = ${input.depositCapFrequency ?? null}
-          WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid AND archived_at IS NULL
-          RETURNING id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
-                    ui_type, icon, color, instrument_id::text AS instrument_id,
-                    buy_price_cents::text AS buy_price_cents, buy_currency,
-                    quantity::text AS quantity,
-                    current_price_cents::text AS current_price_cents,
-                    current_price_currency, metal, metal_kind, unit_of_measure,
-                    manual_ticker, manual_ticker AS symbol, premium_pct::text AS premium_pct,
-                    deposit_rate_bps, deposit_start_date::text AS deposit_start_date,
-                    deposit_end_date::text AS deposit_end_date, deposit_cap_frequency,
-                    sort_order, archived_at, created_at
+            name = COALESCE(${input.name?.trim() ?? null}, name),
+            current_price_cents = CASE WHEN ${input.currentPriceCents !== undefined}
+                                       THEN ${dec(input.currentPriceCents ?? null)}::numeric
+                                       ELSE current_price_cents END,
+            current_price_currency = CASE WHEN ${input.currentPriceCurrency !== undefined}
+                                          THEN ${input.currentPriceCurrency ?? null}
+                                          ELSE current_price_currency END
+          WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid
+          RETURNING ${RETURNING}
         `);
         return res.rows.length ? mapRow(res.rows[0]) : null;
+      },
+    );
+    if (r.isErr()) throw r.error;
+    return r.value;
+  }
+
+  async findByLabel(
+    tenantId: string,
+    budgetId: string,
+    uiType: string,
+    name: string,
+  ): Promise<Holding | null> {
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(tenantId),
+      async (tx) => {
+        const res = await (tx as DrizzleTx).execute(sql`
+        SELECT ${RETURNING} FROM budgeting.investments
+         WHERE budget_id = ${budgetId}::uuid AND ui_type = ${uiType}
+           AND lower(btrim(name)) = lower(btrim(${name}))
+         LIMIT 1
+      `);
+        return res.rows.length ? mapRow(res.rows[0]) : null;
+      },
+    );
+    if (r.isErr()) throw r.error;
+    return r.value;
+  }
+
+  async listNames(
+    tenantId: string,
+    budgetId: string,
+    uiType: string,
+  ): Promise<AssetNameRow[]> {
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(tenantId),
+      async (tx) => {
+        const res = await (tx as DrizzleTx).execute(sql`
+        SELECT id::text AS id, name, archived_at IS NOT NULL AS archived,
+               instrument_id::text AS instrument_id, quantity::text AS quantity,
+               current_price_cents::text AS current_price_cents, current_price_currency
+          FROM budgeting.investments
+         WHERE budget_id = ${budgetId}::uuid AND ui_type = ${uiType}
+         ORDER BY archived_at IS NOT NULL, lower(name)
+      `);
+        return res.rows.map((row) => ({
+          id: String(row.id),
+          name: String(row.name),
+          archived: row.archived === true,
+          instrumentId: (row.instrument_id as string | null) ?? null,
+          quantity: String(row.quantity),
+          currentPriceCents: (row.current_price_cents as string | null) ?? null,
+          currentPriceCurrency:
+            (row.current_price_currency as string | null) ?? null,
+        }));
       },
     );
     if (r.isErr()) throw r.error;
