@@ -38,21 +38,17 @@ vi.mock("next-intl", () => ({
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 const createMutate = vi.fn();
-const updateMutate = vi.fn();
 vi.mock("../../src/hooks/use-create-holding", () => ({
   useCreateHolding: () => ({ mutate: createMutate }),
 }));
-const adjustMutate = vi.fn();
-vi.mock("../../src/hooks/use-adjust-holding", () => ({
-  useAdjustHolding: () => ({ mutate: adjustMutate }),
-}));
-vi.mock("../../src/components/budgeting/wallets-tab/history-section", () => ({
-  HistorySection: ({ holdingId }: { holdingId: string }) => (
-    <div data-testid={`history-stub-${holdingId}`} />
-  ),
-}));
-vi.mock("../../src/hooks/use-update-holding", () => ({
-  useUpdateHolding: () => ({ mutate: updateMutate }),
+// 13.1 D-02: the Name field autocompletes over the type's assets.
+vi.mock("../../src/hooks/use-asset-names", () => ({
+  useAssetNames: (_b: string, type: string | null) => ({
+    data:
+      type === "cash"
+        ? [{ id: "pot", name: "Pot", archived: false, instrumentId: null, valueCents: "50000", valueCurrency: "USD" }]
+        : [],
+  }),
 }));
 vi.mock("../../src/lib/budget-fetch", () => ({ clientApiFetch: vi.fn() }));
 // Stub the asset autocomplete: keep the holding-sheet-name input (so the
@@ -214,7 +210,6 @@ describe("HoldingSheet — type-first", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({
           holdingType: "cash_fx",
           uiType: "cash",
@@ -231,7 +226,7 @@ describe("HoldingSheet — type-first", () => {
   });
 
   it("tracked type: read-only current price, editable buy price + quantity", () => {
-    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    render(<HoldingSheet {...baseProps} holding={holding()} />);
     expect(screen.queryByTestId("holding-sheet-amount")).toBeNull();
     expect(screen.getByTestId("holding-sheet-buy-price")).toBeInTheDocument();
     expect(screen.getByTestId("holding-sheet-quantity")).toBeInTheDocument();
@@ -244,7 +239,6 @@ describe("HoldingSheet — type-first", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({
           holdingType: "savings",
           uiType: "savings",
@@ -270,7 +264,6 @@ describe("HoldingSheet — type-first", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({
           holdingType: "commodity",
           uiType: "precious_metals",
@@ -291,7 +284,6 @@ describe("HoldingSheet — type-first", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({
           holdingType: "commodity",
           uiType: "precious_metals",
@@ -307,13 +299,13 @@ describe("HoldingSheet — type-first", () => {
   });
 
   it("non-metals do NOT show the premium field", () => {
-    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    render(<HoldingSheet {...baseProps} holding={holding()} />);
     expect(screen.queryByTestId("holding-sheet-premium")).toBeNull();
   });
 
   // 260626: auto-fetched price is a DISABLED field (not an editable input).
   it("auto-fetched current price renders a disabled field", () => {
-    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    render(<HoldingSheet {...baseProps} holding={holding()} />);
     expect(screen.getByTestId("holding-sheet-current-price")).toBeDisabled();
   });
 
@@ -322,7 +314,6 @@ describe("HoldingSheet — type-first", () => {
     const { unmount } = render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({ quantity: "1.13000000" })}
       />,
     );
@@ -331,7 +322,6 @@ describe("HoldingSheet — type-first", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({ quantity: "1.00000000" })}
       />,
     );
@@ -344,7 +334,6 @@ describe("HoldingSheet — type-first", () => {
       <HoldingSheet
         {...baseProps}
         budgetCurrency="EUR"
-        mode="edit"
         holding={holding({
           holdingType: "commodity",
           uiType: "precious_metals",
@@ -374,7 +363,6 @@ describe("HoldingSheet — type-first", () => {
       <HoldingSheet
         {...baseProps}
         budgetCurrency="EUR"
-        mode="edit"
         holding={holding({
           holdingType: "cash_fx",
           uiType: "cash",
@@ -391,7 +379,7 @@ describe("HoldingSheet — type-first", () => {
   });
 
   it("create mode preselects no type → no Asset/Name field, Save disabled", () => {
-    render(<HoldingSheet {...baseProps} mode="create" holding={null} />);
+    render(<HoldingSheet {...baseProps} holding={null} />);
     expect(screen.queryByTestId("holding-sheet-name")).toBeNull();
     expect(screen.queryByTestId("holding-sheet-amount")).toBeNull();
     expect(screen.getByTestId("holding-sheet-submit")).toBeDisabled();
@@ -402,7 +390,7 @@ describe("HoldingSheet — type-first", () => {
   it("on-select price-fetch failure → PriceBlockedBanner (alert) + Save disabled + Retry", async () => {
     // The price POST resolves !ok → the sheet sets priceBlocked.
     vi.mocked(clientApiFetch).mockResolvedValue({ ok: false } as Response);
-    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    render(<HoldingSheet {...baseProps} holding={holding()} />);
 
     // Default type is tracked → selecting an instrument fires the price fetch.
     fireEvent.click(screen.getByTestId("pick-instrument"));
@@ -419,7 +407,7 @@ describe("HoldingSheet — type-first", () => {
 
   it("Retry after a price-fetch failure clears the banner on success", async () => {
     vi.mocked(clientApiFetch).mockResolvedValueOnce({ ok: false } as Response);
-    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    render(<HoldingSheet {...baseProps} holding={holding()} />);
     fireEvent.click(screen.getByTestId("pick-instrument"));
     await screen.findByTestId("price-blocked-banner");
 
@@ -437,7 +425,7 @@ describe("HoldingSheet — type-first", () => {
 
   it("selecting a manual-provider (non-US) instrument makes the price editable and fetches nothing", async () => {
     vi.mocked(clientApiFetch).mockClear();
-    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    render(<HoldingSheet {...baseProps} holding={holding()} />);
     // A fresh tracked holding, then pick a manual (PLN/GPW) instrument.
     fireEvent.click(screen.getByTestId("pick-manual-instrument"));
 
@@ -460,7 +448,6 @@ describe("HoldingSheet — type-first", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({
           holdingType: "other",
           uiType: "broker",
@@ -485,7 +472,6 @@ describe("HoldingSheet — type-first", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({
           holdingType: "deposit",
           uiType: "deposit",
@@ -523,7 +509,6 @@ describe("HoldingSheet — type-first", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({
           holdingType: "deposit",
           uiType: "deposit",
@@ -539,23 +524,20 @@ describe("HoldingSheet — type-first", () => {
       />,
     );
     fireEvent.click(screen.getByTestId("holding-sheet-submit"));
-    expect(updateMutate).toHaveBeenCalledTimes(1);
-    const payload = updateMutate.mock.calls[0][0];
-    // 13.1 (D-06, CR-01): Edit sends only label / display currency / hand
-    // price — deposit terms, type, principal and quantity are ledger-owned.
-    for (const k of Object.keys(payload))
-      expect([
-        "currentPriceCents",
-        "displayCurrency",
-        "holdingId",
-        "name",
-      ]).toContain(k);
-    expect("buyPriceCents" in payload).toBe(false);
-    expect("quantity" in payload).toBe(false);
+    expect(createMutate).toHaveBeenCalledTimes(1);
+    const payload = createMutate.mock.calls[0][0];
+    expect(payload).toMatchObject({
+      holdingType: "deposit",
+      uiType: "deposit",
+      depositRateBps: 525,
+      depositStartDate: "2025-01-01",
+      depositEndDate: null,
+      depositCapFrequency: "monthly",
+    });
   });
 
   it("equity: keeps the currency picker visible WITH an instrument (re-denominate + FX)", () => {
-    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    render(<HoldingSheet {...baseProps} holding={holding()} />);
     // Equity is now user-currency (like crypto): a US stock quoted USD can be
     // tracked/valued in another currency via FX, so the picker stays available.
     const picker = screen.getByTestId("currency-stub") as HTMLSelectElement;
@@ -573,7 +555,6 @@ describe("HoldingSheet — type-first", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({ buyCurrency: "EUR", currentPriceCurrency: "EUR" })}
       />,
     );
@@ -588,7 +569,7 @@ describe("HoldingSheet — type-first", () => {
       ok: true,
       json: async () => ({ priceCents: "9900", currency: "PLN" }),
     } as unknown as Response);
-    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    render(<HoldingSheet {...baseProps} holding={holding()} />);
     vi.mocked(clientApiFetch).mockClear();
     fireEvent.change(screen.getByTestId("currency-stub"), {
       target: { value: "PLN" },
@@ -611,7 +592,6 @@ describe("HoldingSheet — type-first", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({
           holdingType: "crypto",
           uiType: "crypto",
@@ -633,7 +613,6 @@ describe("HoldingSheet — type-first", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({
           holdingType: "crypto",
           uiType: "crypto",
@@ -655,7 +634,7 @@ describe("HoldingSheet — type-first", () => {
   });
 
   it("'enter manually' (no catalog match) shows an editable price + the currency picker", async () => {
-    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    render(<HoldingSheet {...baseProps} holding={holding()} />);
     fireEvent.click(screen.getByTestId("pick-manual-entry"));
     // No instrument now → plain name + ticker inputs, currency picker, editable price.
     expect(await screen.findByTestId("currency-stub")).toBeInTheDocument();
@@ -671,12 +650,11 @@ describe("HoldingSheet — type-first", () => {
   });
 
   it("changing the currency updates the SAVED value currency (USD → PLN), not just the buy currency", () => {
-    updateMutate.mockClear();
+    createMutate.mockClear();
     // A manual (collectibles) holding: currency picker is shown, price is editable.
     render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({
           holdingType: "other",
           uiType: "collectibles",
@@ -692,21 +670,19 @@ describe("HoldingSheet — type-first", () => {
       target: { value: "PLN" },
     });
     fireEvent.click(screen.getByTestId("holding-sheet-submit"));
-    expect(updateMutate).toHaveBeenCalledTimes(1);
-    const payload = updateMutate.mock.calls[0][0];
-    // 13.1 D-36: display currency only; cost keeps its own currency.
-    expect(payload.displayCurrency).toBe("PLN");
-    expect("buyCurrency" in payload).toBe(false);
+    expect(createMutate).toHaveBeenCalledTimes(1);
+    const payload = createMutate.mock.calls[0][0];
+    expect(payload.currentPriceCurrency).toBe("PLN");
+    expect(payload.buyCurrency).toBe("PLN");
   });
 
   // user, 261023: a quick-edited 170 over 3 units stores 5666.666667/unit;
   // saving the sheet untouched must not round it back and show 170.01.
   it("saving untouched keeps a sub-cent current price", () => {
-    updateMutate.mockClear();
+    createMutate.mockClear();
     render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({
           holdingType: "other",
           uiType: "collectibles",
@@ -718,7 +694,7 @@ describe("HoldingSheet — type-first", () => {
       />,
     );
     fireEvent.click(screen.getByTestId("holding-sheet-submit"));
-    expect(updateMutate.mock.calls[0][0].currentPriceCents).toBe("5666.666667");
+    expect(createMutate.mock.calls[0][0].currentPriceCents).toBe("5666.666667");
   });
 
   // 260721 user feedback (3): the editable current-price must NOT seed a
@@ -727,7 +703,6 @@ describe("HoldingSheet — type-first", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({
           holdingType: "other",
           uiType: "collectibles",
@@ -747,7 +722,7 @@ describe("HoldingSheet — type-first", () => {
   // 260721 user feedback (4): actions live at the END of the scrolling form
   // (not a pinned footer) — the Save button scrolls with the content.
   it("Save/Cancel render inside the scrolling form body, not a pinned footer", () => {
-    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    render(<HoldingSheet {...baseProps} holding={holding()} />);
     const actions = screen.getByTestId("holding-sheet-actions");
     // the actions row sits inside the scroll container (the overflow-y-auto body),
     // i.e. it has an ancestor with overflow-y-auto — not a sibling footer.
@@ -760,7 +735,6 @@ describe("HoldingSheet — type-first", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({
           holdingType: "cash_fx",
           uiType: "cash",
@@ -775,7 +749,7 @@ describe("HoldingSheet — type-first", () => {
   });
 
   it("dirty close fires the discard-confirm dialog", async () => {
-    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    render(<HoldingSheet {...baseProps} holding={holding()} />);
     // Tracked holding → the Asset input carries the holding-sheet-name id.
     fireEvent.change(screen.getByTestId("holding-sheet-name"), {
       target: { value: "Apple" },
@@ -793,21 +767,14 @@ describe("HoldingSheet — type-first", () => {
       ok: true,
       json: async () => ({ priceCents: "50000", currency: "USD" }),
     } as unknown as Response);
-    render(<HoldingSheet {...baseProps} mode="edit" holding={holding()} />);
+    render(<HoldingSheet {...baseProps} holding={holding()} />);
     fireEvent.click(screen.getByTestId("pick-etf"));
     await waitFor(() =>
       expect(screen.getByTestId("holding-sheet-submit")).not.toBeDisabled(),
     );
     fireEvent.click(screen.getByTestId("holding-sheet-submit"));
-    const payload = updateMutate.mock.calls.at(-1)![0];
-    // 13.1 (D-06): type is not editable on an asset.
-    for (const k of Object.keys(payload))
-      expect([
-        "currentPriceCents",
-        "displayCurrency",
-        "holdingId",
-        "name",
-      ]).toContain(k);
+    const payload = createMutate.mock.calls.at(-1)![0];
+    expect(payload).toMatchObject({ uiType: "stocks", holdingType: "etf" });
   });
 
   it("picking a stock under Stocks & ETFs saves holdingType equities", async () => {
@@ -818,7 +785,6 @@ describe("HoldingSheet — type-first", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        mode="edit"
         holding={holding({ holdingType: "etf" })}
       />,
     );
@@ -827,8 +793,10 @@ describe("HoldingSheet — type-first", () => {
       expect(screen.getByTestId("holding-sheet-submit")).not.toBeDisabled(),
     );
     fireEvent.click(screen.getByTestId("holding-sheet-submit"));
-    // 13.1 (D-06): type is not editable on an asset.
-    expect("holdingType" in updateMutate.mock.calls.at(-1)![0]).toBe(false);
+    expect(createMutate.mock.calls.at(-1)![0]).toMatchObject({
+      uiType: "stocks",
+      holdingType: "equities",
+    });
   });
 });
 
@@ -917,178 +885,36 @@ describe("HoldingFormFields — sale destination", () => {
 
 // Phase 13 (D-03, UI-SPEC §4): Edit asks "What happened?" — cost basis and
 // quantity move only through the ledger, never through PATCH.
-describe("HoldingSheet — edit books what happened", () => {
-  const today = new Date().toLocaleDateString("en-CA");
-  const broker = () =>
-    holding({
-      holdingType: "other",
-      uiType: "broker",
-      instrumentId: null,
-      instrumentProvider: null,
-      name: "IBKR",
-      buyPriceCents: "5500000",
-      buyCurrency: "PLN",
-      currentPriceCents: "9600000",
-      currentPriceCurrency: "PLN",
-    });
-  const crypto = () =>
-    holding({
-      holdingType: "crypto",
-      uiType: "crypto",
-      name: "BTC",
-      quantity: "0.40000000",
-      buyPriceCents: "2500000",
-      buyCurrency: "PLN",
-      currentPriceCents: "7000000",
-      currentPriceCurrency: "PLN",
-    });
-  const setActual = (v: string) =>
-    fireEvent.change(screen.getByTestId("holding-sheet-actual"), {
-      target: { value: v },
-    });
-  beforeEach(() => {
-    adjustMutate.mockReset();
-    updateMutate.mockReset();
-  });
 
-  it("cost basis is read-only in edit", () => {
-    render(<HoldingSheet {...baseProps} mode="edit" holding={broker()} />);
-    expect(screen.getByTestId("holding-sheet-deposited")).toHaveAttribute(
-      "readonly",
-    );
-  });
-
-  it("withdrew money 96,000 → 80,000 books a withdrawal, PATCH keeps cost", () => {
-    render(<HoldingSheet {...baseProps} mode="edit" holding={broker()} />);
-    setActual("80000");
-    expect(
-      screen.getByRole("radiogroup", { name: "whatHappened.title" }),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("happened-value_change")).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
-    fireEvent.click(screen.getByTestId("happened-withdraw"));
-    expect(
-      (screen.getByTestId("happened-received") as HTMLInputElement).value,
-    ).toBe("16000");
-    expect(screen.getByTestId("holding-sheet-submit")).toHaveTextContent(
-      "whatHappened.saveWithdraw",
-    );
-    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
-    expect(adjustMutate.mock.calls[0]![0]).toEqual({
-      holdingId: "h1",
-      body: {
-        kind: "withdraw",
-        newValueCents: "8000000",
-        receivedCents: "1600000",
-        receivedCurrency: "PLN",
-        effectiveDate: today,
-      },
-    });
-    const patch = updateMutate.mock.calls[0]?.[0] ?? {};
-    expect("buyPriceCents" in patch).toBe(false);
-    expect("quantity" in patch).toBe(false);
-    expect("currentPriceCents" in patch).toBe(false);
-  });
-
-  it("added money on an increase books an add", () => {
-    render(<HoldingSheet {...baseProps} mode="edit" holding={broker()} />);
-    setActual("106000");
-    expect(screen.queryByTestId("happened-withdraw")).toBeNull();
-    fireEvent.click(screen.getByTestId("happened-add"));
-    expect(screen.getByTestId("holding-sheet-submit")).toHaveTextContent(
-      "whatHappened.saveAdded",
-    );
-    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
-    expect(adjustMutate.mock.calls[0]![0].body).toEqual({
-      kind: "add",
-      newValueCents: "10600000",
-      effectiveDate: today,
-    });
-  });
-
-  it("value changed is the default", () => {
-    render(<HoldingSheet {...baseProps} mode="edit" holding={broker()} />);
-    setActual("90000");
-    expect(screen.getByTestId("holding-sheet-submit")).toHaveTextContent(
-      "whatHappened.saveValue",
-    );
-    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
-    expect(adjustMutate.mock.calls[0]![0].body).toEqual({
-      kind: "value_change",
-      newValueCents: "9000000",
-      effectiveDate: today,
-    });
-  });
-
-  it("a rename alone is a plain PATCH without cost or quantity", () => {
-    render(<HoldingSheet {...baseProps} mode="edit" holding={broker()} />);
-    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
-      target: { value: "IBKR main" },
-    });
-    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
-    const patch = updateMutate.mock.calls[0]![0];
-    expect(patch).toMatchObject({ holdingId: "h1", name: "IBKR main" });
-    expect("buyPriceCents" in patch).toBe(false);
-    expect("quantity" in patch).toBe(false);
-    expect(adjustMutate).not.toHaveBeenCalled();
-  });
-
-  it("bought more BTC 0.4 → 0.5 books a buy with paid prefilled", () => {
-    render(<HoldingSheet {...baseProps} mode="edit" holding={crypto()} />);
-    fireEvent.change(screen.getByTestId("holding-sheet-quantity"), {
-      target: { value: "0.5" },
-    });
-    expect(
-      (screen.getByTestId("happened-paid") as HTMLInputElement).value,
-    ).toBe("7000");
-    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
-    expect(adjustMutate.mock.calls[0]![0].body).toEqual({
-      kind: "buy",
-      addQuantity: "0.1",
-      paidCents: "700000",
-      effectiveDate: today,
-    });
-  });
-
-  it("sold some BTC 0.4 → 0.3 hands off to the Sell sheet", () => {
-    const onSoldSome = vi.fn();
-    const onOpenChange = vi.fn();
+describe("HoldingSheet — add joins by name (13.1 D-02)", () => {
+  it("the Name field is an autocomplete scoped to the type", () => {
     render(
       <HoldingSheet
         {...baseProps}
-        onOpenChange={onOpenChange}
-        mode="edit"
-        holding={crypto()}
-        onSoldSome={onSoldSome}
+        holding={holding({ holdingType: "cash_fx", uiType: "cash", instrumentId: null, name: "" })}
       />,
     );
-    fireEvent.change(screen.getByTestId("holding-sheet-quantity"), {
-      target: { value: "0.3" },
-    });
-    expect(screen.getByTestId("holding-sheet-submit")).toHaveTextContent(
-      "whatHappened.soldSome",
-    );
-    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
-    expect(onSoldSome).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "h1" }),
-      "0.3",
-    );
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-    expect(adjustMutate).not.toHaveBeenCalled();
+    const name = screen.getByTestId("holding-sheet-name");
+    expect(name).toHaveAttribute("role", "combobox");
+    fireEvent.focus(name);
+    expect(screen.getByRole("option")).toHaveTextContent("Pot");
   });
 
-  it("edit explains that a type change only corrects a mistake, and shows History", () => {
-    render(<HoldingSheet {...baseProps} mode="edit" holding={broker()} />);
-    expect(screen.getByText("changeTypeHelper")).toBeInTheDocument();
-    expect(screen.getByTestId("history-stub-h1")).toBeInTheDocument();
+  it("an existing name shows the join note; a new one shows none", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        holding={holding({ holdingType: "cash_fx", uiType: "cash", instrumentId: null, name: "pot" })}
+      />,
+    );
+    expect(screen.getByTestId("asset-name-note")).toHaveTextContent("asset.name.joins");
+    fireEvent.change(screen.getByTestId("holding-sheet-name"), { target: { value: "New pot" } });
+    expect(screen.queryByTestId("asset-name-note")).toBeNull();
   });
 
-  it("create has a Date (default today, no future) sent as openedOn", () => {
-    render(<HoldingSheet {...baseProps} mode="create" holding={null} />);
-    const date = screen.getByTestId("holding-sheet-date") as HTMLInputElement;
-    expect(date.value).toBe(today);
-    expect(date.max).toBe(today);
+  it("there is no edit mode: no history, no 'what happened', save creates", () => {
+    render(<HoldingSheet {...baseProps} holding={holding()} />);
+    expect(screen.queryByTestId(/^history-/)).toBeNull();
+    expect(screen.queryByTestId(/^happened-/)).toBeNull();
   });
 });
