@@ -5,6 +5,10 @@
  * RLS must hide tenant A's entries from a session scoped to tenant B — SELECT
  * returns nothing and UPDATE/DELETE touch nothing, even when the WHERE clause
  * names A's budget_id. Seeding mirrors investments-cross-tenant.test.ts.
+ *
+ * 13.1 adds the asset paths: the wallet link columns, the booking commit's
+ * wallet credit (cross-context write) and the label lookups must all stay
+ * inside the caller's tenant.
  */
 import { describe, it, expect, beforeAll } from "bun:test";
 import { Pool } from "pg";
@@ -70,9 +74,9 @@ async function seedHoldingInBudget(budgetId: string): Promise<string> {
     );
     await client.query(
       `INSERT INTO budgeting.investments
-         (id, tenant_id, budget_id, name, holding_type, quantity,
+         (id, tenant_id, budget_id, name, holding_type, ui_type, quantity,
           current_price_cents, current_price_currency, sort_order, created_at)
-       VALUES ($1, $2, $2, 'AAPL', 'equities', '1', 42000, 'USD', 0, now())`,
+       VALUES ($1, $2, $2, 'AAPL', 'equities', 'stocks', '1', 42000, 'USD', 0, now())`,
       [id, budgetId],
     );
     await client.query("COMMIT");
@@ -86,9 +90,33 @@ async function seedHoldingInBudget(budgetId: string): Promise<string> {
   return id;
 }
 
+async function seedWallet(budgetId: string, userId: string): Promise<string> {
+  const pool = new Pool({ connectionString: DB_URL });
+  const client = await pool.connect();
+  const id = crypto.randomUUID();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `SELECT set_config('app.tenant_ids', '{"${budgetId}"}', true)`,
+    );
+    await client.query(
+      `INSERT INTO budgeting.wallets
+         (id, tenant_id, name, wallet_type, currency, current_balance, created_at, actor_user_id, sort_order)
+       VALUES ($1, $2, 'Bank', 'SPENDINGS', 'USD', 100, now(), $3, 1)`,
+      [id, budgetId, userId],
+    );
+    await client.query("COMMIT");
+  } finally {
+    client.release();
+    await pool.end();
+  }
+  return id;
+}
+
 async function seedHistory(
   budgetId: string,
   holdingId: string,
+  walletId: string | null = null,
 ): Promise<string> {
   const pool = new Pool({ connectionString: DB_URL });
   const client = await pool.connect();
@@ -101,9 +129,11 @@ async function seedHistory(
     await client.query(
       `INSERT INTO budgeting.investment_history
          (id, tenant_id, budget_id, holding_id, kind, effective_date,
-          amount_cents, amount_currency, cost_delta_cents, flow_cents)
-       VALUES ($1, $2, $2, $3, 'start', current_date, 42000, 'USD', 42000, 42000)`,
-      [id, budgetId, holdingId],
+          amount_cents, amount_currency, cost_delta_cents, flow_cents,
+          wallet_id, wallet_delta_numeric, backfilled)
+       VALUES ($1, $2, $2, $3, 'start', current_date, 42000, 'USD', 42000, 42000,
+               $4, CASE WHEN $4::uuid IS NULL THEN NULL ELSE 12.5 END, true)`,
+      [id, budgetId, holdingId, walletId],
     );
     await client.query("COMMIT");
   } catch (e) {
@@ -124,12 +154,107 @@ describe("investment history tenant-leak gate", () => {
   let budgetA: SeededBudget;
   let budgetB: SeededBudget;
   let entryInA: string;
+  let walletInA: string;
 
   beforeAll(async () => {
     budgetA = await seedBudget();
     budgetB = await seedBudget();
     const holdingInA = await seedHoldingInBudget(budgetA.budgetId);
-    entryInA = await seedHistory(budgetA.budgetId, holdingInA);
+    walletInA = await seedWallet(budgetA.budgetId, budgetA.userId);
+    entryInA = await seedHistory(budgetA.budgetId, holdingInA, walletInA);
+  });
+
+  const balanceInA = async () => {
+    const r = await withTenantTx(
+      TenantId(budgetA.budgetId),
+      UserId(budgetA.userId),
+      async (tx) =>
+        (
+          await (tx as Exec).execute(sql`
+            SELECT current_balance::text AS b FROM budgeting.wallets WHERE id = ${walletInA}::uuid
+          `)
+        ).rows[0]?.b,
+    );
+    return r.isOk() ? r.value : undefined;
+  };
+
+  it("13.1: the wallet link / backfill columns of budgetA stay hidden from budgetB", async () => {
+    const r = await withTenantTx(
+      TenantId(budgetB.budgetId),
+      UserId(budgetB.userId),
+      async (tx) =>
+        (
+          await (tx as Exec).execute(sql`
+            SELECT wallet_id, wallet_delta_numeric, backfilled FROM budgeting.investment_history
+             WHERE id = ${entryInA}::uuid
+          `)
+        ).rows,
+    );
+    expect(r.isOk() && r.value.length).toBe(0);
+  });
+
+  it("13.1: a budgetB booking cannot credit budgetA's wallet", async () => {
+    const { DrizzleHistoryRepo } =
+      await import("../../packages/investments/src/adapters/persistence/history-repo");
+    await expect(
+      new DrizzleHistoryRepo().commit(budgetB.budgetId, budgetB.userId, {
+        budgetId: budgetB.budgetId,
+        patches: [],
+        entries: [],
+        walletCredit: {
+          target: { walletId: walletInA },
+          amountMajor: "1000",
+          currency: "USD",
+        },
+      }),
+    ).rejects.toThrow("not_found");
+    expect(await balanceInA()).toBe("100.0000");
+  });
+
+  it("13.1: a budgetB undo cannot soft-delete budgetA's entry or reverse its wallet credit", async () => {
+    const { DrizzleHistoryRepo } =
+      await import("../../packages/investments/src/adapters/persistence/history-repo");
+    await new DrizzleHistoryRepo().commit(budgetB.budgetId, budgetB.userId, {
+      budgetId: budgetB.budgetId,
+      patches: [],
+      entries: [],
+      softDeleteEntryIds: [entryInA],
+      walletCredit: {
+        target: { walletId: walletInA },
+        amountMajor: "12.5",
+        currency: "USD",
+        reverse: true,
+      },
+    });
+    expect(await balanceInA()).toBe("100.0000");
+    const r = await withTenantTx(
+      TenantId(budgetA.budgetId),
+      UserId(budgetA.userId),
+      async (tx) =>
+        (
+          await (tx as Exec).execute(sql`
+            SELECT 1 FROM budgeting.investment_history WHERE id = ${entryInA}::uuid AND deleted_at IS NULL
+          `)
+        ).rows.length,
+    );
+    expect(r.isOk() && r.value).toBe(1);
+  });
+
+  it("13.1: label lookups scoped to budgetB never return budgetA's assets", async () => {
+    const { DrizzleHoldingRepo } =
+      await import("../../packages/investments/src/adapters/persistence/holding-repo");
+    const repo = new DrizzleHoldingRepo();
+    expect(
+      await repo.findByLabel(
+        budgetB.budgetId,
+        budgetA.budgetId,
+        "stocks",
+        "AAPL",
+      ),
+    ).toBeNull();
+    expect(
+      await repo.listNames(budgetB.budgetId, budgetA.budgetId, "stocks"),
+    ).toEqual([]);
   });
 
   it("RLS hides budgetA's history from a budgetB-scoped SELECT", async () => {

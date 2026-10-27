@@ -497,7 +497,15 @@ export class DrizzleHistoryRepo implements HistoryRepo {
     await this.read(tenantId, userId, async (dt) => {
       const res = await dt.execute(sql`
         UPDATE tenancy.budgets
-           SET investment_type_order = ${`{${order.join(",")}}`}::text[]
+           SET investment_type_order = ${
+             // IN-03: bind each key; never build an array literal by string join.
+             order.length
+               ? sql`ARRAY[${sql.join(
+                   order.map((o) => sql`${o}`),
+                   sql`, `,
+                 )}]::text[]`
+               : sql`'{}'::text[]`
+           }
          WHERE id = ${budgetId}::uuid
         RETURNING id
       `);

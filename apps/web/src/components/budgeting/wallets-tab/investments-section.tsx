@@ -384,7 +384,8 @@ export function InvestmentsSection({
         to,
       );
       setCommittedOrder(next);
-      setOrderMut.mutate(next);
+      // WR-09: a failed save must not leave the optimistic order on screen.
+      setOrderMut.mutate(next, { onError: () => setCommittedOrder(null) });
       return;
     }
 
@@ -402,7 +403,10 @@ export function InvestmentsSection({
     });
     const flat = moved.flatMap((b) => b.holdings);
     setCommitted(flat.map((h, i) => ({ ...h, sortOrder: i + 1 })));
-    reorderMut.mutate({ orderedIds: flat.map((h) => h.id) });
+    reorderMut.mutate(
+      { orderedIds: flat.map((h) => h.id) },
+      { onError: () => setCommitted(null) },
+    );
   }
 
   function handleDragCancel() {
