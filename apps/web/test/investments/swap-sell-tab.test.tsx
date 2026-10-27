@@ -122,13 +122,16 @@ describe("Sell tab", () => {
     type("swap-sell-left", "1");
     fireEvent.click(screen.getByTestId("swap-dest-out"));
     fireEvent.click(screen.getByTestId("wallet-target-existing"));
-    const opts = [
-      ...(screen.getByTestId("swap-wallet-select") as HTMLSelectElement)
-        .options,
-    ]
-      .map((o) => o.value)
-      .filter(Boolean);
-    expect(opts.sort()).toEqual(["w-car", "w-eur", "w-pln"].sort());
+    const opts = () =>
+      [
+        ...(screen.getByTestId("swap-wallet-select") as HTMLSelectElement)
+          .options,
+      ]
+        .map((o) => o.value)
+        .filter(Boolean);
+    await waitFor(() =>
+      expect(opts().sort()).toEqual(["w-car", "w-eur", "w-pln"]),
+    );
     type("swap-wallet-select", "w-eur");
     await waitFor(() =>
       expect(screen.getByTestId("swap-sell-received")).toHaveValue("15000"),
