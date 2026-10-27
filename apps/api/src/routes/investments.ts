@@ -290,6 +290,58 @@ export function createInvestmentsRoute(deps: BootedDeps) {
     return c.json(r.value);
   });
 
+  // D-37: a wallet balance change moves the same tasks a manual edit does.
+  // Best-effort after commit (own tx); the hourly sweep is the backstop.
+  const recomputeWalletTasks = async (
+    w: ReturnType<typeof who>,
+    walletType: string | null,
+  ) => {
+    try {
+      if (walletType === "RESERVE")
+        await deps.budgeting.recomputeReserveTopup(w);
+      else if (walletType === "CUSHION")
+        await deps.budgeting.recomputeCushionTaskRunner(w);
+    } catch (e) {
+      console.warn(
+        "[investments] wallet task recompute failed",
+        (e as Error).name,
+      );
+    }
+  };
+
+  // GET /:id/entries — the asset's L3 ledger (D-12..D-19).
+  app.get("/:id/entries", async (c) => {
+    if (!c.get("session")) return c.json({ error: "unauthorized" }, 401);
+    const id = c.req.param("id");
+    if (await badId(id)) return c.json({ error: "not_found" }, 404);
+    const w = who(c);
+    const budget = await deps.tenancy.workspaceRepo.findById(w.tenantId);
+    const r = await deps.investments.listEntries({
+      ...w,
+      budgetCurrency: budget?.default_currency ?? "EUR",
+      holdingId: id,
+      timezone: await viewerTz(w.actorUserId),
+    });
+    if (r.isErr()) return fail(c, r.error, new Set(), "list_entries_failed");
+    return c.json({ entries: r.value });
+  });
+
+  // DELETE /entries/:entryId — newest-only delete (D-14, D-16, D-17, D-21).
+  app.delete("/entries/:entryId", async (c) => {
+    if (!c.get("session")) return c.json({ error: "unauthorized" }, 401);
+    const entryId = c.req.param("entryId");
+    if (await badId(entryId)) return c.json({ error: "not_found" }, 404);
+    const w = who(c);
+    const r = await deps.investments.deleteEntry({ ...w, entryId });
+    if (r.isErr())
+      return fail(c, r.error, await assetErrors(), "delete_entry_failed");
+    await recomputeWalletTasks(w, r.value.walletType);
+    return c.json({
+      wipedHoldingId: r.value.wipedHoldingId,
+      walletId: r.value.walletId,
+    });
+  });
+
   // POST /:id/transfer — Swap → Transfer (D-10): same type, linked flow-0 legs.
   app.post("/:id/transfer", async (c) => {
     const { transferAssetSchema } = await getSchemas();
@@ -347,19 +399,7 @@ export function createInvestmentsRoute(deps: BootedDeps) {
         new Set([...SELL_ERRORS, ...(await assetErrors())]),
         "sell_holding_failed",
       );
-    // D-37: a wallet credit moves the same tasks a manual balance edit does.
-    // Best-effort after commit (own tx); the hourly sweep is the backstop.
-    try {
-      if (r.value.walletType === "RESERVE")
-        await deps.budgeting.recomputeReserveTopup(w);
-      else if (r.value.walletType === "CUSHION")
-        await deps.budgeting.recomputeCushionTaskRunner(w);
-    } catch (e) {
-      console.warn(
-        "[investments] wallet task recompute failed",
-        (e as Error).name,
-      );
-    }
+    await recomputeWalletTasks(w, r.value.walletType);
     return c.json(
       {
         transferId: r.value.transferId,

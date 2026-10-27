@@ -195,12 +195,25 @@ const call = (app: Hono, method: string, path: string, body?: unknown) =>
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 const entriesOf = async (app: Hono, id: string) =>
-  ((await (await call(app, "GET", `/${id}/entries`)).json()) as { entries: Array<Record<string, unknown>> }).entries;
+  (
+    (await (await call(app, "GET", `/${id}/entries`)).json()) as {
+      entries: Array<Record<string, unknown>>;
+    }
+  ).entries;
 const buy = (app: Hono, id: string, date: string) =>
-  call(app, "POST", `/${id}/buy`, { kind: "amount", amountCents: "1000", currency: "PLN", effectiveDate: date });
+  call(app, "POST", `/${id}/buy`, {
+    kind: "amount",
+    amountCents: "1000",
+    currency: "PLN",
+    effectiveDate: date,
+  });
 const startEntry = (fix: Fixture, id: string) =>
-  q(fix, `INSERT INTO budgeting.investment_history (tenant_id, budget_id, holding_id, kind, effective_date, amount_cents, amount_currency, cost_delta_cents, flow_cents, flow_currency)
-          VALUES ($1, $1, $2, 'start', '2026-09-01', 1000000, 'PLN', 1000000, 1000000, 'PLN')`, [fix.tenantId, id]);
+  q(
+    fix,
+    `INSERT INTO budgeting.investment_history (tenant_id, budget_id, holding_id, kind, effective_date, amount_cents, amount_currency, cost_delta_cents, flow_cents, flow_currency)
+          VALUES ($1, $1, $2, 'start', '2026-09-01', 1000000, 'PLN', 1000000, 1000000, 'PLN')`,
+    [fix.tenantId, id],
+  );
 
 describe("Investment entries ledger", () => {
   it("lists entries newest first with only the newest deletable", async () => {
@@ -211,12 +224,18 @@ describe("Investment entries ledger", () => {
     await buy(app, h, "2026-10-01");
     const res = await call(app, "GET", `/${h}/entries`);
     expect(res.status).toBe(200);
-    const { entries } = (await res.json()) as { entries: Array<Record<string, unknown>> };
+    const { entries } = (await res.json()) as {
+      entries: Array<Record<string, unknown>>;
+    };
     expect(entries.map((e) => [e.kind, e.deletable, e.blockedReason])).toEqual([
       ["add", true, null],
       ["start", false, "not_newest"],
     ]);
-    expect(entries[0]).toMatchObject({ amountCents: "1000", amountCurrency: "PLN", isLastEntry: false });
+    expect(entries[0]).toMatchObject({
+      amountCents: "1000",
+      amountCurrency: "PLN",
+      isLastEntry: false,
+    });
   });
 
   it("deletes the newest entry and restores the asset; an older one is 409 not_newest", async () => {
@@ -232,7 +251,11 @@ describe("Investment entries ledger", () => {
     const res = await call(app, "DELETE", `/entries/${newest!.id}`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ wipedHoldingId: null, walletId: null });
-    const [row] = await q<{ buy: string }>(fix, `SELECT buy_price_cents::text AS buy FROM budgeting.investments WHERE id = $1`, [h]);
+    const [row] = await q<{ buy: string }>(
+      fix,
+      `SELECT buy_price_cents::text AS buy FROM budgeting.investments WHERE id = $1`,
+      [h],
+    );
     expect(row!.buy).toBe("1000000");
   });
 
@@ -270,19 +293,28 @@ describe("Investment entries ledger", () => {
     expect(only).toMatchObject({ isLastEntry: true, deletable: true });
     const res = await call(app, "DELETE", `/entries/${only!.id}`);
     expect(await res.json()).toMatchObject({ wipedHoldingId: h });
-    expect(await q(fix, `SELECT 1 FROM budgeting.investments WHERE id = $1`, [h])).toHaveLength(0);
+    expect(
+      await q(fix, `SELECT 1 FROM budgeting.investments WHERE id = $1`, [h]),
+    ).toHaveLength(0);
   });
 
   it("deleting a sale into a RESERVE / CUSHION wallet takes the money back and recomputes that task", async () => {
-    for (const [type, reserve, cushion] of [["RESERVE", 1, 0], ["CUSHION", 0, 1]] as const) {
+    for (const [type, reserve, cushion] of [
+      ["RESERVE", 1, 0],
+      ["CUSHION", 0, 1],
+    ] as const) {
       const fix = await createFixture();
       const spies = { reserve: [] as unknown[], cushion: [] as unknown[] };
       const app = await buildApp(fix, spies);
       const h = await seed(fix);
       await startEntry(fix, h);
       const w = crypto.randomUUID();
-      await q(fix, `INSERT INTO budgeting.wallets (id, tenant_id, name, wallet_type, currency, current_balance, created_at, actor_user_id, sort_order)
-                    VALUES ($1, $2, 'W', $3, 'PLN', 100, now(), $4, 1)`, [w, fix.tenantId, type, fix.userId]);
+      await q(
+        fix,
+        `INSERT INTO budgeting.wallets (id, tenant_id, name, wallet_type, currency, current_balance, created_at, actor_user_id, sort_order)
+                    VALUES ($1, $2, 'W', $3, 'PLN', 100, now(), $4, 1)`,
+        [w, fix.tenantId, type, fix.userId],
+      );
       await call(app, "POST", `/${h}/sell`, {
         effectiveDate: "2026-10-01",
         left: { valueCents: "500000" },
@@ -297,9 +329,16 @@ describe("Investment entries ledger", () => {
       const res = await call(app, "DELETE", `/entries/${sale!.id}`);
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ wipedHoldingId: null, walletId: w });
-      const [bal] = await q<{ b: string }>(fix, `SELECT current_balance::text AS b FROM budgeting.wallets WHERE id = $1`, [w]);
+      const [bal] = await q<{ b: string }>(
+        fix,
+        `SELECT current_balance::text AS b FROM budgeting.wallets WHERE id = $1`,
+        [w],
+      );
       expect(bal!.b).toBe("100.0000");
-      expect([spies.reserve.length, spies.cushion.length]).toEqual([reserve, cushion]);
+      expect([spies.reserve.length, spies.cushion.length]).toEqual([
+        reserve,
+        cushion,
+      ]);
     }
   });
 
@@ -311,8 +350,18 @@ describe("Investment entries ledger", () => {
     expect((await call(app, "GET", "/nope/entries")).status).toBe(404);
     const theirs = await seed(other, { name: "Theirs" });
     await startEntry(other, theirs);
-    const [id] = await q<{ id: string }>(other, `SELECT id::text FROM budgeting.investment_history WHERE holding_id = $1`, [theirs]);
+    const [id] = await q<{ id: string }>(
+      other,
+      `SELECT id::text FROM budgeting.investment_history WHERE holding_id = $1`,
+      [theirs],
+    );
     expect((await call(app, "DELETE", `/entries/${id!.id}`)).status).toBe(404);
-    expect(await q(other, `SELECT 1 FROM budgeting.investment_history WHERE holding_id = $1 AND deleted_at IS NULL`, [theirs])).toHaveLength(1);
+    expect(
+      await q(
+        other,
+        `SELECT 1 FROM budgeting.investment_history WHERE holding_id = $1 AND deleted_at IS NULL`,
+        [theirs],
+      ),
+    ).toHaveLength(1);
   });
 });

@@ -24,6 +24,8 @@ import { buyIntoAsset } from "../application/buy-into-asset";
 import { editAsset } from "../application/edit-asset";
 import { listAssetNames } from "../application/list-asset-names";
 import { transferAsset } from "../application/transfer-asset";
+import { listEntries } from "../application/list-entries";
+import { deleteEntry } from "../application/delete-entry";
 import { archiveHolding } from "../application/archive-holding";
 import { listHoldings } from "../application/list-holdings";
 import { reorderHoldings } from "../application/reorder-holdings";
@@ -66,6 +68,8 @@ export function createInvestmentsModule(deps: {
     editAsset: editAsset({ ...ledger, fxProvider: deps.fxProvider }),
     listAssetNames: listAssetNames({ holdingRepo: deps.holdingRepo }),
     transferAsset: transferAsset({ ...ledger, fxProvider: deps.fxProvider }),
+    listEntries: listEntries({ ...ledger, fxProvider: deps.fxProvider }),
+    deleteEntry: deleteEntry(ledger),
     archiveHolding: archiveHolding({ holdingRepo: deps.holdingRepo }),
     listHoldings: listHoldings({
       holdingRepo: deps.holdingRepo,
