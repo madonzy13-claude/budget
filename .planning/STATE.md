@@ -174,6 +174,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - Phase 1 complete — begin Phase 2 planning (Domain & API Restructure)
 - Decide reserves auto-compute as regular view vs materialized view in Phase 2 plan
 - Probe Better Auth orgs invite-token revocation API in Phase 2 spike
+- **Phase 13.1 follow-up (D-35):** after 13.1 ships, enter REAL cost basis for investment assets whose Start entry was backfilled with cost 0 by migration 0088 (15 active no-buy-price + 83 archived holdings in dev as of 2026-10-27). Find them via the backfill marker on the entry.
 - Investigate pre-existing make ci-gate coverage threshold failure (tenant-leak tests pull transitive imports; ~51% aggregate vs 80% threshold — security tests all pass 25/25)
 
 ### Plan 01-01 Decisions (recorded 2026-05-11, execution)
