@@ -499,3 +499,201 @@ describe("Create writes the first history entry", () => {
     );
   });
 });
+
+// ── 13.1: assets + sell to wallet (D-09, D-15, D-17, D-20..D-25) ────────────
+import { MemoryWorld, hold as memHold, rates1 } from "./memory-world";
+
+describe("Sell an asset (13.1)", () => {
+  const who13 = {
+    tenantId: T,
+    budgetId: T,
+    actorUserId: U,
+    budgetCurrency: "PLN",
+  };
+  const btc4 = () =>
+    memHold({
+      id: "btc",
+      name: "BTC",
+      holdingType: "crypto",
+      uiType: "crypto",
+      buy: 2_500n,
+      qty: "4",
+      current: 3_000n,
+    });
+  const setup = (...extra: Parameters<typeof memHold>[0][]) => {
+    const w = new MemoryWorld([btc4(), ...extra.map(memHold)]);
+    return {
+      w,
+      sell: sellHolding({
+        holdingRepo: w.holdingRepo,
+        historyRepo: w.historyRepo,
+        fxProvider: rates1,
+      }),
+    };
+  };
+  const base = {
+    ...who13,
+    holdingId: "btc",
+    effectiveDate: "2026-10-01",
+    left: { quantity: "3" },
+    receivedCents: "3000",
+    receivedCurrency: "PLN",
+  };
+
+  test("selling 1 of 4 moves cost proportionally and leaves investments (flow = −received)", async () => {
+    const { w, sell } = setup();
+    expect(
+      (
+        await sell({
+          ...base,
+          destination: { kind: "out", wallet: { kind: "nowhere" } },
+        })
+      ).isOk(),
+    ).toBe(true);
+    expect(w.live()[0]).toMatchObject({
+      kind: "withdraw",
+      costDeltaCents: -2_500n,
+      realizedBudgetCents: 500n,
+      flowCents: -3_000n,
+    });
+    expect(w.plans[0]!.walletCredit).toBeUndefined();
+  });
+
+  test("Out into an existing wallet credits it by the received amount in major units", async () => {
+    const { w, sell } = setup();
+    w.wallets.set("wal", {
+      id: "wal",
+      name: "Bank",
+      walletType: "SPENDINGS",
+      currency: "PLN",
+      balance: "10",
+    });
+    await sell({
+      ...base,
+      destination: {
+        kind: "out",
+        wallet: { kind: "existing", walletId: "wal" },
+      },
+    });
+    expect(w.plans[0]!.walletCredit).toEqual({
+      target: { walletId: "wal" },
+      amountMajor: "30.00",
+      currency: "PLN",
+    });
+    expect(w.wallets.get("wal")!.balance).toBe("40.0000");
+    expect(w.live()[0]).toMatchObject({
+      walletId: "wal",
+      walletDeltaNumeric: "30.00",
+      walletCreated: false,
+    });
+  });
+
+  test("Out into a new wallet creates it with the amount", async () => {
+    const { w, sell } = setup();
+    const r = await sell({
+      ...base,
+      destination: {
+        kind: "out",
+        wallet: {
+          kind: "new",
+          name: "From BTC",
+          walletType: "CUSHION",
+          currency: "PLN",
+        },
+      },
+    });
+    expect(r._unsafeUnwrap()).toMatchObject({ walletType: "CUSHION" });
+    expect(w.plans[0]!.walletCredit!.target).toEqual({
+      create: { name: "From BTC", walletType: "CUSHION", currency: "PLN" },
+    });
+    expect(w.live()[0]).toMatchObject({ walletCreated: true });
+    expect(w.live()[0]!.walletId).not.toBeNull();
+  });
+
+  test("a new destination under an existing hidden label revives that asset instead of creating one", async () => {
+    const { w, sell } = setup({
+      id: "eth",
+      name: "ETH",
+      holdingType: "crypto",
+      uiType: "crypto",
+      buy: 0n,
+      qty: "0",
+      current: 1_000n,
+      archived: true,
+    });
+    await sell({
+      ...base,
+      destination: {
+        kind: "new",
+        holding: {
+          name: "eth",
+          holdingType: "crypto",
+          uiType: "crypto",
+          quantity: "3",
+        },
+        priceCents: "1000",
+      },
+    });
+    expect(w.plans[0]!.newHolding).toBeUndefined();
+    expect(w.get("eth").archivedAt).toBeNull();
+    expect(w.get("eth").quantity).toBe("3");
+    expect(w.live().filter((r) => r.holdingId === "eth")).toHaveLength(1);
+  });
+
+  test("a new quantity destination uses the given quantity and price", async () => {
+    const { w, sell } = setup();
+    await sell({
+      ...base,
+      destination: {
+        kind: "new",
+        holding: {
+          name: "SOL",
+          holdingType: "crypto",
+          uiType: "crypto",
+          quantity: "2",
+        },
+        priceCents: "1500",
+      },
+    });
+    expect(w.plans[0]!.newHolding).toMatchObject({
+      name: "SOL",
+      quantity: "2",
+      buyPriceCents: 1_500n,
+    });
+  });
+
+  test("an existing quantity destination derives the quantity from its price", async () => {
+    const { w, sell } = setup({
+      id: "eth",
+      name: "ETH",
+      holdingType: "crypto",
+      uiType: "crypto",
+      buy: 900n,
+      qty: "1",
+      current: 1_000n,
+    });
+    await sell({
+      ...base,
+      destination: { kind: "existing", holdingId: "eth" },
+    });
+    expect(w.get("eth").quantity).toBe("4");
+  });
+
+  test("a sale dated before the source's latest entry is refused", async () => {
+    const { w, sell } = setup();
+    w.rows.push({
+      ...(w.rows[0] ?? {}),
+      id: "old",
+      holdingId: "btc",
+      kind: "buy",
+      effectiveDate: "2026-10-05",
+      createdAt: "000000",
+      deleted: false,
+    } as never);
+    const r = await sell({
+      ...base,
+      destination: { kind: "out", wallet: { kind: "nowhere" } },
+    });
+    expect(r._unsafeUnwrapErr().message).toBe("before_latest_entry");
+  });
+});
