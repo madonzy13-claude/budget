@@ -5,10 +5,12 @@
  * shortcuts (Added money / Withdrew money / Bought more). Pure: bigint cents
  * in, bigint cents out, big.js half-even rounding once per output.
  *
- * FX rule (D-18): sold cost and received amount are BOTH converted to budget
- * currency at the rate as of the sale effective_date. A same-day sale at 0%
- * P/L therefore books 0 realized (matches list-holdings' current-rate cost),
- * and a backdated sale stays frozen at that day's rates.
+ * FX rule (D-18, 13.1 UAT 14): ONE rate per deal. Proceeds are brought back
+ * into the source currency with rate(source → received) — the rate the sell
+ * form priced with — and realized is converted to budget currency with
+ * rate(source → budget), both as of the sale effective_date. Two independent
+ * lookups (received → budget vs source → received) are not reciprocal and
+ * booked −19.20 on a fair swap. A backdated sale stays frozen at that day.
  *
  * Reversal rule (D-06): an entry is undone by subtracting ITS OWN stored
  * deltas from the holding's CURRENT state — never by restoring a snapshot.
@@ -59,24 +61,25 @@ export function sellQuantityHolding(i: {
 
 export function realizedInBudget(i: {
   receivedCents: bigint;
-  receivedToBudgetRate: string;
+  /** rate(source → received) — the SAME lookup the sell form previews with. */
+  sourceToReceivedRate: string;
   soldCostCents: bigint;
-  costToBudgetRate: string;
+  sourceToBudgetRate: string;
 }): {
   receivedBudgetCents: bigint;
   soldCostBudgetCents: bigint;
   realizedBudgetCents: bigint;
 } {
-  const receivedBudgetCents = cents(
-    big(i.receivedCents).times(big(i.receivedToBudgetRate)),
-  );
-  const soldCostBudgetCents = cents(
-    big(i.soldCostCents).times(big(i.costToBudgetRate)),
+  const proceeds = big(i.receivedCents).div(big(i.sourceToReceivedRate));
+  const toBudget = big(i.sourceToBudgetRate);
+  const soldCostBudgetCents = cents(big(i.soldCostCents).times(toBudget));
+  const realizedBudgetCents = cents(
+    proceeds.minus(big(i.soldCostCents)).times(toBudget),
   );
   return {
-    receivedBudgetCents,
+    receivedBudgetCents: soldCostBudgetCents + realizedBudgetCents,
     soldCostBudgetCents,
-    realizedBudgetCents: receivedBudgetCents - soldCostBudgetCents,
+    realizedBudgetCents,
   };
 }
 

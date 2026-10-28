@@ -21,9 +21,9 @@ describe("Sell an amount holding", () => {
     expect(r.soldCostCents).toBe(3_781_250n);
     const fx = realizedInBudget({
       receivedCents: 6_600_000n,
-      receivedToBudgetRate: "1",
+      sourceToReceivedRate: "1",
       soldCostCents: r.soldCostCents,
-      costToBudgetRate: "1",
+      sourceToBudgetRate: "1",
     });
     expect(fx.realizedBudgetCents).toBe(2_818_750n);
   });
@@ -50,9 +50,9 @@ describe("Sell an amount holding", () => {
     expect(r.soldCostCents).toBe(916_667n);
     const fx = realizedInBudget({
       receivedCents: 1_600_000n,
-      receivedToBudgetRate: "1",
+      sourceToReceivedRate: "1",
       soldCostCents: r.soldCostCents,
-      costToBudgetRate: "1",
+      sourceToBudgetRate: "1",
     });
     expect(fx.realizedBudgetCents).toBe(683_333n);
   });
@@ -105,9 +105,9 @@ describe("Sell a quantity holding", () => {
     expect(r.soldCostCents).toBe(250_000n);
     const fx = realizedInBudget({
       receivedCents: 600_000n,
-      receivedToBudgetRate: "1",
+      sourceToReceivedRate: "1",
       soldCostCents: r.soldCostCents,
-      costToBudgetRate: "1",
+      sourceToBudgetRate: "1",
     });
     expect(fx.realizedBudgetCents).toBe(350_000n);
     // remaining row: 0.3 x 60k = 18k vs cost 7.5k -> +140%
@@ -138,12 +138,12 @@ describe("Sell a quantity holding", () => {
 });
 
 describe("Realized gain in budget currency (D-18)", () => {
-  test("both sides converted at the sale-date rate", () => {
+  test("same currency: proceeds minus cost, converted at the sale-date rate", () => {
     const r = realizedInBudget({
       receivedCents: 110_000n,
-      receivedToBudgetRate: "4.30",
+      sourceToReceivedRate: "1",
       soldCostCents: 100_000n,
-      costToBudgetRate: "4.30",
+      sourceToBudgetRate: "4.30",
     });
     expect(r.soldCostBudgetCents).toBe(430_000n);
     expect(r.receivedBudgetCents).toBe(473_000n);
@@ -153,10 +153,46 @@ describe("Realized gain in budget currency (D-18)", () => {
   test("a sale at 0% books 0 realized", () => {
     const r = realizedInBudget({
       receivedCents: 100_000n,
-      receivedToBudgetRate: "4.30",
+      sourceToReceivedRate: "1",
       soldCostCents: 100_000n,
-      costToBudgetRate: "4.30",
+      sourceToBudgetRate: "4.30",
     });
+    expect(r.realizedBudgetCents).toBe(0n);
+  });
+
+  // UAT 13.1 test 14: the form priced 3,000 PLN at PLN→EUR 0.23 = 690 EUR; the
+  // stored EUR→PLN 4.32 is not its reciprocal. One rate per deal → 0, not −19.20.
+  test("a fair cross-currency swap books 0 whatever the reverse rate says", () => {
+    const r = realizedInBudget({
+      receivedCents: 69_000n,
+      sourceToReceivedRate: "0.23",
+      soldCostCents: 300_000n,
+      sourceToBudgetRate: "1",
+    });
+    expect(r.soldCostBudgetCents).toBe(300_000n);
+    expect(r.realizedBudgetCents).toBe(0n);
+    expect(r.receivedBudgetCents).toBe(300_000n);
+  });
+
+  test("a real Frankfurter rate gives the real gain", () => {
+    // 69,000 / 0.22688 = 304,125.53 → +4,125.53 → 4,126 cents half-even
+    const r = realizedInBudget({
+      receivedCents: 69_000n,
+      sourceToReceivedRate: "0.22688",
+      soldCostCents: 300_000n,
+      sourceToBudgetRate: "1",
+    });
+    expect(r.realizedBudgetCents).toBe(4_126n);
+  });
+
+  test("source USD, received EUR, budget PLN: a fair swap stays 0", () => {
+    const r = realizedInBudget({
+      receivedCents: 92_000n,
+      sourceToReceivedRate: "0.92",
+      soldCostCents: 100_000n,
+      sourceToBudgetRate: "3.95",
+    });
+    expect(r.soldCostBudgetCents).toBe(395_000n);
     expect(r.realizedBudgetCents).toBe(0n);
   });
 });
@@ -201,9 +237,9 @@ describe("Sell part of a deposit (D-20)", () => {
     expect(r.soldCostCents).toBe(350_000n);
     const fx = realizedInBudget({
       receivedCents: 400_000n,
-      receivedToBudgetRate: "1",
+      sourceToReceivedRate: "1",
       soldCostCents: r.soldCostCents,
-      costToBudgetRate: "1",
+      sourceToBudgetRate: "1",
     });
     expect(fx.realizedBudgetCents).toBe(50_000n);
   });
@@ -217,9 +253,9 @@ describe("Sell part of a deposit (D-20)", () => {
     expect(r.soldCostCents).toBe(-20_000n);
     const fx = realizedInBudget({
       receivedCents: 30_000n,
-      receivedToBudgetRate: "1",
+      sourceToReceivedRate: "1",
       soldCostCents: r.soldCostCents,
-      costToBudgetRate: "1",
+      sourceToBudgetRate: "1",
     });
     expect(fx.realizedBudgetCents).toBe(50_000n);
   });

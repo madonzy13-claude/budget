@@ -663,7 +663,8 @@ describe("Sell an asset (13.1)", () => {
     });
   });
 
-  test("an existing quantity destination derives the quantity from its price", async () => {
+  // UAT 13.1 test 10: destination = quantity × price; received follows.
+  test("an existing quantity destination books quantity × its own price; its current price stays", async () => {
     const { w, sell } = setup({
       id: "eth",
       name: "ETH",
@@ -673,11 +674,159 @@ describe("Sell an asset (13.1)", () => {
       qty: "1",
       current: 1_000n,
     });
-    await sell({
+    const r = await sell({
+      ...base,
+      receivedCents: "999999",
+      destination: { kind: "existing", holdingId: "eth", quantityBought: "2" },
+    });
+    expect(r.isOk()).toBe(true);
+    expect(w.get("eth").quantity).toBe("3");
+    expect(w.get("eth").buyPriceCents).toBe(967n); // (900 + 2 × 1,000) / 3
+    expect(String(w.get("eth").currentPriceCents)).toBe("1000");
+    const [out, inn] = w.live();
+    expect(out!.amountCents).toBe(2_000n);
+    expect(inn).toMatchObject({ qtyDelta: "2", costDeltaCents: 2_000n });
+  });
+
+  test("an existing quantity destination needs a quantity", async () => {
+    const { sell } = setup({
+      id: "eth",
+      name: "ETH",
+      holdingType: "crypto",
+      uiType: "crypto",
+      buy: 900n,
+      qty: "1",
+      current: 1_000n,
+    });
+    const r = await sell({
       ...base,
       destination: { kind: "existing", holdingId: "eth" },
     });
-    expect(w.get("eth").quantity).toBe("4");
+    expect(r._unsafeUnwrapErr().message).toBe("quantity_required");
+  });
+
+  test("a new tracked destination keeps the chosen buy price and the live current price", async () => {
+    const { w, sell } = setup();
+    await sell({
+      ...base,
+      receivedCents: "999999",
+      destination: {
+        kind: "new",
+        holding: {
+          name: "USDT",
+          holdingType: "crypto",
+          uiType: "crypto",
+          instrumentId: "44444444-4444-4444-8444-444444444444",
+          quantity: "16284.6",
+          currentPriceCents: "101",
+          currentPriceCurrency: "PLN",
+        },
+        priceCents: "100",
+      },
+    });
+    expect(w.plans[0]!.newHolding).toMatchObject({
+      name: "USDT",
+      quantity: "16284.6",
+      buyPriceCents: 100n,
+      currentPriceCents: "101",
+    });
+    const [out, inn] = w.live();
+    expect(out!.amountCents).toBe(1_628_460n);
+    expect(inn).toMatchObject({
+      qtyDelta: "16284.6",
+      costDeltaCents: 1_628_460n,
+    });
+  });
+
+  test("a new quantity destination without a feed is valued at the chosen price", async () => {
+    const { w, sell } = setup();
+    await sell({
+      ...base,
+      destination: {
+        kind: "new",
+        holding: {
+          name: "Coin",
+          holdingType: "commodity",
+          uiType: "precious_metals",
+          quantity: "2",
+        },
+        priceCents: "1500",
+      },
+    });
+    expect(w.plans[0]!.newHolding).toMatchObject({
+      buyPriceCents: 1_500n,
+      currentPriceCents: 1_500n,
+    });
+  });
+
+  test("a new quantity destination needs a price", async () => {
+    const { sell } = setup();
+    const r = await sell({
+      ...base,
+      destination: {
+        kind: "new",
+        holding: {
+          name: "SOL",
+          holdingType: "crypto",
+          uiType: "crypto",
+          quantity: "2",
+        },
+      },
+    });
+    expect(r._unsafeUnwrapErr().message).toBe("price_required");
+  });
+
+  test("out of investments needs the amount received", async () => {
+    const { sell } = setup();
+    const r = await sell({
+      ...base,
+      receivedCents: undefined,
+      destination: { kind: "out", wallet: { kind: "nowhere" } },
+    });
+    expect(r._unsafeUnwrapErr().message).toBe("received_required");
+  });
+
+  // UAT 13.1 test 14: one rate per deal — the form's rate(source → received).
+  test("a fair PLN → EUR sale books 0 even when the stored EUR → PLN is not reciprocal", async () => {
+    const asked: string[] = [];
+    const fx = {
+      rateAsOf: async (from: string, to: string) => {
+        asked.push(`${from}>${to}`);
+        const r = (
+          { "PLN>EUR": "0.23", "EUR>PLN": "4.32" } as Record<string, string>
+        )[`${from}>${to}`];
+        return { rate: r!, provider: "stub", isStale: false };
+      },
+    } as never;
+    const w = new MemoryWorld([
+      memHold({
+        id: "ike",
+        name: "IKE",
+        uiType: "broker",
+        buy: 300_000n,
+        current: 300_000n,
+      }),
+    ]);
+    const sell = sellHolding({
+      holdingRepo: w.holdingRepo,
+      historyRepo: w.historyRepo,
+      fxProvider: fx,
+    });
+    await sell({
+      ...who13,
+      holdingId: "ike",
+      effectiveDate: "2026-10-27",
+      left: { valueCents: "0" },
+      destination: { kind: "out", wallet: { kind: "nowhere" } },
+      receivedCents: "69000",
+      receivedCurrency: "EUR",
+    });
+    const e = w.live()[0]!;
+    expect(e.realizedBudgetCents).toBe(0n);
+    expect(e.soldCostBudgetCents).toBe(300_000n);
+    expect(e.amountCents).toBe(69_000n);
+    expect(e.amountCurrency).toBe("EUR");
+    expect(asked).not.toContain("EUR>PLN");
   });
 
   test("a sale dated before the source's latest entry is refused", async () => {

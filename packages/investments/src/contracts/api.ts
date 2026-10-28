@@ -357,14 +357,17 @@ export const sellAssetSchema = z.object({
   destination: z.discriminatedUnion("kind", [
     z.object({
       kind: z.literal("new"),
+      // currentPriceCents = the instrument's live price (tracked) — the buy
+      // price is priceCents, never received ÷ quantity (13.1 UAT 10).
       holding: createHoldingSchema
-        .omit({ buyPriceCents: true, currentPriceCents: true, openedOn: true })
+        .omit({ buyPriceCents: true, openedOn: true })
         .extend({ name: label(120), quantity: positiveQty.optional() }),
       priceCents: positiveCents.optional(),
     }),
     z.object({
       kind: z.literal("existing"),
       holdingId: z.uuid(),
+      // Priced at the destination's own price (D-09, read-only).
       quantityBought: positiveQty.optional(),
     }),
     z.object({
@@ -372,7 +375,9 @@ export const sellAssetSchema = z.object({
       wallet: walletTargetSchema.default({ kind: "nowhere" }),
     }),
   ]),
-  receivedCents: positiveCents,
+  // Out / amount destinations only; a quantity destination's received is
+  // quantity × price, computed by the server.
+  receivedCents: positiveCents.optional(),
   receivedCurrency: currencyCode,
 });
 export type SellAssetInput = z.infer<typeof sellAssetSchema>;

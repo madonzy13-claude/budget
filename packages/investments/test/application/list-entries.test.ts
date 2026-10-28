@@ -119,7 +119,7 @@ describe("List an asset's entries", () => {
       holdingId: "btc",
       effectiveDate: "2026-10-01",
       left: { quantity: "3" },
-      destination: { kind: "existing", holdingId: "eth" },
+      destination: { kind: "existing", holdingId: "eth", quantityBought: "3" },
       receivedCents: "3000",
       receivedCurrency: "PLN",
     });

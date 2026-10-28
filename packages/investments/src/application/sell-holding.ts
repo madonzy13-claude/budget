@@ -136,7 +136,6 @@ export function sellHolding(deps: {
       if (dest.kind === "existing" && dest.holdingId === src.id)
         return err(fail("same_holding"));
 
-      const received = BigInt(String(input.receivedCents));
       const receivedCcy = input.receivedCurrency;
       const buyCcy = ccyOf(src);
       const shape = holdingShape(src);
@@ -210,11 +209,67 @@ export function sellHolding(deps: {
         }
       }
 
+      // 13.1 UAT 10: a quantity destination is priced qty × price — the
+      // destination's own price (Existing, D-09) or the chosen one (New) — and
+      // received follows from it. Out / amount destinations take received as typed.
+      const unitOf = async (d: Holding) => {
+        const held = big(d.quantity);
+        return held.gt(0)
+          ? big(await valueOf(d)).div(held)
+          : big(d.currentPriceCents ?? 0n);
+      };
+      const newBase =
+        dest.kind === "new"
+          ? toNewHolding({
+              ...dest.holding,
+              quantity: dest.holding.quantity ?? "1",
+            })
+          : null;
+      const into: Holding | null =
+        dest.kind === "existing"
+          ? (holdings.find((h) => h.id === dest.holdingId) ?? null)
+          : newBase?.uiType
+            ? await deps.holdingRepo.findByLabel(
+                input.tenantId,
+                input.budgetId,
+                newBase.uiType,
+                newBase.name,
+              )
+            : null;
+      if (dest.kind === "existing" && !into) return err(fail("not_found"));
+      if (into && into.id === src.id) return err(fail("same_holding"));
+      const destQty =
+        dest.kind === "existing"
+          ? dest.quantityBought
+          : dest.kind === "new"
+            ? dest.holding.quantity
+            : undefined;
+      let unit: Big | null = null;
+      if (
+        into &&
+        into.holdingType !== "deposit" &&
+        holdingShape(into) === "quantity"
+      )
+        unit = await unitOf(into);
+      else if (!into && newBase && isQuantityHolding(newBase.uiType)) {
+        if (dest.kind !== "new" || !dest.priceCents)
+          return err(fail("price_required"));
+        unit = big(dest.priceCents);
+      }
+      let received: bigint;
+      if (unit) {
+        if (!destQty || big(destQty).lte(0))
+          return err(fail("quantity_required"));
+        received = cents(big(destQty).times(unit));
+      } else if (input.receivedCents === undefined)
+        return err(fail("received_required"));
+      else received = BigInt(String(input.receivedCents));
+
       const fx = realizedInBudget({
         receivedCents: received,
-        receivedToBudgetRate: await rate(receivedCcy, input.budgetCurrency),
+        sourceToReceivedRate: await rate(buyCcy, receivedCcy),
         soldCostCents: soldCost,
-        costToBudgetRate: await rate(buyCcy, input.budgetCurrency),
+        sourceToBudgetRate: await rate(buyCcy, input.budgetCurrency),
       });
 
       const transfer = dest.kind !== "out";
@@ -252,19 +307,12 @@ export function sellHolding(deps: {
 
       // A linked leg INTO an asset that already exists (D-09): by id for
       // Existing, by label for New (a hidden one is revived, D-17).
-      const intoExisting = async (d: Holding, qtyGiven: string | undefined) => {
+      const intoExisting = async (d: Holding) => {
         if (d.holdingType === "deposit") throw fail("unsupported_destination");
         if (ccyOf(d) !== receivedCcy) throw fail("currency_mismatch");
         const revive = d.archivedAt ? { unarchive: true } : {};
         if (holdingShape(d) === "quantity") {
-          // Buy price = the destination's price; quantity derived from it.
-          const held = big(d.quantity);
-          const unit = held.gt(0)
-            ? big(await valueOf(d)).div(held)
-            : big(d.currentPriceCents ?? 0n);
-          const addQty =
-            qtyGiven ?? (unit.gt(0) ? qty(big(received).div(unit)) : null);
-          if (!addQty || big(addQty).lte(0)) throw fail("quantity_required");
+          const addQty = qty(big(destQty!));
           const r = buyMore({
             quantity: d.quantity,
             buyPriceCents: d.buyPriceCents ?? 0n,
@@ -297,26 +345,10 @@ export function sellHolding(deps: {
 
       let newHolding: NewHolding | undefined;
       let destId: string | null = null;
-      if (dest.kind === "existing") {
-        const d = holdings.find((h) => h.id === dest.holdingId);
-        if (!d) return err(fail("not_found"));
-        destId = await intoExisting(d, dest.quantityBought);
-      } else if (dest.kind === "new") {
-        const base = toNewHolding({
-          ...dest.holding,
-          quantity: dest.holding.quantity ?? "1",
-        });
-        const found = base.uiType
-          ? await deps.holdingRepo.findByLabel(
-              input.tenantId,
-              input.budgetId,
-              base.uiType,
-              base.name,
-            )
-          : null;
-        if (found && found.id === src.id) return err(fail("same_holding"));
-        if (found) destId = await intoExisting(found, dest.holding.quantity);
-        else if (base.holdingType === "deposit") {
+      if (into) destId = await intoExisting(into);
+      else if (newBase) {
+        const base = newBase;
+        if (base.holdingType === "deposit") {
           newHolding = {
             ...base,
             quantity: "1",
@@ -327,21 +359,17 @@ export function sellHolding(deps: {
             depositStartDate: base.depositStartDate ?? date,
           };
           leg({ holdingRef: "$new" });
-        } else if (isQuantityHolding(base.uiType)) {
-          if (!dest.holding.quantity || big(dest.holding.quantity).lte(0))
-            return err(fail("quantity_required"));
-          // The user's buy price (D-09 linked qty × price); else derived.
-          const unit = dest.priceCents
-            ? BigInt(dest.priceCents)
-            : cents(big(received).div(big(dest.holding.quantity)));
+        } else if (unit) {
+          // Buy price = the chosen price; current = the live feed price when
+          // the client has one, else the chosen price (no feed).
           newHolding = {
             ...base,
-            buyPriceCents: unit,
+            buyPriceCents: cents(unit),
             buyCurrency: receivedCcy,
-            currentPriceCents: unit,
+            currentPriceCents: base.currentPriceCents ?? cents(unit),
             currentPriceCurrency: base.currentPriceCurrency ?? receivedCcy,
           };
-          leg({ holdingRef: "$new", qtyDelta: dest.holding.quantity });
+          leg({ holdingRef: "$new", qtyDelta: qty(big(destQty!)) });
         } else {
           newHolding = {
             ...base,
