@@ -332,6 +332,36 @@ export class InvestmentsPo {
     return this.submitSwap("/sell");
   }
 
+  /** Sell into a NEW crypto asset entered by hand (no catalog instrument,
+   *  so no live feed): the Sell tab's own price field carries the price. */
+  async startSellIntoNewCrypto(
+    source: string,
+    left: string,
+    name: string,
+    price: string,
+  ): Promise<void> {
+    await this.openSwap(source, "sell");
+    const sheet = this.swapSheet();
+    await sheet.getByTestId("swap-sell-left").fill(left);
+    await sheet.getByTestId("swap-dest-new").click();
+    const form = sheet.getByTestId("holding-form-destination");
+    await form.getByTestId("holding-sheet-type").click();
+    await this.page.getByTestId("holding-type-crypto").click();
+    await form.getByTestId("holding-sheet-name").fill(name);
+    await form.getByTestId("holding-sheet-instrument").fill("ZZQX9");
+    await this.page
+      .getByTestId("instrument-manual-entry-option")
+      .click({ timeout: 10000 });
+    await sheet.getByTestId("swap-dest-price").fill(price);
+  }
+
+  /** UAT 13.1 test 10: typing a quantity never moves the price. */
+  async expectDestPriceStaysAfterQty(qty: string, price: string) {
+    const sheet = this.swapSheet();
+    await sheet.getByTestId("swap-dest-qty").fill(qty);
+    await expect(sheet.getByTestId("swap-dest-price")).toHaveValue(price);
+  }
+
   // ── L3 ledger (D-12..D-18) ──
 
   async ledger(name: string) {

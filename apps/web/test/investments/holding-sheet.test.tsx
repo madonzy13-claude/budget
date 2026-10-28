@@ -862,7 +862,7 @@ describe("HoldingFormFields — sale destination", () => {
     );
   });
 
-  it("crypto: asks Quantity bought, hides buy and current price", async () => {
+  it("crypto: no quantity or prices here; emits the instrument's live price", async () => {
     vi.mocked(clientApiFetch).mockResolvedValue({
       ok: true,
       json: async () => ({ priceCents: "100", currency: "USD" }),
@@ -877,24 +877,25 @@ describe("HoldingFormFields — sale destination", () => {
         onChange={onChange}
       />,
     );
+    // 13.1 UAT 10: the Sell tab owns the one quantity + price pair.
     expect(screen.queryByTestId("holding-sheet-buy-price")).toBeNull();
     expect(screen.queryByTestId("holding-sheet-current-price")).toBeNull();
-    expect(screen.getByText("sell.qtyBought")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("pick-instrument"));
-    fireEvent.change(screen.getByTestId("holding-sheet-quantity"), {
-      target: { value: "0,5" },
+    expect(screen.queryByTestId("holding-sheet-quantity")).toBeNull();
+    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+      target: { value: "USDT" },
     });
+    fireEvent.click(screen.getByTestId("pick-instrument"));
     await waitFor(() =>
       expect(onChange).toHaveBeenLastCalledWith(
         expect.objectContaining({
+          name: "USDT",
           uiType: "crypto",
           instrumentId: "i1",
-          quantity: "0.5",
+          livePriceCents: "100",
         }),
       ),
     );
   });
-
   // Live bug (13-11): the create form auto-opens its Type list; embedded in
   // the Sell sheet that modal list swallowed every keystroke in "Value left".
   it("does not auto-open the Type list as a sale destination", () => {

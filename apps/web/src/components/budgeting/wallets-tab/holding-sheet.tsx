@@ -120,6 +120,9 @@ export interface DestinationHolding {
   unitOfMeasure?: Uom;
   quantity?: string;
   currentPriceCurrency: string;
+  /** Tracked: the instrument's fetched price, cents — the sale's default buy
+   *  price and the new asset's current price (13.1 UAT 10). */
+  livePriceCents?: string | null;
 }
 
 /** Decimal string → cents string (sub-cent kept to 6 places), or null. The
@@ -297,7 +300,6 @@ export function HoldingSheet({
   const meta = uiType ? UI_TYPE_META[uiType] : null;
   const behavior = meta?.behavior ?? null;
   // Sell → New investment: priced-per-unit types ask how many units were bought.
-  const destQuantity = behavior === "tracked" || behavior === "metals";
 
   const today = new Date().toLocaleDateString("en-CA");
   const [openedOn, setOpenedOn] = useState(today);
@@ -693,12 +695,11 @@ export function HoldingSheet({
     if (!destOnChange || !destCcy) return;
     const ut = uiType;
     const label = (customName.trim() || name.trim()).trim();
-    const qtyOk = !destQuantity || Number(quantity.replace(",", ".")) > 0;
     const instrumentOk =
       behavior === "metals" || (behavior === "tracked" && !manualEntry)
         ? instrumentId != null
         : true;
-    if (!ut || !label || !qtyOk || !instrumentOk) {
+    if (!ut || !label || !instrumentOk) {
       destOnChange(null);
       return;
     }
@@ -713,7 +714,9 @@ export function HoldingSheet({
       ...(behavior === "metals"
         ? { metal, metalKind, unitOfMeasure: uom }
         : {}),
-      ...(destQuantity ? { quantity: quantity.replace(",", ".") } : {}),
+      ...(behavior === "tracked" && currentPrice
+        ? { livePriceCents: toCents(currentPrice) }
+        : {}),
       currentPriceCurrency: destCcy,
     });
   }, [
@@ -722,8 +725,7 @@ export function HoldingSheet({
     uiType,
     name,
     customName,
-    quantity,
-    destQuantity,
+    currentPrice,
     behavior,
     manualEntry,
     manualTicker,
@@ -1142,8 +1144,9 @@ export function HoldingSheet({
               />
             </Field>
           )}
-          {(!dest || destQuantity) && (
-            <Field label={dest ? t("sell.qtyBought") : t("field.quantity")}>
+          {/* A sale's quantity + price live in the Sell tab (13.1 UAT 10). */}
+          {!dest && (
+            <Field label={t("field.quantity")}>
               <NumericInput
                 testId="holding-sheet-quantity"
                 value={quantity}

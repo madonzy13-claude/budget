@@ -752,6 +752,35 @@ When(
   },
 );
 
+When(
+  "I start selling {string} leaving {string} into a new crypto asset {string} priced {string}",
+  async (
+    { page },
+    source: string,
+    left: string,
+    name: string,
+    price: string,
+  ) => {
+    await new InvestmentsPo(page).startSellIntoNewCrypto(
+      source,
+      left,
+      name,
+      price,
+    );
+  },
+);
+
+Then(
+  "the destination price stays {string} after typing the quantity {string}",
+  async ({ page }, price: string, qty: string) => {
+    await new InvestmentsPo(page).expectDestPriceStaysAfterQty(qty, price);
+  },
+);
+
+When("I submit the sale", async ({ page }) => {
+  expect(await new InvestmentsPo(page).submitSwap("/sell")).toBe(201);
+});
+
 Then(
   "there is exactly one asset row {string}",
   async ({ page }, name: string) => {

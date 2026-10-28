@@ -70,28 +70,79 @@ describe("Sell tab", () => {
     expect(screen.getByText("swap.err.leftTooHigh")).toBeInTheDocument();
   });
 
-  it("an existing quantity destination shows its price read-only and derives the quantity", () => {
+  // UAT 13.1 test 10: a quantity destination is quantity × price; the price
+  // never follows the quantity.
+  it("a new tracked destination starts at its live price; typing a quantity never moves it", async () => {
     mount();
-    type("swap-sell-left", "1");
-    fireEvent.click(screen.getByTestId("swap-dest-existing"));
-    type("swap-sell-existing", btcCold.id);
-    type("swap-sell-received", "60000");
-    expect(screen.getByTestId("swap-dest-price")).toHaveAttribute("readonly");
-    expect(screen.getByTestId("swap-dest-price")).toHaveValue("60000");
-    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("1");
+    type("swap-sell-left", "1"); // sold value 60,000 PLN
+    fireEvent.click(screen.getByTestId("swap-dest-new"));
+    fireEvent.click(screen.getByTestId("dest-form-usdt"));
+    expect(screen.getAllByTestId("swap-dest-qty")).toHaveLength(1);
+    expect(screen.queryByTestId("swap-sell-received")).toBeNull();
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("1");
+    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("60000");
+    type("swap-dest-qty", "1000");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("1");
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    const body = lastBody();
+    expect(body.receivedCents).toBeUndefined();
+    expect(body.destination).toMatchObject({
+      kind: "new",
+      priceCents: "100",
+      holding: { name: "USDT", quantity: "1000", currentPriceCents: "100" },
+    });
+    expect(body.destination.holding.livePriceCents).toBeUndefined();
   });
 
-  it("a new quantity destination links quantity and price to the amount", () => {
+  it("an untouched quantity follows the price; a typed one never moves", () => {
     mount();
     type("swap-sell-left", "1");
     fireEvent.click(screen.getByTestId("swap-dest-new"));
     fireEvent.click(screen.getByTestId("dest-form-qty"));
-    type("swap-sell-received", "60000");
-    type("swap-dest-qty", "20");
-    expect(screen.getByTestId("swap-dest-price")).toHaveValue("3000");
-    type("swap-dest-price", "6000");
-    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("10");
-    expect(screen.getByText("swap.sell.linked")).toBeInTheDocument();
+    type("swap-dest-price", "2");
+    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("30000");
+    type("swap-dest-qty", "1000");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("2");
+    type("swap-dest-price", "3");
+    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("1000");
+    expect(screen.queryByText("swap.sell.linked")).toBeNull();
+  });
+
+  it("an existing quantity destination is priced at its own price, read-only", async () => {
+    mount();
+    type("swap-sell-left", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-existing"));
+    type("swap-sell-existing", btcCold.id);
+    expect(screen.getByTestId("swap-dest-price")).toHaveAttribute("readonly");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("60000");
+    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("1");
+    type("swap-dest-qty", "0.5");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("60000");
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody().receivedCents).toBeUndefined();
+    expect(lastBody().destination).toEqual({
+      kind: "existing",
+      holdingId: btcCold.id,
+      quantityBought: "0.5",
+    });
+  });
+
+  // UAT 13.1 test 14: one rate per deal, the same as the server.
+  it("a fair cross-currency sale previews realized 0", () => {
+    mount();
+    type("swap-sell-left", "1"); // sold cost 50,000 PLN
+    fireEvent.click(screen.getByTestId("swap-dest-out"));
+    fireEvent.change(screen.getByTestId("currency-picker"), {
+      target: { value: "EUR" },
+    });
+    type("swap-sell-received", "12500"); // = 50,000 PLN × 0.25
+    return waitFor(() =>
+      expect(screen.getByTestId("swap-summary")).toHaveTextContent(
+        "swap.sum.realized(amount=0 PLN)",
+      ),
+    );
   });
 
   it("Out defaults to Nowhere and books without a wallet", async () => {
@@ -194,5 +245,37 @@ describe("Sell tab", () => {
     type("swap-sell-left", "1");
     fireEvent.click(screen.getByTestId("swap-dest-out"));
     expect(screen.getByTestId("currency-picker")).toHaveValue("EUR");
+  });
+
+  // UAT 13.1 test 9: wallet target layout + a new wallet's currency.
+  it("wallet target cards centre their label", () => {
+    mount();
+    type("swap-sell-left", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-out"));
+    for (const k of ["existing", "new", "nowhere"])
+      expect(screen.getByTestId(`wallet-target-${k}`).className).toContain(
+        "items-center",
+      );
+  });
+
+  it("a new wallet takes the amount's own currency; a typed amount stays on switch", async () => {
+    mount();
+    type("swap-sell-left", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-out"));
+    fireEvent.click(screen.getByTestId("wallet-target-new"));
+    expect(screen.getAllByTestId("currency-picker")).toHaveLength(1);
+    const picker = screen.getByTestId("currency-picker");
+    expect(picker).not.toBeDisabled();
+    type("swap-sell-received", "500");
+    fireEvent.change(picker, { target: { value: "EUR" } });
+    expect(screen.getByTestId("swap-sell-received")).toHaveValue("500");
+    type("swap-wallet-name", "Euro pot");
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody()).toMatchObject({
+      receivedCurrency: "EUR",
+      receivedCents: "50000",
+      destination: { wallet: { kind: "new", currency: "EUR" } },
+    });
   });
 });

@@ -4,12 +4,17 @@
  * tests 4–5). How much is left → where the money went → destination detail →
  * amount received + currency on ONE line → date.
  *
- *   New / Existing   a linked leg in the destination asset; a quantity
- *                    destination shows its buy price (Existing: its price,
- *                    read-only, quantity derived; New: quantity × price linked
- *                    to the amount).
+ *   New / Existing   a linked leg in the destination asset. A quantity
+ *                    destination is quantity × price (13.1 UAT 10): the price
+ *                    is the asset's own (Existing, read-only) or the live /
+ *                    typed one (New) and NEVER follows the quantity; the
+ *                    quantity follows sold value ÷ price only until typed.
+ *                    Received = quantity × price — no Amount received field.
  *   Out              optionally lands in a wallet (existing: its currency,
  *                    locked; new: name · type · currency) or Nowhere (D-20).
+ *
+ * Realized previews the server's single deal rate (13.1 UAT 14): proceeds in
+ * the source currency = received ÷ rate(source → received), minus sold cost.
  *
  * Preview mirrors the server booking with display-only Number math:
  *   quantity: sold cost = buy × sold qty
@@ -81,12 +86,15 @@ function RadioCards<K extends string>({
   onChange,
   label,
   testPrefix,
+  center,
 }: {
   value: K | null;
   options: { k: K; title: string; desc?: string }[];
   onChange: (k: K) => void;
   label: string;
   testPrefix: string;
+  /** Title-only cards: centre the label (13.1 UAT 9). */
+  center?: boolean;
 }) {
   const keys = options.map((o) => o.k);
   return (
@@ -113,7 +121,12 @@ function RadioCards<K extends string>({
           tabIndex={value === o.k || (!value && o.k === keys[0]) ? 0 : -1}
           data-testid={`${testPrefix}${o.k}`}
           onClick={() => onChange(o.k)}
-          className="flex min-h-11 w-full flex-col items-start rounded-[var(--radius-md)] border px-4 py-2 text-left"
+          className={[
+            "flex min-h-11 w-full flex-col rounded-[var(--radius-md)] border px-4 py-2",
+            center
+              ? "items-center justify-center text-center"
+              : "items-start text-left",
+          ].join(" ")}
           style={{
             background: "var(--surface-card-dark)",
             borderColor:
@@ -174,15 +187,14 @@ export function SwapSellTab({
   const [dest, setDest] = useState<Dest>("new");
   const [newHolding, setNewHolding] = useState<DestinationHolding | null>(null);
   const [destQty, setDestQty] = useState("");
+  const [qtyTouched, setQtyTouched] = useState(false);
   const [destPrice, setDestPrice] = useState("");
-  const [lastEdited, setLastEdited] = useState<"qty" | "price">("qty");
   const [existingId, setExistingId] = useState("");
   const [walletKind, setWalletKind] = useState<WalletKind>("nowhere");
   const [walletId, setWalletId] = useState("");
   const [walletName, setWalletName] = useState("");
   const [walletType, setWalletType] =
     useState<(typeof WALLET_TYPES)[number]>("SPENDINGS");
-  const [newWalletCcy, setNewWalletCcy] = useState(srcCcy);
   const [chosenCcy, setChosenCcy] = useState(srcCcy);
   const [received, setReceived] = useState("");
   const [receivedTouched, setReceivedTouched] = useState(false);
@@ -195,11 +207,11 @@ export function SwapSellTab({
       ? ccyOf(existing, budgetCurrency)
       : dest === "out" && walletKind === "existing" && wallet
         ? wallet.currency
-        : dest === "out" && walletKind === "new"
-          ? newWalletCcy
-          : chosenCcy;
+        : chosenCcy;
+  // A new wallet takes the amount's currency (13.1 UAT 9) — only an existing
+  // wallet or asset locks it (D-22).
   const ccyLocked =
-    dest === "existing" || (dest === "out" && walletKind !== "nowhere");
+    dest === "existing" || (dest === "out" && walletKind === "existing");
 
   // Today's rate source currency → received currency (prefill + preview only).
   const [rate, setRate] = useState(1);
@@ -254,29 +266,43 @@ export function SwapSellTab({
     setReceived(String(Math.round(calc.soldValue * rate) / 100));
   }, [calc, rate, receivedTouched]);
 
-  const receivedCents = toCents(received || "0");
-  // ponytail: display-only Number math (no-float-money keys on member names).
-  const soldPart = calc && !calc.tooHigh ? calc.soldCost : null;
-  const realized = soldPart === null ? null : receivedCents - soldPart * rate;
-
-  // Destination buy price (D-09).
+  // Destination price (D-09): Existing = its own, read-only; New = typed,
+  // else the instrument's live price. Nothing ever writes it from qty.
   const existingIsQty = !!existing && holdingShape(existing) === "quantity";
-  const existingPrice = existing
-    ? Number(existing.currentPriceCents ?? 0) / 100
-    : 0;
-  const existingQty =
-    existingIsQty && existingPrice > 0
-      ? receivedCents / 100 / existingPrice
-      : 0;
   const newIsQty = !!newHolding && isQtyType(newHolding.uiType);
-  const derivedQty =
-    lastEdited === "price" && num(destPrice) > 0
-      ? receivedCents / 100 / num(destPrice)
-      : num(destQty);
-  const derivedPrice =
-    lastEdited === "qty" && num(destQty) > 0
-      ? receivedCents / 100 / num(destQty)
-      : num(destPrice);
+  const qtyDest =
+    (dest === "existing" && existingIsQty) || (dest === "new" && newIsQty);
+  const livePrice = newHolding?.livePriceCents
+    ? plain(Number(newHolding.livePriceCents) / 100)
+    : "";
+  const priceText =
+    dest === "existing"
+      ? existing
+        ? plain(Number(existing.currentPriceCents ?? 0) / 100)
+        : ""
+      : destPrice !== ""
+        ? destPrice
+        : livePrice;
+  const price = num(priceText);
+  // Quantity follows sold value ÷ price until the user types it.
+  const soldInReceived =
+    calc && !calc.tooHigh ? (calc.soldValue * rate) / 100 : 0;
+  const qtyText = qtyTouched
+    ? destQty
+    : price > 0 && soldInReceived > 0
+      ? plain(soldInReceived / price)
+      : "";
+  const qty = num(qtyText);
+
+  // ponytail: display-only Number math (no-float-money keys on member names).
+  const receivedCents = qtyDest
+    ? Number.isFinite(qty * price)
+      ? Math.round(qty * price * 100)
+      : 0
+    : toCents(received || "0");
+  const soldPart = calc && !calc.tooHigh ? calc.soldCost : null;
+  const realized =
+    soldPart === null || !(rate > 0) ? null : receivedCents / rate - soldPart;
 
   const nameMissing =
     dest === "out" && walletKind === "new" && walletName.trim() === "";
@@ -285,9 +311,8 @@ export function SwapSellTab({
       ? walletKind === "nowhere" ||
         (walletKind === "existing" ? !!wallet : !nameMissing)
       : dest === "existing"
-        ? !!existing && (!existingIsQty || existingQty > 0)
-        : newHolding !== null &&
-          (!newIsQty || (derivedQty > 0 && derivedPrice > 0));
+        ? !!existing && (!existingIsQty || qty > 0)
+        : newHolding !== null && (!newIsQty || (qty > 0 && price > 0));
   const valid =
     !!calc &&
     !calc.tooHigh &&
@@ -313,7 +338,7 @@ export function SwapSellTab({
           v1: calc.rowValue,
           ccy: srcCcy,
           realized: realized ?? 0,
-          realizedCcy: receivedCcy,
+          realizedCcy: srcCcy,
           dest:
             dest === "new"
               ? {
@@ -363,7 +388,7 @@ export function SwapSellTab({
               kind: "new",
               name: walletName.trim(),
               walletType,
-              currency: newWalletCcy,
+              currency: receivedCcy,
             }
           : { kind: "nowhere" };
     const destination =
@@ -373,21 +398,29 @@ export function SwapSellTab({
           ? {
               kind: "existing" as const,
               holdingId: existingId,
-              ...(existingIsQty
-                ? { quantityBought: qtyString(existingQty) }
-                : {}),
+              ...(existingIsQty ? { quantityBought: qtyString(qty) } : {}),
             }
-          : {
-              kind: "new" as const,
-              holding: {
-                ...newHolding!,
-                currentPriceCurrency: receivedCcy,
-                ...(newIsQty ? { quantity: qtyString(derivedQty) } : {}),
-              },
-              ...(newIsQty
-                ? { priceCents: String(Math.round(derivedPrice * 100)) }
-                : {}),
-            };
+          : (() => {
+              const { livePriceCents, ...base } = newHolding!;
+              return {
+                kind: "new" as const,
+                holding: {
+                  ...base,
+                  currentPriceCurrency: receivedCcy,
+                  ...(newIsQty
+                    ? {
+                        quantity: qtyString(qty),
+                        ...(livePriceCents
+                          ? { currentPriceCents: livePriceCents }
+                          : {}),
+                      }
+                    : {}),
+                },
+                ...(newIsQty
+                  ? { priceCents: String(Math.round(price * 100)) }
+                  : {}),
+              };
+            })();
     sellMut.mutate(
       {
         holdingId: holding.id,
@@ -395,7 +428,8 @@ export function SwapSellTab({
           effectiveDate: date,
           left: leftBody,
           destination,
-          receivedCents: String(receivedCents),
+          // A quantity destination's received is quantity × price (server).
+          ...(qtyDest ? {} : { receivedCents: String(receivedCents) }),
           receivedCurrency: receivedCcy,
         },
       },
@@ -441,6 +475,32 @@ export function SwapSellTab({
     (wt) => [wt, wallets.filter((w) => w.walletType === wt)] as const,
   ).filter(([, ws]) => ws.length > 0);
   const money = (c: number) => centsToBare(String(Math.round(Math.abs(c))));
+
+  /** One quantity + one price; received = quantity × price. */
+  const destPair = (locked: boolean) => (
+    <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
+      <Field label={t("swap.buy.quantity")}>
+        <NumericInput
+          testId="swap-dest-qty"
+          value={qtyText}
+          onChange={(v) => {
+            setQtyTouched(true);
+            setDestQty(v);
+          }}
+        />
+      </Field>
+      <Field
+        label={`${t("swap.buy.price")} (${receivedCcy})${locked ? ` · ${t("swap.locked")}` : ""}`}
+      >
+        <NumericInput
+          testId="swap-dest-price"
+          value={priceText}
+          onChange={locked ? () => {} : setDestPrice}
+          readOnly={locked}
+        />
+      </Field>
+    </div>
+  );
 
   return (
     <>
@@ -517,40 +577,7 @@ export function SwapSellTab({
                 initialUiType="cash"
                 onChange={setNewHolding}
               />
-              {newIsQty && (
-                <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
-                  <Field label={t("swap.buy.quantity")}>
-                    <NumericInput
-                      testId="swap-dest-qty"
-                      value={
-                        lastEdited === "price" ? plain(derivedQty) : destQty
-                      }
-                      onChange={(v) => {
-                        setLastEdited("qty");
-                        setDestQty(v);
-                      }}
-                    />
-                  </Field>
-                  <Field label={`${t("swap.buy.price")} (${receivedCcy})`}>
-                    <NumericInput
-                      testId="swap-dest-price"
-                      value={
-                        lastEdited === "qty" ? plain(derivedPrice) : destPrice
-                      }
-                      onChange={(v) => {
-                        setLastEdited("price");
-                        setDestPrice(v);
-                      }}
-                    />
-                  </Field>
-                  <p
-                    className={`${caption} col-span-full`}
-                    style={{ color: "var(--muted-foreground)" }}
-                  >
-                    {t("swap.sell.linked")}
-                  </p>
-                </div>
-              )}
+              {newIsQty && destPair(false)}
             </>
           )}
           {dest === "existing" && (
@@ -576,28 +603,7 @@ export function SwapSellTab({
                   </optgroup>
                 ))}
               </select>
-              {existingIsQty && (
-                <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
-                  <Field
-                    label={`${t("swap.buy.price")} (${receivedCcy}) · ${t("swap.locked")}`}
-                  >
-                    <NumericInput
-                      testId="swap-dest-price"
-                      value={plain(existingPrice)}
-                      onChange={() => {}}
-                      readOnly
-                    />
-                  </Field>
-                  <Field label={t("swap.buy.quantity")}>
-                    <NumericInput
-                      testId="swap-dest-qty"
-                      value={plain(existingQty)}
-                      onChange={() => {}}
-                      readOnly
-                    />
-                  </Field>
-                </div>
-              )}
+              {existingIsQty && destPair(true)}
             </>
           )}
           {dest === "out" && (
@@ -616,6 +622,7 @@ export function SwapSellTab({
                 }}
                 label={t("swap.sell.walletTitle")}
                 testPrefix="wallet-target-"
+                center
                 options={WALLET_KINDS.map((k) => ({
                   k,
                   title: t(`swap.sell.wallet.${k}`),
@@ -680,17 +687,6 @@ export function SwapSellTab({
                       ))}
                     </select>
                   </Field>
-                  <Field label={t("field.currency")}>
-                    <CurrencyPicker
-                      variant="field"
-                      value={newWalletCcy}
-                      onSelect={(v) => {
-                        setNewWalletCcy(v);
-                        setReceivedTouched(false);
-                      }}
-                      aria-label={t("swap.sell.wallet.type")}
-                    />
-                  </Field>
                   <p
                     className={caption}
                     style={{ color: "var(--muted-foreground)" }}
@@ -711,57 +707,58 @@ export function SwapSellTab({
           )}
         </section>
 
-        {/* 4. Amount received + currency on ONE line (UAT test 5). */}
-        <section className="space-y-2">
-          <span className="text-caption text-[var(--muted-foreground)]">
-            {t("swap.sell.received")}
-          </span>
-          <div
-            data-testid="swap-received-row"
-            className="flex flex-nowrap items-center gap-2"
-          >
-            <div className="min-w-0 flex-1">
-              <NumericInput
-                testId="swap-sell-received"
-                value={received}
-                onChange={(v) => {
-                  setReceivedTouched(true);
-                  setReceived(v);
-                }}
-              />
-            </div>
-            <div className="w-24 shrink-0">
-              {ccyLocked ? (
-                <span
-                  data-testid="swap-received-ccy"
-                  className="flex min-h-11 items-center justify-center rounded-[var(--radius-md)] border text-[14px]"
-                  style={{
-                    borderColor: "var(--hairline-dark)",
-                    color: "var(--muted-foreground)",
+        {/* 4. Amount received + currency on ONE line (UAT test 5) — not for
+            a quantity destination, whose amount is quantity × price. */}
+        {!qtyDest && (
+          <section className="space-y-2">
+            <span className="text-caption text-[var(--muted-foreground)]">
+              {t("swap.sell.received")}
+            </span>
+            <div
+              data-testid="swap-received-row"
+              className="flex flex-nowrap items-center gap-2"
+            >
+              <div className="min-w-0 flex-1">
+                <NumericInput
+                  testId="swap-sell-received"
+                  value={received}
+                  onChange={(v) => {
+                    setReceivedTouched(true);
+                    setReceived(v);
                   }}
-                >
-                  {receivedCcy}
-                </span>
-              ) : (
-                <CurrencyPicker
-                  variant="field"
-                  value={chosenCcy}
-                  onSelect={(v) => {
-                    setChosenCcy(v);
-                    setReceivedTouched(false);
-                  }}
-                  aria-label={t("swap.sell.received")}
                 />
-              )}
+              </div>
+              <div className="w-24 shrink-0">
+                {ccyLocked ? (
+                  <span
+                    data-testid="swap-received-ccy"
+                    className="flex min-h-11 items-center justify-center rounded-[var(--radius-md)] border text-[14px]"
+                    style={{
+                      borderColor: "var(--hairline-dark)",
+                      color: "var(--muted-foreground)",
+                    }}
+                  >
+                    {receivedCcy}
+                  </span>
+                ) : (
+                  <CurrencyPicker
+                    variant="field"
+                    value={chosenCcy}
+                    // A hand-typed amount stays; an untouched one re-converts.
+                    onSelect={setChosenCcy}
+                    aria-label={t("swap.sell.received")}
+                  />
+                )}
+              </div>
             </div>
-          </div>
-          <p className={caption} style={{ color: "var(--muted-foreground)" }}>
-            {t("swap.sell.receivedHelp")}
-          </p>
-          {received.trim() !== "" && !(receivedCents > 0) && (
-            <ErrorLine>{t("swap.err.received")}</ErrorLine>
-          )}
-        </section>
+            <p className={caption} style={{ color: "var(--muted-foreground)" }}>
+              {t("swap.sell.receivedHelp")}
+            </p>
+            {received.trim() !== "" && !(receivedCents > 0) && (
+              <ErrorLine>{t("swap.err.received")}</ErrorLine>
+            )}
+          </section>
+        )}
 
         <SwapDateField value={date} onChange={setDate} min={minDate} />
         {serverError && <ErrorLine>{serverError}</ErrorLine>}

@@ -57,6 +57,16 @@ Feature: Investments as assets with transactions (13.1)
     Then the wallet "From IBKR" holds 9600000 cents
     And the holding row "IBKR" is gone
 
+  # UAT 13.1 test 10: a sale into a quantity asset is quantity × price, and
+  # the price never follows the quantity.
+  Scenario: Selling into a new crypto asset keeps its price when the quantity changes
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I start selling "IBKR" leaving "0" into a new crypto asset "Moon coin" priced "2"
+    Then the destination price stays "2" after typing the quantity "1000"
+    When I submit the sale
+    Then the holding row "Moon coin" is visible
+
   # D-10: Transfer is not a sale.
   Scenario: Moving everything to a new label hides the source
     Given a "collectibles" asset "Coins" of "4" units at 2500 cents exists in my budget

@@ -84,6 +84,22 @@ vi.mock("../../src/components/budgeting/wallets-tab/holding-sheet", () => ({
       >
         dest qty
       </button>
+      <button
+        type="button"
+        data-testid="dest-form-usdt"
+        onClick={() =>
+          onChange({
+            name: "USDT",
+            uiType: "crypto",
+            holdingType: "crypto",
+            instrumentId: "i3",
+            currentPriceCurrency: "PLN",
+            livePriceCents: "100",
+          })
+        }
+      >
+        dest usdt
+      </button>
     </>
   ),
   Field: ({
