@@ -559,12 +559,25 @@ Then("there is a {string} type block", async ({ page }, uiType: string) => {
   await expect(new InvestmentsPo(page).typeBlock(uiType)).toBeVisible();
 });
 
+Then("there is no realized line above the investments", async ({ page }) => {
+  await expect(page.getByTestId("investments-total-realized")).toHaveCount(0);
+});
+
 Then(
-  "the investments total shows realized {string}",
-  async ({ page }, amount: string) => {
-    await expect(page.getByTestId("investments-total-realized")).toContainText(
-      amount,
-    );
+  "the {string} type still books realized {int} cents",
+  async ({ freshUser }, uiType: string, cents: number) => {
+    let sum = "";
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      const r = await client.query<{ s: string }>(
+        `SELECT coalesce(sum(h.realized_budget_cents), 0)::text AS s
+           FROM budgeting.investment_history h
+           JOIN budgeting.investments i ON i.id = h.holding_id
+          WHERE h.budget_id = $1::uuid AND i.ui_type = $2 AND h.deleted_at IS NULL`,
+        [freshUser.budgetId, uiType],
+      );
+      sum = r.rows[0]?.s ?? "";
+    });
+    expect(sum).toBe(String(cents));
   },
 );
 
@@ -977,12 +990,23 @@ Then(
 );
 
 Then(
-  "every Swap tab of {string} shows the sum-up card and fits the phone",
+  "every Swap tab of {string} shows the sum-up card once filled and fits the phone",
   async ({ page }, name: string) => {
     const po = new InvestmentsPo(page);
     await po.openSwap(name, "buy");
     for (const tab of ["buy", "sell", "transfer"] as const) {
       await page.getByTestId(`swap-tab-${tab}`).click();
+      // 13.1 UAT 8: the sum-up appears only once something changes.
+      await expect(page.getByTestId("swap-summary")).toHaveCount(0);
+      if (tab === "buy") await page.getByTestId("swap-buy-amount").fill("100");
+      else {
+        if (tab === "sell") await page.getByTestId("swap-dest-out").click();
+        await page.getByTestId(`swap-${tab}-all`).click();
+        if (tab === "transfer") {
+          await page.getByTestId("swap-transfer-to-new").click();
+          await page.getByTestId("swap-transfer-name").fill("IBKR 2");
+        }
+      }
       await expect(page.getByTestId("swap-summary")).toBeVisible();
       const ok = await page.getByTestId("swap-sheet").evaluate((el) => {
         const r = el.getBoundingClientRect();

@@ -124,7 +124,7 @@ Feature: Investments as assets with transactions (13.1)
     And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
     When I open the investments wallets tab in "<locale>"
     Then the ledger of "IBKR" sits on the sunken surface with an inset top shadow in both themes
-    And every Swap tab of "IBKR" shows the sum-up card and fits the phone
+    And every Swap tab of "IBKR" shows the sum-up card once filled and fits the phone
 
     Examples:
       | locale |

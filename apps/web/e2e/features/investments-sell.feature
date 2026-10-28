@@ -31,9 +31,9 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     And I sell "IBKR" leaving "0" into a new cash holding "Erste" receiving "96000"
     Then there is no "broker" type block
     And there is a "cash" type block
-    And the investments total shows realized "+41,000"
-    When I reload the wallets tab
-    Then the investments total shows realized "+41,000"
+    # 13.1 UAT 3: no realized line above the list — it stays booked.
+    And there is no realized line above the investments
+    And the "broker" type still books realized 4100000 cents
 
   Scenario: Selling into an existing holding tops it up
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
