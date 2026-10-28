@@ -129,4 +129,36 @@ describe("Asset name combobox", () => {
     fireEvent.focus(screen.getByRole("combobox"));
     expect(screen.getAllByRole("option").length).toBeLessThanOrEqual(6);
   });
+
+  // UAT 13.1 test 7: name-first — the list is there before typing.
+  it("focus with an empty name lists the type's assets", () => {
+    mount("");
+    fireEvent.focus(screen.getByRole("combobox"));
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(
+      expect.arrayContaining(["BTC Ledger", "ETH"]),
+    );
+    expect(screen.queryByTestId("asset-name-create")).toBeNull();
+  });
+
+  it("a new name ends the list with Add as new asset, kept by Enter", () => {
+    const { onChange, onPickExisting } = mount("Foo");
+    const input = screen.getByRole("combobox");
+    fireEvent.focus(input);
+    const create = screen.getByTestId("asset-name-create");
+    expect(create).toHaveTextContent("asset.name.create(Foo)");
+    const opts = screen.getAllByRole("option");
+    expect(opts.at(-1)).toBe(create);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onPickExisting).not.toHaveBeenCalled();
+  });
+
+  it("the create row survives a full list", () => {
+    mount("t"); // matches several names
+    fireEvent.focus(screen.getByRole("combobox"));
+    expect(screen.getByTestId("asset-name-create")).toBeInTheDocument();
+    expect(screen.getAllByRole("option").length).toBeLessThanOrEqual(7);
+  });
 });

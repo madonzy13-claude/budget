@@ -238,6 +238,30 @@ export class InvestmentsPo {
     if (await t.isVisible().catch(() => false)) await t.click();
   }
 
+  /** Open Add and pick a type (13.1 name-first form). */
+  async openAdd(type: string): Promise<void> {
+    await this.addButton().click();
+    await this.sheet().waitFor({ state: "visible" });
+    const opt = this.page.getByTestId(`holding-type-${type}`);
+    if (!(await opt.isVisible().catch(() => false)))
+      await this.page.getByTestId("holding-sheet-type").click();
+    await opt.click();
+  }
+
+  /** Focus the name field — the type's assets list without typing. */
+  async focusName(): Promise<void> {
+    await this.sheet().getByTestId("holding-sheet-name").click();
+  }
+
+  /** Pick an existing asset from the open name list. */
+  async pickName(name: string): Promise<void> {
+    const option = this.page
+      .getByRole("option")
+      .filter({ hasText: new RegExp(`^${name}`) });
+    await expect(option).toHaveCount(1, { timeout: 5000 });
+    await option.click();
+  }
+
   /** Open the slim Edit sheet (D-06). */
   async openEdit(name: string): Promise<void> {
     await this.rowAction(name, "edit");

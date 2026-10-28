@@ -4,7 +4,8 @@
  * assets (13.1 D-02, D-07, UI-SPEC §3).
  *
  * Same name (trimmed, case-insensitive) = the same asset: picking one joins it
- * (a hidden, sold-out one reopens). An exact miss offers "Create". A plain
+ * (a hidden, sold-out one reopens). The list opens on focus, before any
+ * typing (13.1 UAT 7); a new name always ends it with "Add as new asset". A plain
  * ARIA combobox + listbox rather than Popover/Command: the list sits inline
  * under the input inside the sheet, so there is no portal to fight.
  */
@@ -68,9 +69,9 @@ export function AssetNameCombobox({
   const options: Array<
     { kind: "asset"; a: AssetNameDto } | { kind: "create" }
   > = [
-    ...matches.map((a) => ({ kind: "asset" as const, a })),
+    ...matches.slice(0, MAX).map((a) => ({ kind: "asset" as const, a })),
     ...(q && !exact ? [{ kind: "create" as const }] : []),
-  ].slice(0, MAX);
+  ];
   const listId = `${testId ?? "asset-name"}-list`;
 
   const pick = (i: number) => {
@@ -138,7 +139,11 @@ export function AssetNameCombobox({
               id={`${listId}-${i}`}
               role="option"
               aria-selected={i === active}
-              data-testid={`asset-name-option-${i}`}
+              data-testid={
+                o.kind === "create"
+                  ? "asset-name-create"
+                  : `asset-name-option-${i}`
+              }
               // mousedown, not click: the input's blur would close the list first.
               onMouseDown={(e) => {
                 e.preventDefault();

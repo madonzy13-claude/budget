@@ -771,7 +771,7 @@
         },
         "name": {
           "label": "Name",
-          "create": "Create \"{name}\"",
+          "create": "Add as new asset \"{name}\"",
           "closed": "Closed",
           "joins": "This joins {name} (currently {value}).",
           "reopens": "This reopens {name}.",

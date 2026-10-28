@@ -771,7 +771,7 @@
         },
         "name": {
           "label": "Nazwa",
-          "create": "Utwórz „{name}”",
+          "create": "Dodaj jako nowe aktywo „{name}”",
           "closed": "Zamknięte",
           "joins": "Dołączy do {name} (obecnie {value}).",
           "reopens": "Ponownie otworzy {name}.",

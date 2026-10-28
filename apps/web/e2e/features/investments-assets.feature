@@ -16,6 +16,15 @@ Feature: Investments as assets with transactions (13.1)
     Then there is exactly one asset row "Coins"
     And the ledger of "Coins" has 2 entries
 
+  # UAT 13.1 test 7: tracked types autocomplete from the type's own assets —
+  # the list is there on focus, and picking one buys into it.
+  Scenario: Adding a crypto asset offers its existing name before typing
+    Given a "crypto" asset "BTC Ledger" of "1" units at 5000000 cents exists in my budget
+    When I open the investments wallets tab
+    And I add "0.5" at "60000" to the existing "crypto" asset "BTC Ledger" from the Add form
+    Then there is exactly one asset row "BTC Ledger"
+    And the ledger of "BTC Ledger" has 2 entries
+
   # D-02/D-17: a sold-out asset is offered as Closed and buying revives it.
   Scenario: The autocomplete offers a hidden asset and buying revives it
     Given a hidden "collectibles" asset "Old coin" exists in my budget

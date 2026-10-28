@@ -725,6 +725,20 @@ When(
   },
 );
 
+When(
+  "I add {string} at {string} to the existing {string} asset {string} from the Add form",
+  async ({ page }, qty: string, price: string, type: string, name: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openAdd(type);
+    await po.focusName();
+    await po.pickName(name);
+    // Existing pick = the locked Swap → Buy form (D-08).
+    await page.getByTestId("swap-buy-qty").fill(qty);
+    await page.getByTestId("swap-buy-price").fill(price);
+    expect(await po.submitSwap("/buy")).toBe(201);
+  },
+);
+
 Then(
   "there is exactly one asset row {string}",
   async ({ page }, name: string) => {
