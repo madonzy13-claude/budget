@@ -5,12 +5,13 @@
  * primary · Discard) and small parsing helpers. Previews are display-only
  * Number math; the server books in BigInt.
  */
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { HoldingDto } from "@/hooks/use-investments";
 import type { SwapSummary } from "@/lib/swap-summary";
+import { formatShortDate } from "@/lib/format-date";
 import { SwapSummaryCard } from "./swap-summary-card";
 
 export const num = (s: string) =>
@@ -95,6 +96,7 @@ export function SwapDateField({
   error?: string | null;
 }) {
   const t = useTranslations("budget.investments");
+  const locale = useLocale();
   return (
     <section className="space-y-1">
       <label className="block space-y-1">
@@ -112,12 +114,14 @@ export function SwapDateField({
       </label>
       {min && (
         <p className={caption} style={{ color: "var(--muted-foreground)" }}>
-          {t("swap.dateMin", { date: min })}
+          {t("swap.dateMin", { date: formatShortDate(min, locale) })}
         </p>
       )}
       {value > today() && <ErrorLine>{t("swap.err.futureDate")}</ErrorLine>}
       {min && value < min && (
-        <ErrorLine>{t("swap.err.beforeLatest", { date: min })}</ErrorLine>
+        <ErrorLine>
+          {t("swap.err.beforeLatest", { date: formatShortDate(min, locale) })}
+        </ErrorLine>
       )}
       {error && <ErrorLine>{error}</ErrorLine>}
     </section>
@@ -147,7 +151,7 @@ export function SwapFooter({
   return (
     <div
       data-testid="swap-footer"
-      className="sticky bottom-0 flex flex-col gap-2 border-t pt-4"
+      className="flex flex-col gap-2 border-t pt-4"
       style={{
         borderColor: "var(--hairline-dark)",
         background: "var(--canvas-dark)",

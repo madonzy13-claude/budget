@@ -95,7 +95,8 @@ describe("Swap sheet", () => {
       ),
     );
     expect(
-      screen.getByText("swap.dateMin(date=2026-09-15)"),
+      // Localized, not ISO (UAT 13.1 test 8).
+      screen.getByText("swap.dateMin(date=15 Sep 2026)"),
     ).toBeInTheDocument();
   });
 });
@@ -127,14 +128,22 @@ describe("Buy tab", () => {
     });
   });
 
-  it("refuses a zero amount and keeps the sum-up empty", () => {
+  it("the sum-up shows only once something changes (UAT 13.1 test 8)", () => {
+    mount(btc);
+    expect(screen.queryByTestId("swap-summary")).toBeNull();
+    type("swap-buy-qty", "0.5");
+    type("swap-buy-price", "70000");
+    expect(screen.getByTestId("swap-summary")).toBeInTheDocument();
+    type("swap-buy-qty", "");
+    expect(screen.queryByTestId("swap-summary")).toBeNull();
+  });
+
+  it("refuses a zero amount and keeps the sum-up hidden", () => {
     mount(btc);
     type("swap-buy-qty", "0");
     type("swap-buy-price", "100");
     expect(screen.getByText("swap.err.positive")).toBeInTheDocument();
-    expect(screen.getByTestId("swap-summary")).toHaveTextContent(
-      "swap.sum.empty",
-    );
+    expect(screen.queryByTestId("swap-summary")).toBeNull();
     expect(screen.getByTestId("swap-submit")).toBeDisabled();
   });
 
@@ -228,6 +237,8 @@ describe("Transfer tab", () => {
     mount(btc);
     const footer = screen.getByTestId("swap-footer");
     expect(footer.className).toContain("flex-col");
+    // Scrolls with the form — sticky hid the fields on a phone (UAT 13.1 test 8).
+    expect(footer.className).not.toMatch(/sticky|fixed/);
     expect(
       document.querySelector('[data-testid="swap-sheet"] .truncate'),
     ).toBeNull();

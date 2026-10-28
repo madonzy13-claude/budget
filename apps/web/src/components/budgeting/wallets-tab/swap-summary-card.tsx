@@ -2,7 +2,8 @@
 /**
  * swap-summary-card.tsx — "What will happen" above the submit button (13.1
  * D-31). Renders buildSwapSummary lines: "label before → after", the after
- * figure 16/600 (24/600 when it is the only resulting figure).
+ * figure 16/600 (24/600 when it is the only resulting figure). Hidden until
+ * the form changes something (13.1 UAT 8): derived from the lines themselves.
  */
 import { useLocale, useTranslations } from "next-intl";
 import { centsToBare } from "@/lib/cents-format";
@@ -14,12 +15,23 @@ const signColor = (n: number) =>
     : n < 0
       ? "var(--trading-down)"
       : "var(--muted-strong)";
+/** Any figure that actually moves — a before ≠ after, or a non-zero amount. */
+const moves = (s: SwapSummary) =>
+  !s.empty &&
+  s.lines.some((l) =>
+    "before" in l
+      ? l.before !== l.after
+      : "market" in l
+        ? l.market !== 0 || l.deposit !== 0
+        : "amount" in l && l.amount !== 0,
+  );
 const trimQty = (q: string) =>
   q.includes(".") ? q.replace(/0+$/, "").replace(/\.$/, "") : q;
 
 export function SwapSummaryCard({ summary }: { summary: SwapSummary }) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
+  if (summary.empty || !moves(summary)) return null;
   const money = (c: number, ccy: string) =>
     `${centsToBare(String(Math.round(Math.abs(c))), locale)} ${ccy}`;
   const signedMoney = (c: number, ccy: string) =>
@@ -102,11 +114,7 @@ export function SwapSummaryCard({ summary }: { summary: SwapSummary }) {
       >
         {t("swap.sum.title")}
       </p>
-      {summary.empty ? (
-        <p className="text-[14px]">{t("swap.sum.empty")}</p>
-      ) : (
-        summary.lines.map((l, i) => line(l, i, summary.display))
-      )}
+      {summary.lines.map((l, i) => line(l, i, summary.display))}
     </div>
   );
 }
