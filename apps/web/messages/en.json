@@ -874,6 +874,7 @@
         "label": "Name",
         "displayCurrency": "Display currency",
         "displayCurrencyHelp": "Only changes how this asset is shown. Entries keep their own currency.",
+        "fxUnavailable": "Exchange rate unavailable — the value converts when you save.",
         "currentValue": "Current value",
         "currentPrice": "Current price per unit",
         "save": "Save changes",

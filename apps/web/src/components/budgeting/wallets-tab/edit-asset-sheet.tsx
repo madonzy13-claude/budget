@@ -7,8 +7,13 @@
  * price per unit (hand-priced quantity assets). Saving a new value/price books
  * a Value/Price updated ledger entry on the server. No history, no type, no
  * quantity, no delete — the ledger owns those.
+ *
+ * A currency switch on a hand-valued asset converts the field live from the
+ * ORIGINAL value (never compounding across switches) with today's rate and an
+ * FX line (13.1 UAT 6); an untouched converted value is not sent — the server
+ * converts on save (D-36), so only displayCurrency goes.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import {
@@ -25,10 +30,16 @@ import { isOfflineWriteError } from "@/lib/offline-write";
 import type { AssetWriteError } from "@/lib/investment-invalidate";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
+import { clientApiFetch } from "@/lib/budget-fetch";
+import { FxPreviewLine } from "@/components/budgeting/fields/fx-preview-line";
 import { Field, NumericInput } from "./holding-sheet";
+import { today } from "./swap-shared";
 
 const decimal = (cents: string | null) =>
   cents == null ? "" : String(Number(cents) / 100);
+/** Preview only — the server converts on save (D-36), same as decimal(). */
+const convert = (v: string, rate: string) =>
+  String(Number((Number(v) * Number(rate)).toFixed(2)));
 /** Decimal → cents string, 6 sub-cent places kept (unit prices). */
 const toCents = (v: string) =>
   String(
@@ -64,18 +75,51 @@ export function EditAssetSheet({
   const [name, setName] = useState(holding.name);
   const [ccy, setCcy] = useState(ccy0);
   const [price, setPrice] = useState(price0);
+  const [fx, setFx] = useState<{ rate: string; asOf: string } | null>(null);
+  const [fxFailed, setFxFailed] = useState(false);
+  const touched = useRef(false);
+  const asked = useRef(ccy0);
   const [takenName, setTakenName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const editValue = (v: string) => {
+    touched.current = true;
+    setPrice(v);
+  };
+  function pickCcy(next: string) {
+    setCcy(next);
+    setFx(null);
+    setFxFailed(false);
+    asked.current = next;
+    if (!showValue && !showPrice) return;
+    if (next === ccy0) {
+      if (!touched.current) setPrice(price0);
+      return;
+    }
+    void clientApiFetch(`/fx/rate?from=${ccy0}&to=${next}&date=${today()}`)
+      .then(async (r) =>
+        r.ok
+          ? ((await r.json()) as { rate?: string; fxRateDate?: string })
+          : null,
+      )
+      .catch(() => null)
+      .then((q) => {
+        if (asked.current !== next) return; // a later switch won
+        if (!q?.rate) return setFxFailed(true);
+        setFx({ rate: q.rate, asOf: q.fxRateDate ?? today() });
+        if (!touched.current && price0) setPrice(convert(price0, q.rate));
+      });
+  }
+  const valueChanged =
+    touched.current &&
+    price.trim() !== "" &&
+    (ccy !== ccy0 || price !== price0);
 
   const edit = {
     ...(name.trim() !== holding.name ? { name: name.trim() } : {}),
     ...(ccy !== ccy0 ? { displayCurrency: ccy } : {}),
-    ...(showValue && price !== price0 && price.trim()
-      ? { currentValueCents: toCents(price) }
-      : {}),
-    ...(showPrice && price !== price0 && price.trim()
-      ? { currentPriceCents: toCents(price) }
-      : {}),
+    ...(showValue && valueChanged ? { currentValueCents: toCents(price) } : {}),
+    ...(showPrice && valueChanged ? { currentPriceCents: toCents(price) } : {}),
   };
   const taken = takenName !== null && name.trim() === takenName;
   const canSave =
@@ -142,7 +186,7 @@ export function EditAssetSheet({
             <CurrencyPicker
               variant="field"
               value={ccy}
-              onSelect={setCcy}
+              onSelect={pickCcy}
               aria-label={t("edit.displayCurrency")}
             />
           </Field>
@@ -157,7 +201,7 @@ export function EditAssetSheet({
               <NumericInput
                 testId="edit-asset-value"
                 value={price}
-                onChange={setPrice}
+                onChange={editValue}
               />
             </Field>
           )}
@@ -166,9 +210,31 @@ export function EditAssetSheet({
               <NumericInput
                 testId="edit-asset-price"
                 value={price}
-                onChange={setPrice}
+                onChange={editValue}
               />
             </Field>
+          )}
+          {fx && price0 && (showValue || showPrice) && (
+            <div data-testid="edit-asset-fx">
+              <FxPreviewLine
+                original={{ amount: price0, currency: ccy0 }}
+                converted={{
+                  amount: convert(price0, fx.rate),
+                  currency: ccy,
+                }}
+                rate={fx.rate}
+                asOf={fx.asOf}
+              />
+            </div>
+          )}
+          {fxFailed && (
+            <p
+              role="status"
+              className="text-[12px]"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              {t("edit.fxUnavailable")}
+            </p>
           )}
           {error && (
             <p

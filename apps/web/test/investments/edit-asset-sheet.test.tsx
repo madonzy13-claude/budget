@@ -15,6 +15,8 @@ import {
   toastMock,
   lastBody,
   lastUrl,
+  routeFetch,
+  fetchMock,
 } from "./_swap-fixtures";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 import { EditAssetSheet } from "../../src/components/budgeting/wallets-tab/edit-asset-sheet";
@@ -47,6 +49,7 @@ const type = (id: string, v: string) =>
   fireEvent.change(screen.getByTestId(id), { target: { value: v } });
 
 beforeEach(() => {
+  routeFetch();
   writeMock.mockReset();
   toastMock.success.mockReset();
   writeMock.mockResolvedValue(
@@ -119,5 +122,71 @@ describe("Edit asset sheet", () => {
   it("Save is disabled when nothing changed", () => {
     mount(cash);
     expect(screen.getByTestId("edit-asset-save")).toBeDisabled();
+  });
+
+  // UAT 13.1 test 6: the form shows the converted value before save.
+  describe("currency change on a hand-valued asset", () => {
+    it("converts the value live and shows the FX line", async () => {
+      mount(cash); // 1,000 PLN
+      type("currency-picker", "EUR");
+      await waitFor(() =>
+        expect(screen.getByTestId("edit-asset-value")).toHaveValue("250"),
+      );
+      expect(screen.getByTestId("edit-asset-fx")).toHaveTextContent(
+        /1000 PLN · ~250 EUR @ 0.25/,
+      );
+    });
+
+    it("saving an untouched converted value sends the currency alone", async () => {
+      mount(cash);
+      type("currency-picker", "EUR");
+      await waitFor(() =>
+        expect(screen.getByTestId("edit-asset-value")).toHaveValue("250"),
+      );
+      fireEvent.click(screen.getByTestId("edit-asset-save"));
+      await waitFor(() => expect(writeMock).toHaveBeenCalled());
+      expect(lastBody()).toEqual({ displayCurrency: "EUR" });
+    });
+
+    it("a hand-edited value after the switch is sent too", async () => {
+      mount(cash);
+      type("currency-picker", "EUR");
+      await waitFor(() =>
+        expect(screen.getByTestId("edit-asset-value")).toHaveValue("250"),
+      );
+      type("edit-asset-value", "260");
+      fireEvent.click(screen.getByTestId("edit-asset-save"));
+      await waitFor(() => expect(writeMock).toHaveBeenCalled());
+      expect(lastBody()).toEqual({
+        displayCurrency: "EUR",
+        currentValueCents: "26000",
+      });
+    });
+
+    it("switching back restores the original value, no FX line", async () => {
+      mount(cash);
+      type("currency-picker", "EUR");
+      await waitFor(() =>
+        expect(screen.getByTestId("edit-asset-value")).toHaveValue("250"),
+      );
+      type("currency-picker", "PLN");
+      expect(screen.getByTestId("edit-asset-value")).toHaveValue("1000");
+      expect(screen.queryByTestId("edit-asset-fx")).toBeNull();
+    });
+
+    it("an FX failure keeps the value, says so, and still saves the currency", async () => {
+      fetchMock.mockImplementation(
+        async () => new Response("{}", { status: 503 }),
+      );
+      mount(cash);
+      type("currency-picker", "EUR");
+      await waitFor(() =>
+        expect(screen.getByText("edit.fxUnavailable")).toBeInTheDocument(),
+      );
+      expect(screen.getByTestId("edit-asset-value")).toHaveValue("1000");
+      fireEvent.click(screen.getByTestId("edit-asset-save"));
+      await waitFor(() => expect(writeMock).toHaveBeenCalled());
+      expect(lastBody()).toEqual({ displayCurrency: "EUR" });
+    });
   });
 });

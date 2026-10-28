@@ -874,6 +874,7 @@
         "label": "Nazwa",
         "displayCurrency": "Waluta wyświetlania",
         "displayCurrencyHelp": "Zmienia tylko sposób wyświetlania. Wpisy zachowują własną walutę.",
+        "fxUnavailable": "Kurs niedostępny — wartość zostanie przeliczona przy zapisie.",
         "currentValue": "Aktualna wartość",
         "currentPrice": "Aktualna cena za jednostkę",
         "save": "Zapisz zmiany",
