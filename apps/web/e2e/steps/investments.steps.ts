@@ -923,22 +923,60 @@ When(
 // 13.1 UAT 12: a row that cannot go yet has a grey delete; tapping it says why.
 When("I tap the oldest entry of {string}", async ({ page }, name: string) => {
   const ledger = await new InvestmentsPo(page).openLedger(name);
-  await ledger
+  const del = ledger
     .getByRole("row")
     .last()
-    .locator('[data-testid^="ledger-delete-"]')
+    .locator('[data-testid^="ledger-delete-"]');
+  const po = new InvestmentsPo(page);
+  // A ledger refetch right after the previous write can re-render the row
+  // and drop the just-opened popover — tap again until it holds.
+  await expect(async () => {
+    await po.revealDelete(del);
     // aria-disabled is not `disabled`: users can tap it, Playwright refuses.
-    .click({ force: true });
+    await del.click({ force: true });
+    await expect(
+      page.locator("[data-radix-popper-content-wrapper]"),
+    ).toBeVisible({
+      timeout: 2000,
+    });
+  }).toPass({ timeout: 20_000 });
 });
 
 When("I tap the newest entry of {string}", async ({ page }, name: string) => {
   const ledger = await new InvestmentsPo(page).openLedger(name);
-  await ledger
+  const del = ledger
     .getByRole("row")
     .first()
-    .locator('[data-testid^="ledger-delete-"]')
+    .locator('[data-testid^="ledger-delete-"]');
+  const po = new InvestmentsPo(page);
+  // A ledger refetch right after the previous write can re-render the row
+  // and drop the just-opened popover — tap again until it holds.
+  await expect(async () => {
+    await po.revealDelete(del);
+    console.log(
+      "[probe]",
+      await del.evaluate((b) => {
+        const r = b.getBoundingClientRect();
+        const top = document.elementFromPoint(
+          r.x + r.width / 2,
+          r.y + r.height / 2,
+        ) as HTMLElement | null;
+        return JSON.stringify({
+          r: [r.x, r.y, r.width, r.height],
+          top: top?.outerHTML.slice(0, 160),
+          op: getComputedStyle(b).opacity,
+          pe: getComputedStyle(b).pointerEvents,
+        });
+      }),
+    );
     // aria-disabled is not `disabled`: users can tap it, Playwright refuses.
-    .click({ force: true });
+    await del.click({ force: true });
+    await expect(
+      page.locator("[data-radix-popper-content-wrapper]"),
+    ).toBeVisible({
+      timeout: 2000,
+    });
+  }).toPass({ timeout: 20_000 });
 });
 
 Then("the ledger says {string}", async ({ page }, copy: string) => {

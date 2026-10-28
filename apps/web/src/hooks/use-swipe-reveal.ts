@@ -5,7 +5,8 @@
  * rows share one iOS-proven implementation. Mirrors wallet-row.tsx: touch/pen
  * only, axis lock at 10px, passive:false so preventDefault works mid-swipe,
  * snap open at half the action width, and the click right after a swipe is
- * swallowed. `[data-no-swipe]` and drag grips never start a swipe.
+ * swallowed — except on an action (`[data-no-swipe]`), which is a real tap.
+ * `[data-no-swipe]` and drag grips never start a swipe.
  */
 import { useEffect, useRef, useState, type RefObject } from "react";
 
@@ -103,6 +104,8 @@ export function useSwipeReveal(
     };
 
     const onClickCapture = (e: MouseEvent) => {
+      // A tap on a revealed action is intentional, however soon it follows.
+      if (isInteractive(e.target)) return;
       if (Date.now() < suppressClickUntilRef.current) {
         e.preventDefault();
         e.stopPropagation();

@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * Plan 09-05 (Wave 0): Page Object for the BDP Wallets-tab Investments section.
@@ -412,6 +412,33 @@ export class InvestmentsPo {
     return ledger;
   }
 
+  /** Phone widths hide a ledger row's delete until the row is swiped
+   *  (13.1 UAT 12); desktop shows it in place. */
+  async revealDelete(del: Locator): Promise<void> {
+    if ((this.page.viewportSize()?.width ?? 1280) >= 640) return;
+    const row = del.locator("xpath=ancestor::*[@data-ledger-row][1]");
+    // Toasts from the previous write sit at the phone's bottom edge.
+    await row.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    const box = (await row.boundingBox())!;
+    const y = box.y + box.height / 2;
+    const at = (x: number) => ({
+      pointerType: "touch",
+      pointerId: 9,
+      clientX: x,
+      clientY: y,
+      bubbles: true,
+    });
+    const x0 = box.x + box.width - 20;
+    for (const [type, x] of [
+      ["pointerdown", x0],
+      ["pointermove", x0 - 40],
+      ["pointermove", x0 - 100],
+      ["pointerup", x0 - 100],
+    ] as const)
+      await row.dispatchEvent(type, at(x), { timeout: 5000 });
+    await expect(del).toHaveAttribute("data-open", "true", { timeout: 3000 });
+  }
+
   /** Delete the asset's newest entry through the confirm dialog. The red
    *  (enabled) delete is the only deletable one (13.1 D-14). Phone widths
    *  reveal it with a touch swipe (13.1 UAT 12); desktop shows it in place. */
@@ -421,27 +448,7 @@ export class InvestmentsPo {
       '[data-testid^="ledger-delete-"]:not([aria-disabled="true"])',
     );
     await expect(del).toHaveCount(1, { timeout: 5000 });
-    if ((this.page.viewportSize()?.width ?? 1280) < 640) {
-      const row = del.locator("xpath=ancestor::*[@data-ledger-row][1]");
-      const box = (await row.boundingBox())!;
-      const y = box.y + box.height / 2;
-      const at = (x: number) => ({
-        pointerType: "touch",
-        pointerId: 9,
-        clientX: x,
-        clientY: y,
-        bubbles: true,
-      });
-      const x0 = box.x + box.width - 20;
-      for (const [type, x] of [
-        ["pointerdown", x0],
-        ["pointermove", x0 - 40],
-        ["pointermove", x0 - 100],
-        ["pointerup", x0 - 100],
-      ] as const)
-        await row.dispatchEvent(type, at(x), { timeout: 5000 });
-      await expect(del).toHaveAttribute("data-open", "true", { timeout: 3000 });
-    }
+    await this.revealDelete(del);
     await del.click();
     const res = this.page.waitForResponse(
       (r) =>

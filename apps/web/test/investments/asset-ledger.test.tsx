@@ -186,6 +186,17 @@ describe("Asset ledger strip", () => {
     expect(del.className).toContain("bg-[var(--destructive)]");
   });
 
+  // E2E [mobile]: the post-swipe click guard swallowed the Delete tap itself.
+  it("the revealed delete answers a tap right after the swipe", async () => {
+    mount(ENTRIES);
+    const buy = await screen.findByTestId("ledger-row-b1");
+    touchSwipe(buy, -120);
+    fireEvent.click(screen.getByTestId("ledger-delete-b1"));
+    expect(
+      await screen.findByText("ledger.confirm.entry.title"),
+    ).toBeInTheDocument();
+  });
+
   it("a row that cannot go yet has a grey delete that explains why", async () => {
     mount(ENTRIES);
     await screen.findByTestId("ledger-row-w1");
