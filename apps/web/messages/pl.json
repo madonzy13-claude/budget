@@ -592,7 +592,11 @@
         "title": "INWESTYCJE"
       },
       "add": {
-        "cta": "Dodaj inwestycję"
+        "cta": "Nowa transakcja"
+      },
+      "newTx": {
+        "title": "Nowa transakcja",
+        "pickAsset": "Aktywo"
       },
       "sheet": {
         "title": {

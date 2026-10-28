@@ -66,6 +66,7 @@ import { AssetLedger } from "./asset-ledger";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { sharePercentLabel } from "@/lib/share-bar";
 import { InvestmentTypeHeader } from "./investment-type-header";
+import { NewTransactionSheet } from "./new-transaction-sheet";
 import { HoldingSheet } from "./holding-sheet";
 import { SwapSheet } from "./swap-sheet";
 import { EditAssetSheet } from "./edit-asset-sheet";
@@ -226,6 +227,9 @@ export function InvestmentsSection({
   const setOrderMut = useSetTypeOrder(budgetId);
   // One Swap and one Edit sheet for the section (13.1 D-05).
   const [swapping, setSwapping] = useState<HoldingDto | null>(null);
+  // 13.1 UAT 7: "New transaction" picks Buy / Sell / Transfer first.
+  const [choosing, setChoosing] = useState(false);
+  const [swapTab, setSwapTab] = useState<"sell" | "transfer" | undefined>();
   const [editing, setEditing] = useState<HoldingDto | null>(null);
 
   /**
@@ -563,12 +567,28 @@ export function InvestmentsSection({
       </DndContext>
 
       <DashedAddButton
-        onClick={openAdd}
+        onClick={() => setChoosing(true)}
         label={t("add.cta")}
         testId="add-investment-button"
         navKey="add-invest"
       />
 
+      <NewTransactionSheet
+        key={`tx-${choosing}`}
+        open={choosing}
+        onOpenChange={setChoosing}
+        budgetId={budgetId}
+        holdings={holdings}
+        onBuy={() => {
+          setChoosing(false);
+          openAdd();
+        }}
+        onPick={(h, tab) => {
+          setChoosing(false);
+          setSwapTab(tab);
+          setSwapping(h);
+        }}
+      />
       <HoldingSheet
         key={`add-${adding}`}
         open={adding}
@@ -580,11 +600,16 @@ export function InvestmentsSection({
         <SwapSheet
           key={swapping.id}
           open
-          onOpenChange={(o) => !o && setSwapping(null)}
+          onOpenChange={(o) => {
+            if (o) return;
+            setSwapping(null);
+            setSwapTab(undefined);
+          }}
           budgetId={budgetId}
           budgetCurrency={budgetCurrency}
           holding={swapping}
           holdings={holdings}
+          initialTab={swapTab}
         />
       )}
       {editing && (

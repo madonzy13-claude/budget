@@ -43,6 +43,10 @@ interface Props {
   testId?: string;
   ariaLabel?: string;
   invalid?: boolean;
+  /** Pick-only (New transaction → Sell/Transfer): no "Add as new asset". */
+  allowCreate?: boolean;
+  /** Narrow the list, e.g. to assets that can be sold right now. */
+  include?: (a: AssetNameDto) => boolean;
 }
 
 export function AssetNameCombobox({
@@ -55,10 +59,12 @@ export function AssetNameCombobox({
   testId,
   ariaLabel,
   invalid,
+  allowCreate = true,
+  include,
 }: Props) {
   const t = useTranslations("budget.investments");
   const names = (useAssetNames(budgetId, uiType).data ?? []).filter(
-    (n) => n.id !== excludeId,
+    (n) => n.id !== excludeId && (!include || include(n)),
   );
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -70,7 +76,7 @@ export function AssetNameCombobox({
     { kind: "asset"; a: AssetNameDto } | { kind: "create" }
   > = [
     ...matches.slice(0, MAX).map((a) => ({ kind: "asset" as const, a })),
-    ...(q && !exact ? [{ kind: "create" as const }] : []),
+    ...(allowCreate && q && !exact ? [{ kind: "create" as const }] : []),
   ];
   const listId = `${testId ?? "asset-name"}-list`;
 

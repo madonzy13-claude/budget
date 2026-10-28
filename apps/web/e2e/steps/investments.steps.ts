@@ -711,7 +711,7 @@ When(
     current: string,
   ) => {
     const po = new InvestmentsPo(page);
-    await po.addButton().click();
+    await po.startBuy();
     await po.sheet().waitFor({ state: "visible" });
     const opt = page.getByTestId(`holding-type-${type}`);
     if (!(await opt.isVisible().catch(() => false)))
@@ -780,6 +780,32 @@ Then(
 When("I submit the sale", async ({ page }) => {
   expect(await new InvestmentsPo(page).submitSwap("/sell")).toBe(201);
 });
+
+When(
+  "I transfer all of {string} to a new asset {string} from New transaction",
+  async ({ page }, name: string, to: string) => {
+    const po = new InvestmentsPo(page);
+    await po.startFromNewTransaction("transfer", "broker", name);
+    await page.getByTestId("swap-transfer-all").click();
+    await page.getByTestId("swap-transfer-name").fill(to);
+    // Close the name list so it does not cover the submit button.
+    await page.getByTestId("swap-transfer-name").press("Escape");
+    expect(await po.submitSwap("/transfer")).toBe(201);
+  },
+);
+
+When(
+  "I sell {string} leaving {string} to nowhere from New transaction",
+  async ({ page }, name: string, left: string) => {
+    const po = new InvestmentsPo(page);
+    await po.startFromNewTransaction("sell", "broker", name);
+    const sheet = po.swapSheet();
+    await sheet.getByTestId("swap-sell-left").fill(left);
+    await sheet.getByTestId("swap-dest-out").click();
+    await expect(sheet.getByTestId("swap-sell-received")).not.toHaveValue("");
+    expect(await po.submitSwap("/sell")).toBe(201);
+  },
+);
 
 Then(
   "there is exactly one asset row {string}",
@@ -881,7 +907,6 @@ When(
     const po = new InvestmentsPo(page);
     await po.openSwap(name, "transfer");
     await page.getByTestId("swap-transfer-all").click();
-    await page.getByTestId("swap-transfer-to-new").click();
     await page.getByTestId("swap-transfer-name").fill(target);
     await page.getByTestId("swap-transfer-name").press("Escape");
     expect(await po.submitSwap("/transfer")).toBe(201);
@@ -1043,8 +1068,8 @@ Then(
         if (tab === "sell") await page.getByTestId("swap-dest-out").click();
         await page.getByTestId(`swap-${tab}-all`).click();
         if (tab === "transfer") {
-          await page.getByTestId("swap-transfer-to-new").click();
           await page.getByTestId("swap-transfer-name").fill("IBKR 2");
+          await page.getByTestId("swap-transfer-name").press("Escape");
         }
       }
       await expect(page.getByTestId("swap-summary")).toBeVisible();

@@ -29,6 +29,33 @@ export class InvestmentsPo {
     return this.page.getByTestId("add-investment-button");
   }
 
+  /** "New transaction" → Buy: the name-first Add form (13.1 UAT 7). */
+  async startBuy(): Promise<void> {
+    await this.addButton().click();
+    await this.page.getByTestId("new-tx-kind-buy").click();
+  }
+
+  /** "New transaction" → Sell / Transfer → type → asset → its Swap sheet. */
+  async startFromNewTransaction(
+    kind: "sell" | "transfer",
+    type: string,
+    name: string,
+  ): Promise<void> {
+    await this.addButton().click();
+    await this.page.getByTestId(`new-tx-kind-${kind}`).click();
+    await this.page.getByTestId("new-tx-type").selectOption(type);
+    await this.page.getByTestId("new-tx-asset").click();
+    await this.page
+      .getByRole("listbox")
+      .getByRole("option", { name, exact: true })
+      .click();
+    await expect(this.page.getByTestId(`swap-tab-${kind}`)).toHaveAttribute(
+      "aria-checked",
+      "true",
+      { timeout: 5000 },
+    );
+  }
+
   sheet() {
     return this.page.getByTestId("holding-sheet");
   }
@@ -40,7 +67,7 @@ export class InvestmentsPo {
   /** Open the Sheet and create a manual ("Other") holding with a value (cents).
    *  Type-first (9.1): pick a manual type so the name + editable amount appear. */
   async addCustomHolding(name: string, amountCents: number): Promise<void> {
-    await this.addButton().click();
+    await this.startBuy();
     await this.sheet().waitFor({ state: "visible" });
     // The Type dropdown auto-opens on create; only tap the trigger to open it if
     // it isn't already showing its options (tapping an open trigger closes it).
@@ -84,7 +111,7 @@ export class InvestmentsPo {
     starting: string,
     current: string,
   ): Promise<void> {
-    await this.addButton().click();
+    await this.startBuy();
     await this.sheet().waitFor({ state: "visible" });
     const savingsOption = this.page.getByTestId("holding-type-savings");
     if (!(await savingsOption.isVisible().catch(() => false))) {
@@ -240,7 +267,7 @@ export class InvestmentsPo {
 
   /** Open Add and pick a type (13.1 name-first form). */
   async openAdd(type: string): Promise<void> {
-    await this.addButton().click();
+    await this.startBuy();
     await this.sheet().waitFor({ state: "visible" });
     const opt = this.page.getByTestId(`holding-type-${type}`);
     if (!(await opt.isVisible().catch(() => false)))
@@ -435,7 +462,7 @@ export class InvestmentsPo {
     current: string;
     pickExisting?: boolean;
   }) {
-    await this.addButton().click();
+    await this.startBuy();
     await this.sheet().waitFor({ state: "visible" });
     const opt = this.page.getByTestId(`holding-type-${opts.type}`);
     if (!(await opt.isVisible().catch(() => false)))
@@ -469,7 +496,7 @@ export class InvestmentsPo {
     current: string,
     date: string,
   ) {
-    await this.addButton().click();
+    await this.startBuy();
     await this.sheet().waitFor({ state: "visible" });
     const opt = this.page.getByTestId("holding-type-broker");
     if (!(await opt.isVisible().catch(() => false)))

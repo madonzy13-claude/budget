@@ -67,6 +67,20 @@ Feature: Investments as assets with transactions (13.1)
     When I submit the sale
     Then the holding row "Moon coin" is visible
 
+  # UAT 13.1 test 7: "New transaction" picks Buy / Sell / Transfer first.
+  Scenario: New transaction → Transfer moves an asset to a new label
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I transfer all of "IBKR" to a new asset "IBKR 2" from New transaction
+    Then the holding row "IBKR 2" is visible
+    And the ledger of "IBKR 2" lists "Transfer in"
+
+  Scenario: New transaction → Sell to nowhere books a sale
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I sell "IBKR" leaving "30000" to nowhere from New transaction
+    Then the ledger of "IBKR" lists "Sold"
+
   # D-10: Transfer is not a sale.
   Scenario: Moving everything to a new label hides the source
     Given a "collectibles" asset "Coins" of "4" units at 2500 cents exists in my budget

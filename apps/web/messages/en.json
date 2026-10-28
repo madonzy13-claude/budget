@@ -592,7 +592,11 @@
         "title": "INVESTMENTS"
       },
       "add": {
-        "cta": "Add investment"
+        "cta": "New transaction"
+      },
+      "newTx": {
+        "title": "New transaction",
+        "pickAsset": "Asset"
       },
       "sheet": {
         "title": {
