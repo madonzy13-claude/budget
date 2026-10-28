@@ -107,3 +107,18 @@ Feature: Investments as assets with transactions (13.1)
       | en     |
       | pl     |
       | uk     |
+
+  # Live phone drive (13.1-16): list → ledger strip look in both themes →
+  # every Swap tab shows its sum-up and fits, in every launch locale.
+  Scenario Outline: Asset list, ledger and every Swap tab on a phone in <locale>
+    Given I am on a phone-sized viewport
+    And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab in "<locale>"
+    Then the ledger of "IBKR" sits on the sunken surface with an inset top shadow in both themes
+    And every Swap tab of "IBKR" shows the sum-up card and fits the phone
+
+    Examples:
+      | locale |
+      | en     |
+      | pl     |
+      | uk     |

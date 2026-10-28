@@ -930,3 +930,59 @@ Then("the Swap sheet fits the phone without overflow", async ({ page }) => {
   );
   expect(scroll).toBe(true);
 });
+
+Then(
+  "the ledger of {string} sits on the sunken surface with an inset top shadow in both themes",
+  async ({ page }, name: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    for (const theme of ["dark", "light"]) {
+      await page.evaluate(
+        (t) => document.documentElement.setAttribute("data-theme", t),
+        theme,
+      );
+      const look = await ledger.evaluate((el) => {
+        const probe = document.createElement("div");
+        probe.style.backgroundColor = "var(--surface-sunken-dark)";
+        document.body.appendChild(probe);
+        const token = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        const first = el.querySelector<HTMLElement>("[role=row]")!;
+        return {
+          bg: getComputedStyle(el).backgroundColor,
+          token,
+          shadow: getComputedStyle(first).boxShadow,
+        };
+      });
+      expect(look.bg).toBe(look.token);
+      expect(look.shadow).toContain("inset");
+    }
+    await page.evaluate(() =>
+      document.documentElement.setAttribute("data-theme", "dark"),
+    );
+  },
+);
+
+Then(
+  "every Swap tab of {string} shows the sum-up card and fits the phone",
+  async ({ page }, name: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openSwap(name, "buy");
+    for (const tab of ["buy", "sell", "transfer"] as const) {
+      await page.getByTestId(`swap-tab-${tab}`).click();
+      await expect(page.getByTestId("swap-summary")).toBeVisible();
+      const ok = await page.getByTestId("swap-sheet").evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return [...el.querySelectorAll<HTMLElement>("*")].every((c) => {
+          const b = c.getBoundingClientRect();
+          return b.width === 0 || b.right <= r.right + 1;
+        });
+      });
+      expect(ok, `${tab} tab overflows`).toBe(true);
+    }
+    expect(
+      await page.evaluate(
+        () => document.scrollingElement!.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+  },
+);
