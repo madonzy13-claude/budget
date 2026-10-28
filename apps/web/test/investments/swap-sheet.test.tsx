@@ -181,45 +181,50 @@ describe("Buy tab", () => {
 });
 
 describe("Transfer tab", () => {
-  it("existing targets are same type and, for crypto, same instrument only", () => {
-    mount(btc);
-    fireEvent.click(screen.getByTestId("swap-tab-transfer"));
-    fireEvent.click(screen.getByTestId("swap-transfer-to-existing"));
-    const opts = [
-      ...(screen.getByTestId("swap-transfer-existing") as HTMLSelectElement)
-        .options,
-    ]
-      .map((o) => o.value)
-      .filter(Boolean);
-    expect(opts).toEqual([btcCold.id]);
-    expect(
-      screen.getByText("swap.transfer.sameInstrument"),
-    ).toBeInTheDocument();
-  });
-
-  it("no other asset of the type shows the empty hint", () => {
-    mount(sol, [sol, btc]);
-    fireEvent.click(screen.getByTestId("swap-tab-transfer"));
-    fireEvent.click(screen.getByTestId("swap-transfer-to-existing"));
-    expect(screen.getByText("swap.transfer.none")).toBeInTheDocument();
-  });
-
-  it("a new label that is taken blocks the submit", async () => {
+  // UAT 13.1 test 11: one name field with autocomplete + add new; no cards.
+  const transferTo = async (label: string | null) => {
     mount(btc);
     fireEvent.click(screen.getByTestId("swap-tab-transfer"));
     type("swap-transfer-qty", "1");
-    fireEvent.click(screen.getByTestId("swap-transfer-to-new"));
-    type("swap-transfer-name", "btc cold");
-    expect(await screen.findByText("asset.name.taken")).toBeInTheDocument();
+    expect(screen.queryByTestId("swap-transfer-to-existing")).toBeNull();
+    expect(screen.queryByTestId("swap-transfer-to-new")).toBeNull();
+    const field = screen.getByTestId("swap-transfer-name");
+    fireEvent.focus(field);
+    if (label === null) {
+      const option = await screen.findByText("BTC Cold");
+      fireEvent.mouseDown(option);
+    } else type("swap-transfer-name", label);
+  };
+
+  it("picking an existing asset from the list transfers into it", async () => {
+    await transferTo(null);
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody().to).toEqual({ kind: "existing", holdingId: btcCold.id });
+  });
+
+  it("a typed name equal to an existing asset is that asset (D-07)", async () => {
+    await transferTo("  btc cold ");
+    // The join note shows once the type's names have loaded.
+    expect(await screen.findByTestId("asset-name-note")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody().to).toEqual({ kind: "existing", holdingId: btcCold.id });
+  });
+
+  it("an asset of another instrument cannot receive the crypto (D-10)", async () => {
+    await transferTo("SOL");
+    expect(
+      await screen.findByText("swap.transfer.sameInstrument"),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("swap-submit")).toBeDisabled();
   });
 
-  it("Move everything moves all held and books the transfer", async () => {
+  it("Move everything to a new label books the transfer", async () => {
     mount(btc);
     fireEvent.click(screen.getByTestId("swap-tab-transfer"));
     fireEvent.click(screen.getByTestId("swap-transfer-all"));
     expect(screen.getByTestId("swap-transfer-qty")).toHaveValue("2");
-    fireEvent.click(screen.getByTestId("swap-transfer-to-new"));
     type("swap-transfer-name", "Cold 2");
     expect(screen.getByTestId("swap-summary")).toHaveTextContent(
       "swap.sum.created",
@@ -264,7 +269,6 @@ describe("Transfer tab", () => {
       </QueryClientProvider>,
     );
     fireEvent.click(screen.getByTestId("swap-tab-transfer"));
-    fireEvent.click(screen.getByTestId("swap-transfer-to-new"));
     const input = screen.getByTestId("swap-transfer-name");
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "Vault" } });

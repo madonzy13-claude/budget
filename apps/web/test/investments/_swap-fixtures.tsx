@@ -288,7 +288,24 @@ export function routeFetch(opts: { latest?: string; rate?: string } = {}) {
     if (url.includes("/names"))
       return new Response(
         JSON.stringify({
-          names: [{ id: btcCold.id, name: "BTC Cold", archived: false }],
+          names: [
+            {
+              id: btcCold.id,
+              name: "BTC Cold",
+              archived: false,
+              instrumentId: "i1",
+              valueCents: "6000000",
+              valueCurrency: "PLN",
+            },
+            {
+              id: "33333333-3333-3333-3333-333333333333",
+              name: "SOL",
+              archived: false,
+              instrumentId: "i9",
+              valueCents: "100",
+              valueCurrency: "PLN",
+            },
+          ],
         }),
         { status: 200 },
       );

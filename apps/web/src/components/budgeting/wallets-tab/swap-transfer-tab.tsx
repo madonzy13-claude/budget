@@ -4,6 +4,10 @@
  * value) to another asset of the SAME type — for crypto and stocks also the
  * same instrument — or to a new label. Not a sale: no realized gain, no
  * contribution change; cost moves proportionally (server-side).
+ *
+ * The target is ONE name field (13.1 UAT 11): a name equal (trimmed, case-
+ * insensitive) to an asset of the type is that asset — hidden ones too, which
+ * the transfer revives (D-07, D-17); any other name is a new label.
  */
 import { useState } from "react";
 import { useTranslations } from "next-intl";
@@ -17,7 +21,7 @@ import type { AssetWriteError } from "@/lib/investment-invalidate";
 import { buildSwapSummary } from "@/lib/swap-summary";
 import { useAssetNames } from "@/hooks/use-asset-names";
 import { useTransferAsset } from "@/hooks/use-transfer-asset";
-import { Field, NumericInput } from "./holding-sheet";
+import { NumericInput } from "./holding-sheet";
 import { AssetNameCombobox } from "./asset-name-combobox";
 import type { SwapTabProps } from "./swap-buy-tab";
 import {
@@ -39,7 +43,6 @@ export function SwapTransferTab({
   budgetId,
   budgetCurrency,
   holding,
-  holdings,
   date,
   setDate,
   minDate,
@@ -61,22 +64,18 @@ export function SwapTransferTab({
 
   const [move, setMove] = useState("");
   const [all, setAll] = useState(false);
-  const [to, setTo] = useState<"existing" | "new" | null>(null);
-  const [targetId, setTargetId] = useState("");
-  const [newName, setNewName] = useState("");
+  const [label, setLabel] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const targets = holdings.filter(
-    (h) =>
-      h.id !== holding.id &&
-      deriveUiType(h.uiType, h.holdingType, h.isCustom) === ui &&
-      (!sameInstrument || h.instrumentId === holding.instrumentId),
-  );
-  const target = targets.find((h) => h.id === targetId);
-  const taken =
-    to === "new" &&
-    newName.trim() !== "" &&
-    names.some((n) => norm(n.name) === norm(newName));
+  const target =
+    label.trim() === ""
+      ? null
+      : (names.find(
+          (n) => n.id !== holding.id && norm(n.name) === norm(label),
+        ) ?? null);
+  const to = label.trim() === "" ? null : target ? "existing" : "new";
+  const wrongInstrument =
+    !!target && sameInstrument && target.instrumentId !== holding.instrumentId;
 
   const m = num(move);
   const cap = byQty ? held : valueCents / 100;
@@ -86,13 +85,10 @@ export function SwapTransferTab({
       ? (m / held) * valueCents
       : 0
     : toCents(move);
-  const targetOk =
-    to === "existing"
-      ? !!target
-      : to === "new" && newName.trim() !== "" && !taken;
+  const targetOk = to !== null && !wrongInstrument;
   const valid =
     move.trim() !== "" && !badMove && targetOk && dateOk(date, minDate);
-  const targetName = to === "existing" ? (target?.name ?? "") : newName.trim();
+  const targetName = target ? target.name : label.trim();
 
   const summary = !valid
     ? buildSwapSummary(null)
@@ -107,9 +103,9 @@ export function SwapTransferTab({
             ? {
                 kind: "existing",
                 name: targetName,
-                t0: Number(target!.valueCents),
-                t1: Number(target!.valueCents) + movedValue,
-                ccy: ccyOf(target!, budgetCurrency),
+                t0: Number(target!.valueCents ?? 0),
+                t1: Number(target!.valueCents ?? 0) + movedValue,
+                ccy: target!.valueCurrency ?? ccy,
               }
             : { kind: "new", name: targetName, amount: movedValue, ccy },
       });
@@ -125,10 +121,9 @@ export function SwapTransferTab({
           move: byQty
             ? { quantity: qtyString(m) }
             : { valueCents: String(toCents(move)) },
-          to:
-            to === "existing"
-              ? { kind: "existing", holdingId: targetId }
-              : { kind: "new", name: newName.trim() },
+          to: target
+            ? { kind: "existing", holdingId: target.id }
+            : { kind: "new", name: label.trim() },
         },
       },
       {
@@ -148,25 +143,6 @@ export function SwapTransferTab({
       },
     );
   }
-
-  const radio = (k: "existing" | "new") => (
-    <button
-      key={k}
-      type="button"
-      role="radio"
-      aria-checked={to === k}
-      data-testid={`swap-transfer-to-${k}`}
-      onClick={() => setTo(k)}
-      className="flex min-h-11 w-full items-center rounded-[var(--radius-md)] border px-4 py-2 text-left text-[14px] font-semibold"
-      style={{
-        background: "var(--surface-card-dark)",
-        color: "var(--body-on-dark)",
-        borderColor: to === k ? "var(--primary)" : "var(--hairline-dark)",
-      }}
-    >
-      {t(k === "existing" ? "swap.transfer.existing" : "swap.transfer.new")}
-    </button>
-  );
 
   return (
     <>
@@ -218,69 +194,19 @@ export function SwapTransferTab({
           <span className="text-caption text-[var(--muted-foreground)]">
             {t("swap.transfer.to")}
           </span>
-          <div
-            role="radiogroup"
-            aria-label={t("swap.transfer.to")}
-            className="space-y-2"
-          >
-            {radio("existing")}
-            {radio("new")}
-          </div>
-          {to === "existing" &&
-            (targets.length === 0 ? (
-              <p
-                className={caption}
-                style={{ color: "var(--muted-foreground)" }}
-              >
-                {t("swap.transfer.none")}
-              </p>
-            ) : (
-              <>
-                <select
-                  data-testid="swap-transfer-existing"
-                  aria-label={t("swap.transfer.existing")}
-                  value={targetId}
-                  onChange={(e) => setTargetId(e.target.value)}
-                  className="min-h-11 w-full rounded-[var(--radius-md)] border px-3 text-[14px]"
-                  style={{
-                    background: "var(--surface-card-dark)",
-                    borderColor: "var(--hairline-dark)",
-                    color: "var(--body-on-dark)",
-                  }}
-                >
-                  <option value="" disabled>
-                    {t("swap.transfer.existing")}
-                  </option>
-                  {targets.map((h) => (
-                    <option key={h.id} value={h.id}>
-                      {h.name}
-                    </option>
-                  ))}
-                </select>
-                {sameInstrument && (
-                  <p
-                    className={caption}
-                    style={{ color: "var(--muted-foreground)" }}
-                  >
-                    {t("swap.transfer.sameInstrument")}
-                  </p>
-                )}
-              </>
-            ))}
-          {to === "new" && (
-            <Field label={t("swap.transfer.newName")}>
-              <AssetNameCombobox
-                budgetId={budgetId}
-                uiType={ui}
-                value={newName}
-                onChange={setNewName}
-                excludeId={holding.id}
-                testId="swap-transfer-name"
-                invalid={taken}
-              />
-            </Field>
+          <AssetNameCombobox
+            budgetId={budgetId}
+            uiType={ui}
+            value={label}
+            onChange={setLabel}
+            excludeId={holding.id}
+            testId="swap-transfer-name"
+            ariaLabel={t("swap.transfer.to")}
+            invalid={wrongInstrument}
+          />
+          {wrongInstrument && (
+            <ErrorLine>{t("swap.transfer.sameInstrument")}</ErrorLine>
           )}
-          {taken && <ErrorLine>{t("asset.name.taken")}</ErrorLine>}
         </section>
 
         <SwapDateField value={date} onChange={setDate} min={minDate} />
