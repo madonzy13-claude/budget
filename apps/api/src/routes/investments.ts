@@ -375,6 +375,8 @@ export function createInvestmentsRoute(deps: BootedDeps) {
     "same_holding",
     "unsupported_destination",
     "quantity_required",
+    "price_required",
+    "received_required",
   ]);
   app.post("/:id/sell", async (c) => {
     const { sellAssetSchema } = await getSchemas();
