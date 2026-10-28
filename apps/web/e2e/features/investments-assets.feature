@@ -143,15 +143,26 @@ Feature: Investments as assets with transactions (13.1)
 
   # Live phone drive (13.1-16): list → ledger strip look in both themes →
   # every Swap tab shows its sum-up and fits, in every launch locale.
-  Scenario Outline: Asset list, ledger and every Swap tab on a phone in <locale>
+  Scenario Outline: Asset list, ledger and every Swap tab on a phone in <locale> (<theme>)
     Given I am on a phone-sized viewport
     And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
     When I open the investments wallets tab in "<locale>"
+    And I switch to the <theme> theme
     Then the ledger of "IBKR" sits on the sunken surface with an inset top shadow in both themes
     And every Swap tab of "IBKR" shows the sum-up card once filled and fits the phone
+    # 13.1 gap closure surfaces (plans 19–24), each checked for overflow + raw keys.
+    And assets sit indented under their type header and tapping the "cash" header shows no P/L
+    And the ledger of "IBKR" slides open and a swipe on its newest row reveals a delete
+    And the New transaction chooser offers Buy, Sell and Transfer and fits the phone
+    And a sale of "IBKR" into a new crypto asset keeps its price "2" after typing the quantity "1000"
+    And changing the currency of "Pot" to "EUR" in Edit shows the rate line
 
     Examples:
-      | locale |
-      | en     |
-      | pl     |
-      | uk     |
+      | locale | theme |
+      | en     | dark  |
+      | en     | light |
+      | pl     | dark  |
+      | pl     | light |
+      | uk     | dark  |
+      | uk     | light |

@@ -608,7 +608,6 @@
       },
       "field": {
         "name": "Nazwa",
-        "nameOptional": "Nazwa (opcjonalnie)",
         "type": "Typ",
         "typePlaceholder": "Wybierz typ",
         "groupPlaceholder": "Bez grupy",
@@ -756,7 +755,6 @@
         "valueLeft": "Pozostała wartość",
         "qtyHelper": "Masz {qty}",
         "valueHelper": "Obecna wartość {value}",
-        "qtyBought": "Kupiona ilość",
         "date": "Data",
         "toastSale": "Sprzedaż zapisana",
         "toastWithdraw": "Wypłata zapisana"
@@ -823,7 +821,6 @@
             "existingDesc": "Dodaj pieniądze do posiadanego aktywa",
             "outDesc": "Opuszczają Twoje inwestycje"
           },
-          "linked": "Powiązane",
           "received": "Otrzymana kwota",
           "receivedHelp": "Wstępnie wg dzisiejszej wartości. Zmień na kwotę, która faktycznie wpłynęła.",
           "walletTitle": "Gdzie mają trafić pieniądze?",
@@ -840,18 +837,13 @@
         "transfer": {
           "everything": "Przenieś wszystko",
           "to": "Do",
-          "existing": "Istniejące aktywo",
-          "new": "Nowe aktywo",
-          "newName": "Nazwa nowego aktywa",
           "sameInstrument": "Tylko ten sam instrument.",
-          "none": "Brak innych aktywów tego typu. Utwórz nowe.",
           "note": "To nie sprzedaż: brak zrealizowanego zysku, koszt przechodzi razem.",
           "moveQty": "Ilość do przeniesienia",
           "moveAmount": "Kwota do przeniesienia"
         },
         "sum": {
           "title": "Co się stanie",
-          "empty": "Wypełnij pola powyżej, aby zobaczyć, co się stanie.",
           "line": "{label}: {before} → {after}",
           "gone": "zniknie z listy",
           "created": "Nowe aktywo {name} z kwotą {amount}",
@@ -897,7 +889,6 @@
           "priceUpdated": "Zaktualizowana cena",
           "interest": "Odsetki"
         },
-        "auto": "Wyliczone automatycznie",
         "realized": "zrealizowano {amount}",
         "toAsset": "do {name}",
         "fromAsset": "z {name}",

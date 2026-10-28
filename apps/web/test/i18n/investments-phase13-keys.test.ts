@@ -15,7 +15,6 @@ const KEYS = [
   "sell.valueLeft",
   "sell.qtyHelper",
   "sell.valueHelper",
-  "sell.qtyBought",
   "sell.date",
   "sell.toastSale",
   "sell.toastWithdraw",

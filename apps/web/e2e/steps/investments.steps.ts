@@ -1087,5 +1087,133 @@ Then(
         () => document.scrollingElement!.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
+    // Leave the list reachable for the next phone check.
+    await page.getByTestId("swap-transfer-name").press("Escape");
+    await page.keyboard.press("Escape");
+    await expect(po.swapSheet()).toHaveCount(0);
+  },
+);
+
+// ── 13.1-26 ship gate: phone checks for the gap-closure surfaces ──
+
+/** No horizontal page scroll and no untranslated key on screen. */
+async function fitsAndTranslated(page: import("@playwright/test").Page) {
+  expect(
+    await page.evaluate(
+      () => document.scrollingElement!.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await expect(page.locator("body")).not.toContainText("budget.investments.");
+}
+
+When("I switch to the {word} theme", async ({ page }, theme: string) => {
+  await page.evaluate(
+    (t) => document.documentElement.setAttribute("data-theme", t),
+    theme,
+  );
+});
+
+Then(
+  "assets sit indented under their type header and tapping the {string} header shows no P\\/L",
+  async ({ page }, uiType: string) => {
+    const header = page.getByTestId(`investment-group-${uiType}`);
+    // The row inside the padded block — padding never moves the block itself.
+    const block = page
+      .locator('[data-asset-block] [data-testid^="holding-row-"]')
+      .first();
+    const [h, b] = [
+      (await header.boundingBox())!,
+      (await block.boundingBox())!,
+    ];
+    expect(b.x).toBeGreaterThan(h.x);
+    await header.click({ position: { x: h.width / 2, y: 10 } });
+    await expect(
+      page.locator(
+        `[data-testid="investment-type-split-${uiType}"] [data-pl-line]`,
+      ),
+    ).toHaveCount(0);
+    await fitsAndTranslated(page);
+  },
+);
+
+Then(
+  "the ledger of {string} slides open and a swipe on its newest row reveals a delete",
+  async ({ page }, name: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    await expect(
+      ledger.locator("xpath=ancestor::*[@data-ledger-slide][1]"),
+    ).toHaveAttribute("style", /grid-template-rows: 1fr/);
+    const row = ledger.getByRole("row").first();
+    const box = (await row.boundingBox())!;
+    const y = box.y + box.height / 2;
+    const x0 = box.x + box.width - 20;
+    for (const [type, x] of [
+      ["pointerdown", x0],
+      ["pointermove", x0 - 40],
+      ["pointermove", x0 - 100],
+      ["pointerup", x0 - 100],
+    ] as const)
+      await row.dispatchEvent(
+        type,
+        {
+          pointerType: "touch",
+          pointerId: 11,
+          clientX: x,
+          clientY: y,
+          bubbles: true,
+        },
+        { timeout: 5000 },
+      );
+    await expect(
+      row.locator('[data-testid^="ledger-delete-"]'),
+    ).toHaveAttribute("data-open", "true");
+    await fitsAndTranslated(page);
+  },
+);
+
+Then(
+  "the New transaction chooser offers Buy, Sell and Transfer and fits the phone",
+  async ({ page }) => {
+    await new InvestmentsPo(page).addButton().click();
+    for (const k of ["buy", "sell", "transfer"])
+      await expect(page.getByTestId(`new-tx-kind-${k}`)).toBeVisible();
+    await page.getByTestId("new-tx-kind-sell").click();
+    await expect(page.getByTestId("new-tx-type")).toBeVisible();
+    await fitsAndTranslated(page);
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("new-tx-sheet")).toHaveCount(0);
+  },
+);
+
+Then(
+  "a sale of {string} into a new crypto asset keeps its price {string} after typing the quantity {string}",
+  async ({ page }, name: string, price: string, qty: string) => {
+    const po = new InvestmentsPo(page);
+    await po.startSellIntoNewCrypto(name, "0", "Phone coin", price);
+    await po.expectDestPriceStaysAfterQty(qty, price);
+    await expect(po.swapSheet().getByTestId("swap-dest-qty")).toHaveCount(1);
+    await fitsAndTranslated(page);
+    await page.keyboard.press("Escape");
+    await expect(po.swapSheet()).toHaveCount(0);
+  },
+);
+
+Then(
+  "changing the currency of {string} to {string} in Edit shows the rate line",
+  async ({ page }, name: string, ccy: string) => {
+    await new InvestmentsPo(page).openEdit(name);
+    const sheet = page.getByTestId("edit-asset-sheet");
+    // The picker is a native <select> on touch, a Radix select elsewhere.
+    const native = sheet.getByTestId("currency-picker-native");
+    if (await native.isVisible().catch(() => false))
+      await native.selectOption(ccy);
+    else {
+      await sheet.getByRole("combobox").first().click();
+      await page.getByTestId(`currency-option-${ccy}`).first().click();
+    }
+    await expect(sheet.getByTestId("edit-asset-fx")).toBeVisible({
+      timeout: 15000,
+    });
+    await fitsAndTranslated(page);
   },
 );

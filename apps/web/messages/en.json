@@ -608,7 +608,6 @@
       },
       "field": {
         "name": "Name",
-        "nameOptional": "Name (optional)",
         "type": "Type",
         "typePlaceholder": "Select a type",
         "groupPlaceholder": "Ungrouped",
@@ -756,7 +755,6 @@
         "valueLeft": "Value left",
         "qtyHelper": "You hold {qty}",
         "valueHelper": "Current value {value}",
-        "qtyBought": "Quantity bought",
         "date": "Date",
         "toastSale": "Sale recorded",
         "toastWithdraw": "Withdrawal recorded"
@@ -823,7 +821,6 @@
             "existingDesc": "Add the money to an asset you already have",
             "outDesc": "It leaves your investments"
           },
-          "linked": "Linked",
           "received": "Amount received",
           "receivedHelp": "Prefilled from today's value. Change it to what actually landed.",
           "walletTitle": "Where should the money go?",
@@ -840,18 +837,13 @@
         "transfer": {
           "everything": "Move everything",
           "to": "To",
-          "existing": "Existing asset",
-          "new": "New asset",
-          "newName": "New asset name",
           "sameInstrument": "Same instrument only.",
-          "none": "No other asset of this type yet. Create a new one.",
           "note": "Not a sale: no realized gain, cost moves with it.",
           "moveQty": "Quantity to move",
           "moveAmount": "Amount to move"
         },
         "sum": {
           "title": "What will happen",
-          "empty": "Fill in the fields above to see what will happen.",
           "line": "{label}: {before} → {after}",
           "gone": "gone from your list",
           "created": "New asset {name} created with {amount}",
@@ -897,7 +889,6 @@
           "priceUpdated": "Price updated",
           "interest": "Interest"
         },
-        "auto": "Auto-calculated",
         "realized": "realized {amount}",
         "toAsset": "to {name}",
         "fromAsset": "from {name}",
