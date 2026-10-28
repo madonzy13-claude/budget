@@ -45,18 +45,29 @@ vi.mock("../../src/hooks/use-create-holding", () => ({
 vi.mock("../../src/hooks/use-asset-names", () => ({
   useAssetNames: (_b: string, type: string | null) => ({
     data:
-      type === "cash"
+      type === "crypto"
         ? [
             {
-              id: "pot",
-              name: "Pot",
+              id: "btc-id",
+              name: "BTC Ledger",
               archived: false,
-              instrumentId: null,
-              valueCents: "50000",
+              instrumentId: "i9",
+              valueCents: "5000000",
               valueCurrency: "USD",
             },
           ]
-        : [],
+        : type === "cash"
+          ? [
+              {
+                id: "pot",
+                name: "Pot",
+                archived: false,
+                instrumentId: null,
+                valueCents: "50000",
+                valueCurrency: "USD",
+              },
+            ]
+          : [],
   }),
 }));
 vi.mock("../../src/lib/budget-fetch", () => ({ clientApiFetch: vi.fn() }));
@@ -86,7 +97,7 @@ vi.mock(
     }) => (
       <div>
         <input
-          data-testid="holding-sheet-name"
+          data-testid="holding-sheet-instrument"
           value={name}
           onChange={(e) => onNameChange(e.target.value)}
         />
@@ -147,6 +158,20 @@ vi.mock(
     ),
   }),
 );
+// 13.1 UAT 7: picking an existing asset in Add = the locked Swap → Buy form.
+vi.mock("../../src/hooks/use-investments", () => ({
+  useInvestments: () => ({
+    data: [{ id: "btc-id", name: "BTC Ledger", uiType: "crypto" }],
+  }),
+}));
+vi.mock("../../src/hooks/use-asset-entries", () => ({
+  useMinEntryDate: () => null,
+}));
+vi.mock("../../src/components/budgeting/wallets-tab/swap-buy-tab", () => ({
+  SwapBuyTab: ({ holding }: { holding: { id: string } }) => (
+    <div data-testid="picked-buy">{holding.id}</div>
+  ),
+}));
 vi.mock("../../src/components/common/currency-picker", () => ({
   CurrencyPicker: ({
     value,
@@ -936,5 +961,63 @@ describe("HoldingSheet — add joins by name (13.1 D-02)", () => {
     render(<HoldingSheet {...baseProps} holding={holding()} />);
     expect(screen.queryByTestId(/^history-/)).toBeNull();
     expect(screen.queryByTestId(/^happened-/)).toBeNull();
+  });
+
+  describe("name-first Add (UAT 13.1 test 7)", () => {
+    const crypto = () =>
+      render(
+        <HoldingSheet {...baseProps} holding={null} initialUiType="crypto" />,
+      );
+
+    it("crypto asks the name first, from the type's own assets, then the instrument", () => {
+      crypto();
+      const name = screen.getByTestId("holding-sheet-name");
+      expect(name).toHaveAttribute("role", "combobox");
+      const instrument = screen.getByTestId("holding-sheet-instrument");
+      expect(
+        name.compareDocumentPosition(instrument) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      fireEvent.focus(name);
+      expect(screen.getByTestId("asset-name-option-0")).toHaveTextContent(
+        "BTC Ledger",
+      );
+    });
+
+    it("picking an existing asset swaps the add fields for its Buy form", () => {
+      crypto();
+      fireEvent.focus(screen.getByTestId("holding-sheet-name"));
+      fireEvent.mouseDown(screen.getByTestId("asset-name-option-0"));
+      expect(screen.getByTestId("picked-buy")).toHaveTextContent("btc-id");
+      expect(screen.queryByTestId("holding-sheet-instrument")).toBeNull();
+      expect(screen.queryByTestId("holding-sheet-submit")).toBeNull();
+      // Clearing the name goes back to the add fields.
+      fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+        target: { value: "" },
+      });
+      expect(screen.queryByTestId("picked-buy")).toBeNull();
+      expect(
+        screen.getByTestId("holding-sheet-instrument"),
+      ).toBeInTheDocument();
+    });
+
+    it("a new name prefills the instrument search and stays the label", async () => {
+      vi.mocked(clientApiFetch).mockResolvedValue({
+        ok: true,
+        json: async () => ({ priceCents: "50000", currency: "USD" }),
+      } as unknown as Response);
+      crypto();
+      fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+        target: { value: "BTC Binance" },
+      });
+      expect(screen.getByTestId("holding-sheet-instrument")).toHaveValue(
+        "BTC Binance",
+      );
+      fireEvent.click(screen.getByTestId("pick-instrument"));
+      expect(screen.getByTestId("holding-sheet-name")).toHaveValue(
+        "BTC Binance",
+      );
+      expect(screen.queryByTestId("holding-sheet-custom-name")).toBeNull();
+    });
   });
 });

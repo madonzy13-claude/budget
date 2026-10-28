@@ -148,7 +148,7 @@ export function InstrumentSearchInput({
   return (
     <div className="relative">
       <Input
-        data-testid="holding-sheet-name"
+        data-testid="holding-sheet-instrument"
         autoFocus={autoFocus}
         disabled={disabled}
         value={name}

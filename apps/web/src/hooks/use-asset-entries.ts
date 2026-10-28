@@ -66,3 +66,21 @@ export function useAssetEntries(
     },
   });
 }
+
+/** D-15: a new entry appends in time — the newest stored entry's date (interest
+ *  rows are synthesized, not entries). Null while loading or with no entries. */
+export function useMinEntryDate(
+  budgetId: string,
+  holdingId: string,
+  enabled = true,
+): string | null {
+  const entries = useAssetEntries(budgetId, holdingId, enabled).data;
+  return (
+    entries
+      ?.filter((e) => e.kind !== "interest")
+      .reduce<string | null>(
+        (m, e) => (m === null || e.effectiveDate > m ? e.effectiveDate : m),
+        null,
+      ) ?? null
+  );
+}

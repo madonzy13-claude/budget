@@ -14,7 +14,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import type { HoldingDto } from "@/hooks/use-investments";
-import { useAssetEntries } from "@/hooks/use-asset-entries";
+import { useMinEntryDate } from "@/hooks/use-asset-entries";
 import { SwapBuyTab } from "./swap-buy-tab";
 import { SwapSellTab } from "./swap-sell-tab";
 import { SwapTransferTab } from "./swap-transfer-tab";
@@ -46,15 +46,7 @@ export function SwapSheet({
     holding.holdingType === "deposit" || holding.uiType === "deposit";
   const [tab, setTab] = useState<Tab>(isDeposit ? "sell" : initialTab);
   const [date, setDate] = useState(today());
-  const entries = useAssetEntries(budgetId, holding.id, open).data;
-  // D-15: new entries append in time. Interest rows are synthesized, not entries.
-  const minDate =
-    entries
-      ?.filter((e) => e.kind !== "interest")
-      .reduce<string | null>(
-        (m, e) => (m === null || e.effectiveDate > m ? e.effectiveDate : m),
-        null,
-      ) ?? null;
+  const minDate = useMinEntryDate(budgetId, holding.id, open);
 
   const props = {
     budgetId,

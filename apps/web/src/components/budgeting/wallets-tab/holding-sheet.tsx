@@ -79,6 +79,10 @@ import {
   type HoldingPreview,
 } from "@/lib/holding-preview";
 import { PriceBlockedBanner } from "./price-blocked-banner";
+import { SwapBuyTab } from "./swap-buy-tab";
+import { today as todayIso } from "./swap-shared";
+import { useMinEntryDate } from "@/hooks/use-asset-entries";
+import { useInvestments } from "@/hooks/use-investments";
 import {
   InstrumentSearchInput,
   type InstrumentSuggestion,
@@ -100,6 +104,8 @@ interface HoldingSheetProps {
     initialUiType?: UiType;
     onChange: (h: DestinationHolding | null) => void;
   };
+  /** Add mode: start with this type chosen. */
+  initialUiType?: UiType;
 }
 
 /** The "new" destination of a sale, as POST /:id/sell expects it. */
@@ -142,19 +148,25 @@ export function HoldingSheet({
   budgetCurrency,
   holding,
   destination: dest,
+  initialUiType,
 }: HoldingSheetProps) {
   const t = useTranslations("budget.investments");
   const fmt = useFormatter();
   const createMut = useCreateHolding(budgetId);
-  // Picked an existing asset from the Name autocomplete → the type is its.
-  const [joining, setJoining] = useState(false);
+  // 13.1 UAT 7: picking an existing asset from the Name list turns Add into
+  // that asset's locked Buy form (Swap → Buy, D-08). Not in the sale's
+  // destination mode — there the label joins on the server.
+  const [pickedId, setPickedId] = useState<string | null>(null);
+  const holdingsList = useInvestments(budgetId).data;
+  const picked =
+    (pickedId && holdingsList?.find((h) => h.id === pickedId)) || null;
 
   // Starts with NO type chosen ("") so nothing is preselected; a pre-fill
   // derives the holding's type.
   const [uiType, setUiType] = useState<UiType | "">(
     holding
       ? deriveUiType(holding.uiType, holding.holdingType, holding.isCustom)
-      : (dest?.initialUiType ?? ""),
+      : (dest?.initialUiType ?? initialUiType ?? ""),
   );
   // For a tracked (auto-fetch) holding, `name` drives the Asset search box and
   // holds the INSTRUMENT label; the optional user override lives in `customName`.
@@ -723,25 +735,30 @@ export function HoldingSheet({
   ]);
 
   // D-02: the same name in the type joins that asset (hidden ones reopen).
+  // Tracked types: the name is the asset's label (customName) and, until an
+  // instrument is chosen, also seeds the instrument search (13.1 UAT 7).
+  const tracked = behavior === "tracked";
   const nameField = (
     <AssetNameCombobox
       budgetId={budgetId}
       uiType={uiType || null}
-      value={name}
+      value={tracked ? customName : name}
       testId="holding-sheet-name"
       ariaLabel={t("field.name")}
       onChange={(v) => {
         markDirty();
-        setName(v);
-        setJoining(false);
+        setPickedId(null);
+        if (!tracked) return setName(v);
+        setCustomName(v);
+        if (instrumentId == null && !manualEntry) setName(v);
       }}
-      onPickExisting={() => setJoining(true)}
+      onPickExisting={(a) => !dest && setPickedId(a.id)}
     />
   );
 
   // The type + type-specific fields — shared by the sheet and the Sell
   // "New investment" destination (one source of truth for type fields).
-  const formFields = (
+  const typeField = (
     <>
       {/* 1. Type — always first; drives the rest of the form. */}
       <Field label={t("field.type")}>
@@ -750,7 +767,7 @@ export function HoldingSheet({
           open={typeOpen}
           onOpenChange={onTypeOpenChange}
           onValueChange={(v) => changeType(v as UiType)}
-          disabled={joining}
+          disabled={!!picked}
         >
           <SelectTrigger
             aria-label={t("field.type")}
@@ -794,10 +811,17 @@ export function HoldingSheet({
           </SelectContent>
         </Select>
       </Field>
-      {/* 2. Name / Asset — only once a Type is chosen (no field is focused on
-              open: no type → no Asset/Name field, and neither input auto-focuses). */}
+    </>
+  );
+
+  const formFields = (
+    <>
+      {typeField}
+      {/* 2. Name, then (tracked) the instrument — only once a Type is chosen
+              (no type → no field, and nothing auto-focuses). */}
       {behavior === "tracked" && !manualEntry ? (
         <>
+          <Field label={t("field.name")}>{nameField}</Field>
           <Field label={t("field.asset")}>
             <InstrumentSearchInput
               budgetId={budgetId}
@@ -817,21 +841,6 @@ export function HoldingSheet({
               onSelectCustom={enableManualEntry}
             />
           </Field>
-          {/* Optional custom name for the auto-fetch asset — when set it's shown
-                  in the list instead of the auto "TICKER (Name)" label. */}
-          {instrumentId != null && (
-            <Field label={t("field.nameOptional")}>
-              <Input
-                data-testid="holding-sheet-custom-name"
-                value={customName}
-                placeholder={name}
-                onChange={(e) => {
-                  markDirty();
-                  setCustomName(e.target.value);
-                }}
-              />
-            </Field>
-          )}
         </>
       ) : behavior === "tracked" && manualEntry ? (
         // Manual entry (ticker not in the catalog): plain name + ticker fields.
@@ -1265,49 +1274,65 @@ export function HoldingSheet({
         </SheetHeader>
 
         <div className="space-y-4 px-1 pb-4">
-          {formFields}
-
-          {/* 8. Preview — "what will be created" sum-up (all types). */}
-          {preview && (
-            <HoldingPreviewBlock
-              preview={preview}
-              behavior={behavior}
-              uiType={uiType}
-            />
-          )}
-
-          {
-            <Field label={t("addDate")}>
-              <Input
-                type="date"
-                data-testid="holding-sheet-date"
-                value={openedOn}
-                max={today}
-                onChange={(e) => setOpenedOn(e.target.value)}
+          {picked ? (
+            <>
+              {typeField}
+              <Field label={t("field.name")}>{nameField}</Field>
+              <PickedBuy
+                budgetId={budgetId}
+                budgetCurrency={budgetCurrency}
+                holding={picked}
+                holdings={holdingsList ?? []}
+                onDone={() => onOpenChange(false)}
               />
-            </Field>
-          }
+            </>
+          ) : (
+            <>
+              {formFields}
 
-          {/* Actions live at the END of the scrolling form (NOT a pinned footer):
+              {/* 8. Preview — "what will be created" sum-up (all types). */}
+              {preview && (
+                <HoldingPreviewBlock
+                  preview={preview}
+                  behavior={behavior}
+                  uiType={uiType}
+                />
+              )}
+
+              {
+                <Field label={t("addDate")}>
+                  <Input
+                    type="date"
+                    data-testid="holding-sheet-date"
+                    value={openedOn}
+                    max={today}
+                    onChange={(e) => setOpenedOn(e.target.value)}
+                  />
+                </Field>
+              }
+
+              {/* Actions live at the END of the scrolling form (NOT a pinned footer):
               the user scrolls down to reach Save. */}
-          <div
-            data-testid="holding-sheet-actions"
-            className="mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--hairline-dark)] pt-4"
-          >
-            <Button
-              type="button"
-              variant="primary"
-              data-testid="holding-sheet-submit"
-              disabled={!canSave}
-              onClick={handleSave}
-              className="flex-1"
-            >
-              {t("sheet.save")}
-            </Button>
-            <Button type="button" variant="ghost" onClick={attemptClose}>
-              {t("sheet.cancel")}
-            </Button>
-          </div>
+              <div
+                data-testid="holding-sheet-actions"
+                className="mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--hairline-dark)] pt-4"
+              >
+                <Button
+                  type="button"
+                  variant="primary"
+                  data-testid="holding-sheet-submit"
+                  disabled={!canSave}
+                  onClick={handleSave}
+                  className="flex-1"
+                >
+                  {t("sheet.save")}
+                </Button>
+                <Button type="button" variant="ghost" onClick={attemptClose}>
+                  {t("sheet.cancel")}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </SheetContent>
 
@@ -1603,6 +1628,36 @@ export function HoldingFormFields(props: {
         initialUiType: props.initialUiType,
         onChange: props.onChange,
       }}
+    />
+  );
+}
+
+/** Add → an existing asset: its Buy form with type/name/instrument locked. */
+function PickedBuy({
+  budgetId,
+  budgetCurrency,
+  holding,
+  holdings,
+  onDone,
+}: {
+  budgetId: string;
+  budgetCurrency: string;
+  holding: HoldingDto;
+  holdings: HoldingDto[];
+  onDone: () => void;
+}) {
+  const [date, setDate] = useState(todayIso());
+  const minDate = useMinEntryDate(budgetId, holding.id);
+  return (
+    <SwapBuyTab
+      budgetId={budgetId}
+      budgetCurrency={budgetCurrency}
+      holding={holding}
+      holdings={holdings}
+      date={date}
+      setDate={setDate}
+      minDate={minDate}
+      onDone={onDone}
     />
   );
 }

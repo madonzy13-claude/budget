@@ -36,7 +36,7 @@ describe("InstrumentSearchInput — loading feedback", () => {
   it("shows a spinner as soon as a valid query is typed", async () => {
     render(<Harness />);
     expect(screen.queryByTestId("instrument-search-spinner")).toBeNull();
-    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+    fireEvent.change(screen.getByTestId("holding-sheet-instrument"), {
       target: { value: "AA" },
     });
     expect(
@@ -75,7 +75,7 @@ describe("InstrumentSearchInput — loading feedback", () => {
 
   it("shows no spinner below the minimum query length", () => {
     render(<Harness />);
-    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+    fireEvent.change(screen.getByTestId("holding-sheet-instrument"), {
       target: { value: "A" },
     });
     expect(screen.queryByTestId("instrument-search-spinner")).toBeNull();
@@ -102,7 +102,7 @@ describe("InstrumentSearchInput — loading feedback", () => {
       );
     }
     render(<H />);
-    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+    fireEvent.change(screen.getByTestId("holding-sheet-instrument"), {
       target: { value: "NOSUCHTICKER" },
     });
     const opt = await screen.findByTestId("instrument-manual-entry-option");
@@ -135,7 +135,7 @@ describe("InstrumentSearchInput — loading feedback", () => {
       }),
     } as unknown as Response);
     render(<Harness />);
-    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+    fireEvent.change(screen.getByTestId("holding-sheet-instrument"), {
       target: { value: "SPCX" },
     });
     expect(await screen.findByText("XSWX · CHF")).toBeInTheDocument();
@@ -161,7 +161,7 @@ describe("InstrumentSearchInput — loading feedback", () => {
       }),
     } as unknown as Response);
     render(<Harness />);
-    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+    fireEvent.change(screen.getByTestId("holding-sheet-instrument"), {
       target: { value: "BTC" },
     });
     // The suggestion still shows the symbol + name…
