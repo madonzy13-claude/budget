@@ -213,6 +213,8 @@ export function InvestmentRow({
       data-nav-key={`invrow-${holding.id}`}
       className={[
         "group flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] px-3 transition-colors sm:min-h-[48px]",
+        // Open: the ledger strip underneath closes the card (UAT 13.1 test 4).
+        expanded ? "rounded-b-none" : "",
         nested
           ? "bg-[var(--surface-nested-dark)] hover:bg-[var(--surface-card-dark)] data-[nav-highlighted=true]:bg-[var(--surface-card-dark)]"
           : "bg-[var(--surface-card-dark)] hover:bg-[var(--surface-elevated-dark)] data-[nav-highlighted=true]:bg-[var(--surface-elevated-dark)]",
@@ -314,7 +316,12 @@ export function InvestmentRow({
                   <span className="text-[var(--body-on-dark)]">{value}</span>
                 </span>
               </div>
-              <div className="text-caption text-[var(--muted-foreground)] tabular-nums">
+              {/* One step under the P/L line (UAT 13.1 test 4); inline so
+                  tailwind-merge cannot drop it. */}
+              <div
+                className="text-[var(--muted-foreground)] tabular-nums"
+                style={{ fontSize: "11px", lineHeight: 1.4 }}
+              >
                 {avgPrice != null && (
                   <>
                     <span>

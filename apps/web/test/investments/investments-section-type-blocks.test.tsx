@@ -164,8 +164,22 @@ describe("Investments as type groups", () => {
       "investment-group-stocks",
     ]);
     expect(screen.queryByTestId("investment-group-broker")).toBeNull();
-    expect(screen.getByTestId("investments-total-realized")).toHaveTextContent(
-      "realized +5,000",
+    // UAT 13.1 test 3: realized lives in the type header sum-up only.
+    expect(screen.queryByTestId("investments-total-realized")).toBeNull();
+  });
+
+  it("assets sit indented under their type header (UAT 13.1 test 4)", () => {
+    renderSection(
+      client([h({ uiType: "stocks" })], {
+        currency: "PLN",
+        order: [],
+        types: {},
+      }),
+    );
+    const block = document.querySelector("[data-asset-block]")!;
+    expect(block.className).toMatch(/(^|\s)pl-\d/);
+    expect(screen.getByTestId("investment-group-stocks").className).not.toMatch(
+      /(^|\s)(pl|ml)-\d/,
     );
   });
 

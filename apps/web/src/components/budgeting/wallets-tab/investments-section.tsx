@@ -424,9 +424,6 @@ export function InvestmentsSection({
 
   if (!investmentsEnabled) return null;
 
-  const signed = (cents: number) =>
-    `${cents > 0 ? "+" : cents < 0 ? "−" : ""}${centsToBare(String(Math.round(Math.abs(cents))), locale)}`;
-
   return (
     <section
       data-testid="investments-section"
@@ -475,19 +472,6 @@ export function InvestmentsSection({
         <span className="hidden w-7 shrink-0 sm:block" aria-hidden="true" />
       </h3>
 
-      {/* D-14: realized of types with no holdings left still counts. */}
-      {total.hiddenRealizedCents !== 0 && (
-        <p
-          data-testid="investments-total-realized"
-          className="px-3 text-[12px] leading-[1.4]"
-          style={{ color: "var(--muted-foreground)" }}
-        >
-          {t("ledger.realized", {
-            amount: signed(total.hiddenRealizedCents),
-          })}
-        </p>
-      )}
-
       <DndContext
         sensors={sensors}
         collisionDetection={collisionDetection}
@@ -530,7 +514,12 @@ export function InvestmentsSection({
                       strategy={verticalListSortingStrategy}
                     >
                       {block.holdings.map((h) => (
-                        <div key={h.id} className="flex flex-col">
+                        <div
+                          key={h.id}
+                          data-asset-block
+                          // UAT 13.1 test 4: assets nest under their type header.
+                          className="flex flex-col pl-4"
+                        >
                           <InvestmentRowSheet
                             holding={h}
                             nested

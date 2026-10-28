@@ -3,10 +3,11 @@
  * investment-type-header.tsx — L1 type header (Phase 13 D-13..D-16, 13.1 D-26).
  *
  * Left: drag handle · chevron · type name, no indent (UAT test 2). Right: the
- * type value only. Tapping the value area shows a sum-up that mirrors the asset
+ * type value only. Tapping anywhere but the chevron / handle (13.1 UAT 3)
+ * shows a sum-up that mirrors the asset
  * row: line 1 total P/L % then amount (P/L % = total ÷ lifetime cost, D-16),
  * line 2 a muted caption "unrealized · realized · share" with each figure
- * coloured by sign.
+ * coloured by sign. Cash has no profit by design: no sum-up at all.
  *
  * Color: P/L via inline style tokens only (tailwind-merge drops var() text colors).
  * Testids keep the investment-group-* names so existing page objects still work.
@@ -70,6 +71,7 @@ export function InvestmentTypeHeader({
     state,
   });
   const toggleSplit = () => setShowSplit((s) => !s);
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
   return (
     <div
@@ -77,10 +79,14 @@ export function InvestmentTypeHeader({
       data-nav-item
       data-nav-type="invest-group"
       data-nav-key={`invgroup-${uiType}`}
-      className="flex min-h-[56px] items-start gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 py-2 data-[nav-highlighted=true]:bg-[var(--surface-elevated-dark)]"
+      onClick={toggleSplit}
+      className="flex min-h-[56px] cursor-pointer items-start gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 py-2 data-[nav-highlighted=true]:bg-[var(--surface-elevated-dark)]"
     >
       {dragHandle && (
-        <span className="flex min-h-11 min-w-11 shrink-0 items-center justify-center">
+        <span
+          onClick={stop}
+          className="flex min-h-11 min-w-11 shrink-0 cursor-default items-center justify-center"
+        >
           {dragHandle}
         </span>
       )}
@@ -90,7 +96,10 @@ export function InvestmentTypeHeader({
         aria-expanded={expanded}
         data-testid={`investment-group-chevron-${uiType}`}
         data-nav-toggle
-        onClick={onToggle}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
+        }}
         className="flex min-h-11 w-6 shrink-0 items-center justify-center"
         style={{ color: "var(--muted-foreground)" }}
       >
@@ -108,7 +117,7 @@ export function InvestmentTypeHeader({
         >
           {name}
         </span>
-        {showSplit && (
+        {showSplit && uiType !== "cash" && (
           <div
             data-testid={`investment-type-split-${uiType}`}
             className="flex min-w-0 flex-col gap-0.5"
@@ -173,7 +182,6 @@ export function InvestmentTypeHeader({
         aria-expanded={showSplit}
         aria-label={aria}
         data-testid={`investment-group-toggle-${uiType}`}
-        onClick={toggleSplit}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();

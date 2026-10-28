@@ -15,6 +15,7 @@ vi.mock("next-intl", () => ({
       const map: Record<string, string> = {
         "uitype.stocks": "Stocks & ETFs",
         "uitype.crypto": "Crypto",
+        "uitype.cash": "Cash",
         "typeGroup.summaryCaption": "unrealized {u} · realized {r} · share {s}",
         "group.headerAria": "{name}, {pct} of portfolio. {state}.",
         "group.expanded": "Expanded",
@@ -111,5 +112,46 @@ describe("InvestmentTypeHeader", () => {
     expect(chev).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(chev);
     expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  // UAT 13.1 test 3: tap anywhere but the chevron / handle shows the sum-up.
+  it("tapping the name or empty header space toggles the sum-up", () => {
+    renderHeader();
+    fireEvent.click(screen.getByText("Stocks & ETFs"));
+    expect(screen.getByTestId("investment-type-split-stocks")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("investment-group-stocks"));
+    expect(screen.queryByTestId("investment-type-split-stocks")).toBeNull();
+  });
+
+  it("the chevron and the drag handle never toggle the sum-up", () => {
+    const { onToggle } = renderHeader();
+    fireEvent.click(screen.getByTestId("investment-group-chevron-stocks"));
+    fireEvent.click(screen.getByTestId("type-handle"));
+    expect(onToggle).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("investment-type-split-stocks")).toBeNull();
+  });
+
+  it("Enter on the header toggles the sum-up", () => {
+    renderHeader();
+    fireEvent.keyDown(screen.getByTestId("investment-group-toggle-stocks"), {
+      key: "Enter",
+    });
+    expect(screen.getByTestId("investment-type-split-stocks")).toBeTruthy();
+  });
+
+  // UAT 13.1 test 3: cash has no profit by design.
+  it("cash shows no P/L line and no caption when tapped", () => {
+    renderHeader({
+      uiType: "cash",
+      pl: pl({
+        pct: null,
+        unrealizedCents: 0,
+        realizedCents: 0,
+        totalPLCents: 0,
+      }),
+    });
+    fireEvent.click(screen.getByTestId("investment-group-toggle-cash"));
+    expect(document.querySelector("[data-pl-line]")).toBeNull();
+    expect(document.querySelector("[data-pl-caption]")).toBeNull();
   });
 });

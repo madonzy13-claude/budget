@@ -568,6 +568,26 @@ describe("InvestmentRow", () => {
     expect(onEdit).not.toHaveBeenCalled();
   });
 
+  // UAT 13.1 test 4: stats one step smaller than the P/L line.
+  it("expanded stats caption is smaller than the P/L line", () => {
+    render(<InvestmentRow holding={holding()} />);
+    fireEvent.click(screen.getByLabelText("Expand AAPL"));
+    const stats = screen.getByText("Avg price 300").parentElement!;
+    expect(stats.style.fontSize).toBe("11px");
+  });
+
+  // UAT 13.1 test 4: open → square bottom, the ledger strip closes the card.
+  it("an open asset has square bottom corners; a closed one is fully rounded", () => {
+    const { unmount } = render(<InvestmentRow holding={holding()} open />);
+    const card = screen.getByTestId("holding-row-AAPL");
+    expect(card.className).toMatch(/rounded-b-none/);
+    unmount();
+    render(<InvestmentRow holding={holding()} open={false} />);
+    expect(screen.getByTestId("holding-row-AAPL").className).not.toMatch(
+      /rounded-b-none/,
+    );
+  });
+
   it("expanded caption shows the average buy price (D-29)", () => {
     render(<InvestmentRow holding={holding()} />);
     fireEvent.click(screen.getByLabelText("Expand AAPL"));
