@@ -1,6 +1,10 @@
 import { createBdd } from "playwright-bdd";
 import type { Page } from "@playwright/test";
-import { expect, test } from "../fixtures/fresh-user-per-scenario";
+import {
+  afterScenario,
+  expect,
+  test,
+} from "../fixtures/fresh-user-per-scenario";
 import { fetchWith429Retry } from "../fixtures/fetch-with-429-retry";
 
 const { Given, When, Then } = createBdd(test);
@@ -195,7 +199,14 @@ Given(
  * algorithm hit, so the conversion never leaves the box. The rates are
  * arbitrary but must be > 1 so "combined net worth is greater than the USD
  * budget alone" stays true for the right reason.
+ *
+ * 13.1 UAT 14: on the shared dev DB these rows outlived the run and, being
+ * non-reciprocal (EUR→PLN 4.32 vs PLN→EUR 0.23), skewed a real sale's
+ * realized gain. Pairs are now exact reciprocals, and the rows THIS run
+ * inserted (never a pre-existing real one) are deleted after the scenario.
  */
+const seeded: { base: string; quote: string; date: string }[] = [];
+
 async function seedFxRates(): Promise<void> {
   const { Pool } = await import("pg");
   // fx_rates is the WORKER's table — app_role has no INSERT on it, and should
@@ -211,21 +222,23 @@ async function seedFxRates(): Promise<void> {
   );
   const pairs: [string, string, string][] = [
     ["EUR", "USD", "1.08"],
-    ["USD", "EUR", "0.92"],
+    ["USD", "EUR", "0.925926"], // 1 / 1.08
     ["PLN", "USD", "0.25"],
     ["USD", "PLN", "4.00"],
     ["EUR", "PLN", "4.32"],
-    ["PLN", "EUR", "0.23"],
+    ["PLN", "EUR", "0.231481"], // 1 / 4.32
   ];
   try {
     for (const day of days)
       for (const [base, quote, rate] of pairs) {
-        await pool.query(
+        const r = await pool.query(
           `INSERT INTO budgeting.fx_rates (base, quote, date, rate, provider, fetched_at)
            VALUES ($1, $2, $3::date, $4, 'e2e-seed', now())
-           ON CONFLICT DO NOTHING`,
+           ON CONFLICT DO NOTHING
+           RETURNING base, quote, date::text AS date`,
           [base, quote, day, rate],
         );
+        seeded.push(...r.rows);
       }
   } finally {
     await pool.end();
@@ -234,7 +247,29 @@ async function seedFxRates(): Promise<void> {
 
 Given("the FX cache is warm", async () => {
   await seedFxRates();
+  if (seeded.length > 0) afterScenario(deleteSeededFx);
 });
+
+/** Only fx_rates' owner may delete (worker_role cannot, by design) — clean up
+ *  as the migrator, and only the rows this run inserted. */
+async function deleteSeededFx(): Promise<void> {
+  const { Pool } = await import("pg");
+  const dbUrl =
+    process.env.DATABASE_URL_MIGRATOR?.replace("@db:", "@localhost:") ?? "";
+  if (!dbUrl)
+    throw new Error("DATABASE_URL_MIGRATOR not set — cannot clean FX");
+  const pool = new Pool({ connectionString: dbUrl });
+  try {
+    for (const r of seeded.splice(0))
+      await pool.query(
+        `DELETE FROM budgeting.fx_rates
+          WHERE base = $1 AND quote = $2 AND date = $3::date AND provider = 'e2e-seed'`,
+        [r.base, r.quote, r.date],
+      );
+  } finally {
+    await pool.end();
+  }
+}
 
 When("I open the all-budgets view", async ({ page }) => {
   await page.goto("/en/?list=1");
