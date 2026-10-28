@@ -4,7 +4,8 @@
  * does (patches, new holding, entries, soft deletes, hard deletes), so a test
  * can sell, undo and re-sell and then assert the resulting state.
  */
-import { Holding } from "../../src/domain/holding";
+import Big from "big.js";
+import { Holding, holdingShape } from "../../src/domain/holding";
 import { newestEntry } from "../../src/domain/asset-ledger";
 import type { HoldingRepo, NewHolding } from "../../src/ports/holding-repo";
 import type {
@@ -340,6 +341,30 @@ export class MemoryWorld {
       realized: live.reduce((a, r) => a + (r.realizedBudgetCents ?? 0n), 0n),
       flow: live.reduce((a, r) => a + r.flowCents, 0n),
     };
+  }
+}
+
+/**
+ * UAT 13.1 test 12: an asset row must equal the sum of its live ledger
+ * entries. Quantity holdings: Σ qty_delta == quantity and Σ cost_delta ≈
+ * quantity × per-unit buy price (per-unit rounding, ≤ ½ cent a unit). Amount
+ * holdings carry qty 1 and the total cost, so only cost is compared.
+ */
+export function expectRowMatchesEntries(w: MemoryWorld, holdingId: string) {
+  const h = w.get(holdingId);
+  const own = w.live().filter((r) => r.holdingId === holdingId);
+  const qty = own.reduce((a, r) => a.plus(r.qtyDelta ?? "0"), Big(0));
+  const cost = own.reduce((a, r) => a + r.costDeltaCents, 0n);
+  const buy = h.buyPriceCents ?? 0n;
+  if (holdingShape(h) === "quantity") {
+    if (!qty.eq(h.quantity))
+      throw new Error(`${holdingId}: row qty ${h.quantity} ≠ Σ entries ${qty}`);
+    const rowCost = Big(h.quantity).times(buy.toString());
+    const slack = Big(h.quantity).div(2).plus(1);
+    if (rowCost.minus(cost.toString()).abs().gt(slack))
+      throw new Error(`${holdingId}: row cost ${rowCost} ≠ Σ entries ${cost}`);
+  } else if (buy !== cost) {
+    throw new Error(`${holdingId}: row cost ${buy} ≠ Σ entries ${cost}`);
   }
 }
 
