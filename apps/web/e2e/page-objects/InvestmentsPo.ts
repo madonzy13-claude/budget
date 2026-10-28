@@ -355,27 +355,45 @@ export class InvestmentsPo {
     return ledger;
   }
 
-  /** Delete the asset's newest entry through the confirm dialog. */
+  /** Delete the asset's newest entry through the confirm dialog. The red
+   *  (enabled) delete is the only deletable one (13.1 D-14). Phone widths
+   *  reveal it with a touch swipe (13.1 UAT 12); desktop shows it in place. */
   async deleteNewestEntry(name: string): Promise<number> {
     const ledger = await this.openLedger(name);
-    const rows = ledger.getByRole("row");
-    const n = await rows.count();
-    for (let i = 0; i < n; i++) {
-      await rows.nth(i).click();
-      const del = ledger.locator('[data-testid^="ledger-delete-"]');
-      if (await del.isVisible().catch(() => false)) {
-        await del.click();
-        const res = this.page.waitForResponse(
-          (r) =>
-            r.url().includes("/investments/entries/") &&
-            r.request().method() === "DELETE",
-          { timeout: 15000 },
-        );
-        await this.page.getByTestId("ledger-delete-confirm-action").click();
-        return (await res).status();
-      }
+    const del = ledger.locator(
+      '[data-testid^="ledger-delete-"]:not([aria-disabled="true"])',
+    );
+    await expect(del).toHaveCount(1, { timeout: 5000 });
+    if ((this.page.viewportSize()?.width ?? 1280) < 640) {
+      const row = del.locator("xpath=ancestor::*[@data-ledger-row][1]");
+      const box = (await row.boundingBox())!;
+      const y = box.y + box.height / 2;
+      const at = (x: number) => ({
+        pointerType: "touch",
+        pointerId: 9,
+        clientX: x,
+        clientY: y,
+        bubbles: true,
+      });
+      const x0 = box.x + box.width - 20;
+      for (const [type, x] of [
+        ["pointerdown", x0],
+        ["pointermove", x0 - 40],
+        ["pointermove", x0 - 100],
+        ["pointerup", x0 - 100],
+      ] as const)
+        await row.dispatchEvent(type, at(x), { timeout: 5000 });
+      await expect(del).toHaveAttribute("data-open", "true", { timeout: 3000 });
     }
-    throw new Error(`no deletable entry in ${name}'s ledger`);
+    await del.click();
+    const res = this.page.waitForResponse(
+      (r) =>
+        r.url().includes("/investments/entries/") &&
+        r.request().method() === "DELETE",
+      { timeout: 15000 },
+    );
+    await this.page.getByTestId("ledger-delete-confirm-action").click();
+    return (await res).status();
   }
 
   /** Add a hand-priced quantity asset (manual type) through the Add sheet. */

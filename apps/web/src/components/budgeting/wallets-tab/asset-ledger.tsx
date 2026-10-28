@@ -7,6 +7,9 @@
  * top shadow on the first row (the spendings "to confirm" look). Fetched on
  * first open. The server decides what is deletable (newest entry only, linked
  * legs newest in both assets, interest never) — the client only renders it.
+ *
+ * 13.1 UAT 4/5: slides open/closed (CSS grid-rows, no layout jump), closes the
+ * asset card with rounded bottom corners, and follows the asset row's swipe.
  */
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
@@ -20,6 +23,9 @@ interface AssetLedgerProps {
   assetId: string;
   assetName: string;
   open: boolean;
+  /** The asset row's swipe offset (px ≤ 0); `swiping` = mid-gesture. */
+  swipeOffset?: number;
+  swiping?: boolean;
 }
 
 const rowKeyOf = (e: EntryDto) => e.id ?? `interest-${e.effectiveDate}`;
@@ -29,70 +35,86 @@ export function AssetLedger({
   assetId,
   assetName,
   open,
+  swipeOffset = 0,
+  swiping = false,
 }: AssetLedgerProps) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
   const { data: entries, isLoading } = useAssetEntries(budgetId, assetId, open);
   const deleteMut = useDeleteEntry(budgetId);
-  const [revealed, setRevealed] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<EntryDto | null>(null);
-
-  if (!open) return null;
+  // Mounted from the first open on, so closing can slide shut.
+  const [seen, setSeen] = useState(open);
+  if (open && !seen) setSeen(true);
+  if (!seen) return null;
 
   return (
     <div
-      role="rowgroup"
-      aria-label={`${assetName}`}
-      data-testid={`asset-ledger-${assetId}`}
-      style={{
-        backgroundColor: "var(--surface-sunken-dark)",
-        color: "var(--muted-foreground)",
-      }}
-      className="flex flex-col"
+      data-ledger-slide
+      aria-hidden={!open || undefined}
+      inert={!open || undefined}
+      style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
+      className="grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none"
     >
-      {isLoading || !entries
-        ? [0, 1, 2].map((i) => (
-            <div
-              key={i}
-              data-testid="ledger-skeleton"
-              className="min-h-[40px] animate-pulse px-2 py-1"
-              style={{
-                boxShadow:
-                  i === 0 ? "inset 0 6px 8px -6px rgba(0,0,0,0.7)" : undefined,
-              }}
-            >
-              <div
-                className="mt-2 h-3 w-2/3 rounded"
-                style={{ backgroundColor: "var(--surface-card-dark)" }}
-              />
-            </div>
-          ))
-        : entries.map((e, i) => {
-            const key = rowKeyOf(e);
-            return (
-              <LedgerRow
-                key={key}
-                rowKey={key}
-                entry={e}
-                first={i === 0}
-                revealed={revealed === key}
-                onTap={() => setRevealed((r) => (r === key ? null : key))}
-                onDelete={() => setConfirming(e)}
-              />
-            );
-          })}
-      <LedgerDeleteConfirm
-        entry={confirming}
-        assetName={assetName}
-        kind={confirming ? t(kindKey(confirming)) : ""}
-        date={confirming ? ledgerDate(confirming.effectiveDate, locale) : ""}
-        onOpenChange={(o) => !o && setConfirming(null)}
-        onConfirm={() => {
-          if (confirming?.id) deleteMut.mutate({ entryId: confirming.id });
-          setConfirming(null);
-          setRevealed(null);
-        }}
-      />
+      <div className="min-h-0 overflow-hidden">
+        <div
+          role="rowgroup"
+          aria-label={`${assetName}`}
+          data-testid={`asset-ledger-${assetId}`}
+          style={{
+            backgroundColor: "var(--surface-sunken-dark)",
+            color: "var(--muted-foreground)",
+            transform: `translateX(${swipeOffset}px)`,
+            transition: swiping ? "none" : "transform 200ms ease-out",
+          }}
+          className="flex flex-col overflow-hidden rounded-b-[var(--radius-md)]"
+        >
+          {isLoading || !entries
+            ? [0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  data-testid="ledger-skeleton"
+                  className="min-h-[40px] animate-pulse px-2 py-1"
+                  style={{
+                    boxShadow:
+                      i === 0
+                        ? "inset 0 6px 8px -6px rgba(0,0,0,0.7)"
+                        : undefined,
+                  }}
+                >
+                  <div
+                    className="mt-2 h-3 w-2/3 rounded"
+                    style={{ backgroundColor: "var(--surface-card-dark)" }}
+                  />
+                </div>
+              ))
+            : entries.map((e, i) => {
+                const key = rowKeyOf(e);
+                return (
+                  <LedgerRow
+                    key={key}
+                    rowKey={key}
+                    entry={e}
+                    first={i === 0}
+                    onDelete={() => setConfirming(e)}
+                  />
+                );
+              })}
+          <LedgerDeleteConfirm
+            entry={confirming}
+            assetName={assetName}
+            kind={confirming ? t(kindKey(confirming)) : ""}
+            date={
+              confirming ? ledgerDate(confirming.effectiveDate, locale) : ""
+            }
+            onOpenChange={(o) => !o && setConfirming(null)}
+            onConfirm={() => {
+              if (confirming?.id) deleteMut.mutate({ entryId: confirming.id });
+              setConfirming(null);
+            }}
+          />
+        </div>
+      </div>
     </div>
   );
 }

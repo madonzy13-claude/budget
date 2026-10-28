@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { EntryDto } from "../../src/hooks/use-asset-entries";
+import { touchSwipe } from "../_helpers/swipe";
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
@@ -91,7 +92,7 @@ const ENTRIES: EntryDto[] = [
   }),
 ];
 
-function mount(entries: EntryDto[] | null, open = true) {
+function mount(entries: EntryDto[] | null, open = true, swipeOffset = 0) {
   mockFetch.mockImplementation(async () =>
     entries === null
       ? new Promise(() => {})
@@ -100,7 +101,13 @@ function mount(entries: EntryDto[] | null, open = true) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <AssetLedger budgetId="b1" assetId="a1" assetName="BTC" open={open} />
+      <AssetLedger
+        budgetId="b1"
+        assetId="a1"
+        assetName="BTC"
+        open={open}
+        swipeOffset={swipeOffset}
+      />
     </QueryClientProvider>,
   );
 }
@@ -134,25 +141,62 @@ describe("Asset ledger strip", () => {
     ]);
     expect(rows[2]).toHaveTextContent("ledger.realized");
     expect(rows[3]).toHaveTextContent("ledger.toAsset");
-    expect(rows[0]).toHaveTextContent("ledger.auto");
+    // UAT 13.1 test 13: no "auto calculated" label on interest rows.
+    expect(rows[0]).not.toHaveTextContent("ledger.auto");
+    // UAT 13.1 test 4: the date carries the year.
+    expect(rows[1]).toHaveTextContent(/12 Oct 2026|Oct 12, 2026/);
   });
 
-  it("only the deletable row reveals a delete on tap", async () => {
+  it("slides open, rounds its bottom, and follows the asset's swipe", async () => {
+    mount(ENTRIES, true, -136);
+    const strip = await screen.findByTestId("asset-ledger-a1");
+    expect(strip.className).toMatch(/rounded-b-/);
+    expect(strip.style.transform).toBe("translateX(-136px)");
+    const slide = strip.closest("[data-ledger-slide]") as HTMLElement;
+    expect(slide.style.gridTemplateRows).toBe("1fr");
+    expect(slide.className).toContain("transition-[grid-template-rows]");
+  });
+
+  it("a convert leg shows its stored amount and currency", async () => {
+    mount([
+      e({
+        id: "ci",
+        kind: "convert_in",
+        amountCents: "69000",
+        amountCurrency: "EUR",
+        displayAmountCents: "298080",
+        displayCurrency: "PLN",
+      }),
+    ]);
+    const row = await screen.findByTestId("ledger-row-ci");
+    expect(row).toHaveTextContent(/\+690(\.00)? EUR/);
+    expect(row).not.toHaveTextContent("PLN");
+  });
+
+  // UAT 13.1 test 12: swipe to delete, like every other row.
+  it("a tap does not reveal delete; a touch swipe does", async () => {
     mount(ENTRIES);
     const buy = await screen.findByTestId("ledger-row-b1");
-    expect(screen.queryByTestId("ledger-delete-b1")).toBeNull();
+    const del = screen.getByTestId("ledger-delete-b1");
     fireEvent.click(buy);
-    expect(screen.getByTestId("ledger-delete-b1")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("ledger-row-w1"));
-    expect(screen.getByText("ledger.onlyLatest")).toBeInTheDocument();
-    expect(screen.queryByTestId("ledger-delete-w1")).toBeNull();
-    fireEvent.click(screen.getByTestId("ledger-row-c1"));
-    expect(screen.getByText("ledger.removeLaterIn")).toBeInTheDocument();
-    // One row is revealed at a time, and an interest row never offers delete.
-    fireEvent.click(screen.getByTestId("ledger-row-interest-2026-10-20"));
-    expect(
-      document.querySelectorAll('[data-testid^="ledger-delete-"]'),
-    ).toHaveLength(0);
+    expect(del).toHaveAttribute("data-open", "false");
+    touchSwipe(buy, -120);
+    expect(del).toHaveAttribute("data-open", "true");
+    expect(del).not.toHaveAttribute("aria-disabled");
+    expect(del.className).toContain("bg-[var(--destructive)]");
+  });
+
+  it("a row that cannot go yet has a grey delete that explains why", async () => {
+    mount(ENTRIES);
+    await screen.findByTestId("ledger-row-w1");
+    expect(screen.queryByText("ledger.onlyLatest")).toBeNull();
+    const grey = screen.getByTestId("ledger-delete-w1");
+    expect(grey).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(grey);
+    expect(await screen.findByText("ledger.onlyLatest")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("ledger-delete-c1"));
+    expect(await screen.findByText("ledger.removeLaterIn")).toBeInTheDocument();
+    expect(mockWrite).not.toHaveBeenCalled();
   });
 
   it("confirming a plain entry delete calls DELETE /entries/:id", async () => {
@@ -162,7 +206,9 @@ describe("Asset ledger strip", () => {
     expect(
       await screen.findByText("ledger.confirm.entry.title"),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("ledger-delete-confirm-action"));
+    const action = screen.getByTestId("ledger-delete-confirm-action");
+    expect(action.className).toContain("bg-[var(--trading-down)]");
+    fireEvent.click(action);
     await waitFor(() => expect(mockWrite).toHaveBeenCalled());
     const [url, init] = mockWrite.mock.calls[0]!;
     expect(url).toBe("/budgets/b1/investments/entries/b1");

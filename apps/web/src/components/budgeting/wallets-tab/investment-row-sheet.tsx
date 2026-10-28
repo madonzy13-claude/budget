@@ -7,15 +7,17 @@
  * Swap · Edit panel (13.1 D-05 — no asset delete; entries are deleted in the
  * L3 ledger). Both bubble up to the section's sheets.
  *
- * The native-pointer swipe mirrors wallet-row.tsx's proven gesture handling
- * (passive:false so preventDefault works mid-swipe; iOS-safe).
+ * The native-pointer swipe is useSwipeReveal (wallet-row.tsx's proven
+ * gesture, shared with the ledger rows); its offset is reported up so the
+ * open L3 ledger slides with the row.
  */
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowRightLeft, Pencil } from "lucide-react";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
+import { useSwipeReveal } from "@/hooks/use-swipe-reveal";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { InvestmentRow } from "./investment-row";
 
@@ -34,6 +36,8 @@ interface InvestmentRowSheetProps {
   /** The row opened/closed (the section renders the L3 ledger). */
   onToggle?: (id: string, open: boolean) => void;
   open?: boolean;
+  /** Swipe offset (px, ≤ 0) of this row — the section moves its ledger too. */
+  onSwipeOffset?: (id: string, px: number, live: boolean) => void;
   /** Save an inline-edited value (manual-value holdings only — see InvestmentRow). */
   onValueChange?: (amount: string) => Promise<void> | void;
 }
@@ -50,105 +54,20 @@ export function InvestmentRowSheet({
   onSwap,
   onToggle,
   open,
+  onSwipeOffset,
   onValueChange,
 }: InvestmentRowSheetProps) {
   const t = useTranslations("budget.investments");
 
-  const [offset, setOffset] = useState(0);
-  const [swiping, setSwiping] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const offsetRef = useRef(0);
-  const suppressClickUntilRef = useRef(0);
-
-  useEffect(() => {
-    offsetRef.current = offset;
-  }, [offset]);
-
-  useEffect(() => {
-    const el = wrapperRef.current;
-    if (!el) return;
-    const state = { x: 0, y: 0, base: 0, locked: false, pid: -1 };
-
-    const isInteractive = (target: EventTarget | null) => {
-      const node = target as HTMLElement | null;
-      if (!node) return false;
-      if (node.closest("[data-no-swipe]")) return true;
-      if (node.closest('[data-testid^="drag-grip-"]')) return true;
-      return false;
-    };
-
-    const onPointerDown = (e: PointerEvent) => {
-      if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
-      if (isInteractive(e.target)) return;
-      state.x = e.clientX;
-      state.y = e.clientY;
-      state.base = offsetRef.current;
-      state.locked = false;
-      state.pid = e.pointerId;
-    };
-
-    const onPointerMove = (e: PointerEvent) => {
-      if (state.pid !== e.pointerId) return;
-      const dx = e.clientX - state.x;
-      const dy = e.clientY - state.y;
-      if (!state.locked) {
-        if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
-        if (Math.abs(dy) > Math.abs(dx)) {
-          state.pid = -1;
-          return;
-        }
-        state.locked = true;
-        setSwiping(true);
-        try {
-          el.setPointerCapture(e.pointerId);
-        } catch {
-          /* best-effort */
-        }
-      }
-      if (e.cancelable) e.preventDefault();
-      setOffset(Math.max(-ACTION_W, Math.min(0, state.base + dx)));
-    };
-
-    const onPointerUp = (e: PointerEvent) => {
-      if (state.pid !== e.pointerId) return;
-      if (state.locked) {
-        const finalOffset = offsetRef.current <= -ACTION_W / 2 ? -ACTION_W : 0;
-        setOffset(finalOffset);
-        setSwiping(false);
-        suppressClickUntilRef.current = Date.now() + 400;
-        try {
-          el.releasePointerCapture(e.pointerId);
-        } catch {
-          /* best-effort */
-        }
-      }
-      state.x = 0;
-      state.y = 0;
-      state.base = 0;
-      state.locked = false;
-      state.pid = -1;
-    };
-
-    const onClickCapture = (e: MouseEvent) => {
-      if (Date.now() < suppressClickUntilRef.current) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    };
-
-    el.addEventListener("pointerdown", onPointerDown);
-    el.addEventListener("pointermove", onPointerMove, { passive: false });
-    el.addEventListener("pointerup", onPointerUp);
-    el.addEventListener("pointercancel", onPointerUp);
-    el.addEventListener("click", onClickCapture, true);
-    return () => {
-      el.removeEventListener("pointerdown", onPointerDown);
-      el.removeEventListener("pointermove", onPointerMove);
-      el.removeEventListener("pointerup", onPointerUp);
-      el.removeEventListener("pointercancel", onPointerUp);
-      el.removeEventListener("click", onClickCapture, true);
-    };
-  }, []);
+  const {
+    offset,
+    swiping,
+    close: closeSwipe,
+  } = useSwipeReveal(wrapperRef, ACTION_W, {
+    // 13.1 UAT 5: the open ledger strip slides with its asset.
+    onOffset: (px, live) => onSwipeOffset?.(holding.id, px, live),
+  });
 
   const {
     attributes,
@@ -184,8 +103,8 @@ export function InvestmentRowSheet({
       }}
       className={[
         "relative",
-        // 13.1 D-26: rows start at the header's left edge — no nesting indent
-        // or rail; the darker `nested` surface alone marks the level.
+        // 13.1-19: the section indents the asset block (row + ledger) under
+        // its type header; the darker `nested` surface marks the level too.
         // Lift above siblings while dragging (z) / HIDE when this row's group is
         // dragged as a block (ghost → opacity-0). The cohesive copy lives in the
         // DragOverlay; a dimmed in-place child slid independently of its header and
@@ -223,10 +142,10 @@ export function InvestmentRowSheet({
           aria-label={`${t("asset.swipe.swap")} ${holding.name}`}
           tabIndex={offset === 0 ? -1 : 0}
           onClick={() => {
-            setOffset(0);
+            closeSwipe();
             onSwap?.(holding);
           }}
-          className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
+          className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--info)] text-white"
         >
           <ArrowRightLeft className="h-5 w-5" aria-hidden="true" />
         </button>
@@ -237,7 +156,7 @@ export function InvestmentRowSheet({
           aria-label={`${t("asset.swipe.edit")} ${holding.name}`}
           tabIndex={offset === 0 ? -1 : 0}
           onClick={() => {
-            setOffset(0);
+            closeSwipe();
             onEdit(holding);
           }}
           className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"

@@ -8,6 +8,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { DndContext } from "@dnd-kit/core";
 import { SortableContext } from "@dnd-kit/sortable";
 import type { HoldingDto } from "../../src/hooks/use-investments";
+import { touchSwipe } from "../_helpers/swipe";
 
 vi.mock("next-intl", () => ({
   useTranslations:
@@ -57,7 +58,12 @@ const h: HoldingDto = {
   depositCapFrequency: null,
 };
 
-function renderRow(props: { onSwap?: (h: HoldingDto) => void } = {}) {
+function renderRow(
+  props: {
+    onSwap?: (h: HoldingDto) => void;
+    onSwipeOffset?: (id: string, px: number) => void;
+  } = {},
+) {
   return render(
     <DndContext>
       <SortableContext items={[h.id]}>
@@ -65,6 +71,7 @@ function renderRow(props: { onSwap?: (h: HoldingDto) => void } = {}) {
           holding={h}
           onEdit={vi.fn()}
           onSwap={props.onSwap ?? vi.fn()}
+          onSwipeOffset={props.onSwipeOffset}
         />
       </SortableContext>
     </DndContext>,
@@ -85,5 +92,23 @@ describe("Row actions", () => {
     expect(screen.queryByTestId("investment-sell-h1")).toBeNull();
     fireEvent.click(swap);
     expect(onSwap).toHaveBeenCalledWith(h);
+  });
+
+  // UAT 13.1 test 5: the open ledger slides with its asset; Swap is blue.
+  it("a touch swipe reports the row offset so the ledger can follow", () => {
+    const onSwipeOffset = vi.fn();
+    const { container } = renderRow({ onSwipeOffset });
+    const row = container.querySelector("[data-investment-row-wrapper]")!;
+    touchSwipe(row, -200);
+    expect(onSwipeOffset).toHaveBeenLastCalledWith("h1", -136, false);
+    touchSwipe(row, 200);
+    expect(onSwipeOffset).toHaveBeenLastCalledWith("h1", 0, false);
+  });
+
+  it("Swap is the blue action", () => {
+    renderRow();
+    expect(screen.getByTestId("investment-swap-h1").className).toContain(
+      "bg-[var(--info)]",
+    );
   });
 });

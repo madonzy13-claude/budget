@@ -16,6 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { buttonVariants } from "@/components/ui/button";
 import { useTranslations } from "next-intl";
 import type { EntryDto } from "@/hooks/use-asset-entries";
 
@@ -76,7 +77,8 @@ export function LedgerDeleteConfirm({
           </AlertDialogCancel>
           <AlertDialogAction
             data-testid="ledger-delete-confirm-action"
-            style={{ color: "var(--destructive)" }}
+            // Red fill, light text — a delete reads as one (13.1 UAT 12).
+            className={buttonVariants({ variant: "destructive" })}
             onClick={onConfirm}
           >
             {t(`ledger.confirm.${v}.confirm`)}

@@ -203,6 +203,12 @@ export function InvestmentsSection({
       for (const id of set) bdpStore.wallets.expandedRows[id] = true;
     return set;
   });
+  // 13.1 UAT 5: the swiped asset's open ledger slides with it.
+  const [swipe, setSwipe] = useState<{
+    id: string;
+    px: number;
+    live: boolean;
+  } | null>(null);
   const toggleAsset = (id: string, open: boolean) =>
     setOpenAssets((prev) => {
       const next = new Set(prev);
@@ -526,6 +532,9 @@ export function InvestmentsSection({
                             maxAmountChars={amountCols.group[block.uiType]}
                             open={openAssets.has(h.id)}
                             onToggle={toggleAsset}
+                            onSwipeOffset={(id, px, live) =>
+                              setSwipe({ id, px, live })
+                            }
                             onEdit={openEdit}
                             onSwap={setSwapping}
                             onValueChange={(amount) =>
@@ -539,6 +548,8 @@ export function InvestmentsSection({
                             assetId={h.id}
                             assetName={h.name}
                             open={openAssets.has(h.id) && !draggingRow}
+                            swipeOffset={swipe?.id === h.id ? swipe.px : 0}
+                            swiping={swipe?.id === h.id && swipe.live}
                           />
                         </div>
                       ))}

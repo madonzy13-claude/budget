@@ -866,14 +866,25 @@ When(
   },
 );
 
+// 13.1 UAT 12: a row that cannot go yet has a grey delete; tapping it says why.
 When("I tap the oldest entry of {string}", async ({ page }, name: string) => {
   const ledger = await new InvestmentsPo(page).openLedger(name);
-  await ledger.getByRole("row").last().click();
+  await ledger
+    .getByRole("row")
+    .last()
+    .locator('[data-testid^="ledger-delete-"]')
+    // aria-disabled is not `disabled`: users can tap it, Playwright refuses.
+    .click({ force: true });
 });
 
 When("I tap the newest entry of {string}", async ({ page }, name: string) => {
   const ledger = await new InvestmentsPo(page).openLedger(name);
-  await ledger.getByRole("row").first().click();
+  await ledger
+    .getByRole("row")
+    .first()
+    .locator('[data-testid^="ledger-delete-"]')
+    // aria-disabled is not `disabled`: users can tap it, Playwright refuses.
+    .click({ force: true });
 });
 
 Then("the ledger says {string}", async ({ page }, copy: string) => {
