@@ -617,6 +617,13 @@
       "when": 1782915601012,
       "tag": "0088_investment_assets",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1783002001012,
+      "tag": "0089_reconcile_asset_ledger",
+      "breakpoints": true
     }
   ]
 }
