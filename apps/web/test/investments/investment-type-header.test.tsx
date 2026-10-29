@@ -181,7 +181,7 @@ describe("InvestmentTypeHeader", () => {
       screen.getByTestId("investment-type-value-stocks").innerHTML,
     ).not.toContain("text-num-md");
     const share = screen.getByTestId("investment-type-share-stocks");
-    expect(share).toHaveTextContent("Share: 60.0%");
+    expect(share).toHaveTextContent("Share: 60%");
     expect(cap.contains(share)).toBe(false);
     expect(
       screen.getByTestId("investment-type-value-stocks"),
@@ -246,7 +246,7 @@ describe("InvestmentTypeHeader", () => {
     expect(document.querySelector("[data-pl-line]")).toBeNull();
     expect(document.querySelector("[data-pl-caption]")).toBeNull();
     expect(screen.getByTestId("investment-type-share-cash")).toHaveTextContent(
-      "Share: 60.0%",
+      "Share: 60%",
     );
   });
 

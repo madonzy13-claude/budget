@@ -106,7 +106,7 @@ describe("InvestmentRow", () => {
     expect(screen.getAllByText("USD").length).toBeGreaterThan(0);
     expect(screen.getByText("4,200")).toBeInTheDocument();
     expect(screen.getByText("+12.4%")).toBeInTheDocument();
-    expect(screen.getByText("18.0%")).toBeInTheDocument();
+    expect(screen.getByText("18%")).toBeInTheDocument();
   });
 
   it("savings row: no qty, shows Started + %change when expanded", () => {
@@ -412,7 +412,7 @@ describe("InvestmentRow", () => {
     );
     expect(screen.getAllByText("EUR Cash").length).toBeGreaterThan(0);
     expect(screen.queryByText("—")).not.toBeInTheDocument();
-    expect(screen.getByText("18.0%")).toBeInTheDocument(); // share / weight
+    expect(screen.getByText("18%")).toBeInTheDocument(); // share / weight
   });
 
   // Round-3 gap 1: no P/L = two lines (name · value / caption · share), no dash.
@@ -431,7 +431,7 @@ describe("InvestmentRow", () => {
     );
     fireEvent.click(screen.getByLabelText("Expand USD Cash"));
     expect(screen.queryByText("—")).toBeNull();
-    expect(screen.getByText("Share: 5.0%")).toBeInTheDocument();
+    expect(screen.getByText("Share: 5%")).toBeInTheDocument();
     const value = screen.getByTestId("asset-value-h1");
     expect(value).toHaveTextContent("USD10,000");
     // Round 4: value + share stack in the right column, centred on its own.
@@ -470,6 +470,23 @@ describe("InvestmentRow", () => {
       fireEvent.click(screen.getByTestId("asset-row-h1"));
       check();
     });
+
+  // Round-4 gap 14: a whole-number share drops the ".0".
+  it("a share of 40% reads 40%, 12.5% keeps its decimal", () => {
+    const { unmount } = render(
+      <InvestmentRow holding={holding({ weightPct: 40 })} />,
+    );
+    fireEvent.click(screen.getByTestId("asset-row-h1"));
+    expect(screen.getByTestId("asset-share-h1")).toHaveTextContent(
+      "Share: 40%",
+    );
+    unmount();
+    render(<InvestmentRow holding={holding({ weightPct: 12.5 })} />);
+    fireEvent.click(screen.getByTestId("asset-row-h1"));
+    expect(screen.getByTestId("asset-share-h1")).toHaveTextContent(
+      "Share: 12.5%",
+    );
+  });
 
   it("the asset row carries no type icon", () => {
     render(<InvestmentRow holding={holding()} />);
@@ -515,7 +532,7 @@ describe("InvestmentRow", () => {
       />,
     );
     fireEvent.click(screen.getByLabelText("Expand Vintage car"));
-    expect(screen.getByText("Share: 13.0%")).toBeInTheDocument();
+    expect(screen.getByText("Share: 13%")).toBeInTheDocument();
     // P/L money amount comes straight from the server (+15,000.00), no currency.
     // Renders in both the desktop cluster and the mobile-expanded line (UAT #7).
     expect(screen.getAllByText("+15,000").length).toBeGreaterThan(0);
@@ -564,7 +581,7 @@ describe("InvestmentRow", () => {
     fireEvent.click(screen.getByLabelText("Expand Bullion"));
     // trailing zeros trimmed for display.
     expect(screen.getByText("Qty: 0.9856328")).toBeInTheDocument();
-    expect(screen.getByText("Share: 100.0%")).toBeInTheDocument();
+    expect(screen.getByText("Share: 100%")).toBeInTheDocument();
   });
 
   it("mobile expand omits Qty for a cash holding (qty is meaningless)", () => {
@@ -581,7 +598,7 @@ describe("InvestmentRow", () => {
     );
     fireEvent.click(screen.getByLabelText("Expand USD Cash"));
     expect(screen.queryByText(/^Qty:/)).toBeNull();
-    expect(screen.getByText("Share: 5.0%")).toBeInTheDocument();
+    expect(screen.getByText("Share: 5%")).toBeInTheDocument();
   });
 
   // UAT #7: desktop listing gains a quantity column + the P/L money amount, in
