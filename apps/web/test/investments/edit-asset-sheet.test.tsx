@@ -57,6 +57,76 @@ beforeEach(() => {
   );
 });
 
+// Round-2 gap 10: the configuration Edit cannot change, shown locked.
+const locked = (f: string) => screen.getByTestId(`edit-asset-locked-${f}`);
+const expectLocked = (f: string, text: string) => {
+  const el = locked(f) as HTMLInputElement;
+  expect(el.readOnly).toBe(true);
+  expect(el).toHaveAttribute("aria-readonly", "true");
+  expect(el).toHaveAttribute("tabindex", "-1");
+  expect(el.value).toContain(text);
+};
+
+describe("Edit asset sheet — locked configuration", () => {
+  it("a deposit shows its rate, capitalization and start date locked", () => {
+    mount(
+      H({
+        name: "Term",
+        holdingType: "deposit",
+        uiType: "deposit",
+        instrumentId: null,
+        depositRateBps: 525,
+        depositCapFrequency: "yearly",
+        depositStartDate: "2026-07-01",
+      }),
+    );
+    expectLocked("rate", "5.25%");
+    expectLocked("capFrequency", "capFrequency.yearly");
+    expectLocked("startDate", "2026");
+  });
+
+  it("a tracked asset shows its instrument and current price locked", () => {
+    mount(btc);
+    expectLocked("instrument", "Bitcoin");
+    expectLocked("currentPrice", "60,000");
+    expectLocked("currentPrice", "PLN");
+  });
+
+  it("a metal shows metal, kind, unit, current price and premium locked", () => {
+    mount(
+      H({
+        name: "Coins",
+        holdingType: "commodity",
+        uiType: "precious_metals",
+        metal: "silver",
+        metalKind: "coin",
+        unitOfMeasure: "g",
+        premiumPct: "25.17",
+        currentPriceCents: "5155",
+      }),
+    );
+    expectLocked("metal", "metalOption.silver");
+    expectLocked("kind", "kindOption.coin");
+    expectLocked("uom", "uomOption.g");
+    expectLocked("currentPrice", "51.55");
+    expectLocked("premium", "25.17%");
+  });
+
+  it("a hand-priced asset keeps its editable price and no locked duplicate", () => {
+    mount(coin);
+    expect(screen.getByTestId("edit-asset-price")).toBeInTheDocument();
+    expect(screen.queryByTestId("edit-asset-locked-currentPrice")).toBeNull();
+  });
+
+  it("saving never sends the locked configuration", async () => {
+    mount(btc);
+    type("edit-asset-name", "BTC main");
+    fireEvent.click(screen.getByTestId("edit-asset-save"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody()).toEqual({ name: "BTC main" });
+  });
+});
+
 describe("Edit asset sheet", () => {
   it("hand-valued assets offer label, display currency and current value — nothing else", () => {
     mount(cash);

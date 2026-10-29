@@ -215,6 +215,21 @@ describe("Asset ledger strip", () => {
     expect(document.body.innerHTML).not.toContain("var(--body-on-dark)");
   });
 
+  // Round-2 gap 13: the server's display quantity drives "±qty @ price".
+  it("a one-unit entry reads ±1 @ price", async () => {
+    mount([
+      e({
+        id: "d1",
+        kind: "convert_out",
+        qtyDelta: null,
+        displayQty: "-1",
+        priceCents: "69000",
+      }),
+    ]);
+    const row = await screen.findByTestId("ledger-row-d1");
+    expect(row).toHaveTextContent("−1 @ 690");
+  });
+
   // Round-2 gap 12: the linked asset line is a step smaller.
   it("the linked asset line is smaller than the date line", async () => {
     mount(ENTRIES);

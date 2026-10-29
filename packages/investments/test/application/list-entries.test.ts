@@ -180,6 +180,67 @@ describe("List an asset's entries", () => {
     });
   });
 
+  // Round-2 gap 13: a quantity-type asset priced as one unit (qty 1, value
+  // entries store no quantity) still reads "±1 @ price" like crypto.
+  test("a one-unit quantity asset shows ±1 @ amount on its value entries", async () => {
+    const diamonds = {
+      id: "dia",
+      name: "Diamonds",
+      holdingType: "other",
+      uiType: "collectibles",
+      buy: 300_000n,
+      qty: "1",
+      current: 300_000n,
+    };
+    const { list, start } = world(diamonds);
+    await start("dia", "2026-10-01", {
+      amountCents: 300_000n,
+      amountCurrency: "PLN",
+    });
+    const [row] = (
+      await list({ ...who, holdingId: "dia", today: "2026-10-15" })
+    )._unsafeUnwrap();
+    expect(row).toMatchObject({
+      qtyDelta: null,
+      displayQty: "1",
+      priceCents: "300000",
+    });
+  });
+
+  test("an amount asset keeps plain amounts (no qty @ price)", async () => {
+    const ibkr = {
+      id: "ib",
+      name: "IBKR",
+      holdingType: "other",
+      uiType: "broker",
+      buy: 500_000n,
+      qty: "1",
+      current: 500_000n,
+    };
+    const { list, start } = world(ibkr);
+    await start("ib", "2026-10-01", {
+      amountCents: 500_000n,
+      amountCurrency: "PLN",
+    });
+    const [row] = (
+      await list({ ...who, holdingId: "ib", today: "2026-10-15" })
+    )._unsafeUnwrap();
+    expect(row).toMatchObject({ displayQty: null, priceCents: null });
+  });
+
+  test("a real quantity entry shows its own quantity", async () => {
+    const { list, start } = world(btc);
+    await start("btc", "2026-10-01", {
+      qtyDelta: "4",
+      amountCents: 10_000n,
+      amountCurrency: "PLN",
+    });
+    const [row] = (
+      await list({ ...who, holdingId: "btc", today: "2026-10-15" })
+    )._unsafeUnwrap();
+    expect(row).toMatchObject({ displayQty: "4", priceCents: "2500" });
+  });
+
   test("a deposit interleaves read-only interest rows by date", async () => {
     const dep = {
       id: "d",
