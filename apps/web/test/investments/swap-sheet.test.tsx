@@ -262,6 +262,22 @@ describe("Transfer tab", () => {
     expect(screen.getByTestId("swap-transfer-qty")).toHaveValue("1");
   });
 
+  // Round-5 gaps 4 + 5: name the unit; above holdings says so.
+  it("names the unit held and says when the move is more than held", () => {
+    mount(btc);
+    fireEvent.click(screen.getByTestId("swap-tab-transfer"));
+    expect(screen.getByTestId("swap-transfer-held")).toHaveTextContent(
+      "sell.qtyHelper(qty=2 BTC)",
+    );
+    type("swap-transfer-qty", "3");
+    expect(
+      screen.getByText("swap.err.overHeld(held=2 BTC)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("swap.err.positive")).toBeNull();
+    type("swap-transfer-qty", "0");
+    expect(screen.getByText("swap.err.positive")).toBeInTheDocument();
+  });
+
   it("footer stacks full-width and nothing truncates", () => {
     mount(btc);
     const footer = screen.getByTestId("swap-footer");

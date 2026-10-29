@@ -624,6 +624,33 @@ When(
   },
 );
 
+// Round 5: held unit, over-held transfer, assets start closed.
+When("I open Swap → Transfer on {string}", async ({ page }, name: string) => {
+  await new InvestmentsPo(page).openSwap(name, "transfer");
+});
+
+Then("the Transfer helper reads {string}", async ({ page }, text: string) => {
+  await expect(page.getByTestId("swap-transfer-held")).toHaveText(text);
+});
+
+When("I type {string} as the Transfer amount", async ({ page }, v: string) => {
+  await page.getByTestId("swap-transfer-qty").fill(v);
+});
+
+Then("the Swap sheet says {string}", async ({ page }, text: string) => {
+  await expect(page.getByTestId("swap-sheet").getByText(text)).toBeVisible();
+});
+
+When("I open the ledger of {string}", async ({ page }, name: string) => {
+  await new InvestmentsPo(page).openLedger(name);
+});
+
+Then("the asset {string} is closed", async ({ page }, name: string) => {
+  await expect(
+    new InvestmentsPo(page).row(name).locator('[data-testid^="asset-row-"]'),
+  ).toHaveAttribute("aria-expanded", "false");
+});
+
 // ── 13.1: assets, Swap, wallet target, ledger ──
 
 Given(

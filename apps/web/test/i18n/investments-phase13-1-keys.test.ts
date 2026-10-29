@@ -8,6 +8,7 @@ import { describe, it, expect } from "vitest";
 import en from "../../messages/en.json";
 import pl from "../../messages/pl.json";
 import uk from "../../messages/uk.json";
+import { createTranslator } from "next-intl";
 
 const KEYS = [
   "asset.name.closed",
@@ -127,6 +128,10 @@ const KEYS = [
   "typeGroup.realizedLabel",
   "ledger.confirm.interestNote",
   "ledger.openLinked",
+  "swap.err.overHeld",
+  "heldUnit.g",
+  "heldUnit.oz",
+  "heldUnit.kg",
 ];
 
 const at = (m: unknown, path: string): unknown =>
@@ -157,12 +162,55 @@ describe("Phase 13.1 investments i18n keys", () => {
 
   it("translations keep the same ICU placeholders as en", () => {
     const ph = (s: unknown) =>
-      [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+      [
+        ...new Set([...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1])),
+      ].sort();
     const drift = KEYS.filter(
       (k) =>
         JSON.stringify(ph(at(pl, k))) !== JSON.stringify(ph(at(en, k))) ||
         JSON.stringify(ph(at(uk, k))) !== JSON.stringify(ph(at(en, k))),
     );
     expect(drift).toEqual([]);
+  });
+});
+
+// Round-5 gaps 2 + 5 (user): uk wording, and the unit in "you hold".
+describe("Round-5 investments copy", () => {
+  it("uk ledger kinds and type names read as requested", () => {
+    expect({
+      convertedOut: at(uk, "ledger.kind.convertedOut"),
+      added: at(uk, "ledger.kind.added"),
+      transferOut: at(uk, "ledger.kind.transferOut"),
+      convertedIn: at(uk, "ledger.kind.convertedIn"),
+      transferIn: at(uk, "ledger.kind.transferIn"),
+      uiCrypto: at(uk, "uitype.crypto"),
+      typeCrypto: at(uk, "type.crypto"),
+      collectibles: at(uk, "uitype.collectibles"),
+    }).toEqual({
+      convertedOut: "Продаж",
+      added: "Поповнення",
+      transferOut: "Переказ",
+      convertedIn: "Купівля",
+      transferIn: "Надходження",
+      uiCrypto: "Криптовалюти",
+      typeCrypto: "Криптовалюти",
+      collectibles: "Цінності",
+    });
+  });
+
+  it("metal units take the right plural", () => {
+    const tr = (locale: string, messages: unknown) =>
+      createTranslator({
+        locale,
+        messages: messages as never,
+        namespace: "budget.investments" as never,
+      }) as unknown as (k: string, v: Record<string, unknown>) => string;
+    const t = tr("uk", uk);
+    expect(t("heldUnit.oz", { qty: "1", n: 1 })).toBe("1 унція");
+    expect(t("heldUnit.oz", { qty: "3", n: 3 })).toBe("3 унції");
+    expect(t("heldUnit.oz", { qty: "5", n: 5 })).toBe("5 унцій");
+    expect(t("heldUnit.oz", { qty: "2.5", n: 2.5 })).toBe("2.5 унції");
+    expect(tr("en", en)("heldUnit.oz", { qty: "3", n: 3 })).toBe("3 oz");
+    expect(tr("pl", pl)("heldUnit.g", { qty: "5", n: 5 })).toBe("5 gramów");
   });
 });

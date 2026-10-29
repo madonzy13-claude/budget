@@ -61,6 +61,25 @@ beforeEach(() => {
 });
 
 describe("Sell tab", () => {
+  // Round-5 gap 5: a metal's held amount carries its unit.
+  it("a metal's held amount names its unit", () => {
+    const gold = H({
+      id: "g1",
+      name: "Gold",
+      holdingType: "commodity",
+      uiType: "precious_metals",
+      instrumentId: null,
+      symbol: null,
+      metal: "gold",
+      unitOfMeasure: "oz",
+      quantity: "3",
+    } as Partial<HoldingDto>);
+    mount(gold, [gold, cash]);
+    expect(screen.getByTestId("swap-sell-held")).toHaveTextContent(
+      "sell.qtyHelper(qty=heldUnit.oz(qty=3,n=3))",
+    );
+  });
+
   it("asks how much was sold", () => {
     mount();
     expect(screen.getByText("swap.sell.sold")).toBeInTheDocument();
@@ -74,7 +93,7 @@ describe("Sell tab", () => {
     expect(screen.queryByTestId("swap-sell-all")).toBeNull();
     const held = screen.getByTestId("swap-sell-held");
     expect(held.tagName).toBe("BUTTON");
-    expect(held).toHaveTextContent("sell.qtyHelper(qty=2)");
+    expect(held).toHaveTextContent("sell.qtyHelper(qty=2 BTC)");
     fireEvent.click(held);
     const sold = screen.getByTestId("swap-sell-sold");
     expect(sold).toHaveValue("2");

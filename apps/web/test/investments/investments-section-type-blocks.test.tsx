@@ -216,6 +216,32 @@ describe("Investments as type groups", () => {
     ).toBeNull();
   });
 
+  // Round-5 gap 3: collapsing a type closes its assets; nothing is remembered.
+  it("collapsing a type closes its assets, and a reload starts them closed", async () => {
+    const a = h({ uiType: "stocks" });
+    const qc = client([a], { currency: "PLN", order: [], types: {} });
+    const row = () => screen.getByTestId(`asset-row-${a.id}`);
+    const { unmount } = renderSection(qc);
+    fireEvent.click(row());
+    expect(row()).toHaveAttribute("aria-expanded", "true");
+    expect(localStorage.getItem("inv.assetOpen.v1")).toBeNull();
+    fireEvent.click(screen.getByTestId("investment-group-chevron-stocks"));
+    await waitFor(() =>
+      expect(
+        document.querySelector(`[data-investment-row-wrapper="${a.id}"]`),
+      ).toBeNull(),
+    );
+    fireEvent.click(screen.getByTestId("investment-group-chevron-stocks"));
+    expect(await screen.findByTestId(`asset-row-${a.id}`)).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    unmount();
+    localStorage.setItem("inv.assetOpen.v1", JSON.stringify([a.id]));
+    renderSection(qc);
+    expect(row()).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("renders blocks before the summary loads (realized 0)", () => {
     renderSection(client([h({ uiType: "stocks" })]));
     expect(screen.getByTestId("investment-group-stocks")).toBeInTheDocument();

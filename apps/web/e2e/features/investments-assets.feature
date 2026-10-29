@@ -158,6 +158,29 @@ Feature: Investments as assets with transactions (13.1)
     And I add a deposit "Term" of "10000" at "5"% started on "2026-03-01"
     Then the ledger of "Term" lists "Mar 1, 2026 · Added money"
 
+  # Round-5 gaps 4 + 5: the held amount names its unit; too much says so.
+  @r5-held-unit
+  Scenario: Transfer names the unit held and refuses more than that
+    Given a tracked crypto asset "My BTC" on "bitcoin" of "1" units at 6000000 cents exists in my budget
+    When I open the investments wallets tab
+    And I open Swap → Transfer on "My BTC"
+    Then the Transfer helper reads "You hold 1 BTC"
+    When I type "3" as the Transfer amount
+    Then the Swap sheet says "That's more than you hold (1 BTC)."
+
+  # Round-5 gap 3: collapsing a type closes its assets; a reload starts closed.
+  @r5-group-close
+  Scenario: Collapsing a type closes its assets and a reload starts them closed
+    Given a tracked crypto asset "My BTC" on "bitcoin" of "1" units at 6000000 cents exists in my budget
+    When I open the investments wallets tab
+    And I open the ledger of "My BTC"
+    And I collapse the "crypto" type block
+    And I collapse the "crypto" type block
+    Then the asset "My BTC" is closed
+    When I open the ledger of "My BTC"
+    And I reload the wallets tab
+    Then the asset "My BTC" is closed
+
   # Gaps 2 + 3: the type header is an asset-row card; tap reveals mirror.
   @r2-header
   Scenario: The type header lines up with its asset rows and its tap mirrors the asset row
