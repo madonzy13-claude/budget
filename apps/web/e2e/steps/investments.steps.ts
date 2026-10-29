@@ -1965,6 +1965,17 @@ Then(
     const caption = split.locator("[data-pl-caption]");
     await expect(caption).toHaveText(/unreal\.: .+real\.: .+/);
     await expect(caption.locator("[data-signed]")).toHaveCount(2);
+    // Gap 17: one line; an overflowing caption scrolls instead of clipping.
+    const fit = await caption.evaluate((el) => {
+      const inner = el.firstElementChild as HTMLElement;
+      return {
+        over: inner.scrollWidth > el.clientWidth + 1,
+        scrolls: inner.classList.contains("fit-line-scroll"),
+        lines: Math.round(el.getBoundingClientRect().height / 15),
+      };
+    });
+    expect(fit.lines, "caption is one line").toBeLessThanOrEqual(1);
+    expect(fit.scrolls, "overflowing caption scrolls").toBe(fit.over);
   },
 );
 
