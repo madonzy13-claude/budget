@@ -213,14 +213,18 @@ Feature: Investments as assets with transactions (13.1)
       | currentPrice | *      |
       | premium      | 25.17  |
 
-  # Gap 13: every quantity entry reads "±qty @ price", transfer legs included.
+  # Gap 13: every entry reads "±qty @ price" — transfer legs and one-unit
+  # assets included; amount assets (broker, cash, …) keep plain amounts.
   @r2-qty-price
   Scenario: Every quantity entry shows its quantity at a price
     Given a "stocks" asset "ACME" of "10" units at 2500 cents exists in my budget
+    And a "collectibles" holding "Diamonds" deposited 300000 cents worth 300000 cents exists in my budget
     When I open the investments wallets tab
     And I move "4" of the "stocks" asset "ACME" to a new asset "ACME 2" from New transaction
     Then every quantity entry in the ledger of "ACME" reads quantity at price
     And every quantity entry in the ledger of "ACME 2" reads quantity at price
+    # A one-unit asset (qty 1) books value entries without a quantity.
+    And every quantity entry in the ledger of "Diamonds" reads quantity at price
 
   # Gaps 8 + 9: Sell asks what was sold; the "everything" buttons only fill.
   @r2-sell
