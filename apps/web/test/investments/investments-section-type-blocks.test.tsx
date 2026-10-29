@@ -242,6 +242,17 @@ describe("Investments as type groups", () => {
     expect(row()).toHaveAttribute("aria-expanded", "false");
   });
 
+  it("collapsing and at once re-expanding a type still closes its assets", () => {
+    const a = h({ uiType: "stocks" });
+    renderSection(client([a], { currency: "PLN", order: [], types: {} }));
+    const row = () => screen.getByTestId(`asset-row-${a.id}`);
+    fireEvent.click(row());
+    expect(row()).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(screen.getByTestId("investment-group-chevron-stocks"));
+    fireEvent.click(screen.getByTestId("investment-group-chevron-stocks"));
+    expect(row()).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("renders blocks before the summary loads (realized 0)", () => {
     renderSection(client([h({ uiType: "stocks" })]));
     expect(screen.getByTestId("investment-group-stocks")).toBeInTheDocument();

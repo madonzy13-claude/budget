@@ -101,9 +101,10 @@ export function InvestmentRow({
   const [shaking, setShaking] = useState(false);
   // The caption may use the room up to the share before it scrolls.
   const shareRef = useRef<HTMLSpanElement>(null);
-  // Opened from elsewhere (a linked entry's jump, round 4): show it open.
+  // Opened or closed from elsewhere (a linked entry's jump, round 4; its type
+  // collapsing, R5-3): follow the section's open state.
   useEffect(() => {
-    if (open) setExpanded(true);
+    if (open !== undefined) setExpanded(open);
   }, [open]);
   const activate = () => {
     const next = !expanded;

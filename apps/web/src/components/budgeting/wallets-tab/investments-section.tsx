@@ -231,7 +231,14 @@ export function InvestmentsSection({
   // R5-3: open assets in memory only (the row's own tap state still survives
   // pill navigation via the BDP store).
   const bdpStore = useBdpUiStore();
-  const [openAssets, setOpenAssets] = useState<Set<string>>(() => new Set());
+  const [openAssets, setOpenAssets] = useState<Set<string>>(
+    () =>
+      new Set(
+        Object.entries(bdpStore?.wallets.expandedRows ?? {})
+          .filter(([, v]) => v)
+          .map(([id]) => id),
+      ),
+  );
   useEffect(() => {
     try {
       // ponytail: stale-key cleanup from the per-device era; drop later.

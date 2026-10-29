@@ -692,6 +692,20 @@ describe("InvestmentRow", () => {
     );
   });
 
+  // Round-5 gap 3: closed from outside (its type collapsed) → the row closes too.
+  it("a row closed from outside stops showing open", () => {
+    const { rerender } = render(<InvestmentRow holding={holding()} open />);
+    expect(screen.getByLabelText("Expand AAPL")).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    rerender(<InvestmentRow holding={holding()} open={false} />);
+    expect(screen.getByLabelText("Expand AAPL")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
   // Round-2 gap 3: the share sits under the amount, not in the caption.
   it("tapped row shows its share under the amount, not in the caption", () => {
     render(<InvestmentRow holding={holding()} />);
