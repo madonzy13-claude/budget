@@ -66,17 +66,19 @@ export class InvestmentsPo {
   ): Promise<void> {
     await this.addButton().click();
     await this.page.getByTestId(`new-tx-kind-${kind}`).click();
-    await this.page.getByTestId("new-tx-type").selectOption(type);
+    // Round 3: Radix type list; the picked asset's form renders inside.
+    await this.page.getByTestId("new-tx-type").click();
+    await this.page.getByTestId(`new-tx-type-option-${type}`).click();
     await this.page.getByTestId("new-tx-asset").click();
     await this.page
       .getByRole("listbox")
       .getByRole("option", { name, exact: true })
       .click();
-    await expect(this.page.getByTestId(`swap-tab-${kind}`)).toHaveAttribute(
-      "aria-checked",
-      "true",
-      { timeout: 5000 },
-    );
+    await expect(
+      this.page
+        .getByTestId("new-tx-sheet")
+        .getByTestId(kind === "sell" ? "swap-sell-sold" : "swap-transfer-qty"),
+    ).toBeVisible({ timeout: 5000 });
   }
 
   sheet() {
@@ -277,6 +279,14 @@ export class InvestmentsPo {
     return this.page.getByTestId("swap-sheet");
   }
 
+  /** Whichever sheet holds the Sell / Transfer form: the asset's Swap sheet
+   *  or New transaction (round 3: the form renders inside it). */
+  txForm() {
+    return this.page.locator(
+      '[data-testid="new-tx-sheet"]:visible, [data-testid="swap-sheet"]:visible',
+    );
+  }
+
   /** Open the Swap sheet on a tab (deposits have no tabs — Sell only). */
   async openSwap(
     name: string,
@@ -336,7 +346,8 @@ export class InvestmentsPo {
    *  "leaving X". Sell everything fills the holding; left "0" keeps it,
    *  otherwise the field gets held − left. */
   async fillSoldFromLeft(sheet: Locator, left: string): Promise<void> {
-    await sheet.getByTestId("swap-sell-all").click();
+    // Round 3: tapping the held amount fills the field (no toggle).
+    await sheet.getByTestId("swap-sell-held").click();
     const field = sheet.getByTestId("swap-sell-sold");
     await expect(field).not.toHaveValue("", { timeout: 5000 });
     if (left === "0") return;

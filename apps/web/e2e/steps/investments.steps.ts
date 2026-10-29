@@ -795,7 +795,7 @@ When(
   async ({ page }, name: string, to: string) => {
     const po = new InvestmentsPo(page);
     await po.startFromNewTransaction("transfer", "broker", name);
-    await page.getByTestId("swap-transfer-all").click();
+    await page.getByTestId("swap-transfer-held").click();
     await page.getByTestId("swap-transfer-name").fill(to);
     // Close the name list so it does not cover the submit button.
     await page.getByTestId("swap-transfer-name").press("Escape");
@@ -808,7 +808,7 @@ When(
   async ({ page }, name: string, left: string) => {
     const po = new InvestmentsPo(page);
     await po.startFromNewTransaction("sell", "broker", name);
-    const sheet = po.swapSheet();
+    const sheet = po.txForm();
     await po.fillSoldFromLeft(sheet, left);
     await sheet.getByTestId("swap-dest-out").click();
     await expect(sheet.getByTestId("swap-sell-received")).not.toHaveValue("");
@@ -915,7 +915,7 @@ When(
   async ({ page }, name: string, target: string) => {
     const po = new InvestmentsPo(page);
     await po.openSwap(name, "transfer");
-    await page.getByTestId("swap-transfer-all").click();
+    await page.getByTestId("swap-transfer-held").click();
     await page.getByTestId("swap-transfer-name").fill(target);
     await page.getByTestId("swap-transfer-name").press("Escape");
     expect(await po.submitSwap("/transfer")).toBe(201);
@@ -1159,7 +1159,7 @@ Then(
       if (tab === "buy") await page.getByTestId("swap-buy-amount").fill("100");
       else {
         if (tab === "sell") await page.getByTestId("swap-dest-out").click();
-        await page.getByTestId(`swap-${tab}-all`).click();
+        await page.getByTestId(`swap-${tab}-held`).click();
         if (tab === "transfer") {
           await page.getByTestId("swap-transfer-name").fill("IBKR 2");
           await page.getByTestId("swap-transfer-name").press("Escape");
@@ -1482,12 +1482,12 @@ async function expectHeaderReveal(
   await header.click();
   const split = page.getByTestId(`investment-type-split-${uiType}`);
   await expect(split).toBeVisible();
-  await expect
-    .poll(async () => (await header.boundingBox())!.height)
-    .toBeGreaterThan(h0 + 4);
+  // Round 3: the reveal fits the card like the asset row (no grow).
+  expect(
+    Math.abs((await header.boundingBox())!.height - h0),
+  ).toBeLessThanOrEqual(1);
   await expect(split.locator("[data-pl-line]")).toContainText("%");
   const caption = split.locator("[data-pl-caption]");
-  expect(await caption.textContent()).not.toMatch(/\p{L}/u);
   await expect(caption.locator("[data-signed]")).toHaveCount(2);
   const [v, s] = await Promise.all([
     page.getByTestId(`investment-type-value-${uiType}`).boundingBox(),
@@ -1499,14 +1499,14 @@ async function expectHeaderReveal(
 }
 
 Then(
-  "tapping the {string} header grows it and mirrors the asset reveal",
+  "tapping the {string} header mirrors the asset reveal",
   async ({ page }, uiType: string) => {
     await expectHeaderReveal(page, uiType);
   },
 );
 
 Then(
-  "tapping the {string} header grows it and shows the share under its value",
+  "tapping the {string} header shows the share under its value",
   async ({ page }, uiType: string) => {
     await expectHeaderReveal(page, uiType);
     await fitsAndTranslated(page);
@@ -1732,12 +1732,6 @@ Then(
   },
 );
 
-Then("{string} is not pressed", async ({ page }, testId: string) => {
-  await expect(
-    page.getByTestId("swap-sheet").getByTestId(testId),
-  ).toHaveAttribute("aria-pressed", "false");
-});
-
 When(
   "I send the sale out of investments receiving {string}",
   async ({ page }, received: string) => {
@@ -1759,6 +1753,7 @@ async function expectFullList(
   page: import("@playwright/test").Page,
   trigger: Locator,
   name: string,
+  option?: Locator,
 ) {
   const t = (await trigger.boundingBox())!;
   console.log(
@@ -1784,7 +1779,9 @@ async function expectFullList(
     });
   });
   expect(ok, "list too short").toBe(true);
-  await page.getByRole("option", { name: new RegExp(`^${name} ·`) }).click();
+  await (
+    option ?? page.getByRole("option", { name: new RegExp(`^${name} ·`) })
+  ).click();
   await expect(trigger).toContainText(name);
 }
 
@@ -1816,5 +1813,225 @@ Then(
     await fitsAndTranslated(page);
     await page.keyboard.press("Escape");
     await expect(po.swapSheet()).toHaveCount(0);
+  },
+);
+
+// ── 13.1 round 3 (gaps 1–9) ──
+
+Then(
+  "the {string} header label has the asset row's weight",
+  async ({ page }, uiType: string) => {
+    const header = page.getByTestId(`investment-group-${uiType}`);
+    const label = uiType[0]!.toUpperCase() + uiType.slice(1);
+    const weight = (l: Locator) =>
+      l.evaluate((el) => getComputedStyle(el).fontWeight);
+    const asset = page
+      .locator('[data-testid^="holding-row-"]')
+      .first()
+      .locator("span.sm\\:hidden")
+      .first();
+    expect(await weight(header.getByText(label, { exact: true }))).toBe(
+      await weight(asset),
+    );
+  },
+);
+
+// Gap 2b: tapping the header never changes its size (it grew 56 → 69.6px
+// while the asset row keeps 56).
+Then(
+  "the {string} header keeps its size when tapped",
+  async ({ page }, uiType: string) => {
+    const header = page.getByTestId(`investment-group-${uiType}`);
+    const boxes = () =>
+      header.evaluate((el) => ({
+        root: el.getBoundingClientRect().width,
+        h: el.getBoundingClientRect().height,
+        parent: el.parentElement!.getBoundingClientRect().width,
+        children: [...el.children].map((c) => ({
+          cls: (c.getAttribute("class") ?? "").slice(0, 50),
+          w: Math.round(c.getBoundingClientRect().width),
+        })),
+      }));
+    const before = await boxes();
+    await header.click();
+    await expect(
+      page.getByTestId(`investment-type-split-${uiType}`),
+    ).toBeVisible();
+    const after = await boxes();
+    console.log("[r3-size]", JSON.stringify({ before, after }));
+    expect(Math.abs(after.root - before.root)).toBeLessThanOrEqual(0.5);
+    // Like the asset row: the reveal fits the 56px card (measured 56 → 69.6).
+    expect(Math.abs(after.h - before.h)).toBeLessThanOrEqual(1);
+  },
+);
+
+// Gap 1: a tapped asset without P/L is two centred lines, no dash, no grow.
+Then(
+  "tapping the asset row {string} shows two centred lines without a dash",
+  async ({ page }, name: string) => {
+    const po = new InvestmentsPo(page);
+    const id = await po.assetId(name);
+    const card = po.row(name);
+    const h0 = (await card.boundingBox())!.height;
+    await page.getByTestId(`asset-row-${id}`).click();
+    await expect(page.getByTestId(`asset-share-${id}`)).toBeVisible();
+    await expect(card.getByText("—", { exact: true })).toHaveCount(0);
+    const m = await card.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const leaves = [...el.querySelectorAll<HTMLElement>("span, div")]
+        .filter(
+          (n) =>
+            n.children.length === 0 &&
+            (n.textContent ?? "").trim() !== "" &&
+            n.getBoundingClientRect().width > 0,
+        )
+        .map((n) => n.getBoundingClientRect());
+      const lines = new Set(
+        leaves.map((b) => Math.round((b.top + b.bottom) / 12)),
+      );
+      const top = Math.min(...leaves.map((b) => b.top));
+      const bottom = Math.max(...leaves.map((b) => b.bottom));
+      return {
+        h: r.height,
+        lines: lines.size,
+        offset: Math.abs((top + bottom) / 2 - (r.top + r.bottom) / 2),
+      };
+    });
+    expect(Math.abs(m.h - h0), "card grew").toBeLessThanOrEqual(1);
+    expect(m.lines, "line count").toBe(2);
+    expect(m.offset, "not centred").toBeLessThanOrEqual(2);
+  },
+);
+
+Then(
+  "tapping the {string} header shows its share and no P\\/L",
+  async ({ page }, uiType: string) => {
+    await page.getByTestId(`investment-group-${uiType}`).click();
+    await expect(
+      page.getByTestId(`investment-type-share-${uiType}`),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId(`investment-group-${uiType}`).locator("[data-pl-line]"),
+    ).toHaveCount(0);
+  },
+);
+
+Then("values and shares line up on one right edge", async ({ page }) => {
+  const rights = (sel: string) =>
+    page
+      .locator(sel)
+      .evaluateAll((els) =>
+        els
+          .filter((e) => e.getBoundingClientRect().width > 0)
+          .map((e) => Math.round(e.getBoundingClientRect().right)),
+      );
+  for (const sel of [
+    '[data-testid^="asset-value-"], [data-testid^="investment-type-value-"]',
+    '[data-testid^="asset-share-"], [data-testid^="investment-type-share-"]',
+  ]) {
+    const r = await rights(sel);
+    expect(r.length, sel).toBeGreaterThanOrEqual(3);
+    expect(Math.max(...r) - Math.min(...r), sel).toBeLessThanOrEqual(1);
+  }
+});
+
+// Gap 2c: the header caption says what its amounts are.
+Then(
+  "the {string} header caption labels unrealized and realized",
+  async ({ page }, uiType: string) => {
+    const split = await new InvestmentsPo(page).typeSumUp(uiType);
+    const caption = split.locator("[data-pl-caption]");
+    await expect(caption).toHaveText(/unrealized: .+realized: .+/);
+    await expect(caption.locator("[data-signed]")).toHaveCount(2);
+  },
+);
+
+// Gap 4: a zero P/L is a grey rise with plus signs.
+Then(
+  "the asset row {string} shows a flat P\\/L",
+  async ({ page }, name: string) => {
+    const po = new InvestmentsPo(page);
+    if ((page.viewportSize()?.width ?? 1280) < 640)
+      await page.getByTestId(`asset-row-${await po.assetId(name)}`).click();
+    const row = po.row(name);
+    await expect(
+      row.locator('[data-pl-trend="flat"]:visible').first(),
+    ).toBeVisible();
+    await expect(row).toContainText("+0.0%");
+    await expect(row).toContainText("+0");
+  },
+);
+
+Then(
+  "the {string} header shows a flat P\\/L",
+  async ({ page }, uiType: string) => {
+    const split = await new InvestmentsPo(page).typeSumUp(uiType);
+    const line = split.locator("[data-pl-line]");
+    await expect(line.locator('[data-pl-trend="flat"]')).toBeVisible();
+    await expect(line).toContainText("+0.0%");
+    await expect(line).toContainText("+0");
+  },
+);
+
+// Gaps 3a + 3b: New transaction's type list and the embedded form.
+Then("the New transaction type list opens a full list", async ({ page }) => {
+  await new InvestmentsPo(page).addButton().click();
+  await page.getByTestId("new-tx-kind-sell").click();
+  const trigger = page.getByTestId("new-tx-type");
+  await expect(trigger).toHaveAttribute("role", "combobox");
+  await expectFullList(
+    page,
+    trigger,
+    "Broker",
+    page.getByTestId("new-tx-type-option-broker"),
+  );
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("new-tx-sheet")).toHaveCount(0);
+});
+
+Then(
+  "picking {string} to {word} in New transaction keeps the type and asset above its form",
+  async ({ page }, name: string, kind: string) => {
+    const po = new InvestmentsPo(page);
+    await po.startFromNewTransaction(
+      kind as "sell" | "transfer",
+      "broker",
+      name,
+    );
+    const sheet = page.getByTestId("new-tx-sheet");
+    await expect(sheet.getByTestId("new-tx-type")).toBeVisible();
+    await expect(sheet.getByTestId("new-tx-asset")).toBeVisible();
+    await expect(page.getByTestId("swap-sheet")).toHaveCount(0);
+    await fitsAndTranslated(page);
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
+  },
+);
+
+// Gap 3c: no "everything" toggles.
+Then("there is no {string} in the sale", async ({ page }, testId: string) => {
+  await expect(page.getByTestId(testId)).toHaveCount(0);
+});
+
+When("I switch the Swap sheet to {word}", async ({ page }, tab: string) => {
+  await page.getByTestId(`swap-tab-${tab}`).click();
+});
+
+// Gap 9: square delete with a shadow on its left edge.
+Then(
+  "the revealed delete in the ledger of {string} is square with a left inset shadow",
+  async ({ page }, name: string) => {
+    const po = new InvestmentsPo(page);
+    const ledger = await po.openLedger(name);
+    const del = ledger
+      .locator('[data-testid^="ledger-delete-"]:not([aria-disabled="true"])')
+      .first();
+    await po.revealDelete(del);
+    const look = await del.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { radius: cs.borderTopLeftRadius, shadow: cs.boxShadow };
+    });
+    expect(look.radius).toBe("0px");
+    expect(look.shadow).toContain("inset");
   },
 );

@@ -157,7 +157,7 @@ Feature: Investments as assets with transactions (13.1)
     And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
     When I open the investments wallets tab
     Then the "broker" header lines up with the asset row "IBKR"
-    And tapping the "broker" header grows it and mirrors the asset reveal
+    And tapping the "broker" header mirrors the asset reveal
     And tapping the asset row "IBKR" shows its share under the amount "96,000"
 
   # Gaps 4, 11, 12: darker strip with the inset shadow, grey amounts, small links.
@@ -233,10 +233,9 @@ Feature: Investments as assets with transactions (13.1)
     When I open the investments wallets tab
     And I open the sale of "IBKR"
     Then the sale asks "How much was sold?"
-    When I tap "swap-sell-all" in the sale
+    When I tap "swap-sell-held" in the sale
     Then "swap-sell-sold" holds "96000" and stays editable
     When I set "Value sold" in the sale to "66000"
-    Then "swap-sell-all" is not pressed
     When I send the sale out of investments receiving "66000"
     Then the holding row "IBKR" shows "30,000"
 
@@ -245,10 +244,9 @@ Feature: Investments as assets with transactions (13.1)
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
     When I open the investments wallets tab
     And I open the transfer of "IBKR"
-    And I tap "swap-transfer-all" in the sale
+    And I tap "swap-transfer-held" in the sale
     Then "swap-transfer-qty" holds "96000" and stays editable
     When I set "Amount moved" in the sale to "1000"
-    Then "swap-transfer-all" is not pressed
 
   # Gap 7: in-DOM pickers with a list of normal height on a phone.
   @r2-picker
@@ -262,6 +260,70 @@ Feature: Investments as assets with transactions (13.1)
     And I open the sale of "IBKR"
     Then the existing-asset picker opens a full list and picks "Pot"
     And the existing-wallet picker opens a full list and picks "Bank"
+
+  # ── Round 3 (13.1-35..38) ──
+
+  # Gaps 2a–2c: normal-weight label, no widening on tap, labelled caption.
+  @r3-header
+  Scenario: The type header keeps the asset row's weight and size, and labels its caption
+    Given I am on a phone-sized viewport
+    And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    Then the "broker" header keeps its size when tapped
+    And the "broker" header label has the asset row's weight
+    And the "broker" header caption labels unrealized and realized
+
+  # Gap 1: no P/L (cash) = two centred lines; values and shares on one edge.
+  @r3-cash-lines
+  Scenario: A tapped cash asset is two centred lines lined up with the others
+    Given I am on a phone-sized viewport
+    And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
+    When I open the investments wallets tab
+    Then tapping the asset row "Pot" shows two centred lines without a dash
+    And tapping the "cash" header shows its share and no P/L
+    And tapping the asset row "IBKR" shows its share under the amount "96,000"
+    And tapping the "broker" header shows the share under its value
+    And values and shares line up on one right edge
+
+  # Gap 4: zero P/L = grey rise, plus signs.
+  @r3-zero-pl
+  Scenario: A zero P/L reads as a grey rise with plus signs
+    Given a "broker" holding "Flat" deposited 100000 cents worth 100000 cents exists in my budget
+    When I open the investments wallets tab
+    Then the asset row "Flat" shows a flat P/L
+    And the "broker" header shows a flat P/L
+
+  # Gaps 3a + 3b: tall type list; the picked asset's form stays inside.
+  @r3-newtx
+  Scenario: New transaction keeps type and asset above the Sell and Transfer forms
+    Given I am on a phone-sized viewport
+    And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    Then the New transaction type list opens a full list
+    And picking "IBKR" to sell in New transaction keeps the type and asset above its form
+    And picking "IBKR" to transfer in New transaction keeps the type and asset above its form
+
+  # Gap 3c: tap the held amount instead of an "everything" button.
+  @r3-held
+  Scenario: Tapping the held amount fills Sell and Transfer
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I open the sale of "IBKR"
+    Then there is no "swap-sell-all" in the sale
+    When I tap "swap-sell-held" in the sale
+    Then "swap-sell-sold" holds "96000" and stays editable
+    When I switch the Swap sheet to transfer
+    And I tap "swap-transfer-held" in the sale
+    Then "swap-transfer-qty" holds "96000" and stays editable
+
+  # Gap 9: the ledger delete is square with a shadow on its left.
+  @r3-delete
+  Scenario: The swiped ledger delete is square with a left shadow
+    Given I am on a phone-sized viewport
+    And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    Then the revealed delete in the ledger of "IBKR" is square with a left inset shadow
 
   # Live phone drive (13.1-16): list → ledger strip look in both themes →
   # every Swap tab shows its sum-up and fits, in every launch locale.
@@ -278,7 +340,7 @@ Feature: Investments as assets with transactions (13.1)
     And the ledger of "IBKR" slides open and a swipe on its newest row reveals a delete
     And the New transaction chooser offers Buy, Sell and Transfer and fits the phone
     And the New transaction sheet opens on Buy with the switch visible
-    And tapping the "broker" header grows it and shows the share under its value
+    And tapping the "broker" header shows the share under its value
     And the Sell tab of "IBKR" asks how much was sold
     And a sale of "IBKR" into a new crypto asset keeps its price "2" after typing the quantity "1000"
     And changing the currency of "Pot" to "EUR" in Edit shows the rate line
