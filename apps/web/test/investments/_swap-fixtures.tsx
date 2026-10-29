@@ -8,6 +8,11 @@ import type { HoldingDto } from "../../src/hooks/use-investments";
 export const fetchMock = vi.fn();
 export const writeMock = vi.fn();
 export const toastMock = { success: vi.fn(), error: vi.fn() };
+/** Last props the HoldingSheet stub (New transaction's Add form) got. */
+// Read only at render time, after this module ran — safe in a vi.mock factory.
+export const holdingSheetStub = {
+  props: null as null | Record<string, unknown>,
+};
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string, params?: Record<string, unknown>) =>
@@ -132,6 +137,25 @@ vi.mock("../../src/components/budgeting/wallets-tab/holding-sheet", () => ({
       onChange={(e) => onChange(e.target.value)}
     />
   ),
+  // New transaction's embedded Add form: records props, can report dirty /
+  // close (round-2 gap 6).
+  HoldingSheet: (p: Record<string, unknown>) => {
+    holdingSheetStub.props = p;
+    return (
+      <div data-testid="holding-sheet">
+        <button
+          type="button"
+          data-testid="stub-dirty"
+          onClick={() => (p.onDirtyChange as (d: boolean) => void)(true)}
+        />
+        <button
+          type="button"
+          data-testid="stub-saved"
+          onClick={() => (p.onOpenChange as (o: boolean) => void)(false)}
+        />
+      </div>
+    );
+  },
 }));
 
 export const H = (over: Partial<HoldingDto>): HoldingDto =>

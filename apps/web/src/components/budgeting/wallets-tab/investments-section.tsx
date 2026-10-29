@@ -67,7 +67,6 @@ import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { sharePercentLabel } from "@/lib/share-bar";
 import { InvestmentTypeHeader } from "./investment-type-header";
 import { NewTransactionSheet } from "./new-transaction-sheet";
-import { HoldingSheet } from "./holding-sheet";
 import { SwapSheet } from "./swap-sheet";
 import { EditAssetSheet } from "./edit-asset-sheet";
 
@@ -253,9 +252,6 @@ export function InvestmentsSection({
     );
   }
 
-  // ── Add sheet ──
-  const [adding, setAdding] = useState(false);
-
   // ── Type blocks (D-12..D-16) ──
   const blocks = useMemo(
     () => buildTypeBlocks(holdings, typeOrder),
@@ -428,9 +424,6 @@ export function InvestmentsSection({
   function openEdit(holding: HoldingDto) {
     setEditing(holding);
   }
-  function openAdd() {
-    setAdding(true);
-  }
 
   if (!investmentsEnabled) return null;
 
@@ -578,23 +571,13 @@ export function InvestmentsSection({
         open={choosing}
         onOpenChange={setChoosing}
         budgetId={budgetId}
+        budgetCurrency={budgetCurrency}
         holdings={holdings}
-        onBuy={() => {
-          setChoosing(false);
-          openAdd();
-        }}
         onPick={(h, tab) => {
           setChoosing(false);
           setSwapTab(tab);
           setSwapping(h);
         }}
-      />
-      <HoldingSheet
-        key={`add-${adding}`}
-        open={adding}
-        onOpenChange={setAdding}
-        budgetId={budgetId}
-        budgetCurrency={budgetCurrency}
       />
       {swapping && (
         <SwapSheet

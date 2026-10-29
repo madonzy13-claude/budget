@@ -106,6 +106,11 @@ interface HoldingSheetProps {
   };
   /** Add mode: start with this type chosen. */
   initialUiType?: UiType;
+  /** 13.1 round-2 gap 6: render the add body inside New transaction, no
+   *  Sheet shell. */
+  embedded?: boolean;
+  /** Reports the add form's dirty state (New transaction guards its switch). */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 /** The "new" destination of a sale, as POST /:id/sell expects it. */
@@ -152,6 +157,8 @@ export function HoldingSheet({
   holding,
   destination: dest,
   initialUiType,
+  embedded,
+  onDirtyChange,
 }: HoldingSheetProps) {
   const t = useTranslations("budget.investments");
   const fmt = useFormatter();
@@ -288,7 +295,8 @@ export function HoldingSheet({
   // create so the user sees the type options immediately on opening the sheet.
   // Create auto-opens the Type list — but never as an embedded sale destination
   // (a modal list there swallows input meant for the Sell sheet).
-  const [typeOpen, setTypeOpen] = useState(!dest && !holding);
+  // Embedded: an auto-opened (modal) list would cover the kind switch.
+  const [typeOpen, setTypeOpen] = useState(!dest && !holding && !embedded);
   const reopenBlockUntil = useRef(0);
   const onTypeOpenChange = (next: boolean) => {
     const now = Date.now();
@@ -571,6 +579,10 @@ export function HoldingSheet({
     depositRate,
     depositStart,
   ]);
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   function attemptClose() {
     if (dirty) {
@@ -1241,6 +1253,106 @@ export function HoldingSheet({
       </div>
     );
 
+  // One body for both shells: the Sheet below and New transaction (embedded),
+  // which carries the holding-sheet testid itself so the Page Object reads either.
+  const addBody = (
+    <div
+      data-testid={embedded ? "holding-sheet" : undefined}
+      className="space-y-4 px-1 pb-4"
+    >
+      {picked ? (
+        <>
+          {typeField}
+          <Field label={t("field.name")}>{nameField}</Field>
+          <PickedBuy
+            budgetId={budgetId}
+            budgetCurrency={budgetCurrency}
+            holding={picked}
+            holdings={holdingsList ?? []}
+            onDone={() => onOpenChange(false)}
+          />
+        </>
+      ) : (
+        <>
+          {formFields}
+
+          {/* 8. Preview — "what will be created" sum-up (all types). */}
+          {preview && (
+            <HoldingPreviewBlock
+              preview={preview}
+              behavior={behavior}
+              uiType={uiType}
+            />
+          )}
+
+          {
+            <Field label={t("addDate")}>
+              <Input
+                type="date"
+                data-testid="holding-sheet-date"
+                value={openedOn}
+                max={today}
+                onChange={(e) => setOpenedOn(e.target.value)}
+              />
+            </Field>
+          }
+
+          {/* Actions live at the END of the scrolling form (NOT a pinned footer):
+      the user scrolls down to reach Save. */}
+          <div
+            data-testid="holding-sheet-actions"
+            className="mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--hairline-dark)] pt-4"
+          >
+            <Button
+              type="button"
+              variant="primary"
+              data-testid="holding-sheet-submit"
+              disabled={!canSave}
+              onClick={handleSave}
+              className="flex-1"
+            >
+              {t("sheet.save")}
+            </Button>
+            <Button type="button" variant="ghost" onClick={attemptClose}>
+              {t("sheet.cancel")}
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+  const discardDialog = (
+    <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t("confirm.discard.title")}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {t("confirm.discard.body")}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{t("confirm.discard.cancel")}</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              setDiscardOpen(false);
+              onOpenChange(false);
+            }}
+          >
+            {t("confirm.discard.cta")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  if (embedded)
+    return (
+      <>
+        {addBody}
+        {discardDialog}
+      </>
+    );
+
   return (
     <Sheet
       open={open}
@@ -1276,90 +1388,10 @@ export function HoldingSheet({
           </SheetTitle>
         </SheetHeader>
 
-        <div className="space-y-4 px-1 pb-4">
-          {picked ? (
-            <>
-              {typeField}
-              <Field label={t("field.name")}>{nameField}</Field>
-              <PickedBuy
-                budgetId={budgetId}
-                budgetCurrency={budgetCurrency}
-                holding={picked}
-                holdings={holdingsList ?? []}
-                onDone={() => onOpenChange(false)}
-              />
-            </>
-          ) : (
-            <>
-              {formFields}
-
-              {/* 8. Preview — "what will be created" sum-up (all types). */}
-              {preview && (
-                <HoldingPreviewBlock
-                  preview={preview}
-                  behavior={behavior}
-                  uiType={uiType}
-                />
-              )}
-
-              {
-                <Field label={t("addDate")}>
-                  <Input
-                    type="date"
-                    data-testid="holding-sheet-date"
-                    value={openedOn}
-                    max={today}
-                    onChange={(e) => setOpenedOn(e.target.value)}
-                  />
-                </Field>
-              }
-
-              {/* Actions live at the END of the scrolling form (NOT a pinned footer):
-              the user scrolls down to reach Save. */}
-              <div
-                data-testid="holding-sheet-actions"
-                className="mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--hairline-dark)] pt-4"
-              >
-                <Button
-                  type="button"
-                  variant="primary"
-                  data-testid="holding-sheet-submit"
-                  disabled={!canSave}
-                  onClick={handleSave}
-                  className="flex-1"
-                >
-                  {t("sheet.save")}
-                </Button>
-                <Button type="button" variant="ghost" onClick={attemptClose}>
-                  {t("sheet.cancel")}
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
+        {addBody}
       </SheetContent>
 
-      <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("confirm.discard.title")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("confirm.discard.body")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("confirm.discard.cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setDiscardOpen(false);
-                onOpenChange(false);
-              }}
-            >
-              {t("confirm.discard.cta")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {discardDialog}
     </Sheet>
   );
 }

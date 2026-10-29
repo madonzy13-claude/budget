@@ -8,42 +8,14 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import { H, btc, btcCold, deposit } from "./_swap-fixtures";
+import {
+  H,
+  btc,
+  btcCold,
+  deposit,
+  holdingSheetStub as stub,
+} from "./_swap-fixtures";
 import { NewTransactionSheet } from "../../src/components/budgeting/wallets-tab/new-transaction-sheet";
-
-vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
-  useLocale: () => "en",
-}));
-
-// The Add form is HoldingSheet's own business; here it is a stub that records
-// its props and can report dirty / close.
-const stub = vi.hoisted(() => ({
-  props: null as null | Record<string, unknown>,
-}));
-vi.mock(
-  "../../src/components/budgeting/wallets-tab/holding-sheet",
-  async (orig) => ({
-    ...(await orig<object>()),
-    HoldingSheet: (p: Record<string, unknown>) => {
-      stub.props = p;
-      return (
-        <div data-testid="holding-sheet">
-          <button
-            type="button"
-            data-testid="stub-dirty"
-            onClick={() => (p.onDirtyChange as (d: boolean) => void)(true)}
-          />
-          <button
-            type="button"
-            data-testid="stub-saved"
-            onClick={() => (p.onOpenChange as (o: boolean) => void)(false)}
-          />
-        </div>
-      );
-    },
-  }),
-);
 
 vi.mock("../../src/hooks/use-asset-names", () => ({
   useAssetNames: (_b: string, type: string | null) => ({
