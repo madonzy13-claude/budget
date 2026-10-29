@@ -1822,6 +1822,17 @@ Then(
   "the {string} header label has the asset row's weight",
   async ({ page }, uiType: string) => {
     const header = page.getByTestId(`investment-group-${uiType}`);
+    // Compare like with like: both cards closed (open names are text-num-sm).
+    if (
+      await page
+        .getByTestId(`investment-type-split-${uiType}`)
+        .isVisible()
+        .catch(() => false)
+    )
+      await header.click();
+    await expect(
+      page.getByTestId(`investment-type-split-${uiType}`),
+    ).toHaveCount(0);
     const label = uiType[0]!.toUpperCase() + uiType.slice(1);
     const weight = (l: Locator) =>
       l.evaluate((el) => getComputedStyle(el).fontWeight);
@@ -2033,5 +2044,11 @@ Then(
     });
     expect(look.radius).toBe("0px");
     expect(look.shadow).toContain("inset");
+    // Gap 11: the swiped row is shaded on its left; gap 12: smaller qty line.
+    const row = del.locator("xpath=ancestor::*[@data-ledger-row][1]");
+    await expect(row.locator("[data-ledger-swipe-shade]")).toHaveCSS(
+      "opacity",
+      "1",
+    );
   },
 );
