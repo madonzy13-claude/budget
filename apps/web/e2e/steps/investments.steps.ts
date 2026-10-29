@@ -2353,9 +2353,20 @@ Then(
       .filter({ hasText: new RegExp(`^${name}`) });
     await expect(option).toContainText("Archived");
     await option.dispatchEvent("mousedown");
-    await page.getByTestId("swap-buy-amount").fill(amount);
-    await expect(page.getByTestId("swap-buy-value-after")).not.toHaveValue("");
-    expect(await po.submitSwap("/buy")).toBe(201);
+    // An archived asset is not in the live list, so the Add form books the buy
+    // and the server joins it by name (D-02 create-or-join revives it).
+    await page.getByTestId("holding-sheet-deposited").fill(amount);
+    await page.getByTestId("holding-sheet-actual").fill(amount);
+    const posted = page.waitForResponse(
+      (r) =>
+        /\/budgets\/[^/]+\/investments(\?.*)?$/.test(r.url()) &&
+        r.request().method() === "POST",
+      { timeout: 15000 },
+    );
+    await page.getByTestId("holding-sheet-submit").click();
+    expect(((await (await posted).json()) as { joined: boolean }).joined).toBe(
+      true,
+    );
     await expect(po.row(name)).toBeVisible({ timeout: 10000 });
   },
 );
