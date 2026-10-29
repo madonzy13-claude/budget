@@ -232,7 +232,7 @@ export class InvestmentsPo {
    *  mouse pointers), hover on desktop (D-05: Swap · Edit). */
   private async rowAction(
     name: string,
-    action: "swap" | "edit" | "archive",
+    action: "swap" | "edit" | "archive" | "delete",
   ): Promise<void> {
     const wrapper = this.wrapper(name);
     await wrapper.waitFor({ state: "visible" });
@@ -273,7 +273,9 @@ export class InvestmentsPo {
             ? `investment-swap-${id}`
             : action === "archive"
               ? `investment-archive-${id}`
-              : `holding-swipe-edit-${id}`;
+              : action === "delete"
+                ? `investment-delete-${id}`
+                : `holding-swipe-edit-${id}`;
         await this.page.getByTestId(tid).click({ timeout: 3000 });
       }).toPass({ timeout: 20_000 });
       return;
@@ -328,6 +330,19 @@ export class InvestmentsPo {
       .filter({ hasText: new RegExp(`^${name}`) });
     await expect(option).toHaveCount(1, { timeout: 5000 });
     await option.click();
+  }
+
+  /** Round 4: delete an asset that has nothing but its opening entry. */
+  async deleteAsset(name: string): Promise<void> {
+    await this.rowAction(name, "delete");
+    const res = this.page.waitForResponse(
+      (r) =>
+        r.url().includes("/investments/entries/") &&
+        r.request().method() === "DELETE",
+      { timeout: 15000 },
+    );
+    await this.page.getByTestId("investment-delete-confirm").click();
+    expect((await res).ok()).toBe(true);
   }
 
   /** Round 4: archive an asset through its row action + the confirm. */

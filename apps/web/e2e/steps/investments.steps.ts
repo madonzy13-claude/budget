@@ -2468,3 +2468,8 @@ Then(
     await expect(new InvestmentsPo(page).row(name)).toHaveCount(n);
   },
 );
+
+// Gap 26: an asset with nothing but its opening entry is deleted, not archived.
+When("I delete the asset {string}", async ({ page }, name: string) => {
+  await new InvestmentsPo(page).deleteAsset(name);
+});

@@ -422,6 +422,14 @@ Feature: Investments as assets with transactions (13.1)
     When I open the investments wallets tab
     Then tapping the linked entry in the ledger of "IBKR" opens "Pot" at the matching entry
 
+  # Gap 26: nothing but the opening entry → Delete (it is gone for good).
+  @r4-delete-asset
+  Scenario: An asset with no transactions is deleted instead of archived
+    Given a "broker" holding "Fresh" deposited 100000 cents worth 100000 cents exists in my budget
+    When I open the investments wallets tab
+    And I delete the asset "Fresh"
+    Then the holding row "Fresh" is gone
+
   # Gaps 20 + 21: archive is explicit; buying into an archived asset revives it.
   @r4-archive
   Scenario: Archiving hides an asset and buying into it brings it back
