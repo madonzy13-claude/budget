@@ -67,9 +67,12 @@ describe.skipIf(!URL)("Migration 0088 investment assets — catalog", () => {
       expect(names).toContain(c);
     const idx = await pool.query(
       `SELECT indexname FROM pg_indexes WHERE schemaname = 'budgeting'
-          AND indexname IN ('investments_label_uq', 'investment_history_newest_idx')`,
+          AND indexname IN ('investments_label_uq', 'investments_label_ccy_uq', 'investment_history_newest_idx')`,
     );
-    expect(idx.rows).toHaveLength(2);
+    // Round-5 scope change (0093): no asset-name uniqueness is left.
+    expect(idx.rows.map((r) => r.indexname)).toEqual([
+      "investment_history_newest_idx",
+    ]);
     const force = await pool.query(
       `SELECT relname, relforcerowsecurity AS f FROM pg_class
         WHERE oid IN ('budgeting.investments'::regclass, 'budgeting.investment_history'::regclass)`,

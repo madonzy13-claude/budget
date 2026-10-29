@@ -32,6 +32,7 @@ export interface H {
   cap?: string;
   inst?: string | null;
   archived?: boolean;
+  uom?: string;
 }
 
 export function hold(h: H): Holding {
@@ -52,7 +53,7 @@ export function hold(h: H): Holding {
     h.uiType,
     null,
     null,
-    null,
+    h.uom ?? null,
     null,
     null,
     null,
@@ -127,28 +128,11 @@ export class MemoryWorld {
     return top ? (own.find((r) => r.id === top.id) ?? null) : null;
   }
 
-  private sameLabel(a: string, b: string): boolean {
-    return a.trim().toLowerCase() === b.trim().toLowerCase();
-  }
-
   holdingRepo: HoldingRepo = {
     listForBudget: async () =>
       [...this.holdings.values()].filter((h) => !h.archivedAt),
     findById: async (_t: string, _u: string, id: string) =>
       this.holdings.get(id) ?? null,
-    findByLabel: async (
-      _t: string,
-      _b: string,
-      uiType: string,
-      name: string,
-      currency: string | null,
-    ) =>
-      [...this.holdings.values()].find(
-        (h) =>
-          h.uiType === uiType &&
-          this.sameLabel(h.name, name) &&
-          (h.currentPriceCurrency ?? h.buyCurrency) === currency,
-      ) ?? null,
     listNames: async (_t: string, _b: string, uiType: string) =>
       [...this.holdings.values()]
         .filter((h) => h.uiType === uiType)
@@ -175,17 +159,6 @@ export class MemoryWorld {
         const top = this.newest(x.holdingId);
         if (top && x.date < top.effectiveDate)
           throw new Error("before_latest_entry");
-      }
-      if (plan.renameHolding) {
-        const r = plan.renameHolding;
-        const h = this.get(r.id);
-        const taken = [...this.holdings.values()].some(
-          (o) =>
-            o.id !== r.id &&
-            o.uiType === h.uiType &&
-            this.sameLabel(o.name, r.name),
-        );
-        if (taken) throw new Error("label_taken");
       }
       let walletId: string | null = null;
       let walletType: string | null = null;

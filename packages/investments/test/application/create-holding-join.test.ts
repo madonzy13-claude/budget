@@ -1,6 +1,6 @@
 /**
- * create-holding-join.test.ts — Add with a name that already exists in the type
- * joins that asset (13.1 D-01, D-02, D-15, D-17). Deposits never join (D-11).
+ * create-holding-join.test.ts — Add always creates: names are not unique
+ * (round-5 scope change overturns D-02's join). Deposit start-dated entry (R5-1).
  */
 import { describe, test, expect } from "bun:test";
 import { createHolding } from "../../src/application/create-holding";
@@ -31,31 +31,25 @@ const btc = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-describe("Create or join an asset by name", () => {
-  test("adding BTC twice makes one asset with two entries", async () => {
+// Round-5 scope change (user, 2026-10-29): assets are never unique. Adding
+// always creates; joining an existing asset is Swap → Buy by id.
+describe("Create an asset (names are not unique)", () => {
+  test("adding BTC twice makes two assets, each with its own entry", async () => {
     const { w, create } = world();
     const first = (await create(btc()))._unsafeUnwrap();
-    expect(first.joined).toBe(false);
     const second = (
       await create(
-        btc({
-          name: " btc ",
-          quantity: "1.5",
-          buyPriceCents: "2000000",
-          openedOn: "2026-10-02",
-        }),
+        btc({ name: " btc ", quantity: "1.5", openedOn: "2026-10-02" }),
       )
     )._unsafeUnwrap();
-    expect(second).toMatchObject({ joined: true });
-    expect(second.holding.id).toBe(first.holding.id);
-    expect(w.holdings.size).toBe(1);
-    expect(w.get(first.holding.id).quantity).toBe("2");
-    expect(
-      w.live().filter((r) => r.holdingId === first.holding.id),
-    ).toHaveLength(2);
+    expect(second.holding.id).not.toBe(first.holding.id);
+    expect(w.holdings.size).toBe(2);
+    expect(w.get(first.holding.id).quantity).toBe("0.5");
+    for (const id of [first.holding.id, second.holding.id])
+      expect(w.live().filter((r) => r.holdingId === id)).toHaveLength(1);
   });
 
-  test("a hidden (sold-out) asset with that name is revived", async () => {
+  test("a hidden asset with that name stays hidden; a new one is created", async () => {
     const { w, create } = world({
       id: "h",
       name: "BTC",
@@ -68,13 +62,13 @@ describe("Create or join an asset by name", () => {
       archived: true,
     });
     const r = (await create(btc()))._unsafeUnwrap();
-    expect(r.holding.id).toBe("h");
-    expect(w.get("h").archivedAt).toBeNull();
-    expect(w.get("h").quantity).toBe("0.5");
+    expect(r.holding.id).not.toBe("h");
+    expect(w.get("h").archivedAt).not.toBeNull();
+    expect(w.get("h").quantity).toBe("0");
   });
 
-  test("a different instrument under the same name is refused", async () => {
-    const { create } = world({
+  test("a different instrument under the same name is its own asset", async () => {
+    const { w, create } = world({
       id: "h",
       name: "BTC",
       uiType: "crypto",
@@ -84,13 +78,13 @@ describe("Create or join an asset by name", () => {
       current: null,
       inst: "44444444-4444-4444-4444-444444444444",
     });
-    expect((await create(btc()))._unsafeUnwrapErr().message).toBe(
-      "instrument_mismatch",
-    );
+    const r = (await create(btc()))._unsafeUnwrap();
+    expect(r.holding.id).not.toBe("h");
+    expect(w.holdings.size).toBe(2);
   });
 
-  test("a second deposit with the same name is refused (one deposit per asset)", async () => {
-    const { create } = world({
+  test("a second deposit with the same name is created", async () => {
+    const { w, create } = world({
       id: "d",
       name: "Bank",
       uiType: "deposit",
@@ -110,40 +104,28 @@ describe("Create or join an asset by name", () => {
       depositStartDate: "2026-10-01",
       depositCapFrequency: "monthly",
     });
-    expect(r._unsafeUnwrapErr().message).toBe("label_taken");
+    expect(r._unsafeUnwrap().holding.id).not.toBe("d");
+    expect(w.holdings.size).toBe(2);
   });
 
-  test("joining with a date before the asset's latest entry is refused", async () => {
-    const { create } = world();
-    await create(btc({ openedOn: "2026-10-05" }));
-    expect(
-      (await create(btc({ openedOn: "2026-10-01" })))._unsafeUnwrapErr()
-        .message,
-    ).toBe("before_latest_entry");
-  });
-
-  // Round-4 gap 23 (user): a label is unique by name AND currency.
-  test("the same name in another currency is a new asset; the same currency joins", async () => {
+  test("the same name AND currency twice makes two assets", async () => {
     const { w, create } = world();
-    const pot = (ccy: string) => ({
+    const pot = {
       ...who,
       name: "Erste",
       holdingType: "cash_fx" as const,
       uiType: "cash" as const,
       quantity: "1",
       buyPriceCents: "100000",
-      buyCurrency: ccy,
-      currentPriceCurrency: ccy,
+      buyCurrency: "PLN",
+      currentPriceCurrency: "PLN",
       openedOn: "2026-10-01",
-    });
-    const pln = (await create(pot("PLN")))._unsafeUnwrap();
-    const usd = (await create(pot("USD")))._unsafeUnwrap();
-    expect(usd.joined).toBe(false);
-    expect(usd.holding.id).not.toBe(pln.holding.id);
+    };
+    const a = (await create(pot))._unsafeUnwrap();
+    const b = (await create(pot))._unsafeUnwrap();
+    expect(b.holding.id).not.toBe(a.holding.id);
+    expect(b).not.toHaveProperty("joined");
     expect(w.holdings.size).toBe(2);
-    const again = (await create(pot("PLN")))._unsafeUnwrap();
-    expect(again).toMatchObject({ joined: true });
-    expect(again.holding.id).toBe(pln.holding.id);
   });
 });
 

@@ -35,4 +35,35 @@ describe("List asset names", () => {
       valueCents: "25000",
     });
   });
+
+  // Round-5: same-name assets are told apart by unit, amount and currency.
+  test("names carry the unit and a value currency even when unpriced", async () => {
+    const w = new MemoryWorld(
+      [
+        {
+          id: "gold",
+          name: "Gold",
+          holdingType: "commodity",
+          uiType: "precious_metals",
+          buy: 100n,
+          buyCcy: "EUR",
+          qty: "3",
+          current: null,
+          uom: "oz",
+        },
+      ].map(hold),
+    );
+    const rows = (
+      await listAssetNames({ holdingRepo: w.holdingRepo })({
+        tenantId: T,
+        budgetId: T,
+        uiType: "precious_metals",
+      })
+    )._unsafeUnwrap();
+    expect(rows[0]).toMatchObject({
+      unitOfMeasure: "oz",
+      symbol: null,
+      valueCurrency: "EUR",
+    });
+  });
 });

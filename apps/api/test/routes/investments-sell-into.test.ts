@@ -283,6 +283,52 @@ describe("Sell into another investment", () => {
     });
   });
 
+  // Round-5 gap 6: a sale in another currency books into the SAME asset.
+  it("an existing destination takes a sale received in another currency", async () => {
+    const fix = await createFixture();
+    const app = await buildApp(fix);
+    const src = await seed(fix, btc());
+    const pot = await seed(fix, { name: "Pot" });
+    const before = await q<{ n: number }>(
+      fix,
+      `SELECT count(*)::int AS n FROM budgeting.investments WHERE budget_id = $1`,
+      [fix.tenantId],
+    );
+    const res = await sell(app, src, {
+      left: { quantity: "0.5" },
+      destination: { kind: "existing", holdingId: pot },
+      receivedCents: "40000",
+      receivedCurrency: "EUR",
+    });
+    expect(res.status).toBe(201);
+    expect(
+      await q<{ n: number }>(
+        fix,
+        `SELECT count(*)::int AS n FROM budgeting.investments WHERE budget_id = $1`,
+        [fix.tenantId],
+      ),
+    ).toEqual(before);
+    expect((await row(fix, pot))!.cur).toBe("1040000");
+  });
+
+  // Round-5 scope change: same name, same currency — booked by id only.
+  it("selling into one of two identical assets leaves the other untouched", async () => {
+    const fix = await createFixture();
+    const app = await buildApp(fix);
+    const src = await seed(fix, btc());
+    const a = await seed(fix, { name: "Pot" });
+    const b = await seed(fix, { name: "Pot" });
+    const res = await sell(app, src, {
+      left: { quantity: "0.5" },
+      destination: { kind: "existing", holdingId: b },
+      receivedCents: "5000",
+      receivedCurrency: "PLN",
+    });
+    expect(res.status).toBe(201);
+    expect((await row(fix, a))!.cur).toBe("1000000");
+    expect((await row(fix, b))!.cur).toBe("1005000");
+  });
+
   it("bad destination input is a 422, never a 500", async () => {
     const fix = await createFixture();
     const app = await buildApp(fix);

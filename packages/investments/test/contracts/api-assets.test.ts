@@ -187,7 +187,9 @@ describe("Asset contracts", () => {
     expect(ok(assetNamesQuerySchema, { type: "crypto" })).toBe(true);
     expect(ok(assetNamesQuerySchema, { type: "nope" })).toBe(false);
     expect(INVESTMENT_ERRORS[409]).toContain("not_newest");
-    expect(INVESTMENT_ERRORS[422]).toContain("label_taken");
+    // Round-5 scope change: no uniqueness codes remain.
+    expect(INVESTMENT_ERRORS[422]).not.toContain("label_taken");
+    expect(INVESTMENT_ERRORS[422]).not.toContain("instrument_mismatch");
     expect(INVESTMENT_ERRORS[404]).toContain("not_found");
   });
 });

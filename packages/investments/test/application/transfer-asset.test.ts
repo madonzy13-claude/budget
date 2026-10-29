@@ -106,14 +106,17 @@ describe("Transfer between assets", () => {
     });
   });
 
-  test("a new label that already exists is refused", async () => {
-    const { move } = world(btc(), btc({ id: "c", name: "BTC Cold" }));
+  // Round-5 scope change: names are not unique — a new label always creates.
+  test("a new label equal to an existing asset's name creates a new asset", async () => {
+    const { w, move } = world(btc(), btc({ id: "c", name: "BTC Cold" }));
     const r = await move({
       ...base,
       move: { quantity: "1" },
-      to: { kind: "new", name: " btc cold " },
+      to: { kind: "new", name: "BTC Cold" },
     });
-    expect(r._unsafeUnwrapErr().message).toBe("label_taken");
+    expect(r.isOk()).toBe(true);
+    expect(w.holdings.size).toBe(3);
+    expect(w.get("c").quantity).toBe("4");
   });
 
   test("crypto needs the same instrument; metals do not", async () => {

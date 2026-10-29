@@ -448,19 +448,25 @@ describe("Investments history repo — asset bookings", () => {
     expect(r.walletId).toBeNull();
   });
 
-  it("refuses a rename onto a label that differs only in case and spaces", async () => {
+  // Round-5 scope change: names are not unique.
+  it("renames onto a sibling's exact name", async () => {
     const fix = await createFixture();
     await seed(fix, { name: "BTC" });
     const h = await seed(fix, { name: "ETH" });
-    const msg = await fails(
-      historyRepo.commit(fix.tenantId, fix.userId, {
-        budgetId: fix.tenantId,
-        patches: [],
-        renameHolding: { id: h, name: "  btc " },
-        entries: [],
-      }),
-    );
-    expect(msg).toBe("label_taken");
+    await historyRepo.commit(fix.tenantId, fix.userId, {
+      budgetId: fix.tenantId,
+      patches: [],
+      renameHolding: { id: h, name: "BTC" },
+      entries: [],
+    });
+    expect(
+      (
+        await q<{ n: number }>(
+          fix,
+          `SELECT count(*)::int AS n FROM budgeting.investments WHERE name = 'BTC'`,
+        )
+      )[0]!.n,
+    ).toBe(2);
   });
 
   it("an edit never touches quantity or cost (CR-01)", async () => {
@@ -477,7 +483,7 @@ describe("Investments history repo — asset bookings", () => {
     });
   });
 
-  it("finds an archived asset by label and lists hidden names", async () => {
+  it("lists hidden names", async () => {
     const fix = await createFixture();
     const h = await seed(fix, {
       name: "BTC",
@@ -490,19 +496,6 @@ describe("Investments history repo — asset bookings", () => {
       `UPDATE budgeting.investments SET archived_at = now() WHERE id = $1`,
       [h],
     );
-    expect(
-      (
-        await holdingRepo.findByLabel(
-          fix.tenantId,
-          fix.tenantId,
-          "crypto",
-          " btc ",
-        )
-      )?.id,
-    ).toBe(h);
-    expect(
-      await holdingRepo.findByLabel(fix.tenantId, fix.tenantId, "cash", "btc"),
-    ).toBeNull();
     const names = await holdingRepo.listNames(
       fix.tenantId,
       fix.tenantId,

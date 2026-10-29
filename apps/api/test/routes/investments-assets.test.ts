@@ -209,25 +209,30 @@ const entryCount = async (fix: Fixture, id: string) =>
   ).length;
 
 describe("Investment assets", () => {
-  it("adding the same name twice joins one asset (DCA)", async () => {
+  // Round-5 scope change: names are not unique; Swap → Buy joins by id.
+  it("adding the same name twice makes two assets; a buy by id leaves the twin alone", async () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
-    const a = (await (await json(app, "", "POST", coin())).json()) as {
-      id: string;
-      joined: boolean;
+    const post = async () => {
+      const res = await json(app, "", "POST", coin());
+      expect(res.status).toBe(201);
+      return (await res.json()) as { id: string; joined?: boolean };
     };
-    const res = await json(
-      app,
-      "",
-      "POST",
-      coin({ name: " mycoin ", quantity: "2", openedOn: "2026-10-02" }),
-    );
-    expect(res.status).toBe(201);
-    const b = (await res.json()) as { id: string; joined: boolean };
-    expect(a.joined).toBe(false);
-    expect(b).toMatchObject({ id: a.id, joined: true });
-    expect(Number((await row(fix, a.id))!.quantity)).toBe(3);
-    expect(await entryCount(fix, a.id)).toBe(2);
+    const a = await post();
+    const b = await post();
+    expect(b.id).not.toBe(a.id);
+    expect(b).not.toHaveProperty("joined");
+    const buy = await json(app, `/${a.id}/buy`, "POST", {
+      kind: "quantity",
+      quantity: "1",
+      priceCents: "20000",
+      currency: "PLN",
+      effectiveDate: "2026-10-05",
+    });
+    expect(buy.status).toBe(201);
+    expect(Number((await row(fix, a.id))!.quantity)).toBe(2);
+    expect(Number((await row(fix, b.id))!.quantity)).toBe(1);
+    expect(await entryCount(fix, b.id)).toBe(1);
   });
 
   it("Swap → Buy books a quantity buy and refuses a date before the latest entry", async () => {
@@ -346,14 +351,14 @@ describe("Investment assets", () => {
     });
   });
 
-  it("Edit refuses a label already used in the type", async () => {
+  it("Edit renames onto a name already used in the type", async () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
     await seed(fix, { name: "Pot" });
     const id = await seed(fix, { name: "Other" });
-    const res = await json(app, `/${id}`, "PATCH", { name: " POT " });
-    expect(res.status).toBe(422);
-    expect(await res.json()).toEqual({ error: "label_taken" });
+    const res = await json(app, `/${id}`, "PATCH", { name: "Pot" });
+    expect(res.status).toBe(200);
+    expect((await row(fix, id))!.name).toBe("Pot");
   });
 
   it("a new hand value books a Value updated entry", async () => {

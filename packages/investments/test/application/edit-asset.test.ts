@@ -116,12 +116,11 @@ describe("Edit an asset", () => {
     expect(w.live()).toHaveLength(0);
   });
 
-  test("a label taken in the type is refused", async () => {
+  // Round-5 scope change: renaming to a sibling's exact name is fine.
+  test("renaming to a sibling's name succeeds", async () => {
     const { edit } = world([cash, { ...cash, id: "c2", name: "Other" }]);
     expect(
-      (
-        await edit({ ...who, holdingId: "c2", name: " pot " })
-      )._unsafeUnwrapErr().message,
-    ).toBe("label_taken");
+      (await edit({ ...who, holdingId: "c2", name: cash.name })).isOk(),
+    ).toBe(true);
   });
 });

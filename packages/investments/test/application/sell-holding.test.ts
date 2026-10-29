@@ -68,7 +68,6 @@ function fakes(holdings: Holding[], rates: Record<string, string> = {}) {
     listForBudget: async () => holdings,
     findById: async (_t: string, _u: string, id: string) =>
       holdings.find((h) => h.id === id) ?? null,
-    findByLabel: async () => null,
   } as unknown as HoldingRepo;
   const historyRepo = {
     commit: async (_t: string, _u: string, plan: BookingPlan) => {
@@ -330,7 +329,82 @@ describe("FX and validation", () => {
     expect(e.date).toBe("2026-10-25");
   });
 
-  test("existing destination in another currency → currency_mismatch", async () => {
+  // Round-5 gap 6 (user): any transaction in any currency on any asset.
+  test("existing amount destination in another currency: converted at one deal rate", async () => {
+    const konto = hold({
+      id: "konto",
+      uiType: "cash",
+      buy: 100_000n,
+      current: 100_000n,
+    });
+    const { sell, plans } = fakes([broker(), konto], {
+      "EUR@2026-10-25": "4.25",
+      "PLN@2026-10-25": "0.2353",
+    });
+    const r = await sell({
+      ...base,
+      holdingId: "broker",
+      left: { valueCents: "0" },
+      destination: { kind: "existing", holdingId: "konto" },
+      receivedCents: "40000",
+      receivedCurrency: "EUR",
+    });
+    expect(r.isOk()).toBe(true);
+    const plan = plans[0]!;
+    expect(plan.newHolding).toBeUndefined();
+    expect(plan.patches[1]).toEqual({
+      id: "konto",
+      buyPriceCents: 270_000n,
+      currentPriceCents: 270_000n,
+    });
+    const [out, inn] = plan.entries;
+    expect(out).toMatchObject({ amountCents: 40_000n, amountCurrency: "EUR" });
+    expect(inn).toMatchObject({
+      kind: "convert_in",
+      holdingRef: "konto",
+      amountCents: 40_000n,
+      amountCurrency: "EUR",
+      costDeltaCents: 170_000n,
+      costCurrency: "PLN",
+      valueDeltaCents: 170_000n,
+    });
+  });
+
+  test("existing quantity destination in another currency: priced in its own, received at the deal rate", async () => {
+    const eth = hold({
+      id: "eth",
+      holdingType: "crypto",
+      uiType: "crypto",
+      buy: 150_000n,
+      buyCcy: "USD",
+      qty: "1",
+      current: 200_000n,
+    });
+    const { sell, plans } = fakes([broker(), eth], {
+      "EUR@2026-10-25": "1.1",
+      "PLN@2026-10-25": "0.2353",
+    });
+    const r = await sell({
+      ...base,
+      holdingId: "broker",
+      left: { valueCents: "0" },
+      destination: { kind: "existing", holdingId: "eth", quantityBought: "2" },
+      receivedCurrency: "EUR",
+    });
+    expect(r.isOk()).toBe(true);
+    const [out, inn] = plans[0]!.entries;
+    expect(out).toMatchObject({ amountCents: 363_636n, amountCurrency: "EUR" });
+    expect(inn).toMatchObject({
+      holdingRef: "eth",
+      qtyDelta: "2",
+      amountCents: 363_636n,
+      amountCurrency: "EUR",
+      costDeltaCents: 400_000n,
+      costCurrency: "USD",
+    });
+  });
+
+  test("no deal rate for the destination currency → fx_unavailable, nothing written", async () => {
     const usd = hold({
       id: "usd",
       uiType: "cash",
@@ -338,7 +412,7 @@ describe("FX and validation", () => {
       buyCcy: "USD",
       current: 100n,
     });
-    const { sell } = fakes([broker(), usd]);
+    const { sell, plans } = fakes([broker(), usd]);
     const r = await sell({
       ...base,
       holdingId: "broker",
@@ -347,7 +421,35 @@ describe("FX and validation", () => {
       receivedCents: "100",
       receivedCurrency: "PLN",
     });
-    expect(r._unsafeUnwrapErr().message).toBe("currency_mismatch");
+    expect(r._unsafeUnwrapErr().message).toBe("fx_unavailable");
+    expect(plans).toHaveLength(0);
+  });
+
+  // Round-5 scope change: a new destination never joins by name.
+  test("a new destination named like an existing asset is a new asset", async () => {
+    const konto = hold({
+      id: "konto",
+      name: "Konto",
+      uiType: "cash",
+      holdingType: "cash_fx",
+      buy: 100_000n,
+      current: 100_000n,
+    });
+    const { sell, plans } = fakes([broker(), konto]);
+    const r = await sell({
+      ...base,
+      holdingId: "broker",
+      left: { valueCents: "0" },
+      destination: {
+        kind: "new",
+        holding: { name: "Konto", holdingType: "cash_fx", uiType: "cash" },
+      },
+      receivedCents: "5000",
+      receivedCurrency: "PLN",
+    } as never);
+    expect(r.isOk()).toBe(true);
+    expect(plans[0]!.newHolding?.name).toBe("Konto");
+    expect(plans[0]!.patches.map((p) => p.id)).toEqual(["broker"]);
   });
 
   test("selling into itself → same_holding", async () => {
@@ -406,7 +508,6 @@ describe("Create writes the first history entry", () => {
       },
       findById: async () =>
         hold({ id: "new-id", uiType: "broker", buy: 1n, current: 1n }),
-      findByLabel: async () => null,
     } as unknown as HoldingRepo;
     const historyRepo = {
       commit: async (_t: string, _u: string, plan: BookingPlan) => {
@@ -613,7 +714,8 @@ describe("Sell an asset (13.1)", () => {
     expect(w.live()[0]!.walletId).not.toBeNull();
   });
 
-  test("a new destination under an existing hidden label revives that asset instead of creating one", async () => {
+  // Round-5 scope change: reviving is by id only — a new name always creates.
+  test("a new destination named like a hidden asset creates a new one; the hidden stays hidden", async () => {
     const { w, sell } = setup({
       id: "eth",
       name: "ETH",
@@ -637,10 +739,13 @@ describe("Sell an asset (13.1)", () => {
         priceCents: "1000",
       },
     });
-    expect(w.plans[0]!.newHolding).toBeUndefined();
-    expect(w.get("eth").archivedAt).toBeNull();
-    expect(w.get("eth").quantity).toBe("3");
-    expect(w.live().filter((r) => r.holdingId === "eth")).toHaveLength(1);
+    expect(w.plans[0]!.newHolding).toMatchObject({
+      name: "eth",
+      quantity: "3",
+    });
+    expect(w.get("eth").archivedAt).not.toBeNull();
+    expect(w.get("eth").quantity).toBe("0");
+    expect(w.live().filter((r) => r.holdingId === "eth")).toHaveLength(0);
   });
 
   test("a new quantity destination uses the given quantity and price", async () => {
