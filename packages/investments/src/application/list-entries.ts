@@ -40,6 +40,21 @@ const key = (e: StoredEntry): LedgerKey => ({
 });
 
 /** The figure a row shows, signed, in the entry's currency. */
+// Round-2 gap 13: a quantity-type asset priced as one unit (qty 1) books its
+// value entries without a quantity; they still read "±1 @ price" like crypto.
+// Amount assets (broker, cash, deposit, savings) keep plain amounts.
+const VALUE_KINDS = new Set([
+  "start",
+  "buy",
+  "add",
+  "withdraw",
+  "convert_in",
+  "convert_out",
+  "transfer_in",
+  "transfer_out",
+]);
+const AMOUNT_TYPES = new Set(["broker", "cash", "cash_fx", "deposit", "savings"]);
+
 function signedAmount(e: StoredEntry): bigint | null {
   if (e.kind === "value_change" || e.kind === "price_change")
     return e.valueDeltaCents;
@@ -123,16 +138,25 @@ export function listEntries(deps: {
             ? (e.amountCurrency ?? display)
             : e.amountCurrency;
         const qtyAbs = e.qtyDelta === null ? null : big(e.qtyDelta).abs();
+        const oneUnit =
+          e.qtyDelta === null &&
+          !!amount &&
+          VALUE_KINDS.has(e.kind) &&
+          !AMOUNT_TYPES.has(h.uiType ?? "") &&
+          !AMOUNT_TYPES.has(h.holdingType);
         rows.push({
           id: e.id,
           kind: e.kind,
           effectiveDate: e.effectiveDate,
           createdAt: e.createdAt,
           qtyDelta: e.qtyDelta,
+          displayQty: oneUnit ? (amount! < 0n ? "-1" : "1") : e.qtyDelta,
           priceCents:
             qtyAbs && qtyAbs.gt(0) && e.amountCents !== null
               ? cents(big(e.amountCents).div(qtyAbs)).toString()
-              : null,
+              : oneUnit
+                ? (amount! < 0n ? -amount! : amount!).toString()
+                : null,
           amountCents: amount === null ? null : amount.toString(),
           amountCurrency: ccy,
           displayAmountCents:
@@ -179,6 +203,7 @@ export function listEntries(deps: {
             effectiveDate: r.date,
             createdAt: null,
             qtyDelta: null,
+            displayQty: null,
             priceCents: null,
             amountCents: r.interestCents.toString(),
             amountCurrency: h.buyCurrency ?? display,

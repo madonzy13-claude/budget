@@ -429,6 +429,9 @@ export interface EntryDto {
   effectiveDate: string;
   createdAt: string | null;
   qtyDelta: string | null;
+  /** What the ledger shows as "±qty": qtyDelta, or ±1 for a one-unit
+   *  quantity asset's value entry (round-2 gap 13). */
+  displayQty: string | null;
   priceCents: string | null;
   /** Signed, in amountCurrency. */
   amountCents: string | null;

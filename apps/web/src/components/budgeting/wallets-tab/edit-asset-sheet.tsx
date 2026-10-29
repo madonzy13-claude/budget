@@ -8,13 +8,18 @@
  * a Value/Price updated ledger entry on the server. No history, no type, no
  * quantity, no delete — the ledger owns those.
  *
+ * Round-2 gap 10: below, the configuration Edit cannot change is shown locked
+ * (deposit rate · capitalization · start; tracked instrument · price; metal ·
+ * kind · unit · price · premium) — shown, never sent (D-06).
+ *
  * A currency switch on a hand-valued asset converts the field live from the
  * ORIGINAL value (never compounding across switches) with today's rate and an
  * FX line (13.1 UAT 6); an untouched converted value is not sent — the server
  * converts on save (D-36), so only displayCurrency goes.
  */
 import { useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { Lock } from "lucide-react";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -34,6 +39,8 @@ import { clientApiFetch } from "@/lib/budget-fetch";
 import { FxPreviewLine } from "@/components/budgeting/fields/fx-preview-line";
 import { Field, NumericInput } from "./holding-sheet";
 import { today } from "./swap-shared";
+import { ledgerDate } from "./ledger-row";
+import { centsToBare } from "@/lib/cents-format";
 
 const decimal = (cents: string | null) =>
   cents == null ? "" : String(Number(cents) / 100);
@@ -71,6 +78,61 @@ export function EditAssetSheet({
   const ccy0 =
     holding.currentPriceCurrency ?? holding.buyCurrency ?? budgetCurrency;
   const price0 = decimal(holding.currentPriceCents);
+  const locale = useLocale();
+  const h = holding;
+  const priceLine =
+    h.currentPriceCents == null
+      ? null
+      : `${centsToBare(String(Math.round(Number(h.currentPriceCents))), locale)} ${h.currentPriceCurrency ?? ""}`.trim();
+  // [testid suffix, label, value]; a null value is skipped.
+  const locked = (
+    h.holdingType === "deposit" || h.uiType === "deposit"
+      ? [
+          [
+            "rate",
+            t("field.rate"),
+            h.depositRateBps == null
+              ? null
+              : `${new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(h.depositRateBps / 100)}%`,
+          ],
+          [
+            "capFrequency",
+            t("field.capFrequency"),
+            h.depositCapFrequency && t(`capFrequency.${h.depositCapFrequency}`),
+          ],
+          [
+            "startDate",
+            t("field.startDate"),
+            h.depositStartDate && ledgerDate(h.depositStartDate, locale),
+          ],
+        ]
+      : h.metal != null
+        ? [
+            ["metal", t("field.metal"), t(`metalOption.${h.metal}`)],
+            [
+              "kind",
+              t("field.kind"),
+              h.metalKind && t(`kindOption.${h.metalKind}`),
+            ],
+            [
+              "uom",
+              t("field.uom"),
+              h.unitOfMeasure && t(`uomOption.${h.unitOfMeasure}`),
+            ],
+            ["currentPrice", t("field.currentPrice"), priceLine],
+            [
+              "premium",
+              t("field.premium"),
+              h.premiumPct == null ? null : `${Number(h.premiumPct)}%`,
+            ],
+          ]
+        : h.instrumentId != null
+          ? [
+              ["instrument", t("field.asset"), h.instrumentName],
+              ["currentPrice", t("field.currentPrice"), priceLine],
+            ]
+          : []
+  ).filter((f): f is [string, string, string] => !!f[2]);
 
   const [name, setName] = useState(holding.name);
   const [ccy, setCcy] = useState(ccy0);
@@ -214,6 +276,26 @@ export function EditAssetSheet({
               />
             </Field>
           )}
+          {locked.map(([id, label, value]) => (
+            <Field key={id} label={label}>
+              <div className="relative">
+                <Input
+                  data-testid={`edit-asset-locked-${id}`}
+                  value={value}
+                  readOnly
+                  aria-readonly="true"
+                  tabIndex={-1}
+                  className="pr-9"
+                  style={{ color: "var(--muted-foreground)" }}
+                />
+                <Lock
+                  aria-hidden="true"
+                  className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2"
+                  style={{ color: "var(--muted-foreground)" }}
+                />
+              </div>
+            </Field>
+          ))}
           {fx && price0 && (showValue || showPrice) && (
             <div data-testid="edit-asset-fx">
               <FxPreviewLine

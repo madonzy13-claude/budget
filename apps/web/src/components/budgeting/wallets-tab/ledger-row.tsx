@@ -104,7 +104,7 @@ export function LedgerRow({ entry, rowKey, first, onDelete }: LedgerRowProps) {
   const ccy = stored
     ? (entry.amountCurrency ?? "")
     : (entry.displayCurrency ?? entry.amountCurrency ?? "");
-  const qty = entry.qtyDelta;
+  const qty = entry.displayQty ?? entry.qtyDelta;
   const reason = entry.deletable
     ? null
     : interest

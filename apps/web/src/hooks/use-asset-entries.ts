@@ -28,6 +28,8 @@ export interface EntryDto {
   effectiveDate: string;
   createdAt: string | null;
   qtyDelta: string | null;
+  /** ±qty to show: qtyDelta, or ±1 on a one-unit asset's value entry. */
+  displayQty?: string | null;
   priceCents: string | null;
   amountCents: string | null;
   amountCurrency: string | null;
