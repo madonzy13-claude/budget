@@ -651,6 +651,37 @@ Then("the asset {string} is closed", async ({ page }, name: string) => {
   ).toHaveAttribute("aria-expanded", "false");
 });
 
+When("I tap the asset row {string}", async ({ page }, name: string) => {
+  const po = new InvestmentsPo(page);
+  await page.getByTestId(`asset-row-${await po.assetId(name)}`).click();
+});
+
+// Round 5 gap 12: the fade follows the scroll — never over the text at rest.
+Then(
+  "its scrolling caption is sharp on the left at the start and on the right at the end",
+  async ({ page }) => {
+    const line = page.locator(".fit-line-fade:visible").first();
+    await expect(line).toBeVisible();
+    const at = (pct: number) =>
+      line.evaluate((el, p) => {
+        const anims = [el, el.firstElementChild!].flatMap((n) =>
+          (n as HTMLElement).getAnimations(),
+        );
+        for (const a of anims) {
+          a.pause();
+          a.currentTime = 8000 * p;
+        }
+        const cs = getComputedStyle(el);
+        return {
+          left: cs.getPropertyValue("--fit-fl").trim(),
+          right: cs.getPropertyValue("--fit-fr").trim(),
+        };
+      }, pct);
+    expect(await at(0.1)).toEqual({ left: "0px", right: "10px" });
+    expect(await at(0.6)).toEqual({ left: "10px", right: "0px" });
+  },
+);
+
 // ── 13.1: assets, Swap, wallet target, ledger ──
 
 Given(

@@ -489,6 +489,15 @@ Feature: Investments as assets with transactions (13.1)
     When I open the investments wallets tab in "uk"
     Then tapping the asset row "BTC - SafePal" keeps everything inside its card
 
+  # Round-5 gap 12: a scrolling caption shows its first and last characters.
+  @r5-caption-edges
+  Scenario: A scrolling caption is sharp at its start and at its end
+    Given I am on a phone-sized viewport
+    And a crypto holding "BTC - SafePal" of "0.19505480" bought at 6099162 cents now 7600000 cents exists in my budget
+    When I open the investments wallets tab in "uk"
+    And I tap the asset row "BTC - SafePal"
+    Then its scrolling caption is sharp on the left at the start and on the right at the end
+
   # Gap 23: the same name in another currency is its own asset (no "(2)").
   @r4-label-ccy
   Scenario: The same name in another currency is a separate asset
