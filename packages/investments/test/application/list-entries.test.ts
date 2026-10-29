@@ -7,6 +7,7 @@ import { listEntries } from "../../src/application/list-entries";
 import { sellHolding } from "../../src/application/sell-holding";
 import { buyIntoAsset } from "../../src/application/buy-into-asset";
 import { entry } from "../../src/ports/history-repo";
+import { computeDepositValueCents } from "../../src/domain/deposit-value";
 import { MemoryWorld, hold, T, U, rates1 } from "./memory-world";
 
 const who = { tenantId: T, budgetId: T, actorUserId: U, budgetCurrency: "PLN" };
@@ -200,17 +201,61 @@ describe("List an asset's entries", () => {
       await list({ ...who, holdingId: "d", today: "2026-10-15" })
     )._unsafeUnwrap();
     expect(rows.map((r) => [r.kind, r.effectiveDate])).toEqual([
+      ["interest", "2026-10-15"],
       ["interest", "2026-10-01"],
       ["interest", "2026-09-01"],
       ["interest", "2026-08-01"],
       ["start", "2026-07-01"],
     ]);
-    for (const r of rows.slice(0, 3))
+    for (const r of rows.slice(0, 4))
       expect(r).toMatchObject({
         id: null,
         deletable: false,
         blockedReason: "interest",
       });
-    expect(rows[3]).toMatchObject({ deletable: true, isLastEntry: true });
+    expect(rows[4]).toMatchObject({ deletable: true, isLastEntry: true });
+  });
+
+  test("a yearly deposit younger than a year shows its accrued interest dated today", async () => {
+    const dep = {
+      id: "d",
+      name: "Bank 5%",
+      holdingType: "deposit",
+      uiType: "deposit",
+      buy: 1_000_000n,
+      current: null,
+      rateBps: 500,
+      start: "2026-07-01",
+      cap: "yearly",
+    };
+    const { list, start } = world(dep);
+    await start("d", "2026-07-01", {
+      amountCents: 1_000_000n,
+      amountCurrency: "PLN",
+    });
+    const rows = (
+      await list({ ...who, holdingId: "d", today: "2026-10-15" })
+    )._unsafeUnwrap();
+    expect(rows.map((r) => [r.kind, r.effectiveDate])).toEqual([
+      ["interest", "2026-10-15"],
+      ["start", "2026-07-01"],
+    ]);
+    const accrued =
+      BigInt(
+        computeDepositValueCents({
+          principalCents: 1_000_000n,
+          rateBps: 500,
+          startDate: "2026-07-01",
+          capFrequency: "yearly",
+          endDate: null,
+          asOf: "2026-10-15",
+        }),
+      ) - 1_000_000n;
+    expect(rows[0]).toMatchObject({
+      id: null,
+      deletable: false,
+      blockedReason: "interest",
+      amountCents: accrued.toString(),
+    });
   });
 });
