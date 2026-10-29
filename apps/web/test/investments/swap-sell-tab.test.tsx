@@ -68,22 +68,24 @@ describe("Sell tab", () => {
     expect(document.querySelector('[data-testid$="-left"]')).toBeNull();
   });
 
-  it("Sell everything fills what you hold and stays editable", () => {
+  // Round-3 gap 3c: no "everything" button — tap what you hold to fill.
+  it("tapping what you hold fills the field, which stays editable", async () => {
     mount();
-    const all = screen.getByTestId("swap-sell-all");
-    expect(all.tagName).toBe("BUTTON");
-    fireEvent.click(all);
-    expect(all).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByTestId("swap-sell-all")).toBeNull();
+    const held = screen.getByTestId("swap-sell-held");
+    expect(held.tagName).toBe("BUTTON");
+    expect(held).toHaveTextContent("sell.qtyHelper(qty=2)");
+    fireEvent.click(held);
     const sold = screen.getByTestId("swap-sell-sold");
     expect(sold).toHaveValue("2");
     expect(sold).not.toHaveAttribute("readonly");
     type("swap-sell-sold", "1.5");
-    expect(all).toHaveAttribute("aria-pressed", "false");
     expect(sold).toHaveValue("1.5");
-    fireEvent.click(all);
-    expect(sold).toHaveValue("2");
-    fireEvent.click(all);
-    expect(sold).toHaveValue("");
+    type("swap-sell-sold", "2");
+    fireEvent.click(screen.getByTestId("swap-dest-out"));
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody().left).toEqual({ quantity: "0" });
   });
 
   it("selling nothing or more than you hold is refused", () => {
@@ -136,8 +138,11 @@ describe("Sell tab", () => {
     await waitFor(() => expect(writeMock).toHaveBeenCalled());
     expect(lastBody().left).toEqual({ valueCents: "3000000" });
     writeMock.mockClear();
-    fireEvent.click(screen.getByTestId("swap-sell-all"));
+    fireEvent.click(screen.getByTestId("swap-sell-held"));
     expect(screen.getByTestId("swap-sell-sold")).toHaveValue("96000");
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody().left).toEqual({ valueCents: "0" });
   });
 
   // UAT 13.1 test 10: a quantity destination is quantity × price; the price

@@ -223,7 +223,7 @@ describe("Transfer tab", () => {
   it("Move everything to a new label books the transfer", async () => {
     mount(btc);
     fireEvent.click(screen.getByTestId("swap-tab-transfer"));
-    fireEvent.click(screen.getByTestId("swap-transfer-all"));
+    fireEvent.click(screen.getByTestId("swap-transfer-held"));
     expect(screen.getByTestId("swap-transfer-qty")).toHaveValue("2");
     expect(screen.getByTestId("swap-transfer-qty")).not.toHaveAttribute(
       "readonly",
@@ -241,14 +241,14 @@ describe("Transfer tab", () => {
     });
   });
 
-  // Round-2 gap 8: Move everything only fills; typing deselects it.
-  it("Move everything fills the amount and stays editable", () => {
+  // Round-3 gap 3c: tap what you hold to fill; the field stays editable.
+  it("tapping what you hold fills the amount and stays editable", () => {
     mount(btc);
     fireEvent.click(screen.getByTestId("swap-tab-transfer"));
-    const all = screen.getByTestId("swap-transfer-all");
-    fireEvent.click(all);
+    expect(screen.queryByTestId("swap-transfer-all")).toBeNull();
+    fireEvent.click(screen.getByTestId("swap-transfer-held"));
+    expect(screen.getByTestId("swap-transfer-qty")).toHaveValue("2");
     type("swap-transfer-qty", "1");
-    expect(all).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByTestId("swap-transfer-qty")).toHaveValue("1");
   });
 

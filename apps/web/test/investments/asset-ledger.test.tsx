@@ -230,6 +230,14 @@ describe("Asset ledger strip", () => {
     expect(row).toHaveTextContent("−1 @ 690");
   });
 
+  // Round-3 gap 9: the swiped delete is square, shadowed on its left edge.
+  it("the delete button is square with an inset shadow on its left", async () => {
+    mount(ENTRIES);
+    const del = await screen.findByTestId("ledger-delete-b1");
+    expect(del.className).not.toMatch(/rounded/);
+    expect(del.style.boxShadow).toBe("inset 6px 0 8px -6px rgba(0,0,0,0.7)");
+  });
+
   // Round-2 gap 12: the linked asset line is a step smaller.
   it("the linked asset line is smaller than the date line", async () => {
     mount(ENTRIES);
