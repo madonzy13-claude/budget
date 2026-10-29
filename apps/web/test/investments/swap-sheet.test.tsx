@@ -72,7 +72,7 @@ describe("Swap sheet", () => {
     expect(
       screen.getByText("swap.sellTitle(name=Bank 5%)"),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("swap-sell-left")).toBeInTheDocument();
+    expect(screen.getByTestId("swap-sell-sold")).toBeInTheDocument();
   });
 
   it("switching tabs keeps the date and resets the rest", () => {
@@ -225,6 +225,9 @@ describe("Transfer tab", () => {
     fireEvent.click(screen.getByTestId("swap-tab-transfer"));
     fireEvent.click(screen.getByTestId("swap-transfer-all"));
     expect(screen.getByTestId("swap-transfer-qty")).toHaveValue("2");
+    expect(screen.getByTestId("swap-transfer-qty")).not.toHaveAttribute(
+      "readonly",
+    );
     type("swap-transfer-name", "Cold 2");
     expect(screen.getByTestId("swap-summary")).toHaveTextContent(
       "swap.sum.created",
@@ -236,6 +239,17 @@ describe("Transfer tab", () => {
       move: { quantity: "2" },
       to: { kind: "new", name: "Cold 2" },
     });
+  });
+
+  // Round-2 gap 8: Move everything only fills; typing deselects it.
+  it("Move everything fills the amount and stays editable", () => {
+    mount(btc);
+    fireEvent.click(screen.getByTestId("swap-tab-transfer"));
+    const all = screen.getByTestId("swap-transfer-all");
+    fireEvent.click(all);
+    type("swap-transfer-qty", "1");
+    expect(all).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("swap-transfer-qty")).toHaveValue("1");
   });
 
   it("footer stacks full-width and nothing truncates", () => {

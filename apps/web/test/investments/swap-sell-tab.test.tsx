@@ -3,6 +3,10 @@
  * UAT tests 4 and 5). "Sell everything" is an action, destinations show the
  * buy price, Out of investments can land in a wallet, amount + currency sit on
  * one line, and the sum-up says what will happen.
+ *
+ * Round 2 (13.1-32): the form asks how much was SOLD (the client converts to
+ * the server's `left`), Sell everything only fills the field, and the two
+ * pickers are in-DOM Radix lists (a native popup got a 2-row sliver on phones).
  */
 import "./_swap-fixtures";
 import { describe, it, expect, beforeEach } from "vitest";
@@ -44,6 +48,11 @@ function mount(
 }
 const type = (id: string, v: string) =>
   fireEvent.change(screen.getByTestId(id), { target: { value: v } });
+/** Radix Select under happy-dom: open with the keyboard, pick by testid. */
+async function pick(trigger: string, option: string) {
+  fireEvent.keyDown(screen.getByTestId(trigger), { key: "Enter" });
+  fireEvent.keyDown(await screen.findByTestId(option), { key: "Enter" });
+}
 
 beforeEach(() => {
   writeMock.mockReset();
@@ -52,29 +61,90 @@ beforeEach(() => {
 });
 
 describe("Sell tab", () => {
-  it("Sell everything is an outlined toggle that locks left at 0", () => {
+  it("asks how much was sold", () => {
+    mount();
+    expect(screen.getByText("swap.sell.sold")).toBeInTheDocument();
+    expect(screen.getByText("sell.qtySold")).toBeInTheDocument();
+    expect(document.querySelector('[data-testid$="-left"]')).toBeNull();
+  });
+
+  it("Sell everything fills what you hold and stays editable", () => {
     mount();
     const all = screen.getByTestId("swap-sell-all");
     expect(all.tagName).toBe("BUTTON");
     fireEvent.click(all);
     expect(all).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("swap-sell-left")).toHaveValue("0");
-    expect(screen.getByTestId("swap-sell-left")).toHaveAttribute("readonly");
+    const sold = screen.getByTestId("swap-sell-sold");
+    expect(sold).toHaveValue("2");
+    expect(sold).not.toHaveAttribute("readonly");
+    type("swap-sell-sold", "1.5");
+    expect(all).toHaveAttribute("aria-pressed", "false");
+    expect(sold).toHaveValue("1.5");
     fireEvent.click(all);
-    expect(screen.getByTestId("swap-sell-left")).toHaveValue("");
+    expect(sold).toHaveValue("2");
+    fireEvent.click(all);
+    expect(sold).toHaveValue("");
   });
 
-  it("left at or above holdings is refused", () => {
+  it("selling nothing or more than you hold is refused", () => {
     mount();
-    type("swap-sell-left", "2");
-    expect(screen.getByText("swap.err.leftTooHigh")).toBeInTheDocument();
+    for (const v of ["2.1", "0"]) {
+      type("swap-sell-sold", v);
+      expect(screen.getByText("swap.err.soldRange")).toBeInTheDocument();
+      expect(screen.getByTestId("swap-submit")).toBeDisabled();
+    }
+  });
+
+  for (const [sold, left] of [
+    ["1.5", "0.5"],
+    ["2", "0"],
+  ] as const)
+    it(`sold ${sold} of 2 tells the server ${left} is left`, async () => {
+      mount();
+      type("swap-sell-sold", sold);
+      fireEvent.click(screen.getByTestId("swap-dest-out"));
+      fireEvent.click(screen.getByTestId("swap-submit"));
+      await waitFor(() => expect(writeMock).toHaveBeenCalled());
+      expect(lastBody().left).toEqual({ quantity: left });
+    });
+
+  it("what is left is exact: 0.3 held, 0.1 sold leaves 0.2", async () => {
+    mount(H({ quantity: "0.30000000", valueCents: "1800000" }), [btc]);
+    type("swap-sell-sold", "0.1");
+    fireEvent.click(screen.getByTestId("swap-dest-out"));
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody().left).toEqual({ quantity: "0.2" });
+  });
+
+  it("an amount asset sends the value it keeps", async () => {
+    const ibkr = H({
+      name: "IBKR",
+      holdingType: "other",
+      uiType: "broker",
+      instrumentId: null,
+      quantity: "1",
+      buyPriceCents: "5500000",
+      currentPriceCents: "9600000",
+      valueCents: "9600000",
+    });
+    mount(ibkr, [ibkr]);
+    expect(screen.getByText("sell.valueSold")).toBeInTheDocument();
+    type("swap-sell-sold", "66000");
+    fireEvent.click(screen.getByTestId("swap-dest-out"));
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody().left).toEqual({ valueCents: "3000000" });
+    writeMock.mockClear();
+    fireEvent.click(screen.getByTestId("swap-sell-all"));
+    expect(screen.getByTestId("swap-sell-sold")).toHaveValue("96000");
   });
 
   // UAT 13.1 test 10: a quantity destination is quantity × price; the price
   // never follows the quantity.
   it("a new tracked destination starts at its live price; typing a quantity never moves it", async () => {
     mount();
-    type("swap-sell-left", "1"); // sold value 60,000 PLN
+    type("swap-sell-sold", "1"); // sold value 60,000 PLN
     fireEvent.click(screen.getByTestId("swap-dest-new"));
     fireEvent.click(screen.getByTestId("dest-form-usdt"));
     expect(screen.getAllByTestId("swap-dest-qty")).toHaveLength(1);
@@ -97,7 +167,7 @@ describe("Sell tab", () => {
 
   it("an untouched quantity follows the price; a typed one never moves", () => {
     mount();
-    type("swap-sell-left", "1");
+    type("swap-sell-sold", "1");
     fireEvent.click(screen.getByTestId("swap-dest-new"));
     fireEvent.click(screen.getByTestId("dest-form-qty"));
     type("swap-dest-price", "2");
@@ -111,9 +181,16 @@ describe("Sell tab", () => {
 
   it("an existing quantity destination is priced at its own price, read-only", async () => {
     mount();
-    type("swap-sell-left", "1");
+    type("swap-sell-sold", "1");
     fireEvent.click(screen.getByTestId("swap-dest-existing"));
-    type("swap-sell-existing", btcCold.id);
+    expect(screen.getByTestId("swap-sell-existing")).toHaveAttribute(
+      "role",
+      "combobox",
+    );
+    await pick("swap-sell-existing", `swap-sell-existing-option-${btcCold.id}`);
+    expect(screen.getByTestId("swap-sell-existing")).toHaveTextContent(
+      "BTC Cold · PLN",
+    );
     expect(screen.getByTestId("swap-dest-price")).toHaveAttribute("readonly");
     expect(screen.getByTestId("swap-dest-price")).toHaveValue("60000");
     expect(screen.getByTestId("swap-dest-qty")).toHaveValue("1");
@@ -132,7 +209,7 @@ describe("Sell tab", () => {
   // UAT 13.1 test 14: one rate per deal, the same as the server.
   it("a fair cross-currency sale previews realized 0", () => {
     mount();
-    type("swap-sell-left", "1"); // sold cost 50,000 PLN
+    type("swap-sell-sold", "1"); // sold cost 50,000 PLN
     fireEvent.click(screen.getByTestId("swap-dest-out"));
     fireEvent.change(screen.getByTestId("currency-picker"), {
       target: { value: "EUR" },
@@ -147,7 +224,7 @@ describe("Sell tab", () => {
 
   it("Out defaults to Nowhere and books without a wallet", async () => {
     mount();
-    type("swap-sell-left", "1");
+    type("swap-sell-sold", "1");
     fireEvent.click(screen.getByTestId("swap-dest-out"));
     expect(screen.getByTestId("wallet-target-nowhere")).toHaveAttribute(
       "aria-checked",
@@ -170,20 +247,26 @@ describe("Sell tab", () => {
 
   it("an existing wallet: active wallets incl. possessions, currency locked, amount at today's rate", async () => {
     mount();
-    type("swap-sell-left", "1");
+    type("swap-sell-sold", "1");
     fireEvent.click(screen.getByTestId("swap-dest-out"));
     fireEvent.click(screen.getByTestId("wallet-target-existing"));
-    const opts = () =>
-      [
-        ...(screen.getByTestId("swap-wallet-select") as HTMLSelectElement)
-          .options,
-      ]
-        .map((o) => o.value)
-        .filter(Boolean);
+    const trigger = screen.getByTestId("swap-wallet-select");
+    expect(trigger).toHaveAttribute("role", "combobox");
+    await waitFor(() => expect(trigger).not.toHaveAttribute("data-disabled"));
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    const list = await screen.findByRole("listbox");
     await waitFor(() =>
-      expect(opts().sort()).toEqual(["w-car", "w-eur", "w-pln"]),
+      expect(
+        [...list.querySelectorAll("[role=option]")]
+          .map((o) =>
+            o.getAttribute("data-testid")!.replace("swap-wallet-option-", ""),
+          )
+          .sort(),
+      ).toEqual(["w-car", "w-eur", "w-pln"]),
     );
-    type("swap-wallet-select", "w-eur");
+    fireEvent.keyDown(screen.getByTestId("swap-wallet-option-w-eur"), {
+      key: "Enter",
+    });
     await waitFor(() =>
       expect(screen.getByTestId("swap-sell-received")).toHaveValue("15000"),
     );
@@ -203,7 +286,7 @@ describe("Sell tab", () => {
 
   it("a new wallet needs a name and a type; it starts with the amount", async () => {
     mount();
-    type("swap-sell-left", "1");
+    type("swap-sell-sold", "1");
     fireEvent.click(screen.getByTestId("swap-dest-out"));
     fireEvent.click(screen.getByTestId("wallet-target-new"));
     expect(screen.getByText("swap.err.nameRequired")).toBeInTheDocument();
@@ -242,7 +325,7 @@ describe("Sell tab", () => {
 
   it("a holding with no currency falls back to the budget currency", () => {
     mount(H({ buyCurrency: null, currentPriceCurrency: null }), [btc], "EUR");
-    type("swap-sell-left", "1");
+    type("swap-sell-sold", "1");
     fireEvent.click(screen.getByTestId("swap-dest-out"));
     expect(screen.getByTestId("currency-picker")).toHaveValue("EUR");
   });
@@ -250,7 +333,7 @@ describe("Sell tab", () => {
   // UAT 13.1 test 9: wallet target layout + a new wallet's currency.
   it("wallet target cards centre their label", () => {
     mount();
-    type("swap-sell-left", "1");
+    type("swap-sell-sold", "1");
     fireEvent.click(screen.getByTestId("swap-dest-out"));
     for (const k of ["existing", "new", "nowhere"])
       expect(screen.getByTestId(`wallet-target-${k}`).className).toContain(
@@ -260,7 +343,7 @@ describe("Sell tab", () => {
 
   it("a new wallet takes the amount's own currency; a typed amount stays on switch", async () => {
     mount();
-    type("swap-sell-left", "1");
+    type("swap-sell-sold", "1");
     fireEvent.click(screen.getByTestId("swap-dest-out"));
     fireEvent.click(screen.getByTestId("wallet-target-new"));
     expect(screen.getAllByTestId("currency-picker")).toHaveLength(1);
