@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { centsToBare } from "@/lib/cents-format";
 import type { UiType } from "@/lib/investment-types";
+import { UI_TYPE_COLOR, UI_TYPE_ICON } from "@/lib/investment-icons";
 import type { TypeGroupPL } from "@/lib/investment-type-groups";
 
 interface InvestmentTypeHeaderProps {
@@ -80,9 +81,8 @@ export function InvestmentTypeHeader({
     state,
   });
   const split = showSplit && uiType !== "cash";
-  // Cash has no profit by design: its reveal is just the share (round 3).
-  const cashShare = showSplit && uiType === "cash";
   const toggleSplit = () => setShowSplit((s) => !s);
+  const Icon = UI_TYPE_ICON[uiType];
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
   // Mirrors the asset row's right column: currency + amount; Enter toggles.
@@ -161,121 +161,115 @@ export function InvestmentTypeHeader({
         )}
       </button>
 
-      <div className="flex min-w-0 flex-1 flex-col justify-center gap-0 leading-tight">
-        {split ? (
-          <>
+      {/* Round 4: the type icon lives here (not on each asset). */}
+      <Icon
+        data-type-icon
+        className="h-4 w-4 shrink-0"
+        style={{ color: UI_TYPE_COLOR[uiType] }}
+        aria-hidden="true"
+      />
+
+      {/* Round 4: two columns, each centred on its own — the right stack
+          never rides a line lower than the left. */}
+      <div
+        data-col="left"
+        className="flex min-w-0 flex-1 flex-col justify-center gap-0 leading-tight"
+      >
+        <span
+          className={`min-w-0 break-words ${split ? "text-num-sm" : "text-body-md"}`}
+          style={{ color: "var(--body-on-dark)" }}
+        >
+          {name}
+        </span>
+        {split && (
+          <div
+            data-testid={`investment-type-split-${uiType}`}
+            className="flex min-w-0 flex-col gap-0"
+          >
             <span
-              className="min-w-0 break-words text-num-sm"
-              style={{ color: "var(--body-on-dark)" }}
+              data-pl-line
+              className="num flex min-w-0 items-baseline gap-2 text-num-sm tabular-nums"
             >
-              {name}
-            </span>
-            <div
-              data-testid={`investment-type-split-${uiType}`}
-              className="flex min-w-0 flex-col gap-0"
-            >
-              <div className="flex items-center justify-between gap-2 text-num-sm tabular-nums">
+              {pl.pct == null ? (
+                <span style={{ color: "var(--muted-strong)" }}>—</span>
+              ) : (
                 <span
-                  data-pl-line
-                  className="num flex min-w-0 items-baseline gap-2"
+                  aria-label={t("plAria", { value: pctText(pl.pct) })}
+                  className="inline-flex items-center gap-0.5"
+                  style={{ color: signColor(pl.pct) }}
                 >
-                  {pl.pct == null ? (
-                    <span style={{ color: "var(--muted-strong)" }}>—</span>
+                  {pl.pct < 0 ? (
+                    <TrendingDown
+                      data-pl-trend="down"
+                      className="h-3 w-3"
+                      aria-hidden="true"
+                    />
                   ) : (
-                    <span
-                      aria-label={t("plAria", { value: pctText(pl.pct) })}
-                      className="inline-flex items-center gap-0.5"
+                    <TrendingUp
+                      data-pl-trend={pl.pct > 0 ? "up" : "flat"}
+                      className="h-3 w-3"
+                      aria-hidden="true"
                       style={{ color: signColor(pl.pct) }}
-                    >
-                      {pl.pct < 0 ? (
-                        <TrendingDown
-                          data-pl-trend="down"
-                          className="h-3 w-3"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <TrendingUp
-                          data-pl-trend={pl.pct > 0 ? "up" : "flat"}
-                          className="h-3 w-3"
-                          aria-hidden="true"
-                          style={{ color: signColor(pl.pct) }}
-                        />
-                      )}
-                      {pctText(pl.pct)}
-                    </span>
+                    />
                   )}
-                  <span style={{ color: signColor(pl.totalPLCents) }}>
-                    {signed(pl.totalPLCents)}
+                  {pctText(pl.pct)}
+                </span>
+              )}
+              <span style={{ color: signColor(pl.totalPLCents) }}>
+                {signed(pl.totalPLCents)}
+              </span>
+            </span>
+            {/* Inline size: tailwind-merge cannot drop it (same as the asset row). */}
+            <span
+              data-pl-caption
+              className="num flex min-w-0 flex-wrap gap-x-2 tabular-nums"
+              style={{
+                color: "var(--muted-foreground)",
+                fontSize: "11px",
+                lineHeight: 1.4,
+              }}
+            >
+              {/* "unrealized: X realized: Y" — words muted, figures by sign. */}
+              {(
+                [
+                  ["typeGroup.unrealizedLabel", pl.unrealizedCents],
+                  ["typeGroup.realizedLabel", pl.realizedCents],
+                ] as const
+              ).map(([key, n]) => {
+                const [before, after = ""] = t(key, { value: SLOT }).split(
+                  SLOT,
+                );
+                return (
+                  <span key={key}>
+                    {before}
+                    <span data-signed style={{ color: signColor(n) }}>
+                      {signed(n)}
+                    </span>
+                    {after}
                   </span>
-                </span>
-                {value}
-              </div>
-              {/* Inline size: tailwind-merge cannot drop it (same as the asset row). */}
-              <div
-                className="flex items-baseline justify-between gap-2 tabular-nums"
-                style={{ fontSize: "11px", lineHeight: 1.4 }}
-              >
-                <span
-                  data-pl-caption
-                  className="num flex min-w-0 flex-wrap gap-x-2"
-                  style={{ color: "var(--muted-foreground)" }}
-                >
-                  {/* "unrealized: X realized: Y" — words muted, figures by sign. */}
-                  {(
-                    [
-                      ["typeGroup.unrealizedLabel", pl.unrealizedCents],
-                      ["typeGroup.realizedLabel", pl.realizedCents],
-                    ] as const
-                  ).map(([key, n]) => {
-                    const [before, after = ""] = t(key, { value: SLOT }).split(
-                      SLOT,
-                    );
-                    return (
-                      <span key={key}>
-                        {before}
-                        <span data-signed style={{ color: signColor(n) }}>
-                          {signed(n)}
-                        </span>
-                        {after}
-                      </span>
-                    );
-                  })}
-                </span>
-                <span
-                  data-testid={`investment-type-share-${uiType}`}
-                  className="shrink-0"
-                  style={{ color: "var(--muted-foreground)" }}
-                >
-                  {t("row.share", { pct: `${portfolioPct.toFixed(1)}%` })}
-                </span>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex min-w-0 items-center gap-2">
-              <span
-                className="min-w-0 flex-1 break-words text-body-md"
-                style={{ color: "var(--body-on-dark)" }}
-              >
-                {name}
-              </span>
-              {value}
-            </div>
-            {cashShare && (
-              <span
-                data-testid={`investment-type-share-${uiType}`}
-                className="self-end tabular-nums"
-                style={{
-                  color: "var(--muted-foreground)",
-                  fontSize: "11px",
-                  lineHeight: 1.4,
-                }}
-              >
-                {t("row.share", { pct: `${portfolioPct.toFixed(1)}%` })}
-              </span>
-            )}
-          </>
+                );
+              })}
+            </span>
+          </div>
+        )}
+      </div>
+      <div
+        data-col="right"
+        className="flex shrink-0 flex-col items-end justify-center gap-0 leading-tight"
+      >
+        {value}
+        {showSplit && (
+          <span
+            data-testid={`investment-type-share-${uiType}`}
+            className="tabular-nums"
+            style={{
+              color: "var(--muted-foreground)",
+              fontSize: "11px",
+              lineHeight: 1.4,
+            }}
+          >
+            {t("row.share", { pct: `${portfolioPct.toFixed(1)}%` })}
+          </span>
         )}
       </div>
     </div>

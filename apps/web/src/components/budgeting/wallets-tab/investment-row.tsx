@@ -25,7 +25,6 @@ import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { Input } from "@/components/ui/input";
 import { centsToBare } from "@/lib/cents-format";
 import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
-import { holdingIcon } from "@/lib/investment-icons";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { isAutoPriced } from "@/lib/investment-types";
@@ -161,8 +160,12 @@ export function InvestmentRow({
     ? cashLabel
     : (customName ?? mobileLabel(holding, expanded));
 
-  // Type icon + fixed accent color so the list is scannable by asset type.
-  const { Icon: TypeIcon, color: typeColor } = holdingIcon(holding);
+  // Mobile-expanded caption: avg price · qty · started (only what applies).
+  const caption = [
+    avgPrice != null && t("typeGroup.stats.avgPrice", { price: avgPrice }),
+    showQty && t("row.qty", { qty: qtyDisplay }),
+    startedDisplay != null && t("row.started", { amount: startedDisplay }),
+  ].filter(Boolean) as string[];
 
   // P/L cell — color/sign/icon unless delisted (dimming wins) or cash (—).
   const plColor =
@@ -274,14 +277,13 @@ export function InvestmentRow({
       >
         {/* Left column — full width on mobile-expanded (currency+amount hide).
             gap-0 + leading-tight so the 3-row card fits the row height (no grow). */}
-        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0 leading-tight">
+        {/* Round 4: two columns, each centred on its own (left: name / P/L /
+            caption; right: value / share). The type icon lives on the header. */}
+        <div
+          data-col="left"
+          className="flex min-w-0 flex-1 flex-col justify-center gap-0 leading-tight"
+        >
           <div className="flex min-w-0 items-center gap-2">
-            {/* Type icon (fixed accent color) so the row is identifiable at a glance. */}
-            <TypeIcon
-              className="h-4 w-4 shrink-0"
-              style={{ color: typeColor }}
-              aria-hidden="true"
-            />
             {/* Stock/crypto: mobile shows the TICKER (tap → full name); desktop
                 shows "TICKER (Name)". Non-tracked holdings show their name. */}
             <span
@@ -314,9 +316,6 @@ export function InvestmentRow({
                 className="border border-[var(--hairline-dark)]"
               />
             )}
-            {/* No P/L (cash): the value moves up onto the name's line, so the
-                reveal is two centred lines (round 3). */}
-            {expanded && pct == null && valueBlock("sm:hidden")}
           </div>
           {/* Mobile expanded rows 2 + 3 — middle line: P/L% + P/L money (left) ·
               currency + amount (right, aligned); then "Share: X%". For cash (no
@@ -325,46 +324,28 @@ export function InvestmentRow({
           {expanded && (
             <div className="flex flex-col gap-0 sm:hidden">
               {pct != null && (
-                <div className="flex items-center justify-between gap-2 text-num-sm tabular-nums">
-                  <span className="flex min-w-0 items-center gap-2">
-                    {plNode}
-                    {plMoney && <span className={plColor}>{plMoney}</span>}
-                  </span>
-                  {valueBlock()}
-                </div>
+                <span className="flex min-w-0 items-center gap-2 text-num-sm tabular-nums">
+                  {plNode}
+                  {plMoney && <span className={plColor}>{plMoney}</span>}
+                </span>
               )}
               {/* One step under the P/L line (UAT 13.1 test 4); inline so
                   tailwind-merge cannot drop it. */}
-              <div
-                className="flex items-baseline justify-between gap-2 text-[var(--muted-foreground)] tabular-nums"
-                style={{ fontSize: "11px", lineHeight: 1.4 }}
-              >
-                <span className="min-w-0">
-                  {[
-                    avgPrice != null &&
-                      t("typeGroup.stats.avgPrice", { price: avgPrice }),
-                    showQty && t("row.qty", { qty: qtyDisplay }),
-                    startedDisplay != null &&
-                      t("row.started", { amount: startedDisplay }),
-                  ]
-                    .filter(Boolean)
-                    .flatMap((text, i) => [
-                      i > 0 && (
-                        <span key={`sep${i}`} aria-hidden="true">
-                          {" · "}
-                        </span>
-                      ),
-                      <span key={i}>{text}</span>,
-                    ])}
-                </span>
-                {/* Round-2 gap 3: share under the amount (right column). */}
+              {caption.length > 0 && (
                 <span
-                  data-testid={`asset-share-${holding.id}`}
-                  className="shrink-0"
+                  className="min-w-0 text-[var(--muted-foreground)] tabular-nums"
+                  style={{ fontSize: "11px", lineHeight: 1.4 }}
                 >
-                  {t("row.share", { pct: weight })}
+                  {caption.flatMap((text, i) => [
+                    i > 0 && (
+                      <span key={`sep${i}`} aria-hidden="true">
+                        {" · "}
+                      </span>
+                    ),
+                    <span key={i}>{text}</span>,
+                  ])}
                 </span>
-              </div>
+              )}
             </div>
           )}
         </div>
@@ -392,64 +373,82 @@ export function InvestmentRow({
             re-rendered inside the middle row (P/L or day), so hide it here;
             desktop (sm) + mobile-collapsed keep it on the right. */}
         <div
-          className={[
-            "shrink-0 items-baseline gap-1",
-            expanded ? "hidden sm:flex" : "flex",
-          ].join(" ")}
+          data-col="right"
+          className="flex shrink-0 flex-col items-end justify-center gap-0 leading-tight sm:contents"
         >
-          <span className="text-num-sm text-[var(--muted-foreground)]">
-            {currency}
-          </span>
           <div
-            className="text-right tabular-nums"
-            style={{ minWidth: `${(maxAmountChars ?? 4) + 1}ch` }}
-            // The whole row body is a click target (expand / open sheet); a click
-            // meant for the inline editor must not also fire that.
-            onClick={valueIsManual ? (e) => e.stopPropagation() : undefined}
+            className={[
+              "shrink-0 items-baseline gap-1",
+              expanded ? "hidden sm:flex" : "flex",
+            ].join(" ")}
           >
-            {valueIsManual ? (
-              <InlineEditCell
-                value={centsToBare(holding.valueCents).replace(/[^0-9.-]/g, "")}
-                ariaLabel={t("row.amountAria", { name: holding.name })}
-                testId={`holding-amount-${holding.id}`}
-                render={() => <span className="text-num-md">{value}</span>}
-                renderEditor={(draft, onChange) => (
-                  <Input
-                    autoFocus
-                    type="text"
-                    inputMode="decimal"
-                    defaultValue={draft}
-                    onChange={(e) => onChange(e.target.value)}
-                    className="ml-auto h-9 w-[10ch] max-w-full px-2 text-right"
-                  />
-                )}
-                onSave={async (v) => {
-                  await onValueChange?.(v);
-                }}
-              />
-            ) : (
-              // A tap here can't edit (the price is fetched or derived), so
-              // shake the amount to say so (user, 261023). It doesn't expand the
-              // row either: on a phone that moves the amount, hiding the shake.
-              <span
-                data-testid={`holding-amount-readonly-${holding.id}`}
-                data-shake={shaking || undefined}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShaking(true);
-                }}
-                onAnimationEnd={() => setShaking(false)}
-                className={[
-                  "inline-block text-num-md",
-                  delisted
-                    ? "text-[var(--muted-strong)]"
-                    : "text-[var(--body-on-dark)]",
-                ].join(" ")}
-              >
-                {value}
-              </span>
-            )}
+            <span className="text-num-sm text-[var(--muted-foreground)]">
+              {currency}
+            </span>
+            <div
+              className="text-right tabular-nums"
+              style={{ minWidth: `${(maxAmountChars ?? 4) + 1}ch` }}
+              // The whole row body is a click target (expand / open sheet); a click
+              // meant for the inline editor must not also fire that.
+              onClick={valueIsManual ? (e) => e.stopPropagation() : undefined}
+            >
+              {valueIsManual ? (
+                <InlineEditCell
+                  value={centsToBare(holding.valueCents).replace(
+                    /[^0-9.-]/g,
+                    "",
+                  )}
+                  ariaLabel={t("row.amountAria", { name: holding.name })}
+                  testId={`holding-amount-${holding.id}`}
+                  render={() => <span className="text-num-md">{value}</span>}
+                  renderEditor={(draft, onChange) => (
+                    <Input
+                      autoFocus
+                      type="text"
+                      inputMode="decimal"
+                      defaultValue={draft}
+                      onChange={(e) => onChange(e.target.value)}
+                      className="ml-auto h-9 w-[10ch] max-w-full px-2 text-right"
+                    />
+                  )}
+                  onSave={async (v) => {
+                    await onValueChange?.(v);
+                  }}
+                />
+              ) : (
+                // A tap here can't edit (the price is fetched or derived), so
+                // shake the amount to say so (user, 261023). It doesn't expand the
+                // row either: on a phone that moves the amount, hiding the shake.
+                <span
+                  data-testid={`holding-amount-readonly-${holding.id}`}
+                  data-shake={shaking || undefined}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShaking(true);
+                  }}
+                  onAnimationEnd={() => setShaking(false)}
+                  className={[
+                    "inline-block text-num-md",
+                    delisted
+                      ? "text-[var(--muted-strong)]"
+                      : "text-[var(--body-on-dark)]",
+                  ].join(" ")}
+                >
+                  {value}
+                </span>
+              )}
+            </div>
           </div>
+          {expanded && valueBlock("sm:hidden")}
+          {expanded && (
+            <span
+              data-testid={`asset-share-${holding.id}`}
+              className="text-[var(--muted-foreground)] tabular-nums sm:hidden"
+              style={{ fontSize: "11px", lineHeight: 1.4 }}
+            >
+              {t("row.share", { pct: weight })}
+            </span>
+          )}
         </div>
         {/* Desktop: weight% last. */}
         <span className="hidden w-16 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block">
