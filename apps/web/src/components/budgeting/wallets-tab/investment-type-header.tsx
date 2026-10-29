@@ -7,16 +7,23 @@
  * and name line up with the assets below (UAT test 3). Collapsed: name ·
  * value. Tapping anywhere but the chevron / handle mirrors the asset reveal:
  * the name shrinks, line 2 = total P/L % then amount (P/L % = total ÷
- * lifetime cost, D-16) · value, line 3 = unrealized + realized amounts (sign
- * coloured, no words) · share under the value. Cash has no profit by design:
- * no reveal at all.
+ * lifetime cost, D-16) · value, line 3 = "unrealized: X realized: Y" (words
+ * muted, figures sign-coloured) · share under the value. Round 3: the reveal
+ * fits the 56px card like the asset row (no grow), the name is normal weight,
+ * zero reads "+0.0%" / "+0" with a grey rise, and cash (no profit by design)
+ * reveals only its share.
  *
  * Color: P/L via inline style tokens only (tailwind-merge drops var() text colors).
  * Testids keep the investment-group-* names so existing page objects still work.
  */
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
 import { centsToBare } from "@/lib/cents-format";
 import type { UiType } from "@/lib/investment-types";
 import type { TypeGroupPL } from "@/lib/investment-type-groups";
@@ -42,6 +49,8 @@ const signColor = (n: number) =>
       ? "var(--trading-down)"
       : "var(--muted-strong)";
 
+const SLOT = "\u0000";
+
 export function InvestmentTypeHeader({
   uiType,
   budgetCurrency,
@@ -58,10 +67,10 @@ export function InvestmentTypeHeader({
 
   const money = (cents: number) =>
     centsToBare(String(Math.round(Math.abs(cents))), locale);
-  const signed = (cents: number) =>
-    `${cents > 0 ? "+" : cents < 0 ? "−" : ""}${money(cents)}`;
+  // Round 3: zero reads "+0" like a gain (grey, flat trend).
+  const signed = (cents: number) => `${cents < 0 ? "−" : "+"}${money(cents)}`;
   const pctText = (p: number) =>
-    `${p > 0 ? "+" : p < 0 ? "−" : ""}${Math.abs(p).toFixed(1)}%`;
+    `${p < 0 ? "−" : "+"}${Math.abs(p).toFixed(1)}%`;
 
   const name = t(`uitype.${uiType}`);
   const state = expanded ? t("group.expanded") : t("group.collapsed");
@@ -71,10 +80,14 @@ export function InvestmentTypeHeader({
     state,
   });
   const split = showSplit && uiType !== "cash";
+  // Cash has no profit by design: its reveal is just the share (round 3).
+  const cashShare = showSplit && uiType === "cash";
   const toggleSplit = () => setShowSplit((s) => !s);
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
   // Mirrors the asset row's right column: currency + amount; Enter toggles.
+  // Revealed, it shrinks to the asset row's small value so the three lines fit
+  // the card (it grew 56 → 69.6px).
   const value = (
     <div
       role="button"
@@ -101,7 +114,7 @@ export function InvestmentTypeHeader({
           {budgetCurrency}
         </span>
         <span
-          className="num text-right text-num-md"
+          className={`num text-right ${split ? "text-num-sm" : "text-num-md"}`}
           style={{
             color: "var(--body-on-dark)",
             minWidth: `${(maxAmountChars ?? 4) + 1}ch`,
@@ -120,12 +133,7 @@ export function InvestmentTypeHeader({
       data-nav-type="invest-group"
       data-nav-key={`invgroup-${uiType}`}
       onClick={toggleSplit}
-      className={[
-        "flex min-h-[56px] w-full cursor-pointer items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 sm:min-h-[48px] data-[nav-highlighted=true]:bg-[var(--surface-elevated-dark)]",
-        split ? "py-1.5" : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      className="flex min-h-[56px] w-full cursor-pointer items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 sm:min-h-[48px] data-[nav-highlighted=true]:bg-[var(--surface-elevated-dark)]"
     >
       {dragHandle && (
         <span onClick={stop} className="contents">
@@ -157,7 +165,7 @@ export function InvestmentTypeHeader({
         {split ? (
           <>
             <span
-              className="min-w-0 break-words text-num-sm font-semibold"
+              className="min-w-0 break-words text-num-sm"
               style={{ color: "var(--body-on-dark)" }}
             >
               {name}
@@ -176,8 +184,23 @@ export function InvestmentTypeHeader({
                   ) : (
                     <span
                       aria-label={t("plAria", { value: pctText(pl.pct) })}
+                      className="inline-flex items-center gap-0.5"
                       style={{ color: signColor(pl.pct) }}
                     >
+                      {pl.pct < 0 ? (
+                        <TrendingDown
+                          data-pl-trend="down"
+                          className="h-3 w-3"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <TrendingUp
+                          data-pl-trend={pl.pct > 0 ? "up" : "flat"}
+                          className="h-3 w-3"
+                          aria-hidden="true"
+                          style={{ color: signColor(pl.pct) }}
+                        />
+                      )}
                       {pctText(pl.pct)}
                     </span>
                   )}
@@ -192,22 +215,31 @@ export function InvestmentTypeHeader({
                 className="flex items-baseline justify-between gap-2 tabular-nums"
                 style={{ fontSize: "11px", lineHeight: 1.4 }}
               >
-                <span data-pl-caption className="num flex min-w-0 gap-2">
+                <span
+                  data-pl-caption
+                  className="num flex min-w-0 flex-wrap gap-x-2"
+                  style={{ color: "var(--muted-foreground)" }}
+                >
+                  {/* "unrealized: X realized: Y" — words muted, figures by sign. */}
                   {(
                     [
-                      ["typeGroup.unrealizedAria", pl.unrealizedCents],
-                      ["typeGroup.realizedAria", pl.realizedCents],
+                      ["typeGroup.unrealizedLabel", pl.unrealizedCents],
+                      ["typeGroup.realizedLabel", pl.realizedCents],
                     ] as const
-                  ).map(([key, n]) => (
-                    <span
-                      key={key}
-                      data-signed
-                      aria-label={t(key, { value: signed(n) })}
-                      style={{ color: signColor(n) }}
-                    >
-                      {signed(n)}
-                    </span>
-                  ))}
+                  ).map(([key, n]) => {
+                    const [before, after = ""] = t(key, { value: SLOT }).split(
+                      SLOT,
+                    );
+                    return (
+                      <span key={key}>
+                        {before}
+                        <span data-signed style={{ color: signColor(n) }}>
+                          {signed(n)}
+                        </span>
+                        {after}
+                      </span>
+                    );
+                  })}
                 </span>
                 <span
                   data-testid={`investment-type-share-${uiType}`}
@@ -220,15 +252,30 @@ export function InvestmentTypeHeader({
             </div>
           </>
         ) : (
-          <div className="flex min-w-0 items-center gap-2">
-            <span
-              className="min-w-0 flex-1 break-words text-body-md font-semibold"
-              style={{ color: "var(--body-on-dark)" }}
-            >
-              {name}
-            </span>
-            {value}
-          </div>
+          <>
+            <div className="flex min-w-0 items-center gap-2">
+              <span
+                className="min-w-0 flex-1 break-words text-body-md"
+                style={{ color: "var(--body-on-dark)" }}
+              >
+                {name}
+              </span>
+              {value}
+            </div>
+            {cashShare && (
+              <span
+                data-testid={`investment-type-share-${uiType}`}
+                className="self-end tabular-nums"
+                style={{
+                  color: "var(--muted-foreground)",
+                  fontSize: "11px",
+                  lineHeight: 1.4,
+                }}
+              >
+                {t("row.share", { pct: `${portfolioPct.toFixed(1)}%` })}
+              </span>
+            )}
+          </>
         )}
       </div>
     </div>

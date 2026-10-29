@@ -57,9 +57,10 @@ interface InvestmentRowProps {
   onValueChange?: (amount: string) => Promise<void> | void;
 }
 
-/** Signed %, 1 decimal, with a real minus sign (U+2212). */
+/** Signed %, 1 decimal, with a real minus sign (U+2212); zero reads "+0.0%"
+ *  (round 3). */
 function formatPct(pct: number): string {
-  const sign = pct > 0 ? "+" : pct < 0 ? "−" : "";
+  const sign = pct < 0 ? "−" : "+";
   return `${sign}${Math.abs(pct).toFixed(1)}%`;
 }
 
@@ -182,7 +183,7 @@ export function InvestmentRow({
     if (pct == null || holding.profitLossCents == null) return null;
     const amt = Number(holding.profitLossCents); // cents
     if (!Number.isFinite(amt)) return null;
-    const sign = amt > 0 ? "+" : amt < 0 ? "−" : "";
+    const sign = amt < 0 ? "−" : "+";
     return `${sign}${centsToBare(String(Math.round(Math.abs(amt))), locale)}`;
   })();
 
@@ -194,15 +195,37 @@ export function InvestmentRow({
         className={`inline-flex items-center gap-0.5 text-num-sm ${plColor}`}
         aria-label={t("plAria", { value: formatPct(pct) })}
       >
-        {!delisted && pct > 0 && (
-          <TrendingUp className="h-3 w-3" aria-hidden="true" />
+        {/* Zero is a grey rise (round 3): same arrow as a gain. */}
+        {!delisted && pct >= 0 && (
+          <TrendingUp
+            data-pl-trend={pct > 0 ? "up" : "flat"}
+            className="h-3 w-3"
+            aria-hidden="true"
+            style={pct === 0 ? { color: "var(--muted-strong)" } : undefined}
+          />
         )}
         {!delisted && pct < 0 && (
-          <TrendingDown className="h-3 w-3" aria-hidden="true" />
+          <TrendingDown
+            data-pl-trend="down"
+            className="h-3 w-3"
+            aria-hidden="true"
+          />
         )}
         {formatPct(pct)}
       </span>
     );
+
+  // The expanded value (mobile): currency + amount, one right edge with the
+  // share below and the type header's value.
+  const valueBlock = (extra = "") => (
+    <span
+      data-testid={`asset-value-${holding.id}`}
+      className={`flex shrink-0 items-baseline gap-1 text-num-sm tabular-nums ${extra}`}
+    >
+      <span className="text-[var(--muted-foreground)]">{currency}</span>
+      <span className="text-[var(--body-on-dark)]">{value}</span>
+    </span>
+  );
 
   return (
     <div
@@ -291,6 +314,9 @@ export function InvestmentRow({
                 className="border border-[var(--hairline-dark)]"
               />
             )}
+            {/* No P/L (cash): the value moves up onto the name's line, so the
+                reveal is two centred lines (round 3). */}
+            {expanded && pct == null && valueBlock("sm:hidden")}
           </div>
           {/* Mobile expanded rows 2 + 3 — middle line: P/L% + P/L money (left) ·
               currency + amount (right, aligned); then "Share: X%". For cash (no
@@ -298,24 +324,15 @@ export function InvestmentRow({
               not 2 (D-#cash3). */}
           {expanded && (
             <div className="flex flex-col gap-0 sm:hidden">
-              <div className="flex items-center justify-between gap-2 text-num-sm tabular-nums">
-                <span className="flex min-w-0 items-center gap-2">
-                  {pct != null ? (
-                    <>
-                      {plNode}
-                      {plMoney && <span className={plColor}>{plMoney}</span>}
-                    </>
-                  ) : (
-                    <span className="text-[var(--muted-strong)]">—</span>
-                  )}
-                </span>
-                <span className="flex shrink-0 items-baseline gap-1">
-                  <span className="text-[var(--muted-foreground)]">
-                    {currency}
+              {pct != null && (
+                <div className="flex items-center justify-between gap-2 text-num-sm tabular-nums">
+                  <span className="flex min-w-0 items-center gap-2">
+                    {plNode}
+                    {plMoney && <span className={plColor}>{plMoney}</span>}
                   </span>
-                  <span className="text-[var(--body-on-dark)]">{value}</span>
-                </span>
-              </div>
+                  {valueBlock()}
+                </div>
+              )}
               {/* One step under the P/L line (UAT 13.1 test 4); inline so
                   tailwind-merge cannot drop it. */}
               <div
