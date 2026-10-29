@@ -208,6 +208,60 @@ describe("New transaction", () => {
     expect(screen.queryByTestId("swap-sell-sold")).toBeNull();
   });
 
+  // Round-4 gap 3: a kind switch keeps the type, the asset and the form.
+  it("Sell → Transfer keeps the type and the picked asset", async () => {
+    mount();
+    await pickAsset("sell", "BTC Cold");
+    fireEvent.click(screen.getByTestId("new-tx-kind-transfer"));
+    expect(screen.getByTestId("new-tx-type")).toHaveTextContent(
+      "uitype.crypto",
+    );
+    expect(screen.getByTestId("new-tx-asset")).toHaveValue("BTC Cold");
+    expect(screen.getByTestId("swap-transfer-qty")).toBeInTheDocument();
+  });
+
+  // Round-4 gap 8: the amount and the date come along.
+  it("Sell → Transfer carries the amount and the date", async () => {
+    mount();
+    await pickAsset("sell", "BTC Cold");
+    type("swap-sell-sold", "0.5");
+    type("swap-date", "2026-10-02");
+    fireEvent.click(screen.getByTestId("new-tx-kind-transfer"));
+    expect(screen.getByTestId("swap-transfer-qty")).toHaveValue("0.5");
+    expect(screen.getByTestId("swap-date")).toHaveValue("2026-10-02");
+  });
+
+  it("Sell → Buy hands the pick, type, amount and date to the Add form without asking", async () => {
+    mount();
+    await pickAsset("sell", "BTC Cold");
+    type("swap-sell-sold", "0.5");
+    fireEvent.click(screen.getByTestId("new-tx-kind-buy"));
+    expect(screen.queryByText("confirm.discard.title")).toBeNull();
+    expect(stub.props).toMatchObject({
+      initialUiType: "crypto",
+      initialPickedId: btcCold.id,
+      draft: "0.5",
+    });
+  });
+
+  // Round-4 gap 5: one pickable asset of the type → picked at once.
+  it("a type with one asset picks it at once", async () => {
+    mount();
+    fireEvent.click(screen.getByTestId("new-tx-kind-sell"));
+    await pick("new-tx-type", "new-tx-type-option-cash");
+    expect(screen.getByTestId("new-tx-asset")).toHaveValue("Pot");
+    expect(screen.getByTestId("swap-sell-sold")).toBeInTheDocument();
+  });
+
+  // Round-4 gap 6: the type list looks like Buy's — icons.
+  it("type options carry the type icon", async () => {
+    mount();
+    fireEvent.click(screen.getByTestId("new-tx-kind-sell"));
+    fireEvent.keyDown(screen.getByTestId("new-tx-type"), { key: "Enter" });
+    const opt = await screen.findByTestId("new-tx-type-option-crypto");
+    expect(opt.querySelector("[data-type-icon]")).not.toBeNull();
+  });
+
   it("Transfer leaves deposits out of the types", async () => {
     mount();
     fireEvent.click(screen.getByTestId("new-tx-kind-transfer"));

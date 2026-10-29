@@ -168,8 +168,18 @@ vi.mock("../../src/hooks/use-asset-entries", () => ({
   useMinEntryDate: () => null,
 }));
 vi.mock("../../src/components/budgeting/wallets-tab/swap-buy-tab", () => ({
-  SwapBuyTab: ({ holding }: { holding: { id: string } }) => (
-    <div data-testid="picked-buy">{holding.id}</div>
+  SwapBuyTab: ({
+    holding,
+    date,
+    draft,
+  }: {
+    holding: { id: string };
+    date: string;
+    draft?: string;
+  }) => (
+    <div data-testid="picked-buy" data-date={date} data-draft={draft ?? ""}>
+      {holding.id}
+    </div>
   ),
 }));
 vi.mock("../../src/components/common/currency-picker", () => ({
@@ -988,6 +998,33 @@ describe("HoldingSheet — add joins by name (13.1 D-02)", () => {
         target: { value: "New pot" },
       });
       expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    });
+
+    // Round-4 gap 8: New transaction carries a picked asset, date and amount.
+    it("a carried pick opens its Buy form with the name, date and amount", () => {
+      const onDirtyChange = vi.fn();
+      render(
+        <HoldingSheet
+          {...baseProps}
+          embedded
+          holding={null}
+          initialUiType="crypto"
+          initialPickedId="btc-id"
+          date="2026-10-02"
+          setDate={() => {}}
+          draft="30000"
+          setDraft={() => {}}
+          onDirtyChange={onDirtyChange}
+        />,
+      );
+      const buy = screen.getByTestId("picked-buy");
+      expect(buy).toHaveTextContent("btc-id");
+      expect(buy).toHaveAttribute("data-date", "2026-10-02");
+      expect(buy).toHaveAttribute("data-draft", "30000");
+      expect(screen.getByTestId("holding-sheet-name")).toHaveValue(
+        "BTC Ledger",
+      );
+      expect(onDirtyChange).not.toHaveBeenCalledWith(true);
     });
 
     it("picking an existing asset still swaps to its Buy form", () => {

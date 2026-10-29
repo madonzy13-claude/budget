@@ -76,14 +76,17 @@ describe("Swap sheet", () => {
     expect(screen.getByTestId("swap-sell-sold")).toBeInTheDocument();
   });
 
-  it("switching tabs keeps the date and resets the rest", () => {
+  // Round-4 gap 8: switching tabs carries the date AND the main amount.
+  it("switching tabs keeps the date and the amount", () => {
     mount(btc);
     type("swap-date", "2026-10-01");
-    type("swap-buy-qty", "1");
+    fireEvent.click(screen.getByTestId("swap-tab-sell"));
+    type("swap-sell-sold", "1");
     fireEvent.click(screen.getByTestId("swap-tab-transfer"));
+    expect(screen.getByTestId("swap-transfer-qty")).toHaveValue("1");
     fireEvent.click(screen.getByTestId("swap-tab-buy"));
+    expect(screen.getByTestId("swap-buy-qty")).toHaveValue("1");
     expect(screen.getByTestId("swap-date")).toHaveValue("2026-10-01");
-    expect(screen.getByTestId("swap-buy-qty")).toHaveValue("");
   });
 
   it("the date cannot go before the latest entry (D-15)", async () => {
