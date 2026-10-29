@@ -152,7 +152,6 @@ export function LedgerRow({ entry, rowKey, first, onDelete }: LedgerRowProps) {
       data-ledger-row
       data-testid={`ledger-row-${rowKey}`}
       style={{
-        boxShadow: first ? "inset 0 6px 8px -6px rgba(0,0,0,0.7)" : undefined,
         borderTop: first ? undefined : "1px solid var(--hairline-dark)",
       }}
       className="relative"
@@ -170,9 +169,13 @@ export function LedgerRow({ entry, rowKey, first, onDelete }: LedgerRowProps) {
       ) : (
         deleteButton
       )}
+      {/* Shadow on the element that paints the background: an inset shadow
+          is drawn under the element's own children (round-2 gap 4). */}
       <div
+        data-ledger-surface
         style={{
-          backgroundColor: "var(--surface-sunken-dark)",
+          backgroundColor: "var(--surface-ledger-dark)",
+          boxShadow: first ? "inset 0 6px 8px -6px rgba(0,0,0,0.7)" : undefined,
           transform: `translateX(${offset}px)`,
           transition: swiping ? "none" : "transform 200ms ease-out",
         }}
@@ -187,8 +190,11 @@ export function LedgerRow({ entry, rowKey, first, onDelete }: LedgerRowProps) {
           </span>
           {entry.linked && entry.counterpartyName ? (
             <span className="flex min-w-0 items-center gap-1">
-              <Link2 className="h-3 w-3 shrink-0" aria-hidden="true" />
-              <span className="truncate">
+              <Link2 className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
+              <span
+                className="truncate"
+                style={{ fontSize: "11px", lineHeight: 1.4 }}
+              >
                 {t(linkedOut ? "ledger.toAsset" : "ledger.fromAsset", {
                   name: entry.counterpartyName,
                 })}
@@ -207,11 +213,7 @@ export function LedgerRow({ entry, rowKey, first, onDelete }: LedgerRowProps) {
           {amount != null && (
             <span
               className="text-[14px] leading-[1.4]"
-              style={{
-                color: interest
-                  ? "var(--muted-foreground)"
-                  : "var(--body-on-dark)",
-              }}
+              style={{ color: "var(--muted-foreground)" }}
             >
               {signed(amount)} {ccy}
             </span>

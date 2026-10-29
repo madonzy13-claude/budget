@@ -56,13 +56,18 @@ export function AssetLedger({
       style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
       className="grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none"
     >
-      <div className="min-h-0 overflow-hidden">
+      {/* Vertical-only clip (round-2 gap 5): `clip` does not force the other
+          axis to auto, so a swiped strip is never cut on the left. */}
+      <div
+        className="min-h-0"
+        style={{ overflowY: "clip", overflowX: "visible" }}
+      >
         <div
           role="rowgroup"
           aria-label={`${assetName}`}
           data-testid={`asset-ledger-${assetId}`}
           style={{
-            backgroundColor: "var(--surface-sunken-dark)",
+            backgroundColor: "var(--surface-ledger-dark)",
             color: "var(--muted-foreground)",
             transform: `translateX(${swipeOffset}px)`,
             transition: swiping ? "none" : "transform 200ms ease-out",
@@ -76,6 +81,7 @@ export function AssetLedger({
                   data-testid="ledger-skeleton"
                   className="min-h-[40px] animate-pulse px-2 py-1"
                   style={{
+                    backgroundColor: "var(--surface-ledger-dark)",
                     boxShadow:
                       i === 0
                         ? "inset 0 6px 8px -6px rgba(0,0,0,0.7)"

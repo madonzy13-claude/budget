@@ -209,6 +209,9 @@
        (= the old color-mix(card,#000 22%)); flips LIGHTER than the card in the
        light scope so sub-items read as a deeper level either way. */
     --surface-nested-dark: #171b20;
+    /* L3 ledger strip — clearly below the nested asset card; spendings
+       to-confirm look (13.1 round-2 gap 4). */
+    --surface-ledger-dark: #0f1216;
     /* Surface the CONFIRM_DRAFT arrival flash lifts a draft row to. A separate
        token because the two themes need opposite DIRECTIONS: dark lifts to the
        hover step (lighter), while light's greys are packed so tightly that the
@@ -282,6 +285,8 @@
     --surface-elevated-dark: #e2e6ec;
     /* Nested investment rows read LIGHTER than the group/card in light mode. */
     --surface-nested-dark: #fafafa;
+    /* Ledger strip: already clearly darker than the light nested row. */
+    --surface-ledger-dark: var(--surface-sunken-dark);
     /* Lift the flashed row UP off the sunken lane rather than down: elevated
        is only 5 units from sunken here, which shipped invisible. */
     --draft-flash-surface: var(--surface-nested-dark);
