@@ -177,7 +177,7 @@ async function outbox(fix: Fixture, walletId: string) {
     return (
       await p.query(
         `SELECT event_type, payload_jsonb FROM shared_kernel.outbox
-          WHERE tenant_id = $1 AND aggregate_id = $2 ORDER BY id`,
+          WHERE tenant_id = $1 AND aggregate_id = $2 ORDER BY created_at, id`,
         [fix.tenantId, walletId],
       )
     ).rows as { event_type: string; payload_jsonb: Record<string, unknown> }[];

@@ -205,6 +205,12 @@ describe.skipIf(!URL)("Migration 0088 investment assets — data", () => {
     await c.query("BEGIN");
     await lift();
     await c.query(`DROP INDEX IF EXISTS budgeting.investments_label_uq`);
+    // The dev DB keeps 0088's backup table; its copied kind CHECK predates the
+    // transfer / price kinds that live rows now carry (rolled back with the tx).
+    await c.query(
+      `ALTER TABLE IF EXISTS budgeting._investment_history_bak_0088
+         DROP CONSTRAINT IF EXISTS investment_history_kind_chk`,
+    );
     await c.query(
       `INSERT INTO identity.users (id, email, name, email_verified, created_at, updated_at)
        VALUES ($1, $2, 'mig 0088', true, now(), now())`,

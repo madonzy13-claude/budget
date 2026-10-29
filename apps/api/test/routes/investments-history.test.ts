@@ -378,7 +378,7 @@ describe("Sell route", () => {
       archived: boolean;
       newHoldingId: string;
     };
-    expect(body.archived).toBe(true);
+    expect(body.archived).toBe(false); // round 4: no auto-archive
     const legs = await q<{ transfer_id: string }>(
       fix,
       `SELECT transfer_id::text FROM budgeting.investment_history

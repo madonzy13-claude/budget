@@ -258,7 +258,8 @@ describe("Transfer route", () => {
       `SELECT archived_at IS NOT NULL AS archived FROM budgeting.investments WHERE id = $1`,
       [a],
     );
-    expect(src!.archived).toBe(true);
+    // Round 4: an emptied source stays listed; archive is explicit.
+    expect(src!.archived).toBe(false);
   });
 
   it("a date before either asset's newest entry is 422", async () => {
