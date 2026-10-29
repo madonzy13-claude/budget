@@ -71,3 +71,26 @@ describe("formatDayMonthShort", () => {
     expect(formatDayMonthShort("nope", "en")).toBe("nope");
   });
 });
+
+// Round-4 gap 25 (user): no "р." / "r." after the year in uk / pl dates.
+describe("dates with a year (uk / pl)", () => {
+  it("carry no year abbreviation", async () => {
+    const { formatBudgetDate } = await import("../../src/lib/format-date");
+    const { ledgerDate } = await import(
+      "../../src/components/budgeting/wallets-tab/ledger-row"
+    );
+    const { scheduleMonthLabel } = await import(
+      "../../src/lib/schedule-month-label"
+    );
+    for (const locale of ["uk", "pl"]) {
+      for (const s of [
+        formatBudgetDate("2026-10-29", locale),
+        ledgerDate("2026-10-29", locale),
+        scheduleMonthLabel("2026-10", locale),
+      ]) {
+        expect(s, `${locale}: ${s}`).toContain("2026");
+        expect(s, `${locale}: ${s}`).not.toMatch(/2026\s?(р\.|r\.)/u);
+      }
+    }
+  });
+});
