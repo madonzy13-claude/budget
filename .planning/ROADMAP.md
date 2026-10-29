@@ -440,7 +440,7 @@ _Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.
 **Goal:** Every investment type becomes type → asset → entries: same-name buys join one asset (DCA), each asset has Swap (Buy / Sell / Transfer) and a slim Edit, entries are an immutable date-ordered ledger deletable newest-first only, and selling out of investments can credit a budget wallet. Migration 0088 merges existing same-name holdings.
 **Requirements**: CONTEXT decisions D-01..D-37 (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 34/34 plans complete
+**Plans:** 34/39 plans complete
 
 Plans:
 
@@ -478,3 +478,8 @@ Plans:
 - [x] 13.1-32-PLAN.md — Gap r2: "How much was sold?", editable everything toggles, Radix pickers in Sell (gap wave 3)
 - [x] 13.1-34-PLAN.md — Gap r2: Edit shows locked configuration; every quantity entry carries qty @ price (server fallback) (gap wave 3)
 - [x] 13.1-33-PLAN.md — Gap r2: ship gate (gaps 1–13) — dead keys, rebuild, served bundle, @investments chromium+mobile, user UAT (gap wave 4, checkpoint)
+- [ ] 13.1-35-PLAN.md — Gap r3: RED @r3 E2E scenarios, i18n label keys, measure header widening (gap wave 1)
+- [ ] 13.1-36-PLAN.md — Gap r3: cash reveal on two lines, normal-weight width-stable header, labelled caption, signed zero + grey trend (gap wave 2)
+- [ ] 13.1-37-PLAN.md — Gap r3: New transaction Radix type picker + embedded Sell/Transfer form (gap wave 2)
+- [ ] 13.1-38-PLAN.md — Gap r3: tap held amount to fill (no everything buttons); square ledger delete with left shadow (gap wave 2)
+- [ ] 13.1-39-PLAN.md — Gap r3: ship gate + user phone re-test (gap wave 3, checkpoint)
