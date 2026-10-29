@@ -937,7 +937,8 @@ describe("HoldingSheet — add joins by name (13.1 D-02)", () => {
     expect(screen.getByTestId("asset-name-option-0")).toHaveTextContent("Pot");
   });
 
-  it("an existing name shows the join note; a new one shows none", () => {
+  // Round 4: no "joins X" note for an active asset; the pick-or-create hint shows.
+  it("an existing name shows no join note; the pick-or-create hint shows", () => {
     render(
       <HoldingSheet
         {...baseProps}
@@ -949,13 +950,8 @@ describe("HoldingSheet — add joins by name (13.1 D-02)", () => {
         })}
       />,
     );
-    expect(screen.getByTestId("asset-name-note")).toHaveTextContent(
-      "asset.name.joins",
-    );
-    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
-      target: { value: "New pot" },
-    });
     expect(screen.queryByTestId("asset-name-note")).toBeNull();
+    expect(screen.getByTestId("asset-name-hint")).toBeInTheDocument();
   });
 
   it("there is no edit mode: no history, no 'what happened', save creates", () => {

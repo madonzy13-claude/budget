@@ -49,6 +49,18 @@ interface Props {
   include?: (a: AssetNameDto) => boolean;
 }
 
+/** "1.5 · 90,200 PLN": quantity unless it is a single unit, then the value. */
+function meta(a: AssetNameDto): string {
+  const parts = [
+    a.quantity !== "1" ? a.quantity : null,
+    a.valueCents != null
+      ? `${centsToBare(a.valueCents)} ${a.valueCurrency ?? ""}`.trim()
+      : null,
+  ].filter(Boolean);
+  // A single unit with no price says nothing useful.
+  return a.quantity === "1" && a.valueCents == null ? "" : parts.join(" · ");
+}
+
 export function AssetNameCombobox({
   budgetId,
   uiType,
@@ -166,6 +178,16 @@ export function AssetNameCombobox({
               {o.kind === "asset" ? (
                 <>
                   <span className="min-w-0 break-words">{o.a.name}</span>
+                  {/* Round 4: qty · value CCY, so similar names are told apart. */}
+                  {meta(o.a) && (
+                    <span
+                      data-asset-meta
+                      className="ml-auto shrink-0 text-[12px] tabular-nums"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      {meta(o.a)}
+                    </span>
+                  )}
                   {o.a.archived && (
                     <span
                       className="shrink-0 text-[12px]"
@@ -182,20 +204,26 @@ export function AssetNameCombobox({
           ))}
         </ul>
       )}
-      {exact && (
+      {/* Round 4: picking an active asset needs no note (its Buy form shows);
+          a hidden one still says it reopens (D-17). */}
+      {exact?.archived ? (
         <p
           data-testid="asset-name-note"
           className="text-[12px] leading-[1.4]"
           style={{ color: "var(--muted-foreground)" }}
         >
-          {exact.archived
-            ? t("asset.name.reopens", { name: exact.name })
-            : t("asset.name.joins", {
-                name: exact.name,
-                value:
-                  `${centsToBare(exact.valueCents ?? "0")} ${exact.valueCurrency ?? ""}`.trim(),
-              })}
+          {t("asset.name.reopens", { name: exact.name })}
         </p>
+      ) : (
+        allowCreate && (
+          <p
+            data-testid="asset-name-hint"
+            className="text-[12px] leading-[1.4]"
+            style={{ color: "var(--muted-foreground)" }}
+          >
+            {t("asset.name.pickOrCreate")}
+          </p>
+        )
       )}
     </div>
   );

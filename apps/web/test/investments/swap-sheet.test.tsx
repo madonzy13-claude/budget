@@ -18,6 +18,7 @@ import {
   lastBody,
   lastUrl,
   writeMock,
+  fetchMock,
 } from "./_swap-fixtures";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 import { SwapSheet } from "../../src/components/budgeting/wallets-tab/swap-sheet";
@@ -205,8 +206,14 @@ describe("Transfer tab", () => {
 
   it("a typed name equal to an existing asset is that asset (D-07)", async () => {
     await transferTo("  btc cold ");
-    // The join note shows once the type's names have loaded.
-    expect(await screen.findByTestId("asset-name-note")).toBeInTheDocument();
+    // Round 4: no join note to wait on — wait for the type's names instead;
+    // the existing asset is still the target.
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([u]) => String(u).includes("/names")),
+      ).toBe(true),
+    );
+    await new Promise((r) => setTimeout(r, 20));
     fireEvent.click(screen.getByTestId("swap-submit"));
     await waitFor(() => expect(writeMock).toHaveBeenCalled());
     expect(lastBody().to).toEqual({ kind: "existing", holdingId: btcCold.id });

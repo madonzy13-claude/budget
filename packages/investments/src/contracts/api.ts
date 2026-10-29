@@ -404,6 +404,8 @@ export interface AssetNameDto {
   name: string;
   archived: boolean;
   instrumentId: string | null;
+  /** Trimmed quantity ("10", "1.5") — the list says what each asset is. */
+  quantity: string;
   valueCents: string | null;
   valueCurrency: string | null;
 }

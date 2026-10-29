@@ -113,13 +113,14 @@ describe("Asset name combobox", () => {
   it("suggestions show quantity, value and currency", () => {
     mount("");
     fireEvent.focus(screen.getByRole("combobox"));
-    const meta = (i: number) =>
+    const meta = (name: string) =>
       screen
-        .getByTestId(`asset-name-option-${i}`)
+        .getAllByRole("option")
+        .find((o) => o.querySelector("span")?.textContent === name)!
         .querySelector("[data-asset-meta]")?.textContent;
-    expect(meta(0)).toBe("1.5 · 90,200 PLN");
-    // ETH: quantity 1 and no price → nothing but the (omitted) unit qty.
-    expect(meta(1) ?? "").toBe("");
+    expect(meta("BTC Ledger")).toBe("1.5 · 90,200 PLN");
+    // ETH: a single unit with no price says nothing useful.
+    expect(meta("ETH") ?? "").toBe("");
   });
 
   it("a priceless asset shows only its quantity", () => {
@@ -187,9 +188,11 @@ describe("Asset name combobox", () => {
   it("focus with an empty name lists the type's assets", () => {
     mount("");
     fireEvent.focus(screen.getByRole("combobox"));
-    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(
-      expect.arrayContaining(["BTC Ledger", "ETH"]),
-    );
+    expect(
+      screen
+        .getAllByRole("option")
+        .map((o) => o.querySelector("span")?.textContent),
+    ).toEqual(expect.arrayContaining(["BTC Ledger", "ETH"]));
     expect(screen.queryByTestId("asset-name-create")).toBeNull();
   });
 

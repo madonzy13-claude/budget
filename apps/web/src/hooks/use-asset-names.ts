@@ -12,6 +12,7 @@ export interface AssetNameDto {
   name: string;
   archived: boolean;
   instrumentId: string | null;
+  quantity: string;
   valueCents: string | null;
   valueCurrency: string | null;
 }

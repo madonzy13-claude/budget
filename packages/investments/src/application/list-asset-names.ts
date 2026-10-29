@@ -25,6 +25,7 @@ export function listAssetNames(deps: { holdingRepo: HoldingRepo }) {
           name: r.name,
           archived: r.archived,
           instrumentId: r.instrumentId,
+          quantity: big(r.quantity).toString(),
           valueCents:
             r.currentPriceCents === null
               ? null
