@@ -67,6 +67,48 @@ const expectLocked = (f: string, text: string) => {
   expect(el.value).toContain(text);
 };
 
+describe("Edit asset sheet — currencies (round-4 gap 23)", () => {
+  it("a currency used by another asset of the same name in the type is greyed out", () => {
+    const erstePln = H({
+      id: "e-pln",
+      name: "Erste",
+      uiType: "cash",
+      holdingType: "cash_fx",
+      instrumentId: null,
+      currentPriceCurrency: "PLN",
+      buyCurrency: "PLN",
+    });
+    const ersteUsd = H({
+      ...erstePln,
+      id: "e-usd",
+      currentPriceCurrency: "USD",
+      buyCurrency: "USD",
+    });
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={qc}>
+        <EditAssetSheet
+          open
+          onOpenChange={() => {}}
+          budgetId="b1"
+          budgetCurrency="PLN"
+          holding={ersteUsd}
+          siblings={[erstePln, ersteUsd]}
+        />
+      </QueryClientProvider>,
+    );
+    const opt = (c: string) =>
+      screen
+        .getByTestId("currency-picker")
+        .querySelector<HTMLOptionElement>(`option[value="${c}"]`)!;
+    expect(opt("PLN").disabled).toBe(true);
+    expect(opt("USD").disabled).toBe(false);
+    expect(opt("EUR").disabled).toBe(false);
+  });
+});
+
 describe("Edit asset sheet — locked configuration", () => {
   it("a deposit shows its rate, capitalization and start date locked", () => {
     mount(

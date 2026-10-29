@@ -121,4 +121,28 @@ describe("Create or join an asset by name", () => {
         .message,
     ).toBe("before_latest_entry");
   });
+
+  // Round-4 gap 23 (user): a label is unique by name AND currency.
+  test("the same name in another currency is a new asset; the same currency joins", async () => {
+    const { w, create } = world();
+    const pot = (ccy: string) => ({
+      ...who,
+      name: "Erste",
+      holdingType: "cash_fx" as const,
+      uiType: "cash" as const,
+      quantity: "1",
+      buyPriceCents: "100000",
+      buyCurrency: ccy,
+      currentPriceCurrency: ccy,
+      openedOn: "2026-10-01",
+    });
+    const pln = (await create(pot("PLN")))._unsafeUnwrap();
+    const usd = (await create(pot("USD")))._unsafeUnwrap();
+    expect(usd.joined).toBe(false);
+    expect(usd.holding.id).not.toBe(pln.holding.id);
+    expect(w.holdings.size).toBe(2);
+    const again = (await create(pot("PLN")))._unsafeUnwrap();
+    expect(again).toMatchObject({ joined: true });
+    expect(again.holding.id).toBe(pln.holding.id);
+  });
 });

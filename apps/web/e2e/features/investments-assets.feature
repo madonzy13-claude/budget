@@ -441,6 +441,14 @@ Feature: Investments as assets with transactions (13.1)
     Then tapping the asset row "Bitcoin binance" keeps everything inside its card
     And tapping the asset row "Silver coins" keeps everything inside its card
 
+  # Gap 23: the same name in another currency is its own asset (no "(2)").
+  @r4-label-ccy
+  Scenario: The same name in another currency is a separate asset
+    Given a "cash" holding "Erste" deposited 100000 cents worth 100000 cents exists in my budget
+    When I open the investments wallets tab
+    And I add a "cash" asset "Erste" in "EUR" worth "100"
+    Then there are 2 asset rows "Erste"
+
   # Live phone drive (13.1-16): list → ledger strip look in both themes →
   # every Swap tab shows its sum-up and fits, in every launch locale.
   Scenario Outline: Asset list, ledger and every Swap tab on a phone in <locale> (<theme>)

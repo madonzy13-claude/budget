@@ -188,11 +188,13 @@ vi.mock("../../src/components/common/currency-picker", () => ({
     onSelect,
     richLabel,
     desktopDropdown,
+    disabledCodes = [],
   }: {
     value?: string;
     onSelect: (v: string) => void;
     richLabel?: boolean;
     desktopDropdown?: boolean;
+    disabledCodes?: string[];
   }) => (
     <select
       data-testid="currency-stub"
@@ -201,9 +203,11 @@ vi.mock("../../src/components/common/currency-picker", () => ({
       value={value}
       onChange={(e) => onSelect(e.target.value)}
     >
-      <option value="USD">USD</option>
-      <option value="EUR">EUR</option>
-      <option value="PLN">PLN</option>
+      {["USD", "EUR", "PLN"].map((c) => (
+        <option key={c} value={c} disabled={disabledCodes.includes(c)}>
+          {c}
+        </option>
+      ))}
     </select>
   ),
 }));
@@ -1040,6 +1044,20 @@ describe("HoldingSheet — add joins by name (13.1 D-02)", () => {
       fireEvent.mouseDown(screen.getByTestId("asset-name-option-0"));
       expect(screen.getByTestId("picked-buy")).toHaveTextContent("btc-id");
     });
+  });
+
+  // Round-4 gap 23 (user): a label is unique by name AND currency.
+  it("a name that exists in the type greys out the currencies it already uses", () => {
+    render(<HoldingSheet {...baseProps} holding={null} initialUiType="cash" />);
+    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+      target: { value: "pot" },
+    });
+    const opt = (c: string) =>
+      screen
+        .getAllByTestId("currency-stub")[0]!
+        .querySelector<HTMLOptionElement>(`option[value="${c}"]`)!;
+    expect(opt("USD").disabled).toBe(true);
+    expect(opt("EUR").disabled).toBe(false);
   });
 
   describe("name-first Add (UAT 13.1 test 7)", () => {

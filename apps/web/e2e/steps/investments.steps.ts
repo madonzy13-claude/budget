@@ -2403,3 +2403,40 @@ Then(
     expect(m.page, "page scrolls sideways").toBeLessThanOrEqual(0);
   },
 );
+
+// Gap 23 (user): a label is unique by name AND currency.
+When(
+  "I add a {string} asset {string} in {string} worth {string}",
+  async ({ page }, type: string, name: string, ccy: string, amount: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openAdd(type);
+    const sheet = po.sheet();
+    await sheet.getByTestId("holding-sheet-name").fill(name);
+    await sheet.getByTestId("holding-sheet-name").press("Escape");
+    const native = sheet.getByTestId("currency-picker-native");
+    if (await native.isVisible().catch(() => false))
+      await native.selectOption(ccy);
+    else {
+      await sheet.getByRole("combobox", { name: "Currency" }).click();
+      await page.getByTestId(`currency-option-${ccy}`).first().click();
+    }
+    await sheet.getByTestId("holding-sheet-amount").fill(amount);
+    const posted = page.waitForResponse(
+      (r) =>
+        /\/budgets\/[^/]+\/investments(\?.*)?$/.test(r.url()) &&
+        r.request().method() === "POST",
+      { timeout: 15000 },
+    );
+    await page.getByTestId("holding-sheet-submit").click();
+    const res = await posted;
+    expect(res.ok(), await res.text()).toBe(true);
+    expect(((await res.json()) as { joined: boolean }).joined).toBe(false);
+  },
+);
+
+Then(
+  "there are {int} asset rows {string}",
+  async ({ page }, n: number, name: string) => {
+    await expect(new InvestmentsPo(page).row(name)).toHaveCount(n);
+  },
+);
