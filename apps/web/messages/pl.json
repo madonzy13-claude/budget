@@ -694,8 +694,8 @@
         "editAria": "Edytuj {name}.",
         "deleteAria": "Usuń {name}.",
         "dragAria": "Przeciągnij, aby zmienić kolejność {name}.",
-        "qty": "Ilość: {qty}",
-        "started": "Początek: {amount}",
+        "qty": "ilość: {qty}",
+        "started": "początek: {amount}",
         "share": "Udział: {pct}",
         "amountAria": "Edytuj wartość {name}"
       },
@@ -761,7 +761,7 @@
       },
       "typeGroup": {
         "stats": {
-          "avgPrice": "Śr. cena {price}"
+          "avgPrice": "śr. cena: {price}"
         },
         "unrealizedLabel": "niezreal.: {value}",
         "realizedLabel": "zreal.: {value}"

@@ -694,8 +694,8 @@
         "editAria": "Редагувати {name}.",
         "deleteAria": "Видалити {name}.",
         "dragAria": "Перетягніть, щоб змінити порядок {name}.",
-        "qty": "Кількість: {qty}",
-        "started": "Початок: {amount}",
+        "qty": "кількість: {qty}",
+        "started": "початок: {amount}",
         "share": "Частка: {pct}",
         "amountAria": "Редагувати вартість {name}"
       },
@@ -761,7 +761,7 @@
       },
       "typeGroup": {
         "stats": {
-          "avgPrice": "Серед. ціна {price}"
+          "avgPrice": "серед. ціна: {price}"
         },
         "unrealizedLabel": "нереаліз.: {value}",
         "realizedLabel": "реаліз.: {value}"

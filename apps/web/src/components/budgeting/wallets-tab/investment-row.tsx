@@ -56,6 +56,8 @@ interface InvestmentRowProps {
   onValueChange?: (amount: string) => Promise<void> | void;
 }
 
+const SLOT = "\u0000";
+
 /** Signed %, 1 decimal, with a real minus sign (U+2212); zero reads "+0.0%"
  *  (round 3). */
 function formatPct(pct: number): string {
@@ -166,11 +168,18 @@ export function InvestmentRow({
     : (customName ?? mobileLabel(holding, expanded));
 
   // Mobile-expanded caption: avg price · qty · started (only what applies).
-  const caption = [
-    avgPrice != null && t("typeGroup.stats.avgPrice", { price: avgPrice }),
-    showQty && t("row.qty", { qty: qtyDisplay }),
-    startedDisplay != null && t("row.started", { amount: startedDisplay }),
-  ].filter(Boolean) as string[];
+  // Round 4: "avg price: X  qty: Y" — label muted, value grey (like the
+  // header's "+0"); built from the message with the value as a slot.
+  const caption = (
+    [
+      avgPrice != null && ["typeGroup.stats.avgPrice", "price", avgPrice],
+      showQty && ["row.qty", "qty", qtyDisplay],
+      startedDisplay != null && ["row.started", "amount", startedDisplay],
+    ].filter(Boolean) as [string, string, string][]
+  ).map(([key, slot, v]) => {
+    const [before, after = ""] = t(key, { [slot]: SLOT }).split(SLOT);
+    return { key, before, v, after };
+  });
 
   // P/L cell — color/sign/icon unless delisted (dimming wins) or cash (—).
   const plColor =
@@ -336,20 +345,25 @@ export function InvestmentRow({
               )}
               {/* One step under the P/L line (UAT 13.1 test 4); inline so
                   tailwind-merge cannot drop it. */}
+              {/* Same font + size as the header's unreal./real. line (round 4). */}
               {caption.length > 0 && (
-                {/* Same font + size as the header's unreal./real. line (round 4). */}
                 <span
-                  className="num min-w-0 text-[var(--muted-foreground)] tabular-nums"
+                  data-asset-caption
+                  className="num flex min-w-0 gap-x-2 overflow-hidden whitespace-nowrap text-[var(--muted-foreground)] tabular-nums"
                   style={{ fontSize: "11px", lineHeight: 1.4 }}
                 >
-                  {caption.flatMap((text, i) => [
-                    i > 0 && (
-                      <span key={`sep${i}`} aria-hidden="true">
-                        {" · "}
+                  {caption.map((c) => (
+                    <span key={c.key}>
+                      {c.before}
+                      <span
+                        data-caption-value
+                        style={{ color: "var(--muted-strong)" }}
+                      >
+                        {c.v}
                       </span>
-                    ),
-                    <span key={i}>{text}</span>,
-                  ])}
+                      {c.after}
+                    </span>
+                  ))}
                 </span>
               )}
             </div>

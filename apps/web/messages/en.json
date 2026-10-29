@@ -694,8 +694,8 @@
         "editAria": "Edit {name}.",
         "deleteAria": "Remove {name}.",
         "dragAria": "Drag to reorder {name}.",
-        "qty": "Qty: {qty}",
-        "started": "Started: {amount}",
+        "qty": "qty: {qty}",
+        "started": "started: {amount}",
         "share": "Share: {pct}",
         "amountAria": "Edit value of {name}"
       },
@@ -761,10 +761,10 @@
       },
       "typeGroup": {
         "stats": {
-          "avgPrice": "Avg price {price}"
+          "avgPrice": "avg price: {price}"
         },
-        "unrealizedLabel": "unrealized: {value}",
-        "realizedLabel": "realized: {value}"
+        "unrealizedLabel": "unreal.: {value}",
+        "realizedLabel": "real.: {value}"
       },
       "addDate": "Date",
       "asset": {

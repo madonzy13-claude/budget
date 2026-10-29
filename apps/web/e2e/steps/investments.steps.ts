@@ -1464,10 +1464,10 @@ Then(
       Math.abs(hg!.x - h!.x - (rg!.x - r!.x)),
       "drag handle offset",
     ).toBeLessThanOrEqual(1);
-    expect(
-      Math.abs(hn!.x - h!.x - (rn!.x - r!.x)),
-      "name offset",
-    ).toBeLessThanOrEqual(1);
+    // Round 4 moved the type icon onto the header, so the names no longer
+    // share an x-offset (hn / rn kept for the log); handle + height still do.
+    void hn;
+    void rn;
   },
 );
 
@@ -1909,7 +1909,8 @@ Then(
       };
     });
     expect(Math.abs(m.h - h0), "card grew").toBeLessThanOrEqual(1);
-    expect(m.lines, "line count").toBe(2);
+    // Round 4: two centred columns (left 1–2 lines, right 2) — each column's
+    // centring is @r4-columns; here: no dash, no grow, content centred.
     expect(m.offset, "not centred").toBeLessThanOrEqual(2);
   },
 );
@@ -1952,7 +1953,7 @@ Then(
   async ({ page }, uiType: string) => {
     const split = await new InvestmentsPo(page).typeSumUp(uiType);
     const caption = split.locator("[data-pl-caption]");
-    await expect(caption).toHaveText(/unrealized: .+realized: .+/);
+    await expect(caption).toHaveText(/unreal\.: .+real\.: .+/);
     await expect(caption.locator("[data-signed]")).toHaveCount(2);
   },
 );
@@ -2221,8 +2222,12 @@ Then(
   async ({ page }) => {
     await page.goto(page.url());
     await startNewTxSell(page, "broker");
+    // Only the asset field itself (the Sell form below has its own fields).
     await expect(
-      page.getByTestId("new-tx-sheet").getByTestId("asset-name-hint"),
+      page
+        .getByTestId("new-tx-asset")
+        .locator("xpath=..")
+        .getByTestId("asset-name-hint"),
     ).toHaveCount(0);
   },
 );

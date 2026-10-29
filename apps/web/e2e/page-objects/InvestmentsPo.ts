@@ -69,11 +69,17 @@ export class InvestmentsPo {
     // Round 3: Radix type list; the picked asset's form renders inside.
     await this.page.getByTestId("new-tx-type").click();
     await this.page.getByTestId(`new-tx-type-option-${type}`).click();
-    await this.page.getByTestId("new-tx-asset").click();
-    await this.page
-      .getByRole("listbox")
-      .getByRole("option", { name, exact: true })
-      .click();
+    // Round 4: a type's only asset is picked at once — pick by hand otherwise.
+    const asset = this.page.getByTestId("new-tx-asset");
+    await asset.waitFor({ state: "visible" });
+    await this.page.waitForTimeout(200);
+    if ((await asset.inputValue()) !== name) {
+      await asset.click();
+      await this.page
+        .getByRole("listbox")
+        .getByRole("option", { name, exact: true })
+        .click();
+    }
     await expect(
       this.page
         .getByTestId("new-tx-sheet")

@@ -45,10 +45,10 @@ vi.mock("next-intl", () => ({
         "row.deleteAria": "Archive {name}",
         "sell.action": "Sell",
         "uitype.cash": "Cash",
-        "row.qty": "Qty: {qty}",
-        "row.started": "Started: {amount}",
+        "row.qty": "qty: {qty}",
+        "row.started": "started: {amount}",
         "row.share": "Share: {pct}",
-        "typeGroup.stats.avgPrice": "Avg price {price}",
+        "typeGroup.stats.avgPrice": "avg price: {price}",
         "asset.swipe.swap": "Swap",
         "asset.swipe.edit": "Edit",
         rowExpandAria: "Expand {name}",
@@ -64,6 +64,11 @@ vi.mock("next-intl", () => ({
     },
   useLocale: () => "en",
 }));
+
+/** The mobile-expanded caption line (avg price · qty · started). */
+const captionEl = () =>
+  document.querySelector<HTMLElement>("[data-asset-caption]")!;
+const captionText = () => captionEl()?.textContent ?? "";
 
 function holding(over: Partial<HoldingDto> = {}): HoldingDto {
   return {
@@ -128,8 +133,8 @@ describe("InvestmentRow", () => {
       />,
     );
     fireEvent.click(screen.getByLabelText("Expand Emergency fund"));
-    expect(screen.getByText("Started: 10,000")).toBeInTheDocument();
-    expect(screen.queryByText(/^Qty:/)).toBeNull();
+    expect(captionText()).toContain("started: 10,000");
+    expect(captionText()).not.toMatch(/qty:/);
     // %change renders in both the desktop cluster and the mobile-expanded line.
     expect(screen.getAllByText("+25.0%").length).toBeGreaterThan(0);
   });
@@ -488,6 +493,20 @@ describe("InvestmentRow", () => {
     );
   });
 
+  // Round-4 gap 16: "avg price: X qty: Y" — labels muted, values grey like
+  // the header's "+0".
+  it("caption labels its values and greys them like the header's zero", () => {
+    render(<InvestmentRow holding={holding()} />);
+    fireEvent.click(screen.getByLabelText("Expand AAPL"));
+    expect(captionText()).toMatch(/^avg price: 300\s*qty: 10$/);
+    const values = captionEl().querySelectorAll<HTMLElement>(
+      "[data-caption-value]",
+    );
+    expect(values).toHaveLength(2);
+    for (const v of values)
+      expect(v.getAttribute("style")).toContain("var(--muted-strong)");
+  });
+
   it("the asset row carries no type icon", () => {
     render(<InvestmentRow holding={holding()} />);
     expect(document.querySelector("[data-type-icon]")).toBeNull();
@@ -562,7 +581,7 @@ describe("InvestmentRow", () => {
 
   // 260626: mobile-expanded third row shows Qty before Share for holdings with a
   // real quantity (tracked/metals); cash/broker (qty 1) omit it.
-  it("mobile expand shows 'Qty: <n>' before Share for a metals holding", () => {
+  it("mobile expand shows 'qty: <n>' before Share for a metals holding", () => {
     render(
       <InvestmentRow
         holding={holding({
@@ -580,7 +599,7 @@ describe("InvestmentRow", () => {
     );
     fireEvent.click(screen.getByLabelText("Expand Bullion"));
     // trailing zeros trimmed for display.
-    expect(screen.getByText("Qty: 0.9856328")).toBeInTheDocument();
+    expect(captionText()).toContain("qty: 0.9856328");
     expect(screen.getByText("Share: 100%")).toBeInTheDocument();
   });
 
@@ -597,7 +616,7 @@ describe("InvestmentRow", () => {
       />,
     );
     fireEvent.click(screen.getByLabelText("Expand USD Cash"));
-    expect(screen.queryByText(/^Qty:/)).toBeNull();
+    expect(captionText()).not.toMatch(/qty:/);
     expect(screen.getByText("Share: 5%")).toBeInTheDocument();
   });
 
@@ -656,10 +675,8 @@ describe("InvestmentRow", () => {
     render(<InvestmentRow holding={holding()} />);
     fireEvent.click(screen.getByLabelText("Expand AAPL"));
     // The caption span carries the size and the header caption's font (round 4).
-    expect(screen.getByText("Avg price 300").parentElement!.className).toMatch(
-      /(^|\s)num(\s|$)/,
-    );
-    const stats = screen.getByText("Avg price 300").parentElement!;
+    expect(captionEl().className).toMatch(/(^|\s)num(\s|$)/);
+    const stats = captionEl();
     expect(stats.style.fontSize).toBe("11px");
   });
 
@@ -681,7 +698,7 @@ describe("InvestmentRow", () => {
     fireEvent.click(screen.getByLabelText("Expand AAPL"));
     const share = screen.getByTestId("asset-share-h1");
     expect(share).toHaveTextContent(/^Share: /);
-    const caption = screen.getByText("Avg price 300").parentElement!;
+    const caption = captionEl();
     expect(caption.contains(share)).toBe(false);
     expect(caption.textContent).not.toMatch(/Share/);
     // Same bottom line, pushed to the right column.
@@ -694,7 +711,7 @@ describe("InvestmentRow", () => {
   it("expanded caption shows the average buy price (D-29)", () => {
     render(<InvestmentRow holding={holding()} />);
     fireEvent.click(screen.getByLabelText("Expand AAPL"));
-    expect(screen.getByText("Avg price 300")).toBeInTheDocument();
+    expect(captionText()).toContain("avg price: 300");
   });
 
   it("expanded caption has no average price for an amount asset", () => {
@@ -710,7 +727,7 @@ describe("InvestmentRow", () => {
       />,
     );
     fireEvent.click(screen.getByLabelText("Expand Pot"));
-    expect(screen.queryByText(/Avg price/)).toBeNull();
+    expect(captionText()).not.toMatch(/avg price/);
   });
 
   it("dims a delisted holding's content but keeps the drag handle full opacity", () => {
