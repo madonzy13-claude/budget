@@ -115,9 +115,11 @@ export function InvestmentTypeHeader({
         </span>
         <span
           className={`num text-right ${split ? "text-num-sm" : "text-num-md"}`}
+          // Revealed: currency hugs the amount like the asset row (round-4
+          // gap 12 — the column width pushed "PLN" under the P/L line).
           style={{
             color: "var(--body-on-dark)",
-            minWidth: `${(maxAmountChars ?? 4) + 1}ch`,
+            minWidth: split ? undefined : `${(maxAmountChars ?? 4) + 1}ch`,
           }}
         >
           {money(pl.valueBudgetCents)}
@@ -222,7 +224,9 @@ export function InvestmentTypeHeader({
             {/* Inline size: tailwind-merge cannot drop it (same as the asset row). */}
             <span
               data-pl-caption
-              className="num flex min-w-0 flex-wrap gap-x-2 tabular-nums"
+              // One line, never wraps (user: "realized jumped on next row") —
+              // short labels; a too-long line clips rather than growing the card.
+              className="num flex min-w-0 gap-x-2 overflow-hidden whitespace-nowrap tabular-nums"
               style={{
                 color: "var(--muted-foreground)",
                 fontSize: "11px",
@@ -268,7 +272,7 @@ export function InvestmentTypeHeader({
               lineHeight: 1.4,
             }}
           >
-            {t("row.share", { pct: `${portfolioPct.toFixed(1)}%` })}
+            {t("row.share", { pct: `${Number(portfolioPct.toFixed(1))}%` })}
           </span>
         )}
       </div>

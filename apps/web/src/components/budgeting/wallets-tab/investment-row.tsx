@@ -96,7 +96,8 @@ export function InvestmentRow({
 
   const currency = holding.currentPriceCurrency ?? holding.buyCurrency ?? "";
   const value = centsToBare(holding.valueCents, locale);
-  const weight = `${holding.weightPct.toFixed(1)}%`;
+  // Round 4: "40%", not "40.0%"; "12.5%" keeps its decimal.
+  const weight = `${Number(holding.weightPct.toFixed(1))}%`;
   const pct = holding.profitLossPct;
   const delisted = holding.isDelisted;
 
