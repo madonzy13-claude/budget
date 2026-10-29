@@ -177,8 +177,10 @@ export function SwapTransferTab({
           <NumericInput
             testId="swap-transfer-qty"
             value={move}
-            onChange={setMove}
-            readOnly={all}
+            onChange={(v) => {
+              setMove(v);
+              setAll(false);
+            }}
           />
           <p className={caption} style={{ color: "var(--muted-foreground)" }}>
             {t("sell.qtyHelper", {

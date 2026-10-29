@@ -1,8 +1,9 @@
 "use client";
 /**
  * swap-sell-tab.tsx — Swap → Sell (13.1 D-09, D-20..D-23, D-31; Phase 13 UAT
- * tests 4–5). How much is left → where the money went → destination detail →
- * amount received + currency on ONE line → date.
+ * tests 4–5). How much was sold (round 2: the client converts it to the
+ * server's `left`; Sell everything only fills the field) → where the money
+ * went → destination detail → amount received + currency on ONE line → date.
  *
  *   New / Existing   a linked leg in the destination asset. A quantity
  *                    destination is quantity × price (13.1 UAT 10): the price
@@ -18,8 +19,8 @@
  *
  * Preview mirrors the server booking with display-only Number math:
  *   quantity: sold cost = buy × sold qty
- *   amount:   kept cost = buy × left ÷ value
- *   deposit:  sold cost = principal − left (all interest realized)
+ *   amount:   kept cost = buy × kept ÷ value
+ *   deposit:  sold cost = principal − kept (all interest realized)
  */
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -27,6 +28,15 @@ import { toast } from "sonner";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { centsToBare } from "@/lib/cents-format";
@@ -153,6 +163,11 @@ function RadioCards<K extends string>({
   );
 }
 
+// Round-2 gap 7: an in-DOM list that flips above a low trigger and gets the
+// screen, never a 2-row native sliver.
+const LIST =
+  "max-h-[min(60dvh,var(--radix-select-content-available-height))] w-[var(--radix-select-trigger-width)]";
+
 const selectStyle = {
   background: "var(--surface-card-dark)",
   borderColor: "var(--hairline-dark)",
@@ -182,7 +197,7 @@ export function SwapSellTab({
   const buyCents = Number(holding.buyPriceCents ?? 0);
   const srcCcy = ccyOf(holding, budgetCurrency);
 
-  const [left, setLeft] = useState("");
+  const [sold, setSold] = useState("");
   const [sellAll, setSellAll] = useState(false);
   const [dest, setDest] = useState<Dest>("new");
   const [newHolding, setNewHolding] = useState<DestinationHolding | null>(null);
@@ -233,36 +248,44 @@ export function SwapSellTab({
   }, [srcCcy, receivedCcy]);
 
   const calc = useMemo(() => {
-    if (left.trim() === "") return null;
-    const l = num(left);
-    if (!Number.isFinite(l) || l < 0) return { tooHigh: true } as const;
+    if (sold.trim() === "") return null;
+    const x = num(sold);
+    if (!Number.isFinite(x) || x <= 0) return { invalid: true } as const;
     if (shape === "quantity") {
-      if (l >= held) return { tooHigh: true } as const;
+      // 1e8-scaled integers: 0.3 − 0.1 is 0.2, not 0.19999999999999998.
+      const leftE8 = Math.round(held * 1e8) - Math.round(x * 1e8);
+      if (leftE8 < 0) return { invalid: true } as const;
+      const leftQty = leftE8 / 1e8;
       const unit = held > 0 ? valueCents / held : 0;
       return {
-        tooHigh: false,
-        soldValue: (held - l) * unit,
-        soldCost: buyCents * (held - l),
-        rowValue: l * unit,
+        invalid: false,
+        leftQty,
+        keep: 0,
+        soldValue: x * unit,
+        soldCost: buyCents * x,
+        rowValue: leftQty * unit,
       } as const;
     }
-    const keep = l * 100;
-    if (keep >= valueCents) return { tooHigh: true } as const;
+    const soldCents = Math.round(x * 100);
+    if (soldCents > Math.round(valueCents)) return { invalid: true } as const;
+    const keep = sellAll ? 0 : Math.max(0, valueCents - soldCents);
     const soldCost =
       shape === "deposit"
         ? buyCents - keep
         : buyCents - (valueCents > 0 ? (buyCents * keep) / valueCents : 0);
     return {
-      tooHigh: false,
+      invalid: false,
+      leftQty: 0,
+      keep,
       soldValue: valueCents - keep,
       soldCost,
       rowValue: keep,
     } as const;
-  }, [left, shape, held, valueCents, buyCents]);
+  }, [sold, sellAll, shape, held, valueCents, buyCents]);
 
   // Prefill "Amount received" with today's value of the sold part, converted.
   useEffect(() => {
-    if (receivedTouched || !calc || calc.tooHigh) return;
+    if (receivedTouched || !calc || calc.invalid) return;
     setReceived(String(Math.round(calc.soldValue * rate) / 100));
   }, [calc, rate, receivedTouched]);
 
@@ -286,7 +309,7 @@ export function SwapSellTab({
   const price = num(priceText);
   // Quantity follows sold value ÷ price until the user types it.
   const soldInReceived =
-    calc && !calc.tooHigh ? (calc.soldValue * rate) / 100 : 0;
+    calc && !calc.invalid ? (calc.soldValue * rate) / 100 : 0;
   const qtyText = qtyTouched
     ? destQty
     : price > 0 && soldInReceived > 0
@@ -300,7 +323,7 @@ export function SwapSellTab({
       ? Math.round(qty * price * 100)
       : 0
     : toCents(received || "0");
-  const soldPart = calc && !calc.tooHigh ? calc.soldCost : null;
+  const soldPart = calc && !calc.invalid ? calc.soldCost : null;
   const realized =
     soldPart === null || !(rate > 0) ? null : receivedCents / rate - soldPart;
 
@@ -315,7 +338,7 @@ export function SwapSellTab({
         : newHolding !== null && (!newIsQty || (qty > 0 && price > 0));
   const valid =
     !!calc &&
-    !calc.tooHigh &&
+    !calc.invalid &&
     receivedCents > 0 &&
     destOk &&
     dateOk(date, minDate);
@@ -329,7 +352,7 @@ export function SwapSellTab({
           ? (wallet?.name ?? "")
           : walletName.trim();
   const summary =
-    !valid || !calc || calc.tooHigh
+    !valid || !calc || calc.invalid
       ? buildSwapSummary(null)
       : buildSwapSummary({
           tab: "sell",
@@ -377,9 +400,12 @@ export function SwapSellTab({
     if (!valid) return;
     setServerError(null);
     const leftBody =
-      shape === "quantity"
-        ? { quantity: qtyString(num(left)) }
-        : { valueCents: String(toCents(left)) };
+      calc && !calc.invalid
+        ? shape === "quantity"
+          ? { quantity: qtyString(calc.leftQty) }
+          : { valueCents: String(Math.round(calc.keep)) }
+        : null;
+    if (!leftBody) return;
     const walletBody: WalletTarget =
       walletKind === "existing"
         ? { kind: "existing", walletId }
@@ -505,11 +531,11 @@ export function SwapSellTab({
   return (
     <>
       <div className="space-y-6">
-        {/* 1. How much is left? */}
+        {/* 1. How much was sold? */}
         <section className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className={heading} style={{ color: "var(--body-on-dark)" }}>
-              {t("swap.sell.left")}
+              {t("swap.sell.sold")}
             </h3>
             <Button
               type="button"
@@ -521,7 +547,13 @@ export function SwapSellTab({
               onClick={() => {
                 const next = !sellAll;
                 setSellAll(next);
-                setLeft(next ? "0" : "");
+                setSold(
+                  next
+                    ? shape === "quantity"
+                      ? trimQty(holding.quantity)
+                      : String(valueCents / 100)
+                    : "",
+                );
               }}
             >
               {sellAll && <Check className="h-4 w-4" aria-hidden="true" />}
@@ -530,14 +562,16 @@ export function SwapSellTab({
           </div>
           <Field
             label={
-              shape === "quantity" ? t("sell.qtyLeft") : t("sell.valueLeft")
+              shape === "quantity" ? t("sell.qtySold") : t("sell.valueSold")
             }
           >
             <NumericInput
-              testId="swap-sell-left"
-              value={left}
-              onChange={setLeft}
-              readOnly={sellAll}
+              testId="swap-sell-sold"
+              value={sold}
+              onChange={(v) => {
+                setSold(v);
+                setSellAll(false);
+              }}
             />
           </Field>
           <p className={caption} style={{ color: "var(--muted-foreground)" }}>
@@ -547,7 +581,7 @@ export function SwapSellTab({
                   value: `${money(valueCents)} ${srcCcy}`,
                 })}
           </p>
-          {calc?.tooHigh && <ErrorLine>{t("swap.err.leftTooHigh")}</ErrorLine>}
+          {calc?.invalid && <ErrorLine>{t("swap.err.soldRange")}</ErrorLine>}
         </section>
 
         {/* 2. Where did the money go? */}
@@ -582,27 +616,34 @@ export function SwapSellTab({
           )}
           {dest === "existing" && (
             <>
-              <select
-                data-testid="swap-sell-existing"
-                aria-label={t("swap.sell.dest.existing")}
-                value={existingId}
-                onChange={(e) => setExistingId(e.target.value)}
-                className="min-h-11 w-full rounded-[var(--radius-md)] border px-3 text-[14px]"
-                style={selectStyle}
+              <Select
+                value={existingId || undefined}
+                onValueChange={setExistingId}
               >
-                <option value="" disabled>
-                  {t("swap.sell.dest.existingDesc")}
-                </option>
-                {[...byType].map(([ui, hs]) => (
-                  <optgroup key={ui} label={t(`uitype.${ui}`)}>
-                    {hs.map((h) => (
-                      <option key={h.id} value={h.id}>
-                        {h.name} · {ccyOf(h, budgetCurrency)}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+                <SelectTrigger
+                  data-testid="swap-sell-existing"
+                  aria-label={t("swap.sell.dest.existing")}
+                  className="min-h-11 w-full"
+                >
+                  <SelectValue placeholder={t("swap.sell.dest.existingDesc")} />
+                </SelectTrigger>
+                <SelectContent position="popper" className={LIST}>
+                  {[...byType].map(([ui, hs]) => (
+                    <SelectGroup key={ui}>
+                      <SelectLabel>{t(`uitype.${ui}`)}</SelectLabel>
+                      {hs.map((h) => (
+                        <SelectItem
+                          key={h.id}
+                          value={h.id}
+                          data-testid={`swap-sell-existing-option-${h.id}`}
+                        >
+                          {h.name} · {ccyOf(h, budgetCurrency)}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
+              </Select>
               {existingIsQty && destPair(true)}
             </>
           )}
@@ -629,31 +670,38 @@ export function SwapSellTab({
                 }))}
               />
               {walletKind === "existing" && (
-                <select
-                  data-testid="swap-wallet-select"
-                  aria-label={t("swap.sell.wallet.existing")}
-                  value={walletId}
-                  onChange={(e) => {
-                    setWalletId(e.target.value);
+                <Select
+                  value={walletId || undefined}
+                  onValueChange={(v) => {
+                    setWalletId(v);
                     setReceivedTouched(false);
                   }}
-                  className="min-h-11 w-full rounded-[var(--radius-md)] border px-3 text-[14px]"
-                  style={selectStyle}
                 >
-                  <option value="" disabled>
-                    {t("swap.sell.wallet.existing")}
-                  </option>
-                  {walletsByType.map(([wt, ws]) => (
-                    <optgroup key={wt} label={tw(wt.toLowerCase())}>
-                      {ws.map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.name} · {centsToBare(w.currentBalanceCents)}{" "}
-                          {w.currency}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
+                  <SelectTrigger
+                    data-testid="swap-wallet-select"
+                    aria-label={t("swap.sell.wallet.existing")}
+                    className="min-h-11 w-full"
+                  >
+                    <SelectValue placeholder={t("swap.sell.wallet.existing")} />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className={LIST}>
+                    {walletsByType.map(([wt, ws]) => (
+                      <SelectGroup key={wt}>
+                        <SelectLabel>{tw(wt.toLowerCase())}</SelectLabel>
+                        {ws.map((w) => (
+                          <SelectItem
+                            key={w.id}
+                            value={w.id}
+                            data-testid={`swap-wallet-option-${w.id}`}
+                          >
+                            {w.name} · {centsToBare(w.currentBalanceCents)}{" "}
+                            {w.currency}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
               {walletKind === "new" && (
                 <div className="space-y-2">
