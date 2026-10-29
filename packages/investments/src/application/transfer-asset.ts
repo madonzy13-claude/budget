@@ -103,18 +103,15 @@ export function transferAsset(deps: {
         heldQty: held,
         moveQty: moved,
       });
-      const emptied = big(t.qtyLeft).eq(0);
-
+      // Round 4 (user): an emptied source stays listed; archive is explicit.
       const patches: HoldingPatch[] = [];
-      const archive = emptied ? { archive: true } : {};
       patches.push(
         byQty
-          ? { id: src.id, quantity: t.qtyLeft, ...archive }
+          ? { id: src.id, quantity: t.qtyLeft }
           : {
               id: src.id,
               buyPriceCents: totalCost - t.costMovedCents,
               currentPriceCents: srcValue - BigInt(moved),
-              ...archive,
             },
       );
 

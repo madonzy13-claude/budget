@@ -100,7 +100,7 @@ describe("Row actions", () => {
     const { container } = renderRow({ onSwipeOffset });
     const row = container.querySelector("[data-investment-row-wrapper]")!;
     touchSwipe(row, -200);
-    expect(onSwipeOffset).toHaveBeenLastCalledWith("h1", -136, false);
+    expect(onSwipeOffset).toHaveBeenLastCalledWith("h1", -204, false);
     touchSwipe(row, 200);
     expect(onSwipeOffset).toHaveBeenLastCalledWith("h1", 0, false);
   });

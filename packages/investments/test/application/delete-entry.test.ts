@@ -295,7 +295,8 @@ describe("Delete the newest entry", () => {
     expect(w.holdings.has("btc")).toBe(false);
   });
 
-  test("undoing back to quantity 0 hides; undoing a sell-out revives", async () => {
+  // Round 4 (user): quantity 0 stays listed (archive is explicit).
+  test("undoing back to quantity 0 keeps the asset listed", async () => {
     const { w, del, sell, buy, start } = world(btc);
     await start("btc", "2026-09-01", { qtyDelta: "4" });
     await sell({
@@ -307,7 +308,7 @@ describe("Delete the newest entry", () => {
       receivedCents: "3000",
       receivedCurrency: "PLN",
     });
-    expect(w.get("btc").archivedAt).not.toBeNull();
+    expect(w.get("btc").archivedAt).toBeNull();
     await buy({
       ...who,
       holdingId: "btc",
@@ -320,7 +321,7 @@ describe("Delete the newest entry", () => {
     expect(w.get("btc").archivedAt).toBeNull();
     await del({ ...who, entryId: newest(w, "btc") });
     expect(w.get("btc").quantity).toBe("0");
-    expect(w.get("btc").archivedAt).not.toBeNull();
+    expect(w.get("btc").archivedAt).toBeNull();
     await del({ ...who, entryId: newest(w, "btc") });
     expect(w.get("btc").quantity).toBe("4");
     expect(w.get("btc").archivedAt).toBeNull();

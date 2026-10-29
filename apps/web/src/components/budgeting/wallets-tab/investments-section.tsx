@@ -67,6 +67,17 @@ import {
 } from "@/lib/investment-type-groups";
 import { InvestmentRowSheet } from "./investment-row-sheet";
 import { AssetLedger } from "./asset-ledger";
+import { useArchiveHolding } from "@/hooks/use-archive-holding";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { SlideCollapse } from "@/components/common/slide-collapse";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { sharePercentLabel } from "@/lib/share-bar";
@@ -174,8 +185,9 @@ export function InvestmentsSection({
     // Possessions share the holdings endpoint but render in their own section.
     () =>
       (investmentsQuery.data ?? []).filter(
-        // D-17: a sold-out asset (quantity 0) is hidden; its ledger stays.
-        (h) => h.holdingType !== "possession" && Number(h.quantity) !== 0,
+        // Round 4 (user): a sold-out asset stays listed; only an explicit
+        // Archive hides it (archived rows never reach this list).
+        (h) => h.holdingType !== "possession",
       ),
     [investmentsQuery.data],
   );
@@ -248,6 +260,9 @@ export function InvestmentsSection({
   // 13.1 UAT 7: "New transaction" picks Buy / Sell / Transfer first.
   const [choosing, setChoosing] = useState(false);
   const [editing, setEditing] = useState<HoldingDto | null>(null);
+  // Round 4: Archive asks first; history stays, a buy / sell / move revives.
+  const [archiving, setArchiving] = useState<HoldingDto | null>(null);
+  const archiveMut = useArchiveHolding(budgetId);
 
   /**
    * 260731: inline value edit on a manual-value row (cash / broker / savings —
@@ -560,6 +575,7 @@ export function InvestmentsSection({
                               }
                               onEdit={openEdit}
                               onSwap={setSwapping}
+                              onArchive={setArchiving}
                               onValueChange={(amount) =>
                                 saveInlineValue(h, amount)
                               }
@@ -634,6 +650,33 @@ export function InvestmentsSection({
           holding={editing}
         />
       )}
+      <AlertDialog
+        open={archiving !== null}
+        onOpenChange={(o) => !o && setArchiving(null)}
+      >
+        <AlertDialogContent onCloseAutoFocus={(e) => e.preventDefault()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("asset.archive.title", { name: archiving?.name ?? "" })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("asset.archive.body")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("asset.archive.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="investment-archive-confirm"
+              onClick={() => {
+                if (archiving) archiveMut.mutate(archiving.id);
+                setArchiving(null);
+              }}
+            >
+              {t("asset.archive.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

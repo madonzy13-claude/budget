@@ -140,7 +140,9 @@ export function sellHolding(deps: {
       const buyCcy = ccyOf(src);
       const shape = holdingShape(src);
       const patches: HoldingPatch[] = [];
-      let archived = false;
+      // Round 4 (user, 2026-10-29): a sold-out asset stays listed — archiving
+      // is an explicit action (POST /:id/archive), no longer a side effect.
+      const archived = false;
       let soldCost: bigint;
       let srcEntry: Partial<NewHistoryEntry>;
 
@@ -154,11 +156,9 @@ export function sellHolding(deps: {
           sellQuantity: sellQty.toFixed(8),
         });
         soldCost = r.soldCostCents;
-        archived = big(r.newQuantity).eq(0);
         patches.push({
           id: src.id,
           quantity: r.newQuantity,
-          ...(archived ? { archive: true } : {}),
         });
         srcEntry = {
           qtyDelta: `-${sellQty.toFixed(8).replace(/\.?0+$/, "")}`,
@@ -169,7 +169,6 @@ export function sellHolding(deps: {
           return err(fail("left_shape_mismatch"));
         const keep = BigInt(String(input.left.valueCents));
         const value = await valueOf(src);
-        archived = keep === 0n;
         if (shape === "deposit") {
           const principal = src.buyPriceCents ?? 0n;
           const r = sellDepositPart({
@@ -182,8 +181,7 @@ export function sellHolding(deps: {
             id: src.id,
             buyPriceCents: r.newPrincipalCents,
             depositStartDate: date,
-            ...(archived ? { archive: true } : {}),
-          });
+            });
           srcEntry = {
             costDeltaCents: -soldCost,
             priorPrincipalCents: principal,
@@ -200,8 +198,7 @@ export function sellHolding(deps: {
             id: src.id,
             buyPriceCents: r.keptCostCents,
             currentPriceCents: keep,
-            ...(archived ? { archive: true } : {}),
-          });
+            });
           srcEntry = {
             costDeltaCents: -soldCost,
             valueDeltaCents: keep - value,

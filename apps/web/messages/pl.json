@@ -775,10 +775,19 @@
         "name": {
           "label": "Nazwa",
           "create": "Dodaj jako nowe aktywo „{name}”",
-          "closed": "Zamknięte",
+          "closed": "Zarchiwizowane",
           "reopens": "Ponownie otworzy {name}.",
           "taken": "Ten typ ma już aktywo o takiej nazwie.",
           "pickOrCreate": "Wybierz istniejące aktywo lub wpisz nową nazwę."
+        },
+        "archive": {
+          "title": "Zarchiwizować {name}?",
+          "body": "Zniknie z listy, historia zostaje. Zakup, sprzedaż lub przeniesienie do niego przywróci je.",
+          "confirm": "Archiwizuj",
+          "cancel": "Zostaw",
+          "aria": "Archiwizuj {name}",
+          "done": "Aktywo zarchiwizowane",
+          "failed": "Nie udało się zarchiwizować aktywa."
         }
       },
       "swap": {

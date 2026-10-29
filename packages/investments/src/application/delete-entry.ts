@@ -78,8 +78,8 @@ function undoLeg(
     if (total.lt(0)) throw new RangeError("would_go_negative");
     patch.quantity = qty(after);
     if (after.gt(0)) patch.buyPriceCents = cents(total.div(after));
-    if (after.eq(0)) patch.archive = true;
-    else if (h.archivedAt) patch.unarchive = true;
+    // Round 4 (user): back to 0 stays listed — archive is explicit now.
+    if (after.gt(0) && h.archivedAt) patch.unarchive = true;
     return { wipe: false, patch, restorePrice };
   }
 
@@ -100,8 +100,7 @@ function undoLeg(
     big(value).eq(0) &&
     buy === 0n &&
     h.holdingType !== "deposit";
-  if (empty) patch.archive = true;
-  else if (h.archivedAt) patch.unarchive = true;
+  if (!empty && h.archivedAt) patch.unarchive = true;
   return { wipe: false, patch, restorePrice };
 }
 

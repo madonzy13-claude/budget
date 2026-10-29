@@ -21,7 +21,13 @@
 import { FitLine } from "@/components/common/fit-line";
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { ArrowRightLeft, Pencil, TrendingUp, TrendingDown } from "lucide-react";
+import {
+  Archive,
+  ArrowRightLeft,
+  Pencil,
+  TrendingUp,
+  TrendingDown,
+} from "lucide-react";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { Input } from "@/components/ui/input";
 import { centsToBare } from "@/lib/cents-format";
@@ -44,6 +50,8 @@ interface InvestmentRowProps {
   onEdit?: () => void;
   /** 13.1 D-05: open the Swap sheet (Buy / Sell / Transfer). */
   onSwap?: () => void;
+  /** Round 4: archive (the section asks first). */
+  onArchive?: () => void;
   /** 13.1 D-27: the row opened/closed — the section shows/hides its ledger. */
   onToggle?: (id: string, open: boolean) => void;
   /** Open state owned by the section (persisted per device); seeds local state. */
@@ -73,6 +81,7 @@ export function InvestmentRow({
   maxAmountChars,
   onEdit,
   onSwap,
+  onArchive,
   onToggle,
   open,
   onValueChange,
@@ -485,7 +494,7 @@ export function InvestmentRow({
           when delisted; the handle (left) stays full opacity. */}
       <div
         className={[
-          "hidden w-[60px] shrink-0 items-center justify-end gap-1 sm:flex",
+          "hidden w-[92px] shrink-0 items-center justify-end gap-1 sm:flex",
           delisted ? "opacity-50" : "",
         ]
           .filter(Boolean)
@@ -495,6 +504,7 @@ export function InvestmentRow({
           [
             [onSwap, ArrowRightLeft, "asset.swipe.swap", "swap"],
             [onEdit, Pencil, "asset.swipe.edit", "edit"],
+            [onArchive, Archive, "asset.archive.confirm", "archive"],
           ] as const
         ).map(([fn, Icon, key, id]) =>
           fn ? (

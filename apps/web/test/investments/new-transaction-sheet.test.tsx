@@ -168,7 +168,7 @@ describe("New transaction", () => {
     fireEvent.focus(field);
     const names = within(screen.getByRole("listbox"))
       .getAllByRole("option")
-      .map((o) => o.textContent);
+      .map((o) => o.querySelector("span")?.textContent);
     expect(names).toEqual(["BTC", "BTC Cold"]); // hidden "Old coin" left out
     type("new-tx-asset", "Brand new");
     expect(screen.queryByTestId("asset-name-create")).toBeNull();

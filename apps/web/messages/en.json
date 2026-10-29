@@ -775,10 +775,19 @@
         "name": {
           "label": "Name",
           "create": "Add as new asset \"{name}\"",
-          "closed": "Closed",
+          "closed": "Archived",
           "reopens": "This reopens {name}.",
           "taken": "This type already has an asset with that name.",
           "pickOrCreate": "Pick an existing asset or type a new name."
+        },
+        "archive": {
+          "title": "Archive {name}?",
+          "body": "It leaves the list; its history stays. Buying, selling or moving into it brings it back.",
+          "confirm": "Archive",
+          "cancel": "Keep",
+          "aria": "Archive {name}",
+          "done": "Asset archived",
+          "failed": "Could not archive the asset."
         }
       },
       "swap": {

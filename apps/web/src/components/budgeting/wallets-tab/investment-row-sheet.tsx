@@ -15,7 +15,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowRightLeft, Pencil } from "lucide-react";
+import { Archive, ArrowRightLeft, Pencil } from "lucide-react";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { useSwipeReveal } from "@/hooks/use-swipe-reveal";
 import type { HoldingDto } from "@/hooks/use-investments";
@@ -33,6 +33,8 @@ interface InvestmentRowSheetProps {
   onEdit: (holding: HoldingDto) => void;
   /** 13.1: open the Swap sheet (Buy / Sell / Transfer) for this asset. */
   onSwap?: (holding: HoldingDto) => void;
+  /** Round 4: archive the asset (asks first; history stays). */
+  onArchive?: (holding: HoldingDto) => void;
   /** The row opened/closed (the section renders the L3 ledger). */
   onToggle?: (id: string, open: boolean) => void;
   open?: boolean;
@@ -42,8 +44,8 @@ interface InvestmentRowSheetProps {
   onValueChange?: (amount: string) => Promise<void> | void;
 }
 
-// Two 56px buttons (Swap · Edit) + the 12px gap between them + a 12px lead gap.
-const ACTION_W = 136;
+// Three 56px buttons (Swap · Edit · Archive) + two 12px gaps + a 12px lead gap.
+const ACTION_W = 204;
 
 export function InvestmentRowSheet({
   holding,
@@ -52,6 +54,7 @@ export function InvestmentRowSheet({
   maxAmountChars,
   onEdit,
   onSwap,
+  onArchive,
   onToggle,
   open,
   onSwipeOffset,
@@ -163,6 +166,20 @@ export function InvestmentRowSheet({
         >
           <Pencil className="h-5 w-5" aria-hidden="true" />
         </button>
+        <button
+          type="button"
+          data-no-swipe
+          data-testid={`investment-archive-${holding.id}`}
+          aria-label={t("asset.archive.aria", { name: holding.name })}
+          tabIndex={offset === 0 ? -1 : 0}
+          onClick={() => {
+            closeSwipe();
+            onArchive?.(holding);
+          }}
+          className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
+        >
+          <Archive className="h-5 w-5" aria-hidden="true" />
+        </button>
       </div>
 
       <div
@@ -190,6 +207,7 @@ export function InvestmentRowSheet({
           }
           onEdit={() => onEdit(holding)}
           onSwap={onSwap ? () => onSwap(holding) : undefined}
+          onArchive={onArchive ? () => onArchive(holding) : undefined}
           onToggle={onToggle}
           open={open}
           onValueChange={onValueChange}

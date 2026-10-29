@@ -49,16 +49,10 @@ interface Props {
   include?: (a: AssetNameDto) => boolean;
 }
 
-/** "1.5 · 90,200 PLN": quantity unless it is a single unit, then the value. */
+/** "90,200 PLN" — the value in the asset's own currency; no price → 0
+ *  (round 4: no quantity — the user reads assets by what they are worth). */
 function meta(a: AssetNameDto): string {
-  const parts = [
-    a.quantity !== "1" ? a.quantity : null,
-    a.valueCents != null
-      ? `${centsToBare(a.valueCents)} ${a.valueCurrency ?? ""}`.trim()
-      : null,
-  ].filter(Boolean);
-  // A single unit with no price says nothing useful.
-  return a.quantity === "1" && a.valueCents == null ? "" : parts.join(" · ");
+  return `${centsToBare(a.valueCents ?? "0")} ${a.valueCurrency ?? ""}`.trim();
 }
 
 export function AssetNameCombobox({
@@ -179,7 +173,7 @@ export function AssetNameCombobox({
                 <>
                   <span className="min-w-0 break-words">{o.a.name}</span>
                   {/* Round 4: qty · value CCY, so similar names are told apart. */}
-                  {meta(o.a) && (
+                  {(
                     <span
                       data-asset-meta
                       className="ml-auto shrink-0 text-[12px] tabular-nums"
