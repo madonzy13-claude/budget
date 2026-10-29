@@ -106,6 +106,26 @@ describe("InvestmentTypeHeader", () => {
     expect(root.classList.contains("py-1.5")).toBe(false);
   });
 
+  // Round-4 gap 12 (cash too): tapped, the currency hugs the amount.
+  it("a tapped cash header drops the amount's column width", () => {
+    renderHeader({
+      uiType: "cash",
+      maxAmountChars: 12,
+      pl: pl({
+        pct: null,
+        unrealizedCents: 0,
+        realizedCents: 0,
+        totalPLCents: 0,
+      }),
+    });
+    const amount = () =>
+      screen.getByTestId("investment-type-value-cash")
+        .lastElementChild as HTMLElement;
+    expect(amount().style.minWidth).toBe("13ch");
+    fireEvent.click(screen.getByTestId("investment-group-toggle-cash"));
+    expect(amount().style.minWidth).toBe("");
+  });
+
   // Round-4 gaps 1 + 2.
   it("left and right are separate centred columns, closed and tapped; the type icon sits on the header", () => {
     renderHeader();
