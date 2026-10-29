@@ -231,8 +231,9 @@ describe("Type-block drag and drop (D-12)", () => {
   });
 });
 
-describe("Asset rows and ledger (13.1 D-17, D-27, D-28, D-30)", () => {
-  it("opening an asset remembers it per device and shows its ledger outside the sortable row", async () => {
+describe("Asset rows and ledger (13.1 D-17, D-28, D-30, R5-3)", () => {
+  // R5-3 overturns D-27's per-device memory: a remount starts closed.
+  it("opening an asset shows its ledger outside the sortable row; a remount starts closed", async () => {
     const { unmount } = mount();
     expect(
       document.querySelector('[data-testid="asset-ledger-s1"]'),
@@ -242,9 +243,7 @@ describe("Asset rows and ledger (13.1 D-17, D-27, D-28, D-30)", () => {
         document.querySelector('[data-testid="asset-row-s1"]') as HTMLElement
       ).click();
     });
-    expect(JSON.parse(localStorage.getItem("inv.assetOpen.v1")!)).toEqual([
-      "s1",
-    ]);
+    expect(localStorage.getItem("inv.assetOpen.v1")).toBeNull();
     const strip = document.querySelector('[data-testid="asset-ledger-s1"]');
     expect(strip).not.toBeNull();
     expect(strip!.closest("[data-investment-row-wrapper]")).toBeNull();
@@ -252,7 +251,7 @@ describe("Asset rows and ledger (13.1 D-17, D-27, D-28, D-30)", () => {
     mount();
     expect(
       document.querySelector('[data-testid="asset-ledger-s1"]'),
-    ).not.toBeNull();
+    ).toBeNull();
   });
 
   // Round 4 (user): a sold-out asset stays listed; archiving is explicit.

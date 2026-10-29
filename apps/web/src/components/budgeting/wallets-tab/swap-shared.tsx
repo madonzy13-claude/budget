@@ -10,6 +10,7 @@ import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { HoldingDto } from "@/hooks/use-investments";
+import { instrumentLabel } from "@/lib/instrument-label";
 import type { SwapSummary } from "@/lib/swap-summary";
 import { formatShortDate } from "@/lib/format-date";
 import { SwapSummaryCard } from "./swap-summary-card";
@@ -20,6 +21,29 @@ export const toCents = (s: string) => Math.round(num(s) * 100);
 export const today = () => new Date().toLocaleDateString("en-CA");
 export const trimQty = (q: string) =>
   q.includes(".") ? q.replace(/0+$/, "").replace(/\.$/, "") : q;
+/** R5-5: a held quantity with its unit — "1 BTC", "3 унції", or bare. */
+export const heldQty = (
+  t: (k: string, v: Record<string, string | number>) => string,
+  h: Pick<
+    HoldingDto,
+    | "quantity"
+    | "symbol"
+    | "unitOfMeasure"
+    | "instrumentName"
+    | "name"
+    | "holdingType"
+  >,
+) => {
+  const qty = trimQty(h.quantity);
+  if (h.unitOfMeasure)
+    return t(`heldUnit.${h.unitOfMeasure}`, { qty, n: Number(h.quantity) });
+  const { ticker } = instrumentLabel({
+    symbol: h.symbol,
+    name: h.instrumentName ?? h.name,
+    holdingType: h.holdingType,
+  });
+  return ticker ? `${qty} ${ticker}` : qty;
+};
 /** Plain decimal string for the API (no exponent, ≤ 8 dp). */
 export const qtyString = (n: number) => trimQty(n.toFixed(8));
 /** WR-04: fall back to the budget currency, never a hardcoded one. */

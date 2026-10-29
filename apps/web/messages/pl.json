@@ -871,7 +871,8 @@
           "nameRequired": "Wpisz nazwę.",
           "saveFailed": "Nie udało się zapisać. Sprawdź połączenie i spróbuj ponownie.",
           "staleEntry": "To aktywo się zmieniło. Odśwież i spróbuj ponownie.",
-          "soldRange": "Wpisz więcej niż 0 i nie więcej, niż posiadasz."
+          "soldRange": "Wpisz więcej niż 0 i nie więcej, niż posiadasz.",
+          "overHeld": "To więcej, niż posiadasz ({held})."
         }
       },
       "edit": {
@@ -932,6 +933,11 @@
           "interestNote": "Odsetki naliczone po nim zostaną przeliczone."
         },
         "openLinked": "Otwórz {name}"
+      },
+      "heldUnit": {
+        "g": "{n, plural, one {{qty} gram} few {{qty} gramy} many {{qty} gramów} other {{qty} grama}}",
+        "oz": "{n, plural, one {{qty} uncja} few {{qty} uncje} many {{qty} uncji} other {{qty} uncji}}",
+        "kg": "{n, plural, one {{qty} kilogram} few {{qty} kilogramy} many {{qty} kilogramów} other {{qty} kilograma}}"
       }
     },
     "cushionMode": {

@@ -637,9 +637,9 @@
         "tickerPlaceholder": "напр. AAPL"
       },
       "uitype": {
-        "crypto": "Крипто",
+        "crypto": "Криптовалюти",
         "treasury_bond": "Роздрібні казначейські облігації",
-        "collectibles": "Колекції",
+        "collectibles": "Цінності",
         "real_estate": "Нерухомість",
         "other": "Інше",
         "precious_metals": "Дорогоцінні метали",
@@ -676,7 +676,7 @@
         "equities": "Акції",
         "etf": "ETF",
         "bond": "Облігації",
-        "crypto": "Крипто",
+        "crypto": "Криптовалюти",
         "reit": "REIT",
         "commodity": "Сировина",
         "cash_fx": "Готівка",
@@ -871,7 +871,8 @@
           "nameRequired": "Вкажіть назву.",
           "saveFailed": "Не вдалося зберегти. Перевірте з'єднання і спробуйте ще раз.",
           "staleEntry": "Цей актив змінився. Оновіть і спробуйте ще раз.",
-          "soldRange": "Введіть більше ніж 0 і не більше, ніж у вас є."
+          "soldRange": "Введіть більше ніж 0 і не більше, ніж у вас є.",
+          "overHeld": "Це більше, ніж у вас є ({held})."
         }
       },
       "edit": {
@@ -888,11 +889,11 @@
         "kind": {
           "bought": "Купівля",
           "sold": "Продаж",
-          "transferIn": "Перенесення з",
-          "transferOut": "Перенесення до",
-          "convertedIn": "Обмін (надходження)",
-          "convertedOut": "Обмін (вибуття)",
-          "added": "Внесок",
+          "transferIn": "Надходження",
+          "transferOut": "Переказ",
+          "convertedIn": "Купівля",
+          "convertedOut": "Продаж",
+          "added": "Поповнення",
           "valueUpdated": "Оновлена вартість",
           "priceUpdated": "Оновлена ціна",
           "interest": "Відсотки"
@@ -932,6 +933,11 @@
           "interestNote": "Відсотки після нього буде перераховано."
         },
         "openLinked": "Відкрити {name}"
+      },
+      "heldUnit": {
+        "g": "{n, plural, one {{qty} грам} few {{qty} грами} many {{qty} грамів} other {{qty} грама}}",
+        "oz": "{n, plural, one {{qty} унція} few {{qty} унції} many {{qty} унцій} other {{qty} унції}}",
+        "kg": "{n, plural, one {{qty} кілограм} few {{qty} кілограми} many {{qty} кілограмів} other {{qty} кілограма}}"
       }
     },
     "cushionMode": {

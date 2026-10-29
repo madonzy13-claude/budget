@@ -29,6 +29,7 @@ import {
   dateOk,
   ErrorLine,
   HeldButton,
+  heldQty,
   num,
   qtyString,
   SwapDateField,
@@ -85,6 +86,11 @@ export function SwapTransferTab({
   const m = num(move);
   const cap = byQty ? held : valueCents / 100;
   const badMove = move.trim() !== "" && !(m > 0 && m <= cap);
+  // R5-4: above holdings says so; "greater than 0" only for ≤ 0.
+  const overHeld = badMove && m > cap;
+  const heldLabel = byQty
+    ? heldQty(t, holding)
+    : `${centsToBare(String(valueCents))} ${ccy}`;
   const movedValue = byQty
     ? held > 0
       ? (m / held) * valueCents
@@ -170,13 +176,15 @@ export function SwapTransferTab({
               )
             }
           >
-            {t("sell.qtyHelper", {
-              qty: byQty
-                ? trimQty(holding.quantity)
-                : `${centsToBare(String(valueCents))} ${ccy}`,
-            })}
+            {t("sell.qtyHelper", { qty: heldLabel })}
           </HeldButton>
-          {badMove && <ErrorLine>{t("swap.err.positive")}</ErrorLine>}
+          {badMove && (
+            <ErrorLine>
+              {overHeld
+                ? t("swap.err.overHeld", { held: heldLabel })
+                : t("swap.err.positive")}
+            </ErrorLine>
+          )}
         </section>
 
         <section className="space-y-2">

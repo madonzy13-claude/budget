@@ -11,8 +11,9 @@
  * the budget's saved type order, then picker order (D-12).
  *
  * Three levels (13.1): type block → asset row → the asset's ledger strip,
- * opened by tapping the asset (open set remembered per device in
- * localStorage `inv.assetOpen.v1`). Assets with quantity 0 are hidden (D-17).
+ * opened by tapping the asset. Open state lives in memory only — every asset
+ * starts closed after a reload, and collapsing a type closes its assets (R5-3,
+ * overturns D-27's per-device memory). Assets with quantity 0 are hidden (D-17).
  *
  * Drag: a block moves by its header handle (order saved per budget); a row
  * moves only within its own type — a drop on another type is a no-op. Ledger
@@ -102,16 +103,6 @@ interface InvestmentsSectionProps {
 }
 
 const BLOCK = "type:";
-const OPEN_KEY = "inv.assetOpen.v1";
-
-function readOpen(): Set<string> {
-  try {
-    const raw = localStorage.getItem(OPEN_KEY);
-    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
-  } catch {
-    return new Set();
-  }
-}
 const blockId = (ui: UiType) => `${BLOCK}${ui}`;
 const isBlockId = (id: string) => id.startsWith(BLOCK);
 
@@ -237,15 +228,18 @@ export function InvestmentsSection({
   }, [summary?.order, committedOrder]);
   const [draggingBlock, setDraggingBlock] = useState(false);
   const [draggingRow, setDraggingRow] = useState(false);
-  // D-27: open assets, per device. Seeded into the BDP store so the row's own
-  // tap state survives pill navigation too.
+  // R5-3: open assets in memory only (the row's own tap state still survives
+  // pill navigation via the BDP store).
   const bdpStore = useBdpUiStore();
-  const [openAssets, setOpenAssets] = useState<Set<string>>(() => {
-    const set = readOpen();
-    if (bdpStore)
-      for (const id of set) bdpStore.wallets.expandedRows[id] = true;
-    return set;
-  });
+  const [openAssets, setOpenAssets] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    try {
+      // ponytail: stale-key cleanup from the per-device era; drop later.
+      localStorage.removeItem("inv.assetOpen.v1");
+    } catch {
+      /* private mode */
+    }
+  }, []);
   // 13.1 UAT 5: the swiped asset's open ledger slides with it.
   const [swipe, setSwipe] = useState<{
     id: string;
@@ -257,11 +251,6 @@ export function InvestmentsSection({
       const next = new Set(prev);
       if (open) next.add(id);
       else next.delete(id);
-      try {
-        localStorage.setItem(OPEN_KEY, JSON.stringify([...next]));
-      } catch {
-        /* private mode: per-session only */
-      }
       return next;
     });
   // Round 4: a linked ledger entry opens its partner, highlighted for 1.5s.
@@ -389,6 +378,21 @@ export function InvestmentsSection({
   const toggleType = (ui: UiType) =>
     setCollapsed((prev) => {
       const nowCollapsed = !prev[ui];
+      // R5-3: closing a type closes its assets.
+      if (nowCollapsed) {
+        const ids = holdings
+          .filter(
+            (h) => deriveUiType(h.uiType, h.holdingType, h.isCustom) === ui,
+          )
+          .map((h) => h.id);
+        setOpenAssets((open) => {
+          const next = new Set(open);
+          for (const id of ids) next.delete(id);
+          return next;
+        });
+        if (bdpStore)
+          for (const id of ids) bdpStore.wallets.expandedRows[id] = false;
+      }
       try {
         localStorage.setItem(
           `inv-type-${budgetId}-${ui}`,

@@ -871,7 +871,8 @@
           "nameRequired": "Enter a name.",
           "saveFailed": "Couldn't save this. Check your connection and try again.",
           "staleEntry": "This asset changed. Reload and try again.",
-          "soldRange": "Enter more than 0 and no more than you hold."
+          "soldRange": "Enter more than 0 and no more than you hold.",
+          "overHeld": "That's more than you hold ({held})."
         }
       },
       "edit": {
@@ -932,6 +933,11 @@
           "interestNote": "The interest after it is recalculated."
         },
         "openLinked": "Open {name}"
+      },
+      "heldUnit": {
+        "g": "{n, plural, one {{qty} g} other {{qty} g}}",
+        "oz": "{n, plural, one {{qty} oz} other {{qty} oz}}",
+        "kg": "{n, plural, one {{qty} kg} other {{qty} kg}}"
       }
     },
     "cushionMode": {

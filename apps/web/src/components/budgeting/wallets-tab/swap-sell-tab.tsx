@@ -64,6 +64,7 @@ import {
   ErrorLine,
   heading,
   HeldButton,
+  heldQty,
   num,
   qtyString,
   SwapDateField,
@@ -568,7 +569,7 @@ export function SwapSellTab({
             }
           >
             {shape === "quantity"
-              ? t("sell.qtyHelper", { qty: trimQty(holding.quantity) })
+              ? t("sell.qtyHelper", { qty: heldQty(t, holding) })
               : t("sell.valueHelper", {
                   value: `${money(valueCents)} ${srcCcy}`,
                 })}
