@@ -757,13 +757,17 @@
         "valueHelper": "Obecna wartość {value}",
         "date": "Data",
         "toastSale": "Sprzedaż zapisana",
-        "toastWithdraw": "Wypłata zapisana"
+        "toastWithdraw": "Wypłata zapisana",
+        "qtySold": "Sprzedana ilość",
+        "valueSold": "Sprzedana wartość"
       },
       "typeGroup": {
         "summaryCaption": "niezrealizowany {u} · zrealizowany {r} · udział {s}",
         "stats": {
           "avgPrice": "Śr. cena {price}"
-        }
+        },
+        "unrealizedAria": "Niezrealizowany {value}",
+        "realizedAria": "Zrealizowany {value}"
       },
       "addDate": "Data",
       "asset": {
@@ -832,7 +836,8 @@
             "newHelp": "Portfel zaczyna od tej kwoty.",
             "name": "Nazwa portfela",
             "type": "Typ portfela"
-          }
+          },
+          "sold": "Ile sprzedano?"
         },
         "transfer": {
           "everything": "Przenieś wszystko",
@@ -863,7 +868,8 @@
           "walletRequired": "Wybierz portfel lub opcję Nigdzie.",
           "nameRequired": "Wpisz nazwę.",
           "saveFailed": "Nie udało się zapisać. Sprawdź połączenie i spróbuj ponownie.",
-          "staleEntry": "To aktywo się zmieniło. Odśwież i spróbuj ponownie."
+          "staleEntry": "To aktywo się zmieniło. Odśwież i spróbuj ponownie.",
+          "soldRange": "Wpisz więcej niż 0 i nie więcej, niż posiadasz."
         }
       },
       "edit": {

@@ -757,13 +757,17 @@
         "valueHelper": "Current value {value}",
         "date": "Date",
         "toastSale": "Sale recorded",
-        "toastWithdraw": "Withdrawal recorded"
+        "toastWithdraw": "Withdrawal recorded",
+        "qtySold": "Quantity sold",
+        "valueSold": "Value sold"
       },
       "typeGroup": {
         "summaryCaption": "unrealized {u} · realized {r} · share {s}",
         "stats": {
           "avgPrice": "Avg price {price}"
-        }
+        },
+        "unrealizedAria": "Unrealized {value}",
+        "realizedAria": "Realized {value}"
       },
       "addDate": "Date",
       "asset": {
@@ -832,7 +836,8 @@
             "newHelp": "The wallet starts with this amount.",
             "name": "Wallet name",
             "type": "Wallet type"
-          }
+          },
+          "sold": "How much was sold?"
         },
         "transfer": {
           "everything": "Move everything",
@@ -863,7 +868,8 @@
           "walletRequired": "Pick a wallet or choose Nowhere.",
           "nameRequired": "Enter a name.",
           "saveFailed": "Couldn't save this. Check your connection and try again.",
-          "staleEntry": "This asset changed. Reload and try again."
+          "staleEntry": "This asset changed. Reload and try again.",
+          "soldRange": "Enter more than 0 and no more than you hold."
         }
       },
       "edit": {
