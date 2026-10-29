@@ -25,8 +25,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -59,15 +57,16 @@ import {
 } from "./holding-sheet";
 import type { SwapTabProps } from "./swap-buy-tab";
 import {
-  ErrorLine,
-  SwapDateField,
-  SwapFooter,
   caption,
   ccyOf,
   dateOk,
+  ErrorLine,
   heading,
+  HeldButton,
   num,
   qtyString,
+  SwapDateField,
+  SwapFooter,
   toCents,
   today,
   trimQty,
@@ -198,7 +197,6 @@ export function SwapSellTab({
   const srcCcy = ccyOf(holding, budgetCurrency);
 
   const [sold, setSold] = useState("");
-  const [sellAll, setSellAll] = useState(false);
   const [dest, setDest] = useState<Dest>("new");
   const [newHolding, setNewHolding] = useState<DestinationHolding | null>(null);
   const [destQty, setDestQty] = useState("");
@@ -268,7 +266,11 @@ export function SwapSellTab({
     }
     const soldCents = Math.round(x * 100);
     if (soldCents > Math.round(valueCents)) return { invalid: true } as const;
-    const keep = sellAll ? 0 : Math.max(0, valueCents - soldCents);
+    // Selling the whole value (tapped "Current value") keeps nothing.
+    const keep =
+      soldCents >= Math.round(valueCents)
+        ? 0
+        : Math.max(0, valueCents - soldCents);
     const soldCost =
       shape === "deposit"
         ? buyCents - keep
@@ -281,7 +283,7 @@ export function SwapSellTab({
       soldCost,
       rowValue: keep,
     } as const;
-  }, [sold, sellAll, shape, held, valueCents, buyCents]);
+  }, [sold, shape, held, valueCents, buyCents]);
 
   // Prefill "Amount received" with today's value of the sold part, converted.
   useEffect(() => {
@@ -533,33 +535,9 @@ export function SwapSellTab({
       <div className="space-y-6">
         {/* 1. How much was sold? */}
         <section className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className={heading} style={{ color: "var(--body-on-dark)" }}>
-              {t("swap.sell.sold")}
-            </h3>
-            <Button
-              type="button"
-              variant="outline"
-              aria-pressed={sellAll}
-              data-testid="swap-sell-all"
-              className="min-h-11"
-              style={{ borderColor: sellAll ? "var(--primary)" : undefined }}
-              onClick={() => {
-                const next = !sellAll;
-                setSellAll(next);
-                setSold(
-                  next
-                    ? shape === "quantity"
-                      ? trimQty(holding.quantity)
-                      : String(valueCents / 100)
-                    : "",
-                );
-              }}
-            >
-              {sellAll && <Check className="h-4 w-4" aria-hidden="true" />}
-              {t("swap.sell.everything")}
-            </Button>
-          </div>
+          <h3 className={heading} style={{ color: "var(--body-on-dark)" }}>
+            {t("swap.sell.sold")}
+          </h3>
           <Field
             label={
               shape === "quantity" ? t("sell.qtySold") : t("sell.valueSold")
@@ -568,19 +546,26 @@ export function SwapSellTab({
             <NumericInput
               testId="swap-sell-sold"
               value={sold}
-              onChange={(v) => {
-                setSold(v);
-                setSellAll(false);
-              }}
+              onChange={setSold}
             />
           </Field>
-          <p className={caption} style={{ color: "var(--muted-foreground)" }}>
+          {/* Round 3: tap what you hold to sell it all (no toggle). */}
+          <HeldButton
+            testId="swap-sell-held"
+            onClick={() =>
+              setSold(
+                shape === "quantity"
+                  ? trimQty(holding.quantity)
+                  : String(valueCents / 100),
+              )
+            }
+          >
             {shape === "quantity"
               ? t("sell.qtyHelper", { qty: trimQty(holding.quantity) })
               : t("sell.valueHelper", {
                   value: `${money(valueCents)} ${srcCcy}`,
                 })}
-          </p>
+          </HeldButton>
           {calc?.invalid && <ErrorLine>{t("swap.err.soldRange")}</ErrorLine>}
         </section>
 

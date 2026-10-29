@@ -13,7 +13,6 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Info } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { centsToBare } from "@/lib/cents-format";
 import { deriveUiType, holdingShape } from "@/lib/investment-types";
 import { isOfflineWriteError } from "@/lib/offline-write";
@@ -25,14 +24,15 @@ import { NumericInput } from "./holding-sheet";
 import { AssetNameCombobox } from "./asset-name-combobox";
 import type { SwapTabProps } from "./swap-buy-tab";
 import {
-  ErrorLine,
-  SwapDateField,
-  SwapFooter,
   caption,
   ccyOf,
   dateOk,
+  ErrorLine,
+  HeldButton,
   num,
   qtyString,
+  SwapDateField,
+  SwapFooter,
   toCents,
   trimQty,
 } from "./swap-shared";
@@ -63,7 +63,6 @@ export function SwapTransferTab({
   const names = useAssetNames(budgetId, ui).data ?? [];
 
   const [move, setMove] = useState("");
-  const [all, setAll] = useState(false);
   const [label, setLabel] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -148,47 +147,29 @@ export function SwapTransferTab({
     <>
       <div className="space-y-4">
         <section className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-caption text-[var(--muted-foreground)]">
-              {t(byQty ? "swap.transfer.moveQty" : "swap.transfer.moveAmount")}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              aria-pressed={all}
-              data-testid="swap-transfer-all"
-              className="min-h-11"
-              style={{ borderColor: all ? "var(--primary)" : undefined }}
-              onClick={() => {
-                const next = !all;
-                setAll(next);
-                setMove(
-                  next
-                    ? byQty
-                      ? trimQty(holding.quantity)
-                      : String(valueCents / 100)
-                    : "",
-                );
-              }}
-            >
-              {t("swap.transfer.everything")}
-            </Button>
-          </div>
+          <span className="block text-caption text-[var(--muted-foreground)]">
+            {t(byQty ? "swap.transfer.moveQty" : "swap.transfer.moveAmount")}
+          </span>
           <NumericInput
             testId="swap-transfer-qty"
             value={move}
-            onChange={(v) => {
-              setMove(v);
-              setAll(false);
-            }}
+            onChange={setMove}
           />
-          <p className={caption} style={{ color: "var(--muted-foreground)" }}>
+          {/* Round 3: tap what you hold to move it all (no toggle). */}
+          <HeldButton
+            testId="swap-transfer-held"
+            onClick={() =>
+              setMove(
+                byQty ? trimQty(holding.quantity) : String(valueCents / 100),
+              )
+            }
+          >
             {t("sell.qtyHelper", {
               qty: byQty
                 ? trimQty(holding.quantity)
                 : `${centsToBare(String(valueCents))} ${ccy}`,
             })}
-          </p>
+          </HeldButton>
           {badMove && <ErrorLine>{t("swap.err.positive")}</ErrorLine>}
         </section>
 

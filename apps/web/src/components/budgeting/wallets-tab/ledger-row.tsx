@@ -124,6 +124,7 @@ export function LedgerRow({ entry, rowKey, first, onDelete }: LedgerRowProps) {
       data-testid={`ledger-delete-${rowKey}`}
       aria-label={t("ledger.deleteAria", { kind, date })}
       aria-disabled={entry.deletable ? undefined : true}
+      style={{ boxShadow: "inset 6px 0 8px -6px rgba(0,0,0,0.7)" }}
       onClick={(ev) => {
         ev.stopPropagation();
         if (!entry.deletable) return;
@@ -132,7 +133,8 @@ export function LedgerRow({ entry, rowKey, first, onDelete }: LedgerRowProps) {
       }}
       className={[
         "absolute bottom-0 right-0 top-0 flex w-12 items-center justify-center",
-        "rounded-[var(--radius-md)] text-white transition-opacity",
+        // Round 3: square, shadowed on its left as if under the sliding row.
+        "text-white transition-opacity",
         "pointer-events-none opacity-0 data-[open=true]:pointer-events-auto data-[open=true]:opacity-100",
         "sm:pointer-events-auto sm:opacity-100",
         entry.deletable

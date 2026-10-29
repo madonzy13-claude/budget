@@ -35,6 +35,31 @@ export const signColor = (n: number) =>
 export const caption = "text-[12px] leading-[1.4]";
 export const heading = "text-[16px] font-semibold leading-[1.4]";
 
+/** The held amount under a Sell / Transfer field — tap it to fill the field
+ *  with everything (round 3; replaces the "everything" toggles). 44px hit
+ *  area, caption-sized text. */
+export function HeldButton({
+  testId,
+  onClick,
+  children,
+}: {
+  testId: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={onClick}
+      className={`${caption} -my-3 flex min-h-11 items-center text-left underline decoration-dotted underline-offset-2`}
+      style={{ color: "var(--muted-foreground)" }}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function ErrorLine({ children }: { children: React.ReactNode }) {
   return (
     <p
