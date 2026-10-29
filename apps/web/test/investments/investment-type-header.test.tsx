@@ -27,6 +27,8 @@ vi.mock("next-intl", () => ({
         "group.collapsed": "Collapsed",
         plAria: "{value} profit/loss",
         "row.share": "Share: {pct}",
+        "typeGroup.unrealizedLabel": "unrealized: {value}",
+        "typeGroup.realizedLabel": "realized: {value}",
       };
       let s = map[key] ?? key;
       if (params)
@@ -122,12 +124,18 @@ describe("InvestmentTypeHeader", () => {
     expect(screen.queryByTestId("investment-type-share-stocks")).toBeNull();
   });
 
-  it("tap mirrors the asset reveal: smaller name, P/L line, two bare amounts, share under the value", () => {
+  it("tap mirrors the asset reveal: smaller name, P/L line, labelled amounts, share under the value", () => {
     renderHeader();
+    expect(screen.getByText("Stocks & ETFs").className).not.toMatch(
+      /font-semibold|font-bold/,
+    );
     fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
     const root = screen.getByTestId("investment-group-stocks");
-    expect(root.classList.contains("py-1.5")).toBe(true);
-    expect(screen.getByText("Stocks & ETFs").className).toMatch(/text-num-sm/);
+    // Round 3: the reveal fits the card like the asset row (it grew 56 → 69.6).
+    expect(root.className).not.toMatch(/(^|\s)py-/);
+    const nameEl = screen.getByText("Stocks & ETFs");
+    expect(nameEl.className).toMatch(/text-num-sm/);
+    expect(nameEl.className).not.toMatch(/font-semibold|font-bold/);
     const sum = screen.getByTestId("investment-type-split-stocks");
     const line = sum.querySelector("[data-pl-line]")!;
     expect(line.textContent).toMatch(/^\+53\.7%\s*\+51,000$/);
@@ -135,11 +143,16 @@ describe("InvestmentTypeHeader", () => {
     const figs = cap.querySelectorAll("[data-signed]");
     expect(figs).toHaveLength(2);
     expect(figs[0]).toHaveTextContent("+22,800");
-    expect(figs[0]).toHaveAttribute("aria-label", "typeGroup.unrealizedAria");
     expect(figs[1]).toHaveTextContent("+28,200");
-    expect(figs[1]).toHaveAttribute("aria-label", "typeGroup.realizedAria");
     expect(figs[0]!.getAttribute("style")).toContain("var(--trading-up)");
-    expect(cap.textContent).not.toMatch(/\p{L}/u);
+    expect(cap).toHaveTextContent(
+      /^unrealized:\s*\+22,800\s*realized:\s*\+28,200$/,
+    );
+    expect(line.querySelector('[data-pl-trend="up"]')).not.toBeNull();
+    // The revealed value is the asset row's small one, so the lines fit.
+    expect(
+      screen.getByTestId("investment-type-value-stocks").innerHTML,
+    ).not.toContain("text-num-md");
     const share = screen.getByTestId("investment-type-share-stocks");
     expect(share).toHaveTextContent("Share: 60.0%");
     expect(cap.contains(share)).toBe(false);
@@ -192,7 +205,7 @@ describe("InvestmentTypeHeader", () => {
   });
 
   // UAT 13.1 test 3: cash has no profit by design.
-  it("cash shows no P/L line and no caption when tapped", () => {
+  it("cash shows its share but no P/L line and no caption when tapped", () => {
     renderHeader({
       uiType: "cash",
       pl: pl({
@@ -205,6 +218,20 @@ describe("InvestmentTypeHeader", () => {
     fireEvent.click(screen.getByTestId("investment-group-toggle-cash"));
     expect(document.querySelector("[data-pl-line]")).toBeNull();
     expect(document.querySelector("[data-pl-caption]")).toBeNull();
-    expect(screen.queryByTestId("investment-type-share-cash")).toBeNull();
+    expect(screen.getByTestId("investment-type-share-cash")).toHaveTextContent(
+      "Share: 60.0%",
+    );
+  });
+
+  // Round-3 gap 4: zero is a grey rise with plus signs.
+  it("a zero P/L shows a grey up-arrow, +0.0% and +0", () => {
+    renderHeader({
+      pl: pl({ pct: 0, totalPLCents: 0, unrealizedCents: 0, realizedCents: 0 }),
+    });
+    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
+    const line = document.querySelector("[data-pl-line]")!;
+    expect(line.textContent).toMatch(/^\+0\.0%\s*\+0$/);
+    const icon = line.querySelector<SVGElement>('[data-pl-trend="flat"]')!;
+    expect(icon.getAttribute("style")).toContain("var(--muted-strong)");
   });
 });

@@ -415,7 +415,8 @@ describe("InvestmentRow", () => {
     expect(screen.getByText("18.0%")).toBeInTheDocument(); // share / weight
   });
 
-  it("cash expanded → 3 rows: name, a dash (in place of P/L), Share", () => {
+  // Round-3 gap 1: no P/L = two lines (name · value / caption · share), no dash.
+  it("cash expanded → 2 lines: name with its value, then the share; no dash", () => {
     render(
       <InvestmentRow
         holding={holding({
@@ -429,9 +430,45 @@ describe("InvestmentRow", () => {
       />,
     );
     fireEvent.click(screen.getByLabelText("Expand USD Cash"));
-    // Profit slot shows a dash → card stays a uniform 3 rows.
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.queryByText("—")).toBeNull();
     expect(screen.getByText("Share: 5.0%")).toBeInTheDocument();
+    const value = screen.getByTestId("asset-value-h1");
+    expect(value).toHaveTextContent("USD10,000");
+    // The value sits on the name's line, the share on the next.
+    const nameLine = screen.getAllByText("USD Cash")[0]!.parentElement!;
+    expect(nameLine.contains(value)).toBe(true);
+    expect(nameLine.contains(screen.getByTestId("asset-share-h1"))).toBe(false);
+  });
+
+  it("a P/L asset's expanded value carries the same value testid", () => {
+    render(<InvestmentRow holding={holding()} />);
+    fireEvent.click(screen.getByLabelText("Expand AAPL"));
+    expect(screen.getByTestId("asset-value-h1")).toBeInTheDocument();
+  });
+
+  // Round-3 gap 4: zero is a grey rise with plus signs; signs pick the icon.
+  it("a zero P/L shows a grey up-arrow, +0.0% and +0", () => {
+    render(
+      <InvestmentRow
+        holding={holding({ profitLossPct: 0, profitLossCents: "0" })}
+      />,
+    );
+    expect(screen.getAllByText("+0.0%").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+0").length).toBeGreaterThan(0);
+    const icon = document.querySelector<SVGElement>('[data-pl-trend="flat"]')!;
+    expect(icon.getAttribute("style")).toContain("var(--muted-strong)");
+  });
+
+  it("gains and losses carry an up / down trend", () => {
+    const { unmount } = render(<InvestmentRow holding={holding()} />);
+    expect(document.querySelector('[data-pl-trend="up"]')).not.toBeNull();
+    unmount();
+    render(
+      <InvestmentRow
+        holding={holding({ profitLossPct: -5, profitLossCents: "-100" })}
+      />,
+    );
+    expect(document.querySelector('[data-pl-trend="down"]')).not.toBeNull();
   });
 
   it("mobile expand → 3 rows: name, P/L + money, and localized Share", () => {
