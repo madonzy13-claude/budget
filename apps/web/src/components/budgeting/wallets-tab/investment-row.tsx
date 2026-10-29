@@ -19,7 +19,7 @@
  * dimmed (opacity-50, --muted-strong) which overrides any P/L color (D-09/25).
  */
 import { FitLine } from "@/components/common/fit-line";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ArrowRightLeft, Pencil, TrendingUp, TrendingDown } from "lucide-react";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
@@ -86,6 +86,8 @@ export function InvestmentRow({
     () => open ?? bdpStore?.wallets.expandedRows[holding.id] ?? false,
   );
   const [shaking, setShaking] = useState(false);
+  // The caption may use the room up to the share before it scrolls.
+  const shareRef = useRef<HTMLSpanElement>(null);
   // Opened from elsewhere (a linked entry's jump, round 4): show it open.
   useEffect(() => {
     if (open) setExpanded(true);
@@ -350,6 +352,7 @@ export function InvestmentRow({
               {caption.length > 0 && (
                 <FitLine
                   data-asset-caption
+                  until={shareRef}
                   className="num text-[var(--muted-foreground)] tabular-nums"
                   style={{ fontSize: "11px", lineHeight: 1.4 }}
                 >
@@ -463,6 +466,7 @@ export function InvestmentRow({
           {expanded && valueBlock("sm:hidden")}
           {expanded && (
             <span
+              ref={shareRef}
               data-testid={`asset-share-${holding.id}`}
               className="text-[var(--muted-foreground)] tabular-nums sm:hidden"
               style={{ fontSize: "11px", lineHeight: 1.4 }}

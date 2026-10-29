@@ -18,7 +18,7 @@
  */
 import { FitLine } from "@/components/common/fit-line";
 import { useLocale, useTranslations } from "next-intl";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -66,6 +66,8 @@ export function InvestmentTypeHeader({
   const t = useTranslations("budget.investments");
   const locale = useLocale();
   const [showSplit, setShowSplit] = useState(false);
+  // The caption may use the room up to the share before it scrolls.
+  const shareRef = useRef<HTMLSpanElement>(null);
 
   const money = (cents: number) =>
     centsToBare(String(Math.round(Math.abs(cents))), locale);
@@ -225,6 +227,7 @@ export function InvestmentTypeHeader({
             {/* Inline size: tailwind-merge cannot drop it (same as the asset row). */}
             <FitLine
               data-pl-caption
+              until={shareRef}
               // One line, never wraps (round-4 gaps 13 + 17): short labels; what
               // still does not fit scrolls to its end and back.
               className="num tabular-nums"
@@ -265,6 +268,7 @@ export function InvestmentTypeHeader({
         {value}
         {showSplit && (
           <span
+            ref={shareRef}
             data-testid={`investment-type-share-${uiType}`}
             className="tabular-nums"
             style={{

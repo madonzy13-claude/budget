@@ -4,7 +4,8 @@
  * happy-dom does not lay out, so the widths are stubbed.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import { useRef } from "react";
 import { FitLine } from "../../../src/components/common/fit-line";
 
 function stubWidths(scroll: number, client: number) {
@@ -36,5 +37,48 @@ describe("FitLine", () => {
     const inner = screen.getByTestId("line").firstElementChild as HTMLElement;
     expect(inner.className).toMatch(/fit-line-scroll/);
     expect(inner.style.getPropertyValue("--fit-shift")).toBe("-60px");
+  });
+
+  it("a scrolling line fades both edges", () => {
+    stubWidths(260, 200);
+    render(<FitLine data-testid="line">a very long caption</FitLine>);
+    expect(screen.getByTestId("line").className).toMatch(/fit-line-fade/);
+  });
+
+  // "If there's space, show instead of scrolling": the line may reach right
+  // up to the element it must not cover (the share), and only scrolls past it.
+  function Reach({ text }: { text: string }) {
+    const stop = useRef<HTMLSpanElement>(null);
+    return (
+      <div>
+        <FitLine data-testid="line" until={stop}>
+          {text}
+        </FitLine>
+        <span ref={stop} data-testid="stop" />
+      </div>
+    );
+  }
+  it("uses the room up to `until` before scrolling", async () => {
+    stubWidths(260, 200);
+    const rect = (left: number) =>
+      ({
+        left,
+        right: left,
+        top: 0,
+        bottom: 0,
+        width: 0,
+        height: 0,
+      }) as DOMRect;
+    const orig = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function () {
+      return rect(this.getAttribute("data-testid") === "stop" ? 300 : 0);
+    };
+    render(<Reach text="fits in the reach" />);
+    const line = screen.getByTestId("line");
+    await waitFor(() => expect(line.style.width).toBe("292px"));
+    expect((line.firstElementChild as HTMLElement).className).not.toMatch(
+      /fit-line-scroll/,
+    );
+    HTMLElement.prototype.getBoundingClientRect = orig;
   });
 });

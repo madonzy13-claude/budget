@@ -1081,6 +1081,23 @@ main[data-shell-scroll]:has([data-lock-page-scroll]) {
 .fit-line-scroll {
   animation: fit-line-scroll 8s ease-in-out infinite;
 }
+/* Soft edges instead of a hard cut while it scrolls. */
+.fit-line-fade {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 10px,
+    #000 calc(100% - 10px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 10px,
+    #000 calc(100% - 10px),
+    transparent 100%
+  );
+}
 @media (prefers-reduced-motion: reduce) {
   .fit-line-scroll {
     animation: none;
