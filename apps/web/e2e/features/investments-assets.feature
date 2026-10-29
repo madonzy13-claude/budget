@@ -141,6 +141,124 @@ Feature: Investments as assets with transactions (13.1)
       | pl     |
       | uk     |
 
+  # ── Round 2 (13.1-27..34): one scenario per live-UAT gap ──
+
+  # Gap 1: a deposit younger than its first capitalization still earns.
+  @r2-deposit
+  Scenario: Opening a young deposit shows the interest earned so far
+    Given a deposit "Term" of 1000000 cents at 5% yearly started 3 months ago exists in my budget
+    When I open the investments wallets tab
+    Then the ledger of "Term" shows an Interest row dated today that cannot be deleted
+
+  # Gaps 2 + 3: the type header is an asset-row card; tap reveals mirror.
+  @r2-header
+  Scenario: The type header lines up with its asset rows and its tap mirrors the asset row
+    Given I am on a phone-sized viewport
+    And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    Then the "broker" header lines up with the asset row "IBKR"
+    And tapping the "broker" header grows it and mirrors the asset reveal
+    And tapping the asset row "IBKR" shows its share under the amount "96,000"
+
+  # Gaps 4, 11, 12: darker strip with the inset shadow, grey amounts, small links.
+  # Seeded straight into the ledger — no Swap step.
+  @r2-ledger
+  Scenario: The ledger is darker than its asset, casts the inset shadow and keeps amounts grey
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
+    And "IBKR" moved 100000 cents to "Pot" on its ledger
+    When I open the investments wallets tab
+    Then the ledger of "IBKR" is darker than its asset and casts the inset top shadow in both themes
+    And the linked line in the ledger of "IBKR" is smaller than its date line
+
+  # Gap 5: swiping an open asset slides its ledger along, unclipped.
+  @r2-swipe
+  Scenario: Swiping an asset with its ledger open keeps the ledger whole
+    Given I am on a phone-sized viewport
+    And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I swipe the asset "IBKR" with its ledger open
+    Then the ledger of "IBKR" moves with its row and nothing is clipped
+
+  # Gap 6: Buy is the default and the switch stays while buying.
+  @r2-newtx
+  Scenario: New transaction opens on Buy and keeps the switch while buying
+    When I open the investments wallets tab
+    Then New transaction opens on Buy with the Add form inside and every kind visible
+    When I add a "collectibles" asset "Coins" of "1" units bought at "100" now "120"
+    Then the holding row "Coins" is visible
+    And picking Sell in New transaction asks for the type and drops the Add form
+
+  # Gap 10: Edit shows the configuration it cannot change.
+  @r2-edit-locked
+  Scenario: Edit shows each asset's configuration locked
+    Given a deposit "Term" of 1000000 cents at 5% yearly started 3 months ago exists in my budget
+    And a tracked crypto asset "My BTC" on "bitcoin" of "0.5" units at 6000000 cents exists in my budget
+    And a silver coin asset "Coins" of 100 grams at 5155 cents with premium "25.17" exists in my budget
+    When I open the investments wallets tab
+    Then Edit of "Term" shows these locked fields
+      | field        | value  |
+      | rate         | 5      |
+      | capFrequency | Yearly |
+      | startDate    | *      |
+    And Edit of "My BTC" shows these locked fields
+      | field        | value   |
+      | instrument   | Bitcoin |
+      | currentPrice | *       |
+    And Edit of "Coins" shows these locked fields
+      | field        | value  |
+      | metal        | Silver |
+      | kind         | Coin   |
+      | uom          | Grams  |
+      | currentPrice | *      |
+      | premium      | 25.17  |
+
+  # Gap 13: every quantity entry reads "±qty @ price", transfer legs included.
+  @r2-qty-price
+  Scenario: Every quantity entry shows its quantity at a price
+    Given a "stocks" asset "ACME" of "10" units at 2500 cents exists in my budget
+    When I open the investments wallets tab
+    And I move "4" of the "stocks" asset "ACME" to a new asset "ACME 2" from New transaction
+    Then every quantity entry in the ledger of "ACME" reads quantity at price
+    And every quantity entry in the ledger of "ACME 2" reads quantity at price
+
+  # Gaps 8 + 9: Sell asks what was sold; the "everything" buttons only fill.
+  @r2-sell
+  Scenario: Sell asks how much was sold and Sell everything stays editable
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I open the sale of "IBKR"
+    Then the sale asks "How much was sold?"
+    When I tap "swap-sell-all" in the sale
+    Then "swap-sell-sold" holds "96000" and stays editable
+    When I set "Value sold" in the sale to "66000"
+    Then "swap-sell-all" is not pressed
+    When I send the sale out of investments receiving "66000"
+    Then the holding row "IBKR" shows "30,000"
+
+  @r2-sell
+  Scenario: Move everything fills the amount and stays editable
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I open the transfer of "IBKR"
+    And I tap "swap-transfer-all" in the sale
+    Then "swap-transfer-qty" holds "96000" and stays editable
+    When I set "Amount moved" in the sale to "1000"
+    Then "swap-transfer-all" is not pressed
+
+  # Gap 7: in-DOM pickers with a list of normal height on a phone.
+  @r2-picker
+  Scenario: Sell pickers open a list of normal height on a phone
+    Given I am on a phone-sized viewport
+    And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
+    And a "SPENDINGS" wallet "Bank" with 10000 cents exists in my budget
+    And a "SPENDINGS" wallet "Savings" with 20000 cents exists in my budget
+    When I open the investments wallets tab
+    And I open the sale of "IBKR"
+    Then the existing-asset picker opens a full list and picks "Pot"
+    And the existing-wallet picker opens a full list and picks "Bank"
+
   # Live phone drive (13.1-16): list → ledger strip look in both themes →
   # every Swap tab shows its sum-up and fits, in every launch locale.
   Scenario Outline: Asset list, ledger and every Swap tab on a phone in <locale> (<theme>)
@@ -149,12 +267,15 @@ Feature: Investments as assets with transactions (13.1)
     And a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
     When I open the investments wallets tab in "<locale>"
     And I switch to the <theme> theme
-    Then the ledger of "IBKR" sits on the sunken surface with an inset top shadow in both themes
+    Then the ledger of "IBKR" is darker than its asset and casts the inset top shadow in both themes
     And every Swap tab of "IBKR" shows the sum-up card once filled and fits the phone
     # 13.1 gap closure surfaces (plans 19–24), each checked for overflow + raw keys.
     And assets sit indented under their type header and tapping the "cash" header shows no P/L
     And the ledger of "IBKR" slides open and a swipe on its newest row reveals a delete
     And the New transaction chooser offers Buy, Sell and Transfer and fits the phone
+    And the New transaction sheet opens on Buy with the switch visible
+    And tapping the "broker" header grows it and shows the share under its value
+    And the Sell tab of "IBKR" asks how much was sold
     And a sale of "IBKR" into a new crypto asset keeps its price "2" after typing the quantity "1000"
     And changing the currency of "Pot" to "EUR" in Edit shows the rate line
 

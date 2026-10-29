@@ -1,5 +1,24 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
+const SCALE = 10n ** 8n;
+/** Decimal string → integer × 1e8 (no float drift). */
+function toScaled(v: string): bigint {
+  const [i = "0", f = ""] = v.replace(/\s/g, "").replace(/,/g, ".").split(".");
+  const neg = i.startsWith("-");
+  const n =
+    BigInt(i.replace("-", "") || "0") * SCALE +
+    BigInt(f.padEnd(8, "0").slice(0, 8) || "0");
+  return neg ? -n : n;
+}
+/** Integer × 1e8 → decimal string without trailing zeros. */
+function fromScaled(n: bigint): string {
+  const neg = n < 0n;
+  const a = neg ? -n : n;
+  const f = (a % SCALE).toString().padStart(8, "0").replace(/0+$/, "");
+  return `${neg ? "-" : ""}${a / SCALE}${f ? `.${f}` : ""}`;
+}
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /**
  * Plan 09-05 (Wave 0): Page Object for the BDP Wallets-tab Investments section.
  *
@@ -29,10 +48,14 @@ export class InvestmentsPo {
     return this.page.getByTestId("add-investment-button");
   }
 
-  /** "New transaction" → Buy: the name-first Add form (13.1 UAT 7). */
+  /** "New transaction" opens on Buy with the Add form inside (round-2 gap 6). */
   async startBuy(): Promise<void> {
     await this.addButton().click();
-    await this.page.getByTestId("new-tx-kind-buy").click();
+    await expect(this.page.getByTestId("new-tx-kind-buy")).toHaveAttribute(
+      "aria-checked",
+      "true",
+      { timeout: 5000 },
+    );
   }
 
   /** "New transaction" → Sell / Transfer → type → asset → its Swap sheet. */
@@ -309,6 +332,57 @@ export class InvestmentsPo {
     return (await res).status();
   }
 
+  /** The sale asks what was SOLD (round-2 gap 9); scenarios still speak in
+   *  "leaving X". Sell everything fills the holding; left "0" keeps it,
+   *  otherwise the field gets held − left. */
+  async fillSoldFromLeft(sheet: Locator, left: string): Promise<void> {
+    await sheet.getByTestId("swap-sell-all").click();
+    const field = sheet.getByTestId("swap-sell-sold");
+    await expect(field).not.toHaveValue("", { timeout: 5000 });
+    if (left === "0") return;
+    const held = toScaled(await field.inputValue());
+    await field.fill(fromScaled(held - toScaled(left)));
+  }
+
+  /** Radix Select pickers (round-2 gap 7): open the trigger, pick
+   *  "<name> · …" from the in-DOM list. */
+  async pickOption(trigger: Locator, name: string): Promise<void> {
+    await trigger.click();
+    await this.page
+      .getByRole("option", { name: new RegExp(`^${escapeRegExp(name)} ·`) })
+      .click();
+  }
+
+  /** Touch-swipe an asset row left (phone), leaving its actions revealed. */
+  async swipeAsset(name: string, px: number): Promise<void> {
+    await this.wrapper(name).evaluate((el: HTMLElement, dx: number) => {
+      const r = el.getBoundingClientRect();
+      const y = r.top + Math.min(28, r.height / 2);
+      const x0 = r.right - 20;
+      const fire = (type: string, x: number) =>
+        el.dispatchEvent(
+          new PointerEvent(type, {
+            pointerId: 9003,
+            pointerType: "touch",
+            clientX: x,
+            clientY: y,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      fire("pointerdown", x0);
+      fire("pointermove", x0 - 20);
+      fire("pointermove", x0 - dx);
+      return new Promise<void>((done) =>
+        setTimeout(() => {
+          fire("pointerup", x0 - dx);
+          done();
+        }, 80),
+      );
+    }, px);
+    await this.page.waitForTimeout(400); // 200ms settle transition
+  }
+
   /** Fill the open Sell tab and submit it. Amount received is typed LAST:
    *  picking a destination or wallet re-prefills it. */
   async sell(opts: {
@@ -322,32 +396,24 @@ export class InvestmentsPo {
       | { kind: "new"; name: string; type: string };
   }): Promise<number> {
     const sheet = this.swapSheet();
-    await sheet.getByTestId("swap-sell-left").fill(opts.left);
+    await this.fillSoldFromLeft(sheet, opts.left);
     await sheet.getByTestId(`swap-dest-${opts.dest}`).click();
     if (opts.dest === "new" && opts.newName)
       await sheet
         .getByTestId("holding-form-destination")
         .getByTestId("holding-sheet-name")
         .fill(opts.newName);
-    if (opts.dest === "existing" && opts.existingName) {
-      const select = sheet.getByTestId("swap-sell-existing");
-      const value = await select
-        .locator("option", { hasText: `${opts.existingName} ·` })
-        .first()
-        .getAttribute("value");
-      await select.selectOption({ value: value! });
-    }
+    if (opts.dest === "existing" && opts.existingName)
+      await this.pickOption(
+        sheet.getByTestId("swap-sell-existing"),
+        opts.existingName,
+      );
     if (opts.wallet?.kind === "existing") {
       await sheet.getByTestId("wallet-target-existing").click();
-      const select = sheet.getByTestId("swap-wallet-select");
-      await expect(
-        select.locator("option", { hasText: opts.wallet.name }),
-      ).toHaveCount(1);
-      const value = await select
-        .locator("option", { hasText: opts.wallet.name })
-        .first()
-        .getAttribute("value");
-      await select.selectOption({ value: value! });
+      await this.pickOption(
+        sheet.getByTestId("swap-wallet-select"),
+        opts.wallet.name,
+      );
     } else if (opts.wallet?.kind === "new") {
       await sheet.getByTestId("wallet-target-new").click();
       await sheet.getByTestId("swap-wallet-name").fill(opts.wallet.name);
@@ -369,7 +435,7 @@ export class InvestmentsPo {
   ): Promise<void> {
     await this.openSwap(source, "sell");
     const sheet = this.swapSheet();
-    await sheet.getByTestId("swap-sell-left").fill(left);
+    await this.fillSoldFromLeft(sheet, left);
     await sheet.getByTestId("swap-dest-new").click();
     const form = sheet.getByTestId("holding-form-destination");
     await form.getByTestId("holding-sheet-type").click();

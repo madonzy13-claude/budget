@@ -1,5 +1,5 @@
 import { expect, type Locator } from "@playwright/test";
-import { createBdd } from "playwright-bdd";
+import { createBdd, type DataTable } from "playwright-bdd";
 import { test } from "../fixtures/fresh-user-per-scenario";
 import { InvestmentsPo } from "../page-objects/InvestmentsPo";
 
@@ -522,8 +522,16 @@ When("I open the sale of {string}", async ({ page }, name: string) => {
 When(
   "I set {string} in the sale to {string}",
   async ({ page }, field: string, v: string) => {
-    const id = field === "Value left" ? "swap-sell-left" : "swap-sell-received";
-    await page.getByTestId("swap-sheet").getByTestId(id).fill(v);
+    const sheet = page.getByTestId("swap-sheet");
+    if (field === "Value left")
+      return new InvestmentsPo(page).fillSoldFromLeft(sheet, v);
+    const id =
+      field === "Value sold"
+        ? "swap-sell-sold"
+        : field === "Amount moved"
+          ? "swap-transfer-qty"
+          : "swap-sell-received";
+    await sheet.getByTestId(id).fill(v);
   },
 );
 
@@ -800,7 +808,7 @@ When(
     const po = new InvestmentsPo(page);
     await po.startFromNewTransaction("sell", "broker", name);
     const sheet = po.swapSheet();
-    await sheet.getByTestId("swap-sell-left").fill(left);
+    await po.fillSoldFromLeft(sheet, left);
     await sheet.getByTestId("swap-dest-out").click();
     await expect(sheet.getByTestId("swap-sell-received")).not.toHaveValue("");
     expect(await po.submitSwap("/sell")).toBe(201);
@@ -1034,7 +1042,7 @@ When(
     const po = new InvestmentsPo(page);
     await po.openSwap(name, "sell");
     const sheet = po.swapSheet();
-    await sheet.getByTestId("swap-sell-left").fill("30000");
+    await po.fillSoldFromLeft(sheet, "30000");
     await sheet.getByTestId("swap-dest-out").click();
     await sheet.getByTestId("wallet-target-existing").click();
   },
@@ -1061,30 +1069,67 @@ Then("the Swap sheet fits the phone without overflow", async ({ page }) => {
   expect(scroll).toBe(true);
 });
 
+// Round-2 gaps 4/11: shadow + background on the SAME painted element (the old
+// check passed while the shadow sat under an opaque child), clearly darker
+// than the asset card, every amount in the strip's muted grey.
 Then(
-  "the ledger of {string} sits on the sunken surface with an inset top shadow in both themes",
+  "the ledger of {string} is darker than its asset and casts the inset top shadow in both themes",
   async ({ page }, name: string) => {
-    const ledger = await new InvestmentsPo(page).openLedger(name);
+    const po = new InvestmentsPo(page);
+    await po.openLedger(name);
+    const id = await po.assetId(name);
     for (const theme of ["dark", "light"]) {
       await page.evaluate(
         (t) => document.documentElement.setAttribute("data-theme", t),
         theme,
       );
-      const look = await ledger.evaluate((el) => {
-        const probe = document.createElement("div");
-        probe.style.backgroundColor = "var(--surface-sunken-dark)";
-        document.body.appendChild(probe);
-        const token = getComputedStyle(probe).backgroundColor;
-        probe.remove();
-        const first = el.querySelector<HTMLElement>("[role=row]")!;
-        return {
-          bg: getComputedStyle(el).backgroundColor,
-          token,
-          shadow: getComputedStyle(first).boxShadow,
-        };
-      });
+      const look = await page.evaluate(
+        ({ id, name }) => {
+          const probe = document.createElement("div");
+          probe.style.backgroundColor = "var(--surface-ledger-dark)";
+          document.body.appendChild(probe);
+          const token = getComputedStyle(probe).backgroundColor;
+          probe.remove();
+          const strip = document.querySelector(
+            `[data-testid="asset-ledger-${id}"]`,
+          )!;
+          const surface = strip.querySelector("[data-ledger-surface]");
+          const card = document.querySelector(
+            `[data-testid="holding-row-${name}"]`,
+          )!;
+          const amounts = [
+            ...strip.querySelectorAll(
+              '[role=row]:not([data-testid^="ledger-row-interest-"]) .num span',
+            ),
+          ]
+            .filter((s) => /\s[A-Z]{3}$/.test((s.textContent ?? "").trim()))
+            .map((s) => getComputedStyle(s).color);
+          return {
+            token,
+            bg: surface && getComputedStyle(surface).backgroundColor,
+            shadow: surface && getComputedStyle(surface).boxShadow,
+            card: getComputedStyle(card).backgroundColor,
+            muted: getComputedStyle(strip).color,
+            amounts,
+          };
+        },
+        { id, name },
+      );
+      // Gamma-encoded luma on 0–1 sRGB channels (no linearisation).
+      const luma = (c: string) => {
+        const [r, g, b] = (c.match(/[\d.]+/g) ?? []).map(Number);
+        return (0.299 * r! + 0.587 * g! + 0.114 * b!) / 255;
+      };
+      expect(look.bg, `${theme}: no [data-ledger-surface]`).not.toBeNull();
+      expect(look.token).not.toBe("rgba(0, 0, 0, 0)");
       expect(look.bg).toBe(look.token);
       expect(look.shadow).toContain("inset");
+      expect(
+        luma(look.card) - luma(look.bg!),
+        `${theme}: ledger ${look.bg} vs card ${look.card}`,
+      ).toBeGreaterThanOrEqual(0.01);
+      expect(look.amounts.length).toBeGreaterThan(0);
+      for (const c of look.amounts) expect(c).toBe(look.muted);
     }
     await page.evaluate(() =>
       document.documentElement.setAttribute("data-theme", "dark"),
@@ -1253,5 +1298,513 @@ Then(
       timeout: 15000,
     });
     await fitsAndTranslated(page);
+  },
+);
+
+// ── 13.1 round 2 (gaps 1–13) ──
+
+Given(
+  "a deposit {string} of {int} cents at {int}% yearly started {int} months ago exists in my budget",
+  async (
+    { freshUser },
+    name: string,
+    principal: number,
+    pct: number,
+    months: number,
+  ) => {
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      await client.query(
+        `INSERT INTO budgeting.investments
+           (id, tenant_id, budget_id, name, holding_type, ui_type, quantity,
+            buy_price_cents, buy_currency, current_price_currency,
+            deposit_rate_bps, deposit_start_date, deposit_cap_frequency,
+            sort_order, created_at)
+         VALUES (gen_random_uuid(), $1::uuid, $1::uuid, $2, 'deposit', 'deposit', '1',
+                 $3::bigint, 'USD', 'USD', $4::int,
+                 (current_date - ($5::int * interval '1 month'))::date, 'yearly', 0, now())`,
+        [freshUser.budgetId, name, principal, pct * 100, months],
+      );
+      await addStart(client, freshUser.budgetId, name);
+    });
+  },
+);
+
+// A linked transfer pair written straight to the ledger (no Swap UI), so the
+// ledger-look scenarios do not depend on the Sell/Transfer forms.
+Given(
+  "{string} moved {int} cents to {string} on its ledger",
+  async ({ freshUser }, from: string, cents: number, to: string) => {
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      await client.query(
+        `WITH a AS (SELECT id, tenant_id, budget_id, coalesce(buy_currency, 'USD') AS ccy
+                      FROM budgeting.investments WHERE budget_id = $1::uuid AND name = $2),
+              b AS (SELECT id FROM budgeting.investments WHERE budget_id = $1::uuid AND name = $4),
+              t AS (SELECT gen_random_uuid() AS tid)
+         INSERT INTO budgeting.investment_history
+           (tenant_id, budget_id, holding_id, kind, effective_date, amount_cents,
+            amount_currency, cost_delta_cents, cost_currency, transfer_id)
+         SELECT a.tenant_id, a.budget_id, a.id, 'transfer_out', current_date - 1,
+                $3::bigint, a.ccy, -$3::bigint, a.ccy, t.tid FROM a, t
+         UNION ALL
+         SELECT a.tenant_id, a.budget_id, b.id, 'transfer_in', current_date - 1,
+                $3::bigint, a.ccy, $3::bigint, a.ccy, t.tid FROM a, b, t`,
+        [freshUser.budgetId, from, cents, to],
+      );
+    });
+  },
+);
+
+Given(
+  "a tracked crypto asset {string} on {string} of {string} units at {int} cents exists in my budget",
+  async (
+    { freshUser },
+    name: string,
+    symbol: string,
+    qty: string,
+    price: number,
+  ) => {
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      await client.query(
+        `INSERT INTO budgeting.investments
+           (id, tenant_id, budget_id, instrument_id, name, holding_type, ui_type, quantity,
+            buy_price_cents, buy_currency, current_price_cents, current_price_currency,
+            sort_order, created_at)
+         SELECT gen_random_uuid(), $1::uuid, $1::uuid,
+                (SELECT id FROM budgeting.instruments WHERE provider = 'coingecko' AND symbol = $3 LIMIT 1),
+                $2, 'crypto', 'crypto', $4::numeric, $5::bigint, b.default_currency,
+                $5::numeric, b.default_currency, 0, now()
+           FROM tenancy.budgets b WHERE b.id = $1::uuid`,
+        [freshUser.budgetId, name, symbol, qty, price],
+      );
+      await addStart(client, freshUser.budgetId, name);
+    });
+  },
+);
+
+Given(
+  "a silver coin asset {string} of {int} grams at {int} cents with premium {string} exists in my budget",
+  async (
+    { freshUser },
+    name: string,
+    grams: number,
+    price: number,
+    premium: string,
+  ) => {
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      await client.query(
+        `INSERT INTO budgeting.investments
+           (id, tenant_id, budget_id, instrument_id, name, holding_type, ui_type,
+            metal, metal_kind, unit_of_measure, premium_pct, quantity,
+            buy_price_cents, buy_currency, current_price_cents, current_price_currency,
+            sort_order, created_at)
+         SELECT gen_random_uuid(), $1::uuid, $1::uuid,
+                (SELECT id FROM budgeting.instruments WHERE provider = 'gold_api' AND symbol = 'XAG/USD' LIMIT 1),
+                $2, 'commodity', 'precious_metals', 'silver', 'coin', 'g', $5::numeric,
+                $3::numeric, $4::bigint, b.default_currency, $4::numeric, b.default_currency, 0, now()
+           FROM tenancy.budgets b WHERE b.id = $1::uuid`,
+        [freshUser.budgetId, name, grams, price, premium],
+      );
+      await addStart(client, freshUser.budgetId, name);
+    });
+  },
+);
+
+// Gap 1: interest accrued so far, dated today, never deletable (D-19).
+Then(
+  "the ledger of {string} shows an Interest row dated today that cannot be deleted",
+  async ({ page }, name: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    const local = new Date().toLocaleDateString("en-CA");
+    const utc = new Date().toISOString().slice(0, 10);
+    const row = ledger
+      .locator(
+        `[data-testid="ledger-row-interest-${local}"], [data-testid="ledger-row-interest-${utc}"]`,
+      )
+      .first();
+    await expect(row).toBeVisible({ timeout: 10000 });
+    await expect(row).toContainText("Interest");
+    await expect(
+      row.locator('[data-testid^="ledger-delete-"]'),
+    ).toHaveAttribute("aria-disabled", "true");
+  },
+);
+
+// Gap 2: the type header is an asset-row-shaped card.
+Then(
+  "the {string} header lines up with the asset row {string}",
+  async ({ page }, uiType: string, name: string) => {
+    const header = page.getByTestId(`investment-group-${uiType}`);
+    const row = new InvestmentsPo(page).row(name);
+    const label = uiType[0]!.toUpperCase() + uiType.slice(1);
+    const [h, r, hg, rg, hn, rn] = await Promise.all([
+      header.boundingBox(),
+      row.boundingBox(),
+      page.getByTestId(`drag-grip-type ${uiType}`).boundingBox(),
+      page.getByTestId(`drag-grip-${name.toLowerCase()}`).boundingBox(),
+      header.getByText(label, { exact: true }).boundingBox(),
+      row
+        .getByText(name, { exact: true })
+        .locator("visible=true")
+        .boundingBox(),
+    ]);
+    expect(Math.abs(h!.height - r!.height), "card height").toBeLessThanOrEqual(
+      1,
+    );
+    expect(
+      Math.abs(hg!.x - h!.x - (rg!.x - r!.x)),
+      "drag handle offset",
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(hn!.x - h!.x - (rn!.x - r!.x)),
+      "name offset",
+    ).toBeLessThanOrEqual(1);
+  },
+);
+
+/** Header tap mirrors the asset reveal: grows, P/L line, two bare amounts,
+ *  share under the value. */
+async function expectHeaderReveal(
+  page: import("@playwright/test").Page,
+  uiType: string,
+) {
+  const header = page.getByTestId(`investment-group-${uiType}`);
+  const h0 = (await header.boundingBox())!.height;
+  await header.click();
+  const split = page.getByTestId(`investment-type-split-${uiType}`);
+  await expect(split).toBeVisible();
+  await expect
+    .poll(async () => (await header.boundingBox())!.height)
+    .toBeGreaterThan(h0 + 4);
+  await expect(split.locator("[data-pl-line]")).toContainText("%");
+  const caption = split.locator("[data-pl-caption]");
+  expect(await caption.textContent()).not.toMatch(/\p{L}/u);
+  await expect(caption.locator("[data-signed]")).toHaveCount(2);
+  const [v, s] = await Promise.all([
+    page.getByTestId(`investment-type-value-${uiType}`).boundingBox(),
+    page.getByTestId(`investment-type-share-${uiType}`).boundingBox(),
+  ]);
+  expect(v && s, "value + share rendered").toBeTruthy();
+  expect(s!.y).toBeGreaterThanOrEqual(v!.y + v!.height - 1);
+  expect(Math.abs(s!.x + s!.width - (v!.x + v!.width))).toBeLessThanOrEqual(2);
+}
+
+Then(
+  "tapping the {string} header grows it and mirrors the asset reveal",
+  async ({ page }, uiType: string) => {
+    await expectHeaderReveal(page, uiType);
+  },
+);
+
+Then(
+  "tapping the {string} header grows it and shows the share under its value",
+  async ({ page }, uiType: string) => {
+    await expectHeaderReveal(page, uiType);
+    await fitsAndTranslated(page);
+  },
+);
+
+// Gap 3: the asset's share sits under its amount, not in the caption.
+Then(
+  "tapping the asset row {string} shows its share under the amount {string}",
+  async ({ page }, name: string, amount: string) => {
+    const po = new InvestmentsPo(page);
+    const id = await po.assetId(name);
+    await page.getByTestId(`asset-row-${id}`).click();
+    const share = page.getByTestId(`asset-share-${id}`);
+    await expect(share).toBeVisible();
+    const [a, s] = await Promise.all([
+      po
+        .row(name)
+        .getByText(amount, { exact: true })
+        .locator("visible=true")
+        .boundingBox(),
+      share.boundingBox(),
+    ]);
+    expect(s!.y).toBeGreaterThanOrEqual(a!.y + a!.height - 1);
+    expect(Math.abs(s!.x + s!.width - (a!.x + a!.width))).toBeLessThanOrEqual(
+      2,
+    );
+  },
+);
+
+// Gap 12: "to X" / "from X" is a step smaller than the date · kind line.
+Then(
+  "the linked line in the ledger of {string} is smaller than its date line",
+  async ({ page }, name: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    const size = (l: Locator) =>
+      l.first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    const linked = await size(ledger.getByText(/^(to|from) /));
+    const dated = await size(ledger.getByText(/· Transfer (out|in)$/));
+    expect(linked).toBeLessThan(dated);
+  },
+);
+
+// Gap 5: the open ledger follows its swiped row and nothing is clipped.
+When(
+  "I swipe the asset {string} with its ledger open",
+  async ({ page }, name: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openLedger(name);
+    await po.swipeAsset(name, 220);
+  },
+);
+
+Then(
+  "the ledger of {string} moves with its row and nothing is clipped",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const m = await page.evaluate((id) => {
+      const wrap = document.querySelector(
+        `[data-investment-row-wrapper="${id}"]`,
+      )!;
+      const card = wrap.lastElementChild!;
+      const strip = document.querySelector(
+        `[data-testid="asset-ledger-${id}"]`,
+      )!;
+      const first = strip.querySelector("[role=row]")!;
+      const rc = card.getBoundingClientRect();
+      const sc = strip.getBoundingClientRect();
+      const fr = first.getBoundingClientRect();
+      const rowY = rc.top + rc.height / 2;
+      const ledY = fr.top + fr.height / 2;
+      const clipped: number[] = [];
+      for (let x = 0; x < innerWidth; x += 4) {
+        const inRow = card.contains(document.elementFromPoint(x, rowY));
+        const inStrip = strip.contains(document.elementFromPoint(x, ledY));
+        if (inRow && !inStrip) clipped.push(x);
+      }
+      const clippers: string[] = [];
+      for (
+        let n = strip.parentElement;
+        n && !n.hasAttribute("data-asset-block");
+        n = n.parentElement
+      )
+        if (/hidden|clip/.test(getComputedStyle(n).overflowX))
+          clippers.push(`${n.tagName}.${n.className}`.slice(0, 80));
+      return {
+        rowLeft: rc.left,
+        stripLeft: sc.left,
+        clipped: clipped.length,
+        clippedFrom: clipped[0],
+        clippedTo: clipped.at(-1),
+        clippers,
+      };
+    }, id);
+    console.log("[r2-swipe]", JSON.stringify(m));
+    expect(m.rowLeft, "row did not swipe").toBeLessThan(0);
+    expect(Math.abs(m.rowLeft - m.stripLeft)).toBeLessThanOrEqual(1);
+    expect(m.clipped, `clipped x ${m.clippedFrom}..${m.clippedTo}`).toBe(0);
+  },
+);
+
+// Gap 6: New transaction opens on Buy with the Add form inside.
+async function expectNewTxOnBuy(page: import("@playwright/test").Page) {
+  await new InvestmentsPo(page).addButton().click();
+  const sheet = page.getByTestId("new-tx-sheet");
+  await expect(page.getByTestId("new-tx-kind-buy")).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await expect(sheet.getByTestId("holding-sheet")).toBeVisible();
+  for (const k of ["buy", "sell", "transfer"])
+    await expect(page.getByTestId(`new-tx-kind-${k}`)).toBeVisible();
+}
+
+Then(
+  "New transaction opens on Buy with the Add form inside and every kind visible",
+  async ({ page }) => {
+    await expectNewTxOnBuy(page);
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("new-tx-sheet")).toHaveCount(0);
+  },
+);
+
+Then(
+  "the New transaction sheet opens on Buy with the switch visible",
+  async ({ page }) => {
+    await expectNewTxOnBuy(page);
+    await fitsAndTranslated(page);
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("new-tx-sheet")).toHaveCount(0);
+  },
+);
+
+Then(
+  "picking Sell in New transaction asks for the type and drops the Add form",
+  async ({ page }) => {
+    await new InvestmentsPo(page).addButton().click();
+    await page.getByTestId("new-tx-kind-sell").click();
+    await expect(page.getByTestId("new-tx-type")).toBeVisible();
+    await expect(page.getByTestId("holding-sheet")).toHaveCount(0);
+  },
+);
+
+// Gap 10: Edit shows the asset's configuration, locked.
+Then(
+  "Edit of {string} shows these locked fields",
+  async ({ page }, name: string, table: DataTable) => {
+    await new InvestmentsPo(page).openEdit(name);
+    const sheet = page.getByTestId("edit-asset-sheet");
+    for (const { field, value } of table.hashes()) {
+      const el = sheet.getByTestId(`edit-asset-locked-${field}`);
+      await expect(el, field).toBeVisible();
+      const got = await el.evaluate((n) => ({
+        text:
+          n instanceof HTMLInputElement
+            ? n.value
+            : (n.textContent ?? "").trim(),
+        locked:
+          (n as HTMLInputElement).readOnly ||
+          n.getAttribute("aria-readonly") === "true",
+      }));
+      expect(got.locked, `${field} locked`).toBe(true);
+      if (value === "*") expect(got.text, field).not.toBe("");
+      else expect(got.text, field).toContain(value);
+    }
+    await expect(sheet).not.toContainText("budget.investments.");
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
+  },
+);
+
+// Gap 13: every quantity entry reads "±qty @ price".
+When(
+  "I move {string} of the {string} asset {string} to a new asset {string} from New transaction",
+  async ({ page }, qty: string, type: string, name: string, to: string) => {
+    const po = new InvestmentsPo(page);
+    await po.startFromNewTransaction("transfer", type, name);
+    await page.getByTestId("swap-transfer-qty").fill(qty);
+    await page.getByTestId("swap-transfer-name").fill(to);
+    await page.getByTestId("swap-transfer-name").press("Escape");
+    expect(await po.submitSwap("/transfer")).toBe(201);
+  },
+);
+
+Then(
+  "every quantity entry in the ledger of {string} reads quantity at price",
+  async ({ page }, name: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    const lines = await ledger
+      .locator("[role=row]")
+      .evaluateAll((rows) =>
+        rows.map(
+          (r) =>
+            [...r.querySelectorAll(".num span")]
+              .map((s) => (s.textContent ?? "").trim())
+              .find((t) => /^[+−-]?\d/.test(t) && !/[A-Z]{3}$/.test(t)) ?? null,
+        ),
+      );
+    expect(lines.length).toBeGreaterThan(0);
+    for (const l of lines) expect(l).toMatch(/^[+−-][\d.,\s]+ @ [\d.,\s]+$/);
+  },
+);
+
+// Gaps 7–9: Sell asks what was sold; Sell / Move everything stay editable.
+Then("the sale asks {string}", async ({ page }, copy: string) => {
+  await expect(
+    page
+      .getByTestId("swap-sheet")
+      .getByRole("heading", { name: copy, exact: true }),
+  ).toBeVisible();
+});
+
+When("I tap {string} in the sale", async ({ page }, testId: string) => {
+  await page.getByTestId("swap-sheet").getByTestId(testId).click();
+});
+
+Then(
+  "{string} holds {string} and stays editable",
+  async ({ page }, testId: string, value: string) => {
+    const field = page.getByTestId("swap-sheet").getByTestId(testId);
+    await expect(field).toHaveValue(value);
+    await expect(field).not.toHaveAttribute("readonly");
+  },
+);
+
+Then("{string} is not pressed", async ({ page }, testId: string) => {
+  await expect(
+    page.getByTestId("swap-sheet").getByTestId(testId),
+  ).toHaveAttribute("aria-pressed", "false");
+});
+
+When(
+  "I send the sale out of investments receiving {string}",
+  async ({ page }, received: string) => {
+    const po = new InvestmentsPo(page);
+    const sheet = po.swapSheet();
+    await sheet.getByTestId("swap-dest-out").click();
+    await sheet.getByTestId("swap-sell-received").fill(received);
+    expect(await po.submitSwap("/sell")).toBe(201);
+  },
+);
+
+When("I open the transfer of {string}", async ({ page }, name: string) => {
+  await new InvestmentsPo(page).openSwap(name, "transfer");
+});
+
+/** A Radix list (in the DOM, collision-aware) of normal height: ≥120px, or
+ *  every option fully inside both the list and the viewport. */
+async function expectFullList(
+  page: import("@playwright/test").Page,
+  trigger: Locator,
+  name: string,
+) {
+  const t = (await trigger.boundingBox())!;
+  console.log(
+    "[r2-picker]",
+    await trigger.getAttribute("data-testid"),
+    "trigger bottom → viewport bottom:",
+    Math.round(page.viewportSize()!.height - (t.y + t.height)),
+  );
+  await trigger.click();
+  const list = page.getByRole("listbox");
+  await expect(list).toBeVisible({ timeout: 3000 });
+  const ok = await list.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    if (r.height >= 120) return true;
+    return [...el.querySelectorAll("[role=option]")].every((o) => {
+      const b = o.getBoundingClientRect();
+      return (
+        b.top >= r.top - 1 &&
+        b.bottom <= r.bottom + 1 &&
+        b.top >= 0 &&
+        b.bottom <= innerHeight
+      );
+    });
+  });
+  expect(ok, "list too short").toBe(true);
+  await page.getByRole("option", { name: new RegExp(`^${name} ·`) }).click();
+  await expect(trigger).toContainText(name);
+}
+
+Then(
+  "the existing-asset picker opens a full list and picks {string}",
+  async ({ page }, name: string) => {
+    const sheet = page.getByTestId("swap-sheet");
+    await sheet.getByTestId("swap-dest-existing").click();
+    await expectFullList(page, sheet.getByTestId("swap-sell-existing"), name);
+  },
+);
+
+Then(
+  "the existing-wallet picker opens a full list and picks {string}",
+  async ({ page }, name: string) => {
+    const sheet = page.getByTestId("swap-sheet");
+    await sheet.getByTestId("swap-dest-out").click();
+    await sheet.getByTestId("wallet-target-existing").click();
+    await expectFullList(page, sheet.getByTestId("swap-wallet-select"), name);
+  },
+);
+
+Then(
+  "the Sell tab of {string} asks how much was sold",
+  async ({ page }, name: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openSwap(name, "sell");
+    await expect(po.swapSheet().getByTestId("swap-sell-sold")).toBeVisible();
+    await fitsAndTranslated(page);
+    await page.keyboard.press("Escape");
+    await expect(po.swapSheet()).toHaveCount(0);
   },
 );
