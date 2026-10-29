@@ -194,7 +194,7 @@ describe("Sell tab", () => {
     );
     await pick("swap-sell-existing", `swap-sell-existing-option-${btcCold.id}`);
     expect(screen.getByTestId("swap-sell-existing")).toHaveTextContent(
-      "BTC Cold · PLN",
+      "BTC Cold · 1 · 60,000 PLN",
     );
     expect(screen.getByTestId("swap-dest-price")).toHaveAttribute("readonly");
     expect(screen.getByTestId("swap-dest-price")).toHaveValue("60000");

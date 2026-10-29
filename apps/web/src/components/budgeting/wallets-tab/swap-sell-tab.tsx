@@ -26,6 +26,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { UI_TYPE_ICON } from "@/lib/investment-icons";
 import {
   Select,
   SelectContent,
@@ -607,34 +608,67 @@ export function SwapSellTab({
           )}
           {dest === "existing" && (
             <>
-              <Select
-                value={existingId || undefined}
-                onValueChange={setExistingId}
-              >
-                <SelectTrigger
-                  data-testid="swap-sell-existing"
-                  aria-label={t("swap.sell.dest.existing")}
-                  className="min-h-11 w-full"
+              {/* Round 4: set apart from the destination cards above. */}
+              <div className="mt-3">
+                <Select
+                  value={existingId || undefined}
+                  onValueChange={setExistingId}
                 >
-                  <SelectValue placeholder={t("swap.sell.dest.existingDesc")} />
-                </SelectTrigger>
-                <SelectContent position="popper" className={LIST}>
-                  {[...byType].map(([ui, hs]) => (
-                    <SelectGroup key={ui}>
-                      <SelectLabel>{t(`uitype.${ui}`)}</SelectLabel>
-                      {hs.map((h) => (
-                        <SelectItem
-                          key={h.id}
-                          value={h.id}
-                          data-testid={`swap-sell-existing-option-${h.id}`}
-                        >
-                          {h.name} · {ccyOf(h, budgetCurrency)}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ))}
-                </SelectContent>
-              </Select>
+                  <SelectTrigger
+                    data-testid="swap-sell-existing"
+                    aria-label={t("swap.sell.dest.existing")}
+                    className="min-h-11 w-full"
+                  >
+                    <SelectValue
+                      placeholder={t("swap.sell.dest.existingDesc")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className={LIST}>
+                    {[...byType].map(([ui, hs]) => (
+                      <SelectGroup key={ui}>
+                        <SelectLabel className="flex items-center gap-2">
+                          {(() => {
+                            const Icon = UI_TYPE_ICON[ui as UiType];
+                            return Icon ? (
+                              <Icon
+                                data-type-icon
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                            ) : null;
+                          })()}
+                          {t(`uitype.${ui}`)}
+                        </SelectLabel>
+                        {hs.map((h) => (
+                          <SelectItem
+                            key={h.id}
+                            value={h.id}
+                            data-testid={`swap-sell-existing-option-${h.id}`}
+                          >
+                            {h.name}
+                            {/* Round 4: qty · value, so the asset is recognisable. */}
+                            <span
+                              data-asset-meta
+                              className="tabular-nums"
+                              style={{ color: "var(--muted-foreground)" }}
+                            >
+                              {" · "}
+                              {[
+                                holdingShape(h) === "quantity"
+                                  ? trimQty(h.quantity)
+                                  : null,
+                                `${money(Number(h.valueCents))} ${ccyOf(h, budgetCurrency)}`,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               {existingIsQty && destPair(true)}
             </>
           )}
