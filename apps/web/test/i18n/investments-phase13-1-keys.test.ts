@@ -91,7 +91,6 @@ const KEYS = [
   "swap.sell.dest.newDesc",
   "swap.sell.dest.out",
   "swap.sell.dest.outDesc",
-  "swap.sell.everything",
   "swap.sell.sold",
   "swap.sell.received",
   "swap.sell.receivedHelp",
@@ -118,15 +117,15 @@ const KEYS = [
   "swap.tab.sell",
   "swap.tab.transfer",
   "swap.title",
-  "swap.transfer.everything",
   "swap.transfer.moveAmount",
   "swap.transfer.moveQty",
   "swap.transfer.note",
   "swap.transfer.sameInstrument",
   "swap.transfer.to",
   "typeGroup.stats.avgPrice",
-  "typeGroup.unrealizedAria",
-  "typeGroup.realizedAria",
+  "typeGroup.unrealizedLabel",
+  "typeGroup.realizedLabel",
+  "ledger.confirm.interestNote",
 ];
 
 const at = (m: unknown, path: string): unknown =>

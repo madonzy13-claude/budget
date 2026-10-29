@@ -763,8 +763,6 @@
         "stats": {
           "avgPrice": "Avg price {price}"
         },
-        "unrealizedAria": "Unrealized {value}",
-        "realizedAria": "Realized {value}",
         "unrealizedLabel": "unrealized: {value}",
         "realizedLabel": "realized: {value}"
       },
@@ -813,7 +811,6 @@
         },
         "locked": "Locked",
         "sell": {
-          "everything": "Sell everything",
           "where": "Where did the money go?",
           "dest": {
             "new": "New investment",
@@ -838,7 +835,6 @@
           "sold": "How much was sold?"
         },
         "transfer": {
-          "everything": "Move everything",
           "to": "To",
           "sameInstrument": "Same instrument only.",
           "note": "Not a sale: no realized gain, cost moves with it.",

@@ -763,8 +763,6 @@
         "stats": {
           "avgPrice": "Śr. cena {price}"
         },
-        "unrealizedAria": "Niezrealizowany {value}",
-        "realizedAria": "Zrealizowany {value}",
         "unrealizedLabel": "niezrealizowany: {value}",
         "realizedLabel": "zrealizowany: {value}"
       },
@@ -813,7 +811,6 @@
         },
         "locked": "Zablokowane",
         "sell": {
-          "everything": "Sprzedaj wszystko",
           "where": "Gdzie trafiły pieniądze?",
           "dest": {
             "new": "Nowa inwestycja",
@@ -838,7 +835,6 @@
           "sold": "Ile sprzedano?"
         },
         "transfer": {
-          "everything": "Przenieś wszystko",
           "to": "Do",
           "sameInstrument": "Tylko ten sam instrument.",
           "note": "To nie sprzedaż: brak zrealizowanego zysku, koszt przechodzi razem.",
