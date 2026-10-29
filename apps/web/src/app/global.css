@@ -1081,25 +1081,56 @@ main[data-shell-scroll]:has([data-lock-page-scroll]) {
 .fit-line-scroll {
   animation: fit-line-scroll 8s ease-in-out infinite;
 }
-/* Soft edges instead of a hard cut while it scrolls. */
+/* Soft edges instead of a hard cut while it scrolls — only on the side with
+   hidden text (round-5 gap 12): at rest on the start the left edge is sharp,
+   at rest on the end the right edge is, so the first and last characters show.
+   The fade widths animate in step with fit-line-scroll (same 8s timeline). */
+@property --fit-fl {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --fit-fr {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 10px;
+}
+@keyframes fit-line-fade {
+  0%,
+  20% {
+    --fit-fl: 0px;
+    --fit-fr: 10px;
+  }
+  50%,
+  70% {
+    --fit-fl: 10px;
+    --fit-fr: 0px;
+  }
+  100% {
+    --fit-fl: 0px;
+    --fit-fr: 10px;
+  }
+}
 .fit-line-fade {
+  animation: fit-line-fade 8s ease-in-out infinite;
   -webkit-mask-image: linear-gradient(
     to right,
     transparent 0,
-    #000 10px,
-    #000 calc(100% - 10px),
+    #000 var(--fit-fl),
+    #000 calc(100% - var(--fit-fr)),
     transparent 100%
   );
   mask-image: linear-gradient(
     to right,
     transparent 0,
-    #000 10px,
-    #000 calc(100% - 10px),
+    #000 var(--fit-fl),
+    #000 calc(100% - var(--fit-fr)),
     transparent 100%
   );
 }
 @media (prefers-reduced-motion: reduce) {
-  .fit-line-scroll {
+  .fit-line-scroll,
+  .fit-line-fade {
     animation: none;
   }
 }
