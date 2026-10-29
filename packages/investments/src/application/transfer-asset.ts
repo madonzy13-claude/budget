@@ -80,17 +80,8 @@ export function transferAsset(deps: {
           return err(fail("transfer_instrument_mismatch"));
         if ((holdingShape(d) === "quantity") !== byQty)
           return err(fail("shape_mismatch"));
-      } else {
-        const taken = await deps.holdingRepo.findByLabel(
-          input.tenantId,
-          input.budgetId,
-          src.uiType ?? "other",
-          input.to.name,
-          // A new label carries the source's currency.
-          src.currentPriceCurrency ?? src.buyCurrency,
-        );
-        if (taken) return err(fail("label_taken"));
       }
+      // A new name always creates (round-5: names are not unique).
 
       // Proportional cost (D-10); a full move takes the whole cost.
       const totalCost = byQty

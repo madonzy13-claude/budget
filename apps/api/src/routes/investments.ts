@@ -78,11 +78,7 @@ export function createInvestmentsRoute(deps: BootedDeps) {
       budgetCurrency: budget?.default_currency ?? "EUR",
     });
     if (r.isErr()) return c.json({ error: r.error.message }, 422);
-    // 13.1 D-02: a name that already exists in the type joined that asset.
-    return c.json(
-      { ...serializeHolding(r.value.holding), joined: r.value.joined },
-      201,
-    );
+    return c.json(serializeHolding(r.value.holding), 201);
   });
 
   // ── 13.1: shared error mapping + id validation ─────────────────────────

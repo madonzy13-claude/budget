@@ -181,7 +181,7 @@ export function sellHolding(deps: {
             id: src.id,
             buyPriceCents: r.newPrincipalCents,
             depositStartDate: date,
-            });
+          });
           srcEntry = {
             costDeltaCents: -soldCost,
             priorPrincipalCents: principal,
@@ -198,7 +198,7 @@ export function sellHolding(deps: {
             id: src.id,
             buyPriceCents: r.keptCostCents,
             currentPriceCents: keep,
-            });
+          });
           srcEntry = {
             costDeltaCents: -soldCost,
             valueDeltaCents: keep - value,
@@ -222,21 +222,12 @@ export function sellHolding(deps: {
               quantity: dest.holding.quantity ?? "1",
             })
           : null;
+      // Round-5 scope change: a destination is an asset by id; "new" always
+      // creates (names are not unique).
       const into: Holding | null =
         dest.kind === "existing"
           ? (holdings.find((h) => h.id === dest.holdingId) ?? null)
-          : newBase?.uiType
-            ? await deps.holdingRepo.findByLabel(
-                input.tenantId,
-                input.budgetId,
-                newBase.uiType,
-                newBase.name,
-                // A new destination is priced in what was received (D-22).
-                newBase.currentPriceCurrency ??
-                  newBase.buyCurrency ??
-                  input.receivedCurrency,
-              )
-            : null;
+          : null;
       if (dest.kind === "existing" && !into) return err(fail("not_found"));
       if (into && into.id === src.id) return err(fail("same_holding"));
       const destQty =
@@ -257,14 +248,23 @@ export function sellHolding(deps: {
           return err(fail("price_required"));
         unit = big(dest.priceCents);
       }
+      // R5-6: an existing destination may be in another currency — its leg is
+      // booked in the asset's own currency at ONE deal rate on the sale date.
+      const assetCcy = into ? ccyOf(into) : receivedCcy;
+      const deal = big(await rate(receivedCcy, assetCcy));
       let received: bigint;
+      let receivedAsset: bigint;
       if (unit) {
         if (!destQty || big(destQty).lte(0))
           return err(fail("quantity_required"));
-        received = cents(big(destQty).times(unit));
+        receivedAsset = cents(big(destQty).times(unit));
+        received = into ? cents(big(receivedAsset).div(deal)) : receivedAsset;
       } else if (input.receivedCents === undefined)
         return err(fail("received_required"));
-      else received = BigInt(String(input.receivedCents));
+      else {
+        received = BigInt(String(input.receivedCents));
+        receivedAsset = cents(big(received).times(deal));
+      }
 
       const fx = realizedInBudget({
         receivedCents: received,
@@ -306,11 +306,11 @@ export function sellHolding(deps: {
           }),
         );
 
-      // A linked leg INTO an asset that already exists (D-09): by id for
-      // Existing, by label for New (a hidden one is revived, D-17).
+      // A linked leg INTO an existing asset, picked by id (D-09); a hidden one
+      // is revived (D-17). Its cost/value move in the asset's currency.
       const intoExisting = async (d: Holding) => {
         if (d.holdingType === "deposit") throw fail("unsupported_destination");
-        if (ccyOf(d) !== receivedCcy) throw fail("currency_mismatch");
+        const own = { costDeltaCents: receivedAsset, costCurrency: assetCcy };
         const revive = d.archivedAt ? { unarchive: true } : {};
         if (holdingShape(d) === "quantity") {
           const addQty = qty(big(destQty!));
@@ -318,7 +318,7 @@ export function sellHolding(deps: {
             quantity: d.quantity,
             buyPriceCents: d.buyPriceCents ?? 0n,
             addQuantity: addQty,
-            paidCents: received,
+            paidCents: receivedAsset,
           });
           patches.push({
             id: d.id,
@@ -326,12 +326,12 @@ export function sellHolding(deps: {
             buyPriceCents: r.newBuyPriceCents,
             ...revive,
           });
-          leg({ holdingRef: d.id, qtyDelta: addQty });
+          leg({ holdingRef: d.id, qtyDelta: addQty, ...own });
         } else {
           const r = mergeIntoAmountHolding({
             buyCents: d.buyPriceCents ?? 0n,
             currentCents: await valueOf(d),
-            receivedCents: received,
+            receivedCents: receivedAsset,
           });
           patches.push({
             id: d.id,
@@ -339,7 +339,7 @@ export function sellHolding(deps: {
             currentPriceCents: r.newCurrentCents,
             ...revive,
           });
-          leg({ holdingRef: d.id, valueDeltaCents: received });
+          leg({ holdingRef: d.id, valueDeltaCents: receivedAsset, ...own });
         }
         return d.id;
       };

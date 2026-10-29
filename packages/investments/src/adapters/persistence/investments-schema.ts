@@ -20,7 +20,6 @@ import {
   timestamp,
   date,
   check,
-  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { budgeting, appRole, workerRole } from "@budget/platform";
 
@@ -74,12 +73,7 @@ export const investments = budgeting.table(
       .notNull(),
   },
   (t) => [
-    // 0088 (D-02/D-07): one asset per label within a type, hidden ones included.
-    uniqueIndex("investments_label_uq").on(
-      t.budgetId,
-      t.uiType,
-      sql`lower(btrim(${t.name}))`,
-    ),
+    // Round-5 scope change: no label uniqueness (dropped by 0093).
     check(
       "investments_holding_type_chk",
       sql`${t.holdingType} IN ('equities','etf','bond','crypto','reit','commodity','cash_fx','real_estate','other','deposit','savings','possession')`,

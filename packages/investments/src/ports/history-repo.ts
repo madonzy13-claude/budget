@@ -90,7 +90,7 @@ export interface BookingPlan {
   /** Re-checked under the lock; an entry dated after `date` → "before_latest_entry" (D-15). */
   minEffectiveDate?: { holdingId: string; date: string }[];
   walletCredit?: WalletCredit;
-  /** Label change; a taken label → "label_taken" (D-07). */
+  /** Label change; names are not unique (round-5 scope change). */
   renameHolding?: { id: string; name: string };
   /** Snapshot undo of a price/value update (D-18). */
   restorePrice?: {

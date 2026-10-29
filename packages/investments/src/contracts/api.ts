@@ -408,6 +408,11 @@ export interface AssetNameDto {
   quantity: string;
   valueCents: string | null;
   valueCurrency: string | null;
+  /** How the UI names the unit ("1 BTC", "3 oz") — see instrumentLabel. */
+  symbol: string | null;
+  instrumentName: string | null;
+  holdingType: string;
+  unitOfMeasure: string | null;
 }
 
 export type EntryKind =
@@ -460,8 +465,6 @@ export interface EntryDto {
 /** Error codes the 13.1 routes may return, by HTTP status. */
 export const INVESTMENT_ERRORS = {
   422: [
-    "label_taken",
-    "instrument_mismatch",
     "before_latest_entry",
     "before_deposit_start",
     "wallet_currency_mismatch",

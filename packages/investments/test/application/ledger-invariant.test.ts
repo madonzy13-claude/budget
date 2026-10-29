@@ -110,12 +110,13 @@ describe("Asset ledger invariant", () => {
     expect(() => expectRowMatchesEntries(w, "btc")).toThrow(/qty 0.5/);
   });
 
-  test("create and join-buy", async () => {
+  // Round-5: names are not unique — a second Add is a second asset.
+  test("create twice under one name", async () => {
     const { w, btc } = world();
     await btc();
     check(w);
     await btc(" btc ", "1.5", "130000");
-    expect(w.holdings.size).toBe(1);
+    expect(w.holdings.size).toBe(2);
     check(w);
   });
 

@@ -176,32 +176,6 @@ export class DrizzleHoldingRepo implements HoldingRepo {
     return r.value;
   }
 
-  async findByLabel(
-    tenantId: string,
-    budgetId: string,
-    uiType: string,
-    name: string,
-    currency: string | null,
-  ): Promise<Holding | null> {
-    const r = await withTenantTx(
-      TenantId(tenantId),
-      UserId(tenantId),
-      async (tx) => {
-        const res = await (tx as DrizzleTx).execute(sql`
-        SELECT ${RETURNING} FROM budgeting.investments
-         WHERE budget_id = ${budgetId}::uuid AND ui_type = ${uiType}
-           AND lower(btrim(name)) = lower(btrim(${name}))
-           AND coalesce(current_price_currency, buy_currency)
-               IS NOT DISTINCT FROM ${currency}
-         LIMIT 1
-      `);
-        return res.rows.length ? mapRow(res.rows[0]) : null;
-      },
-    );
-    if (r.isErr()) throw r.error;
-    return r.value;
-  }
-
   async listNames(
     tenantId: string,
     budgetId: string,
@@ -212,12 +186,16 @@ export class DrizzleHoldingRepo implements HoldingRepo {
       UserId(tenantId),
       async (tx) => {
         const res = await (tx as DrizzleTx).execute(sql`
-        SELECT id::text AS id, name, archived_at IS NOT NULL AS archived,
-               instrument_id::text AS instrument_id, quantity::text AS quantity,
-               current_price_cents::text AS current_price_cents, current_price_currency
-          FROM budgeting.investments
-         WHERE budget_id = ${budgetId}::uuid AND ui_type = ${uiType}
-         ORDER BY archived_at IS NOT NULL, lower(name)
+        SELECT inv.id::text AS id, inv.name, inv.archived_at IS NOT NULL AS archived,
+               inv.instrument_id::text AS instrument_id, inv.quantity::text AS quantity,
+               inv.current_price_cents::text AS current_price_cents,
+               inv.current_price_currency, inv.buy_currency, inv.holding_type,
+               inv.unit_of_measure, COALESCE(i.symbol, inv.manual_ticker) AS symbol,
+               i.display_name AS instrument_name
+          FROM budgeting.investments inv
+          LEFT JOIN budgeting.instruments i ON i.id = inv.instrument_id
+         WHERE inv.budget_id = ${budgetId}::uuid AND inv.ui_type = ${uiType}
+         ORDER BY inv.archived_at IS NOT NULL, lower(inv.name), inv.created_at
       `);
         return res.rows.map((row) => ({
           id: String(row.id),
@@ -228,6 +206,11 @@ export class DrizzleHoldingRepo implements HoldingRepo {
           currentPriceCents: (row.current_price_cents as string | null) ?? null,
           currentPriceCurrency:
             (row.current_price_currency as string | null) ?? null,
+          buyCurrency: (row.buy_currency as string | null) ?? null,
+          symbol: (row.symbol as string | null) ?? null,
+          instrumentName: (row.instrument_name as string | null) ?? null,
+          holdingType: String(row.holding_type),
+          unitOfMeasure: (row.unit_of_measure as string | null) ?? null,
         }));
       },
     );

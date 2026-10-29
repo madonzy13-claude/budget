@@ -108,12 +108,6 @@ const ids = (list: string[]) =>
     sql`, `,
   );
 
-/** pg unique violation (label index) → domain code. */
-const isUniqueViolation = (e: unknown): boolean => {
-  const err = e as { code?: string; cause?: { code?: string } };
-  return err?.code === "23505" || err?.cause?.code === "23505";
-};
-
 export class DrizzleHistoryRepo implements HistoryRepo {
   async commit(
     tenantId: string,
@@ -164,21 +158,14 @@ export class DrizzleHistoryRepo implements HistoryRepo {
           if (top && x.date < top.d) throw new Error("before_latest_entry");
         }
 
-        // 2) Label change (D-07): the unique index is the race-safe check.
+        // 2) Label change — names are not unique (round-5 scope change).
         if (plan.renameHolding) {
-          await dt.execute(sql`SAVEPOINT rename_holding`);
-          try {
-            const res = await dt.execute(sql`
-              UPDATE budgeting.investments SET name = ${plan.renameHolding.name.trim()}
-               WHERE id = ${plan.renameHolding.id}::uuid AND budget_id = ${plan.budgetId}::uuid
-              RETURNING id
-            `);
-            if (res.rows.length === 0) throw new Error("not_found");
-            await dt.execute(sql`RELEASE SAVEPOINT rename_holding`);
-          } catch (e) {
-            if (isUniqueViolation(e)) throw new Error("label_taken");
-            throw e;
-          }
+          const res = await dt.execute(sql`
+            UPDATE budgeting.investments SET name = ${plan.renameHolding.name.trim()}
+             WHERE id = ${plan.renameHolding.id}::uuid AND budget_id = ${plan.budgetId}::uuid
+            RETURNING id
+          `);
+          if (res.rows.length === 0) throw new Error("not_found");
         }
         if (plan.restorePrice) {
           const res = await dt.execute(sql`

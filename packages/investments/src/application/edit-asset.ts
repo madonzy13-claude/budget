@@ -4,7 +4,7 @@
  * price. Quantity, cost and type are ledger-owned and never written here
  * (Phase 13 CR-01: a PATCH that wrote them raced /adjust).
  *
- *   label       renameHolding; a taken label → label_taken (unique index).
+ *   label       renameHolding; names are not unique (round-5 scope change).
  *   currency    hand-valued: the stored value converts at today's rate;
  *               market-priced: only the display currency changes (the list
  *               re-denominates the fetched price). Cost is never touched.

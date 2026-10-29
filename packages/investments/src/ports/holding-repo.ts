@@ -50,6 +50,12 @@ export interface AssetNameRow {
   quantity: string;
   currentPriceCents: string | null;
   currentPriceCurrency: string | null;
+  buyCurrency: string | null;
+  /** Ticker (tracked) — with instrumentName, how the UI names the unit. */
+  symbol: string | null;
+  instrumentName: string | null;
+  holdingType: string;
+  unitOfMeasure: string | null;
 }
 
 export interface HoldingRepo {
@@ -64,16 +70,6 @@ export interface HoldingRepo {
     userId: string,
     id: string,
     input: AssetEdit,
-  ): Promise<Holding | null>;
-  /** Case-insensitive, trimmed label match within a type AND currency
-   *  (round-4 gap 23: unique by name + currency); archived included. The
-   *  currency is coalesce(current_price_currency, buy_currency). */
-  findByLabel(
-    tenantId: string,
-    budgetId: string,
-    uiType: string,
-    name: string,
-    currency: string | null,
   ): Promise<Holding | null>;
   listNames(
     tenantId: string,

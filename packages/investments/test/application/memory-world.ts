@@ -145,6 +145,11 @@ export class MemoryWorld {
           currentPriceCents:
             h.currentPriceCents === null ? null : String(h.currentPriceCents),
           currentPriceCurrency: h.currentPriceCurrency,
+          buyCurrency: h.buyCurrency,
+          symbol: h.symbol,
+          instrumentName: h.instrumentName,
+          holdingType: h.holdingType,
+          unitOfMeasure: h.unitOfMeasure,
         })),
   } as unknown as HoldingRepo;
 

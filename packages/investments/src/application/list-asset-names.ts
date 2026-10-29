@@ -1,6 +1,7 @@
 /**
- * list-asset-names.ts — autocomplete over a type's assets, hidden (sold-out)
- * ones included so a buy under that name revives them (13.1 D-02, D-17).
+ * list-asset-names.ts — the type's assets for the name pickers, hidden ones
+ * included. Names are not unique (round-5), so each row carries what tells
+ * twins apart: amount + unit + currency.
  */
 import { ok, err, type Result } from "neverthrow";
 import { big, cents } from "../domain/sell-booking";
@@ -32,7 +33,11 @@ export function listAssetNames(deps: { holdingRepo: HoldingRepo }) {
               : cents(
                   big(r.currentPriceCents).times(big(r.quantity)),
                 ).toString(),
-          valueCurrency: r.currentPriceCurrency,
+          valueCurrency: r.currentPriceCurrency ?? r.buyCurrency,
+          symbol: r.symbol,
+          instrumentName: r.instrumentName,
+          holdingType: r.holdingType,
+          unitOfMeasure: r.unitOfMeasure,
         })),
       );
     } catch (e) {
