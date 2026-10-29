@@ -337,8 +337,9 @@ export function InvestmentRow({
               {/* One step under the P/L line (UAT 13.1 test 4); inline so
                   tailwind-merge cannot drop it. */}
               {caption.length > 0 && (
+                {/* Same font + size as the header's unreal./real. line (round 4). */}
                 <span
-                  className="min-w-0 text-[var(--muted-foreground)] tabular-nums"
+                  className="num min-w-0 text-[var(--muted-foreground)] tabular-nums"
                   style={{ fontSize: "11px", lineHeight: 1.4 }}
                 >
                   {caption.flatMap((text, i) => [
