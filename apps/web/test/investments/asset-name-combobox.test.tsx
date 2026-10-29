@@ -17,6 +17,7 @@ const names: AssetNameDto[] = [
     name: "BTC Ledger",
     archived: false,
     instrumentId: "i1",
+    quantity: "1.5",
     valueCents: "9020000",
     valueCurrency: "PLN",
   },
@@ -25,6 +26,7 @@ const names: AssetNameDto[] = [
     name: "BTC Binance",
     archived: true,
     instrumentId: "i1",
+    quantity: "0",
     valueCents: "0",
     valueCurrency: "PLN",
   },
@@ -33,8 +35,9 @@ const names: AssetNameDto[] = [
     name: "ETH",
     archived: false,
     instrumentId: "i2",
-    valueCents: "100",
-    valueCurrency: "PLN",
+    quantity: "1",
+    valueCents: null,
+    valueCurrency: null,
   },
 ];
 vi.mock("../../src/hooks/use-asset-names", () => ({
@@ -86,7 +89,7 @@ describe("Asset name combobox", () => {
     ]);
   });
 
-  it("ArrowDown + Enter picks an existing asset and shows the join note", () => {
+  it("ArrowDown + Enter picks an existing asset — no join note (round 4)", () => {
     const { onPickExisting, onChange, rerender } = mount("btc");
     const input = screen.getByRole("combobox");
     fireEvent.focus(input);
@@ -103,9 +106,59 @@ describe("Asset name combobox", () => {
         onPickExisting={onPickExisting}
       />,
     );
-    expect(screen.getByTestId("asset-name-note")).toHaveTextContent(
-      "asset.name.joins",
+    expect(screen.queryByTestId("asset-name-note")).toBeNull();
+  });
+
+  // Round-4 gap 4: each suggestion says what it is.
+  it("suggestions show quantity, value and currency", () => {
+    mount("");
+    fireEvent.focus(screen.getByRole("combobox"));
+    const meta = (i: number) =>
+      screen
+        .getByTestId(`asset-name-option-${i}`)
+        .querySelector("[data-asset-meta]")?.textContent;
+    expect(meta(0)).toBe("1.5 · 90,200 PLN");
+    // ETH: quantity 1 and no price → nothing but the (omitted) unit qty.
+    expect(meta(1) ?? "").toBe("");
+  });
+
+  it("a priceless asset shows only its quantity", () => {
+    names.push({
+      id: "d",
+      name: "BTC Paper",
+      archived: false,
+      instrumentId: null,
+      quantity: "3",
+      valueCents: null,
+      valueCurrency: null,
+    });
+    mount("paper");
+    fireEvent.focus(screen.getByRole("combobox"));
+    expect(
+      screen
+        .getByTestId("asset-name-option-0")
+        .querySelector("[data-asset-meta]")?.textContent,
+    ).toBe("3");
+    names.pop();
+  });
+
+  // Round-4 gap 11: a pick-or-create field says both work.
+  it("a pick-or-create field shows the hint; a pick-only one does not", () => {
+    const { unmount } = mount("");
+    expect(screen.getByTestId("asset-name-hint")).toHaveTextContent(
+      "asset.name.pickOrCreate",
     );
+    unmount();
+    render(
+      <AssetNameCombobox
+        budgetId="b1"
+        uiType="crypto"
+        value=""
+        onChange={() => {}}
+        allowCreate={false}
+      />,
+    );
+    expect(screen.queryByTestId("asset-name-hint")).toBeNull();
   });
 
   it("a hidden asset says it reopens", () => {
