@@ -67,7 +67,14 @@ import {
 } from "@/lib/investment-type-groups";
 import { InvestmentRowSheet } from "./investment-row-sheet";
 import { AssetLedger } from "./asset-ledger";
+import { useQueries } from "@tanstack/react-query";
 import { useArchiveHolding } from "@/hooks/use-archive-holding";
+import { useDeleteEntry } from "@/hooks/use-delete-entry";
+import {
+  entriesKey,
+  fetchAssetEntries,
+  usePrefetchAssetEntries,
+} from "@/hooks/use-asset-entries";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -198,6 +205,25 @@ export function InvestmentsSection({
   const [committed, setCommitted] = useState<HoldingDto[] | null>(null);
   const [committedOrder, setCommittedOrder] = useState<UiType[] | null>(null);
   const holdings = committed ?? serverHoldings;
+  // Round 4: preload every ledger; read them back to know which assets have
+  // nothing but their opening entry (those offer Delete instead of Archive).
+  usePrefetchAssetEntries(
+    budgetId,
+    holdings.map((h) => h.id),
+  );
+  const ledgers = useQueries({
+    queries: holdings.map((h) => ({
+      queryKey: entriesKey(budgetId, h.id),
+      queryFn: () => fetchAssetEntries(budgetId, h.id),
+      enabled: false,
+    })),
+  });
+  const soleEntry = new Map<string, string>();
+  holdings.forEach((h, i) => {
+    const stored = (ledgers[i]?.data ?? []).filter((e) => e.id !== null);
+    if (ledgers[i]?.data && stored.length === 1)
+      soleEntry.set(h.id, stored[0]!.id!);
+  });
   const typeOrder = committedOrder ?? summary?.order ?? [];
   useEffect(() => {
     if (!committed) return;
@@ -263,6 +289,13 @@ export function InvestmentsSection({
   // Round 4: Archive asks first; history stays, a buy / sell / move revives.
   const [archiving, setArchiving] = useState<HoldingDto | null>(null);
   const archiveMut = useArchiveHolding(budgetId);
+  // Round 4: an asset with nothing but its opening entry is deleted (its
+  // last entry wipes it, D-17); ledgers are preloaded so this is known.
+  const [deleting, setDeleting] = useState<{
+    holding: HoldingDto;
+    entryId: string;
+  } | null>(null);
+  const deleteMut = useDeleteEntry(budgetId);
 
   /**
    * 260731: inline value edit on a manual-value row (cash / broker / savings —
@@ -576,6 +609,15 @@ export function InvestmentsSection({
                               onEdit={openEdit}
                               onSwap={setSwapping}
                               onArchive={setArchiving}
+                              onDelete={
+                                soleEntry.get(h.id)
+                                  ? (x) =>
+                                      setDeleting({
+                                        holding: x,
+                                        entryId: soleEntry.get(h.id)!,
+                                      })
+                                  : undefined
+                              }
                               onValueChange={(amount) =>
                                 saveInlineValue(h, amount)
                               }
@@ -651,6 +693,40 @@ export function InvestmentsSection({
           siblings={holdings}
         />
       )}
+      <AlertDialog
+        open={deleting !== null}
+        onOpenChange={(o) => !o && setDeleting(null)}
+      >
+        <AlertDialogContent onCloseAutoFocus={(e) => e.preventDefault()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("ledger.confirm.last.title", {
+                name: deleting?.holding.name ?? "",
+              })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("ledger.confirm.last.body", {
+                name: deleting?.holding.name ?? "",
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {t("ledger.confirm.last.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="investment-delete-confirm"
+              className="bg-[var(--trading-down)] text-white"
+              onClick={() => {
+                if (deleting) deleteMut.mutate({ entryId: deleting.entryId });
+                setDeleting(null);
+              }}
+            >
+              {t("ledger.confirm.last.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog
         open={archiving !== null}
         onOpenChange={(o) => !o && setArchiving(null)}

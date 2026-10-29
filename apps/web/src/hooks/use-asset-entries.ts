@@ -5,7 +5,8 @@
  * server so the client never guesses (D-14, D-19). Lives under the
  * investments prefix, so every investments write refreshes it.
  */
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
 
 export type EntryKind =
@@ -52,6 +53,59 @@ export interface EntryDto {
 export const entriesKey = (budgetId: string, assetId: string) =>
   ["budget", budgetId, "investments", "entries", assetId] as const;
 
+/** One asset's ledger — shared by the hook and the section's preload. */
+export async function fetchAssetEntries(
+  budgetId: string,
+  assetId: string,
+): Promise<EntryDto[]> {
+  const res = await clientApiFetch(
+    `/budgets/${budgetId}/investments/${assetId}/entries`,
+    { signal: AbortSignal.timeout(7000) },
+  );
+  if (!res.ok) throw new Error(await res.text());
+  return ((await res.json()) as { entries: EntryDto[] }).entries;
+}
+
+/** Round 4: preload every visible asset's ledger after first paint (deferred,
+ *  3 at a time, cached ones skipped) so a first open shows rows, not a
+ *  skeleton. */
+export function usePrefetchAssetEntries(budgetId: string, ids: string[]) {
+  const qc = useQueryClient();
+  const key = ids.join(",");
+  useEffect(() => {
+    if (!key) return;
+    let stop = false;
+    const run = async () => {
+      const todo = key
+        .split(",")
+        .filter((id) => !qc.getQueryData(entriesKey(budgetId, id)));
+      const worker = async () => {
+        while (!stop && todo.length) {
+          const id = todo.shift()!;
+          await qc
+            .prefetchQuery({
+              queryKey: entriesKey(budgetId, id),
+              queryFn: () => fetchAssetEntries(budgetId, id),
+            })
+            .catch(() => {});
+        }
+      };
+      await Promise.all([worker(), worker(), worker()]);
+    };
+    const idle = (cb: () => void) =>
+      typeof window.requestIdleCallback === "function"
+        ? window.requestIdleCallback(cb, { timeout: 1500 })
+        : window.setTimeout(cb, 1500);
+    const handle = idle(() => void run());
+    return () => {
+      stop = true;
+      if (typeof window.cancelIdleCallback === "function")
+        window.cancelIdleCallback(handle as number);
+      else window.clearTimeout(handle as number);
+    };
+  }, [qc, budgetId, key]);
+}
+
 export function useAssetEntries(
   budgetId: string,
   assetId: string,
@@ -60,14 +114,7 @@ export function useAssetEntries(
   return useQuery({
     queryKey: entriesKey(budgetId, assetId),
     enabled,
-    queryFn: async () => {
-      const res = await clientApiFetch(
-        `/budgets/${budgetId}/investments/${assetId}/entries`,
-        { signal: AbortSignal.timeout(7000) },
-      );
-      if (!res.ok) throw new Error(await res.text());
-      return ((await res.json()) as { entries: EntryDto[] }).entries;
-    },
+    queryFn: () => fetchAssetEntries(budgetId, assetId),
   });
 }
 

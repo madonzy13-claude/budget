@@ -25,6 +25,7 @@ import {
   Archive,
   ArrowRightLeft,
   Pencil,
+  Trash2,
   TrendingUp,
   TrendingDown,
 } from "lucide-react";
@@ -52,6 +53,8 @@ interface InvestmentRowProps {
   onSwap?: () => void;
   /** Round 4: archive (the section asks first). */
   onArchive?: () => void;
+  /** Round 4: delete an asset that has nothing but its opening entry. */
+  onDelete?: () => void;
   /** 13.1 D-27: the row opened/closed — the section shows/hides its ledger. */
   onToggle?: (id: string, open: boolean) => void;
   /** Open state owned by the section (persisted per device); seeds local state. */
@@ -82,6 +85,7 @@ export function InvestmentRow({
   onEdit,
   onSwap,
   onArchive,
+  onDelete,
   onToggle,
   open,
   onValueChange,
@@ -505,6 +509,7 @@ export function InvestmentRow({
             [onSwap, ArrowRightLeft, "asset.swipe.swap", "swap"],
             [onEdit, Pencil, "asset.swipe.edit", "edit"],
             [onArchive, Archive, "asset.archive.confirm", "archive"],
+            [onDelete, Trash2, "ledger.confirm.last.confirm", "delete"],
           ] as const
         ).map(([fn, Icon, key, id]) =>
           fn ? (

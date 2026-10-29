@@ -15,7 +15,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
-import { Archive, ArrowRightLeft, Pencil } from "lucide-react";
+import { Archive, ArrowRightLeft, Pencil, Trash2 } from "lucide-react";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { useSwipeReveal } from "@/hooks/use-swipe-reveal";
 import type { HoldingDto } from "@/hooks/use-investments";
@@ -35,6 +35,9 @@ interface InvestmentRowSheetProps {
   onSwap?: (holding: HoldingDto) => void;
   /** Round 4: archive the asset (asks first; history stays). */
   onArchive?: (holding: HoldingDto) => void;
+  /** Round 4: an asset with nothing but its opening entry is deleted, not
+   *  archived — the section passes this only for such an asset. */
+  onDelete?: (holding: HoldingDto) => void;
   /** The row opened/closed (the section renders the L3 ledger). */
   onToggle?: (id: string, open: boolean) => void;
   open?: boolean;
@@ -55,6 +58,7 @@ export function InvestmentRowSheet({
   onEdit,
   onSwap,
   onArchive,
+  onDelete,
   onToggle,
   open,
   onSwipeOffset,
@@ -166,20 +170,37 @@ export function InvestmentRowSheet({
         >
           <Pencil className="h-5 w-5" aria-hidden="true" />
         </button>
-        <button
-          type="button"
-          data-no-swipe
-          data-testid={`investment-archive-${holding.id}`}
-          aria-label={t("asset.archive.aria", { name: holding.name })}
-          tabIndex={offset === 0 ? -1 : 0}
-          onClick={() => {
-            closeSwipe();
-            onArchive?.(holding);
-          }}
-          className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
-        >
-          <Archive className="h-5 w-5" aria-hidden="true" />
-        </button>
+        {onDelete ? (
+          <button
+            type="button"
+            data-no-swipe
+            data-testid={`investment-delete-${holding.id}`}
+            aria-label={t("ledger.confirm.last.confirm")}
+            tabIndex={offset === 0 ? -1 : 0}
+            onClick={() => {
+              closeSwipe();
+              onDelete(holding);
+            }}
+            className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--destructive)] text-white"
+          >
+            <Trash2 className="h-5 w-5" aria-hidden="true" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            data-no-swipe
+            data-testid={`investment-archive-${holding.id}`}
+            aria-label={t("asset.archive.aria", { name: holding.name })}
+            tabIndex={offset === 0 ? -1 : 0}
+            onClick={() => {
+              closeSwipe();
+              onArchive?.(holding);
+            }}
+            className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--warning)] text-[var(--warning-foreground)]"
+          >
+            <Archive className="h-5 w-5" aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       <div
@@ -207,7 +228,10 @@ export function InvestmentRowSheet({
           }
           onEdit={() => onEdit(holding)}
           onSwap={onSwap ? () => onSwap(holding) : undefined}
-          onArchive={onArchive ? () => onArchive(holding) : undefined}
+          onArchive={
+            onArchive && !onDelete ? () => onArchive(holding) : undefined
+          }
+          onDelete={onDelete ? () => onDelete(holding) : undefined}
           onToggle={onToggle}
           open={open}
           onValueChange={onValueChange}
