@@ -778,7 +778,8 @@
           "closed": "Closed",
           "joins": "This joins {name} (currently {value}).",
           "reopens": "This reopens {name}.",
-          "taken": "This type already has an asset with that name."
+          "taken": "This type already has an asset with that name.",
+          "pickOrCreate": "Pick an existing asset or type a new name."
         }
       },
       "swap": {
@@ -921,7 +922,8 @@
             "cancel": "Keep asset"
           },
           "interestNote": "The interest after it is recalculated."
-        }
+        },
+        "openLinked": "Open {name}"
       }
     },
     "cushionMode": {

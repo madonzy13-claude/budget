@@ -778,7 +778,8 @@
           "closed": "Zamknięte",
           "joins": "Dołączy do {name} (obecnie {value}).",
           "reopens": "Ponownie otworzy {name}.",
-          "taken": "Ten typ ma już aktywo o takiej nazwie."
+          "taken": "Ten typ ma już aktywo o takiej nazwie.",
+          "pickOrCreate": "Wybierz istniejące aktywo lub wpisz nową nazwę."
         }
       },
       "swap": {
@@ -921,7 +922,8 @@
             "cancel": "Zachowaj aktywo"
           },
           "interestNote": "Odsetki naliczone po nim zostaną przeliczone."
-        }
+        },
+        "openLinked": "Otwórz {name}"
       }
     },
     "cushionMode": {
