@@ -67,7 +67,8 @@ const isUniqueViolation = (e: unknown) => {
  *
  * Phase 13: a holding with a buy price is born with its first history entry
  * (D-06/D-09) — `buy` for quantity holdings, `add` otherwise — dated by the
- * user (openedOn, default today). Its cost is the contribution (flow).
+ * user (openedOn, default today) — a deposit by its start date, clamped to
+ * today (R5-1). Its cost is the contribution (flow).
  * Possessions and holdings without a buy price get none.
  */
 export function createHolding(deps: {
@@ -84,7 +85,14 @@ export function createHolding(deps: {
     },
   ): Promise<Result<{ holding: Holding; joined: boolean }, Error>> => {
     const nh = toNewHolding(input);
-    const date = input.openedOn ?? new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    // R5-1: a deposit's opening entry sits on its start date (never future).
+    const date =
+      nh.holdingType === "deposit" && nh.depositStartDate
+        ? nh.depositStartDate < today
+          ? nh.depositStartDate
+          : today
+        : (input.openedOn ?? today);
     try {
       const existing =
         nh.holdingType !== "possession" && nh.uiType

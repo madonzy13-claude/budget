@@ -575,6 +575,7 @@ describe("HoldingSheet — type-first", () => {
     expect(screen.queryByTestId("holding-sheet-date")).toBeNull();
     fireEvent.click(screen.getByTestId("holding-sheet-submit"));
     expect(createMutate.mock.calls[0][0]).not.toHaveProperty("openedOn");
+    createMutate.mockClear();
     unmount();
     render(
       <HoldingSheet

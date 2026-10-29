@@ -729,9 +729,12 @@ export function HoldingSheet({
 
   function handleSave() {
     if (!canSave) return;
-    createMut.mutate({ ...buildPayload(), openedOn } as unknown as Parameters<
-      typeof createMut.mutate
-    >[0]);
+    // R5-1: a deposit is dated by its start date — no separate Date.
+    const payload =
+      behavior === "deposit" ? buildPayload() : { ...buildPayload(), openedOn };
+    createMut.mutate(
+      payload as unknown as Parameters<typeof createMut.mutate>[0],
+    );
     onOpenChange(false);
   }
 
@@ -1343,7 +1346,7 @@ export function HoldingSheet({
             />
           )}
 
-          {
+          {behavior !== "deposit" && (
             <Field label={t("addDate")}>
               <Input
                 type="date"
@@ -1353,7 +1356,7 @@ export function HoldingSheet({
                 onChange={(e) => setOpenedOn(e.target.value)}
               />
             </Field>
-          }
+          )}
 
           {/* Actions live at the END of the scrolling form (NOT a pinned footer):
       the user scrolls down to reach Save. */}
