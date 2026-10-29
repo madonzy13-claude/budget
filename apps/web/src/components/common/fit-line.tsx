@@ -23,7 +23,13 @@ export function FitLine({
 }) {
   const outer = useRef<HTMLSpanElement>(null);
   const inner = useRef<HTMLSpanElement>(null);
-  const [room, setRoom] = useState<number | null>(null);
+  // Reach past the column: width = room, offset by a negative right margin of
+  // (room − column) so the reach never counts toward the column's width —
+  // otherwise a wider card moves the share right and the line grows again
+  // (round-4 gap 22: a tapped Bitcoin row went 327 → 704px).
+  const [reach, setReach] = useState<{ room: number; extra: number } | null>(
+    null,
+  );
   const [shift, setShift] = useState(0);
 
   useLayoutEffect(() => {
@@ -32,15 +38,22 @@ export function FitLine({
       const i = inner.current;
       if (!o || !i) return;
       const stop = until?.current;
+      const base = o.parentElement?.clientWidth ?? o.clientWidth;
       const avail = stop
         ? Math.max(
-            o.clientWidth,
+            base,
             stop.getBoundingClientRect().left -
               o.getBoundingClientRect().left -
               GAP,
           )
         : o.clientWidth;
-      setRoom((r) => (!stop ? null : r === avail ? r : avail));
+      setReach((r) =>
+        !stop
+          ? null
+          : r?.room === avail
+            ? r
+            : { room: avail, extra: avail - base },
+      );
       const over = Math.max(0, i.scrollWidth - avail);
       setShift((s) => (s === over ? s : over));
     };
@@ -66,7 +79,15 @@ export function FitLine({
       ref={outer}
       {...rest}
       className={`block min-w-0 overflow-hidden whitespace-nowrap ${shift > 0 ? "fit-line-fade" : ""} ${className}`}
-      style={room !== null ? { ...style, width: `${room}px` } : style}
+      style={
+        reach
+          ? {
+              ...style,
+              width: `${reach.room}px`,
+              marginRight: `-${reach.extra}px`,
+            }
+          : style
+      }
     >
       <span
         ref={inner}
