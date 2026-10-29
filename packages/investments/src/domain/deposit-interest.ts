@@ -12,8 +12,8 @@ const MONTHS: Record<CapFrequency, number> = {
 };
 
 /**
- * D-19 Interest rows: one per passed capitalization date (plus one at the end
- * date when the deposit matures between them), computed from rate + dates and
+ * D-19 Interest rows: one per passed capitalization date plus one accrued-to-date
+ * row at asOf (or the end date when matured), computed from rate + dates and
  * never stored. Each row = value(d_i) − value(d_{i−1}), so the rows telescope
  * to exactly value(last row) − principal. `startDate` is the CURRENT
  * deposit_start_date: after a part-sale (Phase 13 D-20) earlier interest is
@@ -49,19 +49,18 @@ export function depositInterestRows(i: {
     if (Temporal.PlainDate.compare(d, limit) > 0) break;
     dates.push(d.toString());
   }
-  // Matured between two capitalizations: the tail is one final row at the end date.
-  if (
-    i.endDate &&
-    Temporal.PlainDate.compare(i.endDate, limit) === 0 &&
-    Temporal.PlainDate.compare(i.endDate, start) > 0 &&
-    dates.at(-1) !== i.endDate
-  )
-    dates.push(i.endDate);
+  // Between two capitalizations (today, or the end date when matured): one
+  // accrued-to-date tail row so the ledger agrees with the shown value.
+  const tail = limit.toString();
+  const accrued =
+    Temporal.PlainDate.compare(limit, start) > 0 && dates.at(-1) !== tail;
+  if (accrued) dates.push(tail);
 
   const rows: Array<{ date: string; interestCents: bigint }> = [];
   let prev = i.principalCents;
   for (const date of dates) {
     const v = value(date);
+    if (accrued && date === tail && v === prev) continue;
     rows.push({ date, interestCents: v - prev });
     prev = v;
   }
