@@ -553,6 +553,43 @@ describe("HoldingSheet — type-first", () => {
     expect(screen.getByTestId("holding-sheet-submit")).not.toBeDisabled();
   });
 
+  // Round-5 gap 1: a deposit has ONE date — its start date.
+  it("deposit hides the generic date and sends no openedOn; cash keeps it", () => {
+    const { unmount } = render(
+      <HoldingSheet
+        {...baseProps}
+        holding={holding({
+          holdingType: "deposit",
+          uiType: "deposit",
+          instrumentId: null,
+          name: "Savings",
+          buyPriceCents: "500000",
+          buyCurrency: "USD",
+          depositRateBps: 525,
+          depositStartDate: "2025-01-01",
+          depositEndDate: null,
+          depositCapFrequency: "monthly",
+        })}
+      />,
+    );
+    expect(screen.queryByTestId("holding-sheet-date")).toBeNull();
+    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
+    expect(createMutate.mock.calls[0][0]).not.toHaveProperty("openedOn");
+    unmount();
+    render(
+      <HoldingSheet
+        {...baseProps}
+        holding={holding({
+          holdingType: "cash_fx",
+          uiType: "cash",
+          instrumentId: null,
+          name: "EUR Cash",
+        })}
+      />,
+    );
+    expect(screen.getByTestId("holding-sheet-date")).toBeInTheDocument();
+  });
+
   it("deposit save builds a payload with rate (bps), dates and frequency", () => {
     render(
       <HoldingSheet

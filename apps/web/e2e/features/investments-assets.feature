@@ -151,6 +151,13 @@ Feature: Investments as assets with transactions (13.1)
     When I open the investments wallets tab
     Then the ledger of "Term" shows an Interest row dated today that cannot be deleted
 
+  # Round-5 gap 1: a deposit's "Added money" sits on its start date.
+  @r5-deposit-start
+  Scenario: A deposit's opening entry is dated on its start date
+    When I open the investments wallets tab
+    And I add a deposit "Term" of "10000" at "5"% started on "2026-03-01"
+    Then the ledger of "Term" lists "Mar 1, 2026 · Added money"
+
   # Gaps 2 + 3: the type header is an asset-row card; tap reveals mirror.
   @r2-header
   Scenario: The type header lines up with its asset rows and its tap mirrors the asset row

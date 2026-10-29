@@ -303,6 +303,33 @@ describe("Investment assets", () => {
     expect(await res.json()).toEqual({ error: "deposit_not_allowed" });
   });
 
+  // Round-5 gap 1: a deposit's opening entry sits on its start date.
+  it("a new deposit's opening entry is dated on its start date", async () => {
+    const fix = await createFixture();
+    const app = await buildApp(fix);
+    const res = await json(app, "", "POST", {
+      name: "Bank",
+      holdingType: "deposit",
+      uiType: "deposit",
+      quantity: "1",
+      buyPriceCents: "100000",
+      buyCurrency: "PLN",
+      depositRateBps: 500,
+      depositStartDate: "2026-03-01",
+      depositCapFrequency: "monthly",
+      openedOn: "2026-10-01",
+    });
+    expect(res.status).toBe(201);
+    const { id } = (await res.json()) as { id: string };
+    const rows = await q<{ kind: string; d: string }>(
+      fix,
+      `SELECT kind, effective_date::text AS d FROM budgeting.investment_history
+        WHERE holding_id = $1 AND deleted_at IS NULL`,
+      [id],
+    );
+    expect(rows).toEqual([{ kind: "add", d: "2026-03-01" }]);
+  });
+
   it("Edit refuses ledger fields and leaves quantity and cost alone (CR-01)", async () => {
     const fix = await createFixture();
     const app = await buildApp(fix);

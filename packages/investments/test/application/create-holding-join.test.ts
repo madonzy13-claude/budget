@@ -146,3 +146,43 @@ describe("Create or join an asset by name", () => {
     expect(again.holding.id).toBe(pln.holding.id);
   });
 });
+
+// Round-5 gap 1 (user): a deposit's "Added money" sits on its start date.
+describe("Create deposit", () => {
+  const deposit = (start: string) => ({
+    ...who,
+    name: "Savings",
+    holdingType: "deposit" as const,
+    uiType: "deposit" as const,
+    buyPriceCents: "100000",
+    buyCurrency: "PLN",
+    quantity: "1",
+    depositRateBps: 500,
+    depositStartDate: start,
+    depositCapFrequency: "monthly" as const,
+    openedOn: "2026-10-29",
+  });
+  const today = () => new Date().toISOString().slice(0, 10);
+
+  test("dates the opening entry on the start date", async () => {
+    const { w, create } = world();
+    const r = (await create(deposit("2026-03-01")))._unsafeUnwrap();
+    const own = w.live().filter((x) => x.holdingId === r.holding.id);
+    expect(own).toHaveLength(1);
+    expect(own[0]).toMatchObject({ kind: "add", effectiveDate: "2026-03-01" });
+  });
+
+  test("a future start date dates the opening entry today", async () => {
+    const { w, create } = world();
+    const r = (await create(deposit("2999-01-01")))._unsafeUnwrap();
+    const own = w.live().filter((x) => x.holdingId === r.holding.id);
+    expect(own[0]?.effectiveDate).toBe(today());
+  });
+
+  test("a non-deposit still uses its own date", async () => {
+    const { w, create } = world();
+    const r = (await create(btc({ openedOn: "2026-05-05" })))._unsafeUnwrap();
+    const own = w.live().filter((x) => x.holdingId === r.holding.id);
+    expect(own[0]?.effectiveDate).toBe("2026-05-05");
+  });
+});

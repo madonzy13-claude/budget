@@ -617,6 +617,13 @@ When(
   },
 );
 
+When(
+  "I add a deposit {string} of {string} at {string}% started on {string}",
+  async ({ page }, name: string, p: string, rate: string, start: string) => {
+    await new InvestmentsPo(page).addDeposit(name, p, rate, start);
+  },
+);
+
 // ── 13.1: assets, Swap, wallet target, ledger ──
 
 Given(

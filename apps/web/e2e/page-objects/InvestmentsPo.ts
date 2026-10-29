@@ -637,6 +637,36 @@ export class InvestmentsPo {
     if (!(await posted).ok()) throw new Error("create broker failed");
   }
 
+  /** Add a deposit via the sheet (principal in major units, rate in %). */
+  async addDeposit(
+    name: string,
+    principal: string,
+    rate: string,
+    start: string,
+  ) {
+    await this.startBuy();
+    await this.sheet().waitFor({ state: "visible" });
+    const opt = this.page.getByTestId("holding-type-deposit");
+    if (!(await opt.isVisible().catch(() => false)))
+      await this.page.getByTestId("holding-sheet-type").click();
+    await opt.click();
+    await this.page
+      .getByTestId("holding-sheet-principal")
+      .waitFor({ state: "visible" });
+    await this.page.getByTestId("holding-sheet-name").fill(name);
+    await this.page.getByTestId("holding-sheet-principal").fill(principal);
+    await this.page.getByTestId("holding-sheet-rate").fill(rate);
+    await this.page.getByTestId("holding-sheet-start-date").fill(start);
+    const posted = this.page.waitForResponse(
+      (r) =>
+        /\/budgets\/[^/]+\/investments(\?.*)?$/.test(r.url()) &&
+        r.request().method() === "POST",
+      { timeout: 15000 },
+    );
+    await this.page.getByTestId("holding-sheet-submit").click();
+    if (!(await posted).ok()) throw new Error("create deposit failed");
+  }
+
   /** Tap a type header's value to show its sum-up (D-26). */
   async typeSumUp(uiType: string) {
     const split = this.page.getByTestId(`investment-type-split-${uiType}`);
