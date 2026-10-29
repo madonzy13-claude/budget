@@ -435,6 +435,8 @@ Feature: Investments as assets with transactions (13.1)
   Scenario: Archiving hides an asset and buying into it brings it back
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
     When I open the investments wallets tab
+    # A transaction beyond the opening entry, so Archive (not Delete) is offered.
+    And I buy into broker "IBKR" adding "1000" with the account now at "97000"
     And I archive the asset "IBKR"
     Then the holding row "IBKR" is gone
     And the "broker" Add form offers "IBKR" as archived and buying "1000" into it brings it back
