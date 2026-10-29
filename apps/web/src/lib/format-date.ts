@@ -16,17 +16,25 @@
  * Format a YYYY-MM-DD date string for a given locale.
  * Returns a medium-length localized date (e.g. "Mar 15, 2024" for en).
  */
+/** uk / pl print the year with an abbreviation ("2026 р." / "2026 r.");
+ *  the app shows the bare year (round-4 gap 25, user 2026-10-29). */
+export function stripYearMark(s: string): string {
+  return s.replace(/(\d{4})\s?(р\.|r\.)/gu, "$1");
+}
+
 export function formatBudgetDate(isoDate: string, locale: string): string {
   // Parse YYYY-MM-DD parts — avoids timezone shifts from new Date(isoDate)
   const [year, month, day] = isoDate.split("-").map(Number);
   // Use UTC date to prevent timezone-based date shifting
   const date = new Date(Date.UTC(year, month - 1, day));
-  return new Intl.DateTimeFormat(locale, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  }).format(date);
+  return stripYearMark(
+    new Intl.DateTimeFormat(locale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    }).format(date),
+  );
 }
 
 /**
@@ -98,13 +106,15 @@ export function formatBudgetDateTime(
   date: Date | number,
   locale: string,
 ): string {
-  return new Intl.DateTimeFormat(locale, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(typeof date === "number" ? new Date(date) : date);
+  return stripYearMark(
+    new Intl.DateTimeFormat(locale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(typeof date === "number" ? new Date(date) : date),
+  );
 }
 
 /**

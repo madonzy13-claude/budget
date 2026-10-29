@@ -1,3 +1,4 @@
+import { stripYearMark } from "./format-date";
 /**
  * schedule-month-label.ts — "YYYY-MM" → something a person reads.
  *
@@ -22,11 +23,13 @@ const parse = (month: string): Date | null => {
 export function scheduleMonthLabel(month: string, locale: string): string {
   const d = parse(month);
   if (!d) return month;
-  return new Intl.DateTimeFormat(locale, {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(d);
+  return stripYearMark(
+    new Intl.DateTimeFormat(locale, {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(d),
+  );
 }
 
 /** Axis form: short enough to repeat under every bar — "Sep 26". */

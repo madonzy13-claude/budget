@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/popover";
 import { useSwipeReveal } from "@/hooks/use-swipe-reveal";
 import { centsToBare } from "@/lib/cents-format";
+import { stripYearMark } from "@/lib/format-date";
 import type { EntryDto } from "@/hooks/use-asset-entries";
 
 /** budget.investments key for an entry kind (UI-SPEC §6). */
@@ -64,12 +65,14 @@ const trimQty = (q: string) =>
 
 /** "12 Oct 2026" in ONE Intl call so uk/pl get the genitive month. */
 export function ledgerDate(iso: string, locale: string): string {
-  return new Intl.DateTimeFormat(locale, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(`${iso}T00:00:00Z`));
+  return stripYearMark(
+    new Intl.DateTimeFormat(locale, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(`${iso}T00:00:00Z`)),
+  );
 }
 
 interface LedgerRowProps {
