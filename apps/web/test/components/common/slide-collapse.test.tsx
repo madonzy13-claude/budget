@@ -73,4 +73,13 @@ describe("SlideCollapse", () => {
     expect(clip.style.overflowY).toBe("clip");
     expect(clip.style.overflowX).toBe("visible");
   });
+
+  // Gap 24: an implicit grid column grows to its content (min-content) and
+  // stretched the whole investments block past the phone width.
+  it("its single column never grows past the container", () => {
+    render(ui(true));
+    expect(screen.getByTestId("slide").style.gridTemplateColumns).toBe(
+      "minmax(0, 1fr)",
+    );
+  });
 });

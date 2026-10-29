@@ -2398,6 +2398,34 @@ Then(
       };
     });
     console.log("[gap22]", name, JSON.stringify({ w0, ...m }));
+    console.log(
+      "[gap24]",
+      JSON.stringify(
+        await card.evaluate((el) =>
+          [
+            "[data-col=left]",
+            "[data-col=right]",
+            "[data-asset-caption]",
+            "[data-asset-caption] > span",
+            '[data-testid^="asset-share-"]',
+            '[data-testid^="asset-value-"]',
+            "[data-col=left] > *",
+          ].map((sel) => {
+            const n = el.querySelector<HTMLElement>(sel);
+            if (!n) return [sel, null];
+            const cs = getComputedStyle(n);
+            return [
+              sel,
+              Math.round(n.getBoundingClientRect().width),
+              n.scrollWidth,
+              cs.width,
+              cs.marginRight,
+              cs.minWidth,
+            ];
+          }),
+        ),
+      ),
+    );
     expect(Math.abs(m.w - w0), "card width changed").toBeLessThanOrEqual(1);
     expect(m.out, "content past the card").toEqual([]);
     expect(m.page, "page scrolls sideways").toBeLessThanOrEqual(0);

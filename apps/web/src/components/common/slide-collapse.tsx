@@ -61,7 +61,13 @@ export function SlideCollapse({
       {...rest}
       aria-hidden={!open || undefined}
       inert={!open || undefined}
-      style={{ ...rest.style, gridTemplateRows: shown ? "1fr" : "0fr" }}
+      // minmax(0, 1fr): an implicit `auto` column grows to its content's
+      // min-content and widened the whole block past the phone (gap 24).
+      style={{
+        ...rest.style,
+        gridTemplateRows: shown ? "1fr" : "0fr",
+        gridTemplateColumns: "minmax(0, 1fr)",
+      }}
       className={`grid ${instant ? "" : "transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none"} ${className}`}
     >
       <div

@@ -441,6 +441,14 @@ Feature: Investments as assets with transactions (13.1)
     Then tapping the asset row "Bitcoin binance" keeps everything inside its card
     And tapping the asset row "Silver coins" keeps everything inside its card
 
+  # Gap 24: the long Ukrainian caption scrolls instead of widening the row.
+  @r4-wide
+  Scenario: A tapped crypto row with a long caption stays inside its card in Ukrainian
+    Given I am on a phone-sized viewport
+    And a crypto holding "BTC - SafePal" of "0.19505480" bought at 6099162 cents now 7600000 cents exists in my budget
+    When I open the investments wallets tab in "uk"
+    Then tapping the asset row "BTC - SafePal" keeps everything inside its card
+
   # Gap 23: the same name in another currency is its own asset (no "(2)").
   @r4-label-ccy
   Scenario: The same name in another currency is a separate asset
