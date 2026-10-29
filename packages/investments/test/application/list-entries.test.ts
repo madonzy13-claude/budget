@@ -147,6 +147,29 @@ describe("List an asset's entries", () => {
     expect(rows[0]!.realizedBudgetCents).toBe("500");
   });
 
+  // Round-4 gap 10: a linked leg names its partner so the ledger can open it.
+  test("a linked leg exposes its partner asset and transfer id; a plain entry does not", async () => {
+    const { list, sell, start } = world(btc, eth);
+    await start("btc", "2026-09-01");
+    await start("eth", "2026-09-01");
+    await sell({
+      ...who,
+      holdingId: "btc",
+      effectiveDate: "2026-10-01",
+      left: { quantity: "3" },
+      destination: { kind: "existing", holdingId: "eth", quantityBought: "3" },
+      receivedCents: "3000",
+      receivedCurrency: "PLN",
+    });
+    const rows = (
+      await list({ ...who, holdingId: "btc", today: "2026-10-27" })
+    )._unsafeUnwrap();
+    expect(rows[0]!.counterpartyHoldingId).toBe("eth");
+    expect(rows[0]!.transferId).toEqual(expect.any(String));
+    const start0 = rows.find((r) => r.kind === "start")!;
+    expect(start0).toMatchObject({ counterpartyHoldingId: null, transferId: null });
+  });
+
   test("a wallet sale shows the wallet and the delta", async () => {
     const { list, sell, start, w } = world(btc);
     w.wallets.set("wal", {

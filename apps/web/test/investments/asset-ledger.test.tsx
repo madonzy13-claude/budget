@@ -53,6 +53,8 @@ const e = (over: Partial<EntryDto>): EntryDto => ({
   deletable: false,
   blockedReason: "not_newest",
   isLastEntry: false,
+  counterpartyHoldingId: null,
+  transferId: null,
   ...over,
 });
 
@@ -236,6 +238,62 @@ describe("Asset ledger strip", () => {
     const del = await screen.findByTestId("ledger-delete-b1");
     expect(del.className).not.toMatch(/rounded/);
     expect(del.style.boxShadow).toBe("inset 6px 0 8px -6px rgba(0,0,0,0.7)");
+  });
+
+  // Round-4 gap 10: a linked row opens its partner.
+  it("a linked row with a visible partner is a link that opens it", async () => {
+    const onOpenLinked = vi.fn();
+    mockFetch.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            entries: [
+              e({
+                id: "t1",
+                kind: "transfer_out",
+                linked: true,
+                counterpartyName: "Pot",
+                counterpartyHoldingId: "pot",
+                transferId: "tr1",
+              }),
+            ],
+          }),
+        ),
+    );
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AssetLedger
+          budgetId="b1"
+          assetId="a1"
+          assetName="BTC"
+          open
+          onOpenLinked={onOpenLinked}
+          canOpen={(id) => id === "pot"}
+        />
+      </QueryClientProvider>,
+    );
+    const row = await screen.findByTestId("ledger-row-t1");
+    expect(row).toHaveAttribute("data-transfer-id", "tr1");
+    const link = screen.getByTestId("ledger-link-t1");
+    expect(link.tagName).toBe("BUTTON");
+    fireEvent.click(link);
+    expect(onOpenLinked).toHaveBeenCalledWith("pot", "tr1");
+  });
+
+  it("a linked row whose partner is not shown stays plain text", async () => {
+    mount([
+      e({
+        id: "t2",
+        kind: "transfer_out",
+        linked: true,
+        counterpartyName: "Gone",
+        counterpartyHoldingId: "gone",
+        transferId: "tr2",
+      }),
+    ]);
+    await screen.findByTestId("ledger-row-t2");
+    expect(screen.queryByTestId("ledger-link-t2")).toBeNull();
+    expect(screen.getByText("ledger.toAsset")).toBeInTheDocument();
   });
 
   // Round-3 gap 10: deleting an entry interest depends on says so.
