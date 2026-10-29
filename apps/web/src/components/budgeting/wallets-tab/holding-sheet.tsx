@@ -83,6 +83,7 @@ import { SwapBuyTab } from "./swap-buy-tab";
 import { today as todayIso } from "./swap-shared";
 import { useMinEntryDate } from "@/hooks/use-asset-entries";
 import { useInvestments } from "@/hooks/use-investments";
+import { useAssetNames } from "@/hooks/use-asset-names";
 import {
   InstrumentSearchInput,
   type InstrumentSuggestion,
@@ -781,6 +782,22 @@ export function HoldingSheet({
     uom,
   ]);
 
+  // Round-4 gap 23: assets are unique by name + currency — a typed name that
+  // exists in the type greys out the currencies it already uses (picking the
+  // existing asset itself opens its Buy form instead). Not for a sale's new
+  // destination, which joins on the server.
+  const typeNames = useAssetNames(budgetId, dest ? null : uiType || null).data;
+  const typedName = (behavior === "tracked" ? customName : name)
+    .trim()
+    .toLowerCase();
+  const takenCurrencies =
+    !dest && !picked && typedName
+      ? (typeNames ?? [])
+          .filter((n) => n.name.trim().toLowerCase() === typedName)
+          .map((n) => n.valueCurrency)
+          .filter((c): c is string => !!c)
+      : [];
+
   // D-02: the same name in the type joins that asset (hidden ones reopen).
   // Tracked types: the name is the asset's label (customName) and, until an
   // instrument is chosen, also seeds the instrument search (13.1 UAT 7).
@@ -968,6 +985,7 @@ export function HoldingSheet({
         <>
           <Field label={t("field.currency")}>
             <CurrencyPicker
+              disabledCodes={takenCurrencies}
               variant="field"
               richLabel
               desktopDropdown
@@ -1012,6 +1030,7 @@ export function HoldingSheet({
           </Field>
           <Field label={t("field.currency")}>
             <CurrencyPicker
+              disabledCodes={takenCurrencies}
               variant="field"
               richLabel
               desktopDropdown
@@ -1047,6 +1066,7 @@ export function HoldingSheet({
         <>
           <Field label={t("field.currency")}>
             <CurrencyPicker
+              disabledCodes={takenCurrencies}
               variant="field"
               richLabel
               desktopDropdown
@@ -1147,6 +1167,7 @@ export function HoldingSheet({
               }
             >
               <CurrencyPicker
+                disabledCodes={takenCurrencies}
                 variant="field"
                 richLabel
                 desktopDropdown

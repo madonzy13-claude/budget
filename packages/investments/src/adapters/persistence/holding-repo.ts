@@ -181,6 +181,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
     budgetId: string,
     uiType: string,
     name: string,
+    currency: string | null,
   ): Promise<Holding | null> {
     const r = await withTenantTx(
       TenantId(tenantId),
@@ -190,6 +191,8 @@ export class DrizzleHoldingRepo implements HoldingRepo {
         SELECT ${RETURNING} FROM budgeting.investments
          WHERE budget_id = ${budgetId}::uuid AND ui_type = ${uiType}
            AND lower(btrim(name)) = lower(btrim(${name}))
+           AND coalesce(current_price_currency, buy_currency)
+               IS NOT DISTINCT FROM ${currency}
          LIMIT 1
       `);
         return res.rows.length ? mapRow(res.rows[0]) : null;

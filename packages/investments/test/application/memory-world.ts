@@ -136,9 +136,18 @@ export class MemoryWorld {
       [...this.holdings.values()].filter((h) => !h.archivedAt),
     findById: async (_t: string, _u: string, id: string) =>
       this.holdings.get(id) ?? null,
-    findByLabel: async (_t: string, _b: string, uiType: string, name: string) =>
+    findByLabel: async (
+      _t: string,
+      _b: string,
+      uiType: string,
+      name: string,
+      currency: string | null,
+    ) =>
       [...this.holdings.values()].find(
-        (h) => h.uiType === uiType && this.sameLabel(h.name, name),
+        (h) =>
+          h.uiType === uiType &&
+          this.sameLabel(h.name, name) &&
+          (h.currentPriceCurrency ?? h.buyCurrency) === currency,
       ) ?? null,
     listNames: async (_t: string, _b: string, uiType: string) =>
       [...this.holdings.values()]

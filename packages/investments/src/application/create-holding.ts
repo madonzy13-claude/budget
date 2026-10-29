@@ -93,6 +93,7 @@ export function createHolding(deps: {
               input.budgetId,
               nh.uiType,
               nh.name,
+              nh.currentPriceCurrency ?? nh.buyCurrency,
             )
           : null;
       if (existing) {

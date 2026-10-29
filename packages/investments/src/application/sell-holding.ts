@@ -231,6 +231,10 @@ export function sellHolding(deps: {
                 input.budgetId,
                 newBase.uiType,
                 newBase.name,
+                // A new destination is priced in what was received (D-22).
+                newBase.currentPriceCurrency ??
+                  newBase.buyCurrency ??
+                  input.receivedCurrency,
               )
             : null;
       if (dest.kind === "existing" && !into) return err(fail("not_found"));

@@ -86,6 +86,8 @@ export function transferAsset(deps: {
           input.budgetId,
           src.uiType ?? "other",
           input.to.name,
+          // A new label carries the source's currency.
+          src.currentPriceCurrency ?? src.buyCurrency,
         );
         if (taken) return err(fail("label_taken"));
       }

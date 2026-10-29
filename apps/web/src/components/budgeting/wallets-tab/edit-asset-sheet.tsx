@@ -59,12 +59,16 @@ export function EditAssetSheet({
   budgetId,
   budgetCurrency,
   holding,
+  siblings = [],
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   budgetId: string;
   budgetCurrency: string;
   holding: HoldingDto;
+  /** The section's assets — same-name ones in this type reserve their
+   *  currency (round-4 gap 23: unique by name + currency). */
+  siblings?: HoldingDto[];
 }) {
   const t = useTranslations("budget.investments");
   const updateMut = useUpdateHolding(budgetId);
@@ -246,6 +250,15 @@ export function EditAssetSheet({
           )}
           <Field label={t("edit.displayCurrency")}>
             <CurrencyPicker
+              disabledCodes={siblings
+                .filter(
+                  (o) =>
+                    o.id !== holding.id &&
+                    o.uiType === holding.uiType &&
+                    o.name.trim().toLowerCase() === name.trim().toLowerCase(),
+                )
+                .map((o) => o.currentPriceCurrency ?? o.buyCurrency)
+                .filter((c): c is string => !!c)}
               variant="field"
               value={ccy}
               onSelect={pickCcy}
