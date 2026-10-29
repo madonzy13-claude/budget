@@ -66,10 +66,10 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
     When I open the investments wallets tab
     And I open the sale of "IBKR"
-    And I set "Value left" in the sale to "96000"
-    Then the sale says "Value left must be less than what you hold."
+    And I set "Value sold" in the sale to "96500"
+    Then the sale says "Enter more than 0 and no more than you hold."
     And the sale cannot be recorded
-    When I set "Value left" in the sale to "30000"
+    When I set "Value sold" in the sale to "66000"
     And I set "Amount received" in the sale to "0"
     Then the sale says "Enter an amount received greater than 0."
     And the sale cannot be recorded
