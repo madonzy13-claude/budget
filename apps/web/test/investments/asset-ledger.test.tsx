@@ -240,6 +240,46 @@ describe("Asset ledger strip", () => {
     expect(del.style.boxShadow).toBe("inset 6px 0 8px -6px rgba(0,0,0,0.7)");
   });
 
+  // Round-4 gap 28: a leading icon says money in (green) / out (red).
+  it("each row starts with an in / out icon coloured by direction", async () => {
+    mount([
+      e({
+        id: "in1",
+        kind: "buy",
+        amountCents: "64000",
+        displayAmountCents: "64000",
+      }),
+      e({
+        id: "out1",
+        kind: "withdraw",
+        amountCents: "-33000",
+        displayAmountCents: "-33000",
+      }),
+      e({
+        id: null,
+        kind: "interest",
+        effectiveDate: "2026-10-20",
+        amountCents: "120",
+        displayAmountCents: "120",
+        blockedReason: "interest",
+      }),
+    ]);
+    const icon = async (key: string) =>
+      (
+        await screen.findByTestId(`ledger-row-${key}`)
+      ).querySelector<HTMLElement>("[data-ledger-icon]")!;
+    const inn = await icon("in1");
+    expect(inn).toHaveAttribute("data-direction", "in");
+    expect(inn.getAttribute("style")).toContain("var(--trading-up)");
+    const out = await icon("out1");
+    expect(out).toHaveAttribute("data-direction", "out");
+    expect(out.getAttribute("style")).toContain("var(--trading-down)");
+    expect(await icon("interest-2026-10-20")).toHaveAttribute(
+      "data-direction",
+      "in",
+    );
+  });
+
   // Round-4 gap 10: a linked row opens its partner.
   it("a linked row with a visible partner is a link that opens it", async () => {
     const onOpenLinked = vi.fn();
