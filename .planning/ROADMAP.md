@@ -490,4 +490,5 @@ Plans:
 - [x] 13.1-44-PLAN.md — Gap r4: linked entry opens its partner in the other asset (gap wave 3)
 - [x] 13.1-46-PLAN.md — Gap r4: archive is a row action; sold-out assets stay; suggestions show value only + "Archived" (gap wave 4)
 - [x] 13.1-47-PLAN.md — Gap r4: assets unique by (type, name, currency); taken currencies disabled; "(2)" rows renamed back (migration 0090, checkpoint) (gap wave 4)
+- [ ] 13.1-48-PLAN.md — Gap r4: preload ledgers; Delete an entry-less asset, amber Archive otherwise (gap wave 4)
 - [ ] 13.1-45-PLAN.md — Gap r4: ship gate + user phone re-test (gap wave 5, checkpoint)
