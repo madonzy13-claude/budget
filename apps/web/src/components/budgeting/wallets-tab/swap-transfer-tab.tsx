@@ -47,6 +47,8 @@ export function SwapTransferTab({
   setDate,
   minDate,
   onDone,
+  draft = "",
+  setDraft,
 }: SwapTabProps) {
   const t = useTranslations("budget.investments");
   const transferMut = useTransferAsset(budgetId);
@@ -62,7 +64,11 @@ export function SwapTransferTab({
   const ccy = ccyOf(holding, budgetCurrency);
   const names = useAssetNames(budgetId, ui).data ?? [];
 
-  const [move, setMove] = useState("");
+  const [move, setMoveState] = useState(draft);
+  const setMove = (v: string) => {
+    setMoveState(v);
+    setDraft?.(v);
+  };
   const [label, setLabel] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
 

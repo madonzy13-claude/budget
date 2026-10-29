@@ -182,6 +182,8 @@ export function SwapSellTab({
   setDate,
   minDate,
   onDone,
+  draft = "",
+  setDraft,
 }: SwapTabProps) {
   const t = useTranslations("budget.investments");
   const tw = useTranslations("bdp.tab.wallets.section");
@@ -196,7 +198,11 @@ export function SwapSellTab({
   const buyCents = Number(holding.buyPriceCents ?? 0);
   const srcCcy = ccyOf(holding, budgetCurrency);
 
-  const [sold, setSold] = useState("");
+  const [sold, setSoldState] = useState(draft);
+  const setSold = (v: string) => {
+    setSoldState(v);
+    setDraft?.(v);
+  };
   const [dest, setDest] = useState<Dest>("new");
   const [newHolding, setNewHolding] = useState<DestinationHolding | null>(null);
   const [destQty, setDestQty] = useState("");

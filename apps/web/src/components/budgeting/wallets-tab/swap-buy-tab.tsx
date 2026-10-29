@@ -42,6 +42,10 @@ export interface SwapTabProps {
   setDate: (d: string) => void;
   minDate: string | null;
   onDone: () => void;
+  /** Round 4: the main amount/quantity, carried across Buy / Sell / Transfer
+   *  (seeds this tab's main field; every edit writes it back). */
+  draft?: string;
+  setDraft?: (v: string) => void;
 }
 
 export function SwapBuyTab({
@@ -52,6 +56,8 @@ export function SwapBuyTab({
   setDate,
   minDate,
   onDone,
+  draft = "",
+  setDraft,
 }: SwapTabProps) {
   const t = useTranslations("budget.investments");
   const buyMut = useBuyAsset(budgetId);
@@ -70,11 +76,24 @@ export function SwapBuyTab({
   const valueCents = Number(holding.valueCents);
   const held = num(holding.quantity);
 
-  const [qty, setQty] = useState("");
+  const [qty, setQtyState] = useState(shape === "quantity" ? draft : "");
   const [price, setPrice] = useState("");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmountState] = useState(shape === "quantity" ? "" : draft);
+  const setQty = (v: string) => {
+    setQtyState(v);
+    setDraft?.(v);
+  };
+  const setAmount = (v: string) => {
+    setAmountState(v);
+    setDraft?.(v);
+  };
   const [ccy, setCcy] = useState(holding.buyCurrency ?? assetCcy);
-  const [valueAfter, setValueAfter] = useState("");
+  // A carried amount prefills "value after" like a typed one (D-08).
+  const [valueAfter, setValueAfter] = useState(
+    shape === "broker" && draft.trim() !== "" && Number.isFinite(num(draft))
+      ? String((valueCents + toCents(draft)) / 100)
+      : "",
+  );
   const [valueAfterTouched, setValueAfterTouched] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 

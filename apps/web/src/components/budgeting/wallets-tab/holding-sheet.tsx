@@ -111,6 +111,15 @@ interface HoldingSheetProps {
   embedded?: boolean;
   /** Reports the add form's dirty state (New transaction guards its switch). */
   onDirtyChange?: (dirty: boolean) => void;
+  /** Round 4 (New transaction carry-over): open straight into this asset's
+   *  Buy form, share the date and the main amount, and report the type +
+   *  pick back so another kind can carry them. */
+  initialPickedId?: string | null;
+  date?: string;
+  setDate?: (d: string) => void;
+  draft?: string;
+  setDraft?: (v: string) => void;
+  onDraftChange?: (d: { uiType: UiType | ""; pickedId: string | null }) => void;
 }
 
 /** The "new" destination of a sale, as POST /:id/sell expects it. */
@@ -159,6 +168,12 @@ export function HoldingSheet({
   initialUiType,
   embedded,
   onDirtyChange,
+  initialPickedId,
+  date: sharedDate,
+  setDate: setSharedDate,
+  draft,
+  setDraft,
+  onDraftChange,
 }: HoldingSheetProps) {
   const t = useTranslations("budget.investments");
   const fmt = useFormatter();
@@ -166,7 +181,9 @@ export function HoldingSheet({
   // 13.1 UAT 7: picking an existing asset from the Name list turns Add into
   // that asset's locked Buy form (Swap → Buy, D-08). Not in the sale's
   // destination mode — there the label joins on the server.
-  const [pickedId, setPickedId] = useState<string | null>(null);
+  const [pickedId, setPickedId] = useState<string | null>(
+    initialPickedId ?? null,
+  );
   const holdingsList = useInvestments(budgetId).data;
   const picked =
     (pickedId && holdingsList?.find((h) => h.id === pickedId)) || null;
@@ -310,7 +327,11 @@ export function HoldingSheet({
   // Sell → New investment: priced-per-unit types ask how many units were bought.
 
   const today = new Date().toLocaleDateString("en-CA");
-  const [openedOn, setOpenedOn] = useState(today);
+  const [openedOn, setOpenedOnState] = useState(sharedDate ?? today);
+  const setOpenedOn = (d: string) => {
+    setOpenedOnState(d);
+    setSharedDate?.(d);
+  };
   // A tracked type whose price the user enters by hand: either a selected non-US
   // instrument (provider='manual', no free quote) OR a manual entry (ticker not in
   // the catalog, no instrument). Both ⇒ editable current-price field.
@@ -583,6 +604,18 @@ export function HoldingSheet({
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
+  useEffect(() => {
+    onDraftChange?.({ uiType, pickedId });
+  }, [uiType, pickedId, onDraftChange]);
+  // A carried pick fills the name field (without counting as an edit).
+  const seededName = useRef(false);
+  useEffect(() => {
+    if (seededName.current || !initialPickedId || !picked) return;
+    seededName.current = true;
+    if (UI_TYPE_META[uiType as UiType]?.behavior === "tracked")
+      setCustomName(picked.name);
+    else setName(picked.name);
+  }, [initialPickedId, picked, uiType]);
 
   function attemptClose() {
     if (dirty) {
@@ -1270,6 +1303,10 @@ export function HoldingSheet({
             holding={picked}
             holdings={holdingsList ?? []}
             onDone={() => onOpenChange(false)}
+            date={sharedDate}
+            setDate={setSharedDate}
+            draft={draft}
+            setDraft={setDraft}
           />
         </>
       ) : (
@@ -1674,14 +1711,25 @@ function PickedBuy({
   holding,
   holdings,
   onDone,
+  date: shared,
+  setDate: setShared,
+  draft,
+  setDraft,
 }: {
   budgetId: string;
   budgetCurrency: string;
   holding: HoldingDto;
   holdings: HoldingDto[];
   onDone: () => void;
+  date?: string;
+  setDate?: (d: string) => void;
+  draft?: string;
+  setDraft?: (v: string) => void;
 }) {
-  const [date, setDate] = useState(todayIso());
+  // New transaction shares its date (round 4); standalone keeps its own.
+  const [own, setOwn] = useState(shared ?? todayIso());
+  const date = shared ?? own;
+  const setDate = setShared ?? setOwn;
   const minDate = useMinEntryDate(budgetId, holding.id);
   return (
     <SwapBuyTab
@@ -1693,6 +1741,8 @@ function PickedBuy({
       setDate={setDate}
       minDate={minDate}
       onDone={onDone}
+      draft={draft}
+      setDraft={setDraft}
     />
   );
 }

@@ -8,8 +8,13 @@
  * sheet (round 3: type + asset stay visible). A dirty Add form asks before a
  * switch or close; the embedded tabs' Discard closes the sheet, as in the
  * Swap sheet.
+ *
+ * Round 4: switching kinds carries the type, the picked asset (when the kind
+ * can use it), the main amount and the date; a type with exactly one asset
+ * picks it at once (Sell / Transfer only); the type list has Buy's icons.
  */
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { UI_TYPE_ICON } from "@/lib/investment-icons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,23 +81,38 @@ export function NewTransactionSheet({
   const [buyDirty, setBuyDirty] = useState(false);
   const [picked, setPicked] = useState<HoldingDto | null>(null);
   const [date, setDate] = useState(today());
+  // The main amount / quantity, carried across kinds (round 4).
+  const [draft, setDraft] = useState("");
   // Unconditional (hook rules); idle until an asset is picked.
   const minDate = useMinEntryDate(budgetId, picked?.id ?? "", open && !!picked);
-  const unpick = () => {
-    setPicked(null);
-    setDate(today());
-  };
+  const unpick = () => setPicked(null);
   // A switch / close asked for while the Add form is dirty waits for Discard.
   const [pending, setPending] = useState<(() => void) | null>(null);
+  // A Buy on a picked asset carries over, so only an unpicked, edited Add
+  // form has something to lose.
   const guard = (run: () => void) =>
-    kind === "buy" && buyDirty ? setPending(() => run) : run();
+    kind === "buy" && buyDirty && !picked ? setPending(() => run) : run();
   const choose = (k: Kind) => {
     setKind(k);
-    setUiType("");
-    setName("");
     setBuyDirty(false);
-    unpick();
+    // D-11: a deposit cannot be transferred — drop it, keep the type.
+    if (k === "transfer" && picked && isDeposit(picked)) {
+      unpick();
+      setName("");
+    }
   };
+  // The Add form reports its type + pick, so Buy → Sell carries them.
+  const onBuyDraft = useCallback(
+    (d: { uiType: UiType | ""; pickedId: string | null }) => {
+      setUiType(d.uiType);
+      const h = d.pickedId
+        ? (holdings.find((x) => x.id === d.pickedId) ?? null)
+        : null;
+      setPicked(h);
+      setName(h?.name ?? "");
+    },
+    [holdings],
+  );
 
   // D-11: a deposit only sells.
   const pickable = holdings.filter((h) => kind !== "transfer" || !isDeposit(h));
@@ -102,6 +122,32 @@ export function NewTransactionSheet({
     pickable.some((h) => typeOf(h) === ui),
   );
   const ids = new Set(pickable.map((h) => h.id));
+
+  // Round 4 gap 5: a type with exactly one asset to sell / move picks it.
+  const only =
+    kind !== "buy" && uiType && !picked
+      ? pickable.filter((h) => typeOf(h) === uiType)
+      : [];
+  const single = only.length === 1 ? only[0]! : null;
+  useEffect(() => {
+    if (!single) return;
+    setPicked(single);
+    setName(single.name);
+  }, [single]);
+
+  const typeLabel = (ui: UiType) => {
+    const Icon = UI_TYPE_ICON[ui];
+    return (
+      <span className="flex items-center gap-2">
+        <Icon
+          data-type-icon
+          className="h-4 w-4 text-[var(--muted-foreground)]"
+          aria-hidden="true"
+        />
+        <span>{t(`uitype.${ui}`)}</span>
+      </span>
+    );
+  };
 
   return (
     <Sheet
@@ -164,12 +210,21 @@ export function NewTransactionSheet({
             budgetCurrency={budgetCurrency}
             onOpenChange={onOpenChange}
             onDirtyChange={setBuyDirty}
+            initialUiType={uiType || undefined}
+            initialPickedId={picked?.id ?? null}
+            date={date}
+            setDate={setDate}
+            draft={draft}
+            setDraft={setDraft}
+            onDraftChange={onBuyDraft}
           />
         ) : (
           <div className="space-y-4 px-1">
             <Field label={t("field.type")}>
+              {/* Controlled always, so the trigger never shows a type the
+                  state has dropped (round-4 gap 3). */}
               <Select
-                value={uiType || undefined}
+                value={uiType}
                 onValueChange={(v) => {
                   setUiType(v as UiType);
                   setName("");
@@ -181,7 +236,9 @@ export function NewTransactionSheet({
                   aria-label={t("field.type")}
                   className="min-h-11 w-full"
                 >
-                  <SelectValue placeholder={t("field.typePlaceholder")} />
+                  <SelectValue placeholder={t("field.typePlaceholder")}>
+                    {uiType ? typeLabel(uiType) : null}
+                  </SelectValue>
                 </SelectTrigger>
                 {/* Round 3: a native popup got a sliver; this list flips above
                     a low trigger and gets the screen. */}
@@ -195,7 +252,7 @@ export function NewTransactionSheet({
                       value={ui}
                       data-testid={`new-tx-type-option-${ui}`}
                     >
-                      {t(`uitype.${ui}`)}
+                      {typeLabel(ui)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -235,6 +292,8 @@ export function NewTransactionSheet({
                   setDate,
                   minDate,
                   onDone: () => onOpenChange(false),
+                  draft,
+                  setDraft,
                 };
                 return kind === "sell" ? (
                   <SwapSellTab key={picked.id} {...props} />

@@ -46,6 +46,8 @@ export function SwapSheet({
     holding.holdingType === "deposit" || holding.uiType === "deposit";
   const [tab, setTab] = useState<Tab>(isDeposit ? "sell" : initialTab);
   const [date, setDate] = useState(today());
+  // Round 4: the main amount/quantity follows the tab switch.
+  const [draft, setDraft] = useState("");
   const minDate = useMinEntryDate(budgetId, holding.id, open);
 
   const props = {
@@ -57,6 +59,8 @@ export function SwapSheet({
     setDate,
     minDate,
     onDone: () => onOpenChange(false),
+    draft,
+    setDraft,
   };
 
   const onKey = (e: React.KeyboardEvent) => {
