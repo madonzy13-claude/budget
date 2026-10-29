@@ -14,7 +14,15 @@
  */
 import { useRef } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Link2, Trash2 } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Link2,
+  Percent,
+  Trash2,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -62,6 +70,44 @@ const signColor = (n: number) =>
       : "var(--muted-strong)";
 const trimQty = (q: string) =>
   q.includes(".") ? q.replace(/0+$/, "").replace(/\.$/, "") : q;
+
+/** Round 4: money into the asset (green) or out of it (red), at a glance.
+ *  Interest is a percent, value / price updates a trend, the rest in / out
+ *  arrows; the colour follows the sign of the row's amount. */
+function DirectionIcon({ entry }: { entry: EntryDto }) {
+  const n = Number(entry.displayAmountCents ?? entry.amountCents ?? 0);
+  const dir = n > 0 ? "in" : n < 0 ? "out" : "flat";
+  const color =
+    dir === "in"
+      ? "var(--trading-up)"
+      : dir === "out"
+        ? "var(--trading-down)"
+        : "var(--muted-strong)";
+  const Icon =
+    entry.kind === "interest"
+      ? Percent
+      : entry.kind === "value_change" || entry.kind === "price_change"
+        ? dir === "out"
+          ? TrendingDown
+          : TrendingUp
+        : dir === "out"
+          ? ArrowUpRight
+          : ArrowDownLeft;
+  return (
+    <span
+      data-ledger-icon
+      data-direction={dir}
+      aria-hidden="true"
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+      style={{
+        color,
+        backgroundColor: `color-mix(in srgb, ${color} 16%, transparent)`,
+      }}
+    >
+      <Icon className="h-3.5 w-3.5" />
+    </span>
+  );
+}
 
 /** "12 Oct 2026" in ONE Intl call so uk/pl get the genitive month. */
 export function ledgerDate(iso: string, locale: string): string {
@@ -205,6 +251,7 @@ export function LedgerRow({
           entry.deletable ? "min-h-[44px]" : "min-h-[40px]",
         ].join(" ")}
       >
+        <DirectionIcon entry={entry} />
         <div className="flex min-w-0 flex-1 flex-col text-[12px] leading-[1.4]">
           <span className="min-w-0 break-words">
             {date} · {kind}
