@@ -14,6 +14,9 @@
  *   Out              optionally lands in a wallet (existing: its currency,
  *                    locked; new: name · type · currency) or Nowhere (D-20).
  *
+ * An existing ASSET preselects its own currency but any may be picked (R5-6):
+ * the server books the leg into that asset at one deal rate.
+ *
  * Realized previews the server's single deal rate (13.1 UAT 14): proceeds in
  * the source currency = received ÷ rate(source → received), minus sold cost.
  *
@@ -224,15 +227,38 @@ export function SwapSellTab({
   const existing = holdings.find((h) => h.id === existingId);
   const wallet: WalletDto | undefined = wallets.find((w) => w.id === walletId);
   const receivedCcy =
-    dest === "existing" && existing
-      ? ccyOf(existing, budgetCurrency)
-      : dest === "out" && walletKind === "existing" && wallet
-        ? wallet.currency
-        : chosenCcy;
-  // A new wallet takes the amount's currency (13.1 UAT 9) — only an existing
-  // wallet or asset locks it (D-22).
-  const ccyLocked =
-    dest === "existing" || (dest === "out" && walletKind === "existing");
+    dest === "out" && walletKind === "existing" && wallet
+      ? wallet.currency
+      : chosenCcy;
+  // Only an existing wallet locks the currency (D-22); an existing asset
+  // preselects its own (R5-6).
+  const ccyLocked = dest === "out" && walletKind === "existing";
+  const assetCcy = existing ? ccyOf(existing, budgetCurrency) : receivedCcy;
+  const pickExisting = (id: string) => {
+    setExistingId(id);
+    const h = holdings.find((x) => x.id === id);
+    if (h) setChosenCcy(ccyOf(h, budgetCurrency));
+    setReceivedTouched(false);
+  };
+  // Today's rate asset currency → received currency (preview of its price
+  // and value; the server books with its own rate).
+  const [assetRate, setAssetRate] = useState(1);
+  useEffect(() => {
+    if (dest !== "existing" || assetCcy === receivedCcy) {
+      setAssetRate(1);
+      return;
+    }
+    let live = true;
+    void clientApiFetch(
+      `/fx/rate?from=${assetCcy}&to=${receivedCcy}&date=${today()}`,
+    )
+      .then(async (r) => (r.ok ? ((await r.json()) as { rate: string }) : null))
+      .then((q) => live && q && setAssetRate(Number(q.rate)))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [dest, assetCcy, receivedCcy]);
 
   // Today's rate source currency → received currency (prefill + preview only).
   const [rate, setRate] = useState(1);
@@ -311,7 +337,7 @@ export function SwapSellTab({
   const priceText =
     dest === "existing"
       ? existing
-        ? plain(Number(existing.currentPriceCents ?? 0) / 100)
+        ? plain((Number(existing.currentPriceCents ?? 0) / 100) * assetRate)
         : ""
       : destPrice !== ""
         ? destPrice
@@ -385,8 +411,10 @@ export function SwapSellTab({
                     kind: "existing",
                     name: destName,
                     d0: Number(existing!.valueCents),
-                    d1: Number(existing!.valueCents) + receivedCents,
-                    ccy: receivedCcy,
+                    d1:
+                      Number(existing!.valueCents) +
+                      (assetRate > 0 ? receivedCents / assetRate : 0),
+                    ccy: assetCcy,
                   }
                 : walletKind === "existing"
                   ? {
@@ -613,7 +641,7 @@ export function SwapSellTab({
               <div className="mt-3">
                 <Select
                   value={existingId || undefined}
-                  onValueChange={setExistingId}
+                  onValueChange={pickExisting}
                 >
                   <SelectTrigger
                     data-testid="swap-sell-existing"
@@ -671,6 +699,20 @@ export function SwapSellTab({
                 </Select>
               </div>
               {existingIsQty && destPair(true)}
+              {/* R5-6: a quantity destination has no Received row — its
+                  currency is picked here (preselected to the asset's). */}
+              {existingIsQty && (
+                <div data-testid="swap-dest-ccy" className="mt-2 w-24">
+                  <Field label={t("field.currency")}>
+                    <CurrencyPicker
+                      variant="field"
+                      value={chosenCcy}
+                      onSelect={setChosenCcy}
+                      aria-label={t("field.currency")}
+                    />
+                  </Field>
+                </div>
+              )}
             </>
           )}
           {dest === "out" && (
