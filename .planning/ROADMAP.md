@@ -440,7 +440,7 @@ _Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.
 **Goal:** Every investment type becomes type → asset → entries: same-name buys join one asset (DCA), each asset has Swap (Buy / Sell / Transfer) and a slim Edit, entries are an immutable date-ordered ledger deletable newest-first only, and selling out of investments can credit a budget wallet. Migration 0088 merges existing same-name holdings.
 **Requirements**: CONTEXT decisions D-01..D-37 (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 39/45 plans complete
+**Plans:** 40/45 plans executed
 
 Plans:
 
@@ -483,7 +483,7 @@ Plans:
 - [x] 13.1-37-PLAN.md — Gap r3: New transaction Radix type picker + embedded Sell/Transfer form (gap wave 2)
 - [x] 13.1-38-PLAN.md — Gap r3: tap held amount to fill (no everything buttons); square ledger delete with left shadow (gap wave 2)
 - [x] 13.1-39-PLAN.md — Gap r3: ship gate + user phone re-test (gap wave 3, checkpoint)
-- [ ] 13.1-40-PLAN.md — Gap r4: RED @r4 E2E scenarios, i18n (openLinked, pickOrCreate), reproduce Sell↔Transfer asset-field loss (gap wave 1)
+- [x] 13.1-40-PLAN.md — Gap r4: RED @r4 E2E scenarios, i18n (openLinked, pickOrCreate), reproduce Sell↔Transfer asset-field loss (gap wave 1)
 - [ ] 13.1-41-PLAN.md — Gap r4: header + asset rows as two centred columns; type icon on the header (gap wave 2)
 - [ ] 13.1-42-PLAN.md — Gap r4: suggestions show qty · value · currency; no join note; pick-or-create hint (gap wave 2)
 - [ ] 13.1-43-PLAN.md — Gap r4: New transaction/Swap carry type, asset, amount, date; auto-pick single asset; icon type list; sell-into meta (gap wave 2)
