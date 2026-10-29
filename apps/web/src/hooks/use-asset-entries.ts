@@ -38,6 +38,8 @@ export interface EntryDto {
   realizedBudgetCents: string | null;
   budgetCurrency: string | null;
   counterpartyName: string | null;
+  counterpartyHoldingId?: string | null;
+  transferId?: string | null;
   linked: boolean;
   walletName: string | null;
   walletDelta: string | null;

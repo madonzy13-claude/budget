@@ -77,11 +77,22 @@ interface LedgerRowProps {
   rowKey: string;
   first: boolean;
   onDelete: () => void;
+  /** Round 4: open the partner entry in the other asset (visible partner only). */
+  onOpenLinked?: () => void;
+  /** Briefly highlighted after a jump from its partner. */
+  flash?: boolean;
 }
 
 const ACTION_W = 56;
 
-export function LedgerRow({ entry, rowKey, first, onDelete }: LedgerRowProps) {
+export function LedgerRow({
+  entry,
+  rowKey,
+  first,
+  onDelete,
+  onOpenLinked,
+  flash,
+}: LedgerRowProps) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
   const signed = (cents: string) => {
@@ -153,6 +164,8 @@ export function LedgerRow({ entry, rowKey, first, onDelete }: LedgerRowProps) {
       tabIndex={-1}
       data-ledger-row
       data-testid={`ledger-row-${rowKey}`}
+      data-transfer-id={entry.transferId ?? undefined}
+      data-flash={flash || undefined}
       style={{
         borderTop: first ? undefined : "1px solid var(--hairline-dark)",
       }}
@@ -176,7 +189,10 @@ export function LedgerRow({ entry, rowKey, first, onDelete }: LedgerRowProps) {
       <div
         data-ledger-surface
         style={{
-          backgroundColor: "var(--surface-ledger-dark)",
+          // Round 4: a jumped-to row lights up briefly.
+          backgroundColor: flash
+            ? "var(--surface-elevated-dark)"
+            : "var(--surface-ledger-dark)",
           boxShadow: first ? "inset 0 6px 8px -6px rgba(0,0,0,0.7)" : undefined,
           transform: `translateX(${offset}px)`,
           transition: swiping ? "none" : "transform 200ms ease-out",
@@ -190,19 +206,48 @@ export function LedgerRow({ entry, rowKey, first, onDelete }: LedgerRowProps) {
           <span className="min-w-0 break-words">
             {date} · {kind}
           </span>
-          {entry.linked && entry.counterpartyName ? (
-            <span className="flex min-w-0 items-center gap-1">
-              <Link2 className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
-              <span
-                className="truncate"
-                style={{ fontSize: "11px", lineHeight: 1.4 }}
-              >
-                {t(linkedOut ? "ledger.toAsset" : "ledger.fromAsset", {
-                  name: entry.counterpartyName,
-                })}
-              </span>
-            </span>
-          ) : null}
+          {entry.linked && entry.counterpartyName
+            ? (() => {
+                const content = (
+                  <>
+                    <Link2
+                      className="h-2.5 w-2.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <span
+                      className="truncate"
+                      style={{ fontSize: "11px", lineHeight: 1.4 }}
+                    >
+                      {t(linkedOut ? "ledger.toAsset" : "ledger.fromAsset", {
+                        name: entry.counterpartyName,
+                      })}
+                    </span>
+                  </>
+                );
+                // Round 4: a visible partner is one tap away.
+                return onOpenLinked ? (
+                  <button
+                    type="button"
+                    data-no-swipe
+                    data-testid={`ledger-link-${rowKey}`}
+                    aria-label={t("ledger.openLinked", {
+                      name: entry.counterpartyName,
+                    })}
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      onOpenLinked();
+                    }}
+                    className="flex min-w-0 items-center gap-1 self-start text-left underline decoration-dotted underline-offset-2"
+                  >
+                    {content}
+                  </button>
+                ) : (
+                  <span className="flex min-w-0 items-center gap-1">
+                    {content}
+                  </span>
+                );
+              })()
+            : null}
         </div>
         <div className="num flex shrink-0 flex-col items-end text-right tabular-nums">
           {qty != null && (

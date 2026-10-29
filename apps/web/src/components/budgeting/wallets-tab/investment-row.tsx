@@ -18,7 +18,7 @@
  * exception); cash / no-basis renders "—" in --muted-strong; a delisted row is
  * dimmed (opacity-50, --muted-strong) which overrides any P/L color (D-09/25).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ArrowRightLeft, Pencil, TrendingUp, TrendingDown } from "lucide-react";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
@@ -83,6 +83,10 @@ export function InvestmentRow({
     () => open ?? bdpStore?.wallets.expandedRows[holding.id] ?? false,
   );
   const [shaking, setShaking] = useState(false);
+  // Opened from elsewhere (a linked entry's jump, round 4): show it open.
+  useEffect(() => {
+    if (open) setExpanded(true);
+  }, [open]);
   const activate = () => {
     const next = !expanded;
     setExpanded(next);

@@ -11,7 +11,7 @@
  * 13.1 UAT 4/5: slides open/closed (CSS grid-rows, no layout jump), closes the
  * asset card with rounded bottom corners, and follows the asset row's swipe.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useAssetEntries, type EntryDto } from "@/hooks/use-asset-entries";
 import { useDeleteEntry } from "@/hooks/use-delete-entry";
@@ -26,6 +26,12 @@ interface AssetLedgerProps {
   /** The asset row's swipe offset (px ≤ 0); `swiping` = mid-gesture. */
   swipeOffset?: number;
   swiping?: boolean;
+  /** Round 4: open a linked entry's partner (holding id, transfer id). */
+  onOpenLinked?: (holdingId: string, transferId: string) => void;
+  /** Which partners are on screen (only those become links). */
+  canOpen?: (holdingId: string) => boolean;
+  /** Scroll to + highlight the row of this transfer (after a jump). */
+  flashTransferId?: string | null;
 }
 
 const rowKeyOf = (e: EntryDto) => e.id ?? `interest-${e.effectiveDate}`;
@@ -37,6 +43,9 @@ export function AssetLedger({
   open,
   swipeOffset = 0,
   swiping = false,
+  onOpenLinked,
+  canOpen,
+  flashTransferId,
 }: AssetLedgerProps) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
@@ -45,6 +54,14 @@ export function AssetLedger({
   const [confirming, setConfirming] = useState<EntryDto | null>(null);
   // Mounted from the first open on, so closing can slide shut.
   const [seen, setSeen] = useState(open);
+  const stripRef = useRef<HTMLDivElement>(null);
+  // After a jump from the partner: bring the matching row into view.
+  useEffect(() => {
+    if (!flashTransferId || !entries) return;
+    stripRef.current
+      ?.querySelector(`[data-transfer-id="${CSS.escape(flashTransferId)}"]`)
+      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [flashTransferId, entries]);
   if (open && !seen) setSeen(true);
   if (!seen) return null;
 
@@ -65,6 +82,7 @@ export function AssetLedger({
         <div
           role="rowgroup"
           aria-label={`${assetName}`}
+          ref={stripRef}
           data-testid={`asset-ledger-${assetId}`}
           style={{
             backgroundColor: "var(--surface-ledger-dark)",
@@ -103,6 +121,21 @@ export function AssetLedger({
                     entry={e}
                     first={i === 0}
                     onDelete={() => setConfirming(e)}
+                    flash={
+                      !!flashTransferId && e.transferId === flashTransferId
+                    }
+                    onOpenLinked={
+                      onOpenLinked &&
+                      e.counterpartyHoldingId &&
+                      e.transferId &&
+                      canOpen?.(e.counterpartyHoldingId)
+                        ? () =>
+                            onOpenLinked(
+                              e.counterpartyHoldingId!,
+                              e.transferId!,
+                            )
+                        : undefined
+                    }
                   />
                 );
               })}

@@ -52,7 +52,11 @@ import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { setDndDragging } from "@/lib/dnd-dragging";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
 import { parseDecimal } from "@/lib/decimal";
-import { unitPriceCents, type UiType } from "@/lib/investment-types";
+import {
+  deriveUiType,
+  unitPriceCents,
+  type UiType,
+} from "@/lib/investment-types";
 import {
   buildTypeBlocks,
   moveTypeBlock,
@@ -221,6 +225,20 @@ export function InvestmentsSection({
       }
       return next;
     });
+  // Round 4: a linked ledger entry opens its partner, highlighted for 1.5s.
+  const [flash, setFlash] = useState<{
+    holdingId: string;
+    transferId: string;
+  } | null>(null);
+  const openLinked = (holdingId: string, transferId: string) => {
+    const h = holdings.find((x) => x.id === holdingId);
+    if (!h) return;
+    const ui = deriveUiType(h.uiType, h.holdingType, h.isCustom);
+    if (!isExpanded(ui)) toggleType(ui);
+    toggleAsset(holdingId, true);
+    setFlash({ holdingId, transferId });
+    window.setTimeout(() => setFlash(null), 1500);
+  };
   const updateMut = useUpdateHolding(budgetId);
   const reorderMut = useReorderHoldings(budgetId);
   const setOrderMut = useSetTypeOrder(budgetId);
@@ -546,6 +564,13 @@ export function InvestmentsSection({
                             open={openAssets.has(h.id) && !draggingRow}
                             swipeOffset={swipe?.id === h.id ? swipe.px : 0}
                             swiping={swipe?.id === h.id && swipe.live}
+                            onOpenLinked={openLinked}
+                            canOpen={(id) => holdings.some((x) => x.id === id)}
+                            flashTransferId={
+                              flash?.holdingId === h.id
+                                ? flash.transferId
+                                : null
+                            }
                           />
                         </div>
                       ))}

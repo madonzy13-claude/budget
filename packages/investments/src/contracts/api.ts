@@ -443,6 +443,10 @@ export interface EntryDto {
   realizedBudgetCents: string | null;
   budgetCurrency: string | null;
   counterpartyName: string | null;
+  /** Round 4: the partner asset + shared transfer id, so a linked row can
+   *  open its partner entry. null unless linked. */
+  counterpartyHoldingId: string | null;
+  transferId: string | null;
   linked: boolean;
   walletName: string | null;
   walletDelta: string | null;
