@@ -763,8 +763,8 @@
         "stats": {
           "avgPrice": "Серед. ціна {price}"
         },
-        "unrealizedLabel": "нереалізований: {value}",
-        "realizedLabel": "реалізований: {value}"
+        "unrealizedLabel": "нереаліз.: {value}",
+        "realizedLabel": "реаліз.: {value}"
       },
       "addDate": "Дата",
       "asset": {

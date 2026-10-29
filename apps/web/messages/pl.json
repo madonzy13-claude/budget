@@ -763,8 +763,8 @@
         "stats": {
           "avgPrice": "Śr. cena {price}"
         },
-        "unrealizedLabel": "niezrealizowany: {value}",
-        "realizedLabel": "zrealizowany: {value}"
+        "unrealizedLabel": "niezreal.: {value}",
+        "realizedLabel": "zreal.: {value}"
       },
       "addDate": "Data",
       "asset": {
