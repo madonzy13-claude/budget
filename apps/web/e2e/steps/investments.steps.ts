@@ -1925,6 +1925,16 @@ Then(
     await expect(
       page.getByTestId(`investment-group-${uiType}`).locator("[data-pl-line]"),
     ).toHaveCount(0);
+    // Round 4: tapped, the currency hugs the amount (no column gap).
+    const gap = await page
+      .getByTestId(`investment-type-value-${uiType}`)
+      .evaluate((el) => {
+        const [ccy, amt] = [...el.children].map((c) =>
+          c.getBoundingClientRect(),
+        );
+        return amt!.left - ccy!.right;
+      });
+    expect(gap, "currency → amount gap").toBeLessThanOrEqual(8);
   },
 );
 
