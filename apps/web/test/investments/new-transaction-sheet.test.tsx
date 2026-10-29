@@ -1,18 +1,30 @@
 /**
  * new-transaction-sheet.test.tsx — "New transaction" (13.1 UAT 7): pick Buy /
- * Sell / Transfer first. Sell and Transfer pick an existing visible asset and
- * open its Swap sheet on that tab.
+ * Sell / Transfer first. Sell and Transfer pick a type (in-DOM list, round 3)
+ * and an existing visible asset; its Sell / Transfer form renders right under
+ * them in the same sheet (round 3, user decision).
  *
  * Round-2 gap 6: opens on Buy, and the Add form renders INSIDE the sheet under
  * the switch (HoldingSheet embedded), so the switch never disappears.
  */
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  render,
+  screen,
+  fireEvent,
+  within,
+  waitFor,
+} from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   H,
   btc,
   btcCold,
   deposit,
+  routeFetch,
+  okWrite,
+  writeMock,
+  lastUrl,
   holdingSheetStub as stub,
 } from "./_swap-fixtures";
 import { NewTransactionSheet } from "../../src/components/budgeting/wallets-tab/new-transaction-sheet";
@@ -41,25 +53,45 @@ vi.mock("../../src/hooks/use-asset-names", () => ({
 }));
 
 function mount() {
-  const onPick = vi.fn();
   const onOpenChange = vi.fn();
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <NewTransactionSheet
-      open
-      onOpenChange={onOpenChange}
-      budgetId="b1"
-      budgetCurrency="PLN"
-      holdings={[
-        btc,
-        btcCold,
-        deposit,
-        H({ id: "c", name: "Pot", uiType: "cash", holdingType: "cash_fx" }),
-      ]}
-      onPick={onPick}
-    />,
+    <QueryClientProvider client={qc}>
+      <NewTransactionSheet
+        open
+        onOpenChange={onOpenChange}
+        budgetId="b1"
+        budgetCurrency="PLN"
+        holdings={[
+          btc,
+          btcCold,
+          deposit,
+          H({ id: "c", name: "Pot", uiType: "cash", holdingType: "cash_fx" }),
+        ]}
+      />
+    </QueryClientProvider>,
   );
-  return { onPick, onOpenChange };
+  return { onOpenChange };
 }
+const type = (id: string, v: string) =>
+  fireEvent.change(screen.getByTestId(id), { target: { value: v } });
+/** Radix Select under happy-dom: open with the keyboard, pick by testid. */
+async function pick(trigger: string, option: string) {
+  fireEvent.keyDown(screen.getByTestId(trigger), { key: "Enter" });
+  fireEvent.keyDown(await screen.findByTestId(option), { key: "Enter" });
+}
+async function pickAsset(kind: "sell" | "transfer", name: string) {
+  fireEvent.click(screen.getByTestId(`new-tx-kind-${kind}`));
+  await pick("new-tx-type", "new-tx-type-option-crypto");
+  fireEvent.focus(screen.getByTestId("new-tx-asset"));
+  fireEvent.mouseDown(screen.getByText(name));
+}
+
+beforeEach(() => {
+  writeMock.mockReset();
+  routeFetch({ rate: "0.25" });
+  okWrite({ transferId: null, newHoldingId: null, walletId: null });
+});
 
 describe("New transaction", () => {
   it("opens on Buy with the Add form inside and every kind visible", () => {
@@ -124,34 +156,62 @@ describe("New transaction", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("Sell picks a visible asset of a type and opens its Sell tab", () => {
-    const { onPick } = mount();
+  it("Sell lists the type's visible assets only", async () => {
+    mount();
     fireEvent.click(screen.getByTestId("new-tx-kind-sell"));
-    fireEvent.change(screen.getByTestId("new-tx-type"), {
-      target: { value: "crypto" },
-    });
+    expect(screen.getByTestId("new-tx-type")).toHaveAttribute(
+      "role",
+      "combobox",
+    );
+    await pick("new-tx-type", "new-tx-type-option-crypto");
     const field = screen.getByTestId("new-tx-asset");
     fireEvent.focus(field);
     const names = within(screen.getByRole("listbox"))
       .getAllByRole("option")
       .map((o) => o.textContent);
     expect(names).toEqual(["BTC", "BTC Cold"]); // hidden "Old coin" left out
-    fireEvent.change(field, { target: { value: "Brand new" } });
+    type("new-tx-asset", "Brand new");
     expect(screen.queryByTestId("asset-name-create")).toBeNull();
-    fireEvent.change(field, { target: { value: "" } });
-    fireEvent.mouseDown(screen.getByText("BTC Cold"));
-    expect(onPick).toHaveBeenCalledWith(btcCold, "sell");
   });
 
-  it("Transfer leaves deposits out of the types", () => {
+  // Round-3 gap 3b: type + asset stay; the asset's Sell form is right below.
+  it("picking an asset to sell keeps type and asset and books its Sell form", async () => {
+    const { onOpenChange } = mount();
+    await pickAsset("sell", "BTC Cold");
+    const sheet = screen.getByTestId("new-tx-sheet");
+    expect(within(sheet).getByTestId("new-tx-type")).toBeInTheDocument();
+    expect(within(sheet).getByTestId("new-tx-asset")).toHaveValue("BTC Cold");
+    expect(within(sheet).getByTestId("swap-sell-sold")).toBeInTheDocument();
+    expect(screen.queryByTestId("swap-sheet")).toBeNull();
+    type("swap-sell-sold", "0.5");
+    fireEvent.click(screen.getByTestId("swap-dest-out"));
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastUrl()).toBe(`/budgets/b1/investments/${btcCold.id}/sell`);
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+
+  it("picking an asset to transfer shows its Transfer form in place", async () => {
+    mount();
+    await pickAsset("transfer", "BTC");
+    const sheet = screen.getByTestId("new-tx-sheet");
+    expect(within(sheet).getByTestId("new-tx-type")).toBeInTheDocument();
+    expect(within(sheet).getByTestId("swap-transfer-qty")).toBeInTheDocument();
+  });
+
+  it("changing the type drops the form and the asset", async () => {
+    mount();
+    await pickAsset("sell", "BTC Cold");
+    await pick("new-tx-type", "new-tx-type-option-cash");
+    expect(screen.queryByTestId("swap-sell-sold")).toBeNull();
+    expect(screen.getByTestId("new-tx-asset")).toHaveValue("");
+  });
+
+  it("Transfer leaves deposits out of the types", async () => {
     mount();
     fireEvent.click(screen.getByTestId("new-tx-kind-transfer"));
-    const types = [
-      ...(screen.getByTestId("new-tx-type") as HTMLSelectElement).options,
-    ]
-      .map((o) => o.value)
-      .filter(Boolean);
-    expect(types).toContain("crypto");
-    expect(types).not.toContain("deposit");
+    fireEvent.keyDown(screen.getByTestId("new-tx-type"), { key: "Enter" });
+    await screen.findByTestId("new-tx-type-option-crypto");
+    expect(screen.queryByTestId("new-tx-type-option-deposit")).toBeNull();
   });
 });
