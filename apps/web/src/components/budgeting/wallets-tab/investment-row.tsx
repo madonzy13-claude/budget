@@ -18,6 +18,7 @@
  * exception); cash / no-basis renders "—" in --muted-strong; a delisted row is
  * dimmed (opacity-50, --muted-strong) which overrides any P/L color (D-09/25).
  */
+import { FitLine } from "@/components/common/fit-line";
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ArrowRightLeft, Pencil, TrendingUp, TrendingDown } from "lucide-react";
@@ -347,9 +348,9 @@ export function InvestmentRow({
                   tailwind-merge cannot drop it. */}
               {/* Same font + size as the header's unreal./real. line (round 4). */}
               {caption.length > 0 && (
-                <span
+                <FitLine
                   data-asset-caption
-                  className="num flex min-w-0 gap-x-2 overflow-hidden whitespace-nowrap text-[var(--muted-foreground)] tabular-nums"
+                  className="num text-[var(--muted-foreground)] tabular-nums"
                   style={{ fontSize: "11px", lineHeight: 1.4 }}
                 >
                   {caption.map((c) => (
@@ -364,7 +365,7 @@ export function InvestmentRow({
                       {c.after}
                     </span>
                   ))}
-                </span>
+                </FitLine>
               )}
             </div>
           )}

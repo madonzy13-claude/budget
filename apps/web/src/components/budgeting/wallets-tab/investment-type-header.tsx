@@ -16,6 +16,7 @@
  * Color: P/L via inline style tokens only (tailwind-merge drops var() text colors).
  * Testids keep the investment-group-* names so existing page objects still work.
  */
+import { FitLine } from "@/components/common/fit-line";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import {
@@ -222,11 +223,11 @@ export function InvestmentTypeHeader({
               </span>
             </span>
             {/* Inline size: tailwind-merge cannot drop it (same as the asset row). */}
-            <span
+            <FitLine
               data-pl-caption
-              // One line, never wraps (user: "realized jumped on next row") —
-              // short labels; a too-long line clips rather than growing the card.
-              className="num flex min-w-0 gap-x-2 overflow-hidden whitespace-nowrap tabular-nums"
+              // One line, never wraps (round-4 gaps 13 + 17): short labels; what
+              // still does not fit scrolls to its end and back.
+              className="num tabular-nums"
               style={{
                 color: "var(--muted-foreground)",
                 fontSize: "11px",
@@ -253,7 +254,7 @@ export function InvestmentTypeHeader({
                   </span>
                 );
               })}
-            </span>
+            </FitLine>
           </div>
         )}
       </div>

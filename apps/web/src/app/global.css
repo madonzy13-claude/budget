@@ -1062,3 +1062,27 @@ main[data-shell-scroll]:has([data-lock-page-scroll]) {
   overflow-y: hidden;
   overscroll-behavior-y: none;
 }
+
+/* FitLine (round-4 gap 17): an overflowing one-line caption scrolls to its end
+   and back — pause, glide, pause, return. */
+@keyframes fit-line-scroll {
+  0%,
+  20% {
+    transform: translateX(0);
+  }
+  50%,
+  70% {
+    transform: translateX(var(--fit-shift));
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+.fit-line-scroll {
+  animation: fit-line-scroll 8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fit-line-scroll {
+    animation: none;
+  }
+}
