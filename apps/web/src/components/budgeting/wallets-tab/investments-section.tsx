@@ -228,7 +228,6 @@ export function InvestmentsSection({
   const [swapping, setSwapping] = useState<HoldingDto | null>(null);
   // 13.1 UAT 7: "New transaction" picks Buy / Sell / Transfer first.
   const [choosing, setChoosing] = useState(false);
-  const [swapTab, setSwapTab] = useState<"sell" | "transfer" | undefined>();
   const [editing, setEditing] = useState<HoldingDto | null>(null);
 
   /**
@@ -573,11 +572,6 @@ export function InvestmentsSection({
         budgetId={budgetId}
         budgetCurrency={budgetCurrency}
         holdings={holdings}
-        onPick={(h, tab) => {
-          setChoosing(false);
-          setSwapTab(tab);
-          setSwapping(h);
-        }}
       />
       {swapping && (
         <SwapSheet
@@ -586,13 +580,11 @@ export function InvestmentsSection({
           onOpenChange={(o) => {
             if (o) return;
             setSwapping(null);
-            setSwapTab(undefined);
           }}
           budgetId={budgetId}
           budgetCurrency={budgetCurrency}
           holding={swapping}
           holdings={holdings}
-          initialTab={swapTab}
         />
       )}
       {editing && (

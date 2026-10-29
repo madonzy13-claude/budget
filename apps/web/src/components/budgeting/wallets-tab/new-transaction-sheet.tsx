@@ -3,8 +3,11 @@
  * new-transaction-sheet.tsx — "New transaction" (13.1 UAT 7): Buy / Sell /
  * Transfer. Opens on Buy with the name-first Add form (HoldingSheet, embedded)
  * right under the switch, so the switch never disappears (round-2 gap 6).
- * Sell / Transfer → a type and one of its visible assets → that asset's Swap
- * sheet on the chosen tab. A dirty Add form asks before a switch or close.
+ * Sell / Transfer → a type (in-DOM list, round 3) and one of its visible
+ * assets → that asset's Sell / Transfer form right under them in this same
+ * sheet (round 3: type + asset stay visible). A dirty Add form asks before a
+ * switch or close; the embedded tabs' Discard closes the sheet, as in the
+ * Swap sheet.
  */
 import { useState } from "react";
 import {
@@ -30,7 +33,18 @@ import {
   type UiType,
 } from "@/lib/investment-types";
 import type { HoldingDto } from "@/hooks/use-investments";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useMinEntryDate } from "@/hooks/use-asset-entries";
 import { Field, HoldingSheet } from "./holding-sheet";
+import { SwapSellTab } from "./swap-sell-tab";
+import { SwapTransferTab } from "./swap-transfer-tab";
+import { today } from "./swap-shared";
 import {
   AssetNameCombobox,
   keepSheetOnListEscape,
@@ -47,7 +61,6 @@ export function NewTransactionSheet({
   budgetId,
   budgetCurrency,
   holdings,
-  onPick,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -55,13 +68,20 @@ export function NewTransactionSheet({
   budgetCurrency: string;
   /** Visible assets — the only ones that can be sold or moved. */
   holdings: HoldingDto[];
-  onPick: (h: HoldingDto, tab: "sell" | "transfer") => void;
 }) {
   const t = useTranslations("budget.investments");
   const [kind, setKind] = useState<Kind>("buy");
   const [uiType, setUiType] = useState<UiType | "">("");
   const [name, setName] = useState("");
   const [buyDirty, setBuyDirty] = useState(false);
+  const [picked, setPicked] = useState<HoldingDto | null>(null);
+  const [date, setDate] = useState(today());
+  // Unconditional (hook rules); idle until an asset is picked.
+  const minDate = useMinEntryDate(budgetId, picked?.id ?? "", open && !!picked);
+  const unpick = () => {
+    setPicked(null);
+    setDate(today());
+  };
   // A switch / close asked for while the Add form is dirty waits for Discard.
   const [pending, setPending] = useState<(() => void) | null>(null);
   const guard = (run: () => void) =>
@@ -71,6 +91,7 @@ export function NewTransactionSheet({
     setUiType("");
     setName("");
     setBuyDirty(false);
+    unpick();
   };
 
   // D-11: a deposit only sells.
@@ -147,30 +168,38 @@ export function NewTransactionSheet({
         ) : (
           <div className="space-y-4 px-1">
             <Field label={t("field.type")}>
-              <select
-                data-testid="new-tx-type"
-                aria-label={t("field.type")}
-                value={uiType}
-                onChange={(e) => {
-                  setUiType(e.target.value as UiType);
+              <Select
+                value={uiType || undefined}
+                onValueChange={(v) => {
+                  setUiType(v as UiType);
                   setName("");
-                }}
-                className="min-h-11 w-full rounded-[var(--radius-md)] border px-3 text-[14px]"
-                style={{
-                  background: "var(--surface-card-dark)",
-                  borderColor: "var(--hairline-dark)",
-                  color: "var(--body-on-dark)",
+                  unpick();
                 }}
               >
-                <option value="" disabled>
-                  {t("field.typePlaceholder")}
-                </option>
-                {types.map((ui) => (
-                  <option key={ui} value={ui}>
-                    {t(`uitype.${ui}`)}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger
+                  data-testid="new-tx-type"
+                  aria-label={t("field.type")}
+                  className="min-h-11 w-full"
+                >
+                  <SelectValue placeholder={t("field.typePlaceholder")} />
+                </SelectTrigger>
+                {/* Round 3: a native popup got a sliver; this list flips above
+                    a low trigger and gets the screen. */}
+                <SelectContent
+                  position="popper"
+                  className="max-h-[min(60dvh,var(--radix-select-content-available-height))] w-[var(--radix-select-trigger-width)]"
+                >
+                  {types.map((ui) => (
+                    <SelectItem
+                      key={ui}
+                      value={ui}
+                      data-testid={`new-tx-type-option-${ui}`}
+                    >
+                      {t(`uitype.${ui}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
             {uiType && (
               <Field label={t("newTx.pickAsset")}>
@@ -178,18 +207,41 @@ export function NewTransactionSheet({
                   budgetId={budgetId}
                   uiType={uiType}
                   value={name}
-                  onChange={setName}
+                  onChange={(v) => {
+                    setName(v);
+                    if (picked && v !== picked.name) unpick();
+                  }}
                   allowCreate={false}
                   include={(a) => ids.has(a.id)}
                   testId="new-tx-asset"
                   ariaLabel={t("newTx.pickAsset")}
                   onPickExisting={(a) => {
                     const h = pickable.find((x) => x.id === a.id);
-                    if (h) onPick(h, kind);
+                    if (!h) return;
+                    setName(h.name);
+                    setPicked(h);
                   }}
                 />
               </Field>
             )}
+            {picked &&
+              (() => {
+                const props = {
+                  budgetId,
+                  budgetCurrency,
+                  holding: picked,
+                  holdings,
+                  date,
+                  setDate,
+                  minDate,
+                  onDone: () => onOpenChange(false),
+                };
+                return kind === "sell" ? (
+                  <SwapSellTab key={picked.id} {...props} />
+                ) : (
+                  <SwapTransferTab key={picked.id} {...props} />
+                );
+              })()}
           </div>
         )}
       </SheetContent>
