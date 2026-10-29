@@ -106,6 +106,33 @@ describe("InvestmentTypeHeader", () => {
     expect(root.classList.contains("py-1.5")).toBe(false);
   });
 
+  // Round-4 gaps 1 + 2.
+  it("left and right are separate centred columns, closed and tapped; the type icon sits on the header", () => {
+    renderHeader();
+    expect(document.querySelector("[data-type-icon]")).not.toBeNull();
+    const check = (tapped: boolean) => {
+      const left = document.querySelector<HTMLElement>('[data-col="left"]')!;
+      const right = document.querySelector<HTMLElement>('[data-col="right"]')!;
+      for (const c of [left, right])
+        expect(c.className).toMatch(
+          /flex-col.*justify-center|justify-center.*flex-col/,
+        );
+      expect(
+        right.contains(screen.getByTestId("investment-type-value-stocks")),
+      ).toBe(true);
+      if (tapped) {
+        expect(
+          right.contains(screen.getByTestId("investment-type-share-stocks")),
+        ).toBe(true);
+        expect(left.querySelector("[data-pl-line]")).not.toBeNull();
+        expect(left.querySelector("[data-pl-caption]")).not.toBeNull();
+      }
+    };
+    check(false);
+    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
+    check(true);
+  });
+
   it("the drag handle has no slot of its own", () => {
     renderHeader();
     const slot = screen.getByTestId("type-handle").parentElement!;

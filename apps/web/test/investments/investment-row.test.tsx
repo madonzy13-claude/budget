@@ -434,10 +434,10 @@ describe("InvestmentRow", () => {
     expect(screen.getByText("Share: 5.0%")).toBeInTheDocument();
     const value = screen.getByTestId("asset-value-h1");
     expect(value).toHaveTextContent("USD10,000");
-    // The value sits on the name's line, the share on the next.
-    const nameLine = screen.getAllByText("USD Cash")[0]!.parentElement!;
-    expect(nameLine.contains(value)).toBe(true);
-    expect(nameLine.contains(screen.getByTestId("asset-share-h1"))).toBe(false);
+    // Round 4: value + share stack in the right column, centred on its own.
+    const right = document.querySelector<HTMLElement>('[data-col="right"]')!;
+    expect(right.contains(value)).toBe(true);
+    expect(right.contains(screen.getByTestId("asset-share-h1"))).toBe(true);
   });
 
   it("a P/L asset's expanded value carries the same value testid", () => {
@@ -447,6 +447,35 @@ describe("InvestmentRow", () => {
   });
 
   // Round-3 gap 4: zero is a grey rise with plus signs; signs pick the icon.
+  // Round-4 gaps 1 + 2: two centred columns; the type icon lives on the header.
+  for (const [label, over] of [
+    ["P/L", {}],
+    ["cash", { name: "Pot", holdingType: "cash_fx", profitLossPct: null }],
+  ] as const)
+    it(`${label}: left and right are separate centred columns, collapsed and expanded`, () => {
+      render(<InvestmentRow holding={holding(over as Partial<HoldingDto>)} />);
+      const check = () => {
+        const left =
+          document.querySelectorAll<HTMLElement>('[data-col="left"]');
+        const right =
+          document.querySelectorAll<HTMLElement>('[data-col="right"]');
+        expect(left).toHaveLength(1);
+        expect(right).toHaveLength(1);
+        for (const c of [left[0]!, right[0]!])
+          expect(c.className).toMatch(
+            /flex-col.*justify-center|justify-center.*flex-col/,
+          );
+      };
+      check();
+      fireEvent.click(screen.getByTestId("asset-row-h1"));
+      check();
+    });
+
+  it("the asset row carries no type icon", () => {
+    render(<InvestmentRow holding={holding()} />);
+    expect(document.querySelector("[data-type-icon]")).toBeNull();
+  });
+
   it("a zero P/L shows a grey up-arrow, +0.0% and +0", () => {
     render(
       <InvestmentRow
@@ -637,8 +666,10 @@ describe("InvestmentRow", () => {
     expect(caption.contains(share)).toBe(false);
     expect(caption.textContent).not.toMatch(/Share/);
     // Same bottom line, pushed to the right column.
-    expect(share.parentElement).toBe(caption.parentElement);
-    expect(share.parentElement!.className).toMatch(/justify-between/);
+    // Round 4: share sits in the right column under the value.
+    const right = document.querySelector<HTMLElement>('[data-col="right"]')!;
+    expect(right.contains(share)).toBe(true);
+    expect(right.contains(screen.getByTestId("asset-value-h1"))).toBe(true);
   });
 
   it("expanded caption shows the average buy price (D-29)", () => {
