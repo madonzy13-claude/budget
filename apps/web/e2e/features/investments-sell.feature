@@ -29,7 +29,9 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
     When I open the investments wallets tab
     And I sell "IBKR" leaving "0" into a new cash holding "Erste" receiving "96000"
-    Then there is no "broker" type block
+    # Round 4 (user): a sold-out asset stays listed at 0 until archived.
+    Then there is a "broker" type block
+    And the holding row "IBKR" shows "0"
     And there is a "cash" type block
     # 13.1 UAT 3: no realized line above the list — it stays booked.
     And there is no realized line above the investments
