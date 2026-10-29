@@ -751,8 +751,6 @@
         "pl": "Zysk/strata"
       },
       "sell": {
-        "qtyLeft": "Pozostała ilość",
-        "valueLeft": "Pozostała wartość",
         "qtyHelper": "Masz {qty}",
         "valueHelper": "Obecna wartość {value}",
         "date": "Data",
@@ -762,7 +760,6 @@
         "valueSold": "Sprzedana wartość"
       },
       "typeGroup": {
-        "summaryCaption": "niezrealizowany {u} · zrealizowany {r} · udział {s}",
         "stats": {
           "avgPrice": "Śr. cena {price}"
         },
@@ -814,7 +811,6 @@
         },
         "locked": "Zablokowane",
         "sell": {
-          "left": "Ile zostaje?",
           "everything": "Sprzedaj wszystko",
           "where": "Gdzie trafiły pieniądze?",
           "dest": {
@@ -859,7 +855,6 @@
           "realizedUnchanged": "Zrealizowany zysk bez zmian"
         },
         "err": {
-          "leftTooHigh": "Pozostała wartość musi być mniejsza niż to, co posiadasz.",
           "received": "Wpisz otrzymaną kwotę większą od 0.",
           "positive": "Wpisz kwotę większą od 0.",
           "futureDate": "Data nie może być w przyszłości.",

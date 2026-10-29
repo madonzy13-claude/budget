@@ -76,7 +76,7 @@ const KEYS = [
   "swap.err.beforeLatest",
   "swap.err.futureDate",
   "swap.err.fx",
-  "swap.err.leftTooHigh",
+  "swap.err.soldRange",
   "swap.err.nameRequired",
   "swap.err.positive",
   "swap.err.received",
@@ -92,7 +92,7 @@ const KEYS = [
   "swap.sell.dest.out",
   "swap.sell.dest.outDesc",
   "swap.sell.everything",
-  "swap.sell.left",
+  "swap.sell.sold",
   "swap.sell.received",
   "swap.sell.receivedHelp",
   "swap.sell.wallet.existing",
@@ -125,7 +125,8 @@ const KEYS = [
   "swap.transfer.sameInstrument",
   "swap.transfer.to",
   "typeGroup.stats.avgPrice",
-  "typeGroup.summaryCaption",
+  "typeGroup.unrealizedAria",
+  "typeGroup.realizedAria",
 ];
 
 const at = (m: unknown, path: string): unknown =>

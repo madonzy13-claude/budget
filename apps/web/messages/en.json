@@ -751,8 +751,6 @@
         "pl": "P/L"
       },
       "sell": {
-        "qtyLeft": "Quantity left",
-        "valueLeft": "Value left",
         "qtyHelper": "You hold {qty}",
         "valueHelper": "Current value {value}",
         "date": "Date",
@@ -762,7 +760,6 @@
         "valueSold": "Value sold"
       },
       "typeGroup": {
-        "summaryCaption": "unrealized {u} · realized {r} · share {s}",
         "stats": {
           "avgPrice": "Avg price {price}"
         },
@@ -814,7 +811,6 @@
         },
         "locked": "Locked",
         "sell": {
-          "left": "How much is left?",
           "everything": "Sell everything",
           "where": "Where did the money go?",
           "dest": {
@@ -859,7 +855,6 @@
           "realizedUnchanged": "Realized unchanged"
         },
         "err": {
-          "leftTooHigh": "Value left must be less than what you hold.",
           "received": "Enter an amount received greater than 0.",
           "positive": "Enter an amount greater than 0.",
           "futureDate": "Date can't be in the future.",

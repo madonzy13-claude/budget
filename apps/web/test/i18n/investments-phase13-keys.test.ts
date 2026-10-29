@@ -11,8 +11,8 @@ import uk from "../../messages/uk.json";
 
 const KEYS = [
   "uitype.stocks",
-  "sell.qtyLeft",
-  "sell.valueLeft",
+  "sell.qtySold",
+  "sell.valueSold",
   "sell.qtyHelper",
   "sell.valueHelper",
   "sell.date",
