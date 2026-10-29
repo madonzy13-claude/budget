@@ -319,30 +319,34 @@ export function InvestmentRow({
               {/* One step under the P/L line (UAT 13.1 test 4); inline so
                   tailwind-merge cannot drop it. */}
               <div
-                className="text-[var(--muted-foreground)] tabular-nums"
+                className="flex items-baseline justify-between gap-2 text-[var(--muted-foreground)] tabular-nums"
                 style={{ fontSize: "11px", lineHeight: 1.4 }}
               >
-                {avgPrice != null && (
-                  <>
-                    <span>
-                      {t("typeGroup.stats.avgPrice", { price: avgPrice })}
-                    </span>
-                    <span aria-hidden="true"> · </span>
-                  </>
-                )}
-                {showQty && (
-                  <>
-                    <span>{t("row.qty", { qty: qtyDisplay })}</span>
-                    <span aria-hidden="true"> · </span>
-                  </>
-                )}
-                {startedDisplay != null && (
-                  <>
-                    <span>{t("row.started", { amount: startedDisplay })}</span>
-                    <span aria-hidden="true"> · </span>
-                  </>
-                )}
-                <span>{t("row.share", { pct: weight })}</span>
+                <span className="min-w-0">
+                  {[
+                    avgPrice != null &&
+                      t("typeGroup.stats.avgPrice", { price: avgPrice }),
+                    showQty && t("row.qty", { qty: qtyDisplay }),
+                    startedDisplay != null &&
+                      t("row.started", { amount: startedDisplay }),
+                  ]
+                    .filter(Boolean)
+                    .flatMap((text, i) => [
+                      i > 0 && (
+                        <span key={`sep${i}`} aria-hidden="true">
+                          {" · "}
+                        </span>
+                      ),
+                      <span key={i}>{text}</span>,
+                    ])}
+                </span>
+                {/* Round-2 gap 3: share under the amount (right column). */}
+                <span
+                  data-testid={`asset-share-${holding.id}`}
+                  className="shrink-0"
+                >
+                  {t("row.share", { pct: weight })}
+                </span>
               </div>
             </div>
           )}

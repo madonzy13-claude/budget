@@ -572,7 +572,9 @@ describe("InvestmentRow", () => {
   it("expanded stats caption is smaller than the P/L line", () => {
     render(<InvestmentRow holding={holding()} />);
     fireEvent.click(screen.getByLabelText("Expand AAPL"));
-    const stats = screen.getByText("Avg price 300").parentElement!;
+    // Caption span → the bottom line that carries the size.
+    const stats =
+      screen.getByText("Avg price 300").parentElement!.parentElement!;
     expect(stats.style.fontSize).toBe("11px");
   });
 

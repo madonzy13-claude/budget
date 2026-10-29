@@ -421,9 +421,10 @@ Then(
   "the {string} type shows realized {string}",
   async ({ page }, uiType: string, amount: string) => {
     const split = await new InvestmentsPo(page).typeSumUp(uiType);
-    await expect(split.locator("[data-pl-caption]")).toContainText(
-      `realized ${amount}`,
-    );
+    // Round 2: the caption is unrealized · realized amounts, no words.
+    await expect(
+      split.locator("[data-pl-caption] [data-signed]").nth(1),
+    ).toHaveText(amount);
   },
 );
 
@@ -593,9 +594,9 @@ Then(
   "the {string} type shows no realized gain",
   async ({ page }, uiType: string) => {
     const split = await new InvestmentsPo(page).typeSumUp(uiType);
-    await expect(split.locator("[data-pl-caption]")).toContainText(
-      "realized 0 ",
-    );
+    await expect(
+      split.locator("[data-pl-caption] [data-signed]").nth(1),
+    ).toHaveText("0");
   },
 );
 
