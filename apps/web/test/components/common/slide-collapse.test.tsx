@@ -46,6 +46,12 @@ describe("SlideCollapse", () => {
     await waitFor(() => expect(screen.queryByTestId("slide")).toBeNull());
   });
 
+  it("closed again before it started opening: gone at once (no flash on load)", () => {
+    const { rerender } = render(ui(true));
+    rerender(ui(false));
+    expect(screen.queryByTestId("slide")).toBeNull();
+  });
+
   it("keepMounted stays after closing", async () => {
     const { rerender } = render(ui(true, { keepMounted: true }));
     await waitFor(() => expect(rows()).toBe("1fr"));

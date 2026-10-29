@@ -194,7 +194,7 @@ describe("Investments as type groups", () => {
     expect(screen.getByTestId("investment-group-stocks")).toBeInTheDocument();
   });
 
-  it("collapsing a block hides its rows; the choice is remembered per type", () => {
+  it("collapsing a block hides its rows; the choice is remembered per type", async () => {
     const a = h({ uiType: "stocks" });
     const qc = client([a], { currency: "PLN", order: [], types: {} });
     const { unmount } = renderSection(qc);
@@ -203,9 +203,12 @@ describe("Investments as type groups", () => {
       document.querySelector(`[data-investment-row-wrapper="${a.id}"]`),
     ).not.toBeNull();
     fireEvent.click(screen.getByTestId("investment-group-chevron-stocks"));
-    expect(
-      document.querySelector(`[data-investment-row-wrapper="${a.id}"]`),
-    ).toBeNull();
+    // Round 4: the rows slide shut (hidden from assistive tech at once), then go.
+    await waitFor(() =>
+      expect(
+        document.querySelector(`[data-investment-row-wrapper="${a.id}"]`),
+      ).toBeNull(),
+    );
     unmount();
     renderSection(qc);
     expect(

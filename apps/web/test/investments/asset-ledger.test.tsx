@@ -347,7 +347,8 @@ describe("Asset ledger strip", () => {
     expect(strip.className).toMatch(/rounded-b-/);
     expect(strip.style.transform).toBe("translateX(-136px)");
     const slide = strip.closest("[data-ledger-slide]") as HTMLElement;
-    expect(slide.style.gridTemplateRows).toBe("1fr");
+    // Round 4: mounts shut, opens next frame (so the first open slides too).
+    await waitFor(() => expect(slide.style.gridTemplateRows).toBe("1fr"));
     expect(slide.className).toContain("transition-[grid-template-rows]");
   });
 

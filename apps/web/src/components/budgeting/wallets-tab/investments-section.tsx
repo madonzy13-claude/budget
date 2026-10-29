@@ -67,6 +67,7 @@ import {
 } from "@/lib/investment-type-groups";
 import { InvestmentRowSheet } from "./investment-row-sheet";
 import { AssetLedger } from "./asset-ledger";
+import { SlideCollapse } from "@/components/common/slide-collapse";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { sharePercentLabel } from "@/lib/share-bar";
 import { InvestmentTypeHeader } from "./investment-type-header";
@@ -528,54 +529,65 @@ export function InvestmentsSection({
                     />
                   )}
                 >
-                  {isExpanded(block.uiType) && (
-                    <SortableContext
-                      items={block.holdings.map((h) => h.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      {block.holdings.map((h) => (
-                        <div
-                          key={h.id}
-                          data-asset-block
-                          // UAT 13.1 test 4: assets nest under their type header.
-                          className="flex flex-col pl-4"
-                        >
-                          <InvestmentRowSheet
-                            holding={h}
-                            nested
-                            maxAmountChars={amountCols.group[block.uiType]}
-                            open={openAssets.has(h.id)}
-                            onToggle={toggleAsset}
-                            onSwipeOffset={(id, px, live) =>
-                              setSwipe({ id, px, live })
-                            }
-                            onEdit={openEdit}
-                            onSwap={setSwapping}
-                            onValueChange={(amount) =>
-                              saveInlineValue(h, amount)
-                            }
-                          />
-                          {/* L3: same left edge as the asset, outside the sortable
+                  {/* Round 4: assets slide open / shut under the header (no
+                      slide while a block is dragged). The header gap lives
+                      inside the slide so it closes with it. */}
+                  <SlideCollapse
+                    open={isExpanded(block.uiType)}
+                    instant={draggingBlock}
+                    className="-mt-2"
+                  >
+                    <div className="flex flex-col gap-2 pt-2">
+                      <SortableContext
+                        items={block.holdings.map((h) => h.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {block.holdings.map((h) => (
+                          <div
+                            key={h.id}
+                            data-asset-block
+                            // UAT 13.1 test 4: assets nest under their type header.
+                            className="flex flex-col pl-4"
+                          >
+                            <InvestmentRowSheet
+                              holding={h}
+                              nested
+                              maxAmountChars={amountCols.group[block.uiType]}
+                              open={openAssets.has(h.id)}
+                              onToggle={toggleAsset}
+                              onSwipeOffset={(id, px, live) =>
+                                setSwipe({ id, px, live })
+                              }
+                              onEdit={openEdit}
+                              onSwap={setSwapping}
+                              onValueChange={(amount) =>
+                                saveInlineValue(h, amount)
+                              }
+                            />
+                            {/* L3: same left edge as the asset, outside the sortable
                             row; collapsed while an asset is dragged (D-28/D-30). */}
-                          <AssetLedger
-                            budgetId={budgetId}
-                            assetId={h.id}
-                            assetName={h.name}
-                            open={openAssets.has(h.id) && !draggingRow}
-                            swipeOffset={swipe?.id === h.id ? swipe.px : 0}
-                            swiping={swipe?.id === h.id && swipe.live}
-                            onOpenLinked={openLinked}
-                            canOpen={(id) => holdings.some((x) => x.id === id)}
-                            flashTransferId={
-                              flash?.holdingId === h.id
-                                ? flash.transferId
-                                : null
-                            }
-                          />
-                        </div>
-                      ))}
-                    </SortableContext>
-                  )}
+                            <AssetLedger
+                              budgetId={budgetId}
+                              assetId={h.id}
+                              assetName={h.name}
+                              open={openAssets.has(h.id) && !draggingRow}
+                              swipeOffset={swipe?.id === h.id ? swipe.px : 0}
+                              swiping={swipe?.id === h.id && swipe.live}
+                              onOpenLinked={openLinked}
+                              canOpen={(id) =>
+                                holdings.some((x) => x.id === id)
+                              }
+                              flashTransferId={
+                                flash?.holdingId === h.id
+                                  ? flash.transferId
+                                  : null
+                              }
+                            />
+                          </div>
+                        ))}
+                      </SortableContext>
+                    </div>
+                  </SlideCollapse>
                 </SortableTypeBlock>
               );
             })}
