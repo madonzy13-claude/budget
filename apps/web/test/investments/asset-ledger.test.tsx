@@ -123,16 +123,12 @@ beforeEach(() => {
 });
 
 describe("Asset ledger strip", () => {
-  it("renders server order on the sunken lane with an inset shadow on the first row", async () => {
+  it("renders server order on the ledger lane", async () => {
     mount(ENTRIES);
     const strip = await screen.findByTestId("asset-ledger-a1");
-    expect(strip.getAttribute("style")).toContain("var(--surface-sunken-dark)");
+    expect(strip.getAttribute("style")).toContain("var(--surface-ledger-dark)");
     const rows = await screen.findAllByRole("row");
     expect(rows).toHaveLength(4);
-    expect(rows[0]!.getAttribute("style")).toContain(
-      "inset 0 6px 8px -6px rgba(0,0,0,0.7)",
-    );
-    expect(rows[1]!.getAttribute("style") ?? "").not.toContain("inset");
     expect(rows.map((r) => r.textContent)).toEqual([
       expect.stringContaining("ledger.kind.interest"),
       expect.stringContaining("ledger.kind.bought"),
@@ -145,6 +141,85 @@ describe("Asset ledger strip", () => {
     expect(rows[0]).not.toHaveTextContent("ledger.auto");
     // UAT 13.1 test 4: the date carries the year.
     expect(rows[1]).toHaveTextContent(/12 Oct 2026|Oct 12, 2026/);
+  });
+
+  // Round-2 gap 4: an inset shadow paints UNDER the element's children, so it
+  // must sit on the element that paints the background (draft-row look).
+  it("casts the inset top shadow on the row surface that paints the background", async () => {
+    mount(ENTRIES);
+    const rows = await screen.findAllByRole("row");
+    for (const r of rows) {
+      const surfaces = r.querySelectorAll<HTMLElement>("[data-ledger-surface]");
+      expect(surfaces).toHaveLength(1);
+      expect(surfaces[0]!.style.backgroundColor).toBe(
+        "var(--surface-ledger-dark)",
+      );
+      expect(r.style.boxShadow).toBe("");
+    }
+    const first = rows[0]!.querySelector<HTMLElement>("[data-ledger-surface]")!;
+    expect(first.style.boxShadow).toBe("inset 0 6px 8px -6px rgba(0,0,0,0.7)");
+    const second = rows[1]!.querySelector<HTMLElement>(
+      "[data-ledger-surface]",
+    )!;
+    expect(second.style.boxShadow).toBe("");
+    expect(document.body.innerHTML).not.toContain("--surface-sunken-dark");
+  });
+
+  it("loading rows sit on the ledger lane too", async () => {
+    mount(null);
+    const sk = await screen.findAllByTestId("ledger-skeleton");
+    for (const r of sk)
+      expect(r.style.backgroundColor).toBe("var(--surface-ledger-dark)");
+    expect(document.body.innerHTML).not.toContain("--surface-sunken-dark");
+  });
+
+  // Round-2 gap 5: the slide clips vertically only, so a swiped strip is
+  // never cut on the left.
+  it("clips the slide vertically only", async () => {
+    mount(ENTRIES, true, -136);
+    const strip = await screen.findByTestId("asset-ledger-a1");
+    const slide = strip.closest("[data-ledger-slide]") as HTMLElement;
+    const clip = slide.firstElementChild as HTMLElement;
+    expect(clip.style.overflowY).toBe("clip");
+    expect(clip.style.overflowX).toBe("visible");
+    expect(clip.className).not.toMatch(/overflow-hidden/);
+  });
+
+  it("a closed ledger stays hidden from assistive tech and inert", async () => {
+    mockFetch.mockImplementation(
+      async () => new Response(JSON.stringify({ entries: ENTRIES })),
+    );
+    const qc = new QueryClient();
+    const ui = (open: boolean) => (
+      <QueryClientProvider client={qc}>
+        <AssetLedger budgetId="b1" assetId="a1" assetName="BTC" open={open} />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(ui(true));
+    const slide = (await screen.findByTestId("asset-ledger-a1")).closest(
+      "[data-ledger-slide]",
+    ) as HTMLElement;
+    rerender(ui(false));
+    expect(slide).toHaveAttribute("aria-hidden", "true");
+    expect(slide).toHaveAttribute("inert");
+  });
+
+  // Round-2 gap 11: the newest amount is grey like every other.
+  it("every amount uses the muted grey, the deletable newest included", async () => {
+    mount(ENTRIES);
+    const buy = await screen.findByTestId("ledger-row-b1");
+    const amount = [...buy.querySelectorAll<HTMLElement>("span")].find((s) =>
+      /PLN$/.test(s.textContent ?? ""),
+    )!;
+    expect(amount.style.color).toBe("var(--muted-foreground)");
+    expect(document.body.innerHTML).not.toContain("var(--body-on-dark)");
+  });
+
+  // Round-2 gap 12: the linked asset line is a step smaller.
+  it("the linked asset line is smaller than the date line", async () => {
+    mount(ENTRIES);
+    const link = await screen.findByText("ledger.toAsset");
+    expect(link.style.fontSize).toBe("11px");
   });
 
   it("slides open, rounds its bottom, and follows the asset's swipe", async () => {
