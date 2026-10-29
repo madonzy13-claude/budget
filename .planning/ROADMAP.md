@@ -440,7 +440,7 @@ _Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.
 **Goal:** Every investment type becomes type → asset → entries: same-name buys join one asset (DCA), each asset has Swap (Buy / Sell / Transfer) and a slim Edit, entries are an immutable date-ordered ledger deletable newest-first only, and selling out of investments can credit a budget wallet. Migration 0088 merges existing same-name holdings.
 **Requirements**: CONTEXT decisions D-01..D-37 (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 46/47 plans executed
+**Plans:** 47/48 plans executed
 
 Plans:
 
@@ -490,5 +490,5 @@ Plans:
 - [x] 13.1-44-PLAN.md — Gap r4: linked entry opens its partner in the other asset (gap wave 3)
 - [x] 13.1-46-PLAN.md — Gap r4: archive is a row action; sold-out assets stay; suggestions show value only + "Archived" (gap wave 4)
 - [x] 13.1-47-PLAN.md — Gap r4: assets unique by (type, name, currency); taken currencies disabled; "(2)" rows renamed back (migration 0090, checkpoint) (gap wave 4)
-- [ ] 13.1-48-PLAN.md — Gap r4: preload ledgers; Delete an entry-less asset, amber Archive otherwise (gap wave 4)
+- [x] 13.1-48-PLAN.md — Gap r4: preload ledgers; Delete an entry-less asset, amber Archive otherwise (gap wave 4)
 - [ ] 13.1-45-PLAN.md — Gap r4: ship gate + user phone re-test (gap wave 5, checkpoint)
