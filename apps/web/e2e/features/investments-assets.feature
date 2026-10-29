@@ -325,6 +325,102 @@ Feature: Investments as assets with transactions (13.1)
     When I open the investments wallets tab
     Then the revealed delete in the ledger of "IBKR" is square with a left inset shadow
 
+  # ── Round 4 (13.1-40..44) ──
+
+  # Gap 3: Sell ↔ Transfer keeps the type and the asset field.
+  @r4-newtx
+  Scenario: Switching Sell to Transfer keeps the type and shows the asset field
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
+    When I open the investments wallets tab
+    And I start New transaction → Sell on the "broker" type
+    Then switching New transaction to Transfer keeps "Broker" and shows the asset field
+
+  # Gap 5: a type with one asset picks it at once.
+  @r4-newtx
+  Scenario: A type with one asset is picked at once
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I start New transaction → Sell on the "broker" type
+    Then New transaction has picked "IBKR" and shows its Sell form
+
+  # Gap 6: the type list has icons like Buy's.
+  @r4-newtx
+  Scenario: The Sell type list shows type icons
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    Then the New transaction Sell type list shows an icon for "broker"
+
+  # Gap 1: left and right stacks each centred in the card.
+  @r4-columns
+  Scenario: Header and asset cards centre both columns, closed and tapped
+    Given I am on a phone-sized viewport
+    And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
+    When I open the investments wallets tab
+    Then the "broker" header and the assets "IBKR" and "Pot" centre both columns, closed and tapped
+
+  # Gap 2: the type icon lives on the header.
+  @r4-icon
+  Scenario: The type icon is on the header, not on the assets
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    Then the "broker" header carries the type icon and its assets do not
+
+  # Gaps 4 + 7: suggestions say what they are; no "joins" line.
+  @r4-suggest
+  Scenario: Suggestions show quantity, value and currency
+    Given a "stocks" asset "ACME" of "10" units at 2500 cents exists in my budget
+    When I open the investments wallets tab
+    And I open the Add form on "stocks" and focus the name
+    Then the first suggestion shows "10" with its value and currency
+    And picking it shows no join note
+
+  # Gap 11: say a field takes an existing asset or a new name.
+  @r4-hint
+  Scenario: Pick-or-create fields say both work
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    Then the Add form name field shows the pick-or-create hint
+    And the transfer "to" field of "IBKR" shows the pick-or-create hint
+    And the New transaction asset field shows no pick-or-create hint
+
+  # Gap 8: switching kinds / tabs carries what was filled.
+  @r4-carry
+  Scenario: Swap tabs carry the amount and the date
+    Given a crypto holding "BTC" of "2" bought at 5000000 cents now 6000000 cents exists in my budget
+    When I open the investments wallets tab
+    And I open the sale of "BTC"
+    And I set "Value sold" in the sale to "1"
+    And I set the Swap date to yesterday
+    Then the Swap tabs carry "1" and yesterday's date through Transfer and Buy
+
+  @r4-carry
+  Scenario: New transaction carries type, asset and amount between Sell and Buy
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
+    When I open the investments wallets tab
+    Then New transaction carries "IBKR" and "30000" from Sell to Buy and back
+
+  # Gap 9: the sell-into list says what each asset is.
+  @r4-sell-into
+  Scenario: Selling into an existing asset lists quantity and value with type icons
+    Given I am on a phone-sized viewport
+    And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a crypto holding "BTC Cold" of "1" bought at 5000000 cents now 6000000 cents exists in my budget
+    When I open the investments wallets tab
+    And I open the sale of "IBKR"
+    Then the existing-asset list sits below the cards and shows "BTC Cold" with its quantity and a type icon
+
+  # Gap 10: a linked entry opens its partner.
+  @r4-link
+  Scenario: Tapping a linked entry opens its partner in the other asset
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
+    And "IBKR" moved 100000 cents to "Pot" on its ledger
+    When I open the investments wallets tab
+    Then tapping the linked entry in the ledger of "IBKR" opens "Pot" at the matching entry
+
   # Live phone drive (13.1-16): list → ledger strip look in both themes →
   # every Swap tab shows its sum-up and fits, in every launch locale.
   Scenario Outline: Asset list, ledger and every Swap tab on a phone in <locale> (<theme>)

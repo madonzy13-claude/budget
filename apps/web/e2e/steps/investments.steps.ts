@@ -2052,3 +2052,261 @@ Then(
     );
   },
 );
+
+// ── 13.1 round 4 (gaps 1–11) ──
+
+async function startNewTxSell(
+  page: import("@playwright/test").Page,
+  ui: string,
+) {
+  await new InvestmentsPo(page).addButton().click();
+  await page.getByTestId("new-tx-kind-sell").click();
+  await page.getByTestId("new-tx-type").click();
+  await page.getByTestId(`new-tx-type-option-${ui}`).click();
+}
+
+When(
+  "I start New transaction → Sell on the {string} type",
+  async ({ page }, ui: string) => startNewTxSell(page, ui),
+);
+
+// Gap 3.
+Then(
+  "switching New transaction to Transfer keeps {string} and shows the asset field",
+  async ({ page }, label: string) => {
+    await page.getByTestId("new-tx-kind-transfer").click();
+    const sheet = page.getByTestId("new-tx-sheet");
+    await expect(sheet.getByTestId("new-tx-type")).toContainText(label);
+    await expect(sheet.getByTestId("new-tx-asset")).toBeVisible();
+  },
+);
+
+// Gap 5.
+Then(
+  "New transaction has picked {string} and shows its Sell form",
+  async ({ page }, name: string) => {
+    const sheet = page.getByTestId("new-tx-sheet");
+    await expect(sheet.getByTestId("new-tx-asset")).toHaveValue(name);
+    await expect(sheet.getByTestId("swap-sell-sold")).toBeVisible();
+  },
+);
+
+// Gap 6.
+Then(
+  "the New transaction Sell type list shows an icon for {string}",
+  async ({ page }, ui: string) => {
+    await new InvestmentsPo(page).addButton().click();
+    await page.getByTestId("new-tx-kind-sell").click();
+    await page.getByTestId("new-tx-type").click();
+    await expect(
+      page.getByTestId(`new-tx-type-option-${ui}`).locator("[data-type-icon]"),
+    ).toBeVisible();
+  },
+);
+
+/** Both [data-col] stacks of a card are centred in it (±1px). */
+async function expectCentredColumns(card: Locator, what: string) {
+  const m = await card.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const mid = (r.top + r.bottom) / 2;
+    return [...el.querySelectorAll("[data-col]")]
+      .filter((c) => c.getBoundingClientRect().height > 0)
+      .map((c) => {
+        const b = c.getBoundingClientRect();
+        return {
+          col: c.getAttribute("data-col"),
+          off: Math.abs((b.top + b.bottom) / 2 - mid),
+        };
+      });
+  });
+  expect(m.map((x) => x.col).sort(), `${what}: columns`).toEqual([
+    "left",
+    "right",
+  ]);
+  for (const x of m)
+    expect(x.off, `${what}: ${x.col} off centre`).toBeLessThanOrEqual(1);
+}
+
+// Gap 1.
+Then(
+  "the {string} header and the assets {string} and {string} centre both columns, closed and tapped",
+  async ({ page }, ui: string, a: string, b: string) => {
+    const po = new InvestmentsPo(page);
+    const header = page.getByTestId(`investment-group-${ui}`);
+    const cards: Array<[Locator, string, () => Promise<void>]> = [
+      [header, `${ui} header`, () => header.click()],
+      ...[a, b].map(
+        (n) =>
+          [
+            po.row(n),
+            n,
+            async () =>
+              page.getByTestId(`asset-row-${await po.assetId(n)}`).click(),
+          ] as [Locator, string, () => Promise<void>],
+      ),
+    ];
+    for (const [card, what, tap] of cards) {
+      await expectCentredColumns(card, `${what} closed`);
+      await tap();
+      await page.waitForTimeout(250);
+      await expectCentredColumns(card, `${what} tapped`);
+    }
+  },
+);
+
+// Gap 2.
+Then(
+  "the {string} header carries the type icon and its assets do not",
+  async ({ page }, ui: string) => {
+    await expect(
+      page.getByTestId(`investment-group-${ui}`).locator("[data-type-icon]"),
+    ).toBeVisible();
+    await expect(
+      page.locator("[data-asset-block] [data-type-icon]"),
+    ).toHaveCount(0);
+  },
+);
+
+// Gaps 4 + 7.
+When(
+  "I open the Add form on {string} and focus the name",
+  async ({ page }, type: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openAdd(type);
+    await po.focusName();
+  },
+);
+
+Then(
+  "the first suggestion shows {string} with its value and currency",
+  async ({ page }, qty: string) => {
+    const meta = page
+      .getByTestId("asset-name-option-0")
+      .locator("[data-asset-meta]");
+    await expect(meta).toContainText(qty);
+    await expect(meta).toHaveText(/\d.* [A-Z]{3}$/);
+  },
+);
+
+Then("picking it shows no join note", async ({ page }) => {
+  await page.getByTestId("asset-name-option-0").dispatchEvent("mousedown");
+  await expect(page.getByTestId("asset-name-note")).toHaveCount(0);
+});
+
+// Gap 11.
+Then(
+  "the Add form name field shows the pick-or-create hint",
+  async ({ page }) => {
+    await new InvestmentsPo(page).openAdd("collectibles");
+    await expect(page.getByTestId("asset-name-hint")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+  },
+);
+
+Then(
+  "the transfer {string} field of {string} shows the pick-or-create hint",
+  async ({ page }, _to: string, name: string) => {
+    await page.goto(page.url());
+    await new InvestmentsPo(page).openSwap(name, "transfer");
+    await expect(
+      page.getByTestId("swap-sheet").getByTestId("asset-name-hint"),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+  },
+);
+
+Then(
+  "the New transaction asset field shows no pick-or-create hint",
+  async ({ page }) => {
+    await page.goto(page.url());
+    await startNewTxSell(page, "broker");
+    await expect(
+      page.getByTestId("new-tx-sheet").getByTestId("asset-name-hint"),
+    ).toHaveCount(0);
+  },
+);
+
+// Gap 8.
+When("I set the Swap date to yesterday", async ({ page }) => {
+  const d = new Date(Date.now() - 86_400_000).toLocaleDateString("en-CA");
+  await page.getByTestId("swap-date").fill(d);
+});
+
+Then(
+  "the Swap tabs carry {string} and yesterday's date through Transfer and Buy",
+  async ({ page }, v: string) => {
+    const d = new Date(Date.now() - 86_400_000).toLocaleDateString("en-CA");
+    await page.getByTestId("swap-tab-transfer").click();
+    await expect(page.getByTestId("swap-transfer-qty")).toHaveValue(v);
+    await expect(page.getByTestId("swap-date")).toHaveValue(d);
+    await page.getByTestId("swap-tab-buy").click();
+    await expect(page.getByTestId("swap-buy-qty")).toHaveValue(v);
+    await expect(page.getByTestId("swap-date")).toHaveValue(d);
+  },
+);
+
+Then(
+  "New transaction carries {string} and {string} from Sell to Buy and back",
+  async ({ page }, name: string, v: string) => {
+    const po = new InvestmentsPo(page);
+    await po.startFromNewTransaction("sell", "broker", name);
+    const sheet = page.getByTestId("new-tx-sheet");
+    await sheet.getByTestId("swap-sell-sold").fill(v);
+    await page.getByTestId("new-tx-kind-buy").click();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(sheet.getByTestId("holding-sheet-type")).toContainText(
+      "Broker",
+    );
+    await expect(sheet.getByTestId("holding-sheet-name")).toHaveValue(name);
+    await expect(sheet.getByTestId("swap-buy-amount")).toHaveValue(v);
+    await page.getByTestId("new-tx-kind-sell").click();
+    await expect(sheet.getByTestId("new-tx-asset")).toHaveValue(name);
+    await expect(sheet.getByTestId("swap-sell-sold")).toHaveValue(v);
+  },
+);
+
+// Gap 9.
+Then(
+  "the existing-asset list sits below the cards and shows {string} with its quantity and a type icon",
+  async ({ page }, name: string) => {
+    const sheet = page.getByTestId("swap-sheet");
+    await sheet.getByTestId("swap-dest-existing").click();
+    const trigger = sheet.getByTestId("swap-sell-existing");
+    const gap = await sheet.evaluate((el) => {
+      const cards = [...el.querySelectorAll('[data-testid^="swap-dest-"]')]
+        .filter((c) =>
+          /^swap-dest-(new|existing|out)$/.test(
+            c.getAttribute("data-testid") ?? "",
+          ),
+        )
+        .map((c) => c.getBoundingClientRect().bottom);
+      const t = el
+        .querySelector('[data-testid="swap-sell-existing"]')!
+        .getBoundingClientRect().top;
+      return t - Math.max(...cards);
+    });
+    expect(gap, "space above the picker").toBeGreaterThanOrEqual(12);
+    await trigger.click();
+    const option = page.getByRole("option", { name: new RegExp(`^${name}`) });
+    await expect(option.locator("[data-asset-meta]")).toContainText("1");
+    await expect(
+      page.getByRole("listbox").locator("[data-type-icon]").first(),
+    ).toBeVisible();
+  },
+);
+
+// Gap 10.
+Then(
+  "tapping the linked entry in the ledger of {string} opens {string} at the matching entry",
+  async ({ page }, from: string, to: string) => {
+    const po = new InvestmentsPo(page);
+    const ledger = await po.openLedger(from);
+    await ledger.locator('[data-testid^="ledger-link-"]').first().click();
+    const target = page.getByTestId(`asset-ledger-${await po.assetId(to)}`);
+    await expect(target).toBeVisible({ timeout: 10000 });
+    const flashed = target.locator('[data-flash="true"]');
+    await expect(flashed).toBeVisible();
+    await expect(flashed).toBeInViewport();
+  },
+);
