@@ -113,6 +113,14 @@ export function AssetLedger({
             date={
               confirming ? ledgerDate(confirming.effectiveDate, locale) : ""
             }
+            interestAfter={
+              !!confirming &&
+              (entries ?? []).some(
+                (x) =>
+                  x.kind === "interest" &&
+                  x.effectiveDate >= confirming.effectiveDate,
+              )
+            }
             onOpenChange={(o) => !o && setConfirming(null)}
             onConfirm={() => {
               if (confirming?.id) deleteMut.mutate({ entryId: confirming.id });

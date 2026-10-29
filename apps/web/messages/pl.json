@@ -923,7 +923,8 @@
             "body": "To jedyny wpis. Usunięcie go całkowicie usunie {name} razem z historią i zrealizowanym zyskiem. Tego nie można cofnąć.",
             "confirm": "Usuń aktywo",
             "cancel": "Zachowaj aktywo"
-          }
+          },
+          "interestNote": "Odsetki naliczone po nim zostaną przeliczone."
         }
       }
     },

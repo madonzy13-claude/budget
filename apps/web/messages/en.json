@@ -923,7 +923,8 @@
             "body": "This is the only entry. Deleting it removes {name} completely, with its history and realized gain. This can't be undone.",
             "confirm": "Delete asset",
             "cancel": "Keep asset"
-          }
+          },
+          "interestNote": "The interest after it is recalculated."
         }
       }
     },

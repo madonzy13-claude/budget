@@ -206,7 +206,7 @@ export function LedgerRow({ entry, rowKey, first, onDelete }: LedgerRowProps) {
         </div>
         <div className="num flex shrink-0 flex-col items-end text-right tabular-nums">
           {qty != null && (
-            <span className="text-[12px] leading-[1.4]">
+            <span style={{ fontSize: "11px", lineHeight: 1.4 }}>
               {`${Number(qty) > 0 ? "+" : Number(qty) < 0 ? MINUS : ""}${trimQty(qty.replace(/^-/, ""))}`}
               {entry.priceCents != null &&
                 ` @ ${centsToBare(entry.priceCents, locale)}`}
@@ -232,6 +232,18 @@ export function LedgerRow({ entry, rowKey, first, onDelete }: LedgerRowProps) {
           )}
         </div>
       </div>
+      {/* Round 3: a swiped row slides under the strip's left edge — shade it so
+          the cut reads as hidden, not broken. */}
+      <span
+        aria-hidden="true"
+        data-ledger-swipe-shade
+        className="pointer-events-none absolute inset-y-0 left-0 w-3 transition-opacity"
+        style={{
+          opacity: offset < 0 ? 1 : 0,
+          background:
+            "linear-gradient(to right, rgba(0,0,0,0.55), transparent)",
+        }}
+      />
     </div>
   );
 }

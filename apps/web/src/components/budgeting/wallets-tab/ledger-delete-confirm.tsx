@@ -5,6 +5,8 @@
  * The copy says what the delete will do: wipe the asset (last entry, D-17),
  * take money back out of a wallet (D-21/D-24), remove both linked legs (D-16),
  * or plainly undo the entry. Strings via next-intl + JSX escaping only.
+ * Round 3: when calculated interest follows the entry (deposits), the confirm
+ * adds that it is recalculated — the interest goes with it.
  */
 import {
   AlertDialog,
@@ -36,6 +38,8 @@ interface Props {
   date: string;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
+  /** Calculated interest rows follow this entry (they get recalculated). */
+  interestAfter?: boolean;
 }
 
 export function LedgerDeleteConfirm({
@@ -45,6 +49,7 @@ export function LedgerDeleteConfirm({
   date,
   onOpenChange,
   onConfirm,
+  interestAfter,
 }: Props) {
   const t = useTranslations("budget.investments");
   const v = entry ? confirmVariant(entry) : "entry";
@@ -70,6 +75,15 @@ export function LedgerDeleteConfirm({
           <AlertDialogDescription>
             {t(`ledger.confirm.${v}.body`, p)}
           </AlertDialogDescription>
+          {interestAfter && (
+            <p
+              data-testid="ledger-delete-interest-note"
+              className="text-[14px]"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              {t("ledger.confirm.interestNote")}
+            </p>
+          )}
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>
