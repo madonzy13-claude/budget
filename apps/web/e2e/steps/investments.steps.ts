@@ -516,6 +516,37 @@ When(
   },
 );
 
+When(
+  "I sell {string} leaving {string} into {string} receiving {string} in {string}",
+  async (
+    { page },
+    name: string,
+    left: string,
+    target: string,
+    received: string,
+    ccy: string,
+  ) => {
+    const po = new InvestmentsPo(page);
+    await po.openSwap(name, "sell");
+    expect(
+      await po.sell({
+        left,
+        dest: "existing",
+        existingName: target,
+        received,
+        currency: ccy,
+      }),
+    ).toBe(201);
+  },
+);
+
+Then(
+  "there is exactly one asset named {string}",
+  async ({ page }, name: string) => {
+    await expect(new InvestmentsPo(page).row(name)).toHaveCount(1);
+  },
+);
+
 When("I open the sale of {string}", async ({ page }, name: string) => {
   await new InvestmentsPo(page).openSwap(name, "sell");
 });

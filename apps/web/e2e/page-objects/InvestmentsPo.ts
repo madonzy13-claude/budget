@@ -436,6 +436,8 @@ export class InvestmentsPo {
     received: string;
     existingName?: string;
     newName?: string;
+    /** Received currency (round 5: any currency into an existing asset). */
+    currency?: string;
     wallet?:
       | { kind: "existing"; name: string }
       | { kind: "new"; name: string; type: string };
@@ -465,6 +467,20 @@ export class InvestmentsPo {
       await sheet
         .getByTestId("swap-wallet-type")
         .selectOption(opts.wallet.type);
+    }
+    if (opts.currency) {
+      // The picker is a native <select> on touch, a Radix select elsewhere.
+      const row = sheet.getByTestId("swap-received-row");
+      const native = row.getByTestId("currency-picker-native");
+      if (await native.isVisible().catch(() => false))
+        await native.selectOption(opts.currency);
+      else {
+        await row.getByRole("combobox").click();
+        await this.page
+          .getByTestId(`currency-option-${opts.currency}`)
+          .first()
+          .click();
+      }
     }
     await sheet.getByTestId("swap-sell-received").fill(opts.received);
     return this.submitSwap("/sell");

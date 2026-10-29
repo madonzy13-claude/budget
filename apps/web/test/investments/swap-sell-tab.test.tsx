@@ -230,6 +230,70 @@ describe("Sell tab", () => {
     });
   });
 
+  // Round-5 gap 6: an existing asset preselects its currency; any may be chosen.
+  it("an existing asset preselects its currency, which can change; booked into it", async () => {
+    const usdPot = H({
+      ...cash,
+      id: "77777777-7777-7777-7777-777777777777",
+      name: "Dollar pot",
+      buyCurrency: "USD",
+      currentPriceCurrency: "USD",
+    });
+    mount(btc, [btc, btcCold, cash, usdPot]);
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-existing"));
+    await pick("swap-sell-existing", `swap-sell-existing-option-${usdPot.id}`);
+    expect(screen.queryByTestId("swap-received-ccy")).toBeNull();
+    const picker = screen.getByTestId("currency-picker");
+    expect(picker).toHaveValue("USD");
+    fireEvent.change(picker, { target: { value: "EUR" } });
+    type("swap-sell-received", "400");
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody()).toMatchObject({
+      receivedCurrency: "EUR",
+      receivedCents: "40000",
+      destination: { kind: "existing", holdingId: usdPot.id },
+    });
+  });
+
+  it("an existing quantity asset offers a currency too", async () => {
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-existing"));
+    await pick("swap-sell-existing", `swap-sell-existing-option-${btcCold.id}`);
+    expect(screen.getByTestId("currency-picker")).toHaveValue("PLN");
+  });
+
+  it("two same-name assets read apart by value and currency", async () => {
+    const a = H({
+      ...cash,
+      id: "a1111111-1111-1111-1111-111111111111",
+      name: "Erste",
+    });
+    const b = H({
+      ...cash,
+      id: "b1111111-1111-1111-1111-111111111111",
+      name: "Erste",
+      buyCurrency: "EUR",
+      currentPriceCurrency: "EUR",
+      valueCents: "250000",
+    });
+    mount(btc, [btc, a, b]);
+    fireEvent.click(screen.getByTestId("swap-dest-existing"));
+    fireEvent.keyDown(screen.getByTestId("swap-sell-existing"), {
+      key: "Enter",
+    });
+    const ta = (await screen.findByTestId(`swap-sell-existing-option-${a.id}`))
+      .textContent;
+    const tb = screen.getByTestId(
+      `swap-sell-existing-option-${b.id}`,
+    ).textContent;
+    expect(ta).toContain("1,000 PLN");
+    expect(tb).toContain("2,500 EUR");
+    expect(ta).not.toBe(tb);
+  });
+
   // Round-4 gap 9: the sell-into list says what each asset is.
   it("the existing-asset list shows qty and value with type icons, set apart", async () => {
     mount();

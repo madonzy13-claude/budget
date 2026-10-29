@@ -87,3 +87,13 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     When I drag the "broker" type block above the "crypto" type block
     And I reload the wallets tab
     Then the type blocks are in order "broker, crypto"
+
+  # Round-5 gap 6: any transaction in any currency on any asset.
+  @r5-sell-any-ccy
+  Scenario: Selling into an existing asset in another currency books into that asset
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
+    When I open the investments wallets tab
+    And I sell "IBKR" leaving "0" into "Pot" receiving "400" in "EUR"
+    Then there is exactly one asset named "Pot"
+    And the ledger of "Pot" lists "EUR"
