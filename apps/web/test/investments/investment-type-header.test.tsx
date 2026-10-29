@@ -3,6 +3,11 @@
  * test 2): no indent before the name, value only by default, and the tap
  * sum-up mirrors the asset row — "% then amount", then a muted caption
  * "unrealized · realized · share" with sign-coloured figures.
+ *
+ * Round 2 (13.1-29): the header IS an asset-row card — same container, handle
+ * without a slot of its own, chevron in the icon slot — and its tap reveal
+ * mirrors the asset row: name shrinks, line 2 = P/L % + total, line 3 =
+ * unrealized + realized amounts only, share under the value.
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -21,6 +26,7 @@ vi.mock("next-intl", () => ({
         "group.expanded": "Expanded",
         "group.collapsed": "Collapsed",
         plAria: "{value} profit/loss",
+        "row.share": "Share: {pct}",
       };
       let s = map[key] ?? key;
       if (params)
@@ -82,18 +88,64 @@ describe("InvestmentTypeHeader", () => {
       expect(el.className).not.toMatch(/(^|\s)(pl|ml|ps|ms)-/);
   });
 
-  it("tap shows % before the amount, then the unrealized · realized · share caption", () => {
+  it("collapsed header has the asset row's card geometry", () => {
+    renderHeader();
+    const root = screen.getByTestId("investment-group-stocks");
+    for (const c of [
+      "min-h-[56px]",
+      "sm:min-h-[48px]",
+      "items-center",
+      "px-3",
+      "gap-2",
+    ])
+      expect(root.classList.contains(c), c).toBe(true);
+    expect(root.classList.contains("items-start")).toBe(false);
+    expect(root.classList.contains("py-2")).toBe(false);
+    expect(root.classList.contains("py-1.5")).toBe(false);
+  });
+
+  it("the drag handle has no slot of its own", () => {
+    renderHeader();
+    const slot = screen.getByTestId("type-handle").parentElement!;
+    expect(slot.classList.contains("contents")).toBe(true);
+    expect(
+      screen.getByTestId("investment-group-stocks").innerHTML,
+    ).not.toContain("min-w-11");
+  });
+
+  it("collapsed shows name and value, no sum-up and no share", () => {
+    renderHeader();
+    expect(
+      screen.getByTestId("investment-type-value-stocks"),
+    ).toHaveTextContent("PLN80,000");
+    expect(screen.queryByTestId("investment-type-split-stocks")).toBeNull();
+    expect(screen.queryByTestId("investment-type-share-stocks")).toBeNull();
+  });
+
+  it("tap mirrors the asset reveal: smaller name, P/L line, two bare amounts, share under the value", () => {
     renderHeader();
     fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
+    const root = screen.getByTestId("investment-group-stocks");
+    expect(root.classList.contains("py-1.5")).toBe(true);
+    expect(screen.getByText("Stocks & ETFs").className).toMatch(/text-num-sm/);
     const sum = screen.getByTestId("investment-type-split-stocks");
-    const line1 = sum.querySelector("[data-pl-line]")!;
-    expect(line1.textContent).toMatch(/^\+53\.7%\s*\+51,000$/);
+    const line = sum.querySelector("[data-pl-line]")!;
+    expect(line.textContent).toMatch(/^\+53\.7%\s*\+51,000$/);
     const cap = sum.querySelector("[data-pl-caption]")!;
-    expect(cap).toHaveTextContent(
-      "unrealized +22,800 · realized +28,200 · share 60.0%",
-    );
     const figs = cap.querySelectorAll("[data-signed]");
+    expect(figs).toHaveLength(2);
+    expect(figs[0]).toHaveTextContent("+22,800");
+    expect(figs[0]).toHaveAttribute("aria-label", "typeGroup.unrealizedAria");
+    expect(figs[1]).toHaveTextContent("+28,200");
+    expect(figs[1]).toHaveAttribute("aria-label", "typeGroup.realizedAria");
     expect(figs[0]!.getAttribute("style")).toContain("var(--trading-up)");
+    expect(cap.textContent).not.toMatch(/\p{L}/u);
+    const share = screen.getByTestId("investment-type-share-stocks");
+    expect(share).toHaveTextContent("Share: 60.0%");
+    expect(cap.contains(share)).toBe(false);
+    expect(
+      screen.getByTestId("investment-type-value-stocks"),
+    ).toHaveTextContent("80,000");
     fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
     expect(screen.queryByTestId("investment-type-split-stocks")).toBeNull();
   });
@@ -153,5 +205,6 @@ describe("InvestmentTypeHeader", () => {
     fireEvent.click(screen.getByTestId("investment-group-toggle-cash"));
     expect(document.querySelector("[data-pl-line]")).toBeNull();
     expect(document.querySelector("[data-pl-caption]")).toBeNull();
+    expect(screen.queryByTestId("investment-type-share-cash")).toBeNull();
   });
 });

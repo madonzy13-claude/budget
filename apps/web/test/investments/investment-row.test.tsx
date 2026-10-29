@@ -588,6 +588,20 @@ describe("InvestmentRow", () => {
     );
   });
 
+  // Round-2 gap 3: the share sits under the amount, not in the caption.
+  it("tapped row shows its share under the amount, not in the caption", () => {
+    render(<InvestmentRow holding={holding()} />);
+    fireEvent.click(screen.getByLabelText("Expand AAPL"));
+    const share = screen.getByTestId("asset-share-h1");
+    expect(share).toHaveTextContent(/^Share: /);
+    const caption = screen.getByText("Avg price 300").parentElement!;
+    expect(caption.contains(share)).toBe(false);
+    expect(caption.textContent).not.toMatch(/Share/);
+    // Same bottom line, pushed to the right column.
+    expect(share.parentElement).toBe(caption.parentElement);
+    expect(share.parentElement!.className).toMatch(/justify-between/);
+  });
+
   it("expanded caption shows the average buy price (D-29)", () => {
     render(<InvestmentRow holding={holding()} />);
     fireEvent.click(screen.getByLabelText("Expand AAPL"));
