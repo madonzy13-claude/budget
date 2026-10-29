@@ -12,7 +12,7 @@ import uk from "../../messages/uk.json";
 const KEYS = [
   "asset.name.closed",
   "asset.name.create",
-  "asset.name.joins",
+  "asset.name.pickOrCreate",
   "asset.name.label",
   "asset.name.reopens",
   "asset.name.taken",
@@ -126,6 +126,7 @@ const KEYS = [
   "typeGroup.unrealizedLabel",
   "typeGroup.realizedLabel",
   "ledger.confirm.interestNote",
+  "ledger.openLinked",
 ];
 
 const at = (m: unknown, path: string): unknown =>

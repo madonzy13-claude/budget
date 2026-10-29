@@ -776,7 +776,6 @@
           "label": "Nazwa",
           "create": "Dodaj jako nowe aktywo „{name}”",
           "closed": "Zamknięte",
-          "joins": "Dołączy do {name} (obecnie {value}).",
           "reopens": "Ponownie otworzy {name}.",
           "taken": "Ten typ ma już aktywo o takiej nazwie.",
           "pickOrCreate": "Wybierz istniejące aktywo lub wpisz nową nazwę."
