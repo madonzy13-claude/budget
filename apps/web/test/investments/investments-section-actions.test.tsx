@@ -8,6 +8,8 @@ import { clientApiWrite } from "../../src/lib/offline-write";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 import { typeSummaryKey } from "../../src/hooks/use-type-summary";
+import { entriesKey } from "../../src/hooks/use-asset-entries";
+import { clientApiFetch } from "../../src/lib/budget-fetch";
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (k: string) => k,
@@ -84,7 +86,7 @@ const h = (id: string, uiType: string, holdingType: string): HoldingDto =>
     depositCapFrequency: null,
   }) as HoldingDto;
 
-function mount() {
+function mount(entries: Record<string, { id: string | null }[]> = {}) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
@@ -97,6 +99,8 @@ function mount() {
     [h("c1", "crypto", "crypto"), h("d1", "deposit", "deposit")],
   );
   qc.setQueryData(typeSummaryKey(B), { currency: "PLN", order: [], types: {} });
+  for (const [id, rows] of Object.entries(entries))
+    qc.setQueryData(entriesKey(B, id), rows);
   render(
     <QueryClientProvider client={qc}>
       <InvestmentsSection budgetId={B} budgetCurrency="PLN" />
@@ -152,5 +156,46 @@ describe("Asset row actions", () => {
     mount();
     fireEvent.click(screen.getByTestId("investment-archive-desktop-c1"));
     expect(screen.getByText("asset.archive.title")).toBeInTheDocument();
+  });
+
+  // Round-4 gap 27: every visible asset's ledger is preloaded.
+  it("prefetches each asset's entries without opening a ledger", async () => {
+    vi.mocked(clientApiFetch).mockClear();
+    mount();
+    await waitFor(
+      () => {
+        const urls = vi
+          .mocked(clientApiFetch)
+          .mock.calls.map(([u]) => String(u));
+        expect(urls).toContain("/budgets/b1/investments/c1/entries");
+        expect(urls).toContain("/budgets/b1/investments/d1/entries");
+      },
+      { timeout: 4000 },
+    );
+  });
+
+  // Round-4 gap 26: nothing but the opening entry → Delete; else Archive.
+  it("an asset with only its opening entry offers Delete, which removes it", async () => {
+    vi.mocked(clientApiWrite).mockReset();
+    vi.mocked(clientApiWrite).mockResolvedValue(
+      new Response(JSON.stringify({ wipedHoldingId: "c1" }), { status: 200 }),
+    );
+    mount({ c1: [{ id: "e-start" }] });
+    expect(screen.queryByTestId("investment-archive-c1")).toBeNull();
+    fireEvent.click(screen.getByTestId("investment-delete-c1"));
+    expect(screen.getByText("ledger.confirm.last.title")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("investment-delete-confirm"));
+    await waitFor(() => expect(clientApiWrite).toHaveBeenCalled());
+    const [url, init] = vi.mocked(clientApiWrite).mock.calls[0]!;
+    expect(url).toBe("/budgets/b1/investments/entries/e-start");
+    expect((init as RequestInit).method).toBe("DELETE");
+  });
+
+  it("an asset with transactions offers an amber Archive", () => {
+    mount({ c1: [{ id: "e2" }, { id: "e1" }] });
+    expect(screen.queryByTestId("investment-delete-c1")).toBeNull();
+    expect(screen.getByTestId("investment-archive-c1").className).toMatch(
+      /bg-\[var\(--warning\)\]/,
+    );
   });
 });
