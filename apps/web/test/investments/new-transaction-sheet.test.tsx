@@ -1,12 +1,49 @@
 /**
  * new-transaction-sheet.test.tsx — "New transaction" (13.1 UAT 7): pick Buy /
- * Sell / Transfer first. Buy hands off to the name-first Add form; Sell and
- * Transfer pick an existing visible asset and open its Swap sheet on that tab.
+ * Sell / Transfer first. Sell and Transfer pick an existing visible asset and
+ * open its Swap sheet on that tab.
+ *
+ * Round-2 gap 6: opens on Buy, and the Add form renders INSIDE the sheet under
+ * the switch (HoldingSheet embedded), so the switch never disappears.
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { H, btc, btcCold, deposit } from "./_swap-fixtures";
 import { NewTransactionSheet } from "../../src/components/budgeting/wallets-tab/new-transaction-sheet";
+
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => key,
+  useLocale: () => "en",
+}));
+
+// The Add form is HoldingSheet's own business; here it is a stub that records
+// its props and can report dirty / close.
+const stub = vi.hoisted(() => ({
+  props: null as null | Record<string, unknown>,
+}));
+vi.mock(
+  "../../src/components/budgeting/wallets-tab/holding-sheet",
+  async (orig) => ({
+    ...(await orig<object>()),
+    HoldingSheet: (p: Record<string, unknown>) => {
+      stub.props = p;
+      return (
+        <div data-testid="holding-sheet">
+          <button
+            type="button"
+            data-testid="stub-dirty"
+            onClick={() => (p.onDirtyChange as (d: boolean) => void)(true)}
+          />
+          <button
+            type="button"
+            data-testid="stub-saved"
+            onClick={() => (p.onOpenChange as (o: boolean) => void)(false)}
+          />
+        </div>
+      );
+    },
+  }),
+);
 
 vi.mock("../../src/hooks/use-asset-names", () => ({
   useAssetNames: (_b: string, type: string | null) => ({
@@ -32,33 +69,87 @@ vi.mock("../../src/hooks/use-asset-names", () => ({
 }));
 
 function mount() {
-  const onBuy = vi.fn();
   const onPick = vi.fn();
+  const onOpenChange = vi.fn();
   render(
     <NewTransactionSheet
       open
-      onOpenChange={() => {}}
+      onOpenChange={onOpenChange}
       budgetId="b1"
+      budgetCurrency="PLN"
       holdings={[
         btc,
         btcCold,
         deposit,
         H({ id: "c", name: "Pot", uiType: "cash", holdingType: "cash_fx" }),
       ]}
-      onBuy={onBuy}
       onPick={onPick}
     />,
   );
-  return { onBuy, onPick };
+  return { onPick, onOpenChange };
 }
 
 describe("New transaction", () => {
-  it("offers Buy, Sell and Transfer; Buy opens the Add form", () => {
-    const { onBuy } = mount();
+  it("opens on Buy with the Add form inside and every kind visible", () => {
+    mount();
+    expect(screen.getByTestId("new-tx-kind-buy")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    const sheet = screen.getByTestId("new-tx-sheet");
+    expect(within(sheet).getByTestId("holding-sheet")).toBeInTheDocument();
     for (const k of ["buy", "sell", "transfer"])
       expect(screen.getByTestId(`new-tx-kind-${k}`)).toBeInTheDocument();
+    expect(stub.props).toMatchObject({
+      embedded: true,
+      budgetId: "b1",
+      budgetCurrency: "PLN",
+    });
+  });
+
+  it("Sell drops the Add form for the type picker; Buy brings it back", () => {
+    mount();
+    fireEvent.click(screen.getByTestId("new-tx-kind-sell"));
+    expect(screen.queryByTestId("holding-sheet")).toBeNull();
+    expect(screen.getByTestId("new-tx-type")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("new-tx-kind-buy"));
-    expect(onBuy).toHaveBeenCalled();
+    expect(screen.getByTestId("holding-sheet")).toBeInTheDocument();
+    expect(screen.queryByTestId("new-tx-type")).toBeNull();
+  });
+
+  it("a dirty Add form asks before switching kind", () => {
+    mount();
+    fireEvent.click(screen.getByTestId("stub-dirty"));
+    fireEvent.click(screen.getByTestId("new-tx-kind-sell"));
+    expect(screen.getByText("confirm.discard.title")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("confirm.discard.cancel"));
+    expect(screen.getByTestId("new-tx-kind-buy")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByTestId("holding-sheet")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("new-tx-kind-sell"));
+    fireEvent.click(screen.getByText("confirm.discard.cta"));
+    expect(screen.getByTestId("new-tx-kind-sell")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("a dirty Add form asks before closing", () => {
+    const { onOpenChange } = mount();
+    fireEvent.click(screen.getByTestId("stub-dirty"));
+    fireEvent.keyDown(screen.getByTestId("new-tx-sheet"), { key: "Escape" });
+    expect(screen.getByText("confirm.discard.title")).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    fireEvent.click(screen.getByText("confirm.discard.cta"));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("a saved Add form closes the whole sheet", () => {
+    const { onOpenChange } = mount();
+    fireEvent.click(screen.getByTestId("stub-saved"));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("Sell picks a visible asset of a type and opens its Sell tab", () => {

@@ -964,6 +964,51 @@ describe("HoldingSheet — add joins by name (13.1 D-02)", () => {
     expect(screen.queryByTestId(/^happened-/)).toBeNull();
   });
 
+  // Round-2 gap 6: the Add form inside New transaction, no Sheet shell.
+  describe("embedded in New transaction", () => {
+    it("renders the add body with no dialog shell and no auto-opened Type list", () => {
+      render(<HoldingSheet {...baseProps} embedded holding={null} />);
+      expect(screen.getByTestId("holding-sheet")).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(screen.queryByRole("listbox")).toBeNull();
+    });
+
+    it("Cancel on a clean form closes; typing reports dirty", () => {
+      const onOpenChange = vi.fn();
+      const onDirtyChange = vi.fn();
+      render(
+        <HoldingSheet
+          {...baseProps}
+          embedded
+          holding={null}
+          initialUiType="cash"
+          onOpenChange={onOpenChange}
+          onDirtyChange={onDirtyChange}
+        />,
+      );
+      fireEvent.click(screen.getByText("sheet.cancel"));
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+      fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+        target: { value: "New pot" },
+      });
+      expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    });
+
+    it("picking an existing asset still swaps to its Buy form", () => {
+      render(
+        <HoldingSheet
+          {...baseProps}
+          embedded
+          holding={null}
+          initialUiType="crypto"
+        />,
+      );
+      fireEvent.focus(screen.getByTestId("holding-sheet-name"));
+      fireEvent.mouseDown(screen.getByTestId("asset-name-option-0"));
+      expect(screen.getByTestId("picked-buy")).toHaveTextContent("btc-id");
+    });
+  });
+
   describe("name-first Add (UAT 13.1 test 7)", () => {
     const crypto = () =>
       render(
