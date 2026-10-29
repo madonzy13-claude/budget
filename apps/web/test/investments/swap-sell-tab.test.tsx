@@ -211,6 +211,24 @@ describe("Sell tab", () => {
     });
   });
 
+  // Round-4 gap 9: the sell-into list says what each asset is.
+  it("the existing-asset list shows qty and value with type icons, set apart", async () => {
+    mount();
+    fireEvent.click(screen.getByTestId("swap-dest-existing"));
+    const trigger = screen.getByTestId("swap-sell-existing");
+    expect(trigger.parentElement!.className).toMatch(/(^|\s)mt-3/);
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    const opt = await screen.findByTestId(
+      `swap-sell-existing-option-${btcCold.id}`,
+    );
+    expect(opt.querySelector("[data-asset-meta]")).toHaveTextContent(
+      "1 · 60,000 PLN",
+    );
+    expect(
+      screen.getByRole("listbox").querySelector("[data-type-icon]"),
+    ).not.toBeNull();
+  });
+
   // UAT 13.1 test 14: one rate per deal, the same as the server.
   it("a fair cross-currency sale previews realized 0", () => {
     mount();
