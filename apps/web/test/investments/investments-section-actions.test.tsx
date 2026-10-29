@@ -3,7 +3,8 @@
  * sheets: Swap → SwapSheet (deposit: Sell only), Edit → EditAssetSheet.
  */
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { clientApiWrite } from "../../src/lib/offline-write";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 import { typeSummaryKey } from "../../src/hooks/use-type-summary";
@@ -124,5 +125,32 @@ describe("Asset row actions", () => {
     mount();
     fireEvent.click(screen.getByTestId("holding-swipe-edit-c1"));
     expect(screen.getByTestId("edit-sheet-stub")).toHaveTextContent("c1");
+  });
+
+  // Round 4 (user): archive is an explicit row action with a confirm.
+  it("Archive asks first, then archives the asset and it leaves the list", async () => {
+    vi.mocked(clientApiWrite).mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
+    mount();
+    fireEvent.click(screen.getByTestId("investment-archive-c1"));
+    expect(screen.getByText("asset.archive.title")).toBeInTheDocument();
+    expect(clientApiWrite).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("investment-archive-confirm"));
+    await waitFor(() => expect(clientApiWrite).toHaveBeenCalled());
+    const [url, init] = vi.mocked(clientApiWrite).mock.calls[0]!;
+    expect(url).toBe("/budgets/b1/investments/c1/archive");
+    expect((init as RequestInit).method).toBe("POST");
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-investment-row-wrapper="c1"]'),
+      ).toBeNull(),
+    );
+  });
+
+  it("desktop has the same Archive action on hover", () => {
+    mount();
+    fireEvent.click(screen.getByTestId("investment-archive-desktop-c1"));
+    expect(screen.getByText("asset.archive.title")).toBeInTheDocument();
   });
 });

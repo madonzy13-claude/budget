@@ -118,12 +118,12 @@ describe("Asset name combobox", () => {
         .getAllByRole("option")
         .find((o) => o.querySelector("span")?.textContent === name)!
         .querySelector("[data-asset-meta]")?.textContent;
-    expect(meta("BTC Ledger")).toBe("1.5 · 90,200 PLN");
-    // ETH: a single unit with no price says nothing useful.
-    expect(meta("ETH") ?? "").toBe("");
+    // Round 4 (user): value only, no quantity; no price → 0.
+    expect(meta("BTC Ledger")).toBe("90,200 PLN");
+    expect(meta("BTC Binance")).toBe("0 PLN");
   });
 
-  it("a priceless asset shows only its quantity", () => {
+  it("a priceless asset shows 0 in its currency", () => {
     names.push({
       id: "d",
       name: "BTC Paper",
@@ -131,7 +131,7 @@ describe("Asset name combobox", () => {
       instrumentId: null,
       quantity: "3",
       valueCents: null,
-      valueCurrency: null,
+      valueCurrency: "USD",
     });
     mount("paper");
     fireEvent.focus(screen.getByRole("combobox"));
@@ -139,7 +139,7 @@ describe("Asset name combobox", () => {
       screen
         .getByTestId("asset-name-option-0")
         .querySelector("[data-asset-meta]")?.textContent,
-    ).toBe("3");
+    ).toBe("0 USD");
     names.pop();
   });
 

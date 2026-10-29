@@ -181,7 +181,9 @@ describe("Sell an amount holding", () => {
     expect(out!.transfer && inn!.transfer).toBe(true);
   });
 
-  test("keep 0 archives the holding", async () => {
+  // Round 4 (user, 2026-10-29): a sold-out asset stays listed; archiving is
+  // an explicit action now.
+  test("keep 0 leaves the holding listed (no auto-archive)", async () => {
     const { sell, plans } = fakes([broker()]);
     const r = await sell({
       ...base,
@@ -191,8 +193,8 @@ describe("Sell an amount holding", () => {
       receivedCents: "9600000",
       receivedCurrency: "PLN",
     });
-    expect(r._unsafeUnwrap().archived).toBe(true);
-    expect(plans[0]!.patches[0]!.archive).toBe(true);
+    expect(r._unsafeUnwrap().archived).toBe(false);
+    expect(plans[0]!.patches[0]!.archive).toBeFalsy();
   });
 });
 

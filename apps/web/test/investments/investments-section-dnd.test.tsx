@@ -255,7 +255,8 @@ describe("Asset rows and ledger (13.1 D-17, D-27, D-28, D-30)", () => {
     ).not.toBeNull();
   });
 
-  it("an asset with quantity 0 is not rendered", () => {
+  // Round 4 (user): a sold-out asset stays listed; archiving is explicit.
+  it("an asset with quantity 0 is still rendered", () => {
     const qc = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
     });
@@ -279,7 +280,7 @@ describe("Asset rows and ledger (13.1 D-17, D-27, D-28, D-30)", () => {
     );
     expect(
       document.querySelector('[data-investment-row-wrapper="z0"]'),
-    ).toBeNull();
+    ).not.toBeNull();
     expect(
       document.querySelector('[data-investment-row-wrapper="c1"]'),
     ).not.toBeNull();

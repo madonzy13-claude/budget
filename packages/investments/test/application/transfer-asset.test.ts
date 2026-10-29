@@ -67,7 +67,8 @@ describe("Transfer between assets", () => {
     expect(legs[0]!.transferId).toBe(legs[1]!.transferId);
   });
 
-  test("moving everything hides the source and revives a hidden destination", async () => {
+  // Round 4: the emptied source stays listed (archive is explicit now).
+  test("moving everything keeps the source and revives a hidden destination", async () => {
     const { w, move } = world(
       btc(),
       btc({
@@ -83,7 +84,7 @@ describe("Transfer between assets", () => {
       move: { quantity: "4" },
       to: { kind: "existing", holdingId: "bin" },
     });
-    expect(w.get("btc").archivedAt).not.toBeNull();
+    expect(w.get("btc").archivedAt).toBeNull();
     expect(w.get("bin").archivedAt).toBeNull();
     expect(w.get("bin").quantity).toBe("4");
   });
