@@ -278,6 +278,16 @@ describe("Transfer tab", () => {
     expect(screen.getByText("swap.err.positive")).toBeInTheDocument();
   });
 
+  // Round-5 gap 10: the date reads in the app's language, not the browser's.
+  it("shows the date in the app's locale", () => {
+    mount(btc);
+    fireEvent.click(screen.getByTestId("swap-tab-transfer"));
+    type("swap-date", "2026-03-01");
+    expect(
+      screen.getByTestId("swap-date").closest(".date-input-overlay-host"),
+    ).toHaveTextContent("1 Mar 2026");
+  });
+
   it("footer stacks full-width and nothing truncates", () => {
     mount(btc);
     const footer = screen.getByTestId("swap-footer");

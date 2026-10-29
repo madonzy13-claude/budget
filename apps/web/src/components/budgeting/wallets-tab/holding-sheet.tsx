@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/budgeting/fields/date-input";
 import {
   Select,
   SelectContent,
@@ -1131,25 +1132,23 @@ export function HoldingSheet({
             </Select>
           </Field>
           <Field label={t("field.startDate")}>
-            <Input
-              type="date"
+            <DateInput
               data-testid="holding-sheet-start-date"
               value={depositStart}
-              onChange={(e) => {
+              onChange={(v) => {
                 markDirty();
-                setDepositStart(e.target.value);
+                setDepositStart(v);
               }}
             />
           </Field>
           <Field label={t("field.endDateOptional")}>
-            <Input
-              type="date"
+            <DateInput
               data-testid="holding-sheet-end-date"
               value={depositEnd}
               min={depositStart || undefined}
-              onChange={(e) => {
+              onChange={(v) => {
                 markDirty();
-                setDepositEnd(e.target.value);
+                setDepositEnd(v);
               }}
             />
           </Field>
@@ -1348,12 +1347,11 @@ export function HoldingSheet({
 
           {behavior !== "deposit" && (
             <Field label={t("addDate")}>
-              <Input
-                type="date"
+              <DateInput
                 data-testid="holding-sheet-date"
                 value={openedOn}
                 max={today}
-                onChange={(e) => setOpenedOn(e.target.value)}
+                onChange={setOpenedOn}
               />
             </Field>
           )}

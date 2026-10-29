@@ -8,6 +8,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/budgeting/fields/date-input";
 import { Input } from "@/components/ui/input";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { instrumentLabel } from "@/lib/instrument-label";
@@ -152,13 +153,13 @@ export function SwapDateField({
         <span className="text-caption text-[var(--muted-foreground)]">
           {t("sell.date")}
         </span>
-        <Input
-          type="date"
+        {/* R5-10: shows the date in the app's locale, not the browser's. */}
+        <DateInput
           data-testid="swap-date"
           value={value}
           min={min ?? undefined}
           max={today()}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={onChange}
         />
       </label>
       {min && (

@@ -591,6 +591,32 @@ describe("HoldingSheet — type-first", () => {
     expect(screen.getByTestId("holding-sheet-date")).toBeInTheDocument();
   });
 
+  // Round-5 gap 10: dates read in the app's language, not the browser's.
+  it("shows the start date in the app's locale", () => {
+    render(
+      <HoldingSheet
+        {...baseProps}
+        holding={holding({
+          holdingType: "deposit",
+          uiType: "deposit",
+          instrumentId: null,
+          name: "Savings",
+          buyPriceCents: "500000",
+          buyCurrency: "USD",
+          depositRateBps: 525,
+          depositStartDate: "2025-01-01",
+          depositEndDate: null,
+          depositCapFrequency: "monthly",
+        })}
+      />,
+    );
+    expect(
+      screen
+        .getByTestId("holding-sheet-start-date")
+        .closest(".date-input-overlay-host"),
+    ).toHaveTextContent("1 Jan 2025");
+  });
+
   it("deposit save builds a payload with rate (bps), dates and frequency", () => {
     render(
       <HoldingSheet
