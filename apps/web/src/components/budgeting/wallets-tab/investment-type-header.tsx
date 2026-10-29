@@ -114,12 +114,12 @@ export function InvestmentTypeHeader({
           {budgetCurrency}
         </span>
         <span
-          className={`num text-right ${split ? "text-num-sm" : "text-num-md"}`}
-          // Revealed: currency hugs the amount like the asset row (round-4
+          className={`num text-right ${showSplit ? "text-num-sm" : "text-num-md"}`}
+          // Tapped (cash too): currency hugs the amount like the asset row (round-4
           // gap 12 — the column width pushed "PLN" under the P/L line).
           style={{
             color: "var(--body-on-dark)",
-            minWidth: split ? undefined : `${(maxAmountChars ?? 4) + 1}ch`,
+            minWidth: showSplit ? undefined : `${(maxAmountChars ?? 4) + 1}ch`,
           }}
         >
           {money(pl.valueBudgetCents)}
