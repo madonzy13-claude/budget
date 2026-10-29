@@ -440,7 +440,7 @@ _Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.
 **Goal:** Every investment type becomes type → asset → entries: same-name buys join one asset (DCA), each asset has Swap (Buy / Sell / Transfer) and a slim Edit, entries are an immutable date-ordered ledger deletable newest-first only, and selling out of investments can credit a budget wallet. Migration 0088 merges existing same-name holdings.
 **Requirements**: CONTEXT decisions D-01..D-37 (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 28/34 plans executed
+**Plans:** 33/34 plans executed
 
 Plans:
 
@@ -472,9 +472,9 @@ Plans:
 - [x] 13.1-26-PLAN.md — Gap: ship gate — rebuild, served bundle, dead i18n keys, phone EN/PL/UK × light/dark, user UAT re-run (gap wave 5, checkpoint)
 - [x] 13.1-27-PLAN.md — Gap r2: deposit ledger shows interest accrued so far (TDD, domain) (gap wave 1)
 - [x] 13.1-28-PLAN.md — Gap r2: diagnose ledger clip + low pickers; i18n contract keys; RED @r2 E2E scenarios (gap wave 2)
-- [ ] 13.1-29-PLAN.md — Gap r2: type header = asset-row geometry + 3-line tap reveal; share under amount (gap wave 3)
-- [ ] 13.1-30-PLAN.md — Gap r2: darker ledger token + visible to-confirm shadow; swipe never clips the ledger; grey amounts, smaller linked line (gap wave 3)
-- [ ] 13.1-31-PLAN.md — Gap r2: New transaction opens on Buy, switch kept, embedded Add form (gap wave 3)
-- [ ] 13.1-32-PLAN.md — Gap r2: "How much was sold?", editable everything toggles, Radix pickers in Sell (gap wave 3)
-- [ ] 13.1-34-PLAN.md — Gap r2: Edit shows locked configuration; every quantity entry carries qty @ price (server fallback) (gap wave 3)
+- [x] 13.1-29-PLAN.md — Gap r2: type header = asset-row geometry + 3-line tap reveal; share under amount (gap wave 3)
+- [x] 13.1-30-PLAN.md — Gap r2: darker ledger token + visible to-confirm shadow; swipe never clips the ledger; grey amounts, smaller linked line (gap wave 3)
+- [x] 13.1-31-PLAN.md — Gap r2: New transaction opens on Buy, switch kept, embedded Add form (gap wave 3)
+- [x] 13.1-32-PLAN.md — Gap r2: "How much was sold?", editable everything toggles, Radix pickers in Sell (gap wave 3)
+- [x] 13.1-34-PLAN.md — Gap r2: Edit shows locked configuration; every quantity entry carries qty @ price (server fallback) (gap wave 3)
 - [ ] 13.1-33-PLAN.md — Gap r2: ship gate (gaps 1–13) — dead keys, rebuild, served bundle, @investments chromium+mobile, user UAT (gap wave 4, checkpoint)

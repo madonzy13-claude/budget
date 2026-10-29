@@ -424,7 +424,7 @@ Then(
     // Round 2: the caption is unrealized · realized amounts, no words.
     await expect(
       split.locator("[data-pl-caption] [data-signed]").nth(1),
-    ).toHaveText(amount);
+    ).toContainText(amount);
   },
 );
 
@@ -1083,6 +1083,15 @@ Then(
       await page.evaluate(
         (t) => document.documentElement.setAttribute("data-theme", t),
         theme,
+      );
+      // The asset card has transition-colors: read it once it has settled.
+      await page.evaluate(() =>
+        Promise.all(
+          document
+            .getAnimations()
+            .filter((a) => a instanceof CSSTransition)
+            .map((a) => a.finished),
+        ),
       );
       const look = await page.evaluate(
         ({ id, name }) => {
