@@ -238,6 +238,44 @@ describe("Asset ledger strip", () => {
     expect(del.style.boxShadow).toBe("inset 6px 0 8px -6px rgba(0,0,0,0.7)");
   });
 
+  // Round-3 gap 10: deleting an entry interest depends on says so.
+  it("deleting an entry with interest after it warns the interest is recalculated", async () => {
+    mount(ENTRIES);
+    fireEvent.click(await screen.findByTestId("ledger-row-b1"));
+    fireEvent.click(screen.getByTestId("ledger-delete-b1"));
+    expect(
+      await screen.findByTestId("ledger-delete-interest-note"),
+    ).toHaveTextContent("ledger.confirm.interestNote");
+  });
+
+  it("no interest after the entry → no interest note", async () => {
+    mount(ENTRIES.filter((x) => x.kind !== "interest"));
+    fireEvent.click(await screen.findByTestId("ledger-row-b1"));
+    fireEvent.click(screen.getByTestId("ledger-delete-b1"));
+    await screen.findByText("ledger.confirm.entry.title");
+    expect(screen.queryByTestId("ledger-delete-interest-note")).toBeNull();
+  });
+
+  // Round-3 gap 11: a swiped row is shaded on its left, reading as hidden.
+  it("a swiped row shows a shade on its left edge", async () => {
+    mount(ENTRIES);
+    const row = await screen.findByTestId("ledger-row-b1");
+    const shade = row.querySelector<HTMLElement>("[data-ledger-swipe-shade]")!;
+    expect(shade.style.opacity).toBe("0");
+    touchSwipe(row, -120);
+    expect(shade.style.opacity).toBe("1");
+  });
+
+  // Round-3 gap 12: "±qty @ price" is a step smaller.
+  it("the qty @ price line is 11px", async () => {
+    mount(ENTRIES);
+    const row = await screen.findByTestId("ledger-row-b1");
+    const qty = [...row.querySelectorAll<HTMLElement>("span")].find((s) =>
+      / @ /.test(s.textContent ?? ""),
+    )!;
+    expect(qty.style.fontSize).toBe("11px");
+  });
+
   // Round-2 gap 12: the linked asset line is a step smaller.
   it("the linked asset line is smaller than the date line", async () => {
     mount(ENTRIES);
