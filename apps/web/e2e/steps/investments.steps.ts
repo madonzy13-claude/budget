@@ -2359,3 +2359,36 @@ Then(
     await expect(po.row(name)).toBeVisible({ timeout: 10000 });
   },
 );
+
+// Gap 22 (user): a tapped crypto / metal row must not grow wider than its card.
+Then(
+  "tapping the asset row {string} keeps everything inside its card",
+  async ({ page }, name: string) => {
+    const po = new InvestmentsPo(page);
+    const card = po.row(name);
+    const w0 = (await card.boundingBox())!.width;
+    await page.getByTestId(`asset-row-${await po.assetId(name)}`).click();
+    await page.waitForTimeout(400);
+    const m = await card.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const out = [...el.querySelectorAll<HTMLElement>("*")]
+        .filter((c) => {
+          const b = c.getBoundingClientRect();
+          return b.width > 0 && b.right > r.right + 1;
+        })
+        .map(
+          (c) =>
+            `${c.tagName}.${(c.getAttribute("class") ?? "").slice(0, 40)} ${Math.round(c.getBoundingClientRect().right - r.right)}px`,
+        );
+      return {
+        w: r.width,
+        out,
+        page: document.scrollingElement!.scrollWidth - innerWidth,
+      };
+    });
+    console.log("[gap22]", name, JSON.stringify({ w0, ...m }));
+    expect(Math.abs(m.w - w0), "card width changed").toBeLessThanOrEqual(1);
+    expect(m.out, "content past the card").toEqual([]);
+    expect(m.page, "page scrolls sideways").toBeLessThanOrEqual(0);
+  },
+);

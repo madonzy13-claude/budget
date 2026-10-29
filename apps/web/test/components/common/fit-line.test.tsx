@@ -76,6 +76,9 @@ describe("FitLine", () => {
     render(<Reach text="fits in the reach" />);
     const line = screen.getByTestId("line");
     await waitFor(() => expect(line.style.width).toBe("292px"));
+    // Gap 22: the reach must not count toward the column's width (it fed a
+    // grow loop: wider card → share further right → wider line).
+    expect(line.style.marginRight).toBe("-92px");
     expect((line.firstElementChild as HTMLElement).className).not.toMatch(
       /fit-line-scroll/,
     );

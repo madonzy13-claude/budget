@@ -431,6 +431,16 @@ Feature: Investments as assets with transactions (13.1)
     Then the holding row "IBKR" is gone
     And the "broker" Add form offers "IBKR" as archived and buying "1000" into it brings it back
 
+  # Gap 22: tapped crypto / metal rows stay inside their card.
+  @r4-wide
+  Scenario: Tapped crypto and metal rows stay inside their card on a phone
+    Given I am on a phone-sized viewport
+    And a crypto holding "Bitcoin binance" of "2.1" bought at 6099162 cents now 7600000 cents exists in my budget
+    And a silver coin asset "Silver coins" of 100000 grams at 5155 cents with premium "25.17" exists in my budget
+    When I open the investments wallets tab
+    Then tapping the asset row "Bitcoin binance" keeps everything inside its card
+    And tapping the asset row "Silver coins" keeps everything inside its card
+
   # Live phone drive (13.1-16): list → ledger strip look in both themes →
   # every Swap tab shows its sum-up and fits, in every launch locale.
   Scenario Outline: Asset list, ledger and every Swap tab on a phone in <locale> (<theme>)
