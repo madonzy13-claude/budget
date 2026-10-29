@@ -232,7 +232,7 @@ export class InvestmentsPo {
    *  mouse pointers), hover on desktop (D-05: Swap · Edit). */
   private async rowAction(
     name: string,
-    action: "swap" | "edit",
+    action: "swap" | "edit" | "archive",
   ): Promise<void> {
     const wrapper = this.wrapper(name);
     await wrapper.waitFor({ state: "visible" });
@@ -271,7 +271,9 @@ export class InvestmentsPo {
         const tid =
           action === "swap"
             ? `investment-swap-${id}`
-            : `holding-swipe-edit-${id}`;
+            : action === "archive"
+              ? `investment-archive-${id}`
+              : `holding-swipe-edit-${id}`;
         await this.page.getByTestId(tid).click({ timeout: 3000 });
       }).toPass({ timeout: 20_000 });
       return;
@@ -326,6 +328,17 @@ export class InvestmentsPo {
       .filter({ hasText: new RegExp(`^${name}`) });
     await expect(option).toHaveCount(1, { timeout: 5000 });
     await option.click();
+  }
+
+  /** Round 4: archive an asset through its row action + the confirm. */
+  async archive(name: string): Promise<void> {
+    await this.rowAction(name, "archive");
+    const res = this.page.waitForResponse(
+      (r) => r.url().endsWith("/archive") && r.request().method() === "POST",
+      { timeout: 15000 },
+    );
+    await this.page.getByTestId("investment-archive-confirm").click();
+    expect((await res).ok()).toBe(true);
   }
 
   /** Open the slim Edit sheet (D-06). */

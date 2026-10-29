@@ -729,7 +729,7 @@ When(
     const field = page.getByTestId("holding-sheet-name");
     await field.fill(typed);
     const option = page.getByTestId("asset-name-option-0");
-    await expect(option).toContainText("Closed");
+    await expect(option).toContainText("Archived");
     await option.click();
     await expect(page.getByTestId("asset-name-note")).toBeVisible();
     await page.getByTestId("holding-sheet-buy-price").fill(buy);
@@ -2200,13 +2200,13 @@ When(
 );
 
 Then(
-  "the first suggestion shows {string} with its value and currency",
-  async ({ page }, qty: string) => {
+  // Round 4 (user): value + currency only — no quantity.
+  "the first suggestion shows its value and currency only",
+  async ({ page }) => {
     const meta = page
       .getByTestId("asset-name-option-0")
       .locator("[data-asset-meta]");
-    await expect(meta).toContainText(qty);
-    await expect(meta).toHaveText(/\d.* [A-Z]{3}$/);
+    await expect(meta).toHaveText(/^[\d.,\s]+ [A-Z]{3}$/);
   },
 );
 
@@ -2334,5 +2334,28 @@ Then(
     const flashed = target.locator('[data-flash="true"]');
     await expect(flashed).toBeVisible();
     await expect(flashed).toBeInViewport();
+  },
+);
+
+// Round 4 (user): archive is an explicit action; buying into it revives it.
+When("I archive the asset {string}", async ({ page }, name: string) => {
+  await new InvestmentsPo(page).archive(name);
+});
+
+Then(
+  "the {string} Add form offers {string} as archived and buying {string} into it brings it back",
+  async ({ page }, type: string, name: string, amount: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openAdd(type);
+    await po.focusName();
+    const option = page
+      .getByRole("option")
+      .filter({ hasText: new RegExp(`^${name}`) });
+    await expect(option).toContainText("Archived");
+    await option.dispatchEvent("mousedown");
+    await page.getByTestId("swap-buy-amount").fill(amount);
+    await expect(page.getByTestId("swap-buy-value-after")).not.toHaveValue("");
+    expect(await po.submitSwap("/buy")).toBe(201);
+    await expect(po.row(name)).toBeVisible({ timeout: 10000 });
   },
 );

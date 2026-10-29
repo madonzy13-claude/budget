@@ -55,7 +55,8 @@ Feature: Investments as assets with transactions (13.1)
     When I open the investments wallets tab
     And I sell "IBKR" leaving "0" into a new "CUSHION" wallet "From IBKR" receiving "96000"
     Then the wallet "From IBKR" holds 9600000 cents
-    And the holding row "IBKR" is gone
+    # Round 4 (user): a sold-out asset stays listed (archive is explicit).
+    And the holding row "IBKR" shows "0"
 
   # UAT 13.1 test 10: a sale into a quantity asset is quantity × price, and
   # the price never follows the quantity.
@@ -82,12 +83,12 @@ Feature: Investments as assets with transactions (13.1)
     Then the ledger of "IBKR" lists "Sold"
 
   # D-10: Transfer is not a sale.
-  Scenario: Moving everything to a new label hides the source
+  Scenario: Moving everything to a new label keeps the emptied source
     Given a "collectibles" asset "Coins" of "4" units at 2500 cents exists in my budget
     When I open the investments wallets tab
     And I move all of "Coins" to a new asset "Vault"
     Then the holding row "Vault" is visible
-    And the holding row "Coins" is gone
+    And the holding row "Coins" is visible
 
   # D-14/D-21: only the newest entry; deleting a wallet sale takes the money back.
   Scenario: Only the newest entry can be deleted; deleting the wallet sale takes the money back
@@ -373,7 +374,7 @@ Feature: Investments as assets with transactions (13.1)
     Given a "stocks" asset "ACME" of "10" units at 2500 cents exists in my budget
     When I open the investments wallets tab
     And I open the Add form on "stocks" and focus the name
-    Then the first suggestion shows "10" with its value and currency
+    Then the first suggestion shows its value and currency only
     And picking it shows no join note
 
   # Gap 11: say a field takes an existing asset or a new name.
@@ -420,6 +421,15 @@ Feature: Investments as assets with transactions (13.1)
     And "IBKR" moved 100000 cents to "Pot" on its ledger
     When I open the investments wallets tab
     Then tapping the linked entry in the ledger of "IBKR" opens "Pot" at the matching entry
+
+  # Gaps 20 + 21: archive is explicit; buying into an archived asset revives it.
+  @r4-archive
+  Scenario: Archiving hides an asset and buying into it brings it back
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I archive the asset "IBKR"
+    Then the holding row "IBKR" is gone
+    And the "broker" Add form offers "IBKR" as archived and buying "1000" into it brings it back
 
   # Live phone drive (13.1-16): list → ledger strip look in both themes →
   # every Swap tab shows its sum-up and fits, in every launch locale.
