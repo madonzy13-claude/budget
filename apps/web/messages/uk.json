@@ -764,7 +764,9 @@
           "avgPrice": "Серед. ціна {price}"
         },
         "unrealizedAria": "Нереалізований {value}",
-        "realizedAria": "Реалізований {value}"
+        "realizedAria": "Реалізований {value}",
+        "unrealizedLabel": "нереалізований: {value}",
+        "realizedLabel": "реалізований: {value}"
       },
       "addDate": "Дата",
       "asset": {

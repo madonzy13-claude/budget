@@ -764,7 +764,9 @@
           "avgPrice": "Avg price {price}"
         },
         "unrealizedAria": "Unrealized {value}",
-        "realizedAria": "Realized {value}"
+        "realizedAria": "Realized {value}",
+        "unrealizedLabel": "unrealized: {value}",
+        "realizedLabel": "realized: {value}"
       },
       "addDate": "Date",
       "asset": {

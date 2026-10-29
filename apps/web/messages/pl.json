@@ -764,7 +764,9 @@
           "avgPrice": "Śr. cena {price}"
         },
         "unrealizedAria": "Niezrealizowany {value}",
-        "realizedAria": "Zrealizowany {value}"
+        "realizedAria": "Zrealizowany {value}",
+        "unrealizedLabel": "niezrealizowany: {value}",
+        "realizedLabel": "zrealizowany: {value}"
       },
       "addDate": "Data",
       "asset": {
