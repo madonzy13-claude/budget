@@ -631,6 +631,13 @@
       "when": 1783088401012,
       "tag": "0090_asset_label_currency",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1783174801012,
+      "tag": "0091_deposit_start_entry_date",
+      "breakpoints": true
     }
   ]
 }
