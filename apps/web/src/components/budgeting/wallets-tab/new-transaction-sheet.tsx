@@ -122,11 +122,14 @@ export function NewTransactionSheet({
     pickable.some((h) => typeOf(h) === ui),
   );
   const ids = new Set(pickable.map((h) => h.id));
+  // R6 (user): a type carried from Buy that this kind cannot offer shows
+  // empty here; the state keeps it, so Buy gets it back.
+  const shownType: UiType | "" = uiType && types.includes(uiType) ? uiType : "";
 
   // Round 4 gap 5: a type with exactly one asset to sell / move picks it.
   const only =
-    kind !== "buy" && uiType && !picked
-      ? pickable.filter((h) => typeOf(h) === uiType)
+    kind !== "buy" && shownType && !picked
+      ? pickable.filter((h) => typeOf(h) === shownType)
       : [];
   const single = only.length === 1 ? only[0]! : null;
   useEffect(() => {
@@ -224,7 +227,7 @@ export function NewTransactionSheet({
               {/* Controlled always, so the trigger never shows a type the
                   state has dropped (round-4 gap 3). */}
               <Select
-                value={uiType}
+                value={shownType}
                 onValueChange={(v) => {
                   setUiType(v as UiType);
                   setName("");
@@ -237,7 +240,7 @@ export function NewTransactionSheet({
                   className="min-h-11 w-full"
                 >
                   <SelectValue placeholder={t("field.typePlaceholder")}>
-                    {uiType ? typeLabel(uiType) : null}
+                    {shownType ? typeLabel(shownType) : null}
                   </SelectValue>
                 </SelectTrigger>
                 {/* Round 3: a native popup got a sliver; this list flips above
@@ -258,11 +261,11 @@ export function NewTransactionSheet({
                 </SelectContent>
               </Select>
             </Field>
-            {uiType && (
+            {shownType && (
               <Field label={t("newTx.pickAsset")}>
                 <AssetNameCombobox
                   budgetId={budgetId}
-                  uiType={uiType}
+                  uiType={shownType}
                   value={name}
                   onChange={(v) => {
                     setName(v);
