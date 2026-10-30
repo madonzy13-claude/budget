@@ -51,10 +51,6 @@ const type = (id: string, v: string) =>
 /** Radix Select under happy-dom: open with the keyboard, pick by testid. */
 const pickDest = (id: string) =>
   fireEvent.change(screen.getByTestId("dest-pick"), { target: { value: id } });
-async function pick(trigger: string, option: string) {
-  fireEvent.keyDown(screen.getByTestId(trigger), { key: "Enter" });
-  fireEvent.keyDown(await screen.findByTestId(option), { key: "Enter" });
-}
 
 beforeEach(() => {
   writeMock.mockReset();
@@ -324,7 +320,9 @@ describe("Sell tab", () => {
     type("swap-sell-sold", "1");
     pickDest(cash.id);
     expect(screen.queryByTestId("swap-dest-new-marker")).toBeNull();
-    fireEvent.change(screen.getByTestId("dest-pick"), { target: { value: "" } });
+    fireEvent.change(screen.getByTestId("dest-pick"), {
+      target: { value: "" },
+    });
     fireEvent.click(screen.getByTestId("dest-form"));
     expect(screen.getByTestId("swap-dest-new-marker")).toBeInTheDocument();
     type("swap-sell-received", "100");
