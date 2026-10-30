@@ -14,6 +14,7 @@ import {
   fireEvent,
   within,
   waitFor,
+  act,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -260,6 +261,25 @@ describe("New transaction", () => {
     fireEvent.keyDown(screen.getByTestId("new-tx-type"), { key: "Enter" });
     const opt = await screen.findByTestId("new-tx-type-option-crypto");
     expect(opt.querySelector("[data-type-icon]")).not.toBeNull();
+  });
+
+  // R6 (user): a type chosen in Buy that has nothing to sell shows empty —
+  // never a value the list does not offer. Buy keeps it.
+  it("a Buy type with nothing to sell shows no type on Sell; Buy still has it", async () => {
+    mount();
+    act(() =>
+      (stub.props!.onDraftChange as (d: unknown) => void)({
+        uiType: "real_estate",
+        pickedId: null,
+      }),
+    );
+    fireEvent.click(screen.getByTestId("new-tx-kind-sell"));
+    expect(screen.getByTestId("new-tx-type")).toHaveTextContent(
+      "field.typePlaceholder",
+    );
+    expect(screen.queryByTestId("new-tx-asset")).toBeNull();
+    fireEvent.click(screen.getByTestId("new-tx-kind-buy"));
+    expect(stub.props).toMatchObject({ initialUiType: "real_estate" });
   });
 
   it("Transfer leaves deposits out of the types", async () => {
