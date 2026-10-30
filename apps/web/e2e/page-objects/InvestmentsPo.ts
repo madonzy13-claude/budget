@@ -329,7 +329,9 @@ export class InvestmentsPo {
       })
       .click();
     if (process.env.SHOT_SRC)
-      await this.page.screenshot({ path: process.env.SHOT_SRC });
+      await this.page.screenshot({
+        path: `${process.env.SHOT_SRC}-picked.png`,
+      });
     await sheet.getByTestId("swap-buy-taken").fill(taken);
     await sheet.getByTestId("swap-buy-qty").fill(qty);
     await sheet.getByTestId("swap-buy-price").fill(price);

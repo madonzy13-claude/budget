@@ -376,7 +376,9 @@ export function SwapBuyTab({
                             key={h.id}
                             value={h.id}
                             data-testid={`swap-buy-src-option-${h.id}`}
-                            className="min-h-11 pl-8"
+                            // The item text wrapper stretches so the value
+                            // sits on the right edge.
+                            className="min-h-11 pl-8 [&>span:last-child]:min-w-0 [&>span:last-child]:flex-1"
                           >
                             <span className="flex w-full min-w-0 items-center justify-between gap-3">
                               <span data-src-name className="min-w-0 truncate">
