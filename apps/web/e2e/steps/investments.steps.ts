@@ -878,6 +878,38 @@ Then(
   },
 );
 
+// Round 6: a currency change in Edit saves (never the offline toast).
+When(
+  "I change the currency of {string} to {string} in Edit and save",
+  async ({ page }, name: string, ccy: string) => {
+    await new InvestmentsPo(page).openEdit(name);
+    const sheet = page.getByTestId("edit-asset-sheet");
+    const native = sheet.getByTestId("currency-picker-native");
+    if (await native.isVisible().catch(() => false))
+      await native.selectOption(ccy);
+    else {
+      await sheet.getByRole("combobox").first().click();
+      await page.getByTestId(`currency-option-${ccy}`).first().click();
+    }
+    const res = page.waitForResponse(
+      (r) =>
+        /\/investments\/[0-9a-f-]+$/.test(r.url()) &&
+        r.request().method() === "PATCH",
+      { timeout: 15000 },
+    );
+    await sheet.getByTestId("edit-asset-save").click();
+    expect((await res).status()).toBe(200);
+    await expect(page.getByText("You're offline")).toHaveCount(0);
+  },
+);
+
+Then(
+  "the asset {string} is shown in {string}",
+  async ({ page }, name: string, ccy: string) => {
+    await expect(new InvestmentsPo(page).row(name)).toContainText(ccy);
+  },
+);
+
 // ── 13.1: assets, Swap, wallet target, ledger ──
 
 Given(

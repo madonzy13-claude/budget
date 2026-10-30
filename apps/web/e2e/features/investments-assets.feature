@@ -206,6 +206,14 @@ Feature: Investments as assets with transactions (13.1)
     And the asset "ACME" caption shows unrealized and realized
     And the asset "ACME" offers Edit first and + second
 
+  # Round 6 (user): changing a metal's currency must save, not say "offline".
+  @r6-metal-ccy
+  Scenario: A coin's currency can be changed in Edit
+    Given a silver coin asset "Coins" of 100 grams at 5155 cents with premium "25.17" exists in my budget
+    When I open the investments wallets tab
+    And I change the currency of "Coins" to "EUR" in Edit and save
+    Then the asset "Coins" is shown in "EUR"
+
   # Gaps 2 + 3: the type header is an asset-row card; tap reveals mirror.
   @r2-header
   Scenario: The type header lines up with its asset rows and its tap mirrors the asset row
