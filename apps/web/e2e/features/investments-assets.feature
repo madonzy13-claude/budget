@@ -49,6 +49,15 @@ Feature: Investments as assets with transactions (13.1)
     Then the wallet "Bank" holds 6610000 cents
     And the "broker" type shows realized "+28,188"
 
+  # R6 (user): Buy says where the money came from — another asset sells into it.
+  @r6-buy-from-asset
+  Scenario: Buying with money taken from another asset
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a crypto holding "BTC" of "0.1" bought at 6099162 cents now 7600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I buy "0.1" of "BTC" at "300000" taking "30000" from "IBKR"
+    Then the holding row "IBKR" shows the amount "66,000"
+
   # D-23: a new wallet starts with the amount.
   Scenario: Selling into a new wallet creates it with the amount
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget

@@ -228,6 +228,20 @@ Then(
   },
 );
 
+When(
+  "I buy {string} of {string} at {string} taking {string} from {string}",
+  async (
+    { page },
+    qty: string,
+    name: string,
+    price: string,
+    taken: string,
+    source: string,
+  ) => {
+    await new InvestmentsPo(page).buyFromAsset(name, qty, price, source, taken);
+  },
+);
+
 Then(
   "the holding row {string} shows the amount {string}",
   async ({ page }, name: string, amount: string) => {

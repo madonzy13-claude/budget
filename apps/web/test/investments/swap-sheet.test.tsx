@@ -59,7 +59,10 @@ describe("Swap sheet", () => {
   it("offers Buy / Sell / Transfer as a radio group, Buy first", () => {
     mount(btc);
     expect(screen.getByTestId("swap-sheet")).toBeInTheDocument();
-    expect(screen.getByRole("radiogroup")).toBeInTheDocument();
+    // R6: Buy adds its own "where did the money come from?" group.
+    expect(
+      screen.getByRole("radiogroup", { name: "swap.title(name=BTC)" }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("swap-tab-buy")).toHaveAttribute(
       "aria-checked",
       "true",

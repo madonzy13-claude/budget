@@ -308,6 +308,32 @@ export class InvestmentsPo {
     if (await t.isVisible().catch(() => false)) await t.click();
   }
 
+  /** R6: Buy with the money taken from another asset. */
+  async buyFromAsset(
+    name: string,
+    qty: string,
+    price: string,
+    source: string,
+    taken: string,
+  ): Promise<void> {
+    await this.openSwap(name, "buy");
+    const sheet = this.swapSheet();
+    await sheet.getByTestId("swap-buy-from-asset").click();
+    await sheet.getByTestId("swap-buy-src").click();
+    await this.page
+      .getByRole("option")
+      .filter({ hasText: new RegExp(`^${source} ·`) })
+      .click();
+    await sheet.getByTestId("swap-buy-taken").fill(taken);
+    await sheet.getByTestId("swap-buy-qty").fill(qty);
+    await sheet.getByTestId("swap-buy-price").fill(price);
+    const posted = this.page.waitForResponse(
+      (r) => /\/sell$/.test(r.url()) && r.request().method() === "POST",
+    );
+    await sheet.getByTestId("swap-submit").click();
+    if (!(await posted).ok()) throw new Error("buy from asset failed");
+  }
+
   /** Open Add and pick a type (13.1 name-first form). */
   async openAdd(type: string): Promise<void> {
     await this.startBuy();
