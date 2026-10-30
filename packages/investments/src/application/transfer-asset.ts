@@ -122,6 +122,7 @@ export function transferAsset(deps: {
           kind: "transfer_out",
           qtyDelta: byQty ? `-${moved}` : null,
           costDeltaCents: -t.costMovedCents,
+          assetAmountCents: t.costMovedCents, // R6-2
           costCurrency: costCcy,
           valueDeltaCents: byQty ? 0n : -BigInt(moved),
         }),
@@ -166,6 +167,7 @@ export function transferAsset(deps: {
             kind: "transfer_in",
             qtyDelta: byQty ? moved : null,
             costDeltaCents: costIn,
+            assetAmountCents: costIn,
             costCurrency: dCost,
             valueDeltaCents: byQty ? 0n : BigInt(moved),
           }),
@@ -200,6 +202,7 @@ export function transferAsset(deps: {
             kind: "transfer_in",
             qtyDelta: byQty ? moved : null,
             costDeltaCents: t.costMovedCents,
+            assetAmountCents: t.costMovedCents,
             costCurrency: costCcy,
             valueDeltaCents: byQty ? 0n : BigInt(moved),
           }),

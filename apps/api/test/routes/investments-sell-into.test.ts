@@ -309,6 +309,14 @@ describe("Sell into another investment", () => {
       ),
     ).toEqual(before);
     expect((await row(fix, pot))!.cur).toBe("1040000");
+    // R6-2: both legs keep the deal's figure in their asset's currency.
+    const stored = await q<{ kind: string; a: string | null }>(
+      fix,
+      `SELECT kind, asset_amount_cents::text AS a FROM budgeting.investment_history
+        WHERE budget_id = $1 AND kind IN ('convert_out', 'convert_in')`,
+      [fix.tenantId],
+    );
+    expect(stored.every((r) => r.a !== null)).toBe(true);
   });
 
   // Round-5 scope change: same name, same currency — booked by id only.

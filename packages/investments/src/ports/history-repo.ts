@@ -48,6 +48,9 @@ export interface NewHistoryEntry {
   priorPriceCurrency: string | null;
   /** D-35 placeholder Start (migration only). */
   backfilled: boolean;
+  /** R6-2: unsigned amount in the asset's own currency fixed at the deal
+   *  (proceeds of a sale, cost of a buy / leg); null = not recorded. */
+  assetAmountCents: bigint | null;
 }
 
 /** D-21: a wallet balance moves by a delta inside the booking transaction. */
@@ -110,6 +113,9 @@ export interface StoredEntry {
   amountCurrency: string | null;
   qtyDelta: string | null;
   costDeltaCents: bigint;
+  costCurrency: string | null;
+  /** R6-2: see NewHistoryEntry.assetAmountCents. */
+  assetAmountCents: bigint | null;
   valueDeltaCents: bigint;
   flowCents: bigint;
   realizedBudgetCents: bigint | null;
@@ -225,6 +231,7 @@ export function entry(
     priorPriceCents: null,
     priorPriceCurrency: null,
     backfilled: false,
+    assetAmountCents: null,
     ...e,
   };
 }

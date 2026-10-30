@@ -652,6 +652,13 @@
       "when": 1783347601012,
       "tag": "0093_drop_asset_label_uniqueness",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1783434001012,
+      "tag": "0094_entry_asset_amount",
+      "breakpoints": true
     }
   ]
 }

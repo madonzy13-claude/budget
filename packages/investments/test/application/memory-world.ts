@@ -240,6 +240,8 @@ export class MemoryWorld {
           amountCurrency: e.amountCurrency,
           qtyDelta: e.qtyDelta,
           costDeltaCents: e.costDeltaCents,
+          costCurrency: e.costCurrency,
+          assetAmountCents: e.assetAmountCents ?? null,
           valueDeltaCents: e.valueDeltaCents,
           flowCents: e.flowCents,
           realizedBudgetCents: e.realizedBudgetCents,

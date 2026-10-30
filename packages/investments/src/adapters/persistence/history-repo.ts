@@ -34,7 +34,8 @@ const ENTRY_SELECT = sql`
          h.effective_date::text AS effective_date,
          h.amount_cents::text AS amount_cents, h.amount_currency,
          h.qty_delta::text AS qty_delta,
-         h.cost_delta_cents::text AS cost_delta_cents,
+         h.cost_delta_cents::text AS cost_delta_cents, h.cost_currency,
+         h.asset_amount_cents::text AS asset_amount_cents,
          h.value_delta_cents::text AS value_delta_cents,
          h.flow_cents::text AS flow_cents,
          h.realized_budget_cents::text AS realized_budget_cents,
@@ -77,6 +78,8 @@ function mapEntry(row: Record<string, unknown>): StoredEntry {
             .replace(/(\.\d*?)0+$/, "$1")
             .replace(/\.$/, ""),
     costDeltaCents: big(row.cost_delta_cents) ?? 0n,
+    costCurrency: (row.cost_currency as string | null) ?? null,
+    assetAmountCents: big(row.asset_amount_cents),
     valueDeltaCents: big(row.value_delta_cents) ?? 0n,
     flowCents: big(row.flow_cents) ?? 0n,
     realizedBudgetCents: big(row.realized_budget_cents),
@@ -249,7 +252,8 @@ export class DrizzleHistoryRepo implements HistoryRepo {
                sold_cost_budget_cents, realized_budget_cents, budget_currency,
                prior_principal_cents, prior_start_date, transfer_id,
                wallet_id, wallet_delta_numeric, wallet_created,
-               prior_price_cents, prior_price_currency, backfilled)
+               prior_price_cents, prior_price_currency, backfilled,
+               asset_amount_cents)
             VALUES
               (${tenantId}::uuid, ${plan.budgetId}::uuid, ${holdingId}::uuid,
                ${e.kind}, ${e.effectiveDate}::date,
@@ -262,7 +266,8 @@ export class DrizzleHistoryRepo implements HistoryRepo {
                ${e.transfer ? transferId : null}::uuid,
                ${e.walletId === "$newWallet" ? wallet.walletId : e.walletId}::uuid,
                ${e.walletDeltaNumeric}::numeric, ${e.walletCreated},
-               ${e.priorPriceCents}::numeric, ${e.priorPriceCurrency}, ${e.backfilled})
+               ${e.priorPriceCents}::numeric, ${e.priorPriceCurrency}, ${e.backfilled},
+               ${s(e.assetAmountCents)}::bigint)
           `);
         }
         return { newHoldingId, transferId, ...wallet };

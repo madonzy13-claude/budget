@@ -88,6 +88,8 @@ export async function planBuy(
           costCurrency: costCcy,
           flowCents: paid,
           flowCurrency: input.currency,
+          // R6-2: the cost in the asset's currency, fixed at the deal.
+          assetAmountCents: cost,
         }),
       ],
     };
@@ -126,6 +128,7 @@ export async function planBuy(
           amountCurrency: costCcy,
           costDeltaCents: b.costDeltaCents,
           costCurrency: costCcy,
+          assetAmountCents: b.costDeltaCents,
           valueDeltaCents: b.valueDeltaCents,
           flowCents: b.flowCents,
           flowCurrency: costCcy,
@@ -161,6 +164,7 @@ export async function planBuy(
         amountCurrency: input.currency,
         costDeltaCents: cost,
         costCurrency: costCcy,
+        assetAmountCents: cost,
         valueDeltaCents: value,
         flowCents: amount,
         flowCurrency: input.currency,

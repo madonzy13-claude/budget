@@ -287,6 +287,8 @@ export function sellHolding(deps: {
           flowCurrency: receivedCcy,
           soldCostBudgetCents: fx.soldCostBudgetCents,
           realizedBudgetCents: fx.realizedBudgetCents,
+          // R6-2: the deal's proceeds in the source currency.
+          assetAmountCents: fx.proceedsCents,
           budgetCurrency: input.budgetCurrency,
           transfer,
         }),
@@ -302,6 +304,7 @@ export function sellHolding(deps: {
             costCurrency: receivedCcy,
             flowCurrency: receivedCcy,
             transfer: true,
+            assetAmountCents: received,
             ...e,
           }),
         );
@@ -310,7 +313,11 @@ export function sellHolding(deps: {
       // is revived (D-17). Its cost/value move in the asset's currency.
       const intoExisting = async (d: Holding) => {
         if (d.holdingType === "deposit") throw fail("unsupported_destination");
-        const own = { costDeltaCents: receivedAsset, costCurrency: assetCcy };
+        const own = {
+          costDeltaCents: receivedAsset,
+          costCurrency: assetCcy,
+          assetAmountCents: receivedAsset,
+        };
         const revive = d.archivedAt ? { unarchive: true } : {};
         if (holdingShape(d) === "quantity") {
           const addQty = qty(big(destQty!));

@@ -69,6 +69,8 @@ export function realizedInBudget(i: {
   receivedBudgetCents: bigint;
   soldCostBudgetCents: bigint;
   realizedBudgetCents: bigint;
+  /** R6-2: proceeds in the source currency — the deal's own figure. */
+  proceedsCents: bigint;
 } {
   const proceeds = big(i.receivedCents).div(big(i.sourceToReceivedRate));
   const toBudget = big(i.sourceToBudgetRate);
@@ -80,6 +82,7 @@ export function realizedInBudget(i: {
     receivedBudgetCents: soldCostBudgetCents + realizedBudgetCents,
     soldCostBudgetCents,
     realizedBudgetCents,
+    proceedsCents: cents(proceeds),
   };
 }
 

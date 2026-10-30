@@ -53,7 +53,13 @@ const VALUE_KINDS = new Set([
   "transfer_in",
   "transfer_out",
 ]);
-const AMOUNT_TYPES = new Set(["broker", "cash", "cash_fx", "deposit", "savings"]);
+const AMOUNT_TYPES = new Set([
+  "broker",
+  "cash",
+  "cash_fx",
+  "deposit",
+  "savings",
+]);
 
 function signedAmount(e: StoredEntry): bigint | null {
   if (e.kind === "value_change" || e.kind === "price_change")
@@ -159,11 +165,23 @@ export function listEntries(deps: {
                 : null,
           amountCents: amount === null ? null : amount.toString(),
           amountCurrency: ccy,
-          displayAmountCents:
-            amount === null
-              ? null
-              : await toDisplay(amount, ccy, e.effectiveDate),
-          displayCurrency: display,
+          // R6-2: a recorded deal shows its own figure in the asset's
+          // currency — never re-converted at a later rate.
+          ...(e.assetAmountCents !== null && VALUE_KINDS.has(e.kind)
+            ? {
+                displayAmountCents: (NEGATIVE.has(e.kind)
+                  ? -e.assetAmountCents
+                  : e.assetAmountCents
+                ).toString(),
+                displayCurrency: e.costCurrency ?? display,
+              }
+            : {
+                displayAmountCents:
+                  amount === null
+                    ? null
+                    : await toDisplay(amount, ccy, e.effectiveDate),
+                displayCurrency: display,
+              }),
           realizedBudgetCents:
             e.realizedBudgetCents === null
               ? null
