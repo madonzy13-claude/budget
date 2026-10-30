@@ -633,8 +633,9 @@ export function SwapSellTab({
               {mode === "new" && newIsQty && destPair(false)}
               {mode === "existing" && existingIsQty && destPair(true)}
               {/* R5-6: a quantity destination has no Received row — its
-                  currency is picked here (preselected to the asset's). */}
-              {mode === "existing" && existingIsQty && (
+                  currency is picked here (preselected to the asset's).
+                  R6 (user): a new one too (BTC → USDC priced in USD). */}
+              {qtyDest && (
                 <div data-testid="swap-dest-ccy" className="mt-2 w-24">
                   <Field label={t("field.currency")}>
                     <CurrencyPicker

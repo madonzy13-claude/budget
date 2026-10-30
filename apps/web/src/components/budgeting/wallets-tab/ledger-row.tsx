@@ -339,15 +339,20 @@ export function LedgerRow({
             </span>
           )}
           {entry.realizedBudgetCents != null && (
+            // R6 (user): in the asset's currency, labelled.
             <span
               className="text-[12px] leading-[1.4]"
               style={{
-                color: signColor(Number(entry.realizedBudgetCents)),
+                color: signColor(
+                  Number(entry.realizedCents ?? entry.realizedBudgetCents),
+                ),
                 opacity: 0.7,
               }}
             >
               {t("ledger.realized", {
-                amount: signed(entry.realizedBudgetCents),
+                amount: entry.realizedCents
+                  ? `${signed(entry.realizedCents)} ${entry.realizedCurrency}`
+                  : signed(entry.realizedBudgetCents),
               })}
             </span>
           )}

@@ -31,6 +31,7 @@ const LINKED = new Set([
   "transfer_out",
   "transfer_in",
 ]);
+const abs = (n: bigint) => (n < 0n ? -n : n);
 const key = (e: StoredEntry): LedgerKey => ({
   id: e.id,
   effectiveDate: e.effectiveDate,
@@ -129,6 +130,43 @@ export function listEntries(deps: {
         }
       };
 
+      // R6 (user): realized in the ASSET's currency (the one its row shows):
+      // exact from the stored deal where there is one, else the budget
+      // figure at the sale date's rate.
+      const realizedIn = async (
+        e: StoredEntry,
+      ): Promise<{
+        realizedCents: string | null;
+        realizedCurrency: string | null;
+      }> => {
+        if (e.realizedBudgetCents === null)
+          return { realizedCents: null, realizedCurrency: null };
+        const from = e.budgetCurrency ?? input.budgetCurrency;
+        let rate = rates.get(e.effectiveDate);
+        if (!rate)
+          rates.set(
+            e.effectiveDate,
+            (rate = makeRate(deps.fxProvider, e.effectiveDate)),
+          );
+        const [amount, ccy] =
+          e.costCurrency &&
+          e.assetAmountCents !== null &&
+          e.costDeltaCents !== null
+            ? [e.assetAmountCents - abs(e.costDeltaCents), e.costCurrency]
+            : [e.realizedBudgetCents, from];
+        try {
+          return {
+            realizedCents: cents(
+              big(amount).times(await rate(ccy, display)),
+            ).toString(),
+            realizedCurrency: display,
+          };
+        } catch {
+          // WR-10: no rate → the figure as booked, labelled as such.
+          return { realizedCents: amount.toString(), realizedCurrency: ccy };
+        }
+      };
+
       const rows: EntryDto[] = [];
       for (const e of live) {
         const linked = LINKED.has(e.kind) && e.transferId !== null;
@@ -186,6 +224,7 @@ export function listEntries(deps: {
             e.realizedBudgetCents === null
               ? null
               : e.realizedBudgetCents.toString(),
+          ...(await realizedIn(e)),
           budgetCurrency: e.budgetCurrency,
           counterpartyName: e.counterpartyName,
           counterpartyHoldingId: linked ? e.counterpartyHoldingId : null,
@@ -234,6 +273,8 @@ export function listEntries(deps: {
             ),
             displayCurrency: display,
             realizedBudgetCents: null,
+            realizedCents: null,
+            realizedCurrency: null,
             budgetCurrency: null,
             counterpartyName: null,
             counterpartyHoldingId: null,

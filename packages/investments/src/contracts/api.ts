@@ -461,6 +461,9 @@ export interface EntryDto {
   displayAmountCents: string | null;
   displayCurrency: string | null;
   realizedBudgetCents: string | null;
+  /** R6: realized in the asset's currency (exact deal figure, else the sale-date rate). */
+  realizedCents: string | null;
+  realizedCurrency: string | null;
   budgetCurrency: string | null;
   counterpartyName: string | null;
   /** Round 4: the partner asset + shared transfer id, so a linked row can

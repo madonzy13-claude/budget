@@ -37,6 +37,9 @@ export interface EntryDto {
   displayAmountCents: string | null;
   displayCurrency: string | null;
   realizedBudgetCents: string | null;
+  /** R6: realized in the asset's currency. */
+  realizedCents?: string | null;
+  realizedCurrency?: string | null;
   budgetCurrency: string | null;
   counterpartyName: string | null;
   counterpartyHoldingId?: string | null;
