@@ -45,18 +45,26 @@ const realBtc = async () =>
     )
   ).rows[0];
 
+const bakRows = async () =>
+  (
+    await pool.query(
+      `SELECT CASE WHEN to_regclass('budgeting._investments_bak_0089') IS NULL
+                   THEN -1
+                   ELSE (SELECT count(*)::int FROM budgeting._investments_bak_0089) END AS n`,
+    )
+  ).rows[0].n as number;
+let bakBefore = -1;
 beforeAll(async () => {
   if (!URL) return;
   pool = new Pool({ connectionString: URL });
   realBefore = await realBtc();
+  bakBefore = await bakRows();
 });
 afterAll(async () => {
   if (!pool) return;
   expect(await realBtc()).toEqual(realBefore);
-  const bak = await pool.query(
-    `SELECT to_regclass('budgeting._investments_bak_0089') IS NULL AS gone`,
-  );
-  expect(bak.rows[0].gone).toBe(true);
+  // 0089 is applied on dev, so its backup exists; the suite must not grow it.
+  expect(await bakRows()).toBe(bakBefore);
   await pool.end();
 });
 
