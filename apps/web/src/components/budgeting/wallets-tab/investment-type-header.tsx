@@ -54,6 +54,7 @@ export function PlCaption({
   unrealizedCents,
   realizedCents,
   until,
+  style,
   ...rest
 }: {
   unrealizedCents: number;
@@ -75,6 +76,7 @@ export function PlCaption({
         color: "var(--muted-foreground)",
         fontSize: "11px",
         lineHeight: 1.4,
+        ...style,
       }}
     >
       {(

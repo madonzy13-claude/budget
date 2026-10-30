@@ -503,12 +503,50 @@ describe("InvestmentRow", () => {
     render(
       <InvestmentRow
         holding={holding()}
-        realized={{ realizedBudgetCents: "-4000", soldCostBudgetCents: "0" }}
+        realized={{
+          realizedBudgetCents: "-4000",
+          soldCostBudgetCents: "0",
+          realizedAssetCents: "-4000",
+          assetCurrency: "USD",
+        }}
       />,
     );
     fireEvent.click(screen.getByLabelText("Expand AAPL"));
     expect(captionText()).toMatch(/^unreal\.: .+real\.: −40$/);
     expect(captionText()).not.toMatch(/avg price|qty:/);
+  });
+
+  // Round 6 (user): the asset's own currency, not the budget's.
+  it("unrealized and realized are in the asset's own currency", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          profitLossCents: "12345",
+          valueInBudgetCents: "999999",
+          costInBudgetCents: "1",
+        })}
+        realized={{
+          realizedBudgetCents: "-40000",
+          soldCostBudgetCents: "0",
+          realizedAssetCents: "-10000",
+          assetCurrency: "USD",
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Expand AAPL"));
+    expect(captionText()).toMatch(/^unreal\.: \+123\.45real\.: −100$/);
+  });
+
+  // Round 6 (user): secondary lines a bit lighter so the row reads cleaner.
+  it("qty × avg, share and the P/L caption are dimmed", () => {
+    render(<InvestmentRow holding={holding()} />);
+    fireEvent.click(screen.getByLabelText("Expand AAPL"));
+    for (const el of [
+      screen.getByTestId("investment-row-qtyavg"),
+      screen.getByTestId("asset-share-h1"),
+      captionEl(),
+    ])
+      expect(el.style.opacity).toBe("0.7");
   });
 
   it("realized reads +0 when the asset has none", () => {

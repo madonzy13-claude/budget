@@ -75,9 +75,49 @@ describe("Per-asset realized", () => {
       realizedBudgetCents: "100",
       soldCostBudgetCents: "540",
     });
-    expect(r.holdings).toEqual({
+    expect(r.holdings).toMatchObject({
       A: { realizedBudgetCents: "100", soldCostBudgetCents: "400" },
       B: { realizedBudgetCents: "0", soldCostBudgetCents: "140" },
+    });
+  });
+});
+
+// Round 6 (user): an asset's realized in its OWN currency, not the budget's.
+describe("Per-asset realized in the asset currency", () => {
+  test("exact where the deal says so; today's rate only for the rest", async () => {
+    const historyRepo = {
+      realizedByType: async () => [
+        {
+          uiType: "stocks",
+          holdingId: "A",
+          budgetCurrency: "PLN",
+          costCurrency: "USD",
+          realizedBudgetCents: 400n,
+          soldCostBudgetCents: 0n,
+          realizedAssetExactCents: 100n,
+          realizedBudgetRestCents: 80n,
+        },
+      ],
+      getTypeOrder: async () => [],
+    } as unknown as HistoryRepo;
+    const fxProvider = {
+      rateAsOf: async (f: string, t: string) => ({
+        rate: f === "PLN" && t === "USD" ? "0.25" : "4",
+        provider: "s",
+        isStale: false,
+      }),
+    } as never;
+    const r = (
+      await typeSummary({ historyRepo, fxProvider })({
+        tenantId: "t",
+        budgetId: "t",
+        actorUserId: "u",
+        budgetCurrency: "PLN",
+      })
+    )._unsafeUnwrap();
+    expect(r.holdings.A).toMatchObject({
+      realizedAssetCents: "120",
+      assetCurrency: "USD",
     });
   });
 });

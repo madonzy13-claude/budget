@@ -45,6 +45,35 @@ export function typeSummary(deps: {
         const cur = m.get(k) ?? { r: new Big(0), s: new Big(0) };
         m.set(k, { r: cur.r.plus(r), s: cur.s.plus(s) });
       };
+      // R6 (user): each asset's realized in its OWN currency — exact where
+      // the booking allows, today's rate only for the remaining rows.
+      const asset = new Map<string, { r: Big; ccy: string }>();
+      for (const row of rows) {
+        if (!row.costCurrency) continue;
+        let r = new Big((row.realizedAssetExactCents ?? 0n).toString());
+        const rest = row.realizedBudgetRestCents ?? 0n;
+        if (rest !== 0n)
+          try {
+            r = r.plus(
+              new Big(rest.toString()).times(
+                (
+                  await deps.fxProvider.rateAsOf(
+                    row.budgetCurrency as never,
+                    row.costCurrency as never,
+                    new Date(),
+                  )
+                ).rate,
+              ),
+            );
+          } catch {
+            /* WR-10: a missing rate drops that part, never the summary */
+          }
+        const cur = asset.get(row.holdingId);
+        asset.set(row.holdingId, {
+          r: (cur?.r ?? new Big(0)).plus(r),
+          ccy: row.costCurrency,
+        });
+      }
       for (const row of rows) {
         // Rows booked in an older budget currency: today's rate. A missing
         // rate skips that row instead of failing every header (WR-10).
@@ -80,7 +109,19 @@ export function typeSummary(deps: {
         currency: input.budgetCurrency,
         order,
         types: out(sums),
-        holdings: out(perHolding),
+        holdings: Object.fromEntries(
+          Object.entries(out(perHolding)).map(([id, v]) => {
+            const a = asset.get(id);
+            return [
+              id,
+              {
+                ...v,
+                realizedAssetCents: (a?.r ?? new Big(0)).round(0, 2).toFixed(0),
+                assetCurrency: a?.ccy ?? input.budgetCurrency,
+              },
+            ];
+          }),
+        ),
       });
     } catch (e) {
       return err(e as Error);

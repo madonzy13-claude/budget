@@ -142,6 +142,13 @@ export interface RealizedRow {
   uiType: string;
   /** R6-6: per-asset realized next to the per-type sum. */
   holdingId: string;
+  /** The asset's own (cost) currency. */
+  costCurrency?: string;
+  /** Realized in the asset currency where exact (same currency, or the
+   *  stored deal figure: asset_amount − |cost_delta|). */
+  realizedAssetExactCents?: bigint;
+  /** Realized (budget currency) of rows with no exact asset figure. */
+  realizedBudgetRestCents?: bigint;
   budgetCurrency: string;
   realizedBudgetCents: bigint;
   soldCostBudgetCents: bigint;

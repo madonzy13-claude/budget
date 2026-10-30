@@ -31,13 +31,15 @@ import {
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { Input } from "@/components/ui/input";
 import { centsToBare } from "@/lib/cents-format";
-import { typeGroupPL } from "@/lib/investment-type-groups";
 import { PlCaption } from "./investment-type-header";
 import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { isAutoPriced } from "@/lib/investment-types";
 import { AssetClassChip } from "./asset-class-chip";
+
+/** User (round 6): secondary lines a bit lighter so the row reads cleaner. */
+const DIM = 0.7;
 
 interface InvestmentRowProps {
   holding: HoldingDto;
@@ -53,8 +55,14 @@ interface InvestmentRowProps {
   /** 13.1 D-05: open the transaction sheet (Buy / Sell / Transfer) — the
    *  "+" action, second after Edit (R6-4). */
   onSwap?: () => void;
-  /** R6-6: this asset's realized + sold cost (type-summary `holdings`). */
-  realized?: { realizedBudgetCents: string; soldCostBudgetCents: string };
+  /** R6-6: this asset's realized (type-summary `holdings`); the row shows
+   *  the asset-currency figure. */
+  realized?: {
+    realizedBudgetCents: string;
+    soldCostBudgetCents: string;
+    realizedAssetCents?: string;
+    assetCurrency?: string;
+  };
   /** Round 4: archive (the section asks first). */
   onArchive?: () => void;
   /** Round 4: delete an asset that has nothing but its opening entry. */
@@ -191,7 +199,12 @@ export function InvestmentRow({
 
   // R6-6: the caption is this asset's unrealized · realized (the header's
   // own figures for a one-asset list); qty @ avg sits above the price.
-  const assetPL = typeGroupPL([holding], realized);
+  // User (round 6): in the asset's OWN currency — P/L from its buy cost,
+  // realized from the server's asset-currency figure.
+  const assetPL = {
+    unrealizedCents: Number(holding.profitLossCents ?? 0),
+    realizedCents: Number(realized?.realizedAssetCents ?? 0),
+  };
   // User (round 6): "4 × 750 avg. cost" — words, no icon.
   const qtyAvg =
     avgPrice != null
@@ -369,6 +382,7 @@ export function InvestmentRow({
                   unrealizedCents={assetPL.unrealizedCents}
                   realizedCents={assetPL.realizedCents}
                   until={shareRef}
+                  style={{ opacity: DIM }}
                 />
               )}
             </div>
@@ -468,7 +482,7 @@ export function InvestmentRow({
             <span
               data-testid="investment-row-qtyavg"
               className="flex items-center gap-1 text-[var(--muted-foreground)] tabular-nums sm:hidden"
-              style={{ fontSize: "11px", lineHeight: 1.4 }}
+              style={{ fontSize: "11px", lineHeight: 1.4, opacity: DIM }}
             >
               {qtyAvg != null
                 ? qtyAvg
@@ -481,7 +495,7 @@ export function InvestmentRow({
               ref={shareRef}
               data-testid={`asset-share-${holding.id}`}
               className="text-[var(--muted-foreground)] tabular-nums sm:hidden"
-              style={{ fontSize: "11px", lineHeight: 1.4 }}
+              style={{ fontSize: "11px", lineHeight: 1.4, opacity: DIM }}
             >
               {t("row.share", { pct: weight })}
             </span>

@@ -450,18 +450,31 @@ export class DrizzleHistoryRepo implements HistoryRepo {
         SELECT COALESCE(i.ui_type, 'other') AS ui_type,
                h.holding_id::text AS holding_id,
                COALESCE(h.budget_currency, '') AS budget_currency,
+               COALESCE(h.cost_currency, '') AS cost_currency,
                COALESCE(sum(h.realized_budget_cents), 0)::text AS realized,
-               COALESCE(sum(h.sold_cost_budget_cents), 0)::text AS sold_cost
+               COALESCE(sum(h.sold_cost_budget_cents), 0)::text AS sold_cost,
+               COALESCE(sum(CASE
+                 WHEN h.budget_currency = h.cost_currency THEN h.realized_budget_cents
+                 WHEN h.asset_amount_cents IS NOT NULL
+                   THEN h.asset_amount_cents - abs(h.cost_delta_cents)
+               END), 0)::text AS realized_asset_exact,
+               COALESCE(sum(CASE
+                 WHEN h.budget_currency IS DISTINCT FROM h.cost_currency
+                  AND h.asset_amount_cents IS NULL THEN h.realized_budget_cents
+               END), 0)::text AS realized_budget_rest
           FROM budgeting.investment_history h
           JOIN budgeting.investments i ON i.id = h.holding_id
          WHERE h.budget_id = ${budgetId}::uuid AND h.deleted_at IS NULL
            AND h.kind IN ('withdraw', 'convert_out')
-         GROUP BY 1, 2, 3
+         GROUP BY 1, 2, 3, 4
       `);
       return res.rows.map((row) => ({
         uiType: String(row.ui_type),
         holdingId: String(row.holding_id),
         budgetCurrency: String(row.budget_currency),
+        costCurrency: String(row.cost_currency),
+        realizedAssetExactCents: BigInt(String(row.realized_asset_exact)),
+        realizedBudgetRestCents: BigInt(String(row.realized_budget_rest)),
         realizedBudgetCents: BigInt(String(row.realized)),
         soldCostBudgetCents: BigInt(String(row.sold_cost)),
       }));

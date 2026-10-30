@@ -190,10 +190,16 @@ export interface TypeSummaryDto {
     string,
     { realizedBudgetCents: string; soldCostBudgetCents: string }
   >;
-  /** R6-6: the same sums per asset (holding id). */
+  /** R6-6: the same sums per asset (holding id), plus its realized in the
+   *  asset's own currency (what the asset row shows). */
   holdings: Record<
     string,
-    { realizedBudgetCents: string; soldCostBudgetCents: string }
+    {
+      realizedBudgetCents: string;
+      soldCostBudgetCents: string;
+      realizedAssetCents: string;
+      assetCurrency: string;
+    }
   >;
 }
 
