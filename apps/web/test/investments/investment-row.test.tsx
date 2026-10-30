@@ -759,6 +759,17 @@ describe("InvestmentRow", () => {
     ).toBeTruthy();
   });
 
+  // Round 6 (user): nothing held → no "qty × avg. cost" line.
+  it("a quantity asset holding nothing shows no qty × avg line", () => {
+    render(
+      <InvestmentRow
+        holding={holding({ quantity: "0.00000000", buyPriceCents: "0" })}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Expand AAPL"));
+    expect(screen.queryByTestId("investment-row-qtyavg")).toBeNull();
+  });
+
   it("expanded caption has no average price for an amount asset", () => {
     render(
       <InvestmentRow

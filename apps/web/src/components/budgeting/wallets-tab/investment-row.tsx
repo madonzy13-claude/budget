@@ -163,8 +163,10 @@ export function InvestmentRow({
   const isSavings = holding.uiType === "savings";
   // D-29: average buy price per unit, quantity assets only (an amount asset's
   // "price" is its total cost).
+  // Round 6 (user): the average buy price of what is held now — nothing held,
+  // no line.
   const avgPrice =
-    showQty && holding.buyPriceCents != null
+    showQty && holding.buyPriceCents != null && Number(holding.quantity) > 0
       ? centsToBare(holding.buyPriceCents, locale)
       : null;
   const startedDisplay =
