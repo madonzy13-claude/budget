@@ -29,15 +29,24 @@ const LIFTED = [
 ];
 
 let pool: Pool;
-beforeAll(() => {
-  if (URL) pool = new Pool({ connectionString: URL });
+// Once applied on dev the backup table exists; the suite must not change it.
+const bakRows = async () =>
+  (
+    await pool.query(
+      `SELECT CASE WHEN to_regclass('budgeting._investments_bak_0095') IS NULL
+                   THEN -1
+                   ELSE (SELECT count(*)::int FROM budgeting._investments_bak_0095) END AS n`,
+    )
+  ).rows[0].n as number;
+let bakBefore = -1;
+beforeAll(async () => {
+  if (!URL) return;
+  pool = new Pool({ connectionString: URL });
+  bakBefore = await bakRows();
 });
 afterAll(async () => {
   if (!pool) return;
-  const bak = await pool.query(
-    `SELECT to_regclass('budgeting._investments_bak_0095') IS NULL AS gone`,
-  );
-  expect(bak.rows[0].gone).toBe(true);
+  expect(await bakRows()).toBe(bakBefore);
   await pool.end();
 });
 
