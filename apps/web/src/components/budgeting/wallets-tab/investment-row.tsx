@@ -23,7 +23,6 @@ import { useLocale, useTranslations } from "next-intl";
 import {
   Archive,
   Pencil,
-  CircleSlash2,
   ArrowUpDown,
   Trash2,
   TrendingUp,
@@ -191,7 +190,11 @@ export function InvestmentRow({
   // R6-6: the caption is this asset's unrealized · realized (the header's
   // own figures for a one-asset list); qty @ avg sits above the price.
   const assetPL = typeGroupPL([holding], realized);
-  const qtyAvg = avgPrice != null ? `${qtyDisplay} @ ${avgPrice}` : null;
+  // User (round 6): "4 × 750 avg. cost" — words, no icon.
+  const qtyAvg =
+    avgPrice != null
+      ? t("row.qtyAvg", { qty: qtyDisplay, avg: avgPrice })
+      : null;
 
   // P/L cell — color/sign/icon unless delisted (dimming wins) or cash (—).
   const plColor =
@@ -465,18 +468,9 @@ export function InvestmentRow({
               className="flex items-center gap-1 text-[var(--muted-foreground)] tabular-nums sm:hidden"
               style={{ fontSize: "11px", lineHeight: 1.4 }}
             >
-              {qtyAvg != null ? (
-                <>
-                  <CircleSlash2
-                    data-avg-icon
-                    className="h-3 w-3"
-                    aria-hidden="true"
-                  />
-                  {qtyAvg}
-                </>
-              ) : (
-                t("row.started", { amount: startedDisplay! })
-              )}
+              {qtyAvg != null
+                ? qtyAvg
+                : t("row.started", { amount: startedDisplay! })}
             </span>
           )}
           {expanded && valueBlock("sm:hidden")}

@@ -50,6 +50,7 @@ vi.mock("next-intl", () => ({
         "row.share": "Share: {pct}",
         "typeGroup.stats.avgPrice": "avg price: {price}",
         "asset.swipe.newTxn": "New transaction",
+        "row.qtyAvg": "{qty} × {avg} avg. cost",
         "typeGroup.unrealizedLabel": "unreal.: {value}",
         "typeGroup.realizedLabel": "real.: {value}",
         "asset.swipe.edit": "Edit",
@@ -595,7 +596,7 @@ describe("InvestmentRow", () => {
 
   // 260626: mobile-expanded third row shows Qty before Share for holdings with a
   // real quantity (tracked/metals); cash/broker (qty 1) omit it.
-  it("mobile expand shows '<qty> @ <avg>' above the price for a metals holding", () => {
+  it("mobile expand shows '<qty> × <avg> avg. cost' above the price for a metals holding", () => {
     render(
       <InvestmentRow
         holding={holding({
@@ -614,7 +615,7 @@ describe("InvestmentRow", () => {
     fireEvent.click(screen.getByLabelText("Expand Bullion"));
     // trailing zeros trimmed for display.
     expect(screen.getByTestId("investment-row-qtyavg")).toHaveTextContent(
-      /^0\.9856328 @ /,
+      /^0\.9856328 × .+ avg\. cost$/,
     );
     expect(screen.getByText("Share: 100%")).toBeInTheDocument();
   });
@@ -745,16 +746,13 @@ describe("InvestmentRow", () => {
     expect(right.contains(screen.getByTestId("asset-value-h1"))).toBe(true);
   });
 
-  // Round-6 gap 6: "qty @ avg" with the avg icon, above the price.
-  it("expanded row shows qty @ avg price above the price (D-29)", () => {
+  // Round-6 gap 6 (user): "4 × 750 avg. cost" in words, above the price.
+  it("expanded row shows qty × avg. cost above the price, no icon (D-29)", () => {
     render(<InvestmentRow holding={holding()} />);
     fireEvent.click(screen.getByLabelText("Expand AAPL"));
     const line = screen.getByTestId("investment-row-qtyavg");
-    expect(line).toHaveTextContent(/^10 @ 300$/);
-    // Round 6 (user): the average sign ⌀, not scales.
-    expect(
-      line.querySelector("svg.lucide-circle-slash-2[data-avg-icon]"),
-    ).not.toBeNull();
+    expect(line).toHaveTextContent(/^10 × 300 avg\. cost$/);
+    expect(line.querySelector("svg")).toBeNull();
     const price = screen.getByTestId("asset-value-h1");
     expect(
       line.compareDocumentPosition(price) & Node.DOCUMENT_POSITION_FOLLOWING,

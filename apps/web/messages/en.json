@@ -698,7 +698,8 @@
         "qty": "qty: {qty}",
         "started": "started: {amount}",
         "share": "Share: {pct}",
-        "amountAria": "Edit value of {name}"
+        "amountAria": "Edit value of {name}",
+        "qtyAvg": "{qty} × {avg} avg. cost"
       },
       "rowExpandAria": "Expand {name} details.",
       "plAria": "{value} profit/loss",

@@ -698,7 +698,8 @@
         "qty": "ilość: {qty}",
         "started": "początek: {amount}",
         "share": "Udział: {pct}",
-        "amountAria": "Edytuj wartość {name}"
+        "amountAria": "Edytuj wartość {name}",
+        "qtyAvg": "{qty} × {avg} śr. koszt"
       },
       "rowExpandAria": "Rozwiń szczegóły {name}.",
       "plAria": "{value} zysk/strata",

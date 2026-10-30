@@ -16,6 +16,7 @@ const KEYS = [
   "asset.name.pickOrCreate",
   "asset.name.pickedValue",
   "field.customName",
+  "row.qtyAvg",
   "asset.name.label",
   "asset.name.reopens",
   "asset.swipe.edit",

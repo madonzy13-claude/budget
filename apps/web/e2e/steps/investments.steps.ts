@@ -842,7 +842,7 @@ Then(
     const row = new InvestmentsPo(page).row(name);
     const line = row.getByTestId(/^investment-row-qtyavg$/);
     await expect(line.first()).toHaveText(text);
-    await expect(line.first().locator("[data-avg-icon]")).toHaveCount(1);
+    await expect(line.first().locator("svg")).toHaveCount(0);
   },
 );
 

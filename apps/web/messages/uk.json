@@ -698,7 +698,8 @@
         "qty": "кількість: {qty}",
         "started": "початок: {amount}",
         "share": "Частка: {pct}",
-        "amountAria": "Редагувати вартість {name}"
+        "amountAria": "Редагувати вартість {name}",
+        "qtyAvg": "{qty} × {avg} сер. собівартість"
       },
       "rowExpandAria": "Розгорнути деталі {name}.",
       "plAria": "{value} прибуток/збиток",
