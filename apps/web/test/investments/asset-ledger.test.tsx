@@ -429,6 +429,24 @@ describe("Asset ledger strip", () => {
     );
   });
 
+  // Round 6: an Out sale (withdraw) keeps its minus on the converted line.
+  it("a sale out in another currency shows a negative converted figure", async () => {
+    mount([
+      e({
+        id: "wd",
+        kind: "withdraw",
+        amountCents: "-69000",
+        amountCurrency: "EUR",
+        displayAmountCents: "-300000",
+        displayCurrency: "USD",
+      }),
+    ]);
+    const row = await screen.findByTestId("ledger-row-wd");
+    expect(row.querySelector("[data-converted]")).toHaveTextContent(
+      /^= −3,000(\.00)? USD$/,
+    );
+  });
+
   it("a same-currency entry shows one amount", async () => {
     mount([e({ id: "same", amountCents: "64000", amountCurrency: "PLN" })]);
     const row = await screen.findByTestId("ledger-row-same");

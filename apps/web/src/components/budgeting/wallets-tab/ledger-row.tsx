@@ -175,9 +175,8 @@ export function LedgerRow({
     stored || foreign
       ? (entry.amountCurrency ?? "")
       : (entry.displayCurrency ?? entry.amountCurrency ?? "");
-  const converted = foreign
-    ? `${linkedOut ? "-" : ""}${entry.displayAmountCents!.replace(/^-/, "")}`
-    : null;
+  // The server signs it (money out is negative) — keep that sign.
+  const converted = foreign ? entry.displayAmountCents : null;
   const qty = entry.displayQty ?? entry.qtyDelta;
   const reason = entry.deletable
     ? null
