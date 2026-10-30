@@ -127,11 +127,12 @@ describe("Investment asset writes", () => {
     expect(toastError).toHaveBeenCalledWith("swap.err.staleEntry");
   });
 
-  it("a taken label on edit says the name is taken", async () => {
+  // Round-5: no uniqueness code exists; any 422 on edit is a plain failure.
+  it("an unknown 422 on edit never says the name is taken", async () => {
     mockWrite.mockResolvedValue(json(422, { error: "label_taken" }));
     const result = writes.useUpdateHolding();
     await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(toastError).toHaveBeenCalledWith("asset.name.taken");
+    expect(toastError).not.toHaveBeenCalledWith("asset.name.taken");
   });
 
   it("edit sends only the editable keys (CR-01)", async () => {

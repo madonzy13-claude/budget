@@ -1,7 +1,8 @@
 /**
  * asset-name-combobox.test.tsx — the Add/Transfer name field (13.1 D-02, D-07,
- * UI-SPEC §3). Filters the type's assets (hidden ones marked Closed), offers
- * "Create" on an exact miss, keyboard-selectable, Esc closes only the list.
+ * UI-SPEC §3). Filters the type's assets (hidden ones marked Closed), always
+ * offers "Add as new asset" (round 5: names are not unique), keyboard-
+ * selectable, Esc closes only the list.
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -51,6 +52,7 @@ import { AssetNameCombobox } from "../../src/components/budgeting/wallets-tab/as
 function mount(value = "") {
   const onChange = vi.fn();
   const onPickExisting = vi.fn();
+  const onCreate = vi.fn();
   const onKeyDownOuter = vi.fn();
   const utils = render(
     <div onKeyDown={onKeyDownOuter}>
@@ -60,10 +62,11 @@ function mount(value = "") {
         value={value}
         onChange={onChange}
         onPickExisting={onPickExisting}
+        onCreate={onCreate}
       />
     </div>,
   );
-  return { onChange, onPickExisting, onKeyDownOuter, ...utils };
+  return { onChange, onPickExisting, onCreate, onKeyDownOuter, ...utils };
 }
 
 describe("Asset name combobox", () => {
@@ -81,12 +84,50 @@ describe("Asset name combobox", () => {
     expect(opts[1]).toHaveTextContent("asset.name.closed");
   });
 
-  it("an exact (trimmed, case-insensitive) match offers no Create row", () => {
-    mount(" eth ");
+  // Round-5: names are not unique — an exact match still offers Create.
+  it("an exact (trimmed, case-insensitive) match still offers Add as new asset", () => {
+    const { onCreate } = mount(" eth ");
     fireEvent.focus(screen.getByRole("combobox"));
     expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
       expect.stringContaining("ETH"),
+      "asset.name.create(eth)",
     ]);
+    fireEvent.mouseDown(screen.getByTestId("asset-name-create"));
+    expect(onCreate).toHaveBeenCalled();
+  });
+
+  it("same-name assets list apart and the picked one shows its value and currency", () => {
+    names.push({
+      id: "twin",
+      name: "BTC Ledger",
+      archived: false,
+      instrumentId: "i1",
+      quantity: "0.2",
+      valueCents: "1500000",
+      valueCurrency: "USD",
+    });
+    const { unmount } = mount("BTC Ledger");
+    fireEvent.focus(screen.getByRole("combobox"));
+    const metas = screen
+      .getAllByRole("option")
+      .map((o) => o.querySelector("[data-asset-meta]")?.textContent)
+      .filter(Boolean);
+    expect(metas).toEqual(["90,200 PLN", "15,000 USD"]);
+    unmount();
+    render(
+      <AssetNameCombobox
+        budgetId="b1"
+        uiType="crypto"
+        value="BTC Ledger"
+        onChange={() => {}}
+        selectedId="twin"
+      />,
+    );
+    expect(screen.getByTestId("asset-name-picked")).toHaveTextContent(
+      "15,000 USD",
+    );
+    expect(screen.queryByTestId("asset-name-hint")).toBeNull();
+    names.pop();
   });
 
   it("ArrowDown + Enter picks an existing asset — no join note (round 4)", () => {
@@ -162,8 +203,16 @@ describe("Asset name combobox", () => {
     expect(screen.queryByTestId("asset-name-hint")).toBeNull();
   });
 
-  it("a hidden asset says it reopens", () => {
-    mount("BTC Binance");
+  it("a picked hidden asset says it reopens", () => {
+    render(
+      <AssetNameCombobox
+        budgetId="b1"
+        uiType="crypto"
+        value="BTC Binance"
+        onChange={() => {}}
+        selectedId="b"
+      />,
+    );
     expect(screen.getByTestId("asset-name-note")).toHaveTextContent(
       "asset.name.reopens",
     );

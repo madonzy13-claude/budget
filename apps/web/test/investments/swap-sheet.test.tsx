@@ -199,6 +199,13 @@ describe("Transfer tab", () => {
       fireEvent.mouseDown(option);
     } else type("swap-transfer-name", label);
   };
+  const pickName = async (name: string) => {
+    mount(btc);
+    fireEvent.click(screen.getByTestId("swap-tab-transfer"));
+    type("swap-transfer-qty", "1");
+    fireEvent.focus(screen.getByTestId("swap-transfer-name"));
+    fireEvent.mouseDown(await screen.findByText(name));
+  };
 
   it("picking an existing asset from the list transfers into it", async () => {
     await transferTo(null);
@@ -207,10 +214,9 @@ describe("Transfer tab", () => {
     expect(lastBody().to).toEqual({ kind: "existing", holdingId: btcCold.id });
   });
 
-  it("a typed name equal to an existing asset is that asset (D-07)", async () => {
-    await transferTo("  btc cold ");
-    // Round 4: no join note to wait on — wait for the type's names instead;
-    // the existing asset is still the target.
+  // Round-5: names are not unique — only a pick targets an existing asset.
+  it("a typed name equal to an existing asset is a new asset", async () => {
+    await transferTo("BTC Cold");
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.some(([u]) => String(u).includes("/names")),
@@ -219,11 +225,11 @@ describe("Transfer tab", () => {
     await new Promise((r) => setTimeout(r, 20));
     fireEvent.click(screen.getByTestId("swap-submit"));
     await waitFor(() => expect(writeMock).toHaveBeenCalled());
-    expect(lastBody().to).toEqual({ kind: "existing", holdingId: btcCold.id });
+    expect(lastBody().to).toEqual({ kind: "new", name: "BTC Cold" });
   });
 
   it("an asset of another instrument cannot receive the crypto (D-10)", async () => {
-    await transferTo("SOL");
+    await pickName("SOL");
     expect(
       await screen.findByText("swap.transfer.sameInstrument"),
     ).toBeInTheDocument();

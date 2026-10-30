@@ -67,8 +67,9 @@ const expectLocked = (f: string, text: string) => {
   expect(el.value).toContain(text);
 };
 
-describe("Edit asset sheet — currencies (round-4 gap 23)", () => {
-  it("a currency used by another asset of the same name in the type is greyed out", () => {
+// Round-5 scope change: names are not unique — no currency is taken.
+describe("Edit asset sheet — currencies", () => {
+  it("every currency stays available next to a same-name asset", () => {
     const erstePln = H({
       id: "e-pln",
       name: "Erste",
@@ -95,7 +96,6 @@ describe("Edit asset sheet — currencies (round-4 gap 23)", () => {
           budgetId="b1"
           budgetCurrency="PLN"
           holding={ersteUsd}
-          siblings={[erstePln, ersteUsd]}
         />
       </QueryClientProvider>,
     );
@@ -103,9 +103,8 @@ describe("Edit asset sheet — currencies (round-4 gap 23)", () => {
       screen
         .getByTestId("currency-picker")
         .querySelector<HTMLOptionElement>(`option[value="${c}"]`)!;
-    expect(opt("PLN").disabled).toBe(true);
-    expect(opt("USD").disabled).toBe(false);
-    expect(opt("EUR").disabled).toBe(false);
+    void erstePln;
+    for (const c of ["PLN", "USD", "EUR"]) expect(opt(c).disabled).toBe(false);
   });
 });
 
@@ -218,17 +217,13 @@ describe("Edit asset sheet", () => {
     expect(lastBody()).toEqual({ displayCurrency: "EUR" });
   });
 
-  it("a taken label shows inline and blocks Save until the label changes", async () => {
-    writeMock.mockResolvedValue(
-      new Response(JSON.stringify({ error: "label_taken" }), { status: 422 }),
-    );
+  it("a rename to another asset's name saves without a warning", async () => {
     mount(cash);
     type("edit-asset-name", "BTC");
     fireEvent.click(screen.getByTestId("edit-asset-save"));
-    expect(await screen.findByText("asset.name.taken")).toBeInTheDocument();
-    expect(screen.getByTestId("edit-asset-save")).toBeDisabled();
-    type("edit-asset-name", "BTC 2");
-    expect(screen.getByTestId("edit-asset-save")).not.toBeDisabled();
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody()).toEqual({ name: "BTC" });
+    expect(screen.queryByText("asset.name.taken")).toBeNull();
   });
 
   it("Save is disabled when nothing changed", () => {

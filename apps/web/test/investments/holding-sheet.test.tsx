@@ -1110,18 +1110,37 @@ describe("HoldingSheet — add joins by name (13.1 D-02)", () => {
     });
   });
 
-  // Round-4 gap 23 (user): a label is unique by name AND currency.
-  it("a name that exists in the type greys out the currencies it already uses", () => {
+  // Round-5 scope change: names are not unique — no currency is taken.
+  it("a name that exists in the type keeps every currency and offers Add as new asset", () => {
     render(<HoldingSheet {...baseProps} holding={null} initialUiType="cash" />);
     fireEvent.change(screen.getByTestId("holding-sheet-name"), {
       target: { value: "pot" },
     });
-    const opt = (c: string) =>
-      screen
-        .getAllByTestId("currency-stub")[0]!
-        .querySelector<HTMLOptionElement>(`option[value="${c}"]`)!;
-    expect(opt("USD").disabled).toBe(true);
-    expect(opt("EUR").disabled).toBe(false);
+    for (const sel of screen.getAllByTestId("currency-stub"))
+      for (const o of sel.querySelectorAll("option"))
+        expect((o as HTMLOptionElement).disabled).toBe(false);
+    fireEvent.focus(screen.getByTestId("holding-sheet-name"));
+    expect(screen.getByTestId("asset-name-create")).toBeInTheDocument();
+  });
+
+  // Round-5: a sale's "New investment" pick switches the sale to that asset.
+  it("picking an existing asset as a sale destination reports its id", () => {
+    const onPickExisting = vi.fn();
+    render(
+      <HoldingSheet
+        {...baseProps}
+        holding={null}
+        destination={{
+          receivedCurrency: "PLN",
+          initialUiType: "crypto",
+          onChange: () => {},
+          onPickExisting,
+        }}
+      />,
+    );
+    fireEvent.focus(screen.getByTestId("holding-sheet-name"));
+    fireEvent.mouseDown(screen.getByTestId("asset-name-option-0"));
+    expect(onPickExisting).toHaveBeenCalledWith("btc-id");
   });
 
   describe("name-first Add (UAT 13.1 test 7)", () => {
