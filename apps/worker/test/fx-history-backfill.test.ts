@@ -125,4 +125,26 @@ describe("FX history backfill", () => {
     );
     expect(rows).toHaveLength(1);
   });
+
+  test("a 429 is waited out and retried", async () => {
+    let n = 0;
+    const fetchFn = (async (url: string) =>
+      n++ === 0
+        ? new Response("slow down", { status: 429 })
+        : fakeFetch([])(url)) as unknown as typeof fetch;
+    const res = await backfillFxHistory({
+      pool: workerPool,
+      fetchFn,
+      currencies: ["UAH", "CHF"],
+      from: "2021-01-01",
+      today: "2021-12-31",
+      pause: 1,
+    });
+    expect(res.failed).toBe(0);
+    const { rows } = await workerPool.query(
+      `SELECT 1 FROM budgeting.fx_rates
+        WHERE base = 'UAH' AND quote = 'CHF' AND date = '2021-03-03'`,
+    );
+    expect(rows).toHaveLength(1);
+  });
 });

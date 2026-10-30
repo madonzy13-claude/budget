@@ -43,6 +43,8 @@ export async function backfillFxHistory(opts: {
   currencies?: string[];
   from?: string;
   today?: string;
+  /** First 429 back-off, ms (doubles per retry). */
+  pause?: number;
 }): Promise<{ inserted: number; failed: number }> {
   const {
     pool,
@@ -50,6 +52,7 @@ export async function backfillFxHistory(opts: {
     currencies = FX_HISTORY_CURRENCIES,
     from = FX_HISTORY_FROM,
     today = new Date().toISOString().slice(0, 10),
+    pause = 2_000,
   } = opts;
   let inserted = 0;
   let failed = 0;
@@ -75,7 +78,12 @@ export async function backfillFxHistory(opts: {
         const url =
           `https://api.frankfurter.dev/v2/rates?base=${base}` +
           `&quotes=${quotes.join(",")}&from=${start}&to=${end}`;
-        const r = await fetchFn(url, { signal: AbortSignal.timeout(30_000) });
+        let r = await fetchFn(url, { signal: AbortSignal.timeout(30_000) });
+        // Frankfurter rate-limits a burst (429): wait and retry a few times.
+        for (let i = 0; r.status === 429 && i < 5; i++) {
+          await new Promise((ok) => setTimeout(ok, pause * 2 ** i));
+          r = await fetchFn(url, { signal: AbortSignal.timeout(30_000) });
+        }
         if (!r.ok) throw new Error(`frankfurter http ${r.status}`);
         const body = (await r.json()) as Array<{
           date: string;
