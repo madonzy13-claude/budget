@@ -23,8 +23,8 @@ import { useLocale, useTranslations } from "next-intl";
 import {
   Archive,
   Pencil,
+  CircleSlash2,
   Plus,
-  Scale,
   Trash2,
   TrendingUp,
   TrendingDown,
@@ -467,7 +467,11 @@ export function InvestmentRow({
             >
               {qtyAvg != null ? (
                 <>
-                  <Scale data-avg-icon className="h-3 w-3" aria-hidden="true" />
+                  <CircleSlash2
+                    data-avg-icon
+                    className="h-3 w-3"
+                    aria-hidden="true"
+                  />
                   {qtyAvg}
                 </>
               ) : (

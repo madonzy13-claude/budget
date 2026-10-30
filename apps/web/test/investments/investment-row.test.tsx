@@ -751,7 +751,10 @@ describe("InvestmentRow", () => {
     fireEvent.click(screen.getByLabelText("Expand AAPL"));
     const line = screen.getByTestId("investment-row-qtyavg");
     expect(line).toHaveTextContent(/^10 @ 300$/);
-    expect(line.querySelector("[data-avg-icon]")).not.toBeNull();
+    // Round 6 (user): the average sign ⌀, not scales.
+    expect(
+      line.querySelector("svg.lucide-circle-slash-2[data-avg-icon]"),
+    ).not.toBeNull();
     const price = screen.getByTestId("asset-value-h1");
     expect(
       line.compareDocumentPosition(price) & Node.DOCUMENT_POSITION_FOLLOWING,
