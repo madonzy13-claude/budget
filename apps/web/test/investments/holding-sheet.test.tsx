@@ -428,11 +428,15 @@ describe("HoldingSheet — type-first", () => {
     expect(p.textContent).not.toMatch(/preview\.pl/); // no P/L row for cash
   });
 
-  it("create mode preselects no type → no Asset/Name field, Save disabled", () => {
+  // R6 (user): like Sell and Transfer — nothing below the type until one is
+  // picked: no date, no Save, no Cancel.
+  it("create mode preselects no type → no Asset/Name field, no date, no Save or Cancel", () => {
     render(<HoldingSheet {...baseProps} holding={null} />);
     expect(screen.queryByTestId("holding-sheet-name")).toBeNull();
     expect(screen.queryByTestId("holding-sheet-amount")).toBeNull();
-    expect(screen.getByTestId("holding-sheet-submit")).toBeDisabled();
+    expect(screen.queryByTestId("holding-sheet-date")).toBeNull();
+    expect(screen.queryByTestId("holding-sheet-actions")).toBeNull();
+    expect(screen.queryByTestId("holding-sheet-submit")).toBeNull();
     // Type shows the placeholder (no preselection).
     expect(screen.getByText("field.typePlaceholder")).toBeInTheDocument();
   });
