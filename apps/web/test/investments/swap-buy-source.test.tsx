@@ -83,6 +83,30 @@ describe("Buy — where did the money come from?", () => {
     expect(screen.queryByTestId(`swap-buy-src-option-${btc.id}`)).toBeNull();
   });
 
+  // R6 (user): a nicer list — one labelled group per type, with its icon;
+  // each row: name, then value · currency (and quantity for counted assets).
+  it("groups the sources by type with an icon header and rich rows", async () => {
+    mount(btc);
+    fireEvent.click(screen.getByTestId("swap-buy-from-asset"));
+    fireEvent.keyDown(screen.getByTestId("swap-buy-src"), { key: "Enter" });
+    const cryptoHead = await screen.findByTestId("swap-buy-src-group-crypto");
+    expect(cryptoHead).toHaveTextContent("uitype.crypto");
+    expect(cryptoHead.querySelector("[data-type-icon]")).not.toBeNull();
+    expect(screen.getByTestId("swap-buy-src-group-cash")).toBeInTheDocument();
+    expect(screen.getByTestId("swap-buy-src-group-broker")).toBeInTheDocument();
+    const row = screen.getByTestId(`swap-buy-src-option-${btcCold.id}`);
+    expect(row.querySelector("[data-src-name]")).toHaveTextContent("BTC Cold");
+    expect(row.querySelector("[data-src-value]")).toHaveTextContent(
+      "60,000 PLN",
+    );
+    expect(row.querySelector("[data-src-qty]")).toHaveTextContent("1 BTC");
+    expect(
+      screen
+        .getByTestId(`swap-buy-src-option-${cash.id}`)
+        .querySelector("[data-src-qty]"),
+    ).toBeNull();
+  });
+
   it("from an amount asset into a quantity asset: sells the source into this one", async () => {
     mount(btc);
     fireEvent.click(screen.getByTestId("swap-buy-from-asset"));
