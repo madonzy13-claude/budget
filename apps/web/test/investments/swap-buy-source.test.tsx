@@ -107,6 +107,30 @@ describe("Buy — where did the money come from?", () => {
     ).toBeNull();
   });
 
+  // R6 (user): the picked source shows in full in the field, one line.
+  it("the picked source shows its name, value and quantity in the field", async () => {
+    mount(cash);
+    fireEvent.click(screen.getByTestId("swap-buy-from-asset"));
+    await pick("swap-buy-src", `swap-buy-src-option-${btcCold.id}`);
+    const field = screen.getByTestId("swap-buy-src");
+    expect(field.querySelector("[data-src-name]")).toHaveTextContent(
+      "BTC Cold",
+    );
+    expect(field.querySelector("[data-src-value]")).toHaveTextContent(
+      "60,000 PLN",
+    );
+    expect(field.querySelector("[data-src-qty]")).toHaveTextContent("1 BTC");
+    expect(field.className).toMatch(/\[&>span\]:!flex/);
+  });
+
+  it("list rows keep a compact height", async () => {
+    mount(btc);
+    fireEvent.click(screen.getByTestId("swap-buy-from-asset"));
+    fireEvent.keyDown(screen.getByTestId("swap-buy-src"), { key: "Enter" });
+    const row = await screen.findByTestId(`swap-buy-src-option-${cash.id}`);
+    expect(row.className).not.toMatch(/min-h-11/);
+  });
+
   it("from an amount asset into a quantity asset: sells the source into this one", async () => {
     mount(btc);
     fireEvent.click(screen.getByTestId("swap-buy-from-asset"));
