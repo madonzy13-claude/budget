@@ -891,9 +891,9 @@
           "sold": "Sprzedaż",
           "transferIn": "Przeniesienie z",
           "transferOut": "Przeniesienie do",
-          "convertedIn": "Wymiana (wpływ)",
-          "convertedOut": "Wymiana (wypływ)",
-          "added": "Wpłata",
+          "convertedIn": "Zakup",
+          "convertedOut": "Sprzedaż",
+          "added": "Zakup",
           "valueUpdated": "Zaktualizowana wartość",
           "priceUpdated": "Zaktualizowana cena",
           "interest": "Odsetki"

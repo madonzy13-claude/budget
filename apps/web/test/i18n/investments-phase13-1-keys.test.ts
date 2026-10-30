@@ -205,6 +205,18 @@ describe("Round-5 investments copy", () => {
     });
   });
 
+  it("pl ledger kinds read as requested", () => {
+    expect({
+      added: at(pl, "ledger.kind.added"),
+      convertedIn: at(pl, "ledger.kind.convertedIn"),
+      convertedOut: at(pl, "ledger.kind.convertedOut"),
+    }).toEqual({
+      added: "Zakup",
+      convertedIn: "Zakup",
+      convertedOut: "Sprzedaż",
+    });
+  });
+
   it("metal units take the right plural", () => {
     const tr = (locale: string, messages: unknown) =>
       createTranslator({
