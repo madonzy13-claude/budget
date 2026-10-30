@@ -67,6 +67,7 @@ import {
   UOMS,
   OZ_PER_UNIT,
   deriveUiType,
+  isQtyUiType,
   isAutoPriced,
   usesUserChosenCurrency,
   CAP_FREQUENCIES,
@@ -82,6 +83,8 @@ import {
 } from "@/lib/holding-preview";
 import { PriceBlockedBanner } from "./price-blocked-banner";
 import { SwapBuyTab } from "./swap-buy-tab";
+import { useBuySource } from "./swap-buy-source";
+import { useSellHolding } from "@/hooks/use-sell-holding";
 import { today as todayIso } from "./swap-shared";
 import { useMinEntryDate } from "@/hooks/use-asset-entries";
 import { useInvestments } from "@/hooks/use-investments";
@@ -611,6 +614,28 @@ export function HoldingSheet({
     depositStart,
   ]);
 
+  // R6 (user): where the money came from — like Buy on an existing asset. A
+  // source asset is sold into the new one (the Sell endpoint books it).
+  const sellMut = useSellHolding(budgetId);
+  const qtyBuy = !!uiType && isQtyUiType(uiType as UiType);
+  const recvCcy = behavior === "cash" ? currentPriceCurrency : buyCurrency;
+  const recvCents = (() => {
+    const c = (v: string) => Number(toCents(v) ?? 0);
+    if (behavior === "cash") return c(currentPrice);
+    if (behavior === "broker" || behavior === "deposit") return c(buyPrice);
+    const q = Number(quantity.replace(",", "."));
+    return Number.isFinite(q) && q > 0 ? q * c(buyPrice) : 0;
+  })();
+  const sourceDate = behavior === "deposit" ? depositStart || today : openedOn;
+  const source = useBuySource({
+    holdings: holdingsList ?? [],
+    budgetCurrency,
+    date: sourceDate,
+    recvCents,
+    recvCcy,
+  });
+  const fromSource = !dest && source.fromAsset;
+
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
@@ -738,6 +763,32 @@ export function HoldingSheet({
 
   function handleSave() {
     if (!canSave) return;
+    if (fromSource) {
+      if (!source.src || !source.left) return;
+      // The new asset is created by the sale; its cost is what arrived.
+      const { buyPriceCents, ...holding } = buildPayload() as Record<
+        string,
+        unknown
+      > & { buyPriceCents?: string | null };
+      sellMut.mutate({
+        holdingId: source.src.id,
+        body: {
+          effectiveDate: sourceDate,
+          left: source.left,
+          destination: {
+            kind: "new",
+            holding,
+            ...(qtyBuy && buyPriceCents
+              ? { priceCents: String(Math.round(Number(buyPriceCents))) }
+              : {}),
+          },
+          ...(qtyBuy ? {} : { receivedCents: String(Math.round(recvCents)) }),
+          receivedCurrency: recvCcy,
+        },
+      });
+      onOpenChange(false);
+      return;
+    }
     // R5-1: a deposit is dated by its start date — no separate Date.
     const payload =
       behavior === "deposit" ? buildPayload() : { ...buildPayload(), openedOn };
@@ -1350,6 +1401,8 @@ export function HoldingSheet({
       ) : (
         <>
           {formFields}
+
+          {uiType && !dest && source.node}
 
           {/* 8. Preview — "what will be created" sum-up (all types). */}
           {preview && (
