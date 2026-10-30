@@ -1,7 +1,7 @@
 "use client";
 /**
- * use-asset-names.ts — autocomplete over a type's assets, hidden (qty 0) ones
- * included so a buy under that name revives it (D-02, D-17).
+ * use-asset-names.ts — the type's assets for the name pickers, archived ones
+ * included (picking one restores it, by id). Names are not unique (round 5).
  */
 import { useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
@@ -15,6 +15,10 @@ export interface AssetNameDto {
   quantity: string;
   valueCents: string | null;
   valueCurrency: string | null;
+  symbol?: string | null;
+  instrumentName?: string | null;
+  holdingType?: string;
+  unitOfMeasure?: string | null;
 }
 
 export const namesKey = (budgetId: string, uiType: string) =>

@@ -5,9 +5,9 @@
  * same instrument — or to a new label. Not a sale: no realized gain, no
  * contribution change; cost moves proportionally (server-side).
  *
- * The target is ONE name field (13.1 UAT 11): a name equal (trimmed, case-
- * insensitive) to an asset of the type is that asset — hidden ones too, which
- * the transfer revives (D-07, D-17); any other name is a new label.
+ * The target is ONE name field (13.1 UAT 11): a PICKED asset is the target,
+ * by id (an archived one is revived, D-17); any typed name — even one that
+ * exists — is a new asset (round 5: names are not unique).
  */
 import { useState } from "react";
 import { useTranslations } from "next-intl";
@@ -16,7 +16,6 @@ import { Info } from "lucide-react";
 import { centsToBare } from "@/lib/cents-format";
 import { deriveUiType, holdingShape } from "@/lib/investment-types";
 import { isOfflineWriteError } from "@/lib/offline-write";
-import type { AssetWriteError } from "@/lib/investment-invalidate";
 import { buildSwapSummary } from "@/lib/swap-summary";
 import { useAssetNames } from "@/hooks/use-asset-names";
 import { useTransferAsset } from "@/hooks/use-transfer-asset";
@@ -37,8 +36,6 @@ import {
   toCents,
   trimQty,
 } from "./swap-shared";
-
-const norm = (s: string) => s.trim().toLowerCase();
 
 export function SwapTransferTab({
   budgetId,
@@ -70,15 +67,18 @@ export function SwapTransferTab({
     setMoveState(v);
     setDraft?.(v);
   };
-  const [label, setLabel] = useState("");
+  const [label, setLabelState] = useState("");
+  const [targetId, setTargetId] = useState<string | null>(null);
+  const setLabel = (v: string) => {
+    setLabelState(v);
+    setTargetId(null);
+  };
   const [serverError, setServerError] = useState<string | null>(null);
 
   const target =
     label.trim() === ""
       ? null
-      : (names.find(
-          (n) => n.id !== holding.id && norm(n.name) === norm(label),
-        ) ?? null);
+      : (names.find((n) => n.id === targetId && n.id !== holding.id) ?? null);
   const to = label.trim() === "" ? null : target ? "existing" : "new";
   const wrongInstrument =
     !!target && sameInstrument && target.instrumentId !== holding.instrumentId;
@@ -144,12 +144,7 @@ export function SwapTransferTab({
         },
         onError: (e) => {
           if (isOfflineWriteError(e)) return;
-          const code = (e as AssetWriteError).code;
-          setServerError(
-            code === "label_taken"
-              ? t("asset.name.taken")
-              : t("swap.err.saveFailed"),
-          );
+          setServerError(t("swap.err.saveFailed"));
         },
       },
     );
@@ -197,6 +192,8 @@ export function SwapTransferTab({
             value={label}
             onChange={setLabel}
             excludeId={holding.id}
+            selectedId={targetId}
+            onPickExisting={(a) => setTargetId(a.id)}
             testId="swap-transfer-name"
             ariaLabel={t("swap.transfer.to")}
             invalid={wrongInstrument}

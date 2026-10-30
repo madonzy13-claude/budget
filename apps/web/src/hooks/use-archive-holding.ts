@@ -48,6 +48,34 @@ export function useArchiveHolding(budgetId: string) {
       toast.error(t("asset.archive.failed"));
     },
     onSuccess: () => toast.success(t("asset.archive.done")),
-    onSettled: () => invalidateInvestments(qc, budgetId, { walletTouched: false }),
+    onSettled: () =>
+      invalidateInvestments(qc, budgetId, { walletTouched: false }),
+  });
+}
+
+/** Round 5: picking an archived asset brings it back (POST /:id/restore). */
+export function useRestoreHolding(budgetId: string) {
+  const qc = useQueryClient();
+  const t = useTranslations("budget.investments");
+  const offlineToast = useOfflineWriteToast();
+  return useMutation({
+    mutationFn: async (holdingId: string) => {
+      const res = await clientApiWrite(
+        `/budgets/${budgetId}/investments/${holdingId}/restore`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        },
+      );
+      if (!res.ok) throw new Error(await res.text());
+      return (await res.json()) as { ok: true };
+    },
+    onError: (err) => {
+      if (isOfflineWriteError(err)) return offlineToast();
+      toast.error(t("swap.err.saveFailed"));
+    },
+    onSettled: () =>
+      invalidateInvestments(qc, budgetId, { walletTouched: false }),
   });
 }

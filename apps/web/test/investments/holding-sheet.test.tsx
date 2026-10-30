@@ -41,6 +41,10 @@ const createMutate = vi.fn();
 vi.mock("../../src/hooks/use-create-holding", () => ({
   useCreateHolding: () => ({ mutate: createMutate }),
 }));
+const restoreMutate = vi.fn();
+vi.mock("../../src/hooks/use-archive-holding", () => ({
+  useRestoreHolding: () => ({ mutate: restoreMutate }),
+}));
 // 13.1 D-02: the Name field autocompletes over the type's assets.
 vi.mock("../../src/hooks/use-asset-names", () => ({
   useAssetNames: (_b: string, type: string | null) => ({
@@ -188,13 +192,11 @@ vi.mock("../../src/components/common/currency-picker", () => ({
     onSelect,
     richLabel,
     desktopDropdown,
-    disabledCodes = [],
   }: {
     value?: string;
     onSelect: (v: string) => void;
     richLabel?: boolean;
     desktopDropdown?: boolean;
-    disabledCodes?: string[];
   }) => (
     <select
       data-testid="currency-stub"
@@ -204,7 +206,7 @@ vi.mock("../../src/components/common/currency-picker", () => ({
       onChange={(e) => onSelect(e.target.value)}
     >
       {["USD", "EUR", "PLN"].map((c) => (
-        <option key={c} value={c} disabled={disabledCodes.includes(c)}>
+        <option key={c} value={c}>
           {c}
         </option>
       ))}

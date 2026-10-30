@@ -515,9 +515,7 @@ export function SwapSellTab({
                 })
               : w.code === "before_latest_entry"
                 ? t("swap.err.beforeLatest", { date: minDate ?? "" })
-                : w.code === "label_taken"
-                  ? t("asset.name.taken")
-                  : t("swap.err.saveFailed"),
+                : t("swap.err.saveFailed"),
           );
         },
       },
@@ -631,6 +629,11 @@ export function SwapSellTab({
                 receivedCurrency={receivedCcy}
                 initialUiType="cash"
                 onChange={setNewHolding}
+                // Round 5: a picked existing name sells into THAT asset.
+                onPickExisting={(id) => {
+                  setDest("existing");
+                  pickExisting(id);
+                }}
               />
               {newIsQty && destPair(false)}
             </>

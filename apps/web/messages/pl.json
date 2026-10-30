@@ -777,7 +777,6 @@
           "create": "Dodaj jako nowe aktywo „{name}”",
           "closed": "Zarchiwizowane",
           "reopens": "Ponownie otworzy {name}.",
-          "taken": "Ten typ ma już aktywo o takiej nazwie.",
           "pickOrCreate": "Wybierz istniejące aktywo lub wpisz nową nazwę."
         },
         "archive": {

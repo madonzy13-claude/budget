@@ -29,8 +29,6 @@ export function assetRefusalKey(code: string): string {
     case "linked_not_newest":
     case "stale":
       return "swap.err.staleEntry";
-    case "label_taken":
-      return "asset.name.taken";
     case "before_latest_entry":
       return "swap.err.beforeLatest";
     case "fx_unavailable":

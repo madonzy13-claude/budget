@@ -620,7 +620,7 @@ export class InvestmentsPo {
     await this.page.getByTestId("holding-sheet-submit").click();
     const res = await posted;
     if (!res.ok()) throw new Error(`create asset POST failed: ${res.status()}`);
-    return (await res.json()) as { id: string; joined: boolean };
+    return (await res.json()) as { id: string };
   }
 
   /** Add a broker holding with an opening date (deposited/current in major units). */

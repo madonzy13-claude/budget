@@ -500,11 +500,24 @@ Feature: Investments as assets with transactions (13.1)
 
   # Gap 23: the same name in another currency is its own asset (no "(2)").
   @r4-label-ccy
-  Scenario: The same name in another currency is a separate asset
+  Scenario: The same name is a separate asset in any currency
     Given a "cash" holding "Erste" deposited 100000 cents worth 100000 cents exists in my budget
     When I open the investments wallets tab
     And I add a "cash" asset "Erste" in "EUR" worth "100"
+    And I add a "cash" asset "Erste" in "PLN" worth "200"
+    Then there are 3 asset rows "Erste"
+
+  # Round-5 scope change: names are not unique; twins read apart by value.
+  @r5-same-name
+  Scenario: Same-name assets are offered apart and the picked one shows its value
+    Given a "cash" holding "Erste" deposited 100000 cents worth 100000 cents exists in my budget
+    When I open the investments wallets tab
+    And I add a "cash" asset "Erste" in "PLN" worth "250"
     Then there are 2 asset rows "Erste"
+    When I type "Erste" as the name in the "cash" Add form
+    Then the name list offers "Add as new asset" and 2 "Erste" options with "1,000 PLN" and "250 PLN"
+    When I pick the "Erste" option worth "250 PLN"
+    Then the picked asset line reads "250 PLN"
 
   # Live phone drive (13.1-16): list → ledger strip look in both themes →
   # every Swap tab shows its sum-up and fits, in every launch locale.

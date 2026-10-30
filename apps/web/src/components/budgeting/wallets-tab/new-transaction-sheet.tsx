@@ -270,6 +270,7 @@ export function NewTransactionSheet({
                   }}
                   allowCreate={false}
                   include={(a) => ids.has(a.id)}
+                  selectedId={picked?.id ?? null}
                   testId="new-tx-asset"
                   ariaLabel={t("newTx.pickAsset")}
                   onPickExisting={(a) => {

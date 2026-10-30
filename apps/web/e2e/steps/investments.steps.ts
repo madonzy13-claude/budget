@@ -1,4 +1,4 @@
-import { expect, type Locator } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { createBdd, type DataTable } from "playwright-bdd";
 import { test } from "../fixtures/fresh-user-per-scenario";
 import { InvestmentsPo } from "../page-objects/InvestmentsPo";
@@ -713,6 +713,68 @@ Then(
   },
 );
 
+/** The picked asset's Buy form (Add → existing asset): quantity × price for
+ *  a quantity asset, otherwise the amount (a broker's value after follows). */
+async function buyInPickedForm(page: Page, qty: string, price: string) {
+  const qtyField = page.getByTestId("swap-buy-qty");
+  await expect(
+    qtyField.or(page.getByTestId("swap-buy-amount")).first(),
+  ).toBeVisible({ timeout: 15000 });
+  if (await qtyField.isVisible().catch(() => false)) {
+    await qtyField.fill(qty);
+    await page.getByTestId("swap-buy-price").fill(price);
+  } else
+    await page
+      .getByTestId("swap-buy-amount")
+      .fill(String(Number(qty) * Number(price)));
+  expect(await new InvestmentsPo(page).submitSwap("/buy")).toBe(201);
+}
+
+When(
+  "I type {string} as the name in the {string} Add form",
+  async ({ page }, name: string, type: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openAdd(type);
+    await po.sheet().getByTestId("holding-sheet-name").fill(name);
+  },
+);
+
+Then(
+  "the name list offers {string} and {int} {string} options with {string} and {string}",
+  async (
+    { page },
+    _create: string,
+    n: number,
+    name: string,
+    a: string,
+    b: string,
+  ) => {
+    const list = page.getByRole("listbox");
+    await expect(page.getByTestId("asset-name-create")).toBeVisible();
+    const opts = list
+      .getByRole("option")
+      .filter({ hasText: new RegExp(`^${name}`) });
+    await expect(opts).toHaveCount(n);
+    await expect(opts.filter({ hasText: a })).toHaveCount(1);
+    await expect(opts.filter({ hasText: b })).toHaveCount(1);
+  },
+);
+
+When(
+  "I pick the {string} option worth {string}",
+  async ({ page }, name: string, worth: string) => {
+    await page
+      .getByRole("option")
+      .filter({ hasText: new RegExp(`^${name}`) })
+      .filter({ hasText: worth })
+      .dispatchEvent("mousedown");
+  },
+);
+
+Then("the picked asset line reads {string}", async ({ page }, text: string) => {
+  await expect(page.getByTestId("asset-name-picked")).toHaveText(text);
+});
+
 // ── 13.1: assets, Swap, wallet target, ledger ──
 
 Given(
@@ -826,20 +888,16 @@ When(
     await field.fill(typed);
     const option = page.getByTestId("asset-name-option-0");
     await expect(option).toContainText("Archived");
+    // Round 5: names never join — picking the archived asset restores it
+    // (by id) and opens its Buy form.
+    const restored = page.waitForResponse(
+      (r) => r.url().endsWith("/restore") && r.request().method() === "POST",
+      { timeout: 15000 },
+    );
     await option.click();
-    await expect(page.getByTestId("asset-name-note")).toBeVisible();
-    await page.getByTestId("holding-sheet-buy-price").fill(buy);
-    await page.getByTestId("holding-sheet-quantity").fill(qty);
-    await page.getByTestId("holding-sheet-amount").fill(current);
-    const posted = page.waitForResponse(
-      (r) =>
-        /\/budgets\/[^/]+\/investments(\?.*)?$/.test(r.url()) &&
-        r.request().method() === "POST",
-    );
-    await page.getByTestId("holding-sheet-submit").click();
-    expect(((await (await posted).json()) as { joined: boolean }).joined).toBe(
-      true,
-    );
+    expect((await restored).ok()).toBe(true);
+    void current;
+    await buyInPickedForm(page, qty, buy);
   },
 );
 
@@ -2448,21 +2506,14 @@ Then(
       .getByRole("option")
       .filter({ hasText: new RegExp(`^${name}`) });
     await expect(option).toContainText("Archived");
-    await option.dispatchEvent("mousedown");
-    // An archived asset is not in the live list, so the Add form books the buy
-    // and the server joins it by name (D-02 create-or-join revives it).
-    await page.getByTestId("holding-sheet-deposited").fill(amount);
-    await page.getByTestId("holding-sheet-actual").fill(amount);
-    const posted = page.waitForResponse(
-      (r) =>
-        /\/budgets\/[^/]+\/investments(\?.*)?$/.test(r.url()) &&
-        r.request().method() === "POST",
+    // Round 5: picking it restores it (by id) and opens its Buy form.
+    const restored = page.waitForResponse(
+      (r) => r.url().endsWith("/restore") && r.request().method() === "POST",
       { timeout: 15000 },
     );
-    await page.getByTestId("holding-sheet-submit").click();
-    expect(((await (await posted).json()) as { joined: boolean }).joined).toBe(
-      true,
-    );
+    await option.dispatchEvent("mousedown");
+    expect((await restored).ok()).toBe(true);
+    await buyInPickedForm(page, "1", amount);
     await expect(po.row(name)).toBeVisible({ timeout: 10000 });
   },
 );
@@ -2528,7 +2579,7 @@ Then(
   },
 );
 
-// Gap 23 (user): a label is unique by name AND currency.
+// Round 5: names are not unique — Add always creates.
 When(
   "I add a {string} asset {string} in {string} worth {string}",
   async ({ page }, type: string, name: string, ccy: string, amount: string) => {
@@ -2554,7 +2605,6 @@ When(
     await page.getByTestId("holding-sheet-submit").click();
     const res = await posted;
     expect(res.ok(), await res.text()).toBe(true);
-    expect(((await res.json()) as { joined: boolean }).joined).toBe(false);
   },
 );
 

@@ -33,9 +33,6 @@ export interface CurrencyOption {
 
 interface CurrencyPickerProps {
   value?: string;
-  /** Shown but not choosable (greyed), e.g. currencies an asset of the same
-   *  name already uses (round-4 gap 23: assets are unique by name + currency). */
-  disabledCodes?: string[];
   onSelect: (currency: string) => void;
   placeholder?: string;
   disabled?: boolean;
@@ -100,7 +97,6 @@ export function CurrencyPicker({
   desktopDropdown = false,
   open,
   onOpenChange,
-  disabledCodes = [],
 }: CurrencyPickerProps) {
   const t = useTranslations("currency");
   const effectivePlaceholder = placeholder ?? t("picker.placeholder");
@@ -204,7 +200,6 @@ export function CurrencyPicker({
           <option
             key={item.value}
             value={item.value}
-            disabled={disabledCodes.includes(item.value)}
             data-testid={`currency-option-${item.value}`}
           >
             {richLabel ? richTextFor(item) : item.value}
@@ -275,7 +270,6 @@ export function CurrencyPicker({
             <SelectItem
               key={item.value}
               value={item.value}
-              disabled={disabledCodes.includes(item.value)}
               data-testid={`currency-option-${item.value}`}
             >
               <span className="flex items-center gap-2">

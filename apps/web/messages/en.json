@@ -777,7 +777,6 @@
           "create": "Add as new asset \"{name}\"",
           "closed": "Archived",
           "reopens": "This reopens {name}.",
-          "taken": "This type already has an asset with that name.",
           "pickOrCreate": "Pick an existing asset or type a new name."
         },
         "archive": {

@@ -52,6 +52,7 @@ import {
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { centsToBare } from "@/lib/cents-format";
 import { useCreateHolding } from "@/hooks/use-create-holding";
+import { useRestoreHolding } from "@/hooks/use-archive-holding";
 import {
   AssetNameCombobox,
   keepSheetOnListEscape,
@@ -84,7 +85,6 @@ import { SwapBuyTab } from "./swap-buy-tab";
 import { today as todayIso } from "./swap-shared";
 import { useMinEntryDate } from "@/hooks/use-asset-entries";
 import { useInvestments } from "@/hooks/use-investments";
-import { useAssetNames } from "@/hooks/use-asset-names";
 import {
   InstrumentSearchInput,
   type InstrumentSuggestion,
@@ -105,6 +105,8 @@ interface HoldingSheetProps {
     receivedCurrency: string;
     initialUiType?: UiType;
     onChange: (h: DestinationHolding | null) => void;
+    /** Round 5: an existing asset picked by name → sell into it (by id). */
+    onPickExisting?: (id: string) => void;
   };
   /** Add mode: start with this type chosen. */
   initialUiType?: UiType;
@@ -180,9 +182,10 @@ export function HoldingSheet({
   const t = useTranslations("budget.investments");
   const fmt = useFormatter();
   const createMut = useCreateHolding(budgetId);
+  const restoreMut = useRestoreHolding(budgetId);
   // 13.1 UAT 7: picking an existing asset from the Name list turns Add into
-  // that asset's locked Buy form (Swap → Buy, D-08). Not in the sale's
-  // destination mode — there the label joins on the server.
+  // that asset's locked Buy form (Swap → Buy, D-08). In a sale's destination
+  // mode the pick switches the sale to that asset (round 5).
   const [pickedId, setPickedId] = useState<string | null>(
     initialPickedId ?? null,
   );
@@ -786,24 +789,8 @@ export function HoldingSheet({
     uom,
   ]);
 
-  // Round-4 gap 23: assets are unique by name + currency — a typed name that
-  // exists in the type greys out the currencies it already uses (picking the
-  // existing asset itself opens its Buy form instead). Not for a sale's new
-  // destination, which joins on the server.
-  const typeNames = useAssetNames(budgetId, dest ? null : uiType || null).data;
-  const typedName = (behavior === "tracked" ? customName : name)
-    .trim()
-    .toLowerCase();
-  const takenCurrencies =
-    !dest && !picked && typedName
-      ? (typeNames ?? [])
-          .filter((n) => n.name.trim().toLowerCase() === typedName)
-          .map((n) => n.valueCurrency)
-          .filter((c): c is string => !!c)
-      : [];
-
-  // D-02: the same name in the type joins that asset (hidden ones reopen).
-  // Tracked types: the name is the asset's label (customName) and, until an
+  // Round 5: names are not unique — a pick is by id (an archived one is
+  // restored), anything typed can be added as new. Tracked types: the name is the asset's label (customName) and, until an
   // instrument is chosen, also seeds the instrument search (13.1 UAT 7).
   const tracked = behavior === "tracked";
   const nameField = (
@@ -820,7 +807,13 @@ export function HoldingSheet({
         setCustomName(v);
         if (instrumentId == null && !manualEntry) setName(v);
       }}
-      onPickExisting={(a) => !dest && setPickedId(a.id)}
+      selectedId={pickedId}
+      onCreate={() => setPickedId(null)}
+      onPickExisting={(a) => {
+        if (dest) return dest.onPickExisting?.(a.id);
+        if (a.archived) restoreMut.mutate(a.id);
+        setPickedId(a.id);
+      }}
     />
   );
 
@@ -989,7 +982,6 @@ export function HoldingSheet({
         <>
           <Field label={t("field.currency")}>
             <CurrencyPicker
-              disabledCodes={takenCurrencies}
               variant="field"
               richLabel
               desktopDropdown
@@ -1034,7 +1026,6 @@ export function HoldingSheet({
           </Field>
           <Field label={t("field.currency")}>
             <CurrencyPicker
-              disabledCodes={takenCurrencies}
               variant="field"
               richLabel
               desktopDropdown
@@ -1070,7 +1061,6 @@ export function HoldingSheet({
         <>
           <Field label={t("field.currency")}>
             <CurrencyPicker
-              disabledCodes={takenCurrencies}
               variant="field"
               richLabel
               desktopDropdown
@@ -1169,7 +1159,6 @@ export function HoldingSheet({
               }
             >
               <CurrencyPicker
-                disabledCodes={takenCurrencies}
                 variant="field"
                 richLabel
                 desktopDropdown
@@ -1710,6 +1699,7 @@ export function HoldingFormFields(props: {
   receivedCurrency: string;
   initialUiType?: UiType;
   onChange: (h: DestinationHolding | null) => void;
+  onPickExisting?: (id: string) => void;
 }) {
   return (
     <HoldingSheet
@@ -1721,6 +1711,7 @@ export function HoldingFormFields(props: {
         receivedCurrency: props.receivedCurrency,
         initialUiType: props.initialUiType,
         onChange: props.onChange,
+        onPickExisting: props.onPickExisting,
       }}
     />
   );

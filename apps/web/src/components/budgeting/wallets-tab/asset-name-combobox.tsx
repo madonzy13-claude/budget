@@ -3,9 +3,10 @@
  * asset-name-combobox.tsx — asset name field with autocomplete over the type's
  * assets (13.1 D-02, D-07, UI-SPEC §3).
  *
- * Same name (trimmed, case-insensitive) = the same asset: picking one joins it
- * (a hidden, sold-out one reopens). The list opens on focus, before any
- * typing (13.1 UAT 7); a new name always ends it with "Add as new asset". A plain
+ * Names are not unique (round-5 scope change): an asset is what you PICK, by
+ * id; any typed name — even one that exists — can be added as a new asset.
+ * Each option, and the picked one, shows its value + currency so twins read
+ * apart. The list opens on focus, before any typing (13.1 UAT 7). A plain
  * ARIA combobox + listbox rather than Popover/Command: the list sits inline
  * under the input inside the sheet, so there is no portal to fight.
  */
@@ -47,6 +48,10 @@ interface Props {
   allowCreate?: boolean;
   /** Narrow the list, e.g. to assets that can be sold right now. */
   include?: (a: AssetNameDto) => boolean;
+  /** The picked asset's id — its value + currency show under the field. */
+  selectedId?: string | null;
+  /** "Add as new asset" chosen. */
+  onCreate?: () => void;
 }
 
 /** "90,200 PLN" — the value in the asset's own currency; no price → 0
@@ -67,6 +72,8 @@ export function AssetNameCombobox({
   invalid,
   allowCreate = true,
   include,
+  selectedId,
+  onCreate,
 }: Props) {
   const t = useTranslations("budget.investments");
   const names = (useAssetNames(budgetId, uiType).data ?? []).filter(
@@ -77,12 +84,13 @@ export function AssetNameCombobox({
 
   const q = norm(value);
   const matches = names.filter((n) => norm(n.name).includes(q));
-  const exact = names.find((n) => norm(n.name) === q) ?? null;
+  const picked =
+    names.find((n) => n.id === selectedId && norm(n.name) === q) ?? null;
   const options: Array<
     { kind: "asset"; a: AssetNameDto } | { kind: "create" }
   > = [
     ...matches.slice(0, MAX).map((a) => ({ kind: "asset" as const, a })),
-    ...(allowCreate && q && !exact ? [{ kind: "create" as const }] : []),
+    ...(allowCreate && q ? [{ kind: "create" as const }] : []),
   ];
   const listId = `${testId ?? "asset-name"}-list`;
 
@@ -92,7 +100,7 @@ export function AssetNameCombobox({
     if (o.kind === "asset") {
       onChange(o.a.name);
       onPickExisting?.(o.a);
-    }
+    } else onCreate?.();
     setOpen(false);
     setActive(-1);
   };
@@ -159,8 +167,10 @@ export function AssetNameCombobox({
               // mousedown, not click: the input's blur would close the list first.
               onMouseDown={(e) => {
                 e.preventDefault();
-                if (o.kind === "create") setOpen(false);
-                else pick(i);
+                if (o.kind === "create") {
+                  setOpen(false);
+                  onCreate?.();
+                } else pick(i);
               }}
               className="flex min-h-11 cursor-pointer items-center justify-between gap-2 px-3 text-[14px]"
               style={{
@@ -173,7 +183,7 @@ export function AssetNameCombobox({
                 <>
                   <span className="min-w-0 break-words">{o.a.name}</span>
                   {/* Round 4: qty · value CCY, so similar names are told apart. */}
-                  {(
+                  {
                     <span
                       data-asset-meta
                       className="ml-auto shrink-0 text-[12px] tabular-nums"
@@ -181,7 +191,7 @@ export function AssetNameCombobox({
                     >
                       {meta(o.a)}
                     </span>
-                  )}
+                  }
                   {o.a.archived && (
                     <span
                       className="shrink-0 text-[12px]"
@@ -200,13 +210,21 @@ export function AssetNameCombobox({
       )}
       {/* Round 4: picking an active asset needs no note (its Buy form shows);
           a hidden one still says it reopens (D-17). */}
-      {exact?.archived ? (
+      {picked?.archived ? (
         <p
           data-testid="asset-name-note"
           className="text-[12px] leading-[1.4]"
           style={{ color: "var(--muted-foreground)" }}
         >
-          {t("asset.name.reopens", { name: exact.name })}
+          {t("asset.name.reopens", { name: picked.name })}
+        </p>
+      ) : picked ? (
+        <p
+          data-testid="asset-name-picked"
+          className="text-[12px] leading-[1.4] tabular-nums"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          {meta(picked)}
         </p>
       ) : (
         allowCreate && (

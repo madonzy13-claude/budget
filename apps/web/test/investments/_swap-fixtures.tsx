@@ -38,13 +38,11 @@ vi.mock("../../src/components/common/currency-picker", () => ({
     onSelect,
     disabled,
     "aria-label": aria,
-    disabledCodes = [],
   }: {
     value: string;
     onSelect: (v: string) => void;
     disabled?: boolean;
     "aria-label"?: string;
-    disabledCodes?: string[];
   }) => (
     <select
       aria-label={aria}
@@ -54,7 +52,7 @@ vi.mock("../../src/components/common/currency-picker", () => ({
       onChange={(e) => onSelect(e.target.value)}
     >
       {["PLN", "EUR", "USD"].map((c) => (
-        <option key={c} value={c} disabled={disabledCodes.includes(c)}>
+        <option key={c} value={c}>
           {c}
         </option>
       ))}

@@ -32,7 +32,6 @@ import { Input } from "@/components/ui/input";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { holdingShape } from "@/lib/investment-types";
 import { isOfflineWriteError } from "@/lib/offline-write";
-import type { AssetWriteError } from "@/lib/investment-invalidate";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
 import { clientApiFetch } from "@/lib/budget-fetch";
@@ -59,16 +58,12 @@ export function EditAssetSheet({
   budgetId,
   budgetCurrency,
   holding,
-  siblings = [],
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   budgetId: string;
   budgetCurrency: string;
   holding: HoldingDto;
-  /** The section's assets — same-name ones in this type reserve their
-   *  currency (round-4 gap 23: unique by name + currency). */
-  siblings?: HoldingDto[];
 }) {
   const t = useTranslations("budget.investments");
   const updateMut = useUpdateHolding(budgetId);
@@ -145,7 +140,6 @@ export function EditAssetSheet({
   const [fxFailed, setFxFailed] = useState(false);
   const touched = useRef(false);
   const asked = useRef(ccy0);
-  const [takenName, setTakenName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const editValue = (v: string) => {
@@ -187,12 +181,8 @@ export function EditAssetSheet({
     ...(showValue && valueChanged ? { currentValueCents: toCents(price) } : {}),
     ...(showPrice && valueChanged ? { currentPriceCents: toCents(price) } : {}),
   };
-  const taken = takenName !== null && name.trim() === takenName;
   const canSave =
-    Object.keys(edit).length > 0 &&
-    name.trim() !== "" &&
-    !taken &&
-    !updateMut.isPending;
+    Object.keys(edit).length > 0 && name.trim() !== "" && !updateMut.isPending;
 
   function save() {
     if (!canSave) return;
@@ -206,9 +196,7 @@ export function EditAssetSheet({
         },
         onError: (e) => {
           if (isOfflineWriteError(e)) return;
-          if ((e as AssetWriteError).code === "label_taken")
-            setTakenName(name.trim());
-          else setError(t("swap.err.saveFailed"));
+          setError(t("swap.err.saveFailed"));
         },
       },
     );
@@ -235,30 +223,11 @@ export function EditAssetSheet({
             <Input
               data-testid="edit-asset-name"
               value={name}
-              aria-invalid={taken || undefined}
               onChange={(e) => setName(e.target.value)}
             />
           </Field>
-          {taken && (
-            <p
-              role="alert"
-              className="text-[12px]"
-              style={{ color: "var(--trading-down)" }}
-            >
-              {t("asset.name.taken")}
-            </p>
-          )}
           <Field label={t("edit.displayCurrency")}>
             <CurrencyPicker
-              disabledCodes={siblings
-                .filter(
-                  (o) =>
-                    o.id !== holding.id &&
-                    o.uiType === holding.uiType &&
-                    o.name.trim().toLowerCase() === name.trim().toLowerCase(),
-                )
-                .map((o) => o.currentPriceCurrency ?? o.buyCurrency)
-                .filter((c): c is string => !!c)}
               variant="field"
               value={ccy}
               onSelect={pickCcy}

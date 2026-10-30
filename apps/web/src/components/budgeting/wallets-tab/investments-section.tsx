@@ -701,7 +701,6 @@ export function InvestmentsSection({
           budgetId={budgetId}
           budgetCurrency={budgetCurrency}
           holding={editing}
-          siblings={holdings}
         />
       )}
       <AlertDialog
