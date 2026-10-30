@@ -214,6 +214,14 @@ Feature: Investments as assets with transactions (13.1)
     And I change the currency of "Coins" to "EUR" in Edit and save
     Then the asset "Coins" is shown in "EUR"
 
+  # R6 (user): the locked price follows each pick at once, before saving.
+  @r6-metal-ccy-locked
+  Scenario: A coin's locked price follows every currency pick before saving
+    Given a silver coin asset "Coins" of 100 grams at 5155 cents with premium "25.17" exists in my budget
+    When I open the investments wallets tab
+    And I open Edit for "Coins"
+    Then the locked price follows the currency through "EUR", "PLN", "EUR" and back
+
   # Gaps 2 + 3: the type header is an asset-row card; tap reveals mirror.
   @r2-header
   Scenario: The type header lines up with its asset rows and its tap mirrors the asset row

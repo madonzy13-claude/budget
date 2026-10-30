@@ -143,6 +143,36 @@ describe("Edit asset sheet — locked configuration", () => {
     await waitFor(() => expect(price.value).toBe("15,000"));
   });
 
+  // Round 6 (user): "sometimes it takes time, sometimes it never changes".
+  // A pick already fetched is instant; a failed fetch is retried once.
+  it("a currency picked again converts at once, without another fetch", async () => {
+    routeFetch({ rate: "0.25" });
+    fetchMock.mockClear();
+    mount(btc);
+    const price = locked("currentPrice") as HTMLInputElement;
+    type("currency-picker", "EUR");
+    await waitFor(() => expect(price.value).toBe("15,000"));
+    type("currency-picker", "USD");
+    type("currency-picker", "EUR");
+    expect(price.value).toBe("15,000");
+    const fxCalls = () =>
+      fetchMock.mock.calls.filter(([u]) => String(u).includes("to=EUR")).length;
+    expect(fxCalls()).toBe(1);
+  });
+
+  it("a failed rate fetch is retried once before giving up", async () => {
+    let n = 0;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (String(url).includes("/fx/rate") && n++ === 0)
+        throw new TypeError("network");
+      return new Response(JSON.stringify({ rate: "0.25" }), { status: 200 });
+    });
+    mount(btc);
+    const price = locked("currentPrice") as HTMLInputElement;
+    type("currency-picker", "EUR");
+    await waitFor(() => expect(price.value).toBe("15,000"));
+  });
+
   it("a metal shows metal, kind, unit, current price and premium locked", () => {
     mount(
       H({
@@ -182,7 +212,8 @@ describe("Edit asset sheet", () => {
   it("hand-valued assets offer label, display currency and current value — nothing else", () => {
     mount(cash);
     expect(screen.getByTestId("edit-asset-name")).toHaveValue("Envelope");
-    expect(screen.getByText("edit.displayCurrencyHelp")).toBeInTheDocument();
+    // R6 (user): no "only changes how this asset is shown" note.
+    expect(screen.queryByText("edit.displayCurrencyHelp")).toBeNull();
     expect(screen.getByTestId("edit-asset-value")).toHaveValue("1000");
     expect(screen.queryByTestId("edit-asset-price")).toBeNull();
     for (const gone of [

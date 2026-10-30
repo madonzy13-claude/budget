@@ -903,6 +903,48 @@ When(
   },
 );
 
+When("I open Edit for {string}", async ({ page }, name: string) => {
+  await new InvestmentsPo(page).openEdit(name);
+});
+
+Then(
+  "the locked price follows the currency through {string}, {string}, {string} and back",
+  async ({ page }, a: string, b: string, c: string) => {
+    const sheet = page.getByTestId("edit-asset-sheet");
+    const locked = sheet.getByTestId("edit-asset-locked-currentPrice");
+    const start = await locked.inputValue();
+    const native0 = sheet.getByTestId("currency-picker-native");
+    const ccy0 = (await native0.isVisible().catch(() => false))
+      ? await native0.inputValue()
+      : (await sheet.getByRole("combobox").first().innerText()).trim();
+    const pick = async (ccy: string) => {
+      const native = sheet.getByTestId("currency-picker-native");
+      if (await native.isVisible().catch(() => false))
+        await native.selectOption(ccy);
+      else
+        // Radix may swallow a trigger click right after it closed: retry.
+        await expect(async () => {
+          await sheet.getByRole("combobox").first().click();
+          await page
+            .getByTestId(`currency-option-${ccy}`)
+            .first()
+            .click({ timeout: 1500 });
+        }).toPass({ timeout: 10000 });
+    };
+    const seen: string[] = [];
+    for (const ccy of [a, b, c]) {
+      await pick(ccy);
+      // Shown at once — no wait on a fresh network round trip per pick.
+      await expect(locked).not.toHaveValue(start, { timeout: 1500 });
+      if (seen.length) await expect(locked).not.toHaveValue(seen.at(-1)!);
+      seen.push(await locked.inputValue());
+    }
+    expect(seen[0]).toBe(seen[2]);
+    await pick(ccy0);
+    await expect(locked).toHaveValue(start, { timeout: 1500 });
+  },
+);
+
 Then(
   "the asset {string} is shown in {string}",
   async ({ page }, name: string, ccy: string) => {

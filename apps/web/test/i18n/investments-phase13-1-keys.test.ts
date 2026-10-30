@@ -24,7 +24,6 @@ const KEYS = [
   "edit.currentPrice",
   "edit.currentValue",
   "edit.displayCurrency",
-  "edit.displayCurrencyHelp",
   "edit.label",
   "edit.save",
   "edit.saved",
