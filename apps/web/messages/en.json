@@ -822,6 +822,7 @@
           "from": "Where did the money come from?",
           "srcAsset": "Source asset",
           "srcPlaceholder": "Pick an asset",
+            "takes": "Takes {amount} from {name}",
           "src": {
             "out": "Out of investments",
             "outDesc": "New money for your investments",

@@ -822,6 +822,7 @@
           "from": "Skąd pochodzą pieniądze?",
           "srcAsset": "Aktywo źródłowe",
           "srcPlaceholder": "Wybierz aktywo",
+            "takes": "Pobiera {amount} z {name}",
           "src": {
             "out": "Spoza inwestycji",
             "outDesc": "Nowe pieniądze dla inwestycji",

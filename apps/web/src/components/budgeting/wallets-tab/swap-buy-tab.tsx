@@ -7,11 +7,12 @@
  *   broker        amount added · account value after → {kind:"broker"}; the
  *                 deposit is cost + contribution, the rest is market move.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { centsToBare } from "@/lib/cents-format";
+import { clientApiFetch } from "@/lib/budget-fetch";
 import {
   UI_TYPE_ORDER,
   deriveUiType,
@@ -144,18 +145,63 @@ export function SwapBuyTab({
   const srcQty = !!src && holdingShape(src) === "quantity";
   const srcCcy = src ? ccyOf(src, budgetCurrency) : "";
   /** What stays in the source — null while invalid (same math as Sell). */
+  // R6 (user): an amount source asks nothing — what arrived here (qty × price
+  // or the amount) left it, converted at the sale date's rate.
+  const recvCcy = shape === "broker" ? assetCcy : ccy;
+  const recvCents =
+    shape === "quantity"
+      ? num(qty) > 0 && num(price) > 0
+        ? num(qty) * toCents(price)
+        : 0
+      : num(amount) > 0
+        ? toCents(amount)
+        : 0;
+  const [srcRate, setSrcRate] = useState<{ key: string; rate: string | null }>({
+    key: "",
+    rate: null,
+  });
+  const rateKey = `${recvCcy}>${srcCcy}@${date}`;
+  const needRate = !!src && !srcQty && recvCcy !== srcCcy;
+  useEffect(() => {
+    if (!needRate) return;
+    let live = true;
+    void clientApiFetch(`/fx/rate?from=${recvCcy}&to=${srcCcy}&date=${date}`)
+      .then(async (r) =>
+        r.ok ? (((await r.json()) as { rate?: string }).rate ?? null) : null,
+      )
+      .catch(() => null)
+      .then((rate) => live && setSrcRate({ key: rateKey, rate }));
+    return () => {
+      live = false;
+    };
+  }, [needRate, recvCcy, srcCcy, date, rateKey]);
+  const rateToSrc = !needRate
+    ? 1
+    : srcRate.key === rateKey && srcRate.rate
+      ? Number(srcRate.rate)
+      : null;
+  const rateFailed = needRate && srcRate.key === rateKey && !srcRate.rate;
+  const srcValue = src ? Math.round(Number(src.valueCents)) : 0;
+  const takenCents =
+    rateToSrc === null ? null : Math.round(recvCents * rateToSrc);
+  /** What stays in the source — null while invalid (same math as Sell). */
   const left = (() => {
-    if (!src || !(num(taken) > 0)) return null;
+    if (!src) return null;
     if (srcQty) {
+      if (!(num(taken) > 0)) return null;
       const e8 =
         Math.round(num(src.quantity) * 1e8) - Math.round(num(taken) * 1e8);
       return e8 < 0 ? null : ({ quantity: qtyString(e8 / 1e8) } as const);
     }
-    const v = Math.round(Number(src.valueCents));
-    const sold = toCents(taken);
-    return sold > v ? null : ({ valueCents: String(v - sold) } as const);
+    if (takenCents === null || takenCents <= 0 || takenCents > srcValue)
+      return null;
+    return { valueCents: String(srcValue - takenCents) } as const;
   })();
-  const overTaken = !!src && num(taken) > 0 && !left;
+  const overTaken =
+    !!src &&
+    (srcQty
+      ? num(taken) > 0 && !left
+      : takenCents !== null && takenCents > srcValue);
 
   const money = (c: number) => centsToBare(String(Math.round(Math.abs(c))));
   const signed = (c: number) => `${c > 0 ? "+" : c < 0 ? "−" : ""}${money(c)}`;
@@ -431,29 +477,42 @@ export function SwapBuyTab({
             </Field>
             {src && (
               <>
-                <Field label={srcQty ? t("sell.qtySold") : t("sell.valueSold")}>
-                  <NumericInput
-                    testId="swap-buy-taken"
-                    value={taken}
-                    onChange={setTaken}
-                  />
-                </Field>
-                <HeldButton
-                  testId="swap-buy-src-held"
-                  onClick={() =>
-                    setTaken(
-                      srcQty
-                        ? trimQty(src.quantity)
-                        : String(Number(src.valueCents) / 100),
-                    )
-                  }
-                >
-                  {srcQty
-                    ? t("sell.qtyHelper", { qty: heldQty(t, src) })
-                    : t("sell.valueHelper", {
-                        value: `${money(Number(src.valueCents))} ${srcCcy}`,
+                {srcQty ? (
+                  <>
+                    <Field label={t("sell.qtySold")}>
+                      <NumericInput
+                        testId="swap-buy-taken"
+                        value={taken}
+                        onChange={setTaken}
+                      />
+                    </Field>
+                    <HeldButton
+                      testId="swap-buy-src-held"
+                      onClick={() => setTaken(trimQty(src.quantity))}
+                    >
+                      {t("sell.qtyHelper", { qty: heldQty(t, src) })}
+                    </HeldButton>
+                  </>
+                ) : (
+                  takenCents !== null &&
+                  takenCents > 0 && (
+                    <p
+                      data-testid="swap-buy-takes"
+                      className={caption}
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      {t("swap.buy.takes", {
+                        amount: `${money(takenCents)} ${srcCcy}`,
+                        name: src.name,
                       })}
-                </HeldButton>
+                    </p>
+                  )
+                )}
+                {rateFailed && (
+                  <ErrorLine>
+                    {t("swap.err.fx", { currency: srcCcy, date })}
+                  </ErrorLine>
+                )}
                 {overTaken && <ErrorLine>{t("swap.err.overHeld")}</ErrorLine>}
               </>
             )}
