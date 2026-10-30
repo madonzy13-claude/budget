@@ -15,6 +15,7 @@ import {
   FX_FETCH_QUEUE,
   FX_FETCH_CRON,
 } from "./handlers/fx-daily-fetch";
+import { backfillFxHistory } from "./handlers/fx-history-backfill";
 import { registerIdempotencyCleanup } from "./handlers/idempotency-cleanup";
 import { registerScheduledEngine } from "./handlers/scheduled-payment-engine";
 import { registerBudgetingReconciliation } from "./handlers/budgeting-reconciliation";
@@ -242,6 +243,11 @@ async function main() {
     boss as unknown as Parameters<typeof registerFxDailyFetch>[0],
     fxProvider,
   );
+  // Past dates need rates too (a 2024 sale had none). Idempotent: stored
+  // years are skipped, so a restart costs a few COUNTs. Never blocks startup.
+  void backfillFxHistory({ pool: workerPool() })
+    .then((r) => console.log("[worker] fx history backfill", r))
+    .catch((e) => console.error("[worker] fx history backfill failed", e));
 
   // Idempotency-key cleanup — hourly, deletes expired rows via worker_role + cleanup pgPolicy
   await boss.createQueue("idempotency-cleanup");
