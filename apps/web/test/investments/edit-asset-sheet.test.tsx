@@ -160,6 +160,43 @@ describe("Edit asset sheet — locked configuration", () => {
     expect(fxCalls()).toBe(1);
   });
 
+  // Round 6 (user): the old amount flashed for a second before the new one.
+  it("while the rate loads, the price shows a loader, never the old amount", async () => {
+    let release!: () => void;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (String(url).includes("/fx/rate"))
+        await new Promise<void>((r) => (release = r));
+      return new Response(JSON.stringify({ rate: "0.25" }), { status: 200 });
+    });
+    mount(btc);
+    const price = locked("currentPrice") as HTMLInputElement;
+    type("currency-picker", "EUR");
+    expect(price.value).toBe("");
+    expect(screen.getByTestId("edit-asset-fx-loading")).toBeInTheDocument();
+    await waitFor(() => expect(release).toBeTypeOf("function"));
+    release();
+    await waitFor(() => expect(price.value).toBe("15,000"));
+    expect(screen.queryByTestId("edit-asset-fx-loading")).toBeNull();
+  });
+
+  it("a hand-valued value shows a loader, not the old figure, while converting", async () => {
+    let release!: () => void;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (String(url).includes("/fx/rate"))
+        await new Promise<void>((r) => (release = r));
+      return new Response(JSON.stringify({ rate: "0.25" }), { status: 200 });
+    });
+    mount(cash);
+    type("currency-picker", "EUR");
+    expect(screen.getByTestId("edit-asset-value")).toHaveValue("");
+    expect(screen.getByTestId("edit-asset-fx-loading")).toBeInTheDocument();
+    await waitFor(() => expect(release).toBeTypeOf("function"));
+    release();
+    await waitFor(() =>
+      expect(screen.getByTestId("edit-asset-value")).toHaveValue("250"),
+    );
+  });
+
   it("a failed rate fetch is retried once before giving up", async () => {
     let n = 0;
     fetchMock.mockImplementation(async (url: string) => {
