@@ -534,7 +534,8 @@ describe("InvestmentRow", () => {
       />,
     );
     fireEvent.click(screen.getByLabelText("Expand AAPL"));
-    expect(captionText()).toMatch(/^unreal\.: \+123\.45real\.: −100$/);
+    // Round 6: from 100 up, no cents (+123.45 → +123).
+    expect(captionText()).toMatch(/^unreal\.: \+123real\.: −100$/);
   });
 
   // Round 6 (user): secondary lines a bit lighter so the row reads cleaner.

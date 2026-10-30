@@ -29,7 +29,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useSwipeReveal } from "@/hooks/use-swipe-reveal";
-import { centsToBare } from "@/lib/cents-format";
+import { centsToShort } from "@/lib/cents-format";
 import { stripYearMark } from "@/lib/format-date";
 import type { EntryDto } from "@/hooks/use-asset-entries";
 
@@ -146,7 +146,7 @@ export function LedgerRow({
   const locale = useLocale();
   const signed = (cents: string) => {
     const n = Number(cents);
-    const abs = centsToBare(cents.replace(/^-/, ""), locale);
+    const abs = centsToShort(cents.replace(/^-/, ""), locale);
     return `${n > 0 ? "+" : n < 0 ? MINUS : ""}${abs}`;
   };
   const date = ledgerDate(entry.effectiveDate, locale);
@@ -317,7 +317,7 @@ export function LedgerRow({
             <span style={{ fontSize: "11px", lineHeight: 1.4 }}>
               {`${Number(qty) > 0 ? "+" : Number(qty) < 0 ? MINUS : ""}${trimQty(qty.replace(/^-/, ""))}`}
               {entry.priceCents != null &&
-                ` × ${centsToBare(entry.priceCents, locale)}`}
+                ` × ${centsToShort(entry.priceCents, locale)}`}
             </span>
           )}
           {amount != null && (

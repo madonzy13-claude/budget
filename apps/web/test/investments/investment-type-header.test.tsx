@@ -244,6 +244,13 @@ describe("InvestmentTypeHeader", () => {
     expect(before?.querySelector('[data-testid="type-handle"]')).not.toBeNull();
   });
 
+  // Round 6 (user): the header's unrealized · realized are lighter too.
+  it("the open header's P/L caption is dimmed like the asset row's", () => {
+    renderHeader({ expanded: true });
+    const cap = document.querySelector<HTMLElement>("[data-pl-caption]")!;
+    expect(cap.style.opacity).toBe("0.7");
+  });
+
   it("the drag handle never toggles", () => {
     const { onToggle } = renderHeader();
     fireEvent.click(screen.getByTestId("type-handle"));

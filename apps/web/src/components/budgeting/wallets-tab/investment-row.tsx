@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { Input } from "@/components/ui/input";
-import { centsToBare } from "@/lib/cents-format";
+import { centsToBare, centsToShort } from "@/lib/cents-format";
 import { PlCaption } from "./investment-type-header";
 import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
@@ -125,7 +125,7 @@ export function InvestmentRow({
   };
 
   const currency = holding.currentPriceCurrency ?? holding.buyCurrency ?? "";
-  const value = centsToBare(holding.valueCents, locale);
+  const value = centsToShort(holding.valueCents, locale);
   // Round 4: "40%", not "40.0%"; "12.5%" keeps its decimal.
   const weight = `${Number(holding.weightPct.toFixed(1))}%`;
   const pct = holding.profitLossPct;
@@ -175,11 +175,11 @@ export function InvestmentRow({
   // no line.
   const avgPrice =
     showQty && holding.buyPriceCents != null && Number(holding.quantity) > 0
-      ? centsToBare(holding.buyPriceCents, locale)
+      ? centsToShort(holding.buyPriceCents, locale)
       : null;
   const startedDisplay =
     isSavings && holding.buyPriceCents != null
-      ? centsToBare(holding.buyPriceCents, locale)
+      ? centsToShort(holding.buyPriceCents, locale)
       : null;
   // A tracked (auto-fetch) holding whose `name` the user overrode — it differs
   // from the instrument's own display name. Show that custom name verbatim
@@ -231,7 +231,7 @@ export function InvestmentRow({
     const amt = Number(holding.profitLossCents); // cents
     if (!Number.isFinite(amt)) return null;
     const sign = amt < 0 ? "−" : "+";
-    return `${sign}${centsToBare(String(Math.round(Math.abs(amt))), locale)}`;
+    return `${sign}${centsToShort(String(Math.round(Math.abs(amt))), locale)}`;
   })();
 
   // No-basis holdings (cash) show nothing in the P/L slot — just the share% in
@@ -382,7 +382,6 @@ export function InvestmentRow({
                   unrealizedCents={assetPL.unrealizedCents}
                   realizedCents={assetPL.realizedCents}
                   until={shareRef}
-                  style={{ opacity: DIM }}
                 />
               )}
             </div>

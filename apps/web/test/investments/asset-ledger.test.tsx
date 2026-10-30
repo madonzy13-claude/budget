@@ -406,8 +406,9 @@ describe("Asset ledger strip", () => {
     const row = await screen.findByTestId("ledger-row-ci");
     expect(row).toHaveTextContent(/\+690(\.00)? EUR/);
     // Round-5 gap 13: and what it became in the asset's currency.
+    // Round 6: from 100 up, no cents.
     expect(row.querySelector("[data-converted]")).toHaveTextContent(
-      /2,980\.80 PLN/,
+      /2,981 PLN/,
     );
   });
 

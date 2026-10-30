@@ -20,7 +20,7 @@ import { FitLine } from "@/components/common/fit-line";
 import { useLocale, useTranslations } from "next-intl";
 import { useRef } from "react";
 import { TrendingDown, TrendingUp } from "lucide-react";
-import { centsToBare } from "@/lib/cents-format";
+import { centsToShort } from "@/lib/cents-format";
 import type { UiType } from "@/lib/investment-types";
 import { UI_TYPE_COLOR, UI_TYPE_ICON } from "@/lib/investment-icons";
 import type { TypeGroupPL } from "@/lib/investment-type-groups";
@@ -64,7 +64,7 @@ export function PlCaption({
   const t = useTranslations("budget.investments");
   const locale = useLocale();
   const signed = (cents: number) =>
-    `${cents < 0 ? "−" : "+"}${centsToBare(String(Math.round(Math.abs(cents))), locale)}`;
+    `${cents < 0 ? "−" : "+"}${centsToShort(String(Math.round(Math.abs(cents))), locale)}`;
   return (
     <FitLine
       {...rest}
@@ -76,6 +76,8 @@ export function PlCaption({
         color: "var(--muted-foreground)",
         fontSize: "11px",
         lineHeight: 1.4,
+        // Round 6 (user): lighter than the main figures, header and asset alike.
+        opacity: 0.7,
         ...style,
       }}
     >
@@ -116,7 +118,7 @@ export function InvestmentTypeHeader({
   const shareRef = useRef<HTMLSpanElement>(null);
 
   const money = (cents: number) =>
-    centsToBare(String(Math.round(Math.abs(cents))), locale);
+    centsToShort(String(Math.round(Math.abs(cents))), locale);
   // Round 3: zero reads "+0" like a gain (grey, flat trend).
   const signed = (cents: number) => `${cents < 0 ? "−" : "+"}${money(cents)}`;
   const pctText = (p: number) =>
