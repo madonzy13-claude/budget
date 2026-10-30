@@ -516,7 +516,7 @@ Feature: Investments as assets with transactions (13.1)
     And I add a "cash" asset "Erste" in "PLN" worth "250"
     Then there are 2 asset rows "Erste"
     When I type "Erste" as the name in the "cash" Add form
-    Then the name list offers "Add as new asset" and 2 "Erste" options with "1,000 PLN" and "250 PLN"
+    Then the name list offers "Add as new asset" and 2 "Erste" options with "1,000" and "250 PLN"
     When I pick the "Erste" option worth "250 PLN"
     Then the picked asset line reads "Asset value: 250 PLN"
 
