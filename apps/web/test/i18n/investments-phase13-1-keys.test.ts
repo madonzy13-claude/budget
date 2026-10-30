@@ -16,7 +16,6 @@ const KEYS = [
   "asset.name.pickOrCreate",
   "asset.name.label",
   "asset.name.reopens",
-  "asset.name.taken",
   "asset.swipe.edit",
   "asset.swipe.swap",
   "edit.currentPrice",
@@ -174,6 +173,14 @@ describe("Phase 13.1 investments i18n keys", () => {
   });
 });
 
+// Round-5 scope change: no "name taken" message survives.
+describe("No uniqueness copy", () => {
+  it("asset.name.taken is gone in every locale", () => {
+    for (const m of [en, pl, uk])
+      expect(at(m, "asset.name.taken")).toBeUndefined();
+  });
+});
+
 // Round-5 gaps 2 + 5 (user): uk wording, and the unit in "you hold".
 describe("Round-5 investments copy", () => {
   it("uk ledger kinds and type names read as requested", () => {
@@ -188,7 +195,7 @@ describe("Round-5 investments copy", () => {
       collectibles: at(uk, "uitype.collectibles"),
     }).toEqual({
       convertedOut: "Продаж",
-      added: "Поповнення",
+      added: "Купівля",
       transferOut: "Переказ",
       convertedIn: "Купівля",
       transferIn: "Надходження",
