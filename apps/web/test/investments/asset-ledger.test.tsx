@@ -392,7 +392,7 @@ describe("Asset ledger strip", () => {
     expect(slide.className).toContain("transition-[grid-template-rows]");
   });
 
-  it("a convert leg shows its stored amount and currency", async () => {
+  it("a convert leg shows its stored amount and currency, then the asset's", async () => {
     mount([
       e({
         id: "ci",
@@ -405,7 +405,34 @@ describe("Asset ledger strip", () => {
     ]);
     const row = await screen.findByTestId("ledger-row-ci");
     expect(row).toHaveTextContent(/\+690(\.00)? EUR/);
-    expect(row).not.toHaveTextContent("PLN");
+    // Round-5 gap 13: and what it became in the asset's currency.
+    expect(row.querySelector("[data-converted]")).toHaveTextContent(
+      /2,980\.80 PLN/,
+    );
+  });
+
+  it("a buy paid in another currency shows both amounts", async () => {
+    mount([
+      e({
+        id: "bu",
+        kind: "buy",
+        amountCents: "10000",
+        amountCurrency: "USD",
+        displayAmountCents: "42500",
+        displayCurrency: "PLN",
+      }),
+    ]);
+    const row = await screen.findByTestId("ledger-row-bu");
+    expect(row).toHaveTextContent(/\+100(\.00)? USD/);
+    expect(row.querySelector("[data-converted]")).toHaveTextContent(
+      /425(\.00)? PLN/,
+    );
+  });
+
+  it("a same-currency entry shows one amount", async () => {
+    mount([e({ id: "same", amountCents: "64000", amountCurrency: "PLN" })]);
+    const row = await screen.findByTestId("ledger-row-same");
+    expect(row.querySelector("[data-converted]")).toBeNull();
   });
 
   // UAT 13.1 test 12: swipe to delete, like every other row.

@@ -158,12 +158,26 @@ export function LedgerRow({
   const stored =
     ["convert_in", "convert_out"].includes(entry.kind) &&
     entry.amountCents != null;
+  // R5-13: paid / received in another currency → show that first, then
+  // what it became in the asset's currency.
+  const foreign =
+    entry.amountCents != null &&
+    entry.displayAmountCents != null &&
+    !!entry.amountCurrency &&
+    !!entry.displayCurrency &&
+    entry.amountCurrency !== entry.displayCurrency;
   const amount = stored
     ? `${linkedOut ? "-" : ""}${entry.amountCents!.replace(/^-/, "")}`
-    : (entry.displayAmountCents ?? entry.amountCents);
-  const ccy = stored
-    ? (entry.amountCurrency ?? "")
-    : (entry.displayCurrency ?? entry.amountCurrency ?? "");
+    : foreign
+      ? entry.amountCents
+      : (entry.displayAmountCents ?? entry.amountCents);
+  const ccy =
+    stored || foreign
+      ? (entry.amountCurrency ?? "")
+      : (entry.displayCurrency ?? entry.amountCurrency ?? "");
+  const converted = foreign
+    ? `${linkedOut ? "-" : ""}${entry.displayAmountCents!.replace(/^-/, "")}`
+    : null;
   const qty = entry.displayQty ?? entry.qtyDelta;
   const reason = entry.deletable
     ? null
@@ -313,6 +327,15 @@ export function LedgerRow({
               style={{ color: "var(--muted-foreground)" }}
             >
               {signed(amount)} {ccy}
+            </span>
+          )}
+          {converted != null && (
+            <span
+              data-converted
+              className="text-[11px] leading-[1.4]"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              {`= ${signed(converted)} ${entry.displayCurrency}`}
             </span>
           )}
           {entry.realizedBudgetCents != null && (
