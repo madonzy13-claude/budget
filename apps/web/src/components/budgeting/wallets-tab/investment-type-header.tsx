@@ -123,7 +123,7 @@ export function InvestmentTypeHeader({
   // Round 3: zero reads "+0" like a gain (grey, flat trend).
   const signed = (cents: number) => `${cents < 0 ? "−" : "+"}${money(cents)}`;
   const pctText = (p: number) =>
-    `${p < 0 ? "−" : "+"}${Math.abs(p).toFixed(1)}%`;
+    `${p < 0 ? "−" : "+"}${Number(Math.abs(p).toFixed(1))}%`; // 6%, not 6.0%
 
   const name = t(`uitype.${uiType}`);
   const state = expanded ? t("group.expanded") : t("group.collapsed");

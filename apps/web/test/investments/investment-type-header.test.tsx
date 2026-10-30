@@ -297,13 +297,13 @@ describe("InvestmentTypeHeader", () => {
   });
 
   // Round-3 gap 4: zero is a grey rise with plus signs.
-  it("a zero P/L shows a grey up-arrow, +0.0% and +0", () => {
+  it("a zero P/L shows a grey up-arrow, +0% and +0 (round 6: no .0)", () => {
     renderHeader({
       pl: pl({ pct: 0, totalPLCents: 0, unrealizedCents: 0, realizedCents: 0 }),
       expanded: true,
     });
     const line = document.querySelector("[data-pl-line]")!;
-    expect(line.textContent).toMatch(/^\+0\.0%\s*\+0$/);
+    expect(line.textContent).toMatch(/^\+0%\s*\+0$/);
     // Round 6 (user): the caption's zeros read "0", not "+0".
     expect(document.querySelector("[data-pl-caption]")!.textContent).toMatch(
       /^unrealized:\s*0\s*realized:\s*0$/,

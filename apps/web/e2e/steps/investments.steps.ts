@@ -2253,7 +2253,7 @@ Then(
     await expect(
       row.locator('[data-pl-trend="flat"]:visible').first(),
     ).toBeVisible();
-    await expect(row).toContainText("+0.0%");
+    await expect(row).toContainText("+0%");
     await expect(row).toContainText("+0");
   },
 );
@@ -2264,7 +2264,7 @@ Then(
     const split = await new InvestmentsPo(page).typeSumUp(uiType);
     const line = split.locator("[data-pl-line]");
     await expect(line.locator('[data-pl-trend="flat"]')).toBeVisible();
-    await expect(line).toContainText("+0.0%");
+    await expect(line).toContainText("+0%");
     await expect(line).toContainText("+0");
   },
 );

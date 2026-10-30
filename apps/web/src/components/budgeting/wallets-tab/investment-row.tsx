@@ -84,7 +84,7 @@ interface InvestmentRowProps {
  *  (round 3). */
 function formatPct(pct: number): string {
   const sign = pct < 0 ? "−" : "+";
-  return `${sign}${Math.abs(pct).toFixed(1)}%`;
+  return `${sign}${Number(Math.abs(pct).toFixed(1))}%`; // 6%, not 6.0% (round 6)
 }
 
 export function InvestmentRow({

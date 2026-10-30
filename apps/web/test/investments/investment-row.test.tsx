@@ -141,7 +141,7 @@ describe("InvestmentRow", () => {
     expect(above).toHaveTextContent("started: 10,000");
     expect(above.querySelector("[data-avg-icon]")).toBeNull();
     // %change renders in both the desktop cluster and the mobile-expanded line.
-    expect(screen.getAllByText("+25.0%").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+25%").length).toBeGreaterThan(0);
   });
 
   it("tracked stock → desktop 'TICKER (Name)', mobile shows the ticker", () => {
@@ -562,13 +562,13 @@ describe("InvestmentRow", () => {
     expect(document.querySelector("[data-type-icon]")).toBeNull();
   });
 
-  it("a zero P/L shows a grey up-arrow, +0.0% and +0", () => {
+  it("a zero P/L shows a grey up-arrow, +0% and +0 (round 6: no .0)", () => {
     render(
       <InvestmentRow
         holding={holding({ profitLossPct: 0, profitLossCents: "0" })}
       />,
     );
-    expect(screen.getAllByText("+0.0%").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+0%").length).toBeGreaterThan(0);
     expect(screen.getAllByText("+0").length).toBeGreaterThan(0);
     const icon = document.querySelector<SVGElement>('[data-pl-trend="flat"]')!;
     expect(icon.getAttribute("style")).toContain("var(--muted-strong)");
@@ -605,7 +605,7 @@ describe("InvestmentRow", () => {
     // P/L money amount comes straight from the server (+15,000.00), no currency.
     // Renders in both the desktop cluster and the mobile-expanded line (UAT #7).
     expect(screen.getAllByText("+15,000").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("+50.0%").length).toBeGreaterThan(0); // P/L%
+    expect(screen.getAllByText("+50%").length).toBeGreaterThan(0); // P/L%
   });
 
   // 260626 regression: the old plMoney back-derived cost as value/(1+pct/100);
