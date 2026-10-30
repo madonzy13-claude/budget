@@ -304,6 +304,10 @@ describe("InvestmentTypeHeader", () => {
     });
     const line = document.querySelector("[data-pl-line]")!;
     expect(line.textContent).toMatch(/^\+0\.0%\s*\+0$/);
+    // Round 6 (user): the caption's zeros read "0", not "+0".
+    expect(document.querySelector("[data-pl-caption]")!.textContent).toMatch(
+      /^unrealized:\s*0\s*realized:\s*0$/,
+    );
     const icon = line.querySelector<SVGElement>('[data-pl-trend="flat"]')!;
     expect(icon.getAttribute("style")).toContain("var(--muted-strong)");
   });

@@ -48,8 +48,8 @@ const signColor = (n: number) =>
 
 const SLOT = "\u0000";
 
-/** "unreal.: X  real.: Y" — words muted, figures by sign (round 3: zero reads
- *  "+0"). Shared by the type header and, round 6, each asset row. */
+/** "unreal.: X  real.: Y" — words muted, figures by sign (round 6: zero reads
+ *  "0"). Shared by the type header and, round 6, each asset row. */
 export function PlCaption({
   unrealizedCents,
   realizedCents,
@@ -63,8 +63,9 @@ export function PlCaption({
 } & React.HTMLAttributes<HTMLSpanElement>) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
+  // Round 6 (user): zero reads "0" — no sign.
   const signed = (cents: number) =>
-    `${cents < 0 ? "−" : "+"}${centsToShort(String(Math.round(Math.abs(cents))), locale)}`;
+    `${cents < 0 ? "−" : cents > 0 ? "+" : ""}${centsToShort(String(Math.round(Math.abs(cents))), locale)}`;
   return (
     <FitLine
       {...rest}

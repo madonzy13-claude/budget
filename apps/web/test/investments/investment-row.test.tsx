@@ -550,10 +550,11 @@ describe("InvestmentRow", () => {
       expect(el.style.opacity).toBe("0.7");
   });
 
-  it("realized reads +0 when the asset has none", () => {
+  // Round 6 (user): a zero reads "0", not "+0".
+  it("realized reads 0 when the asset has none", () => {
     render(<InvestmentRow holding={holding()} />);
     fireEvent.click(screen.getByLabelText("Expand AAPL"));
-    expect(captionText()).toMatch(/real\.: \+0$/);
+    expect(captionText()).toMatch(/real\.: 0$/);
   });
 
   it("the asset row carries no type icon", () => {
