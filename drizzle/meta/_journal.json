@@ -659,6 +659,13 @@
       "when": 1783434001012,
       "tag": "0094_entry_asset_amount",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1783520401012,
+      "tag": "0095_backfill_entry_asset_amount",
+      "breakpoints": true
     }
   ]
 }
