@@ -389,6 +389,18 @@ export class InvestmentsPo {
     await field.fill(fromScaled(held - toScaled(left)));
   }
 
+  /** Into investments: type the name and pick that asset from the list. */
+  async pickExistingDest(name: string): Promise<void> {
+    const form = this.swapSheet().getByTestId("holding-form-destination");
+    await form.getByTestId("holding-sheet-name").fill(name);
+    await this.page
+      .getByRole("option")
+      .filter({ hasText: new RegExp(`^${escapeRegExp(name)}`) })
+      .first()
+      .dispatchEvent("mousedown");
+    await expect(form.getByTestId("asset-name-picked")).toBeVisible();
+  }
+
   /** Radix Select pickers (round-2 gap 7): open the trigger, pick
    *  "<name> · …" from the in-DOM list. */
   async pickOption(trigger: Locator, name: string): Promise<void> {
@@ -444,17 +456,17 @@ export class InvestmentsPo {
   }): Promise<number> {
     const sheet = this.swapSheet();
     await this.fillSoldFromLeft(sheet, opts.left);
-    await sheet.getByTestId(`swap-dest-${opts.dest}`).click();
-    if (opts.dest === "new" && opts.newName)
-      await sheet
-        .getByTestId("holding-form-destination")
-        .getByTestId("holding-sheet-name")
-        .fill(opts.newName);
+    // Round 6: one "Into investments" card — a typed name is new, a picked
+    // one (by id, in place) is that asset.
+    await sheet
+      .getByTestId(opts.dest === "out" ? "swap-dest-out" : "swap-dest-invest")
+      .click();
+    const name = sheet
+      .getByTestId("holding-form-destination")
+      .getByTestId("holding-sheet-name");
+    if (opts.dest === "new" && opts.newName) await name.fill(opts.newName);
     if (opts.dest === "existing" && opts.existingName)
-      await this.pickOption(
-        sheet.getByTestId("swap-sell-existing"),
-        opts.existingName,
-      );
+      await this.pickExistingDest(opts.existingName);
     if (opts.wallet?.kind === "existing") {
       await sheet.getByTestId("wallet-target-existing").click();
       await this.pickOption(
@@ -497,7 +509,7 @@ export class InvestmentsPo {
     await this.openSwap(source, "sell");
     const sheet = this.swapSheet();
     await this.fillSoldFromLeft(sheet, left);
-    await sheet.getByTestId("swap-dest-new").click();
+    await sheet.getByTestId("swap-dest-invest").click();
     const form = sheet.getByTestId("holding-form-destination");
     await form.getByTestId("holding-sheet-type").click();
     await this.page.getByTestId("holding-type-crypto").click();

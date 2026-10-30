@@ -453,15 +453,23 @@ Feature: Investments as assets with transactions (13.1)
     When I open the investments wallets tab
     Then New transaction carries "IBKR" and "30000" from Sell to Buy and back
 
-  # Gap 9: the sell-into list says what each asset is.
-  @r4-sell-into
-  Scenario: Selling into an existing asset lists quantity and value with type icons
-    Given I am on a phone-sized viewport
-    And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
-    And a crypto holding "BTC Cold" of "1" bought at 5000000 cents now 6000000 cents exists in my budget
+  # Round-6 gap 3 (user): one Into investments destination — pick in place
+  # (its value shows, no second dropdown) or name a new asset.
+  @r4-sell-into @r6-into-investments
+  Scenario: Into investments picks an existing asset in place or creates a new one
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
     When I open the investments wallets tab
-    And I open the sale of "IBKR"
-    Then the existing-asset list sits below the cards and shows "BTC Cold" with its quantity and a type icon
+    And I sell "IBKR" into investments picking "Pot"
+    Then the picked destination shows its value and I can save
+    And there is exactly one asset named "Pot"
+
+  @r6-into-investments
+  Scenario: Into investments with a new name creates that asset
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I sell "IBKR" into a new investment "Fresh pot"
+    Then the holding row "Fresh pot" is visible
 
   # Gap 10: a linked entry opens its partner.
   @r4-link

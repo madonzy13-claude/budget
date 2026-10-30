@@ -60,8 +60,28 @@ vi.mock("../../src/components/common/currency-picker", () => ({
   ),
 }));
 vi.mock("../../src/components/budgeting/wallets-tab/holding-sheet", () => ({
-  HoldingFormFields: ({ onChange }: { onChange: (h: unknown) => void }) => (
+  HoldingFormFields: ({
+    onChange,
+    onPickExisting,
+    selectedId,
+    excludeId,
+  }: {
+    onChange: (h: unknown) => void;
+    onPickExisting?: (id: string | null) => void;
+    selectedId?: string | null;
+    excludeId?: string;
+  }) => (
     <>
+      {/* Round 6: the one Into-investments name field — pick by id, in place. */}
+      <span
+        data-testid="dest-form-state"
+        data-selected={selectedId ?? ""}
+        data-exclude={excludeId ?? ""}
+      />
+      <input
+        data-testid="dest-pick"
+        onChange={(e) => onPickExisting?.(e.target.value || null)}
+      />
       <button
         type="button"
         data-testid="dest-form"

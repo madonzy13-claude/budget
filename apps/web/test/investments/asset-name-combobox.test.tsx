@@ -204,6 +204,17 @@ describe("Asset name combobox", () => {
     expect(screen.queryByTestId("asset-name-hint")).toBeNull();
   });
 
+  // Round-6 gap 5 (user): "Archived" sits before the value.
+  it("an archived option reads name, Archived, then its value", () => {
+    mount("BTC Binance");
+    fireEvent.focus(screen.getByRole("combobox"));
+    const text = screen.getAllByRole("option")[0]!.textContent!;
+    expect(text.indexOf("asset.name.closed")).toBeGreaterThan(-1);
+    expect(text.indexOf("asset.name.closed")).toBeLessThan(
+      text.indexOf("0 PLN"),
+    );
+  });
+
   it("a picked hidden asset says it reopens", () => {
     render(
       <AssetNameCombobox

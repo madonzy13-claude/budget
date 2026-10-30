@@ -1145,6 +1145,30 @@ describe("HoldingSheet — add joins by name (13.1 D-02)", () => {
     expect(onPickExisting).toHaveBeenCalledWith("btc-id");
   });
 
+  // Round-6 gap 3: picked in place — only Type + Name stay; typing drops it.
+  it("a picked sale destination keeps Type + Name only; typing drops the pick", () => {
+    const onPickExisting = vi.fn();
+    render(
+      <HoldingSheet
+        {...baseProps}
+        holding={null}
+        destination={{
+          receivedCurrency: "PLN",
+          initialUiType: "crypto",
+          onChange: () => {},
+          onPickExisting,
+          selectedId: "btc-id",
+          excludeId: "src",
+        }}
+      />,
+    );
+    expect(screen.queryByTestId("holding-sheet-instrument")).toBeNull();
+    fireEvent.change(screen.getByTestId("holding-sheet-name"), {
+      target: { value: "BTC L" },
+    });
+    expect(onPickExisting).toHaveBeenLastCalledWith(null);
+  });
+
   describe("name-first Add (UAT 13.1 test 7)", () => {
     const crypto = () =>
       render(

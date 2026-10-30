@@ -49,6 +49,8 @@ function mount(
 const type = (id: string, v: string) =>
   fireEvent.change(screen.getByTestId(id), { target: { value: v } });
 /** Radix Select under happy-dom: open with the keyboard, pick by testid. */
+const pickDest = (id: string) =>
+  fireEvent.change(screen.getByTestId("dest-pick"), { target: { value: id } });
 async function pick(trigger: string, option: string) {
   fireEvent.keyDown(screen.getByTestId(trigger), { key: "Enter" });
   fireEvent.keyDown(await screen.findByTestId(option), { key: "Enter" });
@@ -200,7 +202,7 @@ describe("Sell tab", () => {
   it("a new tracked destination starts at its live price; typing a quantity never moves it", async () => {
     mount();
     type("swap-sell-sold", "1"); // sold value 60,000 PLN
-    fireEvent.click(screen.getByTestId("swap-dest-new"));
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
     fireEvent.click(screen.getByTestId("dest-form-usdt"));
     expect(screen.getAllByTestId("swap-dest-qty")).toHaveLength(1);
     expect(screen.queryByTestId("swap-sell-received")).toBeNull();
@@ -223,7 +225,7 @@ describe("Sell tab", () => {
   it("an untouched quantity follows the price; a typed one never moves", () => {
     mount();
     type("swap-sell-sold", "1");
-    fireEvent.click(screen.getByTestId("swap-dest-new"));
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
     fireEvent.click(screen.getByTestId("dest-form-qty"));
     type("swap-dest-price", "2");
     expect(screen.getByTestId("swap-dest-qty")).toHaveValue("30000");
@@ -237,14 +239,13 @@ describe("Sell tab", () => {
   it("an existing quantity destination is priced at its own price, read-only", async () => {
     mount();
     type("swap-sell-sold", "1");
-    fireEvent.click(screen.getByTestId("swap-dest-existing"));
-    expect(screen.getByTestId("swap-sell-existing")).toHaveAttribute(
-      "role",
-      "combobox",
-    );
-    await pick("swap-sell-existing", `swap-sell-existing-option-${btcCold.id}`);
-    expect(screen.getByTestId("swap-sell-existing")).toHaveTextContent(
-      "BTC Cold · 1 · 60,000 PLN",
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    pickDest(btcCold.id);
+    // Round 6: picked in place — no second dropdown.
+    expect(screen.queryByTestId("swap-sell-existing")).toBeNull();
+    expect(screen.getByTestId("dest-form-state")).toHaveAttribute(
+      "data-selected",
+      btcCold.id,
     );
     expect(screen.getByTestId("swap-dest-price")).toHaveAttribute("readonly");
     expect(screen.getByTestId("swap-dest-price")).toHaveValue("60000");
@@ -272,8 +273,8 @@ describe("Sell tab", () => {
     });
     mount(btc, [btc, btcCold, cash, usdPot]);
     type("swap-sell-sold", "1");
-    fireEvent.click(screen.getByTestId("swap-dest-existing"));
-    await pick("swap-sell-existing", `swap-sell-existing-option-${usdPot.id}`);
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    pickDest(usdPot.id);
     expect(screen.queryByTestId("swap-received-ccy")).toBeNull();
     const picker = screen.getByTestId("currency-picker");
     expect(picker).toHaveValue("USD");
@@ -291,56 +292,53 @@ describe("Sell tab", () => {
   it("an existing quantity asset offers a currency too", async () => {
     mount();
     type("swap-sell-sold", "1");
-    fireEvent.click(screen.getByTestId("swap-dest-existing"));
-    await pick("swap-sell-existing", `swap-sell-existing-option-${btcCold.id}`);
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    pickDest(btcCold.id);
     expect(screen.getByTestId("currency-picker")).toHaveValue("PLN");
   });
 
-  it("two same-name assets read apart by value and currency", async () => {
-    const a = H({
-      ...cash,
-      id: "a1111111-1111-1111-1111-111111111111",
-      name: "Erste",
-    });
-    const b = H({
-      ...cash,
-      id: "b1111111-1111-1111-1111-111111111111",
-      name: "Erste",
-      buyCurrency: "EUR",
-      currentPriceCurrency: "EUR",
-      valueCents: "250000",
-    });
-    mount(btc, [btc, a, b]);
-    fireEvent.click(screen.getByTestId("swap-dest-existing"));
-    fireEvent.keyDown(screen.getByTestId("swap-sell-existing"), {
-      key: "Enter",
-    });
-    const ta = (await screen.findByTestId(`swap-sell-existing-option-${a.id}`))
-      .textContent;
-    const tb = screen.getByTestId(
-      `swap-sell-existing-option-${b.id}`,
-    ).textContent;
-    expect(ta).toContain("1,000 PLN");
-    expect(tb).toContain("2,500 EUR");
-    expect(ta).not.toBe(tb);
+  // Round-6 gap 3 (user): one Into investments destination, pick in place.
+  it("offers exactly Into investments and Out", () => {
+    mount();
+    expect(screen.getByTestId("swap-dest-invest")).toBeInTheDocument();
+    expect(screen.getByTestId("swap-dest-out")).toBeInTheDocument();
+    expect(screen.queryByTestId("swap-dest-new")).toBeNull();
+    expect(screen.queryByTestId("swap-dest-existing")).toBeNull();
   });
 
-  // Round-4 gap 9: the sell-into list says what each asset is.
-  it("the existing-asset list shows qty and value with type icons, set apart", async () => {
+  it("a new name says a new asset will be created and books one", async () => {
     mount();
-    fireEvent.click(screen.getByTestId("swap-dest-existing"));
-    const trigger = screen.getByTestId("swap-sell-existing");
-    expect(trigger.parentElement!.className).toMatch(/(^|\s)mt-3/);
-    fireEvent.keyDown(trigger, { key: "Enter" });
-    const opt = await screen.findByTestId(
-      `swap-sell-existing-option-${btcCold.id}`,
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("dest-form"));
+    expect(screen.getByTestId("swap-dest-new-marker")).toHaveTextContent(
+      "swap.sell.dest.willCreate(name=Erste)",
     );
-    expect(opt.querySelector("[data-asset-meta]")).toHaveTextContent(
-      "1 · 60,000 PLN",
+    type("swap-sell-received", "100");
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody().destination).toMatchObject({ kind: "new" });
+  });
+
+  it("typing after a pick drops it: back to a new asset", async () => {
+    mount();
+    type("swap-sell-sold", "1");
+    pickDest(cash.id);
+    expect(screen.queryByTestId("swap-dest-new-marker")).toBeNull();
+    fireEvent.change(screen.getByTestId("dest-pick"), { target: { value: "" } });
+    fireEvent.click(screen.getByTestId("dest-form"));
+    expect(screen.getByTestId("swap-dest-new-marker")).toBeInTheDocument();
+    type("swap-sell-received", "100");
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody().destination).toMatchObject({ kind: "new" });
+  });
+
+  it("the asset being sold is not offered", () => {
+    mount();
+    expect(screen.getByTestId("dest-form-state")).toHaveAttribute(
+      "data-exclude",
+      btc.id,
     );
-    expect(
-      screen.getByRole("listbox").querySelector("[data-type-icon]"),
-    ).not.toBeNull();
   });
 
   // UAT 13.1 test 14: one rate per deal, the same as the server.

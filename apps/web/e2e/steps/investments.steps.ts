@@ -2035,9 +2035,8 @@ async function expectFullList(
 Then(
   "the existing-asset picker opens a full list and picks {string}",
   async ({ page }, name: string) => {
-    const sheet = page.getByTestId("swap-sheet");
-    await sheet.getByTestId("swap-dest-existing").click();
-    await expectFullList(page, sheet.getByTestId("swap-sell-existing"), name);
+    // Round 6: the asset is picked in the Into-investments name field.
+    await new InvestmentsPo(page).pickExistingDest(name);
   },
 );
 
@@ -2539,33 +2538,51 @@ Then(
   },
 );
 
-// Gap 9.
+// Round-6 gap 3 (user): one Into-investments field; pick in place, or new.
+When(
+  "I sell {string} into investments picking {string}",
+  async ({ page }, src: string, name: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openSwap(src, "sell");
+    const sheet = po.swapSheet();
+    await po.fillSoldFromLeft(sheet, "0");
+    await sheet.getByTestId("swap-dest-invest").click();
+    await po.pickExistingDest(name);
+    await expect(sheet.getByTestId("swap-sell-existing")).toHaveCount(0);
+    await expect(sheet.getByTestId("swap-dest-new-marker")).toHaveCount(0);
+  },
+);
+
 Then(
-  "the existing-asset list sits below the cards and shows {string} with its quantity and a type icon",
-  async ({ page }, name: string) => {
-    const sheet = page.getByTestId("swap-sheet");
-    await sheet.getByTestId("swap-dest-existing").click();
-    const trigger = sheet.getByTestId("swap-sell-existing");
-    const gap = await sheet.evaluate((el) => {
-      const cards = [...el.querySelectorAll('[data-testid^="swap-dest-"]')]
-        .filter((c) =>
-          /^swap-dest-(new|existing|out)$/.test(
-            c.getAttribute("data-testid") ?? "",
-          ),
-        )
-        .map((c) => c.getBoundingClientRect().bottom);
-      const t = el
-        .querySelector('[data-testid="swap-sell-existing"]')!
-        .getBoundingClientRect().top;
-      return t - Math.max(...cards);
-    });
-    expect(gap, "space above the picker").toBeGreaterThanOrEqual(12);
-    await trigger.click();
-    const option = page.getByRole("option", { name: new RegExp(`^${name}`) });
-    await expect(option.locator("[data-asset-meta]")).toContainText("1");
+  "the picked destination shows its value and I can save",
+  async ({ page }) => {
+    const po = new InvestmentsPo(page);
     await expect(
-      page.getByRole("listbox").locator("[data-type-icon]").first(),
-    ).toBeVisible();
+      po.swapSheet().getByTestId("asset-name-picked"),
+    ).toContainText("Asset value");
+    const received = po.swapSheet().getByTestId("swap-sell-received");
+    if (await received.isVisible().catch(() => false))
+      await received.fill("100");
+    expect(await po.submitSwap("/sell")).toBe(201);
+  },
+);
+
+When(
+  "I sell {string} into a new investment {string}",
+  async ({ page }, src: string, name: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openSwap(src, "sell");
+    const sheet = po.swapSheet();
+    await po.fillSoldFromLeft(sheet, "0");
+    await sheet.getByTestId("swap-dest-invest").click();
+    await sheet
+      .getByTestId("holding-form-destination")
+      .getByTestId("holding-sheet-name")
+      .fill(name);
+    await page.keyboard.press("Escape");
+    await expect(sheet.getByTestId("swap-dest-new-marker")).toContainText(name);
+    await sheet.getByTestId("swap-sell-received").fill("100");
+    expect(await po.submitSwap("/sell")).toBe(201);
   },
 );
 
