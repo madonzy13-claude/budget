@@ -699,7 +699,7 @@
         "started": "початок: {amount}",
         "share": "Частка: {pct}",
         "amountAria": "Редагувати вартість {name}",
-        "qtyAvg": "{qty} × {avg} сер. собівартість"
+        "qtyAvg": "{qty} × {avg} сер. ціна купівлі"
       },
       "rowExpandAria": "Розгорнути деталі {name}.",
       "plAria": "{value} прибуток/збиток",

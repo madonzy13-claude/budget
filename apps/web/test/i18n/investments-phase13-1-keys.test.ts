@@ -207,6 +207,10 @@ describe("Round-5 investments copy", () => {
     });
   });
 
+  it("uk qty line reads 'сер. ціна купівлі'", () => {
+    expect(at(uk, "row.qtyAvg")).toBe("{qty} × {avg} сер. ціна купівлі");
+  });
+
   it("pl ledger kinds read as requested", () => {
     expect({
       added: at(pl, "ledger.kind.added"),
