@@ -812,6 +812,28 @@ Then(
   },
 );
 
+// Round-6 gap 1: collectibles by units.
+Then(
+  "selling {string} asks how many units, holding {string}",
+  async ({ page }, name: string, held: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openSwap(name, "sell");
+    const sheet = po.swapSheet();
+    await expect(sheet.getByTestId("swap-sell-held")).toHaveText(held);
+    await expect(sheet.getByText("Quantity sold")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
+  },
+);
+
+Then("moving {string} asks how many units", async ({ page }, name: string) => {
+  const po = new InvestmentsPo(page);
+  await po.openSwap(name, "transfer");
+  await expect(po.swapSheet().getByTestId("swap-transfer-held")).toHaveText(
+    /^You hold 2$/,
+  );
+});
+
 // ── 13.1: assets, Swap, wallet target, ledger ──
 
 Given(

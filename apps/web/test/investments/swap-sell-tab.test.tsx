@@ -61,6 +61,37 @@ beforeEach(() => {
 });
 
 describe("Sell tab", () => {
+  // Round-6 gap 1: a collectible is sold by units.
+  it("a collectible asks how many units were sold", () => {
+    const vase = H({
+      id: "v1",
+      name: "Vase",
+      holdingType: "other",
+      uiType: "collectibles",
+      instrumentId: null,
+      symbol: null,
+      quantity: "2",
+      isCustom: true,
+    } as Partial<HoldingDto>);
+    mount(vase, [vase, cash]);
+    expect(screen.getByText("sell.qtySold")).toBeInTheDocument();
+  });
+
+  it("a single collectible (quantity 1) still asks for units", () => {
+    const vase = H({
+      id: "v2",
+      name: "Vase",
+      holdingType: "other",
+      uiType: "collectibles",
+      instrumentId: null,
+      symbol: null,
+      quantity: "1",
+      isCustom: true,
+    } as Partial<HoldingDto>);
+    mount(vase, [vase, cash]);
+    expect(screen.getByText("sell.qtySold")).toBeInTheDocument();
+  });
+
   // Round-5 gap 5: a metal's held amount carries its unit.
   it("a metal's held amount names its unit", () => {
     const gold = H({

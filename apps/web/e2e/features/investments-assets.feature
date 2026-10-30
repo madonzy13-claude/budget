@@ -182,6 +182,14 @@ Feature: Investments as assets with transactions (13.1)
     And I reload the wallets tab
     Then the asset "My BTC" is closed
 
+  # Round-6 gap 1 (user): collectibles are counted — units × price.
+  @r6-collectible-qty
+  Scenario: A collectible is sold and moved by units
+    When I open the investments wallets tab
+    And I add a "collectibles" asset "Vase" of "2" units bought at "500" now "600"
+    Then selling "Vase" asks how many units, holding "You hold 2"
+    And moving "Vase" asks how many units
+
   # Gaps 2 + 3: the type header is an asset-row card; tap reveals mirror.
   @r2-header
   Scenario: The type header lines up with its asset rows and its tap mirrors the asset row

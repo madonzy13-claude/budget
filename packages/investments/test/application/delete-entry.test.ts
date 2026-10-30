@@ -344,3 +344,42 @@ describe("Delete the newest entry", () => {
     ).toBe("stale");
   });
 });
+
+// Round-6 gap 1: pre-switch collectible entries carry no quantity.
+describe("Delete a pre-switch collectible entry", () => {
+  const vase = (qty: string) => ({
+    id: "vase",
+    name: "Vase",
+    holdingType: "other",
+    uiType: "collectibles",
+    buy: 2_500n,
+    qty,
+    current: 3_000n,
+  });
+  const legacyAdd = {
+    amountCents: 500n,
+    amountCurrency: "PLN",
+    costDeltaCents: 500n,
+    costCurrency: "PLN",
+    valueDeltaCents: 500n,
+    flowCents: 500n,
+  };
+
+  test("at quantity 1 it reverses by amount", async () => {
+    const { w, del, start } = world(vase("1"));
+    await start("vase", "2026-09-01", { ...legacyAdd, kind: "add" });
+    await start("vase", "2026-09-02", { ...legacyAdd, kind: "add" });
+    const r = await del({ ...who, entryId: newest(w, "vase") });
+    expect(r.isOk()).toBe(true);
+    expect(w.get("vase").quantity).toBe("1");
+    expect(w.get("vase").buyPriceCents).toBe(2_000n);
+  });
+
+  test("with more than one unit it refuses rather than guess", async () => {
+    const { w, del, start } = world(vase("3"));
+    await start("vase", "2026-09-01", { ...legacyAdd, kind: "add" });
+    await start("vase", "2026-09-02", { ...legacyAdd, kind: "add" });
+    const r = await del({ ...who, entryId: newest(w, "vase") });
+    expect(r._unsafeUnwrapErr().message).toBe("legacy_entry");
+  });
+});

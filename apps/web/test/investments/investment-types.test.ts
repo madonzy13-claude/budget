@@ -13,6 +13,8 @@ import {
   UI_TYPE_META,
   UI_TYPE_ORDER,
   deriveUiType,
+  holdingShape,
+  isQtyUiType,
 } from "@/lib/investment-types";
 
 describe("usesUserChosenCurrency", () => {
@@ -114,5 +116,20 @@ describe("stocks type merge", () => {
     expect(deriveUiType(null, "etf", false)).toBe("stocks");
     expect(deriveUiType(null, "reit", false)).toBe("stocks");
     expect(deriveUiType(null, "bond", false)).toBe("treasury_bond");
+  });
+});
+
+// Round-6 gap 1 (user): collectibles are counted — units × price.
+describe("Collectibles shape", () => {
+  it("a collectible is a quantity asset, even at quantity 1", () => {
+    expect(isQtyUiType("collectibles")).toBe(true);
+    expect(
+      holdingShape({
+        holdingType: "other",
+        uiType: "collectibles",
+        isCustom: true,
+        quantity: "1",
+      }),
+    ).toBe("quantity");
   });
 });
