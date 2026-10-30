@@ -218,6 +218,25 @@ describe("Sell tab", () => {
     expect(body.destination.holding.livePriceCents).toBeUndefined();
   });
 
+  // R6 (user): BTC → new USDC asked "Buy price (EUR)" with no way to pick USD.
+  it("a new quantity asset offers a currency for its buy price", async () => {
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    fireEvent.click(screen.getByTestId("dest-form-usdt"));
+    expect(screen.getByTestId("swap-dest-ccy")).toBeInTheDocument();
+    type("currency-picker", "USD");
+    expect(
+      screen.getByText((_, el) =>
+        /swap\.buy\.price \(USD\)/.test(el?.textContent ?? "") &&
+        el?.tagName === "LABEL",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody().receivedCurrency).toBe("USD");
+  });
+
   it("an untouched quantity follows the price; a typed one never moves", () => {
     mount();
     type("swap-sell-sold", "1");

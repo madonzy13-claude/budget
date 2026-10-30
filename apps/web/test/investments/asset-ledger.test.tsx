@@ -13,7 +13,8 @@ import type { EntryDto } from "../../src/hooks/use-asset-entries";
 import { touchSwipe } from "../_helpers/swipe";
 
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
+  useTranslations: () => (key: string, p?: { amount?: string }) =>
+    key === "ledger.realized" && p?.amount ? `${key}(${p.amount})` : key,
   useLocale: () => "en",
 }));
 const mockFetch = vi.hoisted(() => vi.fn());
@@ -82,6 +83,8 @@ const ENTRIES: EntryDto[] = [
     qtyDelta: "-0.005",
     displayAmountCents: "-33000",
     realizedBudgetCents: "4500",
+    realizedCents: "1200",
+    realizedCurrency: "USD",
   }),
   e({
     id: "c1",
@@ -372,6 +375,13 @@ describe("Asset ledger strip", () => {
       / × /.test(s.textContent ?? ""),
     )!;
     expect(qty.style.fontSize).toBe("11px");
+  });
+
+  // R6 (user): realized is in the asset's currency, not the budget's.
+  it("realized shows the asset-currency figure with its currency", async () => {
+    mount(ENTRIES);
+    const rows = await screen.findAllByTestId(/^ledger-row-/);
+    expect(rows[2]).toHaveTextContent("ledger.realized(+12 USD)");
   });
 
   // Round 6 (user): qty × price and realized are lighter, like the asset row.

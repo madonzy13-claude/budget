@@ -446,3 +446,83 @@ describe("Deal figure in the ledger", () => {
     expect(s.calls).toHaveLength(0);
   });
 });
+
+// R6 (user): realized read in PLN for a USD asset — it belongs in the
+// ASSET's currency (not the budget's, not the transaction's).
+describe("Realized in the asset's currency", () => {
+  const listSale = (
+    assetCcy: string,
+    rate: string,
+    extra: Record<string, unknown> = {},
+  ) => {
+    const calls: string[] = [];
+    const fx = {
+      rateAsOf: async (f: string, t: string, d: Date) => {
+        calls.push(`${f}>${t}@${d.toISOString().slice(0, 10)}`);
+        return { rate, provider: "stub", isStale: false };
+      },
+    } as never;
+    const w = new MemoryWorld([
+      hold({ ...btc, buyCcy: assetCcy, curCcy: assetCcy }),
+    ]);
+    void w.historyRepo.commit(T, U, {
+      budgetId: T,
+      patches: [],
+      entries: [
+        entry({
+          holdingRef: "btc",
+          kind: "withdraw",
+          effectiveDate: "2024-05-03",
+          amountCents: 40_000n,
+          amountCurrency: "EUR",
+          realizedBudgetCents: 10_000n,
+          budgetCurrency: "PLN",
+          costCurrency: assetCcy,
+          ...extra,
+        } as never),
+      ],
+    });
+    return {
+      calls,
+      rows: listEntries({
+        holdingRepo: w.holdingRepo,
+        historyRepo: w.historyRepo,
+        fxProvider: fx,
+      })({ ...who, holdingId: "btc", today: "2026-10-30" }),
+    };
+  };
+
+  test("a USD asset sold for EUR reports realized in USD at the sale date's rate", async () => {
+    const s = listSale("USD", "0.25");
+    const rows = (await s.rows)._unsafeUnwrap();
+    expect(rows[0]).toMatchObject({
+      realizedBudgetCents: "10000",
+      realizedCents: "2500",
+      realizedCurrency: "USD",
+    });
+    expect(s.calls).toContain("PLN>USD@2024-05-03");
+  });
+
+  test("a stored deal figure gives the exact realized, no rate", async () => {
+    const s = listSale("USD", "9", {
+      assetAmountCents: 5_000n,
+      costDeltaCents: -3_000n,
+    });
+    const rows = (await s.rows)._unsafeUnwrap();
+    expect(rows[0]).toMatchObject({
+      realizedCents: "2000",
+      realizedCurrency: "USD",
+    });
+    expect(s.calls.filter((c) => c.startsWith("PLN>"))).toHaveLength(0);
+  });
+
+  test("an asset in the budget currency needs no rate", async () => {
+    const s = listSale("PLN", "9");
+    const rows = (await s.rows)._unsafeUnwrap();
+    expect(rows[0]).toMatchObject({
+      realizedCents: "10000",
+      realizedCurrency: "PLN",
+    });
+    expect(s.calls.filter((c) => c.startsWith("PLN>"))).toHaveLength(0);
+  });
+});
