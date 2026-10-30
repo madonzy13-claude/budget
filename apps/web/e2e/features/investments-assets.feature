@@ -9,12 +9,12 @@ Feature: Investments as assets with transactions (13.1)
     And investments are enabled for my budget
 
   # D-01/D-02: DCA — the same name joins the asset.
-  Scenario: Buying under the same name twice makes one asset with two entries
+  # Round-5 scope change: names are not unique — a second Add is a second asset.
+  Scenario: Adding under the same name twice makes two assets
     When I open the investments wallets tab
     And I add a "collectibles" asset "Coins" of "1" units bought at "100" now "120"
     And I add a "collectibles" asset "Coins" of "2" units bought at "110" now "120"
-    Then there is exactly one asset row "Coins"
-    And the ledger of "Coins" has 2 entries
+    Then there are 2 asset rows "Coins"
 
   # UAT 13.1 test 7: tracked types autocomplete from the type's own assets —
   # the list is there on focus, and picking one buys into it.
@@ -113,12 +113,13 @@ Feature: Investments as assets with transactions (13.1)
     Then the ledger says "Remove the later entries in Cash first."
 
   # D-07: a taken label is refused.
-  Scenario: Renaming onto a label already used in the type is refused
+  # Round-5 scope change: a rename onto another asset's name is fine.
+  Scenario: Renaming onto a name already used in the type is saved
     Given a "collectibles" asset "Coins" of "1" units at 2500 cents exists in my budget
     And a "collectibles" asset "Stamps" of "1" units at 2500 cents exists in my budget
     When I open the investments wallets tab
-    And I rename "Stamps" to " coins "
-    Then the edit says "This type already has an asset with that name." and cannot be saved
+    And I rename "Stamps" to "Coins"
+    Then there are 2 asset rows "Coins"
 
   # D-26 (Phase 13 UAT test 2): value only until tapped.
   Scenario: The type header shows its value until tapped

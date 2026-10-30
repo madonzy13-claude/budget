@@ -1162,15 +1162,6 @@ When(
 );
 
 Then(
-  "the edit says {string} and cannot be saved",
-  async ({ page }, copy: string) => {
-    const sheet = page.getByTestId("edit-asset-sheet");
-    await expect(sheet.getByText(copy)).toBeVisible();
-    await expect(sheet.getByTestId("edit-asset-save")).toBeDisabled();
-  },
-);
-
-Then(
   "the {string} header shows only its value",
   async ({ page }, uiType: string) => {
     await expect(
