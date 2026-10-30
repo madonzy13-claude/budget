@@ -45,6 +45,7 @@ import { centsToBare } from "@/lib/cents-format";
 import {
   deriveUiType,
   holdingShape,
+  isQtyUiType,
   type UiType,
 } from "@/lib/investment-types";
 import { isOfflineWriteError } from "@/lib/offline-write";
@@ -88,8 +89,6 @@ const WALLET_TYPES = [
   "POSSESSION",
   "OTHER",
 ] as const;
-const isQtyType = (ui: UiType | string) =>
-  ui === "stocks" || ui === "crypto" || ui === "precious_metals";
 
 /** A plain decimal string for a derived figure (no float noise). */
 const plain = (n: number) => (Number.isFinite(n) ? trimQty(n.toFixed(8)) : "");
@@ -328,7 +327,7 @@ export function SwapSellTab({
   // Destination price (D-09): Existing = its own, read-only; New = typed,
   // else the instrument's live price. Nothing ever writes it from qty.
   const existingIsQty = !!existing && holdingShape(existing) === "quantity";
-  const newIsQty = !!newHolding && isQtyType(newHolding.uiType);
+  const newIsQty = !!newHolding && isQtyUiType(newHolding.uiType);
   const qtyDest =
     (dest === "existing" && existingIsQty) || (dest === "new" && newIsQty);
   const livePrice = newHolding?.livePriceCents

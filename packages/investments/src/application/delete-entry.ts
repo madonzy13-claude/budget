@@ -68,7 +68,17 @@ function undoLeg(
         }
       : undefined;
 
-  if (holdingShape(h) === "quantity") {
+  // ponytail: pre-R6 amount entries on a now-quantity type (collectibles were
+  // hand-valued). At quantity 1 the amount reversal is still exact; with more
+  // units it would guess, so refuse instead.
+  const legacy =
+    h.uiType === "collectibles" &&
+    leg.qtyDelta === null &&
+    !restorePrice &&
+    (leg.costDeltaCents !== 0n || leg.valueDeltaCents !== 0n);
+  if (legacy && !big(h.quantity).eq(1)) throw new RangeError("legacy_entry");
+
+  if (holdingShape(h) === "quantity" && !legacy) {
     const held = big(h.quantity);
     const after = held.minus(big(leg.qtyDelta ?? "0"));
     if (after.lt(0)) throw new RangeError("would_go_negative");

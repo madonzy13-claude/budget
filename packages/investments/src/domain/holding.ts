@@ -52,11 +52,15 @@ export function isHoldingType(value: string): value is HoldingType {
 
 /** Phase 13: priced per unit (sell by quantity) vs a single hand-valued
  *  amount (qty 1, sell by value left). Deposits are amount holdings whose
- *  remainder restarts (D-20). */
+ *  remainder restarts (D-20). Collectibles are counted too (R6-1, user). */
+const QUANTITY_UI_TYPES = new Set([
+  "stocks",
+  "crypto",
+  "precious_metals",
+  "collectibles",
+]);
 export function isQuantityHolding(uiType: string | null): boolean {
-  return (
-    uiType === "stocks" || uiType === "crypto" || uiType === "precious_metals"
-  );
+  return QUANTITY_UI_TYPES.has(uiType ?? "");
 }
 
 export type HoldingShape = "quantity" | "amount" | "deposit";

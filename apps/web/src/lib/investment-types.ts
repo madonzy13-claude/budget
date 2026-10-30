@@ -192,6 +192,17 @@ export function deriveUiType(
 
 /** Mirror of the server's holdingShape (Phase 13): quantity holdings sell and
  *  buy by units; amount holdings (qty 1) by value; deposits restart (D-20). */
+/** Counted per unit (R6-1: collectibles too) — the one web copy of the rule
+ *  in packages/investments/src/domain/holding.ts isQuantityHolding. */
+export const QTY_UI_TYPES = new Set<string>([
+  "stocks",
+  "crypto",
+  "precious_metals",
+  "collectibles",
+]);
+export const isQtyUiType = (ui: string | null | undefined): boolean =>
+  QTY_UI_TYPES.has(ui ?? "");
+
 export function holdingShape(h: {
   holdingType: string;
   uiType: string | null;
@@ -200,7 +211,6 @@ export function holdingShape(h: {
 }): "quantity" | "amount" | "deposit" {
   if (h.holdingType === "deposit") return "deposit";
   const ui = deriveUiType(h.uiType, h.holdingType, h.isCustom);
-  if (ui === "stocks" || ui === "crypto" || ui === "precious_metals")
-    return "quantity";
+  if (isQtyUiType(ui)) return "quantity";
   return Number(h.quantity) === 1 ? "amount" : "quantity";
 }
