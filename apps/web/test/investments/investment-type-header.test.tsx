@@ -236,6 +236,14 @@ describe("InvestmentTypeHeader", () => {
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
+  // Round 6 (user): the chevron's space went with it.
+  it("no empty slot is left where the chevron was", () => {
+    renderHeader();
+    const icon = document.querySelector("[data-type-icon]")!;
+    const before = icon.previousElementSibling as HTMLElement | null;
+    expect(before?.querySelector('[data-testid="type-handle"]')).not.toBeNull();
+  });
+
   it("the drag handle never toggles", () => {
     const { onToggle } = renderHeader();
     fireEvent.click(screen.getByTestId("type-handle"));

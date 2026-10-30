@@ -3,7 +3,7 @@
  * investment-type-header.tsx — L1 type header (Phase 13 D-13..D-16, 13.1 D-26).
  *
  * Round 2 (13.1-29): an asset-row card — same container, the handle has no
- * slot of its own, the chevron sits in the row's 16px icon slot — so handle
+ * slot of its own (R6-7: no chevron, no slot for one) — so handle
  * and name line up with the assets below (UAT test 3). Collapsed: name ·
  * value. Tapping anywhere but the chevron / handle mirrors the asset reveal:
  * the name shrinks, line 2 = total P/L % then amount (P/L % = total ÷
@@ -189,8 +189,6 @@ export function InvestmentTypeHeader({
           {dragHandle}
         </span>
       )}
-      {/* The asset row's 16px icon slot keeps names lined up with assets. */}
-      <span aria-hidden="true" className="w-4 shrink-0" />
 
       {/* Round 4: the type icon lives here (not on each asset). */}
       <Icon

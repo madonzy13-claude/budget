@@ -259,6 +259,8 @@ describe("Investments as type groups", () => {
     renderSection(client([a], { currency: "PLN", order: [], types: {} }));
     const guide = screen.getByTestId("investment-group-guide-stocks");
     expect(guide.getAttribute("style")).toContain("var(--color-hairline-dark)");
+    // Round 6 (user): a hairline, not a bar.
+    expect(guide.style.backgroundSize).toMatch(/^1px /);
     expect(guide.contains(screen.getByTestId(`asset-row-${a.id}`))).toBe(true);
     fireEvent.click(screen.getByTestId("investment-group-stocks"));
     await waitFor(() =>
