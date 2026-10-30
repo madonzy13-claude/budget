@@ -115,4 +115,17 @@ describe("FX pair collection", () => {
     );
     expect(rows).toContainEqual({ base: "JPY", quote: "PLN" });
   });
+
+  test("every pair among the picker's currencies is collected, used or not", async () => {
+    // R6 (user): Edit offers any of these as an asset's currency, and the API
+    // reads rates from the cache only — an uncollected pair read "Exchange
+    // rate unavailable" (PLN → GBP / NOK / SEK / CHF).
+    const { rows } = await workerPool.query<{ base: string; quote: string }>(
+      sqlText(),
+    );
+    const fiat = ["USD", "EUR", "PLN", "GBP", "UAH", "CHF", "NOK", "SEK"];
+    for (const base of fiat)
+      for (const quote of fiat)
+        if (base !== quote) expect(rows).toContainEqual({ base, quote });
+  });
 });
