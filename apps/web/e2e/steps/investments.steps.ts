@@ -239,15 +239,16 @@ Then(
   },
 );
 
+// R6-7: the header row itself opens / closes its group.
 When("I collapse the {string} type block", async ({ page }, uiType: string) => {
-  await page.getByTestId(`investment-group-chevron-${uiType}`).click();
+  await page.getByTestId(`investment-group-toggle-${uiType}`).click();
 });
 
 Then(
   "the {string} type block is collapsed",
   async ({ page }, uiType: string) => {
     await expect(
-      page.getByTestId(`investment-group-chevron-${uiType}`),
+      page.getByTestId(`investment-group-toggle-${uiType}`),
     ).toHaveAttribute("aria-expanded", "false");
   },
 );
@@ -1276,6 +1277,17 @@ Then(
 );
 
 Then(
+  "the {string} header shows the P\\/L sum-up and a guide line beside its assets",
+  async ({ page }, uiType: string) => {
+    const split = await new InvestmentsPo(page).typeSumUp(uiType);
+    await expect(split.locator("[data-pl-caption]")).toBeVisible();
+    await expect(
+      page.getByTestId(`investment-group-guide-${uiType}`),
+    ).toBeVisible();
+  },
+);
+
+Then(
   "tapping the {string} header shows the P\\/L sum-up",
   async ({ page }, uiType: string) => {
     const split = await new InvestmentsPo(page).typeSumUp(uiType);
@@ -1725,9 +1737,14 @@ async function expectHeaderReveal(
   uiType: string,
 ) {
   const header = page.getByTestId(`investment-group-${uiType}`);
+  const split = page.getByTestId(`investment-type-split-${uiType}`);
+  // R6-7: groups start open (stats shown) — close first, then reopen.
+  if (await split.isVisible().catch(() => false)) {
+    await header.click();
+    await expect(split).toHaveCount(0);
+  }
   const h0 = (await header.boundingBox())!.height;
   await header.click();
-  const split = page.getByTestId(`investment-type-split-${uiType}`);
   await expect(split).toBeVisible();
   // Round 3: the reveal fits the card like the asset row (no grow).
   expect(
@@ -2557,9 +2574,9 @@ Then(
   "the picked destination shows its value and I can save",
   async ({ page }) => {
     const po = new InvestmentsPo(page);
-    await expect(
-      po.swapSheet().getByTestId("asset-name-picked"),
-    ).toContainText("Asset value");
+    await expect(po.swapSheet().getByTestId("asset-name-picked")).toContainText(
+      "Asset value",
+    );
     const received = po.swapSheet().getByTestId("swap-sell-received");
     if (await received.isVisible().catch(() => false))
       await received.fill("100");

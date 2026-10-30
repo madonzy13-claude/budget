@@ -202,7 +202,7 @@ describe("Investments as type groups", () => {
     expect(
       document.querySelector(`[data-investment-row-wrapper="${a.id}"]`),
     ).not.toBeNull();
-    fireEvent.click(screen.getByTestId("investment-group-chevron-stocks"));
+    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
     // Round 4: the rows slide shut (hidden from assistive tech at once), then go.
     await waitFor(() =>
       expect(
@@ -225,13 +225,13 @@ describe("Investments as type groups", () => {
     fireEvent.click(row());
     expect(row()).toHaveAttribute("aria-expanded", "true");
     expect(localStorage.getItem("inv.assetOpen.v1")).toBeNull();
-    fireEvent.click(screen.getByTestId("investment-group-chevron-stocks"));
+    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
     await waitFor(() =>
       expect(
         document.querySelector(`[data-investment-row-wrapper="${a.id}"]`),
       ).toBeNull(),
     );
-    fireEvent.click(screen.getByTestId("investment-group-chevron-stocks"));
+    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
     expect(await screen.findByTestId(`asset-row-${a.id}`)).toHaveAttribute(
       "aria-expanded",
       "false",
@@ -248,9 +248,22 @@ describe("Investments as type groups", () => {
     const row = () => screen.getByTestId(`asset-row-${a.id}`);
     fireEvent.click(row());
     expect(row()).toHaveAttribute("aria-expanded", "true");
-    fireEvent.click(screen.getByTestId("investment-group-chevron-stocks"));
-    fireEvent.click(screen.getByTestId("investment-group-chevron-stocks"));
+    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
+    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
     expect(row()).toHaveAttribute("aria-expanded", "false");
+  });
+
+  // Round-6 gap 7: an open group draws a guide line beside its assets.
+  it("an open group draws a neutral guide line beside its assets; a closed one none", async () => {
+    const a = h({ uiType: "stocks" });
+    renderSection(client([a], { currency: "PLN", order: [], types: {} }));
+    const guide = screen.getByTestId("investment-group-guide-stocks");
+    expect(guide.getAttribute("style")).toContain("var(--color-hairline-dark)");
+    expect(guide.contains(screen.getByTestId(`asset-row-${a.id}`))).toBe(true);
+    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("investment-group-guide-stocks")).toBeNull(),
+    );
   });
 
   it("renders blocks before the summary loads (realized 0)", () => {

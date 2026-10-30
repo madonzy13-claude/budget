@@ -695,7 +695,7 @@ export class InvestmentsPo {
     if (!(await posted).ok()) throw new Error("create deposit failed");
   }
 
-  /** Tap a type header's value to show its sum-up (D-26). */
+  /** The type header's sum-up — shown while the group is open (R6-7). */
   async typeSumUp(uiType: string) {
     const split = this.page.getByTestId(`investment-type-split-${uiType}`);
     if (!(await split.isVisible().catch(() => false)))

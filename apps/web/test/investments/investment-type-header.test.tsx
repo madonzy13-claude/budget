@@ -53,19 +53,25 @@ function renderHeader(
   over: Partial<Parameters<typeof InvestmentTypeHeader>[0]> = {},
 ) {
   const onToggle = vi.fn();
-  render(
+  // R6-7: closed shows the value only; open shows the stats.
+  const el = (expanded: boolean) => (
     <InvestmentTypeHeader
       uiType="stocks"
       budgetCurrency="PLN"
       pl={pl()}
       portfolioPct={60}
-      expanded
+      expanded={expanded}
       onToggle={onToggle}
       dragHandle={<span data-testid="type-handle" />}
       {...over}
-    />,
+    />
   );
-  return { onToggle };
+  const { rerender } = render(el(over.expanded ?? false));
+  return {
+    onToggle,
+    open: () => rerender(el(true)),
+    close: () => rerender(el(false)),
+  };
 }
 
 describe("InvestmentTypeHeader", () => {
@@ -108,7 +114,7 @@ describe("InvestmentTypeHeader", () => {
 
   // Round-4 gap 12 (cash too): tapped, the currency hugs the amount.
   it("a tapped cash header drops the amount's column width", () => {
-    renderHeader({
+    const h = renderHeader({
       uiType: "cash",
       maxAmountChars: 12,
       pl: pl({
@@ -122,13 +128,13 @@ describe("InvestmentTypeHeader", () => {
       screen.getByTestId("investment-type-value-cash")
         .lastElementChild as HTMLElement;
     expect(amount().style.minWidth).toBe("13ch");
-    fireEvent.click(screen.getByTestId("investment-group-toggle-cash"));
+    h.open();
     expect(amount().style.minWidth).toBe("");
   });
 
   // Round-4 gaps 1 + 2.
   it("left and right are separate centred columns, closed and tapped; the type icon sits on the header", () => {
-    renderHeader();
+    const h = renderHeader();
     expect(document.querySelector("[data-type-icon]")).not.toBeNull();
     const check = (tapped: boolean) => {
       const left = document.querySelector<HTMLElement>('[data-col="left"]')!;
@@ -149,7 +155,7 @@ describe("InvestmentTypeHeader", () => {
       }
     };
     check(false);
-    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
+    h.open();
     check(true);
   });
 
@@ -171,12 +177,12 @@ describe("InvestmentTypeHeader", () => {
     expect(screen.queryByTestId("investment-type-share-stocks")).toBeNull();
   });
 
-  it("tap mirrors the asset reveal: smaller name, P/L line, labelled amounts, share under the value", () => {
-    renderHeader();
+  it("open mirrors the asset reveal: smaller name, P/L line, labelled amounts, share under the value", () => {
+    const h = renderHeader();
     expect(screen.getByText("Stocks & ETFs").className).not.toMatch(
       /font-semibold|font-bold/,
     );
-    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
+    h.open();
     const root = screen.getByTestId("investment-group-stocks");
     // Round 3: the reveal fits the card like the asset row (it grew 56 → 69.6).
     expect(root.className).not.toMatch(/(^|\s)py-/);
@@ -206,55 +212,57 @@ describe("InvestmentTypeHeader", () => {
     expect(
       screen.getByTestId("investment-type-value-stocks"),
     ).toHaveTextContent("80,000");
-    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
+    h.close();
     expect(screen.queryByTestId("investment-type-split-stocks")).toBeNull();
   });
 
   it("pct null renders a muted dash in the sum-up", () => {
-    renderHeader({ pl: pl({ pct: null }) });
-    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
+    renderHeader({ pl: pl({ pct: null }), expanded: true });
     expect(screen.getByText("—").getAttribute("style")).toContain(
       "var(--muted-strong)",
     );
   });
 
-  it("chevron calls onToggle and reflects expanded", () => {
+  // Round-6 gap 7 (user): no chevron — the whole header row is the toggle.
+  it("has no chevron; the header row is the one toggle and reflects expanded", () => {
     const { onToggle } = renderHeader({ expanded: false });
-    const chev = screen.getByTestId("investment-group-chevron-stocks");
-    expect(chev).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(chev);
-    expect(onToggle).toHaveBeenCalledTimes(1);
-  });
-
-  // UAT 13.1 test 3: tap anywhere but the chevron / handle shows the sum-up.
-  it("tapping the name or empty header space toggles the sum-up", () => {
-    renderHeader();
+    expect(
+      document.querySelector('[data-testid^="investment-group-chevron-"]'),
+    ).toBeNull();
+    const header = screen.getByTestId("investment-group-toggle-stocks");
+    expect(header).toHaveAttribute("role", "button");
+    expect(header).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(screen.getByText("Stocks & ETFs"));
-    expect(screen.getByTestId("investment-type-split-stocks")).toBeTruthy();
-    fireEvent.click(screen.getByTestId("investment-group-stocks"));
-    expect(screen.queryByTestId("investment-type-split-stocks")).toBeNull();
-  });
-
-  it("the chevron and the drag handle never toggle the sum-up", () => {
-    const { onToggle } = renderHeader();
-    fireEvent.click(screen.getByTestId("investment-group-chevron-stocks"));
-    fireEvent.click(screen.getByTestId("type-handle"));
     expect(onToggle).toHaveBeenCalledTimes(1);
-    expect(screen.queryByTestId("investment-type-split-stocks")).toBeNull();
   });
 
-  it("Enter on the header toggles the sum-up", () => {
-    renderHeader();
-    fireEvent.keyDown(screen.getByTestId("investment-group-toggle-stocks"), {
-      key: "Enter",
-    });
-    expect(screen.getByTestId("investment-type-split-stocks")).toBeTruthy();
+  it("the drag handle never toggles", () => {
+    const { onToggle } = renderHeader();
+    fireEvent.click(screen.getByTestId("type-handle"));
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+
+  it("Enter and Space on the header toggle", () => {
+    const { onToggle } = renderHeader();
+    const header = screen.getByTestId("investment-group-toggle-stocks");
+    fireEvent.keyDown(header, { key: "Enter" });
+    fireEvent.keyDown(header, { key: " " });
+    expect(onToggle).toHaveBeenCalledTimes(2);
+  });
+
+  it("stats follow open: none while closed, all while open", () => {
+    const h = renderHeader();
+    expect(document.querySelector("[data-pl-caption]")).toBeNull();
+    h.open();
+    expect(document.querySelector("[data-pl-caption]")).not.toBeNull();
+    expect(document.querySelector("[data-pl-line]")).not.toBeNull();
   });
 
   // UAT 13.1 test 3: cash has no profit by design.
   it("cash shows its share but no P/L line and no caption when tapped", () => {
     renderHeader({
       uiType: "cash",
+      expanded: true,
       pl: pl({
         pct: null,
         unrealizedCents: 0,
@@ -262,7 +270,6 @@ describe("InvestmentTypeHeader", () => {
         totalPLCents: 0,
       }),
     });
-    fireEvent.click(screen.getByTestId("investment-group-toggle-cash"));
     expect(document.querySelector("[data-pl-line]")).toBeNull();
     expect(document.querySelector("[data-pl-caption]")).toBeNull();
     expect(screen.getByTestId("investment-type-share-cash")).toHaveTextContent(
@@ -274,8 +281,8 @@ describe("InvestmentTypeHeader", () => {
   it("a zero P/L shows a grey up-arrow, +0.0% and +0", () => {
     renderHeader({
       pl: pl({ pct: 0, totalPLCents: 0, unrealizedCents: 0, realizedCents: 0 }),
+      expanded: true,
     });
-    fireEvent.click(screen.getByTestId("investment-group-toggle-stocks"));
     const line = document.querySelector("[data-pl-line]")!;
     expect(line.textContent).toMatch(/^\+0\.0%\s*\+0$/);
     const icon = line.querySelector<SVGElement>('[data-pl-trend="flat"]')!;

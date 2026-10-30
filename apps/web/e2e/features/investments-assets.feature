@@ -121,12 +121,17 @@ Feature: Investments as assets with transactions (13.1)
     And I rename "Stamps" to "Coins"
     Then there are 2 asset rows "Coins"
 
-  # D-26 (Phase 13 UAT test 2): value only until tapped.
-  Scenario: The type header shows its value until tapped
+  # Round-6 gap 7 (user): no chevron — the header row opens / closes its
+  # group; stats show while open, value only while closed; open draws a
+  # guide line beside its assets.
+  @r6-group-header
+  Scenario: The type header opens and closes its group; stats follow open
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
     When I open the investments wallets tab
+    Then the "broker" header shows the P/L sum-up and a guide line beside its assets
+    When I collapse the "broker" type block
     Then the "broker" header shows only its value
-    And tapping the "broker" header shows the P/L sum-up
+    And the holding row "IBKR" is hidden
 
   # UI-SPEC: the Swap sheet fits a phone in every launch locale.
   Scenario Outline: The Swap sheet fits a phone in <locale>
