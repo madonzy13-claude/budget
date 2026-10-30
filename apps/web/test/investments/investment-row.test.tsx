@@ -659,7 +659,7 @@ describe("InvestmentRow", () => {
 
   // 13.1 D-27: the row toggles on every viewport; Edit is an explicit action.
   // Round-6 gap 4: Edit first, then + (new transaction).
-  it("desktop: hover offers Edit then + (new transaction), no delete or sell", () => {
+  it("desktop: hover offers Edit then the new-transaction (↕) action, no delete or sell", () => {
     const onSwap = vi.fn();
     const onEdit = vi.fn();
     render(
@@ -670,7 +670,7 @@ describe("InvestmentRow", () => {
     expect(
       edit.compareDocumentPosition(plus) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(plus.querySelector("svg.lucide-plus")).not.toBeNull();
+    expect(plus.querySelector("svg.lucide-arrow-up-down")).not.toBeNull();
     fireEvent.click(plus);
     fireEvent.click(edit);
     expect(onSwap).toHaveBeenCalledTimes(1);

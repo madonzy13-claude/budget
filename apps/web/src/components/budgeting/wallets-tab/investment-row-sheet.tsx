@@ -15,7 +15,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
-import { Archive, Pencil, Plus, Trash2 } from "lucide-react";
+import { Archive, ArrowUpDown, Pencil, Trash2 } from "lucide-react";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { useSwipeReveal } from "@/hooks/use-swipe-reveal";
 import type { HoldingDto } from "@/hooks/use-investments";
@@ -172,7 +172,7 @@ export function InvestmentRowSheet({
           }}
           className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--info)] text-white"
         >
-          <Plus className="h-5 w-5" aria-hidden="true" />
+          <ArrowUpDown className="h-5 w-5" aria-hidden="true" />
         </button>
         {onDelete ? (
           <button

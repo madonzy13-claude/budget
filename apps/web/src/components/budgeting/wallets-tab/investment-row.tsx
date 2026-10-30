@@ -24,7 +24,7 @@ import {
   Archive,
   Pencil,
   CircleSlash2,
-  Plus,
+  ArrowUpDown,
   Trash2,
   TrendingUp,
   TrendingDown,
@@ -510,7 +510,7 @@ export function InvestmentRow({
         {(
           [
             [onEdit, Pencil, "asset.swipe.edit", "edit"],
-            [onSwap, Plus, "asset.swipe.newTxn", "swap"],
+            [onSwap, ArrowUpDown, "asset.swipe.newTxn", "swap"],
             [onArchive, Archive, "asset.archive.confirm", "archive"],
             [onDelete, Trash2, "ledger.confirm.last.confirm", "delete"],
           ] as const

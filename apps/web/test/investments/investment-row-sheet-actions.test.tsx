@@ -80,7 +80,7 @@ function renderRow(
 
 describe("Row actions", () => {
   // Round-6 gap 4 (user): Edit first, then "+" (new transaction).
-  it("swipe panel offers Edit then + (new transaction)", () => {
+  it("swipe panel offers Edit then the new-transaction (↕) action", () => {
     const onSwap = vi.fn();
     renderRow({ onSwap });
     const swap = screen.getByTestId("investment-swap-h1");
@@ -89,7 +89,7 @@ describe("Row actions", () => {
       edit.compareDocumentPosition(swap) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(swap).toHaveAccessibleName("investments.asset.swipe.newTxn BTC");
-    expect(swap.querySelector("svg.lucide-plus")).not.toBeNull();
+    expect(swap.querySelector("svg.lucide-arrow-up-down")).not.toBeNull();
     expect(screen.queryByTestId("holding-swipe-delete-h1")).toBeNull();
     expect(screen.queryByTestId("investment-sell-h1")).toBeNull();
     fireEvent.click(swap);
