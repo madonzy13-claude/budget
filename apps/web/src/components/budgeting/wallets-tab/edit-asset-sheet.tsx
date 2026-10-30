@@ -142,6 +142,7 @@ export function EditAssetSheet({
   const [fxFailed, setFxFailed] = useState(false);
   const touched = useRef(false);
   const asked = useRef(ccy0);
+  const rates = useRef(new Map<string, { rate: string; asOf: string }>());
   const [error, setError] = useState<string | null>(null);
 
   const editValue = (v: string) => {
@@ -158,19 +159,35 @@ export function EditAssetSheet({
       if (!touched.current) setPrice(price0);
       return;
     }
-    void clientApiFetch(`/fx/rate?from=${ccy0}&to=${next}&date=${today()}`)
-      .then(async (r) =>
-        r.ok
-          ? ((await r.json()) as { rate?: string; fxRateDate?: string })
-          : null,
-      )
-      .catch(() => null)
+    const apply = (q: { rate: string; asOf: string }) => {
+      setFx(q);
+      if ((showValue || showPrice) && !touched.current && price0)
+        setPrice(convert(price0, q.rate));
+    };
+    // R6 (user): a currency picked before converts at once.
+    const known = rates.current.get(next);
+    if (known) return apply(known);
+    const get = () =>
+      clientApiFetch(`/fx/rate?from=${ccy0}&to=${next}&date=${today()}`)
+        .then(async (r) =>
+          r.ok
+            ? ((await r.json()) as { rate?: string; fxRateDate?: string })
+            : null,
+        )
+        .catch(() => null);
+    // One retry: a blip must not leave the old figure standing.
+    void get()
+      .then((q) => (q?.rate ? q : get()))
       .then((q) => {
+        if (q?.rate)
+          rates.current.set(next, {
+            rate: q.rate,
+            asOf: q.fxRateDate ?? today(),
+          });
         if (asked.current !== next) return; // a later switch won
-        if (!q?.rate) return setFxFailed(true);
-        setFx({ rate: q.rate, asOf: q.fxRateDate ?? today() });
-        if ((showValue || showPrice) && !touched.current && price0)
-          setPrice(convert(price0, q.rate));
+        const hit = rates.current.get(next);
+        if (!hit) return setFxFailed(true);
+        apply(hit);
       });
   }
   const valueChanged =
@@ -237,12 +254,6 @@ export function EditAssetSheet({
               aria-label={t("edit.displayCurrency")}
             />
           </Field>
-          <p
-            className="text-[12px]"
-            style={{ color: "var(--muted-foreground)" }}
-          >
-            {t("edit.displayCurrencyHelp")}
-          </p>
           {showValue && (
             <Field label={`${t("edit.currentValue")} (${ccy})`}>
               <NumericInput
