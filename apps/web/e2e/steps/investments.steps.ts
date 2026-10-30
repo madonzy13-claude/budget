@@ -1942,7 +1942,7 @@ Then(
   },
 );
 
-// Gap 13: every quantity entry reads "±qty @ price".
+// Gap 13: every quantity entry reads "±qty × price".
 When(
   "I move {string} of the {string} asset {string} to a new asset {string} from New transaction",
   async ({ page }, qty: string, type: string, name: string, to: string) => {
@@ -1970,7 +1970,7 @@ Then(
         ),
       );
     expect(lines.length).toBeGreaterThan(0);
-    for (const l of lines) expect(l).toMatch(/^[+−-][\d.,\s]+ @ [\d.,\s]+$/);
+    for (const l of lines) expect(l).toMatch(/^[+−-][\d.,\s]+ × [\d.,\s]+$/);
   },
 );
 

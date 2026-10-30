@@ -217,8 +217,8 @@ describe("Asset ledger strip", () => {
     expect(document.body.innerHTML).not.toContain("var(--body-on-dark)");
   });
 
-  // Round-2 gap 13: the server's display quantity drives "±qty @ price".
-  it("a one-unit entry reads ±1 @ price", async () => {
+  // Round-2 gap 13: the server's display quantity drives "±qty × price".
+  it("a one-unit entry reads ±1 × price (round 6: × not @)", async () => {
     mount([
       e({
         id: "d1",
@@ -229,7 +229,7 @@ describe("Asset ledger strip", () => {
       }),
     ]);
     const row = await screen.findByTestId("ledger-row-d1");
-    expect(row).toHaveTextContent("−1 @ 690");
+    expect(row).toHaveTextContent("−1 × 690");
   });
 
   // Round-3 gap 9: the swiped delete is square, shadowed on its left edge.
@@ -364,12 +364,12 @@ describe("Asset ledger strip", () => {
     expect(shade.style.opacity).toBe("1");
   });
 
-  // Round-3 gap 12: "±qty @ price" is a step smaller.
-  it("the qty @ price line is 11px", async () => {
+  // Round-3 gap 12: "±qty × price" is a step smaller.
+  it("the qty × price line is 11px", async () => {
     mount(ENTRIES);
     const row = await screen.findByTestId("ledger-row-b1");
     const qty = [...row.querySelectorAll<HTMLElement>("span")].find((s) =>
-      / @ /.test(s.textContent ?? ""),
+      / × /.test(s.textContent ?? ""),
     )!;
     expect(qty.style.fontSize).toBe("11px");
   });

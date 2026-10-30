@@ -317,7 +317,7 @@ export function LedgerRow({
             <span style={{ fontSize: "11px", lineHeight: 1.4 }}>
               {`${Number(qty) > 0 ? "+" : Number(qty) < 0 ? MINUS : ""}${trimQty(qty.replace(/^-/, ""))}`}
               {entry.priceCents != null &&
-                ` @ ${centsToBare(entry.priceCents, locale)}`}
+                ` × ${centsToBare(entry.priceCents, locale)}`}
             </span>
           )}
           {amount != null && (

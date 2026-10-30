@@ -198,7 +198,7 @@ Feature: Investments as assets with transactions (13.1)
   # Round-6 gaps 4 + 6 (user): qty × avg. cost above the price, unrealized ·
   # realized like the header; Edit first, then + (new transaction).
   @r6-row
-  Scenario: A tapped asset shows qty @ avg and its P/L split; + sits second
+  Scenario: A tapped asset shows qty × avg. cost and its P/L split; the transaction action sits second
     Given a "stocks" asset "ACME" of "10" units at 2500 cents exists in my budget
     When I open the investments wallets tab
     And I tap the asset row "ACME"
@@ -269,7 +269,7 @@ Feature: Investments as assets with transactions (13.1)
       | currentPrice | *      |
       | premium      | 25.17  |
 
-  # Gap 13: every entry reads "±qty @ price" — transfer legs and one-unit
+  # Gap 13: every entry reads "±qty × price" — transfer legs and one-unit
   # assets included; amount assets (broker, cash, …) keep plain amounts.
   @r2-qty-price
   Scenario: Every quantity entry shows its quantity at a price
