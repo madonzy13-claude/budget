@@ -314,7 +314,8 @@ export function LedgerRow({
         </div>
         <div className="num flex shrink-0 flex-col items-end text-right tabular-nums">
           {qty != null && (
-            <span style={{ fontSize: "11px", lineHeight: 1.4 }}>
+            // Round 6 (user): lighter, like the asset row's secondary lines.
+            <span style={{ fontSize: "11px", lineHeight: 1.4, opacity: 0.7 }}>
               {`${Number(qty) > 0 ? "+" : Number(qty) < 0 ? MINUS : ""}${trimQty(qty.replace(/^-/, ""))}`}
               {entry.priceCents != null &&
                 ` × ${centsToShort(entry.priceCents, locale)}`}
@@ -340,7 +341,10 @@ export function LedgerRow({
           {entry.realizedBudgetCents != null && (
             <span
               className="text-[12px] leading-[1.4]"
-              style={{ color: signColor(Number(entry.realizedBudgetCents)) }}
+              style={{
+                color: signColor(Number(entry.realizedBudgetCents)),
+                opacity: 0.7,
+              }}
             >
               {t("ledger.realized", {
                 amount: signed(entry.realizedBudgetCents),
