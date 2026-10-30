@@ -293,6 +293,42 @@ export function SwapBuyTab({
     buyMut.mutate({ holdingId: holding.id, body }, { onSuccess, onError });
   }
 
+  /** A source asset: name left; value · currency right, and the held
+   *  quantity for counted assets (under it in the list, beside it in the
+   *  field so the field stays one line). */
+  const srcRow = (h: HoldingDto, inline: boolean) => (
+    <span className="flex w-full min-w-0 items-center justify-between gap-3">
+      <span data-src-name className="min-w-0 truncate">
+        {h.name}
+      </span>
+      <span
+        className={`flex shrink-0 tabular-nums ${inline ? "items-baseline gap-2" : "flex-col items-end leading-tight"}`}
+      >
+        {inline && holdingShape(h) === "quantity" && (
+          <span
+            data-src-qty
+            className="text-[11px]"
+            style={{ color: "var(--muted-foreground)", opacity: 0.7 }}
+          >
+            {heldQty(t, h)}
+          </span>
+        )}
+        <span data-src-value>
+          {`${money(Number(h.valueCents))} ${ccyOf(h, budgetCurrency)}`}
+        </span>
+        {!inline && holdingShape(h) === "quantity" && (
+          <span
+            data-src-qty
+            className="text-[11px]"
+            style={{ color: "var(--muted-foreground)", opacity: 0.7 }}
+          >
+            {heldQty(t, h)}
+          </span>
+        )}
+      </span>
+    </span>
+  );
+
   return (
     <>
       <div className="space-y-4">
@@ -345,9 +381,13 @@ export function SwapBuyTab({
                 <SelectTrigger
                   data-testid="swap-buy-src"
                   aria-label={t("swap.buy.srcAsset")}
-                  className="min-h-11 w-full"
+                  // The trigger's span is line-clamped; WebKit line-clamp
+                  // breaks a nested flex, so force it flex (see memory).
+                  className="min-h-11 w-full gap-2 [&>span]:!flex [&>span]:!min-w-0 [&>span]:flex-1"
                 >
-                  <SelectValue placeholder={t("swap.buy.srcPlaceholder")} />
+                  <SelectValue placeholder={t("swap.buy.srcPlaceholder")}>
+                    {src ? srcRow(src, true) : null}
+                  </SelectValue>
                 </SelectTrigger>
                 {/* R6 (user): grouped by type, icon headers, rich rows. */}
                 <SelectContent
@@ -378,30 +418,9 @@ export function SwapBuyTab({
                             data-testid={`swap-buy-src-option-${h.id}`}
                             // The item text wrapper stretches so the value
                             // sits on the right edge.
-                            className="min-h-11 pl-8 [&>span:last-child]:min-w-0 [&>span:last-child]:flex-1"
+                            className="py-1 pl-8 [&>span:last-child]:min-w-0 [&>span:last-child]:flex-1"
                           >
-                            <span className="flex w-full min-w-0 items-center justify-between gap-3">
-                              <span data-src-name className="min-w-0 truncate">
-                                {h.name}
-                              </span>
-                              <span className="flex shrink-0 flex-col items-end leading-tight tabular-nums">
-                                <span data-src-value>
-                                  {`${money(Number(h.valueCents))} ${ccyOf(h, budgetCurrency)}`}
-                                </span>
-                                {holdingShape(h) === "quantity" && (
-                                  <span
-                                    data-src-qty
-                                    className="text-[11px]"
-                                    style={{
-                                      color: "var(--muted-foreground)",
-                                      opacity: 0.7,
-                                    }}
-                                  >
-                                    {heldQty(t, h)}
-                                  </span>
-                                )}
-                              </span>
-                            </span>
+                            {srcRow(h, false)}
                           </SelectItem>
                         ))}
                       </SelectGroup>
