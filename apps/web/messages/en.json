@@ -770,8 +770,8 @@
       "addDate": "Date",
       "asset": {
         "swipe": {
-          "swap": "Swap",
-          "edit": "Edit"
+          "edit": "Edit",
+          "newTxn": "New transaction"
         },
         "name": {
           "label": "Name",

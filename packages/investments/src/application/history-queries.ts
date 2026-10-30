@@ -35,6 +35,16 @@ export function typeSummary(deps: {
         ),
       ]);
       const sums = new Map<string, { r: Big; s: Big }>();
+      const perHolding = new Map<string, { r: Big; s: Big }>();
+      const add = (
+        m: Map<string, { r: Big; s: Big }>,
+        k: string,
+        r: Big,
+        s: Big,
+      ) => {
+        const cur = m.get(k) ?? { r: new Big(0), s: new Big(0) };
+        m.set(k, { r: cur.r.plus(r), s: cur.s.plus(s) });
+      };
       for (const row of rows) {
         // Rows booked in an older budget currency: today's rate. A missing
         // rate skips that row instead of failing every header (WR-10).
@@ -51,27 +61,26 @@ export function typeSummary(deps: {
           } catch {
             continue;
           }
-        const cur = sums.get(row.uiType) ?? { r: new Big(0), s: new Big(0) };
-        cur.r = cur.r.plus(
-          new Big(row.realizedBudgetCents.toString()).times(rate),
-        );
-        cur.s = cur.s.plus(
-          new Big(row.soldCostBudgetCents.toString()).times(rate),
-        );
-        sums.set(row.uiType, cur);
+        const r = new Big(row.realizedBudgetCents.toString()).times(rate);
+        const s = new Big(row.soldCostBudgetCents.toString()).times(rate);
+        add(sums, row.uiType, r, s);
+        add(perHolding, row.holdingId, r, s);
       }
-      return ok({
-        currency: input.budgetCurrency,
-        order,
-        types: Object.fromEntries(
-          [...sums].map(([t, v]) => [
-            t,
+      const out = (m: Map<string, { r: Big; s: Big }>) =>
+        Object.fromEntries(
+          [...m].map(([k, v]) => [
+            k,
             {
               realizedBudgetCents: v.r.round(0, 2).toFixed(0),
               soldCostBudgetCents: v.s.round(0, 2).toFixed(0),
             },
           ]),
-        ),
+        );
+      return ok({
+        currency: input.budgetCurrency,
+        order,
+        types: out(sums),
+        holdings: out(perHolding),
       });
     } catch (e) {
       return err(e as Error);

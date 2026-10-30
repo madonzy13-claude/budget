@@ -53,6 +53,56 @@ const signColor = (n: number) =>
 
 const SLOT = "\u0000";
 
+/** "unreal.: X  real.: Y" — words muted, figures by sign (round 3: zero reads
+ *  "+0"). Shared by the type header and, round 6, each asset row. */
+export function PlCaption({
+  unrealizedCents,
+  realizedCents,
+  until,
+  ...rest
+}: {
+  unrealizedCents: number;
+  realizedCents: number;
+  until?: React.RefObject<HTMLElement | null>;
+} & React.HTMLAttributes<HTMLSpanElement>) {
+  const t = useTranslations("budget.investments");
+  const locale = useLocale();
+  const signed = (cents: number) =>
+    `${cents < 0 ? "−" : "+"}${centsToBare(String(Math.round(Math.abs(cents))), locale)}`;
+  return (
+    <FitLine
+      {...rest}
+      until={until}
+      // One line, never wraps (round-4 gaps 13 + 17): short labels; what
+      // still does not fit scrolls to its end and back.
+      className="num tabular-nums"
+      style={{
+        color: "var(--muted-foreground)",
+        fontSize: "11px",
+        lineHeight: 1.4,
+      }}
+    >
+      {(
+        [
+          ["typeGroup.unrealizedLabel", unrealizedCents],
+          ["typeGroup.realizedLabel", realizedCents],
+        ] as const
+      ).map(([key, n]) => {
+        const [before, after = ""] = t(key, { value: SLOT }).split(SLOT);
+        return (
+          <span key={key}>
+            {before}
+            <span data-signed style={{ color: signColor(n) }}>
+              {signed(n)}
+            </span>
+            {after}
+          </span>
+        );
+      })}
+    </FitLine>
+  );
+}
+
 export function InvestmentTypeHeader({
   uiType,
   budgetCurrency,
@@ -225,39 +275,12 @@ export function InvestmentTypeHeader({
               </span>
             </span>
             {/* Inline size: tailwind-merge cannot drop it (same as the asset row). */}
-            <FitLine
+            <PlCaption
               data-pl-caption
+              unrealizedCents={pl.unrealizedCents}
+              realizedCents={pl.realizedCents}
               until={shareRef}
-              // One line, never wraps (round-4 gaps 13 + 17): short labels; what
-              // still does not fit scrolls to its end and back.
-              className="num tabular-nums"
-              style={{
-                color: "var(--muted-foreground)",
-                fontSize: "11px",
-                lineHeight: 1.4,
-              }}
-            >
-              {/* "unrealized: X realized: Y" — words muted, figures by sign. */}
-              {(
-                [
-                  ["typeGroup.unrealizedLabel", pl.unrealizedCents],
-                  ["typeGroup.realizedLabel", pl.realizedCents],
-                ] as const
-              ).map(([key, n]) => {
-                const [before, after = ""] = t(key, { value: SLOT }).split(
-                  SLOT,
-                );
-                return (
-                  <span key={key}>
-                    {before}
-                    <span data-signed style={{ color: signColor(n) }}>
-                      {signed(n)}
-                    </span>
-                    {after}
-                  </span>
-                );
-              })}
-            </FitLine>
+            />
           </div>
         )}
       </div>

@@ -140,6 +140,8 @@ export interface StoredEntry {
 
 export interface RealizedRow {
   uiType: string;
+  /** R6-6: per-asset realized next to the per-type sum. */
+  holdingId: string;
   budgetCurrency: string;
   realizedBudgetCents: bigint;
   soldCostBudgetCents: bigint;

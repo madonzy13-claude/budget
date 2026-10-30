@@ -613,6 +613,7 @@ export function InvestmentsSection({
                               nested
                               maxAmountChars={amountCols.group[block.uiType]}
                               open={openAssets.has(h.id)}
+                              realized={summary?.holdings?.[h.id]}
                               onToggle={toggleAsset}
                               onSwipeOffset={(id, px, live) =>
                                 setSwipe({ id, px, live })

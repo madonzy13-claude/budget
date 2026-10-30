@@ -18,13 +18,13 @@
  * exception); cash / no-basis renders "—" in --muted-strong; a delisted row is
  * dimmed (opacity-50, --muted-strong) which overrides any P/L color (D-09/25).
  */
-import { FitLine } from "@/components/common/fit-line";
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   Archive,
-  ArrowRightLeft,
   Pencil,
+  Plus,
+  Scale,
   Trash2,
   TrendingUp,
   TrendingDown,
@@ -32,6 +32,8 @@ import {
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { Input } from "@/components/ui/input";
 import { centsToBare } from "@/lib/cents-format";
+import { typeGroupPL } from "@/lib/investment-type-groups";
+import { PlCaption } from "./investment-type-header";
 import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
@@ -49,8 +51,11 @@ interface InvestmentRowProps {
    *  the currency codes line up in a column (mirrors wallet-row). */
   maxAmountChars?: number;
   onEdit?: () => void;
-  /** 13.1 D-05: open the Swap sheet (Buy / Sell / Transfer). */
+  /** 13.1 D-05: open the transaction sheet (Buy / Sell / Transfer) — the
+   *  "+" action, second after Edit (R6-4). */
   onSwap?: () => void;
+  /** R6-6: this asset's realized + sold cost (type-summary `holdings`). */
+  realized?: { realizedBudgetCents: string; soldCostBudgetCents: string };
   /** Round 4: archive (the section asks first). */
   onArchive?: () => void;
   /** Round 4: delete an asset that has nothing but its opening entry. */
@@ -67,8 +72,6 @@ interface InvestmentRowProps {
    */
   onValueChange?: (amount: string) => Promise<void> | void;
 }
-
-const SLOT = "\u0000";
 
 /** Signed %, 1 decimal, with a real minus sign (U+2212); zero reads "+0.0%"
  *  (round 3). */
@@ -88,6 +91,7 @@ export function InvestmentRow({
   onDelete,
   onToggle,
   open,
+  realized,
   onValueChange,
 }: InvestmentRowProps) {
   const locale = useLocale();
@@ -184,19 +188,10 @@ export function InvestmentRow({
     ? cashLabel
     : (customName ?? mobileLabel(holding, expanded));
 
-  // Mobile-expanded caption: avg price · qty · started (only what applies).
-  // Round 4: "avg price: X  qty: Y" — label muted, value grey (like the
-  // header's "+0"); built from the message with the value as a slot.
-  const caption = (
-    [
-      avgPrice != null && ["typeGroup.stats.avgPrice", "price", avgPrice],
-      showQty && ["row.qty", "qty", qtyDisplay],
-      startedDisplay != null && ["row.started", "amount", startedDisplay],
-    ].filter(Boolean) as [string, string, string][]
-  ).map(([key, slot, v]) => {
-    const [before, after = ""] = t(key, { [slot]: SLOT }).split(SLOT);
-    return { key, before, v, after };
-  });
+  // R6-6: the caption is this asset's unrealized · realized (the header's
+  // own figures for a one-asset list); qty @ avg sits above the price.
+  const assetPL = typeGroupPL([holding], realized);
+  const qtyAvg = avgPrice != null ? `${qtyDisplay} @ ${avgPrice}` : null;
 
   // P/L cell — color/sign/icon unless delisted (dimming wins) or cash (—).
   const plColor =
@@ -363,26 +358,13 @@ export function InvestmentRow({
               {/* One step under the P/L line (UAT 13.1 test 4); inline so
                   tailwind-merge cannot drop it. */}
               {/* Same font + size as the header's unreal./real. line (round 4). */}
-              {caption.length > 0 && (
-                <FitLine
+              {!isCash && (
+                <PlCaption
                   data-asset-caption
+                  unrealizedCents={assetPL.unrealizedCents}
+                  realizedCents={assetPL.realizedCents}
                   until={shareRef}
-                  className="num text-[var(--muted-foreground)] tabular-nums"
-                  style={{ fontSize: "11px", lineHeight: 1.4 }}
-                >
-                  {caption.map((c) => (
-                    <span key={c.key}>
-                      {c.before}
-                      <span
-                        data-caption-value
-                        style={{ color: "var(--muted-strong)" }}
-                      >
-                        {c.v}
-                      </span>
-                      {c.after}
-                    </span>
-                  ))}
-                </FitLine>
+                />
               )}
             </div>
           )}
@@ -477,6 +459,22 @@ export function InvestmentRow({
               )}
             </div>
           </div>
+          {expanded && (qtyAvg != null || startedDisplay != null) && (
+            <span
+              data-testid="investment-row-qtyavg"
+              className="flex items-center gap-1 text-[var(--muted-foreground)] tabular-nums sm:hidden"
+              style={{ fontSize: "11px", lineHeight: 1.4 }}
+            >
+              {qtyAvg != null ? (
+                <>
+                  <Scale data-avg-icon className="h-3 w-3" aria-hidden="true" />
+                  {qtyAvg}
+                </>
+              ) : (
+                t("row.started", { amount: startedDisplay! })
+              )}
+            </span>
+          )}
           {expanded && valueBlock("sm:hidden")}
           {expanded && (
             <span
@@ -507,8 +505,8 @@ export function InvestmentRow({
       >
         {(
           [
-            [onSwap, ArrowRightLeft, "asset.swipe.swap", "swap"],
             [onEdit, Pencil, "asset.swipe.edit", "edit"],
+            [onSwap, Plus, "asset.swipe.newTxn", "swap"],
             [onArchive, Archive, "asset.archive.confirm", "archive"],
             [onDelete, Trash2, "ledger.confirm.last.confirm", "delete"],
           ] as const

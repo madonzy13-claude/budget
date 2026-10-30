@@ -15,7 +15,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
-import { Archive, ArrowRightLeft, Pencil, Trash2 } from "lucide-react";
+import { Archive, Pencil, Plus, Trash2 } from "lucide-react";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { useSwipeReveal } from "@/hooks/use-swipe-reveal";
 import type { HoldingDto } from "@/hooks/use-investments";
@@ -41,6 +41,8 @@ interface InvestmentRowSheetProps {
   /** The row opened/closed (the section renders the L3 ledger). */
   onToggle?: (id: string, open: boolean) => void;
   open?: boolean;
+  /** R6-6: this asset's realized (type-summary `holdings`). */
+  realized?: { realizedBudgetCents: string; soldCostBudgetCents: string };
   /** Swipe offset (px, ≤ 0) of this row — the section moves its ledger too. */
   onSwipeOffset?: (id: string, px: number, live: boolean) => void;
   /** Save an inline-edited value (manual-value holdings only — see InvestmentRow). */
@@ -61,6 +63,7 @@ export function InvestmentRowSheet({
   onDelete,
   onToggle,
   open,
+  realized,
   onSwipeOffset,
   onValueChange,
 }: InvestmentRowSheetProps) {
@@ -129,7 +132,8 @@ export function InvestmentRowSheet({
         transition: swiping ? "none" : transition,
       }}
     >
-      {/* Mobile swipe-revealed Swap · Edit panel (sm:hidden). */}
+      {/* Mobile swipe-revealed Edit · + (new transaction) panel (sm:hidden,
+          R6-4: + second). */}
       <div
         aria-hidden={offset === 0}
         style={{
@@ -145,20 +149,6 @@ export function InvestmentRowSheet({
         <button
           type="button"
           data-no-swipe
-          data-testid={`investment-swap-${holding.id}`}
-          aria-label={`${t("asset.swipe.swap")} ${holding.name}`}
-          tabIndex={offset === 0 ? -1 : 0}
-          onClick={() => {
-            closeSwipe();
-            onSwap?.(holding);
-          }}
-          className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--info)] text-white"
-        >
-          <ArrowRightLeft className="h-5 w-5" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          data-no-swipe
           data-testid={`holding-swipe-edit-${holding.id}`}
           aria-label={`${t("asset.swipe.edit")} ${holding.name}`}
           tabIndex={offset === 0 ? -1 : 0}
@@ -169,6 +159,20 @@ export function InvestmentRowSheet({
           className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
         >
           <Pencil className="h-5 w-5" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          data-no-swipe
+          data-testid={`investment-swap-${holding.id}`}
+          aria-label={`${t("asset.swipe.newTxn")} ${holding.name}`}
+          tabIndex={offset === 0 ? -1 : 0}
+          onClick={() => {
+            closeSwipe();
+            onSwap?.(holding);
+          }}
+          className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--info)] text-white"
+        >
+          <Plus className="h-5 w-5" aria-hidden="true" />
         </button>
         {onDelete ? (
           <button
@@ -234,6 +238,7 @@ export function InvestmentRowSheet({
           onDelete={onDelete ? () => onDelete(holding) : undefined}
           onToggle={onToggle}
           open={open}
+          realized={realized}
           onValueChange={onValueChange}
         />
       </div>

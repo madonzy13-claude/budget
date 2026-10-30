@@ -135,8 +135,10 @@ describe("InvestmentRow", () => {
       />,
     );
     fireEvent.click(screen.getByLabelText("Expand Emergency fund"));
-    expect(captionText()).toContain("started: 10,000");
-    expect(captionText()).not.toMatch(/qty:/);
+    // R6-6: "started" sits above the price, where qty @ avg would.
+    const above = screen.getByTestId("investment-row-qtyavg");
+    expect(above).toHaveTextContent("started: 10,000");
+    expect(above.querySelector("[data-avg-icon]")).toBeNull();
     // %change renders in both the desktop cluster and the mobile-expanded line.
     expect(screen.getAllByText("+25.0%").length).toBeGreaterThan(0);
   });
@@ -583,12 +585,17 @@ describe("InvestmentRow", () => {
     );
     fireEvent.click(screen.getByLabelText("Expand Silver coin"));
     expect(screen.getAllByText("−34,495").length).toBeGreaterThan(0);
-    expect(screen.queryByText("−0")).toBeNull();
+    // The P/L money line, not the unrealized · realized caption.
+    expect(
+      screen
+        .queryAllByText("−0")
+        .filter((el) => !el.closest("[data-asset-caption]")),
+    ).toHaveLength(0);
   });
 
   // 260626: mobile-expanded third row shows Qty before Share for holdings with a
   // real quantity (tracked/metals); cash/broker (qty 1) omit it.
-  it("mobile expand shows 'qty: <n>' before Share for a metals holding", () => {
+  it("mobile expand shows '<qty> @ <avg>' above the price for a metals holding", () => {
     render(
       <InvestmentRow
         holding={holding({
@@ -606,7 +613,9 @@ describe("InvestmentRow", () => {
     );
     fireEvent.click(screen.getByLabelText("Expand Bullion"));
     // trailing zeros trimmed for display.
-    expect(captionText()).toContain("qty: 0.9856328");
+    expect(screen.getByTestId("investment-row-qtyavg")).toHaveTextContent(
+      /^0\.9856328 @ /,
+    );
     expect(screen.getByText("Share: 100%")).toBeInTheDocument();
   });
 

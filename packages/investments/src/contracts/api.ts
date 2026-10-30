@@ -190,6 +190,11 @@ export interface TypeSummaryDto {
     string,
     { realizedBudgetCents: string; soldCostBudgetCents: string }
   >;
+  /** R6-6: the same sums per asset (holding id). */
+  holdings: Record<
+    string,
+    { realizedBudgetCents: string; soldCostBudgetCents: string }
+  >;
 }
 
 export const reorderHoldingsSchema = z.object({

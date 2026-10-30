@@ -25,6 +25,11 @@ export interface TypeSummaryDto {
     string,
     { realizedBudgetCents: string; soldCostBudgetCents: string }
   >;
+  /** R6-6: the same sums per asset; optional while an older api answers. */
+  holdings?: Record<
+    string,
+    { realizedBudgetCents: string; soldCostBudgetCents: string }
+  >;
 }
 
 export const TYPE_KEYS: UiType[] = UI_TYPE_ORDER;

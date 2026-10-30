@@ -305,13 +305,15 @@ export class MemoryWorld {
       for (const row of this.live()) {
         if (row.kind !== "withdraw" && row.kind !== "convert_out") continue;
         const t = this.holdings.get(row.holdingId)?.uiType ?? "other";
-        const cur = by.get(t) ?? { r: 0n, s: 0n };
+        const k = `${t}\u0000${row.holdingId}`;
+        const cur = by.get(k) ?? { r: 0n, s: 0n };
         cur.r += row.realizedBudgetCents ?? 0n;
         cur.s += row.soldCostBudgetCents ?? 0n;
-        by.set(t, cur);
+        by.set(k, cur);
       }
-      return [...by].map(([uiType, v]) => ({
-        uiType,
+      return [...by].map(([k, v]) => ({
+        uiType: k.split("\u0000")[0]!,
+        holdingId: k.split("\u0000")[1]!,
         budgetCurrency: "PLN",
         realizedBudgetCents: v.r,
         soldCostBudgetCents: v.s,
