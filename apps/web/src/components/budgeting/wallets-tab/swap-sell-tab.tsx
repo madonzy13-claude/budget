@@ -55,6 +55,7 @@ import {
 } from "./holding-sheet";
 import type { SwapTabProps } from "./swap-buy-tab";
 import {
+  RadioCards,
   caption,
   ccyOf,
   dateOk,
@@ -87,79 +88,6 @@ const WALLET_TYPES = [
 
 /** A plain decimal string for a derived figure (no float noise). */
 const plain = (n: number) => (Number.isFinite(n) ? trimQty(n.toFixed(8)) : "");
-
-function RadioCards<K extends string>({
-  value,
-  options,
-  onChange,
-  label,
-  testPrefix,
-  center,
-}: {
-  value: K | null;
-  options: { k: K; title: string; desc?: string }[];
-  onChange: (k: K) => void;
-  label: string;
-  testPrefix: string;
-  /** Title-only cards: centre the label (13.1 UAT 9). */
-  center?: boolean;
-}) {
-  const keys = options.map((o) => o.k);
-  return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className="space-y-2"
-      onKeyDown={(e) => {
-        const i = value ? keys.indexOf(value) : -1;
-        if (e.key === "ArrowDown" || e.key === "ArrowRight")
-          onChange(keys[(i + 1) % keys.length]!);
-        else if (e.key === "ArrowUp" || e.key === "ArrowLeft")
-          onChange(keys[(i + keys.length - 1) % keys.length]!);
-        else return;
-        e.preventDefault();
-      }}
-    >
-      {options.map((o) => (
-        <button
-          key={o.k}
-          type="button"
-          role="radio"
-          aria-checked={value === o.k}
-          tabIndex={value === o.k || (!value && o.k === keys[0]) ? 0 : -1}
-          data-testid={`${testPrefix}${o.k}`}
-          onClick={() => onChange(o.k)}
-          className={[
-            "flex min-h-11 w-full flex-col rounded-[var(--radius-md)] border px-4 py-2",
-            center
-              ? "items-center justify-center text-center"
-              : "items-start text-left",
-          ].join(" ")}
-          style={{
-            background: "var(--surface-card-dark)",
-            borderColor:
-              value === o.k ? "var(--primary)" : "var(--hairline-dark)",
-          }}
-        >
-          <span
-            className="text-[14px] font-semibold"
-            style={{ color: "var(--body-on-dark)" }}
-          >
-            {o.title}
-          </span>
-          {o.desc && (
-            <span
-              className={caption}
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              {o.desc}
-            </span>
-          )}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 // Round-2 gap 7: an in-DOM list that flips above a low trigger and gets the
 // screen, never a 2-row native sliver.

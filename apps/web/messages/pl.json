@@ -818,7 +818,16 @@
           "cashHelp": "Koszt i wartość rosną o tę kwotę. Zysk/strata się nie zmienia.",
           "quantity": "Ilość",
           "price": "Cena zakupu",
-          "total": "Razem {amount}"
+          "total": "Razem {amount}",
+          "from": "Skąd pochodzą pieniądze?",
+          "srcAsset": "Aktywo źródłowe",
+          "srcPlaceholder": "Wybierz aktywo",
+          "src": {
+            "out": "Spoza inwestycji",
+            "outDesc": "Nowe pieniądze — reszta inwestycji bez zmian",
+            "asset": "Z innego aktywa",
+            "assetDesc": "Część posiadanego aktywa zostaje sprzedana na to"
+          }
         },
         "locked": "Zablokowane",
         "sell": {

@@ -818,7 +818,16 @@
           "cashHelp": "Cost and value both go up by this amount. P/L doesn't change.",
           "quantity": "Quantity",
           "price": "Buy price",
-          "total": "Total {amount}"
+          "total": "Total {amount}",
+          "from": "Where did the money come from?",
+          "srcAsset": "Source asset",
+          "srcPlaceholder": "Pick an asset",
+          "src": {
+            "out": "Out of investments",
+            "outDesc": "New money — nothing else in your investments changes",
+            "asset": "From another asset",
+            "assetDesc": "Part of an asset you hold is sold into this one"
+          }
         },
         "locked": "Locked",
         "sell": {

@@ -18,14 +18,27 @@ import { AssetWriteError } from "@/lib/investment-invalidate";
 import { buildSwapSummary } from "@/lib/swap-summary";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { useBuyAsset, type BuyAssetBody } from "@/hooks/use-buy-asset";
+import { useSellHolding } from "@/hooks/use-sell-holding";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Field, NumericInput } from "./holding-sheet";
 import {
   ErrorLine,
+  HeldButton,
+  RadioCards,
+  heldQty,
+  trimQty,
   LockedField,
   SwapDateField,
   SwapFooter,
   caption,
   ccyOf,
+  heading,
   dateOk,
   num,
   qtyString,
@@ -54,6 +67,7 @@ export function SwapBuyTab({
   budgetId,
   budgetCurrency,
   holding,
+  holdings,
   date,
   setDate,
   minDate,
@@ -64,6 +78,7 @@ export function SwapBuyTab({
 }: SwapTabProps) {
   const t = useTranslations("budget.investments");
   const buyMut = useBuyAsset(budgetId);
+  const sellMut = useSellHolding(budgetId);
   const ui = deriveUiType(
     holding.uiType,
     holding.holdingType,
@@ -99,6 +114,31 @@ export function SwapBuyTab({
   );
   const [valueAfterTouched, setValueAfterTouched] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  // R6 (user): where the money came from — outside (today's Buy) or another
+  // asset (sold into this one, booked by the Sell endpoint).
+  const [from, setFrom] = useState<"out" | "asset">("out");
+  const [srcId, setSrcId] = useState("");
+  const [taken, setTaken] = useState("");
+  const sources = holdings.filter(
+    (h) => h.id !== holding.id && Number(h.valueCents) > 0,
+  );
+  const src =
+    from === "asset" ? sources.find((h) => h.id === srcId) : undefined;
+  const srcQty = !!src && holdingShape(src) === "quantity";
+  const srcCcy = src ? ccyOf(src, budgetCurrency) : "";
+  /** What stays in the source — null while invalid (same math as Sell). */
+  const left = (() => {
+    if (!src || !(num(taken) > 0)) return null;
+    if (srcQty) {
+      const e8 =
+        Math.round(num(src.quantity) * 1e8) - Math.round(num(taken) * 1e8);
+      return e8 < 0 ? null : ({ quantity: qtyString(e8 / 1e8) } as const);
+    }
+    const v = Math.round(Number(src.valueCents));
+    const sold = toCents(taken);
+    return sold > v ? null : ({ valueCents: String(v - sold) } as const);
+  })();
+  const overTaken = !!src && num(taken) > 0 && !left;
 
   const money = (c: number) => centsToBare(String(Math.round(Math.abs(c))));
   const signed = (c: number) => `${c > 0 ? "+" : c < 0 ? "−" : ""}${money(c)}`;
@@ -120,10 +160,12 @@ export function SwapBuyTab({
   const badAmount = fields.some((f) => typed(f) && !(num(f) > 0));
   const badAfter =
     shape === "broker" && typed(valueAfter) && !(num(valueAfter) >= 0);
+  const fromAsset = from === "asset";
   const valid =
     fields.every(positive) &&
-    !badAfter &&
-    (shape !== "broker" || typed(valueAfter)) &&
+    (fromAsset
+      ? !!left
+      : !badAfter && (shape !== "broker" || typed(valueAfter))) &&
     dateOk(date, minDate);
 
   const summary = !valid
@@ -161,9 +203,54 @@ export function SwapBuyTab({
             depositCents: 0,
           });
 
+  const onError = (e: unknown) => {
+    if (isOfflineWriteError(e)) return;
+    const w = e as AssetWriteError;
+    setServerError(
+      w.code === "fx_unavailable"
+        ? t("swap.err.fx", {
+            currency: w.currency ?? "",
+            date: w.date ?? "",
+          })
+        : w.code === "before_latest_entry"
+          ? t("swap.err.beforeLatest", { date: minDate ?? "" })
+          : t("swap.err.saveFailed"),
+    );
+  };
+  const onSuccess = () => {
+    toast.success(t("swap.cta.buy", { name: holding.name }));
+    onDone();
+  };
+
   function submit() {
     if (!valid) return;
     setServerError(null);
+    if (fromAsset && src && left) {
+      sellMut.mutate(
+        {
+          holdingId: src.id,
+          body: {
+            effectiveDate: date,
+            left,
+            destination:
+              shape === "quantity"
+                ? {
+                    kind: "existing",
+                    holdingId: holding.id,
+                    quantityBought: qtyString(num(qty)),
+                    priceCents: String(toCents(price)),
+                  }
+                : { kind: "existing", holdingId: holding.id },
+            ...(shape === "quantity"
+              ? {}
+              : { receivedCents: String(toCents(amount)) }),
+            receivedCurrency: shape === "broker" ? assetCcy : ccy,
+          },
+        },
+        { onSuccess, onError },
+      );
+      return;
+    }
     const body: BuyAssetBody =
       shape === "quantity"
         ? {
@@ -186,29 +273,7 @@ export function SwapBuyTab({
               valueAfterCents: String(toCents(valueAfter)),
               effectiveDate: date,
             };
-    buyMut.mutate(
-      { holdingId: holding.id, body },
-      {
-        onSuccess: () => {
-          toast.success(t("swap.cta.buy", { name: holding.name }));
-          onDone();
-        },
-        onError: (e) => {
-          if (isOfflineWriteError(e)) return;
-          const w = e as AssetWriteError;
-          setServerError(
-            w.code === "fx_unavailable"
-              ? t("swap.err.fx", {
-                  currency: w.currency ?? "",
-                  date: w.date ?? "",
-                })
-              : w.code === "before_latest_entry"
-                ? t("swap.err.beforeLatest", { date: minDate ?? "" })
-                : t("swap.err.saveFailed"),
-          );
-        },
-      },
-    );
+    buyMut.mutate({ holdingId: holding.id, body }, { onSuccess, onError });
   }
 
   return (
@@ -234,6 +299,81 @@ export function SwapBuyTab({
             value={holding.instrumentName ?? holding.symbol ?? ""}
             testId="swap-locked-instrument"
           />
+        )}
+
+        <h3 className={heading} style={{ color: "var(--body-on-dark)" }}>
+          {t("swap.buy.from")}
+        </h3>
+        <RadioCards
+          value={from}
+          onChange={setFrom}
+          label={t("swap.buy.from")}
+          testPrefix="swap-buy-from-"
+          options={(["out", "asset"] as const).map((k) => ({
+            k,
+            title: t(`swap.buy.src.${k}`),
+            desc: t(`swap.buy.src.${k}Desc`),
+          }))}
+        />
+        {fromAsset && (
+          <>
+            <Field label={t("swap.buy.srcAsset")}>
+              <Select
+                value={srcId}
+                onValueChange={(v) => {
+                  setSrcId(v);
+                  setTaken("");
+                }}
+              >
+                <SelectTrigger
+                  data-testid="swap-buy-src"
+                  aria-label={t("swap.buy.srcAsset")}
+                  className="min-h-11 w-full"
+                >
+                  <SelectValue placeholder={t("swap.buy.srcPlaceholder")} />
+                </SelectTrigger>
+                <SelectContent position="popper">
+                  {sources.map((h) => (
+                    <SelectItem
+                      key={h.id}
+                      value={h.id}
+                      data-testid={`swap-buy-src-option-${h.id}`}
+                    >
+                      {`${h.name} · ${money(Number(h.valueCents))} ${ccyOf(h, budgetCurrency)}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            {src && (
+              <>
+                <Field label={srcQty ? t("sell.qtySold") : t("sell.valueSold")}>
+                  <NumericInput
+                    testId="swap-buy-taken"
+                    value={taken}
+                    onChange={setTaken}
+                  />
+                </Field>
+                <HeldButton
+                  testId="swap-buy-src-held"
+                  onClick={() =>
+                    setTaken(
+                      srcQty
+                        ? trimQty(src.quantity)
+                        : String(Number(src.valueCents) / 100),
+                    )
+                  }
+                >
+                  {srcQty
+                    ? t("sell.qtyHelper", { qty: heldQty(t, src) })
+                    : t("sell.valueHelper", {
+                        value: `${money(Number(src.valueCents))} ${srcCcy}`,
+                      })}
+                </HeldButton>
+                {overTaken && <ErrorLine>{t("swap.err.overHeld")}</ErrorLine>}
+              </>
+            )}
+          </>
         )}
 
         {shape === "quantity" && (
@@ -312,23 +452,30 @@ export function SwapBuyTab({
                 onChange={onAmount}
               />
             </Field>
-            <Field label={`${t("swap.buy.valueAfter")} (${assetCcy})`}>
-              <NumericInput
-                testId="swap-buy-value-after"
-                value={valueAfter}
-                onChange={(v) => {
-                  setValueAfterTouched(true);
-                  setValueAfter(v);
-                }}
-              />
-            </Field>
-            <p className={caption} style={{ color: "var(--muted-foreground)" }}>
-              {t("swap.buy.valueAfterHelp", {
-                current: money(valueCents),
-                amount: money(toCents(amount || "0")),
-              })}
-            </p>
-            {valid && (
+            {!fromAsset && (
+              <>
+                <Field label={`${t("swap.buy.valueAfter")} (${assetCcy})`}>
+                  <NumericInput
+                    testId="swap-buy-value-after"
+                    value={valueAfter}
+                    onChange={(v) => {
+                      setValueAfterTouched(true);
+                      setValueAfter(v);
+                    }}
+                  />
+                </Field>
+                <p
+                  className={caption}
+                  style={{ color: "var(--muted-foreground)" }}
+                >
+                  {t("swap.buy.valueAfterHelp", {
+                    current: money(valueCents),
+                    amount: money(toCents(amount || "0")),
+                  })}
+                </p>
+              </>
+            )}
+            {valid && !fromAsset && (
               <p data-testid="swap-buy-split" className={caption}>
                 <span
                   style={{
@@ -359,7 +506,7 @@ export function SwapBuyTab({
         summary={summary}
         label={t("swap.cta.buy", { name: holding.name })}
         disabled={!valid}
-        pending={buyMut.isPending}
+        pending={buyMut.isPending || sellMut.isPending}
         onSubmit={submit}
         onDiscard={onDone}
       />
