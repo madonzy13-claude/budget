@@ -286,6 +286,21 @@ export function createInvestmentsRoute(deps: BootedDeps) {
     return c.json(r.value);
   });
 
+  // POST /:id/restore — round 5: an archived asset comes back by id.
+  app.post("/:id/restore", async (c) => {
+    const session = c.get("session");
+    const tenantId = pickTenant(c);
+    const userId = (c.get("userId") as string) ?? session?.user?.id;
+    const { id: holdingId } = c.req.param();
+    const r = await deps.investments.restoreHolding({
+      tenantId,
+      holdingId,
+      actorUserId: userId,
+    });
+    if (r.isErr()) return c.json({ error: r.error.message }, 422);
+    return c.json(r.value);
+  });
+
   // D-37: a wallet balance change moves the same tasks a manual edit does.
   // Best-effort after commit (own tx); the hourly sweep is the backstop.
   const recomputeWalletTasks = async (

@@ -233,6 +233,20 @@ export class DrizzleHoldingRepo implements HoldingRepo {
     if (r.isErr()) throw r.error;
   }
 
+  async restore(tenantId: string, userId: string, id: string): Promise<void> {
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(userId),
+      async (tx) => {
+        await (tx as DrizzleTx).execute(sql`
+          UPDATE budgeting.investments SET archived_at = NULL
+           WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid
+        `);
+      },
+    );
+    if (r.isErr()) throw r.error;
+  }
+
   async listForBudget(
     tenantId: string,
     budgetId: string,

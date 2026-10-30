@@ -77,6 +77,8 @@ export interface HoldingRepo {
     uiType: string,
   ): Promise<AssetNameRow[]>;
   archive(tenantId: string, userId: string, id: string): Promise<void>;
+  /** Round 5: an archived asset comes back by id (names never join). */
+  restore(tenantId: string, userId: string, id: string): Promise<void>;
   /** Active (non-archived) holdings; tracked-instrument current price joined from the cache. */
   listForBudget(
     tenantId: string,

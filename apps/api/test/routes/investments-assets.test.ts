@@ -235,6 +235,24 @@ describe("Investment assets", () => {
     expect(await entryCount(fix, b.id)).toBe(1);
   });
 
+  // Round-5 (user): picking an archived asset restores it (names never join).
+  it("restore brings an archived asset back, untouched otherwise", async () => {
+    const fix = await createFixture();
+    const app = await buildApp(fix);
+    const id = await seed(fix, { name: "Old pot" });
+    await q(
+      fix,
+      `UPDATE budgeting.investments SET archived_at = now() WHERE id = $1`,
+      [id],
+    );
+    const res = await json(app, `/${id}/restore`, "POST", {});
+    expect(res.status).toBe(200);
+    expect(await row(fix, id)).toMatchObject({
+      archived: false,
+      buy: "1000000",
+    });
+  });
+
   it("Swap → Buy books a quantity buy and refuses a date before the latest entry", async () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
