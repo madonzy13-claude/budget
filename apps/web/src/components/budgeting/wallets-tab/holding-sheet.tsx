@@ -790,8 +790,9 @@ export function HoldingSheet({
   ]);
 
   // Round 5: names are not unique — a pick is by id (an archived one is
-  // restored), anything typed can be added as new. Tracked types: the name is the asset's label (customName) and, until an
-  // instrument is chosen, also seeds the instrument search (13.1 UAT 7).
+  // restored), anything typed can be added as new. Tracked types: the name is
+  // the asset's own label (customName), labelled "Custom name" and kept apart
+  // from the Asset search — it never fills it (user, round 5).
   const tracked = behavior === "tracked";
   const nameField = (
     <AssetNameCombobox
@@ -799,13 +800,12 @@ export function HoldingSheet({
       uiType={uiType || null}
       value={tracked ? customName : name}
       testId="holding-sheet-name"
-      ariaLabel={t("field.name")}
+      ariaLabel={t(tracked && !manualEntry ? "field.customName" : "field.name")}
       onChange={(v) => {
         markDirty();
         setPickedId(null);
         if (!tracked) return setName(v);
         setCustomName(v);
-        if (instrumentId == null && !manualEntry) setName(v);
       }}
       selectedId={pickedId}
       onCreate={() => setPickedId(null)}
@@ -882,7 +882,7 @@ export function HoldingSheet({
               (no type → no field, and nothing auto-focuses). */}
       {behavior === "tracked" && !manualEntry ? (
         <>
-          <Field label={t("field.name")}>{nameField}</Field>
+          <Field label={t("field.customName")}>{nameField}</Field>
           <Field label={t("field.asset")}>
             <InstrumentSearchInput
               budgetId={budgetId}

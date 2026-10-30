@@ -15,6 +15,7 @@ const KEYS = [
   "asset.name.create",
   "asset.name.pickOrCreate",
   "asset.name.pickedValue",
+  "field.customName",
   "asset.name.label",
   "asset.name.reopens",
   "asset.swipe.edit",

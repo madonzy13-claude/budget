@@ -1183,18 +1183,19 @@ describe("HoldingSheet — add joins by name (13.1 D-02)", () => {
       ).toBeInTheDocument();
     });
 
-    it("a new name prefills the instrument search and stays the label", async () => {
+    // Round-5 (user): the custom name never fills the Asset search; the field
+    // is labelled "Custom name" so it reads apart from the Asset.
+    it("a new custom name stays out of the instrument search and stays the label", async () => {
       vi.mocked(clientApiFetch).mockResolvedValue({
         ok: true,
         json: async () => ({ priceCents: "50000", currency: "USD" }),
       } as unknown as Response);
       crypto();
+      expect(screen.getByText("field.customName")).toBeInTheDocument();
       fireEvent.change(screen.getByTestId("holding-sheet-name"), {
         target: { value: "BTC Binance" },
       });
-      expect(screen.getByTestId("holding-sheet-instrument")).toHaveValue(
-        "BTC Binance",
-      );
+      expect(screen.getByTestId("holding-sheet-instrument")).toHaveValue("");
       fireEvent.click(screen.getByTestId("pick-instrument"));
       expect(screen.getByTestId("holding-sheet-name")).toHaveValue(
         "BTC Binance",

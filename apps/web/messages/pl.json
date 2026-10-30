@@ -634,7 +634,8 @@
         "startDate": "Data rozpoczęcia",
         "endDateOptional": "Data zakończenia (opcjonalnie)",
         "ticker": "Symbol",
-        "tickerPlaceholder": "np. AAPL"
+        "tickerPlaceholder": "np. AAPL",
+        "customName": "Własna nazwa"
       },
       "uitype": {
         "crypto": "Krypto",
