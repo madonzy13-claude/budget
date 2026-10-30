@@ -79,10 +79,12 @@ export function EditAssetSheet({
   const price0 = decimal(holding.currentPriceCents);
   const locale = useLocale();
   const h = holding;
+  // R6 (user): no currency here — the picker above names it; a pick
+  // re-converts this figure (see `shownPrice` below).
   const priceLine =
     h.currentPriceCents == null
       ? null
-      : `${centsToBare(String(Math.round(Number(h.currentPriceCents))), locale)} ${h.currentPriceCurrency ?? ""}`.trim();
+      : centsToBare(String(Math.round(Number(h.currentPriceCents))), locale);
   // [testid suffix, label, value]; a null value is skipped.
   const locked = (
     h.holdingType === "deposit" || h.uiType === "deposit"
@@ -151,7 +153,7 @@ export function EditAssetSheet({
     setFx(null);
     setFxFailed(false);
     asked.current = next;
-    if (!showValue && !showPrice) return;
+    if (!showValue && !showPrice && priceLine === null) return;
     if (next === ccy0) {
       if (!touched.current) setPrice(price0);
       return;
@@ -167,7 +169,8 @@ export function EditAssetSheet({
         if (asked.current !== next) return; // a later switch won
         if (!q?.rate) return setFxFailed(true);
         setFx({ rate: q.rate, asOf: q.fxRateDate ?? today() });
-        if (!touched.current && price0) setPrice(convert(price0, q.rate));
+        if ((showValue || showPrice) && !touched.current && price0)
+          setPrice(convert(price0, q.rate));
       });
   }
   const valueChanged =
@@ -263,7 +266,19 @@ export function EditAssetSheet({
               <div className="relative">
                 <Input
                   data-testid={`edit-asset-locked-${id}`}
-                  value={value}
+                  value={
+                    // R6: the locked price follows the picked currency.
+                    id === "currentPrice" && fx && ccy !== ccy0
+                      ? centsToBare(
+                          String(
+                            Math.round(
+                              Number(h.currentPriceCents) * Number(fx.rate),
+                            ),
+                          ),
+                          locale,
+                        )
+                      : value
+                  }
                   readOnly
                   aria-readonly="true"
                   tabIndex={-1}

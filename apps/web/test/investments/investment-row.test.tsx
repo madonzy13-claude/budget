@@ -538,6 +538,25 @@ describe("InvestmentRow", () => {
     expect(captionText()).toMatch(/^unreal\.: \+123real\.: −100$/);
   });
 
+  // Round 6 (user): after a currency change, avg price and P/L read in the
+  // shown currency.
+  it("avg price and P/L use the shown-currency figures when present", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          avgPriceDisplayCents: "7500",
+          profitLossDisplayCents: "-2500",
+          profitLossCents: "-99900",
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Expand AAPL"));
+    expect(screen.getByTestId("investment-row-qtyavg")).toHaveTextContent(
+      /^10 × 75 avg\. cost$/,
+    );
+    expect(captionText()).toMatch(/^unreal\.: −25/);
+  });
+
   // Round 6 (user): secondary lines a bit lighter so the row reads cleaner.
   it("qty × avg, share and the P/L caption are dimmed", () => {
     render(<InvestmentRow holding={holding()} />);

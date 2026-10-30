@@ -121,3 +121,43 @@ describe("Per-asset realized in the asset currency", () => {
     });
   });
 });
+
+describe("Per-asset realized in the shown currency", () => {
+  test("a PLN-cost asset shown in EUR reports realized in EUR", async () => {
+    const historyRepo = {
+      realizedByType: async () => [
+        {
+          uiType: "collectibles",
+          holdingId: "C",
+          budgetCurrency: "PLN",
+          costCurrency: "PLN",
+          displayCurrency: "EUR",
+          realizedBudgetCents: 400n,
+          soldCostBudgetCents: 0n,
+          realizedAssetExactCents: 400n,
+          realizedBudgetRestCents: 0n,
+        },
+      ],
+      getTypeOrder: async () => [],
+    } as unknown as HistoryRepo;
+    const fxProvider = {
+      rateAsOf: async (f: string, t: string) => ({
+        rate: f === "PLN" && t === "EUR" ? "0.25" : "1",
+        provider: "s",
+        isStale: false,
+      }),
+    } as never;
+    const r = (
+      await typeSummary({ historyRepo, fxProvider })({
+        tenantId: "t",
+        budgetId: "t",
+        actorUserId: "u",
+        budgetCurrency: "PLN",
+      })
+    )._unsafeUnwrap();
+    expect(r.holdings.C).toMatchObject({
+      realizedAssetCents: "100",
+      assetCurrency: "EUR",
+    });
+  });
+});

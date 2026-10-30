@@ -143,3 +143,50 @@ describe("listHoldings — deposit enrichment", () => {
     ]).toContain(dto.valueCents);
   });
 });
+
+// Round 6 (user): after a currency change, avg price + P/L read in the shown
+// currency (the stored cost basis stays in the buy currency).
+describe("listHoldings — figures in the shown currency", () => {
+  test("a PLN-bought asset shown in EUR gives EUR avg price and P/L", async () => {
+    const h = new Holding(
+      "coin",
+      "tenant-1",
+      "Coin",
+      "other",
+      null,
+      800_000n, // bought at 8,000 PLN
+      "PLN",
+      "2",
+      400_000n, // now 4,000 EUR each
+      "EUR",
+      0,
+      null,
+      new Date("2024-01-01T00:00:00Z"),
+      "collectibles",
+    );
+    const fx = {
+      rateAsOf: async (f: string, t: string) => ({
+        rate:
+          f === "PLN" && t === "EUR"
+            ? "0.25"
+            : f === "EUR" && t === "PLN"
+              ? "4"
+              : "1",
+        asOf: "2026-10-30",
+      }),
+    } as unknown as Parameters<typeof listHoldings>[0]["fxProvider"];
+    const dto = (
+      await listHoldings({ holdingRepo: stubRepo([h]), fxProvider: fx })({
+        tenantId: "tenant-1",
+        budgetId: "budget-1",
+        actorUserId: "user-1",
+        budgetCurrency: "PLN",
+      })
+    )._unsafeUnwrap().holdings[0]!;
+    // 8,000 PLN × 0.25 = 2,000 EUR avg; P/L = 2×4,000 − 2×2,000 = +4,000 EUR.
+    expect(dto.avgPriceDisplayCents).toBe("200000");
+    expect(dto.profitLossDisplayCents).toBe("400000");
+    // The buy-currency figure stays as before: 2 × (16,000 − 8,000) PLN.
+    expect(dto.profitLossCents).toBe("1600000");
+  });
+});

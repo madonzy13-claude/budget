@@ -130,7 +130,17 @@ describe("Edit asset sheet — locked configuration", () => {
     mount(btc);
     expectLocked("instrument", "Bitcoin");
     expectLocked("currentPrice", "60,000");
-    expectLocked("currentPrice", "PLN");
+  });
+
+  // Round 6 (user): the currency is picked above — the locked price carries
+  // no currency, and converts as soon as another currency is picked.
+  it("the locked price has no currency and converts on a currency pick", async () => {
+    routeFetch({ rate: "0.25" });
+    mount(btc);
+    const price = locked("currentPrice") as HTMLInputElement;
+    expect(price.value).toBe("60,000");
+    type("currency-picker", "EUR");
+    await waitFor(() => expect(price.value).toBe("15,000"));
   });
 
   it("a metal shows metal, kind, unit, current price and premium locked", () => {

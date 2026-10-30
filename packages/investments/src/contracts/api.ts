@@ -258,6 +258,10 @@ export interface EnrichedHoldingDto {
    *  Computed server-side from the real cost basis so a near-total loss stays a
    *  real number (the client must NOT back-derive it from value + rounded pct). */
   profitLossCents: string | null;
+  /** R6 (user): avg buy price and P/L in the SHOWN currency (the value
+   *  currency) — the cost basis converted at today's rate, display only. */
+  avgPriceDisplayCents: string | null;
+  profitLossDisplayCents: string | null;
   /** weight % within group (grouped) or whole portfolio (ungrouped). */
   weightPct: number;
   sortOrder: number;

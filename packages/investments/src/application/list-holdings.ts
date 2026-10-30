@@ -165,6 +165,20 @@ export function listHoldings(deps: {
             ? await getRate(h.currentPriceCurrency, h.buyCurrency)
             : "1";
 
+        // R6 (user): the same figures in the shown (value) currency.
+        const toShown =
+          h.buyPriceCents === null || buyCcy === valueCcy
+            ? "1"
+            : await getRate(buyCcy, valueCcy);
+        const avgShown =
+          h.buyPriceCents === null
+            ? null
+            : new Big(h.buyPriceCents.toString()).times(new Big(toShown));
+        const plShown =
+          h.isCash() || avgShown === null || h.currentPriceCents === null
+            ? null
+            : value.minus(avgShown.times(new Big(h.quantity.toString())));
+
         enriched.push({
           id: h.id,
           name: h.name,
@@ -201,6 +215,10 @@ export function listHoldings(deps: {
           costInBudgetCents: costInBudget.toFixed(0),
           profitLossPct: profitLossPct(h, plRate),
           profitLossCents: profitLossCents(h, plRate),
+          avgPriceDisplayCents:
+            avgShown === null ? null : avgShown.round(0, 2).toFixed(0),
+          profitLossDisplayCents:
+            plShown === null ? null : plShown.round(0, 2).toFixed(0),
           weightPct: weights.get(h.id) ?? 0,
           sortOrder: h.sortOrder,
           createdAt: h.createdAt.toISOString(),

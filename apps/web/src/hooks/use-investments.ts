@@ -75,6 +75,10 @@ export interface HoldingDto {
   profitLossPct: number | null;
   /** signed absolute P/L in cents (server-computed); null for cash / no-basis. */
   profitLossCents: string | null;
+  /** R6 (user): avg buy price and P/L in the SHOWN currency (cost basis
+   *  converted at today's rate); absent from an older api. */
+  avgPriceDisplayCents?: string | null;
+  profitLossDisplayCents?: string | null;
   /** weight % within group (grouped) or whole portfolio (ungrouped). */
   weightPct: number;
   sortOrder: number;

@@ -144,6 +144,8 @@ export interface RealizedRow {
   holdingId: string;
   /** The asset's own (cost) currency. */
   costCurrency?: string;
+  /** The currency the asset is shown in (value currency) — R6. */
+  displayCurrency?: string;
   /** Realized in the asset currency where exact (same currency, or the
    *  stored deal figure: asset_amount − |cost_delta|). */
   realizedAssetExactCents?: bigint;

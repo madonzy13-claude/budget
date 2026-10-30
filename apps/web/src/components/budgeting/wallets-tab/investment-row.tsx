@@ -175,7 +175,11 @@ export function InvestmentRow({
   // no line.
   const avgPrice =
     showQty && holding.buyPriceCents != null && Number(holding.quantity) > 0
-      ? centsToShort(holding.buyPriceCents, locale)
+      ? centsToShort(
+          // R6 (user): in the shown currency once the currency was changed.
+          holding.avgPriceDisplayCents ?? holding.buyPriceCents,
+          locale,
+        )
       : null;
   const startedDisplay =
     isSavings && holding.buyPriceCents != null
@@ -202,7 +206,9 @@ export function InvestmentRow({
   // User (round 6): in the asset's OWN currency — P/L from its buy cost,
   // realized from the server's asset-currency figure.
   const assetPL = {
-    unrealizedCents: Number(holding.profitLossCents ?? 0),
+    unrealizedCents: Number(
+      holding.profitLossDisplayCents ?? holding.profitLossCents ?? 0,
+    ),
     realizedCents: Number(realized?.realizedAssetCents ?? 0),
   };
   // User (round 6): "4 × 750 avg. cost" — words, no icon.
@@ -227,8 +233,9 @@ export function InvestmentRow({
   // loss rounds to -100.0 → ÷0 → the amount collapsed to "-0" (260626 bug).
   // Shown beside the P/L% in the mobile expanded stack (D-#plmoney).
   const plMoney = (() => {
-    if (pct == null || holding.profitLossCents == null) return null;
-    const amt = Number(holding.profitLossCents); // cents
+    const plCents = holding.profitLossDisplayCents ?? holding.profitLossCents;
+    if (pct == null || plCents == null) return null;
+    const amt = Number(plCents); // cents, in the shown currency (R6)
     if (!Number.isFinite(amt)) return null;
     const sign = amt < 0 ? "−" : "+";
     return `${sign}${centsToShort(String(Math.round(Math.abs(amt))), locale)}`;

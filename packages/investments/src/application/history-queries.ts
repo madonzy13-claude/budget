@@ -68,10 +68,26 @@ export function typeSummary(deps: {
           } catch {
             /* WR-10: a missing rate drops that part, never the summary */
           }
+        // R6 (user): shown in the asset's display currency (today's rate).
+        const shown = row.displayCurrency || row.costCurrency;
+        if (shown !== row.costCurrency && !r.eq(0))
+          try {
+            r = r.times(
+              (
+                await deps.fxProvider.rateAsOf(
+                  row.costCurrency as never,
+                  shown as never,
+                  new Date(),
+                )
+              ).rate,
+            );
+          } catch {
+            /* WR-10: keep the cost-currency figure rather than fail */
+          }
         const cur = asset.get(row.holdingId);
         asset.set(row.holdingId, {
           r: (cur?.r ?? new Big(0)).plus(r),
-          ccy: row.costCurrency,
+          ccy: shown,
         });
       }
       for (const row of rows) {
