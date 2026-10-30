@@ -76,7 +76,13 @@ function undoLeg(
     leg.qtyDelta === null &&
     !restorePrice &&
     (leg.costDeltaCents !== 0n || leg.valueDeltaCents !== 0n);
-  if (legacy && !big(h.quantity).eq(1)) throw new RangeError("legacy_entry");
+  // 0096 zeroed sold-out single items; undoing that old sale (money out)
+  // restores the one item.
+  const legacyRefill =
+    legacy && big(h.quantity).eq(0) && leg.costDeltaCents < 0n;
+  if (legacy && !big(h.quantity).eq(1) && !legacyRefill)
+    throw new RangeError("legacy_entry");
+  if (legacyRefill) patch.quantity = "1";
 
   if (holdingShape(h) === "quantity" && !legacy) {
     const held = big(h.quantity);

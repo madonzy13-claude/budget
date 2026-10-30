@@ -375,6 +375,26 @@ describe("Delete a pre-switch collectible entry", () => {
     expect(w.get("vase").buyPriceCents).toBe(2_000n);
   });
 
+  // Round 6 (0096): a pre-switch full sale left 0 items — undoing it brings
+  // the one item back with its cost and value.
+  test("undoing a pre-switch sale of the only item brings it back", async () => {
+    const { w, del, start } = world({ ...vase("0"), buy: 0n, current: 0n });
+    await start("vase", "2026-09-01", { ...legacyAdd, kind: "add" });
+    await start("vase", "2026-09-02", {
+      kind: "withdraw",
+      amountCents: 500n,
+      amountCurrency: "PLN",
+      costDeltaCents: -500n,
+      costCurrency: "PLN",
+      valueDeltaCents: -500n,
+      flowCents: -500n,
+    });
+    const r = await del({ ...who, entryId: newest(w, "vase") });
+    expect(r.isOk()).toBe(true);
+    expect(w.get("vase").quantity).toBe("1");
+    expect(w.get("vase").buyPriceCents).toBe(500n);
+  });
+
   test("with more than one unit it refuses rather than guess", async () => {
     const { w, del, start } = world(vase("3"));
     await start("vase", "2026-09-01", { ...legacyAdd, kind: "add" });
