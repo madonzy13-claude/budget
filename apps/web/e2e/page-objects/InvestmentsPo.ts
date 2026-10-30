@@ -322,8 +322,14 @@ export class InvestmentsPo {
     await sheet.getByTestId("swap-buy-src").click();
     await this.page
       .getByRole("option")
-      .filter({ hasText: new RegExp(`^${source} ·`) })
+      .filter({
+        has: this.page.locator("[data-src-name]", {
+          hasText: new RegExp(`^${source}$`),
+        }),
+      })
       .click();
+    if (process.env.SHOT_SRC)
+      await this.page.screenshot({ path: process.env.SHOT_SRC });
     await sheet.getByTestId("swap-buy-taken").fill(taken);
     await sheet.getByTestId("swap-buy-qty").fill(qty);
     await sheet.getByTestId("swap-buy-price").fill(price);

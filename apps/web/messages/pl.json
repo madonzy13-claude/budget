@@ -824,9 +824,9 @@
           "srcPlaceholder": "Wybierz aktywo",
           "src": {
             "out": "Spoza inwestycji",
-            "outDesc": "Nowe pieniądze — reszta inwestycji bez zmian",
+            "outDesc": "Nowe pieniądze dla inwestycji",
             "asset": "Z innego aktywa",
-            "assetDesc": "Część posiadanego aktywa zostaje sprzedana na to"
+            "assetDesc": "Sprzedane z posiadanego aktywa"
           }
         },
         "locked": "Zablokowane",

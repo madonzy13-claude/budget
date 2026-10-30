@@ -12,7 +12,11 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { centsToBare } from "@/lib/cents-format";
-import { deriveUiType, holdingShape } from "@/lib/investment-types";
+import {
+  UI_TYPE_ORDER,
+  deriveUiType,
+  holdingShape,
+} from "@/lib/investment-types";
 import { isOfflineWriteError } from "@/lib/offline-write";
 import { AssetWriteError } from "@/lib/investment-invalidate";
 import { buildSwapSummary } from "@/lib/swap-summary";
@@ -22,10 +26,14 @@ import { useSellHolding } from "@/hooks/use-sell-holding";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { UI_TYPE_COLOR, UI_TYPE_ICON } from "@/lib/investment-icons";
 import { Field, NumericInput } from "./holding-sheet";
 import {
   ErrorLine,
@@ -122,6 +130,15 @@ export function SwapBuyTab({
   const sources = holdings.filter(
     (h) => h.id !== holding.id && Number(h.valueCents) > 0,
   );
+  const groups = UI_TYPE_ORDER.map(
+    (ui) =>
+      [
+        ui,
+        sources.filter(
+          (h) => deriveUiType(h.uiType, h.holdingType, h.isCustom) === ui,
+        ),
+      ] as const,
+  ).filter(([, list]) => list.length > 0);
   const src =
     from === "asset" ? sources.find((h) => h.id === srcId) : undefined;
   const srcQty = !!src && holdingShape(src) === "quantity";
@@ -332,16 +349,62 @@ export function SwapBuyTab({
                 >
                   <SelectValue placeholder={t("swap.buy.srcPlaceholder")} />
                 </SelectTrigger>
-                <SelectContent position="popper">
-                  {sources.map((h) => (
-                    <SelectItem
-                      key={h.id}
-                      value={h.id}
-                      data-testid={`swap-buy-src-option-${h.id}`}
-                    >
-                      {`${h.name} · ${money(Number(h.valueCents))} ${ccyOf(h, budgetCurrency)}`}
-                    </SelectItem>
-                  ))}
+                {/* R6 (user): grouped by type, icon headers, rich rows. */}
+                <SelectContent
+                  position="popper"
+                  className="max-h-[min(60dvh,var(--radix-select-content-available-height))] w-[var(--radix-select-trigger-width)]"
+                >
+                  {groups.map(([ui, list], gi) => {
+                    const Icon = UI_TYPE_ICON[ui];
+                    return (
+                      <SelectGroup key={ui}>
+                        {gi > 0 && <SelectSeparator />}
+                        <SelectLabel
+                          data-testid={`swap-buy-src-group-${ui}`}
+                          className="flex items-center gap-2 normal-case tracking-normal"
+                        >
+                          <Icon
+                            data-type-icon
+                            className="h-4 w-4 shrink-0"
+                            style={{ color: UI_TYPE_COLOR[ui] }}
+                            aria-hidden="true"
+                          />
+                          {t(`uitype.${ui}`)}
+                        </SelectLabel>
+                        {list.map((h) => (
+                          <SelectItem
+                            key={h.id}
+                            value={h.id}
+                            data-testid={`swap-buy-src-option-${h.id}`}
+                            className="min-h-11 pl-8"
+                          >
+                            <span className="flex w-full min-w-0 items-center justify-between gap-3">
+                              <span data-src-name className="min-w-0 truncate">
+                                {h.name}
+                              </span>
+                              <span className="flex shrink-0 flex-col items-end leading-tight tabular-nums">
+                                <span data-src-value>
+                                  {`${money(Number(h.valueCents))} ${ccyOf(h, budgetCurrency)}`}
+                                </span>
+                                {holdingShape(h) === "quantity" && (
+                                  <span
+                                    data-src-qty
+                                    className="text-[11px]"
+                                    style={{
+                                      color: "var(--muted-foreground)",
+                                      opacity: 0.7,
+                                    }}
+                                  >
+                                    {heldQty(t, h)}
+                                  </span>
+                                )}
+                              </span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </Field>

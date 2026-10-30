@@ -824,9 +824,9 @@
           "srcPlaceholder": "Pick an asset",
           "src": {
             "out": "Out of investments",
-            "outDesc": "New money — nothing else in your investments changes",
+            "outDesc": "New money for your investments",
             "asset": "From another asset",
-            "assetDesc": "Part of an asset you hold is sold into this one"
+            "assetDesc": "Sold from an asset you hold"
           }
         },
         "locked": "Locked",
