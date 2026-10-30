@@ -229,7 +229,7 @@ describe("InvestmentTypeHeader", () => {
     expect(
       document.querySelector('[data-testid^="investment-group-chevron-"]'),
     ).toBeNull();
-    const header = screen.getByTestId("investment-group-toggle-stocks");
+    const header = screen.getByTestId("investment-group-stocks");
     expect(header).toHaveAttribute("role", "button");
     expect(header).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(screen.getByText("Stocks & ETFs"));
@@ -244,7 +244,7 @@ describe("InvestmentTypeHeader", () => {
 
   it("Enter and Space on the header toggle", () => {
     const { onToggle } = renderHeader();
-    const header = screen.getByTestId("investment-group-toggle-stocks");
+    const header = screen.getByTestId("investment-group-stocks");
     fireEvent.keyDown(header, { key: "Enter" });
     fireEvent.keyDown(header, { key: " " });
     expect(onToggle).toHaveBeenCalledTimes(2);

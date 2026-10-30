@@ -241,14 +241,14 @@ Then(
 
 // R6-7: the header row itself opens / closes its group.
 When("I collapse the {string} type block", async ({ page }, uiType: string) => {
-  await page.getByTestId(`investment-group-toggle-${uiType}`).click();
+  await page.getByTestId(`investment-group-${uiType}`).click();
 });
 
 Then(
   "the {string} type block is collapsed",
   async ({ page }, uiType: string) => {
     await expect(
-      page.getByTestId(`investment-group-toggle-${uiType}`),
+      page.getByTestId(`investment-group-${uiType}`),
     ).toHaveAttribute("aria-expanded", "false");
   },
 );

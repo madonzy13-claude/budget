@@ -50,9 +50,14 @@ function Harness() {
           </span>
         </div>
       </div>
-      <div data-nav-item data-nav-type="invest-group" id="g1">
-        <span data-nav-toggle onClick={toggleClick} />
-      </div>
+      {/* R6-7: the group header row is itself the toggle. */}
+      <div
+        data-nav-item
+        data-nav-type="invest-group"
+        data-nav-toggle
+        id="g1"
+        onClick={toggleClick}
+      />
     </div>
   );
 }

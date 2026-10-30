@@ -18,13 +18,8 @@
  */
 import { FitLine } from "@/components/common/fit-line";
 import { useLocale, useTranslations } from "next-intl";
-import { useRef, useState } from "react";
-import {
-  ChevronDown,
-  ChevronRight,
-  TrendingDown,
-  TrendingUp,
-} from "lucide-react";
+import { useRef } from "react";
+import { TrendingDown, TrendingUp } from "lucide-react";
 import { centsToBare } from "@/lib/cents-format";
 import type { UiType } from "@/lib/investment-types";
 import { UI_TYPE_COLOR, UI_TYPE_ICON } from "@/lib/investment-icons";
@@ -115,7 +110,6 @@ export function InvestmentTypeHeader({
 }: InvestmentTypeHeaderProps) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
-  const [showSplit, setShowSplit] = useState(false);
   // The caption may use the room up to the share before it scrolls.
   const shareRef = useRef<HTMLSpanElement>(null);
 
@@ -133,8 +127,9 @@ export function InvestmentTypeHeader({
     pct: `${portfolioPct.toFixed(1)}%`,
     state,
   });
-  const split = showSplit && uiType !== "cash";
-  const toggleSplit = () => setShowSplit((s) => !s);
+  // R6-7 (user): open = stats shown; closed = value only. No separate reveal.
+  const showSplit = expanded;
+  const split = expanded && uiType !== "cash";
   const Icon = UI_TYPE_ICON[uiType];
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
@@ -142,20 +137,7 @@ export function InvestmentTypeHeader({
   // Revealed, it shrinks to the asset row's small value so the three lines fit
   // the card (it grew 56 → 69.6px).
   const value = (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-expanded={showSplit}
-      aria-label={aria}
-      data-testid={`investment-group-toggle-${uiType}`}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          toggleSplit();
-        }
-      }}
-      className="flex shrink-0 cursor-pointer items-baseline gap-1 tabular-nums"
-    >
+    <div className="flex shrink-0 items-baseline gap-1 tabular-nums">
       <span
         data-testid={`investment-type-value-${uiType}`}
         className="flex items-baseline gap-1"
@@ -187,7 +169,19 @@ export function InvestmentTypeHeader({
       data-nav-item
       data-nav-type="invest-group"
       data-nav-key={`invgroup-${uiType}`}
-      onClick={toggleSplit}
+      // R6-7: the whole header row is the one toggle (no chevron).
+      role="button"
+      tabIndex={0}
+      aria-expanded={expanded}
+      aria-label={aria}
+      data-nav-toggle
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
       className="flex min-h-[56px] w-full cursor-pointer items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 sm:min-h-[48px] data-[nav-highlighted=true]:bg-[var(--surface-elevated-dark)]"
     >
       {dragHandle && (
@@ -195,26 +189,8 @@ export function InvestmentTypeHeader({
           {dragHandle}
         </span>
       )}
-      {/* The asset row's 16px icon slot: 24×44 hit area, -mx-1 nets 16px. */}
-      <button
-        type="button"
-        aria-label={aria}
-        aria-expanded={expanded}
-        data-testid={`investment-group-chevron-${uiType}`}
-        data-nav-toggle
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggle();
-        }}
-        className="-mx-1 flex h-11 w-6 shrink-0 items-center justify-center"
-        style={{ color: "var(--muted-foreground)" }}
-      >
-        {expanded ? (
-          <ChevronDown className="h-4 w-4" />
-        ) : (
-          <ChevronRight className="h-4 w-4" />
-        )}
-      </button>
+      {/* The asset row's 16px icon slot keeps names lined up with assets. */}
+      <span aria-hidden="true" className="w-4 shrink-0" />
 
       {/* Round 4: the type icon lives here (not on each asset). */}
       <Icon

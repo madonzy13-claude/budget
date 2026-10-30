@@ -596,7 +596,19 @@ export function InvestmentsSection({
                     instant={draggingBlock}
                     className="-mt-2"
                   >
-                    <div className="flex flex-col gap-2 pt-2">
+                    <div
+                      // R6-7: an open group draws a guide line in the assets'
+                      // indent (a 2px background stripe — no layout shift).
+                      data-testid={`investment-group-guide-${block.uiType}`}
+                      className="flex flex-col gap-2 pt-2"
+                      style={{
+                        backgroundImage:
+                          "linear-gradient(var(--color-hairline-dark), var(--color-hairline-dark))",
+                        backgroundSize: "2px calc(100% - 0.5rem)",
+                        backgroundPosition: "7px 0.5rem",
+                        backgroundRepeat: "no-repeat",
+                      }}
+                    >
                       <SortableContext
                         items={block.holdings.map((h) => h.id)}
                         strategy={verticalListSortingStrategy}

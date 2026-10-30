@@ -699,7 +699,7 @@ export class InvestmentsPo {
   async typeSumUp(uiType: string) {
     const split = this.page.getByTestId(`investment-type-split-${uiType}`);
     if (!(await split.isVisible().catch(() => false)))
-      await this.page.getByTestId(`investment-group-toggle-${uiType}`).click();
+      await this.page.getByTestId(`investment-group-${uiType}`).click();
     await split.waitFor({ state: "visible" });
     return split;
   }
