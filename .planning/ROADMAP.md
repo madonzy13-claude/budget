@@ -440,7 +440,7 @@ _Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.
 **Goal:** Every investment type becomes type → asset → entries: same-name buys join one asset (DCA), each asset has Swap (Buy / Sell / Transfer) and a slim Edit, entries are an immutable date-ordered ledger deletable newest-first only, and selling out of investments can credit a budget wallet. Migration 0088 merges existing same-name holdings.
 **Requirements**: CONTEXT decisions D-01..D-37 (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 51/54 plans executed
+**Plans:** 53/54 plans executed
 
 Plans:
 
@@ -495,6 +495,6 @@ Plans:
 - [x] 13.1-49-PLAN.md — Gap r5: deposit opening entry dated on its start date (migration 0091, checkpoint) (gap wave 1)
 - [x] 13.1-50-PLAN.md — Gap r5: uk copy, transfer over-held error, unit in held helper, assets start closed (gap wave 2)
 - [x] 13.1-51-PLAN.md — Gap r5: no asset uniqueness (migration 0092), id-only destinations, sell in any currency (server, checkpoint) (gap wave 3)
-- [ ] 13.1-52-PLAN.md — Gap r5: Sell to existing asset, currency preselected and changeable (gap wave 4)
-- [ ] 13.1-53-PLAN.md — Gap r5: "Add as new asset" always; pick by id; amount + currency on every option (gap wave 5)
+- [x] 13.1-52-PLAN.md — Gap r5: Sell to existing asset, currency preselected and changeable (gap wave 4)
+- [x] 13.1-53-PLAN.md — Gap r5: "Add as new asset" always; pick by id; amount + currency on every option (gap wave 5)
 - [ ] 13.1-54-PLAN.md — Gap r5: ship gate + user phone re-test (gap wave 6, checkpoint)
