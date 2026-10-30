@@ -1115,3 +1115,35 @@ describe("Deal figure stored on bookings", () => {
     expect(out.assetAmountCents).not.toBe(inn.assetAmountCents);
   });
 });
+
+// R6 (user): an existing quantity destination's buy price is not locked —
+// a typed price (in the received currency) books the leg.
+describe("Typed price for an existing quantity destination", () => {
+  test("qty × typed price is what the destination received", async () => {
+    const eth = hold({
+      id: "eth",
+      holdingType: "crypto",
+      uiType: "crypto",
+      buy: 100_000n,
+      qty: "2",
+      current: 100_000n,
+    });
+    const { sell, plans } = fakes([broker(), eth]);
+    const r = await sell({
+      ...base,
+      holdingId: "broker",
+      left: { valueCents: "3000000" },
+      destination: {
+        kind: "existing",
+        holdingId: "eth",
+        quantityBought: "3",
+        priceCents: "120000",
+      },
+      receivedCurrency: "PLN",
+    });
+    expect(r.isOk()).toBe(true);
+    const [out, inn] = plans[0]!.entries;
+    expect(out!.amountCents).toBe(360_000n);
+    expect(inn).toMatchObject({ holdingRef: "eth", qtyDelta: "3" });
+  });
+});

@@ -226,12 +226,9 @@ describe("Sell tab", () => {
     fireEvent.click(screen.getByTestId("dest-form-usdt"));
     expect(screen.getByTestId("swap-dest-ccy")).toBeInTheDocument();
     type("currency-picker", "USD");
-    expect(
-      screen.getByText((_, el) =>
-        /swap\.buy\.price \(USD\)/.test(el?.textContent ?? "") &&
-        el?.tagName === "LABEL",
-      ),
-    ).toBeInTheDocument();
+    // R6 (user): just "Buy price" — the currency sits beside it.
+    expect(screen.getByText("swap.buy.price")).toBeInTheDocument();
+    expect(screen.queryByText(/swap\.buy\.price \(/)).toBeNull();
     fireEvent.click(screen.getByTestId("swap-submit"));
     await waitFor(() => expect(writeMock).toHaveBeenCalled());
     expect(lastBody().receivedCurrency).toBe("USD");
@@ -251,7 +248,7 @@ describe("Sell tab", () => {
     expect(screen.queryByText("swap.sell.linked")).toBeNull();
   });
 
-  it("an existing quantity destination is priced at its own price, read-only", async () => {
+  it("an existing quantity destination starts at its own price", async () => {
     mount();
     type("swap-sell-sold", "1");
     fireEvent.click(screen.getByTestId("swap-dest-invest"));
@@ -262,7 +259,10 @@ describe("Sell tab", () => {
       "data-selected",
       btcCold.id,
     );
-    expect(screen.getByTestId("swap-dest-price")).toHaveAttribute("readonly");
+    // R6 (user): never locked.
+    expect(screen.getByTestId("swap-dest-price")).not.toHaveAttribute(
+      "readonly",
+    );
     expect(screen.getByTestId("swap-dest-price")).toHaveValue("60000");
     expect(screen.getByTestId("swap-dest-qty")).toHaveValue("1");
     type("swap-dest-qty", "0.5");
@@ -275,6 +275,35 @@ describe("Sell tab", () => {
       holdingId: btcCold.id,
       quantityBought: "0.5",
     });
+  });
+
+  // R6 (user): an existing destination's price can be typed — it is sent.
+  it("a typed price for an existing quantity destination is booked", async () => {
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    pickDest(btcCold.id);
+    type("swap-dest-price", "55000");
+    type("swap-dest-qty", "1");
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody().destination).toEqual({
+      kind: "existing",
+      holdingId: btcCold.id,
+      quantityBought: "1",
+      priceCents: "5500000",
+    });
+  });
+
+  it("quantity, price and currency share one row", () => {
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    pickDest(btcCold.id);
+    const row = screen.getByTestId("swap-dest-row");
+    for (const id of ["swap-dest-qty", "swap-dest-price", "swap-dest-ccy"])
+      expect(row.contains(screen.getByTestId(id))).toBe(true);
+    expect(row.className).toMatch(/grid-cols-\[/);
   });
 
   // Round-5 gap 6: an existing asset preselects its currency; any may be chosen.
