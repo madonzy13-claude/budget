@@ -276,6 +276,7 @@ export function InvestmentTypeHeader({
               color: "var(--muted-foreground)",
               fontSize: "11px",
               lineHeight: 1.4,
+              opacity: 0.7, // round 6 (user): lighter, like the asset row
             }}
           >
             {t("row.share", { pct: `${Number(portfolioPct.toFixed(1))}%` })}

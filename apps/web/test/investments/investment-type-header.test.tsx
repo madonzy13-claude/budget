@@ -249,6 +249,10 @@ describe("InvestmentTypeHeader", () => {
     renderHeader({ expanded: true });
     const cap = document.querySelector<HTMLElement>("[data-pl-caption]")!;
     expect(cap.style.opacity).toBe("0.7");
+    // …and its share, like the asset row's.
+    expect(
+      screen.getByTestId("investment-type-share-stocks").style.opacity,
+    ).toBe("0.7");
   });
 
   it("the drag handle never toggles", () => {
