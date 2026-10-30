@@ -220,7 +220,7 @@ Feature: Investments as assets with transactions (13.1)
     Given a silver coin asset "Coins" of 100 grams at 5155 cents with premium "25.17" exists in my budget
     When I open the investments wallets tab
     And I open Edit for "Coins"
-    Then the locked price follows the currency through "EUR", "PLN", "EUR" and back
+    Then the locked price follows the currency through "GBP", "NOK", "GBP" and back
 
   # Gaps 2 + 3: the type header is an asset-row card; tap reveals mirror.
   @r2-header
