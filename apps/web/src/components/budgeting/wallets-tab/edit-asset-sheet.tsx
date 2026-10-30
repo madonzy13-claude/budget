@@ -19,7 +19,7 @@
  */
 import { useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Lock } from "lucide-react";
+import { Loader2, Lock } from "lucide-react";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -190,6 +190,22 @@ export function EditAssetSheet({
         apply(hit);
       });
   }
+  // R6 (user): while a rate loads, a loader — never the old amount.
+  const converting =
+    ccy !== ccy0 &&
+    !fx &&
+    !fxFailed &&
+    (showValue || showPrice || priceLine !== null);
+  const spinner = (
+    <Loader2
+      data-testid="edit-asset-fx-loading"
+      role="status"
+      aria-label={t("edit.fxLoading")}
+      className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin"
+      style={{ color: "var(--muted-foreground)" }}
+    />
+  );
+  const shownPrice = converting && !touched.current ? "" : price;
   const valueChanged =
     touched.current &&
     price.trim() !== "" &&
@@ -256,20 +272,26 @@ export function EditAssetSheet({
           </Field>
           {showValue && (
             <Field label={`${t("edit.currentValue")} (${ccy})`}>
-              <NumericInput
-                testId="edit-asset-value"
-                value={price}
-                onChange={editValue}
-              />
+              <div className="relative">
+                <NumericInput
+                  testId="edit-asset-value"
+                  value={shownPrice}
+                  onChange={editValue}
+                />
+                {converting && !touched.current && spinner}
+              </div>
             </Field>
           )}
           {showPrice && (
             <Field label={`${t("edit.currentPrice")} (${ccy})`}>
-              <NumericInput
-                testId="edit-asset-price"
-                value={price}
-                onChange={editValue}
-              />
+              <div className="relative">
+                <NumericInput
+                  testId="edit-asset-price"
+                  value={shownPrice}
+                  onChange={editValue}
+                />
+                {converting && !touched.current && spinner}
+              </div>
             </Field>
           )}
           {locked.map(([id, label, value]) => (
@@ -279,16 +301,18 @@ export function EditAssetSheet({
                   data-testid={`edit-asset-locked-${id}`}
                   value={
                     // R6: the locked price follows the picked currency.
-                    id === "currentPrice" && fx && ccy !== ccy0
-                      ? centsToBare(
-                          String(
-                            Math.round(
-                              Number(h.currentPriceCents) * Number(fx.rate),
+                    id === "currentPrice" && converting
+                      ? ""
+                      : id === "currentPrice" && fx && ccy !== ccy0
+                        ? centsToBare(
+                            String(
+                              Math.round(
+                                Number(h.currentPriceCents) * Number(fx.rate),
+                              ),
                             ),
-                          ),
-                          locale,
-                        )
-                      : value
+                            locale,
+                          )
+                        : value
                   }
                   readOnly
                   aria-readonly="true"
@@ -296,11 +320,15 @@ export function EditAssetSheet({
                   className="pr-9"
                   style={{ color: "var(--muted-foreground)" }}
                 />
-                <Lock
-                  aria-hidden="true"
-                  className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2"
-                  style={{ color: "var(--muted-foreground)" }}
-                />
+                {id === "currentPrice" && converting ? (
+                  spinner
+                ) : (
+                  <Lock
+                    aria-hidden="true"
+                    className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2"
+                    style={{ color: "var(--muted-foreground)" }}
+                  />
+                )}
               </div>
             </Field>
           ))}

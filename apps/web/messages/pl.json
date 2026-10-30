@@ -879,6 +879,7 @@
       "edit": {
         "label": "Nazwa",
         "displayCurrency": "Waluta",
+        "fxLoading": "Przeliczanie…",
         "fxUnavailable": "Kurs niedostępny — wartość zostanie przeliczona przy zapisie.",
         "currentValue": "Aktualna wartość",
         "currentPrice": "Aktualna cena za jednostkę",

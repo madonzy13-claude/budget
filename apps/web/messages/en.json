@@ -879,6 +879,7 @@
       "edit": {
         "label": "Name",
         "displayCurrency": "Currency",
+        "fxLoading": "Converting…",
         "fxUnavailable": "Exchange rate unavailable — the value converts when you save.",
         "currentValue": "Current value",
         "currentPrice": "Current price per unit",
