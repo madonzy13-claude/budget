@@ -165,8 +165,26 @@ vi.mock(
 // 13.1 UAT 7: picking an existing asset in Add = the locked Swap → Buy form.
 vi.mock("../../src/hooks/use-investments", () => ({
   useInvestments: () => ({
-    data: [{ id: "btc-id", name: "BTC Ledger", uiType: "crypto" }],
+    data: [
+      { id: "btc-id", name: "BTC Ledger", uiType: "crypto" },
+      // R6: a valued asset the Add form can take money from.
+      {
+        id: "ike",
+        name: "IKE",
+        holdingType: "other",
+        uiType: "broker",
+        isCustom: true,
+        quantity: "1",
+        valueCents: "12000000",
+        currentPriceCurrency: "USD",
+        buyCurrency: "USD",
+      },
+    ],
   }),
+}));
+const sellMutate = vi.fn();
+vi.mock("../../src/hooks/use-sell-holding", () => ({
+  useSellHolding: () => ({ mutate: sellMutate, isPending: false }),
 }));
 vi.mock("../../src/hooks/use-asset-entries", () => ({
   useMinEntryDate: () => null,
@@ -1230,5 +1248,62 @@ describe("HoldingSheet — add joins by name (13.1 D-02)", () => {
       );
       expect(screen.queryByTestId("holding-sheet-custom-name")).toBeNull();
     });
+  });
+});
+
+// R6 (user): New transaction → Buy (a new asset) says where the money came
+// from, like Buy on an existing asset.
+describe("HoldingSheet — money source", () => {
+  const cashNew = () =>
+    holding({
+      holdingType: "cash_fx",
+      uiType: "cash",
+      instrumentId: null,
+      name: "EUR Cash",
+    });
+
+  it("offers Out of investments (default) and From another asset", () => {
+    render(<HoldingSheet {...baseProps} holding={cashNew()} />);
+    expect(screen.getByTestId("swap-buy-from-out")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByTestId("swap-buy-from-asset")).toBeInTheDocument();
+  });
+
+  it("no type yet → no money source either", () => {
+    render(<HoldingSheet {...baseProps} holding={null} />);
+    expect(screen.queryByTestId("swap-buy-from-asset")).toBeNull();
+  });
+
+  it("from another asset: sells the source into the new asset", async () => {
+    sellMutate.mockClear();
+    createMutate.mockClear();
+    render(<HoldingSheet {...baseProps} holding={cashNew()} />);
+    fireEvent.change(screen.getByTestId("holding-sheet-amount"), {
+      target: { value: "500" },
+    });
+    fireEvent.click(screen.getByTestId("swap-buy-from-asset"));
+    fireEvent.keyDown(screen.getByTestId("swap-buy-src"), { key: "Enter" });
+    fireEvent.keyDown(await screen.findByTestId("swap-buy-src-option-ike"), {
+      key: "Enter",
+    });
+    expect(screen.getByTestId("swap-buy-takes")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
+    expect(createMutate).not.toHaveBeenCalled();
+    expect(sellMutate).toHaveBeenCalledTimes(1);
+    const { holdingId, body } = sellMutate.mock.calls[0]![0];
+    expect(holdingId).toBe("ike");
+    expect(body).toMatchObject({
+      left: { valueCents: "11950000" },
+      destination: {
+        kind: "new",
+        holding: { name: "EUR Cash", uiType: "cash" },
+      },
+      receivedCents: "50000",
+      receivedCurrency: "USD",
+    });
+    expect(body.destination.holding.buyPriceCents).toBeUndefined();
+    expect(body.destination.holding.openedOn).toBeUndefined();
   });
 });

@@ -58,6 +58,15 @@ Feature: Investments as assets with transactions (13.1)
     And I buy "0.1" of "BTC" at "300000" with money from "IBKR"
     Then the holding row "IBKR" shows the amount "66,000"
 
+  # R6 (user): New transaction → Buy (a new asset) has the money source too.
+  @r6-buy-from-asset
+  Scenario: A new asset bought with money taken from another asset
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I add a cash asset "Fresh pot" of "500" with money from "IBKR"
+    Then the holding row "IBKR" shows the amount "95,500"
+    And the holding row "Fresh pot" shows the amount "500"
+
   # D-23: a new wallet starts with the amount.
   Scenario: Selling into a new wallet creates it with the amount
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget

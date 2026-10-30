@@ -339,6 +339,36 @@ export class InvestmentsPo {
     if (!(await posted).ok()) throw new Error("buy from asset failed");
   }
 
+  /** R6: New transaction → Buy a new cash asset with money from another. */
+  async addCashFromAsset(
+    name: string,
+    amount: string,
+    source: string,
+  ): Promise<void> {
+    await this.openAdd("cash");
+    const sheet = this.sheet();
+    await sheet.getByTestId("holding-sheet-name").fill(name);
+    await sheet.getByTestId("holding-sheet-name").press("Escape");
+    await sheet.getByTestId("holding-sheet-amount").fill(amount);
+    await sheet.getByTestId("swap-buy-from-asset").click();
+    await sheet.getByTestId("swap-buy-src").click();
+    await this.page
+      .getByRole("option")
+      .filter({
+        has: this.page.locator("[data-src-name]", {
+          hasText: new RegExp(`^${source}$`),
+        }),
+      })
+      .click();
+    const posted = this.page.waitForResponse(
+      (r) => /\/sell$/.test(r.url()) && r.request().method() === "POST",
+      { timeout: 15000 },
+    );
+    await sheet.getByTestId("holding-sheet-submit").click();
+    const res = await posted;
+    if (!res.ok()) throw new Error(`buy from asset failed: ${res.status()}`);
+  }
+
   /** Open Add and pick a type (13.1 name-first form). */
   async openAdd(type: string): Promise<void> {
     await this.startBuy();

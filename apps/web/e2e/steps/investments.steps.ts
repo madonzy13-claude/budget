@@ -229,6 +229,13 @@ Then(
 );
 
 When(
+  "I add a cash asset {string} of {string} with money from {string}",
+  async ({ page }, name: string, amount: string, source: string) => {
+    await new InvestmentsPo(page).addCashFromAsset(name, amount, source);
+  },
+);
+
+When(
   "I buy {string} of {string} at {string} with money from {string}",
   async (
     { page },
