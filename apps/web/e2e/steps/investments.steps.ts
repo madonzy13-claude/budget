@@ -775,6 +775,43 @@ Then("the picked asset line reads {string}", async ({ page }, text: string) => {
   await expect(page.getByTestId("asset-name-picked")).toHaveText(text);
 });
 
+// Round-6 gap 2: the deal's own figure.
+When(
+  "I sell everything of {string} out of investments in {string} at the suggested amount",
+  async ({ page }, name: string, ccy: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openSwap(name, "sell");
+    const sheet = po.swapSheet();
+    await po.fillSoldFromLeft(sheet, "0");
+    await sheet.getByTestId("swap-dest-out").click();
+    const row = sheet.getByTestId("swap-received-row");
+    const native = row.getByTestId("currency-picker-native");
+    if (await native.isVisible().catch(() => false))
+      await native.selectOption(ccy);
+    else {
+      await row.getByRole("combobox").click();
+      await page.getByTestId(`currency-option-${ccy}`).first().click();
+    }
+    await expect(sheet.getByTestId("swap-sell-received")).not.toHaveValue("");
+    expect(await po.submitSwap("/sell")).toBe(201);
+  },
+);
+
+Then(
+  "the ledger of {string} shows the sale as {string} in the asset's currency",
+  async ({ page }, name: string, major: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    const text = await ledger.locator("[data-converted]").first().innerText();
+    // "= −3,000 USD": the suggested amount is rounded in the sale's currency,
+    // so the deal figure may sit one cent off.
+    const n = Number(text.replace(/[^\d.]/g, ""));
+    expect(text).toMatch(/^= −/);
+    expect(Math.abs(n - Number(major.replace(/,/g, "")))).toBeLessThanOrEqual(
+      0.01,
+    );
+  },
+);
+
 // ── 13.1: assets, Swap, wallet target, ledger ──
 
 Given(

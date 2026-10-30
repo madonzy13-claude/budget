@@ -167,7 +167,10 @@ describe("List an asset's entries", () => {
     expect(rows[0]!.counterpartyHoldingId).toBe("eth");
     expect(rows[0]!.transferId).toEqual(expect.any(String));
     const start0 = rows.find((r) => r.kind === "start")!;
-    expect(start0).toMatchObject({ counterpartyHoldingId: null, transferId: null });
+    expect(start0).toMatchObject({
+      counterpartyHoldingId: null,
+      transferId: null,
+    });
   });
 
   test("a wallet sale shows the wallet and the delta", async () => {
@@ -341,5 +344,105 @@ describe("List an asset's entries", () => {
       blockedReason: "interest",
       amountCents: accrued.toString(),
     });
+  });
+});
+
+// Round-6 gap 2: a recorded deal is never re-converted.
+describe("Deal figure in the ledger", () => {
+  const spyFx = (rate: string) => {
+    const calls: string[] = [];
+    return {
+      calls,
+      fx: {
+        rateAsOf: async (f: string, t: string) => {
+          calls.push(`${f}>${t}`);
+          return { rate, provider: "stub", isStale: false };
+        },
+      } as never,
+    };
+  };
+  const diamonds = {
+    id: "dia",
+    name: "Diamonds",
+    holdingType: "other",
+    uiType: "collectibles",
+    buy: 0n,
+    qty: "1",
+    current: 0n,
+  };
+  const listWith = (fx: never, assetAmountCents: bigint | null) => {
+    const w = new MemoryWorld([hold(diamonds)]);
+    void w.historyRepo.commit(T, U, {
+      budgetId: T,
+      patches: [],
+      entries: [
+        entry({
+          holdingRef: "dia",
+          kind: "convert_out",
+          effectiveDate: "2026-10-28",
+          amountCents: 69_000n,
+          amountCurrency: "EUR",
+          costDeltaCents: -300_000n,
+          costCurrency: "PLN",
+          assetAmountCents,
+        } as never),
+      ],
+    });
+    return listEntries({
+      holdingRepo: w.holdingRepo,
+      historyRepo: w.historyRepo,
+      fxProvider: fx,
+    })({ ...who, holdingId: "dia", today: "2026-10-30" });
+  };
+
+  test("the stored figure shows as is, with no FX lookup", async () => {
+    const s = spyFx("4.41");
+    const rows = (await listWith(s.fx, 300_000n))._unsafeUnwrap();
+    expect(rows[0]).toMatchObject({
+      displayAmountCents: "-300000",
+      displayCurrency: "PLN",
+    });
+    expect(s.calls).toHaveLength(0);
+  });
+
+  test("without a stored figure it falls back to today's conversion", async () => {
+    const s = spyFx("4.41");
+    const rows = (await listWith(s.fx, null))._unsafeUnwrap();
+    expect(rows[0]!.displayAmountCents).toBe("-304290");
+  });
+
+  test("an asset priced in another currency than it was bought shows the stored currency", async () => {
+    const s = spyFx("0.9");
+    const w = new MemoryWorld([
+      hold({ ...diamonds, buyCcy: "USD", curCcy: "EUR" }),
+    ]);
+    await w.historyRepo.commit(T, U, {
+      budgetId: T,
+      patches: [],
+      entries: [
+        entry({
+          holdingRef: "dia",
+          kind: "convert_out",
+          effectiveDate: "2026-10-28",
+          amountCents: 40_000n,
+          amountCurrency: "PLN",
+          costDeltaCents: -50_000n,
+          costCurrency: "USD",
+          assetAmountCents: 50_000n,
+        } as never),
+      ],
+    });
+    const rows = (
+      await listEntries({
+        holdingRepo: w.holdingRepo,
+        historyRepo: w.historyRepo,
+        fxProvider: s.fx,
+      })({ ...who, holdingId: "dia", today: "2026-10-30" })
+    )._unsafeUnwrap();
+    expect(rows[0]).toMatchObject({
+      displayAmountCents: "-50000",
+      displayCurrency: "USD",
+    });
+    expect(s.calls).toHaveLength(0);
   });
 });

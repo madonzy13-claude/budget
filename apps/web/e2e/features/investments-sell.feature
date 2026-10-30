@@ -97,3 +97,13 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     And I sell "IBKR" leaving "0" into "Pot" receiving "400" in "EUR"
     Then there is exactly one asset named "Pot"
     And the ledger of "Pot" lists "EUR"
+
+  # Round-6 gap 2: a cross-currency sale keeps its own figure in the asset's
+  # currency (= what it was worth at the deal), never a later re-conversion.
+  @r6-deal-fixed
+  Scenario: A sale in another currency shows the deal's own figure in the asset currency
+    Given the FX cache is warm
+    And a "cash" holding "Pot" deposited 300000 cents worth 300000 cents exists in my budget
+    When I open the investments wallets tab
+    And I sell everything of "Pot" out of investments in "EUR" at the suggested amount
+    Then the ledger of "Pot" shows the sale as "3,000" in the asset's currency

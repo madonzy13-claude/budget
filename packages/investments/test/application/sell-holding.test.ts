@@ -606,6 +606,8 @@ describe("Create writes the first history entry", () => {
 
 // ── 13.1: assets + sell to wallet (D-09, D-15, D-17, D-20..D-25) ────────────
 import { MemoryWorld, hold as memHold, rates1 } from "./memory-world";
+import { buyIntoAsset } from "../../src/application/buy-into-asset";
+import { transferAsset } from "../../src/application/transfer-asset";
 
 describe("Sell an asset (13.1)", () => {
   const who13 = {
@@ -952,5 +954,164 @@ describe("Sell an asset (13.1)", () => {
       destination: { kind: "out", wallet: { kind: "nowhere" } },
     });
     expect(r._unsafeUnwrapErr().message).toBe("before_latest_entry");
+  });
+});
+
+// Round-6 gap 2: every booking stores its figure in the asset's own currency
+// at the deal, so the ledger never re-converts it later.
+describe("Deal figure stored on bookings", () => {
+  const D = "2026-10-25";
+  const fxOf = (rates: Record<string, string>) =>
+    ({
+      rateAsOf: async (from: string, to: string) => {
+        const r = rates[`${from}>${to}`];
+        if (!r) throw new Error("no rate");
+        return { rate: r, provider: "stub", isStale: false };
+      },
+    }) as never;
+  const memWorld = (
+    rates: Record<string, string>,
+    ...hs: Parameters<typeof memHold>[0][]
+  ) => {
+    const w = new MemoryWorld(hs.map(memHold));
+    const deps = {
+      holdingRepo: w.holdingRepo,
+      historyRepo: w.historyRepo,
+      fxProvider: fxOf(rates),
+    };
+    return { w, deps };
+  };
+  const who6 = {
+    tenantId: T,
+    budgetId: T,
+    actorUserId: U,
+    budgetCurrency: "PLN",
+  };
+  const pln = (id: string, cents: bigint) => ({
+    id,
+    name: id,
+    holdingType: "cash_fx",
+    uiType: "cash",
+    buy: cents,
+    current: cents,
+  });
+
+  test("an amount sale out in another currency stores its proceeds", async () => {
+    const { w, deps } = memWorld(
+      { "PLN>EUR": "0.23" },
+      { ...pln("dia", 300_000n), holdingType: "other", uiType: "other" },
+    );
+    const r = await sellHolding(deps)({
+      ...who6,
+      holdingId: "dia",
+      effectiveDate: D,
+      left: { valueCents: "0" },
+      destination: { kind: "out", wallet: { kind: "nowhere" } },
+      receivedCents: "69000",
+      receivedCurrency: "EUR",
+    });
+    expect(r.isOk()).toBe(true);
+    expect(w.live()[0]).toMatchObject({ assetAmountCents: 300_000n });
+  });
+
+  test("a quantity sale stores proceeds in the asset's currency", async () => {
+    const { w, deps } = memWorld(
+      { "USD>PLN": "4" },
+      {
+        id: "eth",
+        name: "ETH",
+        holdingType: "crypto",
+        uiType: "crypto",
+        buy: 1_000n,
+        buyCcy: "USD",
+        qty: "2",
+        current: 5_000n,
+      },
+    );
+    await sellHolding(deps)({
+      ...who6,
+      holdingId: "eth",
+      effectiveDate: D,
+      left: { quantity: "0" },
+      destination: { kind: "out", wallet: { kind: "nowhere" } },
+      receivedCents: "40000",
+      receivedCurrency: "PLN",
+    });
+    expect(w.live()[0]).toMatchObject({ assetAmountCents: 10_000n });
+  });
+
+  test("a sale into an existing asset in another currency stores what it received there", async () => {
+    const { w, deps } = memWorld(
+      { "PLN>EUR": "0.25", "EUR>PLN": "4" },
+      pln("src", 100_000n),
+      pln("pot", 100_000n),
+    );
+    await sellHolding(deps)({
+      ...who6,
+      holdingId: "src",
+      effectiveDate: D,
+      left: { valueCents: "0" },
+      destination: { kind: "existing", holdingId: "pot" },
+      receivedCents: "25000",
+      receivedCurrency: "EUR",
+    });
+    const into = w.live().find((r) => r.holdingId === "pot")!;
+    expect(into).toMatchObject({
+      kind: "convert_in",
+      assetAmountCents: 100_000n,
+    });
+  });
+
+  test("a sale into a new asset stores the received amount", async () => {
+    const { w, deps } = memWorld({}, pln("src", 100_000n));
+    await sellHolding(deps)({
+      ...who6,
+      holdingId: "src",
+      effectiveDate: D,
+      left: { valueCents: "0" },
+      destination: {
+        kind: "new",
+        holding: { name: "Pot", holdingType: "cash_fx", uiType: "cash" },
+      },
+      receivedCents: "100000",
+      receivedCurrency: "PLN",
+    } as never);
+    const leg = w.live().find((r) => r.kind === "convert_in")!;
+    expect(leg.assetAmountCents).toBe(100_000n);
+  });
+
+  test("a buy paid in another currency stores the cost in the asset's currency", async () => {
+    const { w, deps } = memWorld({ "EUR>PLN": "4.25" }, pln("pot", 100_000n));
+    const r = await buyIntoAsset(deps)({
+      ...who6,
+      holdingId: "pot",
+      kind: "amount",
+      amountCents: "10000",
+      currency: "EUR",
+      effectiveDate: D,
+    });
+    expect(r.isOk()).toBe(true);
+    expect(w.live().at(-1)).toMatchObject({ assetAmountCents: 42_500n });
+  });
+
+  test("a cross-currency transfer stores each leg's own figure", async () => {
+    const { w, deps } = memWorld(
+      { "USD>PLN": "4" },
+      { ...pln("usd", 100_000n), buyCcy: "USD" },
+      pln("pln", 100_000n),
+    );
+    const r = await transferAsset(deps)({
+      ...who6,
+      holdingId: "usd",
+      effectiveDate: D,
+      move: { valueCents: "50000" },
+      to: { kind: "existing", holdingId: "pln" },
+    });
+    expect(r.isOk()).toBe(true);
+    const out = w.live().find((x) => x.kind === "transfer_out")!;
+    const inn = w.live().find((x) => x.kind === "transfer_in")!;
+    expect(out.assetAmountCents).toBe(-out.costDeltaCents);
+    expect(inn.assetAmountCents).toBe(inn.costDeltaCents);
+    expect(out.assetAmountCents).not.toBe(inn.assetAmountCents);
   });
 });

@@ -452,3 +452,17 @@ describe("Booking guards (CR-03, IN-02)", () => {
     ).toThrow("qty_precision");
   });
 });
+
+// Round-6 gap 2: the sale's proceeds in the source currency are the deal figure.
+describe("Deal figure", () => {
+  test("proceeds in the source currency come back with realized", () => {
+    const fx = realizedInBudget({
+      receivedCents: 69_000n,
+      sourceToReceivedRate: "0.23",
+      soldCostCents: 300_000n,
+      sourceToBudgetRate: "1",
+    });
+    expect(fx.proceedsCents).toBe(300_000n);
+    expect(fx.realizedBudgetCents).toBe(0n);
+  });
+});
