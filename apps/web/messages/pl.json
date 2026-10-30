@@ -823,12 +823,11 @@
         "sell": {
           "where": "Gdzie trafiły pieniądze?",
           "dest": {
-            "new": "Nowa inwestycja",
-            "existing": "Istniejąca inwestycja",
             "out": "Poza inwestycjami",
-            "newDesc": "Otwórz nowe aktywo za te pieniądze",
-            "existingDesc": "Dodaj pieniądze do posiadanego aktywa",
-            "outDesc": "Opuszczają Twoje inwestycje"
+            "outDesc": "Opuszczają Twoje inwestycje",
+            "invest": "Do inwestycji",
+            "investDesc": "Wybierz istniejące aktywo lub wpisz nowe",
+            "willCreate": "Zostanie utworzone nowe aktywo „{name}”"
           },
           "received": "Otrzymana kwota",
           "receivedHelp": "Wstępnie wg dzisiejszej wartości. Zmień na kwotę, która faktycznie wpłynęła.",

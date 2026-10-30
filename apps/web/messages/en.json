@@ -823,12 +823,11 @@
         "sell": {
           "where": "Where did the money go?",
           "dest": {
-            "new": "New investment",
-            "existing": "Existing investment",
             "out": "Out of investments",
-            "newDesc": "Open a new asset with the money",
-            "existingDesc": "Add the money to an asset you already have",
-            "outDesc": "It leaves your investments"
+            "outDesc": "It leaves your investments",
+            "invest": "Into investments",
+            "investDesc": "Pick an asset you have or name a new one",
+            "willCreate": "New asset “{name}” will be created"
           },
           "received": "Amount received",
           "receivedHelp": "Prefilled from today's value. Change it to what actually landed.",

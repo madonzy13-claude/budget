@@ -182,24 +182,23 @@ export function AssetNameCombobox({
               {o.kind === "asset" ? (
                 <>
                   <span className="min-w-0 break-words">{o.a.name}</span>
-                  {/* Round 4: qty · value CCY, so similar names are told apart. */}
-                  {
-                    <span
-                      data-asset-meta
-                      className="ml-auto shrink-0 text-[12px] tabular-nums"
-                      style={{ color: "var(--muted-foreground)" }}
-                    >
-                      {meta(o.a)}
-                    </span>
-                  }
+                  {/* R6-5: "Archived" before the value. */}
                   {o.a.archived && (
                     <span
-                      className="shrink-0 text-[12px]"
+                      className="ml-auto shrink-0 text-[12px]"
                       style={{ color: "var(--muted-foreground)" }}
                     >
                       {t("asset.name.closed")}
                     </span>
                   )}
+                  {/* Round 4: value CCY, so similar names are told apart. */}
+                  <span
+                    data-asset-meta
+                    className={`${o.a.archived ? "" : "ml-auto "}shrink-0 text-[12px] tabular-nums`}
+                    style={{ color: "var(--muted-foreground)" }}
+                  >
+                    {meta(o.a)}
+                  </span>
                 </>
               ) : (
                 t("asset.name.create", { name: value.trim() })

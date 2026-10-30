@@ -105,8 +105,13 @@ interface HoldingSheetProps {
     receivedCurrency: string;
     initialUiType?: UiType;
     onChange: (h: DestinationHolding | null) => void;
-    /** Round 5: an existing asset picked by name → sell into it (by id). */
-    onPickExisting?: (id: string) => void;
+    /** R6-3: the Into-investments field picks an existing asset in place
+     *  (by id); null = the pick was dropped (typed / "Add as new"). */
+    onPickExisting?: (id: string | null) => void;
+    /** The picked asset — only Type + Name stay while it is set. */
+    selectedId?: string | null;
+    /** The asset being sold (never its own destination). */
+    excludeId?: string;
   };
   /** Add mode: start with this type chosen. */
   initialUiType?: UiType;
@@ -804,11 +809,18 @@ export function HoldingSheet({
       onChange={(v) => {
         markDirty();
         setPickedId(null);
+        if (dest?.selectedId) dest.onPickExisting?.(null);
         if (!tracked) return setName(v);
         setCustomName(v);
       }}
-      selectedId={pickedId}
-      onCreate={() => setPickedId(null)}
+      selectedId={dest ? (dest.selectedId ?? null) : pickedId}
+      onCreate={() => (dest ? dest.onPickExisting?.(null) : setPickedId(null))}
+      excludeId={dest?.excludeId}
+      // A sale lands in a live, non-deposit asset (server: same_holding,
+      // unsupported_destination).
+      include={
+        dest ? (a) => !a.archived && a.holdingType !== "deposit" : undefined
+      }
       onPickExisting={(a) => {
         if (dest) return dest.onPickExisting?.(a.id);
         if (a.archived) restoreMut.mutate(a.id);
@@ -1294,7 +1306,21 @@ export function HoldingSheet({
   if (dest)
     return (
       <div data-testid="holding-form-destination" className="space-y-4">
-        {formFields}
+        {dest.selectedId ? (
+          // R6-3: an existing asset is picked — Type + Name only.
+          <>
+            {typeField}
+            <Field
+              label={t(
+                tracked && !manualEntry ? "field.customName" : "field.name",
+              )}
+            >
+              {nameField}
+            </Field>
+          </>
+        ) : (
+          formFields
+        )}
       </div>
     );
 
@@ -1699,7 +1725,9 @@ export function HoldingFormFields(props: {
   receivedCurrency: string;
   initialUiType?: UiType;
   onChange: (h: DestinationHolding | null) => void;
-  onPickExisting?: (id: string) => void;
+  onPickExisting?: (id: string | null) => void;
+  selectedId?: string | null;
+  excludeId?: string;
 }) {
   return (
     <HoldingSheet
@@ -1712,6 +1740,8 @@ export function HoldingFormFields(props: {
         initialUiType: props.initialUiType,
         onChange: props.onChange,
         onPickExisting: props.onPickExisting,
+        selectedId: props.selectedId,
+        excludeId: props.excludeId,
       }}
     />
   );

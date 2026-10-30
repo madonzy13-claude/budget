@@ -29,7 +29,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
-import { UI_TYPE_ICON } from "@/lib/investment-icons";
 import {
   Select,
   SelectContent,
@@ -42,16 +41,10 @@ import {
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { centsToBare } from "@/lib/cents-format";
-import {
-  deriveUiType,
-  holdingShape,
-  isQtyUiType,
-  type UiType,
-} from "@/lib/investment-types";
+import { holdingShape, isQtyUiType } from "@/lib/investment-types";
 import { isOfflineWriteError } from "@/lib/offline-write";
 import type { AssetWriteError } from "@/lib/investment-invalidate";
 import { buildSwapSummary } from "@/lib/swap-summary";
-import type { HoldingDto } from "@/hooks/use-investments";
 import { useWallets, type WalletDto } from "@/hooks/use-wallets";
 import { useSellHolding, type WalletTarget } from "@/hooks/use-sell-holding";
 import {
@@ -78,9 +71,11 @@ import {
   trimQty,
 } from "./swap-shared";
 
-type Dest = "new" | "existing" | "out";
+// R6-3 (user): one "Into investments" card (pick an asset in place, or name a
+// new one) + "Out of investments". The old New / Existing split (D-09) is gone.
+type Dest = "invest" | "out";
 type WalletKind = WalletTarget["kind"];
-const DESTS: Dest[] = ["new", "existing", "out"];
+const DESTS: Dest[] = ["invest", "out"];
 const WALLET_KINDS: WalletKind[] = ["existing", "new", "nowhere"];
 const WALLET_TYPES = [
   "SPENDINGS",
@@ -207,7 +202,7 @@ export function SwapSellTab({
     setSoldState(v);
     setDraft?.(v);
   };
-  const [dest, setDest] = useState<Dest>("new");
+  const [dest, setDest] = useState<Dest>("invest");
   const [newHolding, setNewHolding] = useState<DestinationHolding | null>(null);
   const [destQty, setDestQty] = useState("");
   const [qtyTouched, setQtyTouched] = useState(false);
@@ -224,6 +219,9 @@ export function SwapSellTab({
   const [serverError, setServerError] = useState<string | null>(null);
 
   const existing = holdings.find((h) => h.id === existingId);
+  /** Which booking "Into investments" is: a picked asset, or a new one. */
+  const mode: "existing" | "new" | "out" =
+    dest === "out" ? "out" : existingId ? "existing" : "new";
   const wallet: WalletDto | undefined = wallets.find((w) => w.id === walletId);
   const receivedCcy =
     dest === "out" && walletKind === "existing" && wallet
@@ -233,8 +231,9 @@ export function SwapSellTab({
   // preselects its own (R5-6).
   const ccyLocked = dest === "out" && walletKind === "existing";
   const assetCcy = existing ? ccyOf(existing, budgetCurrency) : receivedCcy;
-  const pickExisting = (id: string) => {
-    setExistingId(id);
+  const pickExisting = (id: string | null) => {
+    setExistingId(id ?? "");
+    if (!id) return;
     const h = holdings.find((x) => x.id === id);
     if (h) setChosenCcy(ccyOf(h, budgetCurrency));
     setReceivedTouched(false);
@@ -243,7 +242,7 @@ export function SwapSellTab({
   // and value; the server books with its own rate).
   const [assetRate, setAssetRate] = useState(1);
   useEffect(() => {
-    if (dest !== "existing" || assetCcy === receivedCcy) {
+    if (mode !== "existing" || assetCcy === receivedCcy) {
       setAssetRate(1);
       return;
     }
@@ -257,7 +256,7 @@ export function SwapSellTab({
     return () => {
       live = false;
     };
-  }, [dest, assetCcy, receivedCcy]);
+  }, [mode, assetCcy, receivedCcy]);
 
   // Today's rate source currency → received currency (prefill + preview only).
   const [rate, setRate] = useState(1);
@@ -329,12 +328,12 @@ export function SwapSellTab({
   const existingIsQty = !!existing && holdingShape(existing) === "quantity";
   const newIsQty = !!newHolding && isQtyUiType(newHolding.uiType);
   const qtyDest =
-    (dest === "existing" && existingIsQty) || (dest === "new" && newIsQty);
+    (mode === "existing" && existingIsQty) || (mode === "new" && newIsQty);
   const livePrice = newHolding?.livePriceCents
     ? plain(Number(newHolding.livePriceCents) / 100)
     : "";
   const priceText =
-    dest === "existing"
+    mode === "existing"
       ? existing
         ? plain((Number(existing.currentPriceCents ?? 0) / 100) * assetRate)
         : ""
@@ -368,7 +367,7 @@ export function SwapSellTab({
     dest === "out"
       ? walletKind === "nowhere" ||
         (walletKind === "existing" ? !!wallet : !nameMissing)
-      : dest === "existing"
+      : mode === "existing"
         ? !!existing && (!existingIsQty || qty > 0)
         : newHolding !== null && (!newIsQty || (qty > 0 && price > 0));
   const valid =
@@ -379,9 +378,9 @@ export function SwapSellTab({
     dateOk(date, minDate);
 
   const destName =
-    dest === "existing"
+    mode === "existing"
       ? (existing?.name ?? "")
-      : dest === "new"
+      : mode === "new"
         ? (newHolding?.name ?? "")
         : walletKind === "existing"
           ? (wallet?.name ?? "")
@@ -398,14 +397,14 @@ export function SwapSellTab({
           realized: realized ?? 0,
           realizedCcy: srcCcy,
           dest:
-            dest === "new"
+            mode === "new"
               ? {
                   kind: "new",
                   name: destName,
                   amount: receivedCents,
                   ccy: receivedCcy,
                 }
-              : dest === "existing"
+              : mode === "existing"
                 ? {
                     kind: "existing",
                     name: destName,
@@ -457,7 +456,7 @@ export function SwapSellTab({
     const destination =
       dest === "out"
         ? ({ kind: "out", wallet: walletBody } as const)
-        : dest === "existing"
+        : mode === "existing"
           ? {
               kind: "existing" as const,
               holdingId: existingId,
@@ -521,17 +520,6 @@ export function SwapSellTab({
     );
   }
 
-  const destinations = holdings.filter(
-    (h) =>
-      h.id !== holding.id &&
-      h.holdingType !== "deposit" &&
-      h.holdingType !== "possession",
-  );
-  const byType = new Map<UiType, HoldingDto[]>();
-  for (const h of destinations) {
-    const ui = deriveUiType(h.uiType, h.holdingType, h.isCustom);
-    byType.set(ui, [...(byType.get(ui) ?? []), h]);
-  }
   const walletsByType = WALLET_TYPES.map(
     (wt) => [wt, wallets.filter((w) => w.walletType === wt)] as const,
   ).filter(([, ws]) => ws.length > 0);
@@ -619,8 +607,9 @@ export function SwapSellTab({
             }))}
           />
 
-          {/* 3. Destination detail */}
-          {dest === "new" && (
+          {/* 3. Destination detail — R6-3: ONE name field. A picked asset
+              (by id, in place) is the destination; a typed name is a new one. */}
+          {dest === "invest" && (
             <>
               <HoldingFormFields
                 budgetId={budgetId}
@@ -628,82 +617,24 @@ export function SwapSellTab({
                 receivedCurrency={receivedCcy}
                 initialUiType="cash"
                 onChange={setNewHolding}
-                // Round 5: a picked existing name sells into THAT asset.
-                onPickExisting={(id) => {
-                  setDest("existing");
-                  pickExisting(id);
-                }}
+                selectedId={existingId || null}
+                excludeId={holding.id}
+                onPickExisting={pickExisting}
               />
-              {newIsQty && destPair(false)}
-            </>
-          )}
-          {dest === "existing" && (
-            <>
-              {/* Round 4: set apart from the destination cards above. */}
-              <div className="mt-3">
-                <Select
-                  value={existingId || undefined}
-                  onValueChange={pickExisting}
+              {mode === "new" && newHolding && (
+                <p
+                  data-testid="swap-dest-new-marker"
+                  className={caption}
+                  style={{ color: "var(--muted-foreground)" }}
                 >
-                  <SelectTrigger
-                    data-testid="swap-sell-existing"
-                    aria-label={t("swap.sell.dest.existing")}
-                    className="min-h-11 w-full"
-                  >
-                    <SelectValue
-                      placeholder={t("swap.sell.dest.existingDesc")}
-                    />
-                  </SelectTrigger>
-                  <SelectContent position="popper" className={LIST}>
-                    {[...byType].map(([ui, hs]) => (
-                      <SelectGroup key={ui}>
-                        <SelectLabel className="flex items-center gap-2">
-                          {(() => {
-                            const Icon = UI_TYPE_ICON[ui as UiType];
-                            return Icon ? (
-                              <Icon
-                                data-type-icon
-                                className="h-4 w-4"
-                                aria-hidden="true"
-                              />
-                            ) : null;
-                          })()}
-                          {t(`uitype.${ui}`)}
-                        </SelectLabel>
-                        {hs.map((h) => (
-                          <SelectItem
-                            key={h.id}
-                            value={h.id}
-                            data-testid={`swap-sell-existing-option-${h.id}`}
-                          >
-                            {h.name}
-                            {/* Round 4: qty · value, so the asset is recognisable. */}
-                            <span
-                              data-asset-meta
-                              className="tabular-nums"
-                              style={{ color: "var(--muted-foreground)" }}
-                            >
-                              {" · "}
-                              {[
-                                holdingShape(h) === "quantity"
-                                  ? trimQty(h.quantity)
-                                  : null,
-                                `${money(Number(h.valueCents))} ${ccyOf(h, budgetCurrency)}`,
-                              ]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {existingIsQty && destPair(true)}
+                  {t("swap.sell.dest.willCreate", { name: newHolding.name })}
+                </p>
+              )}
+              {mode === "new" && newIsQty && destPair(false)}
+              {mode === "existing" && existingIsQty && destPair(true)}
               {/* R5-6: a quantity destination has no Received row — its
                   currency is picked here (preselected to the asset's). */}
-              {existingIsQty && (
+              {mode === "existing" && existingIsQty && (
                 <div data-testid="swap-dest-ccy" className="mt-2 w-24">
                   <Field label={t("field.currency")}>
                     <CurrencyPicker
