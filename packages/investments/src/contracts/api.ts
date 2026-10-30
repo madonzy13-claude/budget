@@ -382,8 +382,10 @@ export const sellAssetSchema = z.object({
     z.object({
       kind: z.literal("existing"),
       holdingId: z.uuid(),
-      // Priced at the destination's own price (D-09, read-only).
+      // Priced at the destination's own price unless one is typed (R6, user:
+      // never locked) — priceCents is per unit, in the received currency.
       quantityBought: positiveQty.optional(),
+      priceCents: positiveCents.optional(),
     }),
     z.object({
       kind: z.literal("out"),

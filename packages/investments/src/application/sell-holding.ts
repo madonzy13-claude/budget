@@ -236,22 +236,26 @@ export function sellHolding(deps: {
           : dest.kind === "new"
             ? dest.holding.quantity
             : undefined;
+      // R5-6: an existing destination may be in another currency — its leg is
+      // booked in the asset's own currency at ONE deal rate on the sale date.
+      const assetCcy = into ? ccyOf(into) : receivedCcy;
+      const deal = big(await rate(receivedCcy, assetCcy));
       let unit: Big | null = null;
       if (
         into &&
         into.holdingType !== "deposit" &&
         holdingShape(into) === "quantity"
       )
-        unit = await unitOf(into);
+        // R6 (user): a typed price (received currency) wins over its own.
+        unit =
+          dest.kind === "existing" && dest.priceCents
+            ? big(dest.priceCents).times(deal)
+            : await unitOf(into);
       else if (!into && newBase && isQuantityHolding(newBase.uiType)) {
         if (dest.kind !== "new" || !dest.priceCents)
           return err(fail("price_required"));
         unit = big(dest.priceCents);
       }
-      // R5-6: an existing destination may be in another currency — its leg is
-      // booked in the asset's own currency at ONE deal rate on the sale date.
-      const assetCcy = into ? ccyOf(into) : receivedCcy;
-      const deal = big(await rate(receivedCcy, assetCcy));
       let received: bigint;
       let receivedAsset: bigint;
       if (unit) {

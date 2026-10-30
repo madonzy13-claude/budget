@@ -233,6 +233,7 @@ export function SwapSellTab({
   const assetCcy = existing ? ccyOf(existing, budgetCurrency) : receivedCcy;
   const pickExisting = (id: string | null) => {
     setExistingId(id ?? "");
+    setDestPrice("");
     if (!id) return;
     const h = holdings.find((x) => x.id === id);
     if (h) setChosenCcy(ccyOf(h, budgetCurrency));
@@ -323,8 +324,8 @@ export function SwapSellTab({
     setReceived(String(Math.round(calc.soldValue * rate) / 100));
   }, [calc, rate, receivedTouched]);
 
-  // Destination price (D-09): Existing = its own, read-only; New = typed,
-  // else the instrument's live price. Nothing ever writes it from qty.
+  // Destination price (D-09): typed, else Existing = its own, New = the
+  // instrument's live price. Nothing ever writes it from qty.
   const existingIsQty = !!existing && holdingShape(existing) === "quantity";
   const newIsQty = !!newHolding && isQtyUiType(newHolding.uiType);
   const qtyDest =
@@ -332,13 +333,14 @@ export function SwapSellTab({
   const livePrice = newHolding?.livePriceCents
     ? plain(Number(newHolding.livePriceCents) / 100)
     : "";
+  // R6 (user): never locked — a typed price wins over the asset's own.
   const priceText =
-    mode === "existing"
-      ? existing
-        ? plain((Number(existing.currentPriceCents ?? 0) / 100) * assetRate)
-        : ""
-      : destPrice !== ""
-        ? destPrice
+    destPrice !== ""
+      ? destPrice
+      : mode === "existing"
+        ? existing
+          ? plain((Number(existing.currentPriceCents ?? 0) / 100) * assetRate)
+          : ""
         : livePrice;
   const price = num(priceText);
   // Quantity follows sold value ÷ price until the user types it.
@@ -461,6 +463,9 @@ export function SwapSellTab({
               kind: "existing" as const,
               holdingId: existingId,
               ...(existingIsQty ? { quantityBought: qtyString(qty) } : {}),
+              ...(existingIsQty && destPrice !== ""
+                ? { priceCents: String(Math.round(price * 100)) }
+                : {}),
             }
           : (() => {
               const { livePriceCents, ...base } = newHolding!;
@@ -526,8 +531,13 @@ export function SwapSellTab({
   const money = (c: number) => centsToBare(String(Math.round(Math.abs(c))));
 
   /** One quantity + one price; received = quantity × price. */
-  const destPair = (locked: boolean) => (
-    <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
+  // R6 (user): quantity, price and currency on one line; the price is just
+  // "Buy price" (the currency is beside it) and never locked.
+  const destPair = () => (
+    <div
+      data-testid="swap-dest-row"
+      className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_5.5rem] items-end gap-2"
+    >
       <Field label={t("swap.buy.quantity")}>
         <NumericInput
           testId="swap-dest-qty"
@@ -538,16 +548,23 @@ export function SwapSellTab({
           }}
         />
       </Field>
-      <Field
-        label={`${t("swap.buy.price")} (${receivedCcy})${locked ? ` · ${t("swap.locked")}` : ""}`}
-      >
+      <Field label={t("swap.buy.price")}>
         <NumericInput
           testId="swap-dest-price"
           value={priceText}
-          onChange={locked ? () => {} : setDestPrice}
-          readOnly={locked}
+          onChange={setDestPrice}
         />
       </Field>
+      <div data-testid="swap-dest-ccy">
+        <Field label={t("field.currency")}>
+          <CurrencyPicker
+            variant="field"
+            value={chosenCcy}
+            onSelect={setChosenCcy}
+            aria-label={t("field.currency")}
+          />
+        </Field>
+      </div>
     </div>
   );
 
@@ -630,23 +647,7 @@ export function SwapSellTab({
                   {t("swap.sell.dest.willCreate", { name: newHolding.name })}
                 </p>
               )}
-              {mode === "new" && newIsQty && destPair(false)}
-              {mode === "existing" && existingIsQty && destPair(true)}
-              {/* R5-6: a quantity destination has no Received row — its
-                  currency is picked here (preselected to the asset's).
-                  R6 (user): a new one too (BTC → USDC priced in USD). */}
-              {qtyDest && (
-                <div data-testid="swap-dest-ccy" className="mt-2 w-24">
-                  <Field label={t("field.currency")}>
-                    <CurrencyPicker
-                      variant="field"
-                      value={chosenCcy}
-                      onSelect={setChosenCcy}
-                      aria-label={t("field.currency")}
-                    />
-                  </Field>
-                </div>
-              )}
+              {qtyDest && destPair()}
             </>
           )}
           {dest === "out" && (
