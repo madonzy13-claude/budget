@@ -1360,7 +1360,8 @@ export function HoldingSheet({
             />
           )}
 
-          {behavior !== "deposit" && (
+          {/* R6 (user): like Sell / Transfer — date and actions wait for a type. */}
+          {uiType && behavior !== "deposit" && (
             <Field label={t("addDate")}>
               <DateInput
                 data-testid="holding-sheet-date"
@@ -1373,24 +1374,26 @@ export function HoldingSheet({
 
           {/* Actions live at the END of the scrolling form (NOT a pinned footer):
       the user scrolls down to reach Save. */}
-          <div
-            data-testid="holding-sheet-actions"
-            className="mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--hairline-dark)] pt-4"
-          >
-            <Button
-              type="button"
-              variant="primary"
-              data-testid="holding-sheet-submit"
-              disabled={!canSave}
-              onClick={handleSave}
-              className="flex-1"
+          {uiType && (
+            <div
+              data-testid="holding-sheet-actions"
+              className="mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--hairline-dark)] pt-4"
             >
-              {t("sheet.save")}
-            </Button>
-            <Button type="button" variant="ghost" onClick={attemptClose}>
-              {t("sheet.cancel")}
-            </Button>
-          </div>
+              <Button
+                type="button"
+                variant="primary"
+                data-testid="holding-sheet-submit"
+                disabled={!canSave}
+                onClick={handleSave}
+                className="flex-1"
+              >
+                {t("sheet.save")}
+              </Button>
+              <Button type="button" variant="ghost" onClick={attemptClose}>
+                {t("sheet.cancel")}
+              </Button>
+            </div>
+          )}
         </>
       )}
     </div>
