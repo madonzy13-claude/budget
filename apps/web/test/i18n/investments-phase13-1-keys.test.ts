@@ -19,7 +19,7 @@ const KEYS = [
   "asset.name.label",
   "asset.name.reopens",
   "asset.swipe.edit",
-  "asset.swipe.swap",
+  "asset.swipe.newTxn",
   "edit.currentPrice",
   "edit.currentValue",
   "edit.displayCurrency",

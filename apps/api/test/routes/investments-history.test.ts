@@ -660,6 +660,13 @@ describe("Ledger, undo, type summary (13-08 → 13.1)", () => {
         }
       ).types;
     expect((await summary()).broker?.realizedBudgetCents).toBe("2818750");
+    // Round-6 gap 6: the asset's own realized, the same figure.
+    const holdings = (
+      (await (await req(app, "GET", "/type-summary")).json()) as {
+        holdings?: Record<string, { realizedBudgetCents: string }>;
+      }
+    ).holdings;
+    expect(holdings?.[b]?.realizedBudgetCents).toBe("2818750");
     const [out] = await entryIds(app, b);
     const del = await req(app, "DELETE", `/entries/${out!.id}`);
     expect(del.status).toBe(200);

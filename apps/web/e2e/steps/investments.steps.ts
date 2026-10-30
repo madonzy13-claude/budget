@@ -834,6 +834,49 @@ Then("moving {string} asks how many units", async ({ page }, name: string) => {
   );
 });
 
+// Round-6 gaps 4 + 6: the asset row.
+Then(
+  "the asset {string} shows {string} above its price",
+  async ({ page }, name: string, text: string) => {
+    const row = new InvestmentsPo(page).row(name);
+    const line = row.getByTestId(/^investment-row-qtyavg$/);
+    await expect(line.first()).toHaveText(text);
+    await expect(line.first().locator("[data-avg-icon]")).toHaveCount(1);
+  },
+);
+
+Then(
+  "the asset {string} caption shows unrealized and realized",
+  async ({ page }, name: string) => {
+    const caption = new InvestmentsPo(page)
+      .row(name)
+      .locator("[data-asset-caption]");
+    await expect(caption).toHaveText(/unreal\.: .+real\.: /);
+  },
+);
+
+Then(
+  "the asset {string} offers Edit first and + second",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const order = await page.evaluate((hid) => {
+      const ids = [...document.querySelectorAll("[data-testid]")]
+        .map((el) => el.getAttribute("data-testid")!)
+        .filter(
+          (t) =>
+            t === `investment-edit-desktop-${hid}` ||
+            t === `investment-swap-desktop-${hid}` ||
+            t === `holding-swipe-edit-${hid}` ||
+            t === `investment-swap-${hid}`,
+        );
+      return ids;
+    }, id);
+    expect(order.length).toBeGreaterThanOrEqual(2);
+    expect(order[0]).toMatch(/edit/);
+    expect(order[1]).toMatch(/swap/);
+  },
+);
+
 // ── 13.1: assets, Swap, wallet target, ledger ──
 
 Given(

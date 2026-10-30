@@ -49,7 +49,9 @@ vi.mock("next-intl", () => ({
         "row.started": "started: {amount}",
         "row.share": "Share: {pct}",
         "typeGroup.stats.avgPrice": "avg price: {price}",
-        "asset.swipe.swap": "Swap",
+        "asset.swipe.newTxn": "New transaction",
+        "typeGroup.unrealizedLabel": "unreal.: {value}",
+        "typeGroup.realizedLabel": "real.: {value}",
         "asset.swipe.edit": "Edit",
         rowExpandAria: "Expand {name}",
         plAria: "{value} profit/loss",
@@ -65,7 +67,7 @@ vi.mock("next-intl", () => ({
   useLocale: () => "en",
 }));
 
-/** The mobile-expanded caption line (avg price · qty · started). */
+/** The mobile-expanded caption line (round 6: unrealized · realized). */
 const captionEl = () =>
   document.querySelector<HTMLElement>("[data-asset-caption]")!;
 const captionText = () => captionEl()?.textContent ?? "";
@@ -493,18 +495,23 @@ describe("InvestmentRow", () => {
     );
   });
 
-  // Round-4 gap 16: "avg price: X qty: Y" — labels muted, values grey like
-  // the header's "+0".
-  it("caption labels its values and greys them like the header's zero", () => {
+  // Round-6 gap 6 (user): the caption is the header's unrealized · realized.
+  it("caption shows unrealized and realized like its type header", () => {
+    render(
+      <InvestmentRow
+        holding={holding()}
+        realized={{ realizedBudgetCents: "-4000", soldCostBudgetCents: "0" }}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Expand AAPL"));
+    expect(captionText()).toMatch(/^unreal\.: .+real\.: −40$/);
+    expect(captionText()).not.toMatch(/avg price|qty:/);
+  });
+
+  it("realized reads +0 when the asset has none", () => {
     render(<InvestmentRow holding={holding()} />);
     fireEvent.click(screen.getByLabelText("Expand AAPL"));
-    expect(captionText()).toMatch(/^avg price: 300\s*qty: 10$/);
-    const values = captionEl().querySelectorAll<HTMLElement>(
-      "[data-caption-value]",
-    );
-    expect(values).toHaveLength(2);
-    for (const v of values)
-      expect(v.getAttribute("style")).toContain("var(--muted-strong)");
+    expect(captionText()).toMatch(/real\.: \+0$/);
   });
 
   it("the asset row carries no type icon", () => {
@@ -642,14 +649,21 @@ describe("InvestmentRow", () => {
   });
 
   // 13.1 D-27: the row toggles on every viewport; Edit is an explicit action.
-  it("desktop: hover offers Swap and Edit, no delete or sell", () => {
+  // Round-6 gap 4: Edit first, then + (new transaction).
+  it("desktop: hover offers Edit then + (new transaction), no delete or sell", () => {
     const onSwap = vi.fn();
     const onEdit = vi.fn();
     render(
       <InvestmentRow holding={holding()} onSwap={onSwap} onEdit={onEdit} />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Swap AAPL" }));
-    fireEvent.click(screen.getByRole("button", { name: "Edit AAPL" }));
+    const edit = screen.getByRole("button", { name: "Edit AAPL" });
+    const plus = screen.getByRole("button", { name: "New transaction AAPL" });
+    expect(
+      edit.compareDocumentPosition(plus) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(plus.querySelector("svg.lucide-plus")).not.toBeNull();
+    fireEvent.click(plus);
+    fireEvent.click(edit);
     expect(onSwap).toHaveBeenCalledTimes(1);
     expect(onEdit).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("button", { name: "Archive AAPL" })).toBeNull();
@@ -722,10 +736,17 @@ describe("InvestmentRow", () => {
     expect(right.contains(screen.getByTestId("asset-value-h1"))).toBe(true);
   });
 
-  it("expanded caption shows the average buy price (D-29)", () => {
+  // Round-6 gap 6: "qty @ avg" with the avg icon, above the price.
+  it("expanded row shows qty @ avg price above the price (D-29)", () => {
     render(<InvestmentRow holding={holding()} />);
     fireEvent.click(screen.getByLabelText("Expand AAPL"));
-    expect(captionText()).toContain("avg price: 300");
+    const line = screen.getByTestId("investment-row-qtyavg");
+    expect(line).toHaveTextContent(/^10 @ 300$/);
+    expect(line.querySelector("[data-avg-icon]")).not.toBeNull();
+    const price = screen.getByTestId("asset-value-h1");
+    expect(
+      line.compareDocumentPosition(price) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("expanded caption has no average price for an amount asset", () => {
@@ -741,7 +762,7 @@ describe("InvestmentRow", () => {
       />,
     );
     fireEvent.click(screen.getByLabelText("Expand Pot"));
-    expect(captionText()).not.toMatch(/avg price/);
+    expect(screen.queryByTestId("investment-row-qtyavg")).toBeNull();
   });
 
   it("dims a delisted holding's content but keeps the drag handle full opacity", () => {

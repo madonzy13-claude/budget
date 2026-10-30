@@ -190,6 +190,17 @@ Feature: Investments as assets with transactions (13.1)
     Then selling "Vase" asks how many units, holding "You hold 2"
     And moving "Vase" asks how many units
 
+  # Round-6 gaps 4 + 6 (user): qty @ avg above the price, unrealized ·
+  # realized like the header; Edit first, then + (new transaction).
+  @r6-row
+  Scenario: A tapped asset shows qty @ avg and its P/L split; + sits second
+    Given a "stocks" asset "ACME" of "10" units at 2500 cents exists in my budget
+    When I open the investments wallets tab
+    And I tap the asset row "ACME"
+    Then the asset "ACME" shows "10 @ 25" above its price
+    And the asset "ACME" caption shows unrealized and realized
+    And the asset "ACME" offers Edit first and + second
+
   # Gaps 2 + 3: the type header is an asset-row card; tap reveals mirror.
   @r2-header
   Scenario: The type header lines up with its asset rows and its tap mirrors the asset row
