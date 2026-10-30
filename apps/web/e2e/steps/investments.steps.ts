@@ -229,16 +229,15 @@ Then(
 );
 
 When(
-  "I buy {string} of {string} at {string} taking {string} from {string}",
+  "I buy {string} of {string} at {string} with money from {string}",
   async (
     { page },
     qty: string,
     name: string,
     price: string,
-    taken: string,
     source: string,
   ) => {
-    await new InvestmentsPo(page).buyFromAsset(name, qty, price, source, taken);
+    await new InvestmentsPo(page).buyFromAsset(name, qty, price, source);
   },
 );
 

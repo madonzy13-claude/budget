@@ -55,7 +55,7 @@ Feature: Investments as assets with transactions (13.1)
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
     And a crypto holding "BTC" of "0.1" bought at 6099162 cents now 7600000 cents exists in my budget
     When I open the investments wallets tab
-    And I buy "0.1" of "BTC" at "300000" taking "30000" from "IBKR"
+    And I buy "0.1" of "BTC" at "300000" with money from "IBKR"
     Then the holding row "IBKR" shows the amount "66,000"
 
   # D-23: a new wallet starts with the amount.

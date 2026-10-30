@@ -314,7 +314,8 @@ export class InvestmentsPo {
     qty: string,
     price: string,
     source: string,
-    taken: string,
+    /** Units leaving a counted source; an amount source derives it. */
+    taken?: string,
   ): Promise<void> {
     await this.openSwap(name, "buy");
     const sheet = this.swapSheet();
@@ -328,7 +329,7 @@ export class InvestmentsPo {
         }),
       })
       .click();
-    await sheet.getByTestId("swap-buy-taken").fill(taken);
+    if (taken) await sheet.getByTestId("swap-buy-taken").fill(taken);
     await sheet.getByTestId("swap-buy-qty").fill(qty);
     await sheet.getByTestId("swap-buy-price").fill(price);
     const posted = this.page.waitForResponse(
