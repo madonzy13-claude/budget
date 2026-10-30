@@ -374,6 +374,20 @@ describe("Asset ledger strip", () => {
     expect(qty.style.fontSize).toBe("11px");
   });
 
+  // Round 6 (user): qty × price and realized are lighter, like the asset row.
+  it("the qty × price and realized lines are dimmed to 0.7", async () => {
+    mount(ENTRIES);
+    const rows = await screen.findAllByTestId(/^ledger-row-/);
+    const qty = rows
+      .flatMap((r) => [...r.querySelectorAll<HTMLElement>("span")])
+      .find((s) => / × /.test(s.textContent ?? ""))!;
+    expect(qty.style.opacity).toBe("0.7");
+    const realized = [...rows[2]!.querySelectorAll<HTMLElement>("span")].find(
+      (s) => (s.textContent ?? "").startsWith("ledger.realized"),
+    )!;
+    expect(realized.style.opacity).toBe("0.7");
+  });
+
   // Round-2 gap 12: the linked asset line is a step smaller.
   it("the linked asset line is smaller than the date line", async () => {
     mount(ENTRIES);
