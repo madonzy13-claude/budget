@@ -31,7 +31,7 @@ Feature: Investments — the entries ledger and newest-only undo (13.1)
     And I delete the newest entry of "IBKR"
     And I sell "IBKR" leaving "30000" out of investments receiving "66000"
     Then the holding row "IBKR" shows "30,000"
-    And the "broker" type shows realized "+28,187.5"
+    And the "broker" type shows realized "+28,188"
 
   # D-06/D-07: backfill real history by date.
   Scenario: Adding a holding with a past date records it on that date

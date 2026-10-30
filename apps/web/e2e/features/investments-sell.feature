@@ -22,7 +22,7 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     And I sell "IBKR" leaving "30000" out of investments receiving "66000"
     Then the holding row "IBKR" shows "30,000"
     And the holding row "IBKR" shows "74.5%"
-    And the "broker" type shows realized "+28,187.5"
+    And the "broker" type shows realized "+28,188"
 
   # Roadmap 13.3: realized stays with the source type even when it is gone.
   Scenario: Selling a broker completely into a new cash holding keeps the realized gain
@@ -43,7 +43,7 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     When I open the investments wallets tab
     And I sell "IBKR" leaving "30000" into "Cash" receiving "66000"
     Then the holding row "Cash" shows "76,000"
-    And the "broker" type shows realized "+28,187.5"
+    And the "broker" type shows realized "+28,188"
 
   Scenario: Selling part of a quantity holding lowers the quantity
     Given a crypto holding "BTC" of "0.4" bought at 2500000 cents now 6000000 cents exists in my budget

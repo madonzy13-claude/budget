@@ -59,6 +59,11 @@ Given("I am on a phone-sized viewport", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
 });
 
+// The narrowest phone in use (iPhone SE 1st gen).
+Given("I am on a small phone viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+});
+
 Given(
   "a {string} task is seeded for {string}",
   async ({ freshUser }, kind: string, budgetName: string) => {

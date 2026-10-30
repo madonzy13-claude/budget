@@ -47,7 +47,7 @@ Feature: Investments as assets with transactions (13.1)
     When I open the investments wallets tab
     And I sell "IBKR" leaving "30000" into the wallet "Bank" receiving "66000"
     Then the wallet "Bank" holds 6610000 cents
-    And the "broker" type shows realized "+28,187.5"
+    And the "broker" type shows realized "+28,188"
 
   # D-23: a new wallet starts with the amount.
   Scenario: Selling into a new wallet creates it with the amount
@@ -541,8 +541,9 @@ Feature: Investments as assets with transactions (13.1)
   # Round-5 gap 12: a scrolling caption shows its first and last characters.
   @r5-caption-edges
   Scenario: A scrolling caption is sharp at its start and at its end
-    Given I am on a phone-sized viewport
-    And a crypto holding "BTC - SafePal" of "0.19505480" bought at 6099162 cents now 7600000 cents exists in my budget
+    # Round 6 dropped cents from big figures: only a small phone still scrolls.
+    Given I am on a small phone viewport
+    And a crypto holding "BTC - SafePal" of "0.99505480" bought at 6099162 cents now 7600000000 cents exists in my budget
     When I open the investments wallets tab in "uk"
     And I tap the asset row "BTC - SafePal"
     Then its scrolling caption is sharp on the left at the start and on the right at the end

@@ -262,15 +262,26 @@ Then(
   async ({ page }, uiType: string) => {
     const box = (scope: Locator) =>
       scope.locator('[style*="min-width"]').first().boundingBox();
-    const header = await box(page.getByTestId(`investment-group-${uiType}`));
     const rows = new InvestmentsPo(page);
     const a = await box(rows.row("Flat A"));
     const b = await box(rows.row("Flat B"));
-    expect(header && a && b).toBeTruthy();
+    expect(a && b).toBeTruthy();
     // Rows line up with each other…
     expect(Math.abs(a!.x - b!.x)).toBeLessThan(1);
-    // …on their own width, not the block total's.
-    expect(a!.width).toBeLessThan(header!.width - 2);
+    // …on their own width, not the block total's (R6-7: an open header has
+    // no fixed column, so compare the rows' column to the total's length).
+    const total = (
+      await page
+        .getByTestId(`investment-type-value-${uiType}`)
+        .locator(".num")
+        .innerText()
+    ).trim();
+    const col = await rows
+      .row("Flat A")
+      .locator('[style*="min-width"]')
+      .first()
+      .evaluate((el) => parseFloat((el as HTMLElement).style.minWidth));
+    expect(col).toBeLessThan(total.length + 1);
   },
 );
 
@@ -1552,7 +1563,7 @@ Then(
       (await block.boundingBox())!,
     ];
     expect(b.x).toBeGreaterThan(h.x);
-    await header.click({ position: { x: h.width / 2, y: 10 } });
+    await openGroup(page, uiType);
     await expect(
       page.locator(
         `[data-testid="investment-type-split-${uiType}"] [data-pl-line]`,
@@ -1806,6 +1817,14 @@ Then(
 
 /** Header tap mirrors the asset reveal: grows, P/L line, two bare amounts,
  *  share under the value. */
+/** R6-7: the header row toggles its group; open it if it is closed. */
+async function openGroup(page: Page, uiType: string) {
+  const header = page.getByTestId(`investment-group-${uiType}`);
+  if ((await header.getAttribute("aria-expanded")) !== "true")
+    await header.click();
+  await expect(header).toHaveAttribute("aria-expanded", "true");
+}
+
 async function expectHeaderReveal(
   page: import("@playwright/test").Page,
   uiType: string,
@@ -2173,14 +2192,15 @@ Then(
     const label = uiType[0]!.toUpperCase() + uiType.slice(1);
     const weight = (l: Locator) =>
       l.evaluate((el) => getComputedStyle(el).fontWeight);
+    const own = await weight(header.getByText(label, { exact: true }));
+    // R6-7: a closed group hides its assets — reopen to read one.
+    await openGroup(page, uiType);
     const asset = page
       .locator('[data-testid^="holding-row-"]')
       .first()
       .locator("span.sm\\:hidden")
       .first();
-    expect(await weight(header.getByText(label, { exact: true }))).toBe(
-      await weight(asset),
-    );
+    expect(own).toBe(await weight(asset));
   },
 );
 
@@ -2200,6 +2220,10 @@ Then(
           w: Math.round(c.getBoundingClientRect().width),
         })),
       }));
+    // R6-7: groups start open — close, then measure the tap that opens.
+    if ((await header.getAttribute("aria-expanded")) === "true")
+      await header.click();
+    await expect(header).toHaveAttribute("aria-expanded", "false");
     const before = await boxes();
     await header.click();
     await expect(
@@ -2255,7 +2279,7 @@ Then(
 Then(
   "tapping the {string} header shows its share and no P\\/L",
   async ({ page }, uiType: string) => {
-    await page.getByTestId(`investment-group-${uiType}`).click();
+    await openGroup(page, uiType);
     await expect(
       page.getByTestId(`investment-type-share-${uiType}`),
     ).toBeVisible();
@@ -2504,6 +2528,10 @@ Then(
           ] as [Locator, string, () => Promise<void>],
       ),
     ];
+    // R6-7: groups start open — close the header first; its tap reopens.
+    if ((await header.getAttribute("aria-expanded")) === "true")
+      await header.click();
+    await expect(header).toHaveAttribute("aria-expanded", "false");
     for (const [card, what, tap] of cards) {
       await expectCentredColumns(card, `${what} closed`);
       await tap();
