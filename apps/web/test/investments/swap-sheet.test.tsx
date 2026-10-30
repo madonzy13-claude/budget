@@ -334,3 +334,32 @@ describe("Transfer tab", () => {
     expect(screen.getByTestId("swap-sheet")).toBeInTheDocument();
   });
 });
+
+// Round-5 (user): under a picked asset in Add / New transaction, Type and Name
+// are already chosen above — the Buy form does not repeat them.
+describe("Buy form under a picked asset", () => {
+  it("hides the locked type and name when told to", async () => {
+    const { SwapBuyTab } =
+      await import("../../src/components/budgeting/wallets-tab/swap-buy-tab");
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={qc}>
+        <SwapBuyTab
+          budgetId="b1"
+          budgetCurrency="PLN"
+          holding={btc}
+          holdings={[btc]}
+          date="2026-10-30"
+          setDate={() => {}}
+          minDate={null}
+          onDone={() => {}}
+          hideLocked
+        />
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByTestId("swap-locked-type")).toBeNull();
+    expect(screen.queryByTestId("swap-locked-name")).toBeNull();
+  });
+});

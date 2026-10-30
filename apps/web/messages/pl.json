@@ -777,7 +777,8 @@
           "create": "Dodaj jako nowe aktywo „{name}”",
           "closed": "Zarchiwizowane",
           "reopens": "Ponownie otworzy {name}.",
-          "pickOrCreate": "Wybierz istniejące aktywo lub wpisz nową nazwę."
+          "pickOrCreate": "Wybierz istniejące aktywo lub wpisz nową nazwę.",
+          "pickedValue": "Wartość aktywa: {value}"
         },
         "archive": {
           "title": "Zarchiwizować {name}?",

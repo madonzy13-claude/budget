@@ -123,8 +123,9 @@ describe("Asset name combobox", () => {
         selectedId="twin"
       />,
     );
+    // Round-5 (user): labelled, so it reads as the asset's value.
     expect(screen.getByTestId("asset-name-picked")).toHaveTextContent(
-      "15,000 USD",
+      "asset.name.pickedValue(15,000 USD)",
     );
     expect(screen.queryByTestId("asset-name-hint")).toBeNull();
     names.pop();

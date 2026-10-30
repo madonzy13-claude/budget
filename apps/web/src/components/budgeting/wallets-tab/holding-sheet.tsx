@@ -1746,6 +1746,7 @@ function PickedBuy({
   const minDate = useMinEntryDate(budgetId, holding.id);
   return (
     <SwapBuyTab
+      hideLocked
       budgetId={budgetId}
       budgetCurrency={budgetCurrency}
       holding={holding}

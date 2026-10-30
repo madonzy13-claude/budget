@@ -224,7 +224,7 @@ export function AssetNameCombobox({
           className="text-[12px] leading-[1.4] tabular-nums"
           style={{ color: "var(--muted-foreground)" }}
         >
-          {meta(picked)}
+          {t("asset.name.pickedValue", { value: meta(picked) })}
         </p>
       ) : (
         allowCreate && (

@@ -517,7 +517,7 @@ Feature: Investments as assets with transactions (13.1)
     When I type "Erste" as the name in the "cash" Add form
     Then the name list offers "Add as new asset" and 2 "Erste" options with "1,000 PLN" and "250 PLN"
     When I pick the "Erste" option worth "250 PLN"
-    Then the picked asset line reads "250 PLN"
+    Then the picked asset line reads "Asset value: 250 PLN"
 
   # Live phone drive (13.1-16): list → ledger strip look in both themes →
   # every Swap tab shows its sum-up and fits, in every launch locale.

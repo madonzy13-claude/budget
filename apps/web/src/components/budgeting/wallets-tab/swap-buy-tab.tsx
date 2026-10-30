@@ -46,6 +46,8 @@ export interface SwapTabProps {
    *  (seeds this tab's main field; every edit writes it back). */
   draft?: string;
   setDraft?: (v: string) => void;
+  /** Add / New transaction: Type and Name are already chosen above. */
+  hideLocked?: boolean;
 }
 
 export function SwapBuyTab({
@@ -58,6 +60,7 @@ export function SwapBuyTab({
   onDone,
   draft = "",
   setDraft,
+  hideLocked = false,
 }: SwapTabProps) {
   const t = useTranslations("budget.investments");
   const buyMut = useBuyAsset(budgetId);
@@ -211,16 +214,20 @@ export function SwapBuyTab({
   return (
     <>
       <div className="space-y-4">
-        <LockedField
-          label={t("field.type")}
-          value={t(`uitype.${ui}`)}
-          testId="swap-locked-type"
-        />
-        <LockedField
-          label={t("asset.name.label")}
-          value={holding.name}
-          testId="swap-locked-name"
-        />
+        {!hideLocked && (
+          <>
+            <LockedField
+              label={t("field.type")}
+              value={t(`uitype.${ui}`)}
+              testId="swap-locked-type"
+            />
+            <LockedField
+              label={t("asset.name.label")}
+              value={holding.name}
+              testId="swap-locked-name"
+            />
+          </>
+        )}
         {holding.instrumentId && (
           <LockedField
             label={t("field.asset")}

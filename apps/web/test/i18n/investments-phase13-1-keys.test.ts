@@ -14,6 +14,7 @@ const KEYS = [
   "asset.name.closed",
   "asset.name.create",
   "asset.name.pickOrCreate",
+  "asset.name.pickedValue",
   "asset.name.label",
   "asset.name.reopens",
   "asset.swipe.edit",
