@@ -445,6 +445,29 @@ describe("HoldingSheet — type-first", () => {
     expect(p.textContent).toMatch(/1,716\.1[78] EUR/); // P/L
   });
 
+  // R6 (user): no empty or wrong Preview — it waits for the required fields.
+  it("preview waits for the required fields", async () => {
+    vi.mocked(clientApiFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ priceCents: "100", currency: "USD" }),
+    } as unknown as Response);
+    render(<HoldingSheet {...baseProps} initialUiType="crypto" />);
+    expect(screen.queryByTestId("holding-sheet-preview")).toBeNull();
+    fireEvent.click(screen.getByTestId("pick-instrument"));
+    await waitFor(() => expect(clientApiFetch).toHaveBeenCalled());
+    expect(screen.queryByTestId("holding-sheet-preview")).toBeNull();
+    fireEvent.change(screen.getByTestId("holding-sheet-quantity"), {
+      target: { value: "2" },
+    });
+    expect(screen.queryByTestId("holding-sheet-preview")).toBeNull();
+    fireEvent.change(screen.getByTestId("holding-sheet-buy-price"), {
+      target: { value: "1" },
+    });
+    expect(
+      await screen.findByTestId("holding-sheet-preview"),
+    ).toBeInTheDocument();
+  });
+
   it("preview sum-up (cash): amount only, no P/L", () => {
     render(
       <HoldingSheet

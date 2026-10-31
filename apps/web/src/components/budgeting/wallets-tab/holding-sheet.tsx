@@ -627,6 +627,13 @@ export function HoldingSheet({
     depositStart,
   ]);
 
+  // Counted types also need what was bought: quantity × buy price.
+  const previewReady =
+    canSave &&
+    (!uiType ||
+      !isQtyUiType(uiType as UiType) ||
+      (Number(quantity.replace(",", ".")) > 0 && buyPrice.trim() !== ""));
+
   // R6 (user): where the money came from — like Buy on an existing asset. A
   // source asset is sold into the new one (the Sell endpoint books it).
   const sellMut = useSellHolding(budgetId);
@@ -1433,8 +1440,9 @@ export function HoldingSheet({
 
           {uiType && !dest && source.node}
 
-          {/* 8. Preview — "what will be created" sum-up (all types). */}
-          {preview && (
+          {/* 8. Preview — "what will be created" sum-up (all types). R6
+              (user): only once the required fields are in — never empty. */}
+          {preview && previewReady && (
             <HoldingPreviewBlock
               preview={preview}
               behavior={behavior}
