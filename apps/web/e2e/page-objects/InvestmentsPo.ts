@@ -678,11 +678,15 @@ export class InvestmentsPo {
     expect((await saved).status()).toBe(200);
   }
 
-  /** Phone widths hide a ledger row's delete until the row is swiped
-   *  (13.1 UAT 12); desktop shows it in place. */
+  /** Phone widths hide a ledger row's actions until the row is swiped
+   *  (13.1 UAT 12); desktop shows them on hover, like the asset row (R6). */
   async revealDelete(del: Locator): Promise<void> {
-    if ((this.page.viewportSize()?.width ?? 1280) >= 640) return;
     const row = del.locator("xpath=ancestor::*[@data-ledger-row][1]");
+    if ((this.page.viewportSize()?.width ?? 1280) >= 640) {
+      await row.hover();
+      await expect(del).toBeVisible({ timeout: 3000 });
+      return;
+    }
     // Toasts from the previous write sit at the phone's bottom edge.
     await row.evaluate((el) => el.scrollIntoView({ block: "center" }));
     const box = (await row.boundingBox())!;

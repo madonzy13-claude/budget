@@ -248,8 +248,25 @@ describe("Asset ledger strip", () => {
     const del = await screen.findByTestId("ledger-delete-b1");
     const edit = screen.getByTestId("ledger-edit-b1");
     expect(del.className).not.toMatch(/rounded/);
-    expect(edit.style.boxShadow).toBe("inset 6px 0 8px -6px rgba(0,0,0,0.7)");
-    expect(del.style.boxShadow).toBe("");
+    expect(edit.className).toMatch(
+      /shadow-\[inset_6px_0_8px_-6px_rgba\(0,0,0,0\.7\)\]/,
+    );
+    expect(del.className).not.toMatch(/shadow-\[inset/);
+  });
+
+  // R6 (user): desktop draws the actions like the asset row — plain icons
+  // that appear on hover, not the phone's coloured swipe squares.
+  it("on desktop the actions are hover icons like the asset row's", async () => {
+    mount(ENTRIES);
+    const edit = await screen.findByTestId("ledger-edit-b1");
+    const del = screen.getByTestId("ledger-delete-b1");
+    for (const b of [edit, del]) {
+      expect(b.className).toMatch(/sm:invisible/);
+      expect(b.className).toMatch(/sm:group-hover:visible/);
+      expect(b.className).toMatch(/sm:bg-transparent/);
+      expect(b.className).toMatch(/sm:shadow-none/);
+    }
+    expect(screen.getByTestId("ledger-row-b1").className).toMatch(/\bgroup\b/);
   });
 
   // Round-4 gap 28: a leading icon says money in (green) / out (red).

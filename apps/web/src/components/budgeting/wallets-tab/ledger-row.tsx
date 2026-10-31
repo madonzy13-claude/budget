@@ -138,7 +138,15 @@ interface LedgerRowProps {
 }
 
 const ACTION_W = 56;
-const LEFT_SHADE = "inset 6px 0 8px -6px rgba(0,0,0,0.7)";
+// Phone only: the leftmost revealed button looks tucked under the row.
+const LEFT_SHADE = "shadow-[inset_6px_0_8px_-6px_rgba(0,0,0,0.7)]";
+// R6 (user): desktop draws the actions like the asset row — plain 28px icons
+// in their own column, shown on row hover.
+const DESKTOP_ICON = [
+  "sm:top-1/2 sm:bottom-auto sm:h-7 sm:w-7 sm:-translate-y-1/2",
+  "sm:bg-transparent sm:shadow-none sm:opacity-100 sm:pointer-events-auto",
+  "sm:invisible sm:group-hover:visible sm:group-focus-within:visible",
+].join(" ");
 
 export function LedgerRow({
   entry,
@@ -206,18 +214,19 @@ export function LedgerRow({
       data-open={swipedOpen}
       data-testid={`ledger-edit-${rowKey}`}
       aria-label={t("ledger.edit.aria", { kind, date })}
-      // R6 (user): the leftmost revealed button carries the under-row shade.
-      style={{ boxShadow: LEFT_SHADE }}
       onClick={(ev) => {
         ev.stopPropagation();
         close();
         onEdit();
       }}
       className={[
-        "absolute bottom-0 right-12 top-0 flex w-12 items-center justify-center",
+        "absolute bottom-0 right-12 top-0 flex w-12 items-center justify-center sm:right-9",
         "bg-[var(--surface-elevated-dark)] text-[var(--foreground)] transition-opacity",
         "pointer-events-none opacity-0 data-[open=true]:pointer-events-auto data-[open=true]:opacity-100",
-        "sm:pointer-events-auto sm:opacity-100",
+        // R6 (user): the leftmost revealed button carries the under-row shade.
+        LEFT_SHADE,
+        DESKTOP_ICON,
+        "sm:text-[var(--foreground)]",
       ].join(" ")}
     >
       <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -231,7 +240,6 @@ export function LedgerRow({
       data-testid={`ledger-delete-${rowKey}`}
       aria-label={t("ledger.deleteAria", { kind, date })}
       aria-disabled={entry.deletable ? undefined : true}
-      style={{ boxShadow: onEdit ? undefined : LEFT_SHADE }}
       onClick={(ev) => {
         ev.stopPropagation();
         if (!entry.deletable) return;
@@ -239,13 +247,14 @@ export function LedgerRow({
         onDelete();
       }}
       className={[
-        "absolute bottom-0 right-0 top-0 flex w-12 items-center justify-center",
+        "absolute bottom-0 right-0 top-0 flex w-12 items-center justify-center sm:right-1",
         // Round 3: square, shadowed on its left as if under the sliding row.
         "text-white transition-opacity",
         "pointer-events-none opacity-0 data-[open=true]:pointer-events-auto data-[open=true]:opacity-100",
-        "sm:pointer-events-auto sm:opacity-100",
+        onEdit ? "" : LEFT_SHADE,
+        DESKTOP_ICON,
         entry.deletable
-          ? "bg-[var(--destructive)]"
+          ? "bg-[var(--destructive)] sm:text-[var(--foreground)]"
           : "bg-[var(--surface-elevated-dark)] text-[var(--muted-foreground)]",
       ].join(" ")}
     >
@@ -265,7 +274,7 @@ export function LedgerRow({
       style={{
         borderTop: first ? undefined : "1px solid var(--hairline-dark)",
       }}
-      className="relative"
+      className="group relative"
     >
       {editButton}
       {reason ? (
@@ -296,7 +305,8 @@ export function LedgerRow({
         }}
         className={[
           "relative flex items-center gap-2 px-2 py-1",
-          onEdit ? "sm:mr-24" : "sm:mr-12",
+          // The desktop icon column (asset row: same hover actions).
+          onEdit ? "sm:mr-[68px]" : "sm:mr-9",
           entry.deletable ? "min-h-[44px]" : "min-h-[40px]",
         ].join(" ")}
       >
