@@ -25,6 +25,7 @@
  *   amount:   kept cost = buy × kept ÷ value
  *   deposit:  sold cost = principal − kept (all interest realized)
  */
+import { isCashLike } from "@/lib/cash-like";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -324,7 +325,8 @@ export function SwapSellTab({
           v0: valueCents,
           v1: calc.rowValue,
           ccy: srcCcy,
-          realized: realized ?? 0,
+          // R6 (user): cash / stablecoin sales realize nothing worth a line.
+          realized: isCashLike(holding) ? null : (realized ?? 0),
           realizedCcy: srcCcy,
           dest:
             mode === "new"

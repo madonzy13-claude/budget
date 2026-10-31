@@ -121,6 +121,19 @@ describe("Swap summary", () => {
     ]);
   });
 
+  // R6 (user): selling cash or a stablecoin realizes nothing worth a line.
+  it("sell with no realized (cash-like source) has no realized line", () => {
+    expect(
+      keys({
+        tab: "sell",
+        ...src,
+        realized: null,
+        realizedCcy: "PLN",
+        dest: { kind: "nowhere" },
+      }),
+    ).toEqual(["swap.sum.line", "swap.sum.leaves"]);
+  });
+
   it("transfer to an existing or a new asset", () => {
     expect(
       keys({

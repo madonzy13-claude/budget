@@ -33,6 +33,8 @@ interface AssetLedgerProps {
   canOpen?: (holdingId: string) => boolean;
   /** Scroll to + highlight the row of this transfer (after a jump). */
   flashTransferId?: string | null;
+  /** Cash / stablecoin: no "realized" on its rows (R6, user). */
+  noRealized?: boolean;
 }
 
 const rowKeyOf = (e: EntryDto) => e.id ?? `interest-${e.effectiveDate}`;
@@ -47,6 +49,7 @@ export function AssetLedger({
   onOpenLinked,
   canOpen,
   flashTransferId,
+  noRealized,
 }: AssetLedgerProps) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
@@ -107,6 +110,7 @@ export function AssetLedger({
                   rowKey={key}
                   entry={e}
                   first={i === 0}
+                  noRealized={noRealized}
                   onDelete={() => setConfirming(e)}
                   flash={!!flashTransferId && e.transferId === flashTransferId}
                   onOpenLinked={

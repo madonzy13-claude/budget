@@ -97,7 +97,12 @@ const ENTRIES: EntryDto[] = [
   }),
 ];
 
-function mount(entries: EntryDto[] | null, open = true, swipeOffset = 0) {
+function mount(
+  entries: EntryDto[] | null,
+  open = true,
+  swipeOffset = 0,
+  noRealized = false,
+) {
   mockFetch.mockImplementation(async () =>
     entries === null
       ? new Promise(() => {})
@@ -112,6 +117,7 @@ function mount(entries: EntryDto[] | null, open = true, swipeOffset = 0) {
         assetName="BTC"
         open={open}
         swipeOffset={swipeOffset}
+        noRealized={noRealized}
       />
     </QueryClientProvider>,
   );
@@ -382,6 +388,13 @@ describe("Asset ledger strip", () => {
     mount(ENTRIES);
     const rows = await screen.findAllByTestId(/^ledger-row-/);
     expect(rows[2]).toHaveTextContent("ledger.realized(+12 USD)");
+  });
+
+  // R6 (user): cash and stablecoins are just money — no "realized".
+  it("a cash-like asset's rows show no realized", async () => {
+    mount(ENTRIES, true, 0, true);
+    const rows = await screen.findAllByTestId(/^ledger-row-/);
+    expect(rows[2]).not.toHaveTextContent("ledger.realized");
   });
 
   // Round 6 (user): qty × price and realized are lighter, like the asset row.

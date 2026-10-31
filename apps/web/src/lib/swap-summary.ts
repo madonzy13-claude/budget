@@ -76,7 +76,8 @@ export type SwapCase =
       BuyFrom)
   | ({
       tab: "sell";
-      realized: number;
+      /** null = cash-like source: no realized line (R6, user). */
+      realized: number | null;
       realizedCcy: string;
       dest:
         | { kind: "new"; name: string; amount: number; ccy: string }
@@ -174,22 +175,21 @@ function moved(c: Exclude<SwapCase, { tab: "buy" }>): SumLine[] {
         ];
   }
   const d = c.dest;
-  const realized: SumLine = {
-    key: "swap.sum.realized",
-    amount: c.realized,
-    ccy: c.realizedCcy,
-  };
+  const realized: SumLine[] =
+    c.realized === null
+      ? []
+      : [{ key: "swap.sum.realized", amount: c.realized, ccy: c.realizedCcy }];
   switch (d.kind) {
     case "new":
       return [
         src,
         { key: "swap.sum.created", name: d.name, amount: d.amount, ccy: d.ccy },
-        realized,
+        ...realized,
       ];
     case "existing":
-      return [src, move(d.name, d.d0, d.d1, d.ccy), realized];
+      return [src, move(d.name, d.d0, d.d1, d.ccy), ...realized];
     case "wallet":
-      return [src, move(d.name, d.b0, d.b1, d.ccy), realized];
+      return [src, move(d.name, d.b0, d.b1, d.ccy), ...realized];
     case "newWallet":
       return [
         src,
@@ -199,10 +199,10 @@ function moved(c: Exclude<SwapCase, { tab: "buy" }>): SumLine[] {
           amount: d.amount,
           ccy: d.ccy,
         },
-        realized,
+        ...realized,
       ];
     case "nowhere":
-      return [src, { key: "swap.sum.leaves" }, realized];
+      return [src, { key: "swap.sum.leaves" }, ...realized];
   }
 }
 

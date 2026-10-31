@@ -58,7 +58,8 @@ export function PlCaption({
   ...rest
 }: {
   unrealizedCents: number;
-  realizedCents: number;
+  /** null = cash-like: no realized part (R6, user). */
+  realizedCents: number | null;
   until?: React.RefObject<HTMLElement | null>;
 } & React.HTMLAttributes<HTMLSpanElement>) {
   const t = useTranslations("budget.investments");
@@ -85,7 +86,9 @@ export function PlCaption({
       {(
         [
           ["typeGroup.unrealizedLabel", unrealizedCents],
-          ["typeGroup.realizedLabel", realizedCents],
+          ...(realizedCents === null
+            ? []
+            : [["typeGroup.realizedLabel", realizedCents] as const]),
         ] as const
       ).map(([key, n]) => {
         const [before, after = ""] = t(key, { value: SLOT }).split(SLOT);

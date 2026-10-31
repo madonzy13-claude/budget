@@ -130,6 +130,8 @@ interface LedgerRowProps {
   onOpenLinked?: () => void;
   /** Briefly highlighted after a jump from its partner. */
   flash?: boolean;
+  /** Cash / stablecoin: no "realized" (R6, user). */
+  noRealized?: boolean;
 }
 
 const ACTION_W = 56;
@@ -141,6 +143,7 @@ export function LedgerRow({
   onDelete,
   onOpenLinked,
   flash,
+  noRealized,
 }: LedgerRowProps) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
@@ -338,7 +341,7 @@ export function LedgerRow({
               {`= ${signed(converted)} ${entry.displayCurrency}`}
             </span>
           )}
-          {entry.realizedBudgetCents != null && (
+          {!noRealized && entry.realizedBudgetCents != null && (
             // R6 (user): in the asset's currency, labelled.
             <span
               className="text-[12px] leading-[1.4]"

@@ -20,6 +20,7 @@
  * strips are never sortable and collapse while an asset is dragged (D-30).
  * ⚠️ Before changing ANY drag logic, read ./INVESTMENTS-DND.md.
  */
+import { isCashLike } from "@/lib/cash-like";
 import {
   DndContext,
   closestCenter,
@@ -652,6 +653,7 @@ export function InvestmentsSection({
                               budgetId={budgetId}
                               assetId={h.id}
                               assetName={h.name}
+                              noRealized={isCashLike(h)}
                               open={openAssets.has(h.id) && !draggingRow}
                               swipeOffset={swipe?.id === h.id ? swipe.px : 0}
                               swiping={swipe?.id === h.id && swipe.live}

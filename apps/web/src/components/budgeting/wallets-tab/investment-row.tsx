@@ -18,6 +18,7 @@
  * exception); cash / no-basis renders "—" in --muted-strong; a delisted row is
  * dimmed (opacity-50, --muted-strong) which overrides any P/L color (D-09/25).
  */
+import { isCashLike } from "@/lib/cash-like";
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -209,7 +210,10 @@ export function InvestmentRow({
     unrealizedCents: Number(
       holding.profitLossDisplayCents ?? holding.profitLossCents ?? 0,
     ),
-    realizedCents: Number(realized?.realizedAssetCents ?? 0),
+    // R6 (user): a stablecoin is money — no realized.
+    realizedCents: isCashLike(holding)
+      ? null
+      : Number(realized?.realizedAssetCents ?? 0),
   };
   // User (round 6): "4 × 750 avg. cost" — words, no icon.
   const qtyAvg =
