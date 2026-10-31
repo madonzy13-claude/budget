@@ -188,6 +188,30 @@ describe("Buy — where did the money come from?", () => {
     });
   });
 
+  // R6 (user): the source's newest entry bounds the date too, and is named.
+  it("a source's newest entry bounds the date", async () => {
+    routeFetch({
+      latest: "2026-01-01",
+      latestOf: { [btcCold.id]: "2026-09-20" },
+    });
+    mount(cash);
+    fireEvent.click(screen.getByTestId("swap-buy-from-asset"));
+    await pick("swap-buy-src", `swap-buy-src-option-${btcCold.id}`);
+    type("swap-buy-taken", "0.5");
+    type("swap-buy-amount", "300");
+    type("swap-date", "2026-09-10");
+    await waitFor(() =>
+      expect(screen.getByTestId("swap-date")).toHaveAttribute(
+        "min",
+        "2026-09-20",
+      ),
+    );
+    expect(
+      screen.getByText("swap.err.beforeDest(date=2026-09-20,name=BTC Cold)"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("swap-submit")).toBeDisabled();
+  });
+
   it("taking more than the source holds is refused", () => {
     mount(btc);
     fireEvent.click(screen.getByTestId("swap-buy-from-asset"));

@@ -202,8 +202,9 @@ const sellMutate = vi.fn();
 vi.mock("../../src/hooks/use-sell-holding", () => ({
   useSellHolding: () => ({ mutate: sellMutate, isPending: false }),
 }));
+const minDates = vi.hoisted(() => ({}) as Record<string, string>);
 vi.mock("../../src/hooks/use-asset-entries", () => ({
-  useMinEntryDate: () => null,
+  useMinEntryDate: (_b: string, id: string) => minDates[id] ?? null,
 }));
 vi.mock("../../src/components/budgeting/wallets-tab/swap-buy-tab", () => ({
   SwapBuyTab: ({
@@ -1365,6 +1366,30 @@ describe("HoldingSheet — money source", () => {
       "true",
     );
     expect(screen.getByTestId("swap-buy-from-asset")).toBeInTheDocument();
+  });
+
+  // R6 (user): the source's newest entry bounds the date (append-only).
+  it("a date before the source's newest entry is refused and named", async () => {
+    minDates.ike = "2026-09-20";
+    render(<HoldingSheet {...baseProps} holding={cashNew()} />);
+    fireEvent.change(screen.getByTestId("holding-sheet-amount"), {
+      target: { value: "500" },
+    });
+    fireEvent.click(screen.getByTestId("swap-buy-from-asset"));
+    fireEvent.keyDown(screen.getByTestId("swap-buy-src"), { key: "Enter" });
+    fireEvent.keyDown(await screen.findByTestId("swap-buy-src-option-ike"), {
+      key: "Enter",
+    });
+    fireEvent.change(screen.getByTestId("holding-sheet-date"), {
+      target: { value: "2026-09-10" },
+    });
+    expect(screen.getByText(/swap\.err\.beforeDest/)).toBeInTheDocument();
+    expect(screen.getByTestId("holding-sheet-submit")).toBeDisabled();
+    fireEvent.change(screen.getByTestId("holding-sheet-date"), {
+      target: { value: "2026-09-20" },
+    });
+    expect(screen.queryByText(/swap\.err\.beforeDest/)).toBeNull();
+    delete minDates.ike;
   });
 
   it("no type yet → no money source either", () => {

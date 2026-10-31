@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/budgeting/fields/date-input";
 import { Input } from "@/components/ui/input";
 import type { HoldingDto } from "@/hooks/use-investments";
+import { useMinEntryDate } from "@/hooks/use-asset-entries";
 import { instrumentLabel } from "@/lib/instrument-label";
 import type { SwapSummary } from "@/lib/swap-summary";
 import { formatShortDate } from "@/lib/format-date";
@@ -176,6 +177,29 @@ export function SwapDateField({
       {error && <ErrorLine>{error}</ErrorLine>}
     </section>
   );
+}
+
+/** R6 (user): the ledger only appends — the OTHER asset a booking touches
+ *  (destination, transfer target, money source) bounds the date too; the
+ *  server refuses before its newest entry. `min` merges both bounds; `error`
+ *  names that asset; `beforeMsg` is the before_latest_entry text. */
+export function useOtherAssetDate(
+  budgetId: string,
+  minDate: string | null,
+  other: { id: string; name: string } | null | undefined,
+  date: string,
+) {
+  const t = useTranslations("budget.investments");
+  const otherMin = useMinEntryDate(budgetId, other?.id ?? "", !!other);
+  const binds = !!other && !!otherMin && (!minDate || otherMin > minDate);
+  const beforeMsg = binds
+    ? t("swap.err.beforeDest", { date: otherMin!, name: other!.name })
+    : t("swap.err.beforeLatest", { date: minDate ?? "" });
+  return {
+    min: binds ? otherMin : minDate,
+    error: binds && date !== "" && date < otherMin! ? beforeMsg : null,
+    beforeMsg,
+  };
 }
 
 /** Date valid for a new entry: not future, not before the latest entry. */

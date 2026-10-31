@@ -86,7 +86,7 @@ import { PriceBlockedBanner } from "./price-blocked-banner";
 import { SwapBuyTab } from "./swap-buy-tab";
 import { useBuySource } from "./swap-buy-source";
 import { useSellHolding } from "@/hooks/use-sell-holding";
-import { today as todayIso } from "./swap-shared";
+import { ErrorLine, today as todayIso, useOtherAssetDate } from "./swap-shared";
 import { useMinEntryDate } from "@/hooks/use-asset-entries";
 import { useInvestments } from "@/hooks/use-investments";
 import {
@@ -655,6 +655,13 @@ export function HoldingSheet({
     recvCcy,
   });
   const fromSource = !dest && source.fromAsset;
+  // R6 (user): the source's newest entry bounds the date (append-only).
+  const srcDate = useOtherAssetDate(
+    budgetId,
+    null,
+    fromSource ? source.src : null,
+    sourceDate,
+  );
 
   useEffect(() => {
     onDirtyChange?.(dirty);
@@ -1439,6 +1446,7 @@ export function HoldingSheet({
           {formFields}
 
           {uiType && !dest && source.node}
+          {srcDate.error && <ErrorLine>{srcDate.error}</ErrorLine>}
 
           {/* 8. Preview — "what will be created" sum-up (all types). R6
               (user): only once the required fields are in — never empty. */}
@@ -1473,7 +1481,7 @@ export function HoldingSheet({
                 type="button"
                 variant="primary"
                 data-testid="holding-sheet-submit"
-                disabled={!canSave}
+                disabled={!canSave || !!srcDate.error}
                 onClick={handleSave}
                 className="flex-1"
               >

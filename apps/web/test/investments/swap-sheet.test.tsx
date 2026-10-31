@@ -224,6 +224,26 @@ describe("Transfer tab", () => {
     fireEvent.mouseDown(await screen.findByText(name));
   };
 
+  // R6 (user): the target's newest entry bounds the date too, and is named.
+  it("an existing target's newest entry bounds the date", async () => {
+    routeFetch({
+      latest: "2026-01-01",
+      latestOf: { [btcCold.id]: "2026-09-20" },
+    });
+    await pickName("BTC Cold");
+    type("swap-date", "2026-09-10");
+    await waitFor(() =>
+      expect(screen.getByTestId("swap-date")).toHaveAttribute(
+        "min",
+        "2026-09-20",
+      ),
+    );
+    expect(
+      screen.getByText("swap.err.beforeDest(date=2026-09-20,name=BTC Cold)"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("swap-submit")).toBeDisabled();
+  });
+
   it("picking an existing asset from the list transfers into it", async () => {
     await transferTo(null);
     fireEvent.click(screen.getByTestId("swap-submit"));

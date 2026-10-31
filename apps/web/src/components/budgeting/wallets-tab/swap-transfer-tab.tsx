@@ -32,6 +32,7 @@ import {
   num,
   qtyString,
   SwapDateField,
+  useOtherAssetDate,
   SwapFooter,
   toCents,
   trimQty,
@@ -97,8 +98,9 @@ export function SwapTransferTab({
       : 0
     : toCents(move);
   const targetOk = to !== null && !wrongInstrument;
+  const targetDate = useOtherAssetDate(budgetId, minDate, target, date);
   const valid =
-    move.trim() !== "" && !badMove && targetOk && dateOk(date, minDate);
+    move.trim() !== "" && !badMove && targetOk && dateOk(date, targetDate.min);
   const targetName = target ? target.name : label.trim();
 
   const summary = !valid
@@ -144,7 +146,11 @@ export function SwapTransferTab({
         },
         onError: (e) => {
           if (isOfflineWriteError(e)) return;
-          setServerError(t("swap.err.saveFailed"));
+          setServerError(
+            (e as { code?: string }).code === "before_latest_entry"
+              ? targetDate.beforeMsg
+              : t("swap.err.saveFailed"),
+          );
         },
       },
     );
@@ -203,7 +209,12 @@ export function SwapTransferTab({
           )}
         </section>
 
-        <SwapDateField value={date} onChange={setDate} min={minDate} />
+        <SwapDateField
+          value={date}
+          onChange={setDate}
+          min={targetDate.min}
+          error={targetDate.error}
+        />
         <p
           className={`${caption} flex items-start gap-1`}
           style={{ color: "var(--muted-foreground)" }}

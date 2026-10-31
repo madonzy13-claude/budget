@@ -26,6 +26,7 @@ import {
   ErrorLine,
   LockedField,
   SwapDateField,
+  useOtherAssetDate,
   SwapFooter,
   caption,
   ccyOf,
@@ -147,12 +148,18 @@ export function SwapBuyTab({
   const badAfter =
     shape === "broker" && typed(valueAfter) && !(num(valueAfter) >= 0);
   const fromAsset = source.fromAsset;
+  const srcDate = useOtherAssetDate(
+    budgetId,
+    minDate,
+    fromAsset ? src : null,
+    date,
+  );
   const valid =
     fields.every(positive) &&
     (fromAsset
       ? !!left
       : !badAfter && (shape !== "broker" || typed(valueAfter))) &&
-    dateOk(date, minDate);
+    dateOk(date, srcDate.min);
 
   const summary = !valid
     ? buildSwapSummary(null)
@@ -202,7 +209,7 @@ export function SwapBuyTab({
             date: w.date ?? "",
           })
         : w.code === "before_latest_entry"
-          ? t("swap.err.beforeLatest", { date: minDate ?? "" })
+          ? srcDate.beforeMsg
           : t("swap.err.saveFailed"),
     );
   };
@@ -416,7 +423,12 @@ export function SwapBuyTab({
         {(badAmount || badAfter) && (
           <ErrorLine>{t("swap.err.positive")}</ErrorLine>
         )}
-        <SwapDateField value={date} onChange={setDate} min={minDate} />
+        <SwapDateField
+          value={date}
+          onChange={setDate}
+          min={srcDate.min}
+          error={srcDate.error}
+        />
         {serverError && <ErrorLine>{serverError}</ErrorLine>}
       </div>
       <SwapFooter

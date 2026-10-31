@@ -26,7 +26,6 @@
  *   deposit:  sold cost = principal − kept (all interest realized)
  */
 import { stablePeg } from "@/lib/stablecoins";
-import { useMinEntryDate } from "@/hooks/use-asset-entries";
 import { isCashLike } from "@/lib/cash-like";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -69,6 +68,7 @@ import {
   num,
   qtyString,
   SwapDateField,
+  useOtherAssetDate,
   SwapFooter,
   toCents,
   today,
@@ -340,14 +340,14 @@ export function SwapSellTab({
         : newHolding !== null && (!newIsQty || (qty > 0 && price > 0));
   // R6 (user): the ledger only appends — an existing destination's newest
   // entry bounds the date too (the server refuses before it).
-  const destMin = useMinEntryDate(budgetId, existingId, mode === "existing");
-  const destBinds =
-    mode === "existing" && !!destMin && (!minDate || destMin > minDate);
-  const effMin = destBinds ? destMin : minDate;
-  const dateError =
-    destBinds && date !== "" && date < destMin!
-      ? t("swap.err.beforeDest", { date: destMin!, name: existing?.name ?? "" })
-      : null;
+  const destDate = useOtherAssetDate(
+    budgetId,
+    minDate,
+    mode === "existing" ? existing : null,
+    date,
+  );
+  const effMin = destDate.min;
+  const dateError = destDate.error;
   const valid =
     !!calc &&
     !calc.invalid &&
@@ -502,12 +502,7 @@ export function SwapSellTab({
                   date: w.date ?? "",
                 })
               : w.code === "before_latest_entry"
-                ? destBinds
-                  ? t("swap.err.beforeDest", {
-                      date: destMin!,
-                      name: existing?.name ?? "",
-                    })
-                  : t("swap.err.beforeLatest", { date: minDate ?? "" })
+                ? destDate.beforeMsg
                 : t("swap.err.saveFailed"),
           );
         },
