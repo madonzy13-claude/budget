@@ -467,13 +467,10 @@ export function SwapSellTab({
   const money = (c: number) => centsToBare(String(Math.round(Math.abs(c))));
 
   /** One quantity + one price; received = quantity × price. */
-  // R6 (user): quantity, price and currency on one line; the price is just
+  // R6 (user): laid out like Buy — quantity, then price + currency; the price is just
   // "Buy price" (the currency is beside it) and never locked.
   const destPair = () => (
-    <div
-      data-testid="swap-dest-row"
-      className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_5.5rem] items-end gap-2"
-    >
+    <>
       <Field label={t("swap.buy.quantity")}>
         <NumericInput
           testId="swap-dest-qty"
@@ -482,25 +479,27 @@ export function SwapSellTab({
           onBlur={() => leaveDest("qty")}
         />
       </Field>
-      <Field label={t("swap.buy.price")}>
-        <NumericInput
-          testId="swap-dest-price"
-          value={priceText}
-          onChange={(v) => typeDest("price", v)}
-          onBlur={() => leaveDest("price")}
-        />
-      </Field>
-      <div data-testid="swap-dest-ccy">
-        <Field label={t("field.currency")}>
+      <div data-testid="swap-dest-row" className="flex items-end gap-2">
+        <div className="min-w-0 flex-1">
+          <Field label={t("swap.buy.price")}>
+            <NumericInput
+              testId="swap-dest-price"
+              value={priceText}
+              onChange={(v) => typeDest("price", v)}
+              onBlur={() => leaveDest("price")}
+            />
+          </Field>
+        </div>
+        <div data-testid="swap-dest-ccy" className="w-24 shrink-0">
           <CurrencyPicker
             variant="field"
             value={chosenCcy}
             onSelect={setChosenCcy}
             aria-label={t("field.currency")}
           />
-        </Field>
+        </div>
       </div>
-    </div>
+    </>
   );
 
   return (

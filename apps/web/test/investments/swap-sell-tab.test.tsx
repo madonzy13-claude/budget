@@ -341,15 +341,16 @@ describe("Sell tab", () => {
     });
   });
 
-  it("quantity, price and currency share one row", () => {
+  // R6 (user): laid out like Buy — quantity alone, then price + currency.
+  it("quantity sits on its own row; price and currency share the next", () => {
     mount();
     type("swap-sell-sold", "1");
     fireEvent.click(screen.getByTestId("swap-dest-invest"));
     pickDest(btcCold.id);
     const row = screen.getByTestId("swap-dest-row");
-    for (const id of ["swap-dest-qty", "swap-dest-price", "swap-dest-ccy"])
+    expect(row.contains(screen.getByTestId("swap-dest-qty"))).toBe(false);
+    for (const id of ["swap-dest-price", "swap-dest-ccy"])
       expect(row.contains(screen.getByTestId(id))).toBe(true);
-    expect(row.className).toMatch(/grid-cols-\[/);
   });
 
   // Round-5 gap 6: an existing asset preselects its currency; any may be chosen.
