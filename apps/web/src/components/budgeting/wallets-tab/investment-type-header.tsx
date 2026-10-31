@@ -322,7 +322,7 @@ export function InvestmentTypeHeader({
       </span>
       <span
         data-desktop-actions-slot
-        className="hidden w-[92px] shrink-0 sm:block"
+        className="hidden w-7 shrink-0 sm:block"
         aria-hidden="true"
       />
     </div>

@@ -181,6 +181,9 @@ describe("Asset row actions", () => {
     const row = await screen.findByTestId("hidden-asset-x1");
     expect(Number(row.style.opacity)).toBeLessThan(1);
     expect(screen.queryByTestId("investment-hide-x1")).toBeNull();
+    // R6 (user): a hidden asset opens its transactions like any asset.
+    fireEvent.click(screen.getByTestId("asset-row-x1"));
+    expect(await screen.findByTestId("asset-ledger-x1")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("investment-unhide-x1"));
     await waitFor(() => expect(clientApiWrite).toHaveBeenCalled());
     expect(vi.mocked(clientApiWrite).mock.calls[0]![0]).toBe(

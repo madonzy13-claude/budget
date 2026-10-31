@@ -2791,7 +2791,7 @@ Then(
     const option = page
       .getByRole("option")
       .filter({ hasText: new RegExp(`^${name}`) });
-    await expect(option).toContainText("Archived");
+    await expect(option).toContainText("Hidden");
     // Round 5: picking it restores it (by id) and opens its Buy form.
     const restored = page.waitForResponse(
       (r) => r.url().endsWith("/restore") && r.request().method() === "POST",

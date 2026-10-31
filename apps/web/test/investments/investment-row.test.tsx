@@ -556,6 +556,19 @@ describe("InvestmentRow", () => {
     expect(screen.getByLabelText(/profit\/loss/).textContent).toMatch(/-?−?25/);
   });
 
+  // R6 (user): desktop columns line up with the wallets — hover actions sit
+  // beside the name, and the row ends with the wallets' 28px slot.
+  it("desktop: hover actions sit beside the name; the row ends with a 28px slot", () => {
+    render(<InvestmentRow holding={holding()} onEdit={() => {}} />);
+    const edit = screen.getByTestId("investment-edit-desktop-h1");
+    expect(edit.closest("[data-name-row]")).not.toBeNull();
+    const slot = screen
+      .getByTestId("holding-row-AAPL")
+      .querySelector<HTMLElement>("span.w-7[aria-hidden]")!;
+    expect(slot.className).toMatch(/hidden w-7 shrink-0 sm:block/);
+    expect(slot.parentElement!.lastElementChild).toBe(slot);
+  });
+
   // Round 6 (user): the asset's own currency, not the budget's.
   it("unrealized and realized are in the asset's own currency", () => {
     render(

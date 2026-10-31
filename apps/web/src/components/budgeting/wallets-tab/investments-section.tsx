@@ -725,10 +725,30 @@ export function InvestmentsSection({
                               holding={h}
                               nested
                               maxAmountChars={amountCols.group[block.uiType]}
+                              open={openAssets.has(h.id)}
                               realized={summary?.holdings?.[h.id]}
+                              onToggle={toggleAsset}
+                              onSwipeOffset={(id, px, live) =>
+                                setSwipe({ id, px, live })
+                              }
                               onEdit={openEdit}
                               onSwap={setSwapping}
                               onUnhide={(x) => restoreMut.mutate(x.id)}
+                            />
+                            {/* R6 (user): its transactions open like any asset's. */}
+                            <AssetLedger
+                              budgetId={budgetId}
+                              assetId={h.id}
+                              assetName={h.name}
+                              noRealized={isCashLike(h)}
+                              open={openAssets.has(h.id)}
+                              swipeOffset={swipe?.id === h.id ? swipe.px : 0}
+                              swiping={swipe?.id === h.id && swipe.live}
+                              onOpenLinked={openLinked}
+                              canOpen={(id) =>
+                                holdings.some((x) => x.id === id)
+                              }
+                              flashTransferId={null}
                             />
                           </div>
                         ))}

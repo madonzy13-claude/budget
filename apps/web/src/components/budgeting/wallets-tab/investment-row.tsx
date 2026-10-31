@@ -350,7 +350,7 @@ export function InvestmentRow({
           data-col="left"
           className="flex min-w-0 flex-1 flex-col justify-center gap-0 leading-tight"
         >
-          <div className="flex min-w-0 items-center gap-2">
+          <div data-name-row className="flex min-w-0 items-center gap-2">
             {/* Stock/crypto: mobile shows the TICKER (tap → full name); desktop
                 shows "TICKER (Name)". Non-tracked holdings show their name. */}
             <span
@@ -383,6 +383,44 @@ export function InvestmentRow({
                 className="border border-[var(--hairline-dark)]"
               />
             )}
+            {/* Desktop hover actions beside the name (R6, user: the 92px column
+                pushed share out of line with the wallets). Dimmed with the content
+                when delisted; the handle (left) stays full opacity. */}
+            <div
+              className={[
+                "hidden shrink-0 items-center gap-1 sm:flex",
+                delisted ? "opacity-50" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              {(
+                [
+                  [onEdit, Pencil, "asset.swipe.edit", "edit"],
+                  [onSwap, ArrowUpDown, "asset.swipe.newTxn", "swap"],
+                  [onArchive, EyeOff, "asset.archive.confirm", "hide"],
+                  [onUnhide, Eye, "asset.hidden.unhide", "unhide"],
+                  [onDelete, Trash2, "ledger.confirm.last.confirm", "delete"],
+                ] as const
+              ).map(([fn, Icon, key, id]) =>
+                fn ? (
+                  <button
+                    key={id}
+                    type="button"
+                    data-testid={`investment-${id}-desktop-${holding.id}`}
+                    aria-label={`${t(key)} ${holding.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fn();
+                    }}
+                    className="invisible flex h-7 w-7 items-center justify-center rounded group-hover:visible group-focus-within:visible group-data-[nav-highlighted=true]:visible"
+                    style={{ color: "var(--body-on-dark)" }}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                ) : null,
+              )}
+            </div>
           </div>
           {/* Mobile expanded rows 2 + 3 — middle line: P/L% + P/L money (left) ·
               currency + amount (right, aligned); then "Share: X%". For cash (no
@@ -529,43 +567,9 @@ export function InvestmentRow({
         </span>
       </div>
 
-      {/* Desktop hover actions: Swap · Edit (D-05). Dimmed with the content
-          when delisted; the handle (left) stays full opacity. */}
-      <div
-        className={[
-          "hidden w-[92px] shrink-0 items-center justify-end gap-1 sm:flex",
-          delisted ? "opacity-50" : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        {(
-          [
-            [onEdit, Pencil, "asset.swipe.edit", "edit"],
-            [onSwap, ArrowUpDown, "asset.swipe.newTxn", "swap"],
-            [onArchive, EyeOff, "asset.archive.confirm", "hide"],
-            [onUnhide, Eye, "asset.hidden.unhide", "unhide"],
-            [onDelete, Trash2, "ledger.confirm.last.confirm", "delete"],
-          ] as const
-        ).map(([fn, Icon, key, id]) =>
-          fn ? (
-            <button
-              key={id}
-              type="button"
-              data-testid={`investment-${id}-desktop-${holding.id}`}
-              aria-label={`${t(key)} ${holding.name}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                fn();
-              }}
-              className="invisible flex h-7 w-7 items-center justify-center rounded group-hover:visible group-focus-within:visible group-data-[nav-highlighted=true]:visible"
-              style={{ color: "var(--body-on-dark)" }}
-            >
-              <Icon className="h-4 w-4" aria-hidden="true" />
-            </button>
-          ) : null,
-        )}
-      </div>
+      {/* R6 (user): the wallets' 28px trailing slot — share lines up with
+          the section's share column. */}
+      <span className="hidden w-7 shrink-0 sm:block" aria-hidden="true" />
     </div>
   );
 }

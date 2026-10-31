@@ -194,10 +194,10 @@ describe("InvestmentTypeHeader", () => {
     expect(
       screen.getByTestId("investment-type-share-desktop-stocks"),
     ).toHaveTextContent("60%");
-    // the asset row's actions slot keeps the columns aligned
+    // the wallets' 28px trailing slot keeps share under the section's share
     expect(
       document.querySelector("[data-desktop-actions-slot]")?.className,
-    ).toMatch(/w-\[92px\].*sm:block/);
+    ).toMatch(/hidden w-7 .*sm:block/);
   });
 
   it("open: the phone's stacked P/L block and share are hidden on desktop", () => {
