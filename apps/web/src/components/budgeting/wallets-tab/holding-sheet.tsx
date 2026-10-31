@@ -19,6 +19,7 @@
  * shadcn <Sheet side="right"> (controlled, no
  * trigger). Optimistic save via the create/update hooks; discard-confirm on dirty.
  */
+import { stablePeg } from "@/lib/stablecoins";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations, useLocale, useFormatter } from "next-intl";
 import { UI_TYPE_ICON } from "@/lib/investment-icons";
@@ -151,6 +152,9 @@ export interface DestinationHolding {
   /** Tracked: the instrument's fetched price, cents — the sale's default buy
    *  price and the new asset's current price (13.1 UAT 10). */
   livePriceCents?: string | null;
+  /** A stablecoin's peg (e.g. USD) — the sale buys it at 1 there (R6). Not
+   *  sent to the server. */
+  pegCurrency?: string | null;
 }
 
 /** Decimal string → cents string (sub-cent kept to 6 places), or null. The
@@ -477,11 +481,18 @@ export function HoldingSheet({
     const adoptInstrumentCcy = uiType !== "crypto";
     // Compute the fetch target explicitly — setBuyCurrency below is async, so
     // reading `buyCurrency` state here would be stale.
+    // R6 (user): a stablecoin is bought at 1 in the fiat it tracks (locked).
+    const peg = stablePeg(inst.symbol);
     const holdingCcy =
-      adoptInstrumentCcy && inst.quoteCurrency
+      peg ??
+      (adoptInstrumentCcy && inst.quoteCurrency
         ? inst.quoteCurrency
-        : buyCurrency;
-    if (adoptInstrumentCcy && inst.quoteCurrency) {
+        : buyCurrency);
+    if (peg) {
+      setBuyCurrency(peg);
+      setCurrentPriceCurrency(peg);
+      setBuyPrice("1");
+    } else if (adoptInstrumentCcy && inst.quoteCurrency) {
       setBuyCurrency(inst.quoteCurrency);
       setCurrentPriceCurrency(inst.quoteCurrency);
     }
@@ -828,11 +839,15 @@ export function HoldingSheet({
       ...(behavior === "tracked" && currentPrice
         ? { livePriceCents: toCents(currentPrice) }
         : {}),
+      ...(instrumentId != null && stablePeg(symbol)
+        ? { pegCurrency: stablePeg(symbol) }
+        : {}),
       currentPriceCurrency: destCcy,
     });
   }, [
     destOnChange,
     destCcy,
+    symbol,
     uiType,
     name,
     customName,
@@ -947,6 +962,9 @@ export function HoldingSheet({
       </Field>
     </>
   );
+
+  // A picked stablecoin's currency is its peg — locked (R6, user).
+  const pegCcy = instrumentId != null ? stablePeg(symbol) : null;
 
   const formFields = (
     <>
@@ -1240,6 +1258,7 @@ export function HoldingSheet({
                     ? currentPriceCurrency
                     : buyCurrency
                 }
+                disabled={pegCcy !== null}
                 onSelect={(v) => {
                   markDirty();
                   setBuyCurrency(v);

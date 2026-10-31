@@ -145,6 +145,22 @@ vi.mock(
         </button>
         <button
           type="button"
+          data-testid="pick-stable"
+          onClick={() =>
+            onSelectInstrument({
+              id: "i5",
+              displayName: "Euro Coin (EURC)",
+              quoteCurrency: "USD",
+              symbol: "euro-coin",
+              provider: "coingecko",
+              assetClass: "crypto",
+            })
+          }
+        >
+          pick-stable
+        </button>
+        <button
+          type="button"
           data-testid="pick-manual-instrument"
           onClick={() =>
             onSelectInstrument({
@@ -210,14 +226,17 @@ vi.mock("../../src/components/common/currency-picker", () => ({
     onSelect,
     richLabel,
     desktopDropdown,
+    disabled,
   }: {
     value?: string;
     onSelect: (v: string) => void;
     richLabel?: boolean;
     desktopDropdown?: boolean;
+    disabled?: boolean;
   }) => (
     <select
       data-testid="currency-stub"
+      disabled={disabled}
       data-rich={richLabel ? "1" : "0"}
       data-desktop={desktopDropdown ? "1" : "0"}
       value={value}
@@ -739,6 +758,36 @@ describe("HoldingSheet — type-first", () => {
       />,
     );
     expect(screen.getByTestId("currency-stub")).toBeInTheDocument();
+  });
+
+  // R6 (user): a stablecoin is bought at 1 in the fiat it tracks — locked.
+  it("crypto: picking a stablecoin fills buy price 1 in its peg currency, locked", async () => {
+    vi.mocked(clientApiFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ priceCents: "100", currency: "EUR" }),
+    } as unknown as Response);
+    render(
+      <HoldingSheet
+        {...baseProps}
+        holding={holding({
+          holdingType: "crypto",
+          uiType: "crypto",
+          instrumentProvider: "coingecko",
+          name: "x",
+          buyCurrency: "PLN",
+          currentPriceCurrency: "PLN",
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("pick-stable"));
+    expect(screen.getByTestId("holding-sheet-buy-price")).toHaveValue("1");
+    expect(screen.getByTestId("currency-stub")).toHaveValue("EUR");
+    expect(screen.getByTestId("currency-stub")).toBeDisabled();
+    await waitFor(() => expect(clientApiFetch).toHaveBeenCalled());
+    const call = vi.mocked(clientApiFetch).mock.calls.at(-1);
+    expect(JSON.parse((call?.[1] as RequestInit).body as string)).toMatchObject(
+      { currency: "EUR" },
+    );
   });
 
   it("crypto: changing the currency re-fetches the price converted to that currency", async () => {

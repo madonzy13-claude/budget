@@ -199,7 +199,7 @@ describe("Sell tab", () => {
     mount();
     type("swap-sell-sold", "1"); // sold value 60,000 PLN
     fireEvent.click(screen.getByTestId("swap-dest-invest"));
-    fireEvent.click(screen.getByTestId("dest-form-usdt"));
+    fireEvent.click(screen.getByTestId("dest-form-live"));
     expect(screen.getAllByTestId("swap-dest-qty")).toHaveLength(1);
     expect(screen.queryByTestId("swap-sell-received")).toBeNull();
     expect(screen.getByTestId("swap-dest-price")).toHaveValue("");
@@ -215,7 +215,7 @@ describe("Sell tab", () => {
     expect(body.destination).toMatchObject({
       kind: "new",
       priceCents: "6000",
-      holding: { name: "USDT", quantity: "1000", currentPriceCents: "100" },
+      holding: { name: "SOL", quantity: "1000", currentPriceCents: "100" },
     });
     expect(body.destination.holding.livePriceCents).toBeUndefined();
   });
@@ -266,12 +266,53 @@ describe("Sell tab", () => {
     expect(screen.getByTestId("swap-dest-price")).toHaveValue("29000");
   });
 
+  // R6 (user): a stablecoin destination buys at 1 in its peg — locked.
+  it("a new stablecoin destination starts at price 1 in its peg currency, locked", async () => {
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    fireEvent.click(screen.getByTestId("dest-form-usdt"));
+    await waitFor(() =>
+      expect(screen.getByTestId("swap-dest-price")).toHaveValue("1"),
+    );
+    const picker = screen.getByTestId("currency-picker");
+    expect(picker).toHaveValue("USD");
+    expect(picker).toBeDisabled();
+    type("swap-dest-qty", "15000");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("1");
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody()).toMatchObject({
+      receivedCurrency: "USD",
+      destination: { priceCents: "100" },
+    });
+    expect(lastBody().destination.holding.pegCurrency).toBeUndefined();
+  });
+
+  it("an existing stablecoin destination starts at price 1 in its peg, locked", async () => {
+    const usdt = H({
+      ...btcCold,
+      id: "88888888-8888-8888-8888-888888888888",
+      name: "USDT Kraken",
+      symbol: "tether",
+    });
+    mount(btc, [btc, btcCold, cash, usdt]);
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    pickDest(usdt.id);
+    await waitFor(() =>
+      expect(screen.getByTestId("swap-dest-price")).toHaveValue("1"),
+    );
+    expect(screen.getByTestId("currency-picker")).toHaveValue("USD");
+    expect(screen.getByTestId("currency-picker")).toBeDisabled();
+  });
+
   // R6 (user): a filled (not typed) price follows the currency.
   it("changing the currency converts a filled price", async () => {
     mount();
     type("swap-sell-sold", "1");
     fireEvent.click(screen.getByTestId("swap-dest-invest"));
-    fireEvent.click(screen.getByTestId("dest-form-usdt"));
+    fireEvent.click(screen.getByTestId("dest-form-live"));
     type("swap-dest-qty", "1000");
     expect(screen.getByTestId("swap-dest-price")).toHaveValue("60");
     type("currency-picker", "USD"); // PLN → USD at 0.25

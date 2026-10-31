@@ -7,6 +7,7 @@
  *   broker        amount added · account value after → {kind:"broker"}; the
  *                 deposit is cost + contribution, the rest is market move.
  */
+import { stablePeg } from "@/lib/stablecoins";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -84,7 +85,9 @@ export function SwapBuyTab({
   const held = num(holding.quantity);
 
   const [qty, setQtyState] = useState(shape === "quantity" ? draft : "");
-  const [price, setPrice] = useState("");
+  // R6 (user): a stablecoin buys at 1 in the fiat it tracks — locked.
+  const peg = stablePeg(holding.symbol);
+  const [price, setPrice] = useState(peg ? "1" : "");
   const [amount, setAmountState] = useState(shape === "quantity" ? "" : draft);
   const setQty = (v: string) => {
     setQtyState(v);
@@ -94,7 +97,7 @@ export function SwapBuyTab({
     setAmountState(v);
     setDraft?.(v);
   };
-  const [ccy, setCcy] = useState(holding.buyCurrency ?? assetCcy);
+  const [ccy, setCcy] = useState(peg ?? holding.buyCurrency ?? assetCcy);
   // A carried amount prefills "value after" like a typed one (D-08).
   const [valueAfter, setValueAfter] = useState(
     shape === "broker" && draft.trim() !== "" && Number.isFinite(num(draft))
@@ -313,6 +316,7 @@ export function SwapBuyTab({
                   variant="field"
                   value={ccy}
                   onSelect={setCcy}
+                  disabled={!!peg}
                   aria-label={t("swap.buy.price")}
                 />
               </div>

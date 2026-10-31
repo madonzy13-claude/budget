@@ -2,7 +2,10 @@
  * cash-like.ts — cash and stablecoins are money, not investments: no
  * "realized" on them (13.1 round 6, user).
  */
-// ponytail: the common fiat-pegged coins; extend when a new one shows up.
+import { stablePeg } from "./stablecoins";
+
+// Manual tickers; catalog coins come from STABLECOIN_PEG (a holding's symbol
+// is the CoinGecko id there).
 const STABLECOINS = new Set([
   "USDT",
   "USDC",
@@ -25,6 +28,7 @@ export function isCashLike(h: {
   return (
     h.holdingType === "cash_fx" ||
     h.uiType === "cash" ||
-    STABLECOINS.has((h.symbol ?? "").toUpperCase())
+    STABLECOINS.has((h.symbol ?? "").toUpperCase()) ||
+    stablePeg(h.symbol) !== null
   );
 }

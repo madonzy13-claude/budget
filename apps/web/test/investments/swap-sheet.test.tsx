@@ -109,6 +109,20 @@ describe("Swap sheet", () => {
 });
 
 describe("Buy tab", () => {
+  // R6 (user): a stablecoin buys at 1 in the fiat it tracks — locked.
+  it("a stablecoin asset buys at 1 in its peg currency, locked", () => {
+    mount({
+      ...btc,
+      id: "55555555-5555-5555-5555-555555555555",
+      name: "USDT",
+      symbol: "tether",
+    });
+    expect(screen.getByTestId("swap-buy-price")).toHaveValue("1");
+    const picker = screen.getByTestId("currency-picker");
+    expect(picker).toHaveValue("USD");
+    expect(picker).toBeDisabled();
+  });
+
   it("quantity: locked type/name/instrument, total helper, books {kind:quantity}", async () => {
     mount(btc);
     for (const id of [

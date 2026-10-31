@@ -25,6 +25,7 @@
  *   amount:   kept cost = buy × kept ÷ value
  *   deposit:  sold cost = principal − kept (all interest realized)
  */
+import { stablePeg } from "@/lib/stablecoins";
 import { useMinEntryDate } from "@/hooks/use-asset-entries";
 import { isCashLike } from "@/lib/cash-like";
 import { useEffect, useMemo, useState } from "react";
@@ -177,6 +178,22 @@ export function SwapSellTab({
     if (h) setChosenCcy(ccyOf(h, budgetCurrency));
     setReceivedTouched(false);
   };
+  // R6 (user): a stablecoin destination buys at 1 in the fiat it tracks —
+  // currency locked; the quantity is still the user's.
+  const destPeg =
+    dest !== "invest"
+      ? null
+      : mode === "existing"
+        ? stablePeg(existing?.symbol)
+        : (newHolding?.pegCurrency ?? null);
+  const newInstrumentId = newHolding?.instrumentId ?? null;
+  useEffect(() => {
+    if (!destPeg) return;
+    setChosenCcy(destPeg);
+    setDestPrice("1");
+    setAutoPrice(null);
+    setFiller("price");
+  }, [destPeg, existingId, newInstrumentId]);
   // Today's rate asset currency → received currency (preview of its price
   // and value; the server books with its own rate).
   const [assetRate, setAssetRate] = useState(1);
@@ -426,7 +443,11 @@ export function SwapSellTab({
                 : {}),
             }
           : (() => {
-              const { livePriceCents, ...base } = newHolding!;
+              const {
+                livePriceCents,
+                pegCurrency: _peg, // eslint-disable-line @typescript-eslint/no-unused-vars
+                ...base
+              } = newHolding!;
               return {
                 kind: "new" as const,
                 holding: {
@@ -522,6 +543,7 @@ export function SwapSellTab({
             variant="field"
             value={chosenCcy}
             onSelect={setChosenCcy}
+            disabled={!!destPeg}
             aria-label={t("field.currency")}
           />
         </div>

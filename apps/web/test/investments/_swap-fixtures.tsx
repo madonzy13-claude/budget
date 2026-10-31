@@ -116,6 +116,22 @@ vi.mock("../../src/components/budgeting/wallets-tab/holding-sheet", () => ({
       </button>
       <button
         type="button"
+        data-testid="dest-form-live"
+        onClick={() =>
+          onChange({
+            name: "SOL",
+            uiType: "crypto",
+            holdingType: "crypto",
+            instrumentId: "i4",
+            currentPriceCurrency: "PLN",
+            livePriceCents: "100",
+          })
+        }
+      >
+        dest live
+      </button>
+      <button
+        type="button"
         data-testid="dest-form-usdt"
         onClick={() =>
           onChange({
@@ -125,6 +141,7 @@ vi.mock("../../src/components/budgeting/wallets-tab/holding-sheet", () => ({
             instrumentId: "i3",
             currentPriceCurrency: "PLN",
             livePriceCents: "100",
+            pegCurrency: "USD",
           })
         }
       >
