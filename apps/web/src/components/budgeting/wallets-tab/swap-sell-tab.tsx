@@ -276,7 +276,10 @@ export function SwapSellTab({
     (field === "qty" ? setDestQty : setDestPrice)(v);
     if (filler === null || filler === field) {
       setFiller(field);
-      (field === "qty" ? setDestPrice : setDestQty)(counterpart(v));
+      const c = counterpart(v);
+      // R6 (user): a filled price has 2 decimals; a quantity keeps its own.
+      if (field === "price") setDestQty(c);
+      else setDestPrice(c && plain(Math.round(num(c) * 100) / 100));
     } else if (filler !== "done") setFiller("done");
   };
   const leaveDest = (field: "qty" | "price") => {

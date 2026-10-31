@@ -220,6 +220,15 @@ describe("Sell tab", () => {
     expect(body.destination.holding.livePriceCents).toBeUndefined();
   });
 
+  it("a filled buy price is rounded to 2 decimals", () => {
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    fireEvent.click(screen.getByTestId("dest-form-qty"));
+    type("swap-dest-qty", "7");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("8571.43");
+  });
+
   it("price typed first fills the quantity on the fly", () => {
     mount();
     type("swap-sell-sold", "1");
