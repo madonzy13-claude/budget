@@ -138,6 +138,9 @@ export function SwapSellTab({
   // R6 (user): the first of quantity / price typed fills the other on the
   // fly, once — leaving it or typing the other ends that ("done").
   const [filler, setFiller] = useState<"qty" | "price" | "done" | null>(null);
+  // A price we filled (never typed), per unit in the SOURCE currency — shown
+  // at the received currency's rate, so a currency change converts it.
+  const [autoPrice, setAutoPrice] = useState<number | null>(null);
   const [existingId, setExistingId] = useState("");
   const [walletKind, setWalletKind] = useState<WalletKind>("nowhere");
   const [walletId, setWalletId] = useState("");
@@ -167,6 +170,7 @@ export function SwapSellTab({
     setDestQty("");
     setDestPrice("");
     setFiller(null);
+    setAutoPrice(null);
     if (!id) return;
     const h = holdings.find((x) => x.id === id);
     if (h) setChosenCcy(ccyOf(h, budgetCurrency));
@@ -264,22 +268,29 @@ export function SwapSellTab({
   const qtyDest =
     (mode === "existing" && existingIsQty) || (mode === "new" && newIsQty);
   // Nothing is prefilled (R6, user): quantity × price is what the user says.
-  const priceText = destPrice;
+  // R6 (user): a filled price has 2 decimals; a typed one is kept as typed.
+  const priceText =
+    autoPrice === null
+      ? destPrice
+      : plain(Math.round(autoPrice * rate * 100) / 100);
   const price = num(priceText);
-  const soldInReceived =
-    calc && !calc.invalid ? (calc.soldValue * rate) / 100 : 0;
+  const soldValue = calc && !calc.invalid ? calc.soldValue / 100 : 0;
+  const soldInReceived = soldValue * rate;
   const qtyText = destQty;
   /** sold value ÷ the typed figure — the other field's fill. */
   const counterpart = (v: string) =>
     num(v) > 0 && soldInReceived > 0 ? plain(soldInReceived / num(v)) : "";
   const typeDest = (field: "qty" | "price", v: string) => {
-    (field === "qty" ? setDestQty : setDestPrice)(v);
+    if (field === "qty") setDestQty(v);
+    else {
+      setDestPrice(v);
+      setAutoPrice(null);
+    }
     if (filler === null || filler === field) {
       setFiller(field);
-      const c = counterpart(v);
-      // R6 (user): a filled price has 2 decimals; a quantity keeps its own.
-      if (field === "price") setDestQty(c);
-      else setDestPrice(c && plain(Math.round(num(c) * 100) / 100));
+      if (field === "price") setDestQty(counterpart(v));
+      else
+        setAutoPrice(num(v) > 0 && soldValue > 0 ? soldValue / num(v) : null);
     } else if (filler !== "done") setFiller("done");
   };
   const leaveDest = (field: "qty" | "price") => {

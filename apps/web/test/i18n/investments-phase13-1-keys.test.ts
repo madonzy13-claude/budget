@@ -106,7 +106,6 @@ const KEYS = [
   "swap.sell.where",
   "swap.sellTitle",
   "swap.sum.created",
-  "swap.sum.gone",
   "swap.sum.leaves",
   "swap.sum.line",
   "swap.sum.plUnchanged",

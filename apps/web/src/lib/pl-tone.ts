@@ -27,10 +27,7 @@ export function plTone(
  * appears ("0.007%"). Capped, or a rounding-error percent would print a wall of
  * zeroes.
  */
-export function plPctDecimals(
-  pct: number | null | undefined,
-  max = 6,
-): number {
+export function plPctDecimals(pct: number | null | undefined, max = 6): number {
   if (pct === null || pct === undefined || !Number.isFinite(pct)) return 1;
   const abs = Math.abs(pct);
   if (abs === 0) return 1;

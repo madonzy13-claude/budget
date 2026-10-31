@@ -90,8 +90,7 @@ export function limitRebalanceButton(row: LimitRow): LimitRebalanceButton {
   // not to take the last one back. Under a whole unit is not a move — the
   // proposals are whole, so a limit sitting on 1,000.40 against a proposed
   // 1,000 is not something to act on (260808).
-  if (limitMoveSize(row) >= UNIT)
-    return { kind: "rebalance", disabled: false };
+  if (limitMoveSize(row) >= UNIT) return { kind: "rebalance", disabled: false };
   if (row.baseline !== null) return { kind: "undo", disabled: false };
   return { kind: "rebalance", disabled: true };
 }

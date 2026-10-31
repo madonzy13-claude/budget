@@ -59,7 +59,7 @@ export function SwapSummaryCard({ summary }: { summary: SwapSummary }) {
               }
               style={{ color: "var(--body-on-dark)" }}
             >
-              {l.gone ? t("swap.sum.gone") : fmt(l.after)}
+              {fmt(l.after)}
             </span>
           </p>
         );

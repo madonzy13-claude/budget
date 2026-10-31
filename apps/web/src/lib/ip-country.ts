@@ -31,7 +31,9 @@ function isPrivateIp(ip: string): boolean {
 
 const cache = new Map<string, string | null>();
 
-export async function lookupCountry(ip?: string | null): Promise<string | null> {
+export async function lookupCountry(
+  ip?: string | null,
+): Promise<string | null> {
   if (!ip || isPrivateIp(ip)) return null;
   if (cache.has(ip)) return cache.get(ip) ?? null;
   try {

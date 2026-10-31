@@ -266,6 +266,20 @@ describe("Sell tab", () => {
     expect(screen.getByTestId("swap-dest-price")).toHaveValue("29000");
   });
 
+  // R6 (user): a filled (not typed) price follows the currency.
+  it("changing the currency converts a filled price", async () => {
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    fireEvent.click(screen.getByTestId("dest-form-usdt"));
+    type("swap-dest-qty", "1000");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("60");
+    type("currency-picker", "USD"); // PLN → USD at 0.25
+    await waitFor(() =>
+      expect(screen.getByTestId("swap-dest-price")).toHaveValue("15"),
+    );
+  });
+
   it("changing the currency never changes a typed price", () => {
     mount();
     type("swap-sell-sold", "1");

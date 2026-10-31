@@ -14,8 +14,6 @@ export type MoveLine = {
   after: number;
   ccy: string;
   unit?: "qty";
-  /** Sold everything: "gone from your list" instead of the after figure. */
-  gone?: boolean;
 };
 
 export type SumLine =
@@ -118,10 +116,8 @@ const move = (
   ccy,
 });
 
-const drained = (s: Source): MoveLine => ({
-  ...move(s.name, s.v0, s.v1, s.ccy),
-  ...(s.v1 === 0 ? { gone: true } : {}),
-});
+// R6 (user): an emptied asset stays listed — it just reads 0.
+const drained = (s: Source): MoveLine => move(s.name, s.v0, s.v1, s.ccy);
 
 function lines(c: SwapCase): SumLine[] {
   if (c.tab === "buy")

@@ -822,7 +822,7 @@
           "from": "Where did the money come from?",
           "srcAsset": "Source asset",
           "srcPlaceholder": "Pick an asset",
-            "takes": "Takes {amount} from {name}",
+          "takes": "Takes {amount} from {name}",
           "src": {
             "out": "Out of investments",
             "outDesc": "New money for your investments",
@@ -864,7 +864,6 @@
         "sum": {
           "title": "What will happen",
           "line": "{label}: {before} → {after}",
-          "gone": "gone from your list",
           "created": "New asset {name} created with {amount}",
           "walletNew": "New wallet {name} starts with {amount}",
           "leaves": "Leaves your investments",

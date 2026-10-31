@@ -151,7 +151,8 @@ describe("Swap summary", () => {
     ).toEqual(["swap.sum.line", "swap.sum.created"]);
   });
 
-  it("selling everything says the asset is gone", () => {
+  // R6 (user): an emptied asset stays listed — never "gone from your list".
+  it("selling everything reads 0, not gone", () => {
     const s = buildSwapSummary({
       tab: "sell",
       ...src,
@@ -162,8 +163,9 @@ describe("Swap summary", () => {
     });
     expect(s.empty ? null : s.lines[0]).toMatchObject({
       key: "swap.sum.line",
-      gone: true,
+      after: 0,
     });
+    expect(s.empty ? null : s.lines[0]).not.toHaveProperty("gone");
   });
 
   it("invalid input is empty", () => {

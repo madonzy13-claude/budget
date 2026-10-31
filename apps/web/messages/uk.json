@@ -822,7 +822,7 @@
           "from": "Звідки гроші?",
           "srcAsset": "Актив-джерело",
           "srcPlaceholder": "Оберіть актив",
-            "takes": "Списує {amount} з {name}",
+          "takes": "Списує {amount} з {name}",
           "src": {
             "out": "Поза інвестиціями",
             "outDesc": "Нові гроші для інвестицій",
@@ -864,7 +864,6 @@
         "sum": {
           "title": "Що станеться",
           "line": "{label}: {before} → {after}",
-          "gone": "зникне зі списку",
           "created": "Новий актив {name} із сумою {amount}",
           "walletNew": "Новий гаманець {name} починається з {amount}",
           "leaves": "Залишає ваші інвестиції",

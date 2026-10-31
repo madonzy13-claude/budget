@@ -55,8 +55,7 @@ describe("category-colors", () => {
   it("every key is unique and every hex is a full 6-digit value", () => {
     const keys = CATEGORY_COLORS.map((c) => c.key);
     expect(new Set(keys).size).toBe(keys.length);
-    for (const c of CATEGORY_COLORS)
-      expect(c.hex).toMatch(/^#[0-9A-F]{6}$/);
+    for (const c of CATEGORY_COLORS) expect(c.hex).toMatch(/^#[0-9A-F]{6}$/);
   });
 
   it("fills whole rows of ten, so the picker never leaves a ragged tail", () => {

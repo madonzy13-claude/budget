@@ -141,8 +141,7 @@ export async function restoreQueryCache(client: QueryClient): Promise<void> {
   try {
     const db = await openCacheDb();
     const saved = (await db.get(STORE, KEY)) as
-      | { v: string; at: number; state: unknown }
-      | undefined;
+      { v: string; at: number; state: unknown } | undefined;
     db.close();
     if (
       saved &&
@@ -246,7 +245,10 @@ export function startPersisting(client: QueryClient): () => void {
     void writeCache(client);
   };
   const onHidden = () => {
-    if (typeof document === "undefined" || document.visibilityState === "hidden")
+    if (
+      typeof document === "undefined" ||
+      document.visibilityState === "hidden"
+    )
       flush();
   };
   if (typeof document !== "undefined") {

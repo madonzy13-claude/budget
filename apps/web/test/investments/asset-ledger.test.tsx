@@ -383,11 +383,11 @@ describe("Asset ledger strip", () => {
     expect(qty.style.fontSize).toBe("11px");
   });
 
-  // R6 (user): realized is in the asset's currency, not the budget's.
-  it("realized shows the asset-currency figure with its currency", async () => {
+  // R6 (user): realized is in the asset's currency — no currency code shown.
+  it("realized shows the asset-currency figure without its currency", async () => {
     mount(ENTRIES);
     const rows = await screen.findAllByTestId(/^ledger-row-/);
-    expect(rows[2]).toHaveTextContent("ledger.realized(+12 USD)");
+    expect(rows[2]).toHaveTextContent("ledger.realized(+12)");
   });
 
   // R6 (user): cash and stablecoins are just money — no "realized".

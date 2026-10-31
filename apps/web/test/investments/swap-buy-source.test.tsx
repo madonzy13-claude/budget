@@ -171,9 +171,9 @@ describe("Buy — where did the money come from?", () => {
     fireEvent.click(screen.getByTestId("swap-buy-src-held"));
     expect(screen.getByTestId("swap-buy-taken")).toHaveValue("1");
     type("swap-buy-amount", "300");
-    // Taking all of it: the source is gone from the list.
+    // Taking all of it: the source reads 0 (it stays listed).
     expect(screen.getByTestId("swap-summary")).toHaveTextContent(
-      /BTC Cold:\s*60,000 PLN\s*→\s*swap\.sum\.gone/,
+      /BTC Cold:\s*60,000 PLN\s*→\s*0 PLN/,
     );
     type("swap-buy-taken", "0.5");
     type("swap-buy-amount", "300");

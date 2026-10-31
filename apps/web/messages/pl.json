@@ -822,7 +822,7 @@
           "from": "Skąd pochodzą pieniądze?",
           "srcAsset": "Aktywo źródłowe",
           "srcPlaceholder": "Wybierz aktywo",
-            "takes": "Pobiera {amount} z {name}",
+          "takes": "Pobiera {amount} z {name}",
           "src": {
             "out": "Spoza inwestycji",
             "outDesc": "Nowe pieniądze dla inwestycji",
@@ -864,7 +864,6 @@
         "sum": {
           "title": "Co się stanie",
           "line": "{label}: {before} → {after}",
-          "gone": "zniknie z listy",
           "created": "Nowe aktywo {name} z kwotą {amount}",
           "walletNew": "Nowy portfel {name} zaczyna od {amount}",
           "leaves": "Opuszcza Twoje inwestycje",
