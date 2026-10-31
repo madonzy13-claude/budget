@@ -204,4 +204,20 @@ describe("entryDateRange", () => {
       max: null,
     });
   });
+  // R6 (user, BTC - SafePal): two rows created at the same instant tie-break
+  // by id, so landing on the neighbour's date could swap them. The bound
+  // steps one day past a neighbour the tie-break would put on the wrong side.
+  test("a neighbour's date is off-limits when the tie-break would swap them", () => {
+    const at = "2026-10-26T05:33:46Z";
+    const older = k("z", "2026-10-16", at); // id "z" sorts after "b"
+    const newer = k("b", "2026-10-17", at);
+    expect(entryDateRange([older, newer], newer)).toEqual({
+      min: "2026-10-17",
+      max: null,
+    });
+    expect(entryDateRange([older, newer], older)).toEqual({
+      min: null,
+      max: "2026-10-16",
+    });
+  });
 });

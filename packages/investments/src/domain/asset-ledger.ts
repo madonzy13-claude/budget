@@ -9,6 +9,7 @@
  * from their date order. Linked legs (sale into another asset, transfer) need
  * to be newest in BOTH assets (D-16).
  */
+import { Temporal } from "temporal-polyfill";
 import { big, cents, qty } from "./sell-booking";
 
 export interface LedgerKey {
@@ -41,11 +42,19 @@ export function entryDateRange(
 ): { min: string | null; max: string | null } {
   let min: string | null = null;
   let max: string | null = null;
+  const shift = (d: string, days: number) =>
+    Temporal.PlainDate.from(d).add({ days }).toString();
   for (const x of others) {
     if (x.id === target.id) continue;
+    // Landing on x's date keeps the order only if the tie-break agrees.
+    const tied = { ...target, effectiveDate: x.effectiveDate };
     if (after(target, x)) {
-      if (min === null || x.effectiveDate > min) min = x.effectiveDate;
-    } else if (max === null || x.effectiveDate < max) max = x.effectiveDate;
+      const lo = after(tied, x) ? x.effectiveDate : shift(x.effectiveDate, 1);
+      if (min === null || lo > min) min = lo;
+    } else {
+      const hi = after(tied, x) ? shift(x.effectiveDate, -1) : x.effectiveDate;
+      if (max === null || hi < max) max = hi;
+    }
   }
   return { min, max };
 }
