@@ -673,6 +673,13 @@
       "when": 1783606801012,
       "tag": "0096_zero_qty_sold_out_collectibles",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1783606802012,
+      "tag": "0097_delete_pre_13_1_removed_assets",
+      "breakpoints": true
     }
   ]
 }
