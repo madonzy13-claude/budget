@@ -569,6 +569,52 @@ describe("InvestmentRow", () => {
     expect(slot.parentElement!.lastElementChild).toBe(slot);
   });
 
+  // R6 (user): desktop shows unrealized · realized under the name.
+  it("desktop shows the unrealized / realized caption under the name", () => {
+    render(
+      <InvestmentRow
+        holding={holding()}
+        realized={{
+          realizedBudgetCents: "5000",
+          soldCostBudgetCents: "0",
+          realizedAssetCents: "5000",
+          assetCurrency: "USD",
+        }}
+      />,
+    );
+    const cap = screen.getByTestId("asset-caption-desktop-h1");
+    expect(cap.className).toMatch(/hidden .*sm:block/);
+    expect(cap.textContent).toMatch(/unreal\.: .*real\.: /);
+  });
+
+  // R6 (user): an asset can be shown in another currency — the replay's
+  // figures (each entry at its own date's rate), with the wallets' picker.
+  it("an asset shown in another currency reads the replay's figures", () => {
+    render(
+      <InvestmentRow
+        holding={holding()}
+        currencyPick={{ value: "EUR", onChange: () => {} }}
+        converted={{
+          currency: "EUR",
+          valueCents: "350000",
+          costCents: "250000",
+          realizedCents: "1000",
+          unrealizedCents: "100000",
+          totalPLCents: "101000",
+          contributedCents: "250000",
+          pct: 40.4,
+        }}
+      />,
+    );
+    expect(screen.getByTestId("asset-currency-h1").className).toMatch(
+      /w-\[44px\].*sm:w-\[96px\].*md:w-\[224px\]/,
+    );
+    expect(screen.getByLabelText(/profit\/loss/).textContent).toMatch(/40\.4/);
+    expect(screen.getByTestId("holding-amount-readonly-h1")).toHaveTextContent(
+      "3,500",
+    );
+  });
+
   // Round 6 (user): the asset's own currency, not the budget's.
   it("unrealized and realized are in the asset's own currency", () => {
     render(
@@ -757,7 +803,11 @@ describe("InvestmentRow", () => {
     // qty cell shows the holding quantity (testid keeps it unambiguous).
     expect(screen.getByTestId("holding-qty-AAPL")).toHaveTextContent("10");
     // P/L money from the server's profitLossCents (120000 → +1,200), no currency.
-    expect(screen.getByText("+1,200")).toBeInTheDocument();
+    expect(
+      screen
+        .getAllByText("+1,200")
+        .some((el) => !el.closest('[data-testid^="asset-caption-desktop-"]')),
+    ).toBe(true);
     expect(screen.getByText("+12.4%")).toBeInTheDocument();
   });
 

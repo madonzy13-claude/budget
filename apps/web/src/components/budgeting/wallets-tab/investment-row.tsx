@@ -18,6 +18,9 @@
  * exception); cash / no-basis renders "—" in --muted-strong; a delisted row is
  * dimmed (opacity-50, --muted-strong) which overrides any P/L color (D-09/25).
  */
+import { useIsWide } from "@/hooks/use-is-wide";
+import { CurrencyPicker } from "@/components/common/currency-picker";
+import type { CurrencyPL } from "@/hooks/use-fx-rates";
 import { isCashLike } from "@/lib/cash-like";
 import { typeGroupPL } from "@/lib/investment-type-groups";
 import { useEffect, useRef, useState } from "react";
@@ -70,6 +73,10 @@ interface InvestmentRowProps {
   onArchive?: () => void;
   /** R6 (user): Unhide a hidden asset. */
   onUnhide?: () => void;
+  /** R6 (user): show the asset in another currency (the wallets' picker). */
+  currencyPick?: { value: string; onChange: (currency: string) => void };
+  /** That currency's figures — a replay at each entry's own date's rate. */
+  converted?: CurrencyPL;
   /** Round 4: delete an asset that has nothing but its opening entry. */
   onDelete?: () => void;
   /** 13.1 D-27: the row opened/closed — the section shows/hides its ledger. */
@@ -101,6 +108,8 @@ export function InvestmentRow({
   onSwap,
   onArchive,
   onUnhide,
+  currencyPick,
+  converted,
   onDelete,
   onToggle,
   open,
@@ -130,15 +139,27 @@ export function InvestmentRow({
     onToggle?.(holding.id, next);
   };
 
-  const currency = holding.currentPriceCurrency ?? holding.buyCurrency ?? "";
-  const value = centsToShort(holding.valueCents, locale);
+  const wide = useIsWide();
+  const currency =
+    converted?.currency ??
+    holding.currentPriceCurrency ??
+    holding.buyCurrency ??
+    "";
+  const value = centsToShort(
+    converted?.valueCents ?? holding.valueCents,
+    locale,
+  );
   // Round 4: "40%", not "40.0%"; "12.5%" keeps its decimal.
   const weight = `${Number(holding.weightPct.toFixed(1))}%`;
   // R6 (user): P/L is all of it — unrealized + realized over everything ever
   // put in — the type header's formula for one asset. Cash is just money.
   const lifetime =
     realized && !isCashLike(holding) ? typeGroupPL([holding], realized) : null;
-  const pct = lifetime ? lifetime.pct : holding.profitLossPct;
+  const pct = converted
+    ? converted.pct
+    : lifetime
+      ? lifetime.pct
+      : holding.profitLossPct;
   const delisted = holding.isDelisted;
 
   // Name: cash shows its user-given name when set, else falls back to "Cash"
@@ -168,6 +189,7 @@ export function InvestmentRow({
   // (auto-priced instrument), the spot price (metals) or the rate (deposits).
   const valueIsManual =
     !!onValueChange &&
+    !converted &&
     holding.holdingType !== "deposit" &&
     holding.uiType !== "deposit" &&
     holding.metal == null &&
@@ -217,12 +239,15 @@ export function InvestmentRow({
   // realized from the server's asset-currency figure.
   const assetPL = {
     unrealizedCents: Number(
-      holding.profitLossDisplayCents ?? holding.profitLossCents ?? 0,
+      converted?.unrealizedCents ??
+        holding.profitLossDisplayCents ??
+        holding.profitLossCents ??
+        0,
     ),
     // R6 (user): a stablecoin is money — no realized.
     realizedCents: isCashLike(holding)
       ? null
-      : Number(realized?.realizedAssetCents ?? 0),
+      : Number(converted?.realizedCents ?? realized?.realizedAssetCents ?? 0),
   };
   // User (round 6): "4 × 750 avg. cost" — words, no icon.
   const qtyAvg =
@@ -247,11 +272,13 @@ export function InvestmentRow({
   // Shown beside the P/L% in the mobile expanded stack (D-#plmoney).
   const plMoney = (() => {
     const plCents = holding.profitLossDisplayCents ?? holding.profitLossCents;
-    if (pct == null || (plCents == null && !lifetime)) return null;
+    if (pct == null || (plCents == null && !lifetime && !converted))
+      return null;
     // cents, in the shown currency (R6), plus realized in that currency
-    const amt =
-      Number(plCents ?? 0) +
-      (lifetime ? Number(realized?.realizedAssetCents ?? 0) : 0);
+    const amt = converted
+      ? Number(converted.totalPLCents)
+      : Number(plCents ?? 0) +
+        (lifetime ? Number(realized?.realizedAssetCents ?? 0) : 0);
     if (!Number.isFinite(amt)) return null;
     const sign = amt < 0 ? "−" : "+";
     return `${sign}${centsToShort(String(Math.round(Math.abs(amt))), locale)}`;
@@ -422,6 +449,18 @@ export function InvestmentRow({
               )}
             </div>
           </div>
+          {/* R6 (user): desktop shows unrealized · realized, closed too. */}
+          {!isCash && (
+            <div
+              data-testid={`asset-caption-desktop-${holding.id}`}
+              className="hidden min-w-0 sm:block"
+            >
+              <PlCaption
+                unrealizedCents={assetPL.unrealizedCents}
+                realizedCents={assetPL.realizedCents}
+              />
+            </div>
+          )}
           {/* Mobile expanded rows 2 + 3 — middle line: P/L% + P/L money (left) ·
               currency + amount (right, aligned); then "Share: X%". For cash (no
               P/L) a dash takes the profit slot so the card is a uniform 3 rows,
@@ -481,9 +520,28 @@ export function InvestmentRow({
               expanded ? "hidden sm:flex" : "flex",
             ].join(" ")}
           >
-            <span className="text-num-sm text-[var(--muted-foreground)]">
-              {currency}
-            </span>
+            {currencyPick ? (
+              // R6 (user): the spending wallets' currency cell + picker.
+              <span
+                data-testid={`asset-currency-${holding.id}`}
+                className="block w-[44px] shrink-0 self-center text-num-sm text-[var(--muted-foreground)] sm:w-[96px] md:w-[224px]"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <CurrencyPicker
+                  value={currencyPick.value}
+                  onSelect={currencyPick.onChange}
+                  aria-label={t("asset.currencyAria", { name: holding.name })}
+                  richLabel={wide}
+                  desktopDropdown={wide}
+                />
+              </span>
+            ) : (
+              <span className="text-num-sm text-[var(--muted-foreground)]">
+                {currency}
+              </span>
+            )}
             <div
               className="text-right tabular-nums"
               style={{ minWidth: `${(maxAmountChars ?? 4) + 1}ch` }}

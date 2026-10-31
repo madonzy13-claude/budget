@@ -23,6 +23,7 @@ import { TrendingDown, TrendingUp } from "lucide-react";
 import { centsToShort } from "@/lib/cents-format";
 import type { UiType } from "@/lib/investment-types";
 import { UI_TYPE_COLOR, UI_TYPE_ICON } from "@/lib/investment-icons";
+import { useIsWide } from "@/hooks/use-is-wide";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import type { TypeGroupPL } from "@/lib/investment-type-groups";
 
@@ -122,6 +123,7 @@ export function InvestmentTypeHeader({
 }: InvestmentTypeHeaderProps) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
+  const wide = useIsWide();
   // The caption may use the room up to the share before it scrolls.
   const shareRef = useRef<HTMLSpanElement>(null);
 
@@ -158,7 +160,9 @@ export function InvestmentTypeHeader({
           // Picking a currency never toggles the group.
           <span
             data-testid={`investment-type-currency-${uiType}`}
-            className="text-num-sm"
+            // R6 (user): the spending wallets' currency cell — full label on
+            // a wide screen, the code alone on a narrow one.
+            className="block w-[44px] shrink-0 self-center text-num-sm sm:w-[96px] md:w-[224px]"
             style={{ color: "var(--muted-foreground)" }}
             onClick={stop}
             onKeyDown={stop}
@@ -168,6 +172,8 @@ export function InvestmentTypeHeader({
               value={budgetCurrency}
               onSelect={onCurrencyChange}
               aria-label={t("group.currencyAria", { name })}
+              richLabel={wide}
+              desktopDropdown={wide}
             />
           </span>
         ) : (
@@ -178,9 +184,20 @@ export function InvestmentTypeHeader({
             {budgetCurrency}
           </span>
         )}
+        {/* R6 (user): desktop never shrinks (.text-num-* are plain classes
+            with no sm: variant) — its own span at the asset row's size. */}
         <span
-          // R6 (user): desktop is never compact — the asset row's amount column.
-          className={`num text-right sm:min-w-[var(--amount-w)] sm:text-num-md ${showSplit ? "text-num-sm" : "text-num-md"}`}
+          data-testid={`investment-type-amount-desktop-${uiType}`}
+          className="num hidden text-right text-num-md sm:inline"
+          style={{
+            color: "var(--body-on-dark)",
+            minWidth: `${(maxAmountChars ?? 4) + 1}ch`,
+          }}
+        >
+          {money(pl.valueBudgetCents)}
+        </span>
+        <span
+          className={`num text-right sm:hidden ${showSplit ? "text-num-sm" : "text-num-md"}`}
           // Tapped (cash too): currency hugs the amount like the asset row (round-4
           // gap 12 — the column width pushed "PLN" under the P/L line).
           style={
@@ -269,11 +286,30 @@ export function InvestmentTypeHeader({
         className="flex min-w-0 flex-1 flex-col justify-center gap-0 leading-tight"
       >
         <span
-          className={`min-w-0 break-words sm:text-body-md ${split ? "text-num-sm" : "text-body-md"}`}
+          className={`min-w-0 break-words sm:hidden ${split ? "text-num-sm" : "text-body-md"}`}
           style={{ color: "var(--body-on-dark)" }}
         >
           {name}
         </span>
+        <span
+          data-testid={`investment-type-name-desktop-${uiType}`}
+          className="hidden min-w-0 break-words text-body-md sm:block"
+          style={{ color: "var(--body-on-dark)" }}
+        >
+          {name}
+        </span>
+        {/* R6 (user): desktop shows unrealized · realized, closed or open. */}
+        {hasPL && (
+          <div
+            data-testid={`investment-type-caption-desktop-${uiType}`}
+            className="hidden min-w-0 sm:block"
+          >
+            <PlCaption
+              unrealizedCents={pl.unrealizedCents}
+              realizedCents={pl.realizedCents}
+            />
+          </div>
+        )}
         {split && (
           <div
             data-testid={`investment-type-split-${uiType}`}

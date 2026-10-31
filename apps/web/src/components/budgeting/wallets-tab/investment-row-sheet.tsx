@@ -11,6 +11,7 @@
  * gesture, shared with the ledger rows); its offset is reported up so the
  * open L3 ledger slides with the row.
  */
+import type { CurrencyPL } from "@/hooks/use-fx-rates";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useRef } from "react";
@@ -37,6 +38,9 @@ interface InvestmentRowSheetProps {
   onArchive?: (holding: HoldingDto) => void;
   /** R6 (user): a hidden asset's row offers Unhide instead of Hide. */
   onUnhide?: (holding: HoldingDto) => void;
+  /** R6 (user): the asset in another currency (passed to the row). */
+  currencyPick?: { value: string; onChange: (currency: string) => void };
+  converted?: CurrencyPL;
   /** Round 4: an asset with nothing but its opening entry is deleted, not
    *  archived — the section passes this only for such an asset. */
   onDelete?: (holding: HoldingDto) => void;
@@ -63,6 +67,8 @@ export function InvestmentRowSheet({
   onSwap,
   onArchive,
   onUnhide,
+  currencyPick,
+  converted,
   onDelete,
   onToggle,
   open,
@@ -258,6 +264,8 @@ export function InvestmentRowSheet({
               : undefined
           }
           onUnhide={onUnhide ? () => onUnhide(holding) : undefined}
+          currencyPick={currencyPick}
+          converted={converted}
           onDelete={onDelete && !onUnhide ? () => onDelete(holding) : undefined}
           onToggle={onToggle}
           open={open}

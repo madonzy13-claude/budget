@@ -794,7 +794,8 @@
           "close": "Collapse hidden assets",
           "unhide": "Unhide",
           "unhideAria": "Unhide {name}"
-        }
+        },
+        "currencyAria": "Show {name} in another currency"
       },
       "swap": {
         "title": "New transaction: {name}",

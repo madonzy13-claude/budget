@@ -48,7 +48,7 @@ import { centsToBare, centsToRounded } from "@/lib/cents-format";
 import { amountColumnChars } from "@/lib/amount-column";
 import { useBudget } from "@/hooks/use-budget-data";
 import { useMemberUiPrefs } from "@/hooks/use-member-ui-prefs";
-import { useFxRates } from "@/hooks/use-fx-rates";
+import { useCurrencyPLs } from "@/hooks/use-fx-rates";
 import {
   useHiddenHoldings,
   useInvestments,
@@ -366,24 +366,53 @@ export function InvestmentsSection({
   const ccyKey = (uiType: string) => `invGroupCcy.${uiType}`;
   const groupCcy = (uiType: string) =>
     uiPrefs.prefs[ccyKey(uiType)]?.[0] ?? budgetCurrency;
-  const rates = useFxRates(
-    budgetCurrency,
-    blocks.map((b) => groupCcy(b.uiType)),
+  // R6 (user): every currency — the budget's too — is a replay of the
+  // group's ledger at each entry's own date's rate (GET /investments/pl).
+  const groupPLs = useCurrencyPLs(
+    budgetId,
+    blocks.map((b) => ({
+      currency: groupCcy(b.uiType),
+      ids: [...b.holdings, ...hiddenOf(b.uiType)].map((h) => h.id),
+    })),
   );
-  /** The group's P/L in its chosen currency (budget currency until the
-   *  rate arrives). */
-  const shownPL = (uiType: string, pl: TypeGroupPL) => {
-    const ccy = groupCcy(uiType);
-    const r = rates.get(ccy);
-    if (r == null) return { ccy: budgetCurrency, pl };
+  // R6 (user): an asset may be shown in another currency too — the member's
+  // pick per asset, figures from the same replay.
+  const assetKey = (id: string) => `invAssetCcy.${id}`;
+  const ownCcy = (h: HoldingDto) =>
+    h.currentPriceCurrency ?? h.buyCurrency ?? budgetCurrency;
+  const assetCcy = (h: HoldingDto) =>
+    uiPrefs.prefs[assetKey(h.id)]?.[0] ?? ownCcy(h);
+  const convertedAssets = [...holdings, ...hidden].filter(
+    (h) => assetCcy(h) !== ownCcy(h),
+  );
+  const assetPLs = useCurrencyPLs(
+    budgetId,
+    convertedAssets.map((h) => ({ currency: assetCcy(h), ids: [h.id] })),
+  );
+  const assetView = (h: HoldingDto) => {
+    const i = convertedAssets.findIndex((x) => x.id === h.id);
     return {
-      ccy,
+      currencyPick: {
+        value: assetCcy(h),
+        onChange: (c: string) => void uiPrefs.save(assetKey(h.id), [c]),
+      },
+      converted: i >= 0 ? assetPLs[i] : undefined,
+    };
+  };
+  /** The group's P/L in its chosen currency; until the replay lands, the
+   *  budget-currency figures already on hand. */
+  const shownPL = (uiType: string, pl: TypeGroupPL) => {
+    const r = groupPLs[blocks.findIndex((b) => b.uiType === uiType)];
+    if (!r) return { ccy: budgetCurrency, pl };
+    return {
+      ccy: r.currency,
       pl: {
-        ...pl,
-        valueBudgetCents: pl.valueBudgetCents * r,
-        unrealizedCents: pl.unrealizedCents * r,
-        realizedCents: pl.realizedCents * r,
-        totalPLCents: pl.totalPLCents * r,
+        valueBudgetCents: Number(r.valueCents),
+        unrealizedCents: Number(r.unrealizedCents),
+        realizedCents: Number(r.realizedCents),
+        totalPLCents: Number(r.totalPLCents),
+        lifetimeCostCents: Number(r.contributedCents),
+        pct: r.pct,
       },
     };
   };
@@ -687,6 +716,7 @@ export function InvestmentsSection({
                               maxAmountChars={amountCols.group[block.uiType]}
                               open={openAssets.has(h.id)}
                               realized={summary?.holdings?.[h.id]}
+                              {...assetView(h)}
                               onToggle={toggleAsset}
                               onSwipeOffset={(id, px, live) =>
                                 setSwipe({ id, px, live })
@@ -760,6 +790,7 @@ export function InvestmentsSection({
                               maxAmountChars={amountCols.group[block.uiType]}
                               open={openAssets.has(h.id)}
                               realized={summary?.holdings?.[h.id]}
+                              {...assetView(h)}
                               onToggle={toggleAsset}
                               onSwipeOffset={(id, px, live) =>
                                 setSwipe({ id, px, live })

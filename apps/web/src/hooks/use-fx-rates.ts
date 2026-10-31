@@ -34,3 +34,51 @@ export function useFxRates(from: string, tos: string[]): Map<string, number> {
   });
   return rates;
 }
+
+export interface CurrencyPL {
+  currency: string;
+  valueCents: string;
+  costCents: string;
+  realizedCents: string;
+  unrealizedCents: string;
+  totalPLCents: string;
+  contributedCents: string;
+  pct: number | null;
+}
+
+export const currencyPLKey = (
+  budgetId: string,
+  currency: string,
+  ids: string[],
+) =>
+  [
+    "budget",
+    budgetId,
+    "investments",
+    "pl",
+    currency,
+    [...ids].sort().join(","),
+  ] as const;
+
+/** R6 (user): P/L of a set of assets in a currency, every entry at its own
+ *  date's rate (GET /investments/pl). One result per request, in order. */
+export function useCurrencyPLs(
+  budgetId: string,
+  reqs: { currency: string; ids: string[] }[],
+): (CurrencyPL | undefined)[] {
+  const results = useQueries({
+    queries: reqs.map((r) => ({
+      queryKey: currencyPLKey(budgetId, r.currency, r.ids),
+      queryFn: async () => {
+        const res = await clientApiFetch(
+          `/budgets/${budgetId}/investments/pl?currency=${r.currency}&ids=${[...r.ids].sort().join(",")}`,
+        );
+        if (!res.ok) throw new Error(await res.text());
+        return (await res.json()) as CurrencyPL;
+      },
+      enabled: r.ids.length > 0,
+      staleTime: 60_000,
+    })),
+  });
+  return results.map((q) => q.data);
+}

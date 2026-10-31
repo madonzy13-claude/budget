@@ -794,7 +794,8 @@
           "close": "Zwiń ukryte aktywa",
           "unhide": "Pokaż",
           "unhideAria": "Pokaż {name}"
-        }
+        },
+        "currencyAria": "Pokaż {name} w innej walucie"
       },
       "swap": {
         "title": "Nowa transakcja: {name}",

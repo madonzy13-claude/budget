@@ -74,11 +74,17 @@ function renderHeader(
   };
 }
 
+/** The phone copy of a text (desktop has its own copy, CSS-hidden here). */
+const onPhone = (text: string) =>
+  screen
+    .getAllByText(text)
+    .find((el) => !el.closest('[data-testid*="-desktop-"]'))!;
+
 describe("InvestmentTypeHeader", () => {
   it("shows the type name and value only by default", () => {
     renderHeader();
-    expect(screen.getByText("Stocks & ETFs")).toBeInTheDocument();
-    expect(screen.getByText("80,000")).toBeInTheDocument();
+    expect(onPhone("Stocks & ETFs")).toBeInTheDocument();
+    expect(onPhone("80,000")).toBeInTheDocument();
     // Only the desktop columns (CSS-hidden on a phone) carry the P/L closed.
     const phone = (text: string) =>
       screen
@@ -92,7 +98,7 @@ describe("InvestmentTypeHeader", () => {
   it("has no realized sub-line and no indent before the name", () => {
     renderHeader();
     expect(screen.queryByTestId("investment-type-realized-stocks")).toBeNull();
-    const name = screen.getByText("Stocks & ETFs");
+    const name = onPhone("Stocks & ETFs");
     for (
       let el: HTMLElement | null = name;
       el && !el.dataset.testid;
@@ -211,6 +217,36 @@ describe("InvestmentTypeHeader", () => {
     ).toMatch(/sm:hidden/);
   });
 
+  // R6 (user): opening a group on desktop must not shrink it — the phone's
+  // compact sizes (plain .text-num-sm, no sm: variant) stay off desktop.
+  it("desktop keeps the name and amount size when the group opens", () => {
+    const h = renderHeader();
+    h.open();
+    const desk = screen.getByTestId("investment-type-name-desktop-stocks");
+    expect(desk.className).toMatch(/hidden .*sm:block/);
+    expect(desk.className).toMatch(/text-body-md/);
+    expect(desk.className).not.toMatch(/text-num-sm/);
+    const amt = screen.getByTestId("investment-type-amount-desktop-stocks");
+    expect(amt.className).toMatch(/hidden .*sm:inline/);
+    expect(amt.className).toMatch(/text-num-md/);
+  });
+
+  // R6 (user): desktop shows unrealized · realized under the name.
+  it("desktop shows the unrealized / realized caption, closed too", () => {
+    renderHeader();
+    const cap = screen.getByTestId("investment-type-caption-desktop-stocks");
+    expect(cap.className).toMatch(/hidden .*sm:block/);
+    expect(cap.textContent).toMatch(/unrealized: .*realized: /);
+  });
+
+  // R6 (user): the currency reads like the spending wallets' — its own cell.
+  it("the currency picker sits in the wallets' currency cell", () => {
+    renderHeader({ onCurrencyChange: () => {} });
+    expect(
+      screen.getByTestId("investment-type-currency-stocks").className,
+    ).toMatch(/w-\[44px\].*sm:w-\[96px\].*md:w-\[224px\]/);
+  });
+
   it("collapsed shows name and value, no sum-up and no share", () => {
     renderHeader();
     expect(
@@ -222,14 +258,14 @@ describe("InvestmentTypeHeader", () => {
 
   it("open mirrors the asset reveal: smaller name, P/L line, labelled amounts, share under the value", () => {
     const h = renderHeader();
-    expect(screen.getByText("Stocks & ETFs").className).not.toMatch(
+    expect(onPhone("Stocks & ETFs").className).not.toMatch(
       /font-semibold|font-bold/,
     );
     h.open();
     const root = screen.getByTestId("investment-group-stocks");
     // Round 3: the reveal fits the card like the asset row (it grew 56 → 69.6).
     expect(root.className).not.toMatch(/(^|\s)py-/);
-    const nameEl = screen.getByText("Stocks & ETFs");
+    const nameEl = onPhone("Stocks & ETFs");
     expect(nameEl.className).toMatch(/text-num-sm/);
     expect(nameEl.className).not.toMatch(/font-semibold|font-bold/);
     const sum = screen.getByTestId("investment-type-split-stocks");
@@ -246,9 +282,15 @@ describe("InvestmentTypeHeader", () => {
     );
     expect(line.querySelector('[data-pl-trend="up"]')).not.toBeNull();
     // The revealed value is the asset row's small one, so the lines fit.
-    expect(
-      screen.getByTestId("investment-type-value-stocks").innerHTML,
-    ).not.toMatch(/(^|\s)text-num-md/);
+    const phoneAmount = [
+      ...screen
+        .getByTestId("investment-type-value-stocks")
+        .querySelectorAll("span"),
+    ].find(
+      (el) =>
+        /\bnum\b/.test(el.className) && el.className.includes("sm:hidden"),
+    )!;
+    expect(phoneAmount.className).toMatch(/text-num-sm/);
     const share = screen.getByTestId("investment-type-share-stocks");
     expect(share).toHaveTextContent("Share: 60%");
     expect(cap.contains(share)).toBe(false);
@@ -278,7 +320,7 @@ describe("InvestmentTypeHeader", () => {
     const header = screen.getByTestId("investment-group-stocks");
     expect(header).toHaveAttribute("role", "button");
     expect(header).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(screen.getByText("Stocks & ETFs"));
+    fireEvent.click(onPhone("Stocks & ETFs"));
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
