@@ -2910,3 +2910,10 @@ Then(
     ).toHaveText(note);
   },
 );
+
+When(
+  "I edit the newest entry of {string} to the note {string}",
+  async ({ page }, name: string, note: string) => {
+    await new InvestmentsPo(page).editNewestNote(name, note);
+  },
+);

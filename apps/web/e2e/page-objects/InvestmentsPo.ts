@@ -591,7 +591,7 @@ export class InvestmentsPo {
       }
     }
     await sheet.getByTestId("swap-sell-received").fill(opts.received);
-    if (opts.note) await sheet.getByTestId("swap-sell-note").fill(opts.note);
+    if (opts.note) await sheet.getByTestId("swap-note").fill(opts.note);
     return this.submitSwap("/sell");
   }
 
@@ -646,6 +646,22 @@ export class InvestmentsPo {
       });
     }).toPass({ timeout: 30_000 });
     return ledger;
+  }
+
+  /** R6: Edit the newest entry's note through the Edit dialog. */
+  async editNewestNote(name: string, note: string): Promise<void> {
+    const ledger = await this.openLedger(name);
+    const edit = ledger.locator('[data-testid^="ledger-edit-"]').first();
+    await this.revealDelete(edit);
+    await edit.click();
+    await this.page.getByTestId("entry-edit-note").fill(note);
+    const saved = this.page.waitForResponse(
+      (r) =>
+        /\/entries\/[^/]+$/.test(r.url()) && r.request().method() === "PATCH",
+      { timeout: 15000 },
+    );
+    await this.page.getByTestId("entry-edit-save").click();
+    expect((await saved).status()).toBe(200);
   }
 
   /** Phone widths hide a ledger row's delete until the row is swiped

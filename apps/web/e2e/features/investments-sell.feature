@@ -32,6 +32,15 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     And I sell "IBKR" leaving "30000" out of investments receiving "66000" with the note "Paid the car loan"
     Then the ledger of "IBKR" shows the note "Paid the car loan"
 
+  # R6 (user): Edit a transaction — its note (and date within range).
+  @r6-edit-entry
+  Scenario: Editing a transaction's note updates the ledger row
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I sell "IBKR" leaving "30000" out of investments receiving "66000" with the note "Paid the car loan"
+    And I edit the newest entry of "IBKR" to the note "Paid the mortgage"
+    Then the ledger of "IBKR" shows the note "Paid the mortgage"
+
   # Roadmap 13.3: realized stays with the source type even when it is gone.
   Scenario: Selling a broker completely into a new cash holding keeps the realized gain
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
