@@ -2433,7 +2433,7 @@ When("I switch the Swap sheet to {word}", async ({ page }, tab: string) => {
 
 // Gap 9: square delete with a shadow on its left edge.
 Then(
-  "the revealed delete in the ledger of {string} is square with a left inset shadow",
+  "the revealed buttons in the ledger of {string} are square with a left inset shadow on Edit",
   async ({ page }, name: string) => {
     const po = new InvestmentsPo(page);
     const ledger = await po.openLedger(name);
@@ -2441,12 +2441,19 @@ Then(
       .locator('[data-testid^="ledger-delete-"]:not([aria-disabled="true"])')
       .first();
     await po.revealDelete(del);
-    const look = await del.evaluate((el) => {
+    const look = (el: Element) => {
       const cs = getComputedStyle(el);
       return { radius: cs.borderTopLeftRadius, shadow: cs.boxShadow };
-    });
-    expect(look.radius).toBe("0px");
-    expect(look.shadow).toContain("inset");
+    };
+    const row0 = del.locator("xpath=ancestor::*[@data-ledger-row][1]");
+    const edit = await row0
+      .locator('[data-testid^="ledger-edit-"]')
+      .evaluate(look);
+    const d = await del.evaluate(look);
+    expect(d.radius).toBe("0px");
+    expect(edit.radius).toBe("0px");
+    expect(edit.shadow).toContain("inset");
+    expect(d.shadow).toBe("none");
     // Gap 11: the swiped row is shaded on its left; gap 12: smaller qty line.
     const row = del.locator("xpath=ancestor::*[@data-ledger-row][1]");
     await expect(row.locator("[data-ledger-swipe-shade]")).toHaveCSS(

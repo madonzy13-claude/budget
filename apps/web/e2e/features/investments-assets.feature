@@ -409,11 +409,12 @@ Feature: Investments as assets with transactions (13.1)
 
   # Gap 9: the ledger delete is square with a shadow on its left.
   @r3-delete
-  Scenario: The swiped ledger delete is square with a left shadow
+  # R6 (user): with Edit beside Delete, the leftmost button (Edit) carries it.
+  Scenario: The swiped ledger buttons are square; Edit carries the left shadow
     Given I am on a phone-sized viewport
     And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
     When I open the investments wallets tab
-    Then the revealed delete in the ledger of "IBKR" is square with a left inset shadow
+    Then the revealed buttons in the ledger of "IBKR" are square with a left inset shadow on Edit
 
   # ── Round 4 (13.1-40..44) ──
 
