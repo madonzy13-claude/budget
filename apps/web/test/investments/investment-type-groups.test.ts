@@ -106,6 +106,32 @@ describe("typeGroupPL (D-15/D-16)", () => {
     expect(pl.pct).toBeCloseTo(53.7, 1);
   });
 
+  // R6 (user, crypto +36.4% vs a real +150%): swaps inside the type re-count
+  // the same money in held + sold cost, so the % is over money put in.
+  it("the % is over the money put into the type when the server sends it", () => {
+    const pl = typeGroupPL(
+      [
+        h({
+          valueInBudgetCents: "3000000",
+          costInBudgetCents: "1720000",
+          profitLossPct: 74.4,
+        }),
+        h({
+          valueInBudgetCents: "5000000",
+          costInBudgetCents: "4000000",
+          profitLossPct: 25,
+        }),
+      ],
+      {
+        realizedBudgetCents: "2820000",
+        soldCostBudgetCents: "3780000",
+        contributedBudgetCents: "3400000",
+      },
+    );
+    expect(pl.totalPLCents).toBe(5_100_000);
+    expect(pl.pct).toBeCloseTo(150, 1);
+  });
+
   it("no summary: realized 0, % over held cost", () => {
     const pl = typeGroupPL([
       h({

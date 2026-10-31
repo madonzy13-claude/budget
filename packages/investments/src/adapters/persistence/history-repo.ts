@@ -15,6 +15,7 @@ import type {
   HistoryKind,
   HistoryRepo,
   RealizedRow,
+  ContributionRow,
   StoredEntry,
 } from "../../ports/history-repo";
 
@@ -499,6 +500,40 @@ export class DrizzleHistoryRepo implements HistoryRepo {
         realizedBudgetRestCents: BigInt(String(row.realized_budget_rest)),
         realizedBudgetCents: BigInt(String(row.realized)),
         soldCostBudgetCents: BigInt(String(row.sold_cost)),
+      }));
+    });
+  }
+
+  async contributionsByType(
+    tenantId: string,
+    userId: string,
+    budgetId: string,
+  ): Promise<ContributionRow[]> {
+    return this.read(tenantId, userId, async (dt) => {
+      // An in-leg counts unless its other leg is in the same type (a swap
+      // inside the type moves money that is already in it).
+      const res = await dt.execute(sql`
+        SELECT COALESCE(i.ui_type, 'other') AS ui_type, h.amount_currency AS currency,
+               h.effective_date::text AS effective_date,
+               sum(h.amount_cents)::text AS amount
+          FROM budgeting.investment_history h
+          JOIN budgeting.investments i ON i.id = h.holding_id
+         WHERE h.budget_id = ${budgetId}::uuid AND h.deleted_at IS NULL
+           AND h.kind IN ('start', 'buy', 'add', 'convert_in', 'transfer_in')
+           AND h.amount_cents IS NOT NULL AND h.amount_currency IS NOT NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM budgeting.investment_history p
+               JOIN budgeting.investments pi ON pi.id = p.holding_id
+              WHERE h.transfer_id IS NOT NULL AND p.transfer_id = h.transfer_id
+                AND p.id <> h.id AND p.deleted_at IS NULL
+                AND COALESCE(pi.ui_type, 'other') = COALESCE(i.ui_type, 'other'))
+         GROUP BY 1, 2, 3
+      `);
+      return res.rows.map((row) => ({
+        uiType: String(row.ui_type),
+        currency: String(row.currency).trim(),
+        effectiveDate: String(row.effective_date),
+        amountCents: BigInt(String(row.amount)),
       }));
     });
   }

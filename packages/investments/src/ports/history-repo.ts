@@ -143,6 +143,15 @@ export interface StoredEntry {
   note: string | null;
 }
 
+/** R6 (user): money that came into a type from outside it — opening and
+ *  buy entries, and conversions whose other leg sits in another type. */
+export interface ContributionRow {
+  uiType: string;
+  currency: string;
+  effectiveDate: string;
+  amountCents: bigint;
+}
+
 export interface RealizedRow {
   uiType: string;
   /** R6-6: per-asset realized next to the per-type sum. */
@@ -214,6 +223,11 @@ export interface HistoryRepo {
     userId: string,
     budgetId: string,
   ): Promise<RealizedRow[]>;
+  contributionsByType(
+    tenantId: string,
+    userId: string,
+    budgetId: string,
+  ): Promise<ContributionRow[]>;
   // ponytail: the type order is one budgets column — no port of its own.
   getTypeOrder(
     tenantId: string,

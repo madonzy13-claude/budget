@@ -22,7 +22,7 @@ export function typeSummary(deps: {
     input: Who & { budgetCurrency: string },
   ): Promise<Result<TypeSummaryDto, Error>> => {
     try {
-      const [rows, order] = await Promise.all([
+      const [rows, order, ins] = await Promise.all([
         deps.historyRepo.realizedByType(
           input.tenantId,
           input.actorUserId,
@@ -33,7 +33,35 @@ export function typeSummary(deps: {
           input.actorUserId,
           input.budgetId,
         ),
+        deps.historyRepo.contributionsByType(
+          input.tenantId,
+          input.actorUserId,
+          input.budgetId,
+        ),
       ]);
+      // R6 (user): what each type was given from outside, at the entry's date.
+      const contributed = new Map<string, Big>();
+      for (const row of ins) {
+        let rate = "1";
+        if (row.currency !== input.budgetCurrency)
+          try {
+            rate = (
+              await deps.fxProvider.rateAsOf(
+                row.currency as never,
+                input.budgetCurrency as never,
+                new Date(`${row.effectiveDate}T12:00:00Z`),
+              )
+            ).rate;
+          } catch {
+            continue;
+          }
+        contributed.set(
+          row.uiType,
+          (contributed.get(row.uiType) ?? new Big(0)).plus(
+            new Big(row.amountCents.toString()).times(rate),
+          ),
+        );
+      }
       const sums = new Map<string, { r: Big; s: Big }>();
       const perHolding = new Map<string, { r: Big; s: Big }>();
       const add = (
@@ -124,7 +152,21 @@ export function typeSummary(deps: {
       return ok({
         currency: input.budgetCurrency,
         order,
-        types: out(sums),
+        types: Object.fromEntries(
+          [...new Set([...sums.keys(), ...contributed.keys()])].map((t) => {
+            const base = out(sums)[t] ?? {
+              realizedBudgetCents: "0",
+              soldCostBudgetCents: "0",
+            };
+            const c = contributed.get(t);
+            return [
+              t,
+              c
+                ? { ...base, contributedBudgetCents: c.round(0, 2).toFixed(0) }
+                : base,
+            ];
+          }),
+        ),
         holdings: Object.fromEntries(
           Object.entries(out(perHolding)).map(([id, v]) => {
             const a = asset.get(id);

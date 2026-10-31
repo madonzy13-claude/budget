@@ -192,7 +192,13 @@ export interface TypeSummaryDto {
   order: string[];
   types: Record<
     string,
-    { realizedBudgetCents: string; soldCostBudgetCents: string }
+    {
+      realizedBudgetCents: string;
+      soldCostBudgetCents: string;
+      /** R6: money put into the type from outside it, budget currency at
+       *  each entry's date — the base of the type's P/L %. */
+      contributedBudgetCents?: string;
+    }
   >;
   /** R6-6: the same sums per asset (holding id), plus its realized in the
    *  asset's own currency (what the asset row shows). */

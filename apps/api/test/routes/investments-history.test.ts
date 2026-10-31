@@ -689,6 +689,48 @@ describe("Ledger, undo, type summary (13-08 → 13.1)", () => {
     expect(await flowSum(fix)).toBe(flowBefore);
   });
 
+  // R6 (user, crypto showed +36.4% for a real +150%): a type's % is over the
+  // money put into it from OUTSIDE the type — a swap between two of its own
+  // assets must not count that money twice.
+  it("type summary: contributed counts money from outside the type only", async () => {
+    const fix = await createFixture();
+    const app = await buildApp(fix);
+    const b = await brokerSeed(fix); // value 96,000
+    const cash = await seed(fix, { name: "Cash" });
+    const opening = (id: string, cents: number) =>
+      q(
+        fix,
+        `INSERT INTO budgeting.investment_history
+           (tenant_id, budget_id, holding_id, kind, effective_date, amount_cents, amount_currency)
+         VALUES ($1, $1, $2, 'start', '2026-09-01', $3, 'PLN')`,
+        [fix.tenantId, id, cents],
+      );
+    await opening(b, 5_500_000);
+    await opening(cash, 1_000_000);
+    // Inside the type: broker → a new broker.
+    await sell(app, b, {
+      left: { valueCents: "6600000" },
+      destination: {
+        kind: "new",
+        holding: { name: "Broker 2", holdingType: "other", uiType: "broker" },
+      },
+      receivedCents: "3000000",
+    });
+    // From outside the type: cash → broker.
+    await sell(app, cash, {
+      left: { valueCents: "600000" },
+      destination: { kind: "existing", holdingId: b },
+      receivedCents: "400000",
+    });
+    const { types } = (await (
+      await req(app, "GET", "/type-summary")
+    ).json()) as {
+      types: Record<string, { contributedBudgetCents?: string }>;
+    };
+    expect(types.broker?.contributedBudgetCents).toBe("5900000");
+    expect(types.cash?.contributedBudgetCents).toBe("1000000");
+  });
+
   it("delete + re-enter through the API equals entering once", async () => {
     const state = async (twice: boolean) => {
       const fix = await createFixture();

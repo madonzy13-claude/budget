@@ -327,6 +327,7 @@ export class MemoryWorld {
         soldCostBudgetCents: v.s,
       }));
     },
+    contributionsByType: async () => [],
     getTypeOrder: async () => this.typeOrder,
     setTypeOrder: async (_t, _u, _b, order) => {
       this.typeOrder = order;

@@ -24,6 +24,7 @@ describe("Type summary FX isolation", () => {
         },
       ],
       getTypeOrder: async () => [],
+      contributionsByType: async () => [],
     } as unknown as HistoryRepo;
     const fxProvider = {
       rateAsOf: async () => {
@@ -59,6 +60,7 @@ describe("Per-asset realized", () => {
         row("B", 10n, 10n, "EUR"),
       ],
       getTypeOrder: async () => [],
+      contributionsByType: async () => [],
     } as unknown as HistoryRepo;
     const fxProvider = {
       rateAsOf: async () => ({ rate: "4", provider: "s", isStale: false }),
@@ -99,6 +101,7 @@ describe("Per-asset realized in the asset currency", () => {
         },
       ],
       getTypeOrder: async () => [],
+      contributionsByType: async () => [],
     } as unknown as HistoryRepo;
     const fxProvider = {
       rateAsOf: async (f: string, t: string) => ({
@@ -139,6 +142,7 @@ describe("Per-asset realized in the shown currency", () => {
         },
       ],
       getTypeOrder: async () => [],
+      contributionsByType: async () => [],
     } as unknown as HistoryRepo;
     const fxProvider = {
       rateAsOf: async (f: string, t: string) => ({

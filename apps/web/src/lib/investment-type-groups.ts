@@ -23,7 +23,12 @@ export interface TypeSummaryDto {
   /** Keyed by ui_type; includes types with no holdings left (D-14). */
   types: Record<
     string,
-    { realizedBudgetCents: string; soldCostBudgetCents: string }
+    {
+      realizedBudgetCents: string;
+      soldCostBudgetCents: string;
+      /** R6: money put into the type from outside it (the % base). */
+      contributedBudgetCents?: string;
+    }
   >;
   /** R6-6: the same sums per asset; optional while an older api answers. */
   holdings?: Record<
@@ -89,7 +94,11 @@ function heldCost(h: HoldingDto): number | null {
 
 export function typeGroupPL(
   holdings: HoldingDto[],
-  summary?: { realizedBudgetCents: string; soldCostBudgetCents: string },
+  summary?: {
+    realizedBudgetCents: string;
+    soldCostBudgetCents: string;
+    contributedBudgetCents?: string;
+  },
 ): TypeGroupPL {
   let valueBudgetCents = 0;
   let unrealizedCents = 0;
@@ -106,14 +115,18 @@ export function typeGroupPL(
   const lifetimeCostCents =
     heldCostCents + Number(summary?.soldCostBudgetCents ?? 0);
   const totalPLCents = unrealizedCents + realizedCents;
+  // R6 (user): over the money put in from outside when known — held + sold
+  // cost counts a swap inside the type twice.
+  const base = summary?.contributedBudgetCents
+    ? Number(summary.contributedBudgetCents)
+    : lifetimeCostCents;
   return {
     valueBudgetCents,
     unrealizedCents,
     realizedCents,
     totalPLCents,
     lifetimeCostCents,
-    pct:
-      lifetimeCostCents > 0 ? (totalPLCents / lifetimeCostCents) * 100 : null,
+    pct: base > 0 ? (totalPLCents / base) * 100 : null,
   };
 }
 
