@@ -289,6 +289,72 @@ export async function runScheduledEngine(
     if (r.isOk()) totalDrafts += r.value;
   }
 
+  // Step 7 (user, R6): an unconfirmed payment moved to a future date was set
+  // aside (deferred_at). On its date it comes back as if just generated: back
+  // in the unconfirmed list, with a fresh CONFIRM_DRAFT task (and its push).
+  const deferredResult = await withInfraTx(async (tx) => {
+    const drizzleTx = tx as {
+      execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+    };
+    // Budgets with a schedule (the worker's RLS scan policy covers
+    // scheduled_payments, not the ledger); each release runs tenant-scoped.
+    const res = await drizzleTx.execute(sql`
+      SELECT DISTINCT tenant_id FROM budgeting.scheduled_payments
+    `);
+    return res.rows as Array<{ tenant_id: string }>;
+  });
+  if (deferredResult.isOk()) {
+    for (const { tenant_id } of deferredResult.value) {
+      const released = await withTenantTx(
+        TenantId(tenant_id),
+        UserId(SYSTEM_USER_ID),
+        async (tx) => {
+          const drizzleTx = tx as {
+            execute: (
+              q: unknown,
+            ) => Promise<{ rows: Record<string, unknown>[] }>;
+          };
+          const released = await drizzleTx.execute(sql`
+            WITH r AS (
+              UPDATE budgeting.expense_ledger
+                 SET deferred_at = NULL, updated_at = now()
+               WHERE tenant_id = ${tenant_id}::uuid
+                 AND deferred_at IS NOT NULL
+                 AND transaction_date <= ${today}::date
+                 AND deleted_at IS NULL AND dismissed_at IS NULL
+                 AND confirmed_at IS NULL
+              RETURNING id, budget_id, transaction_date, amount_converted_cents,
+                        currency_original, category_id, scheduled_payment_id
+            )
+            SELECT r.id, r.budget_id, r.transaction_date::text AS date,
+                   r.amount_converted_cents::text AS amount, r.currency_original,
+                   r.category_id, sp.note
+              FROM r
+              LEFT JOIN budgeting.scheduled_payments sp ON sp.id = r.scheduled_payment_id
+          `);
+          for (const row of released.rows) {
+            await taskRepo.emitConfirmDraft(
+              tenant_id,
+              String(row.budget_id),
+              {
+                draft_id: String(row.id),
+                rule_name: (row.note as string | null) ?? "",
+                amount_cents: String(row.amount),
+                currency: String(row.currency_original).trim(),
+                transaction_date: String(row.date),
+                category_id: (row.category_id as string | null) ?? "",
+              },
+              tx as unknown as TenantTx,
+            );
+            totalDrafts++;
+          }
+        },
+      );
+      if (released.isErr())
+        console.error("[scheduled-engine] release failed", released.error);
+    }
+  }
+
   return ok({ tenantsScanned: tenants.length, draftsGenerated: totalDrafts });
 }
 
