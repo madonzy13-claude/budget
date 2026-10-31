@@ -86,7 +86,10 @@ const h = (id: string, uiType: string, holdingType: string): HoldingDto =>
     depositCapFrequency: null,
   }) as HoldingDto;
 
-function mount(entries: Record<string, { id: string | null }[]> = {}) {
+function mount(
+  entries: Record<string, { id: string | null }[]> = {},
+  hidden: HoldingDto[] = [],
+) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
@@ -98,6 +101,7 @@ function mount(entries: Record<string, { id: string | null }[]> = {}) {
     ["budget", B, "investments"],
     [h("c1", "crypto", "crypto"), h("d1", "deposit", "deposit")],
   );
+  qc.setQueryData(["budget", B, "investments", "hidden"], hidden);
   qc.setQueryData(typeSummaryKey(B), { currency: "PLN", order: [], types: {} });
   for (const [id, rows] of Object.entries(entries))
     qc.setQueryData(entriesKey(B, id), rows);
@@ -131,16 +135,13 @@ describe("Asset row actions", () => {
     expect(screen.getByTestId("edit-sheet-stub")).toHaveTextContent("c1");
   });
 
-  // Round 4 (user): archive is an explicit row action with a confirm.
-  it("Archive asks first, then archives the asset and it leaves the list", async () => {
+  // R6 (user): Hide (was Archive) acts at once — no confirmation.
+  it("Hide hides the asset at once and it leaves the list", async () => {
     vi.mocked(clientApiWrite).mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), { status: 200 }),
     );
     mount();
-    fireEvent.click(screen.getByTestId("investment-archive-c1"));
-    expect(screen.getByText("asset.archive.title")).toBeInTheDocument();
-    expect(clientApiWrite).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId("investment-archive-confirm"));
+    fireEvent.click(screen.getByTestId("investment-hide-c1"));
     await waitFor(() => expect(clientApiWrite).toHaveBeenCalled());
     const [url, init] = vi.mocked(clientApiWrite).mock.calls[0]!;
     expect(url).toBe("/budgets/b1/investments/c1/archive");
@@ -152,10 +153,39 @@ describe("Asset row actions", () => {
     );
   });
 
-  it("desktop has the same Archive action on hover", () => {
+  it("desktop has the same Hide action on hover, also without a confirm", async () => {
+    vi.mocked(clientApiWrite).mockReset();
+    vi.mocked(clientApiWrite).mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
     mount();
-    fireEvent.click(screen.getByTestId("investment-archive-desktop-c1"));
-    expect(screen.getByText("asset.archive.title")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("investment-hide-desktop-c1"));
+    await waitFor(() => expect(clientApiWrite).toHaveBeenCalled());
+  });
+
+  // R6 (user): a group with hidden assets says how many at its bottom; the
+  // link lists them, dimmed, each with Unhide on the swipe.
+  it("a group's hidden assets open from its link, dimmed, and Unhide brings one back", async () => {
+    vi.mocked(clientApiWrite).mockReset();
+    vi.mocked(clientApiWrite).mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
+    mount({}, [h("x1", "crypto", "crypto"), h("x2", "crypto", "crypto")]);
+    expect(
+      document.querySelector('[data-investment-row-wrapper="x1"]'),
+    ).toBeNull();
+    const link = screen.getByTestId("hidden-toggle-crypto");
+    expect(link.dataset.count).toBe("2");
+    expect(screen.queryByTestId("hidden-toggle-deposit")).toBeNull();
+    fireEvent.click(link);
+    const row = await screen.findByTestId("hidden-asset-x1");
+    expect(Number(row.style.opacity)).toBeLessThan(1);
+    expect(screen.queryByTestId("investment-hide-x1")).toBeNull();
+    fireEvent.click(screen.getByTestId("investment-unhide-x1"));
+    await waitFor(() => expect(clientApiWrite).toHaveBeenCalled());
+    expect(vi.mocked(clientApiWrite).mock.calls[0]![0]).toBe(
+      "/budgets/b1/investments/x1/restore",
+    );
   });
 
   // Round-4 gap 27: every visible asset's ledger is preloaded.
@@ -181,7 +211,7 @@ describe("Asset row actions", () => {
       new Response(JSON.stringify({ wipedHoldingId: "c1" }), { status: 200 }),
     );
     mount({ c1: [{ id: "e-start" }] });
-    expect(screen.queryByTestId("investment-archive-c1")).toBeNull();
+    expect(screen.queryByTestId("investment-hide-c1")).toBeNull();
     fireEvent.click(screen.getByTestId("investment-delete-c1"));
     expect(screen.getByText("ledger.confirm.last.title")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("investment-delete-confirm"));
@@ -191,10 +221,10 @@ describe("Asset row actions", () => {
     expect((init as RequestInit).method).toBe("DELETE");
   });
 
-  it("an asset with transactions offers an amber Archive", () => {
+  it("an asset with transactions offers an amber Hide", () => {
     mount({ c1: [{ id: "e2" }, { id: "e1" }] });
     expect(screen.queryByTestId("investment-delete-c1")).toBeNull();
-    expect(screen.getByTestId("investment-archive-c1").className).toMatch(
+    expect(screen.getByTestId("investment-hide-c1").className).toMatch(
       /bg-\[var\(--warning\)\]/,
     );
   });

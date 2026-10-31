@@ -15,7 +15,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
-import { Archive, ArrowUpDown, Pencil, Trash2 } from "lucide-react";
+import { ArrowUpDown, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { useSwipeReveal } from "@/hooks/use-swipe-reveal";
 import type { HoldingDto } from "@/hooks/use-investments";
@@ -33,8 +33,10 @@ interface InvestmentRowSheetProps {
   onEdit: (holding: HoldingDto) => void;
   /** 13.1: open the Swap sheet (Buy / Sell / Transfer) for this asset. */
   onSwap?: (holding: HoldingDto) => void;
-  /** Round 4: archive the asset (asks first; history stays). */
+  /** Hide the asset (R6, user: was Archive; no confirm, history stays). */
   onArchive?: (holding: HoldingDto) => void;
+  /** R6 (user): a hidden asset's row offers Unhide instead of Hide. */
+  onUnhide?: (holding: HoldingDto) => void;
   /** Round 4: an asset with nothing but its opening entry is deleted, not
    *  archived — the section passes this only for such an asset. */
   onDelete?: (holding: HoldingDto) => void;
@@ -60,6 +62,7 @@ export function InvestmentRowSheet({
   onEdit,
   onSwap,
   onArchive,
+  onUnhide,
   onDelete,
   onToggle,
   open,
@@ -88,6 +91,8 @@ export function InvestmentRowSheet({
     isDragging,
   } = useSortable({
     id: holding.id,
+    // A hidden asset sits outside the sortable list.
+    disabled: !!onUnhide,
     // Don't animate the post-drop layout change. The reorder comes from React
     // Query (the DOM order changes on drop); if @dnd-kit also animates the
     // transform-reset, the drop-neighbour renders at (new slot + leftover drag
@@ -174,7 +179,22 @@ export function InvestmentRowSheet({
         >
           <ArrowUpDown className="h-5 w-5" aria-hidden="true" />
         </button>
-        {onDelete ? (
+        {onUnhide ? (
+          <button
+            type="button"
+            data-no-swipe
+            data-testid={`investment-unhide-${holding.id}`}
+            aria-label={t("asset.hidden.unhideAria", { name: holding.name })}
+            tabIndex={offset === 0 ? -1 : 0}
+            onClick={() => {
+              closeSwipe();
+              onUnhide(holding);
+            }}
+            className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--warning)] text-[var(--warning-foreground)]"
+          >
+            <Eye className="h-5 w-5" aria-hidden="true" />
+          </button>
+        ) : onDelete ? (
           <button
             type="button"
             data-no-swipe
@@ -193,7 +213,7 @@ export function InvestmentRowSheet({
           <button
             type="button"
             data-no-swipe
-            data-testid={`investment-archive-${holding.id}`}
+            data-testid={`investment-hide-${holding.id}`}
             aria-label={t("asset.archive.aria", { name: holding.name })}
             tabIndex={offset === 0 ? -1 : 0}
             onClick={() => {
@@ -202,7 +222,7 @@ export function InvestmentRowSheet({
             }}
             className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--warning)] text-[var(--warning-foreground)]"
           >
-            <Archive className="h-5 w-5" aria-hidden="true" />
+            <EyeOff className="h-5 w-5" aria-hidden="true" />
           </button>
         )}
       </div>
@@ -233,9 +253,12 @@ export function InvestmentRowSheet({
           onEdit={() => onEdit(holding)}
           onSwap={onSwap ? () => onSwap(holding) : undefined}
           onArchive={
-            onArchive && !onDelete ? () => onArchive(holding) : undefined
+            onArchive && !onDelete && !onUnhide
+              ? () => onArchive(holding)
+              : undefined
           }
-          onDelete={onDelete ? () => onDelete(holding) : undefined}
+          onUnhide={onUnhide ? () => onUnhide(holding) : undefined}
+          onDelete={onDelete && !onUnhide ? () => onDelete(holding) : undefined}
           onToggle={onToggle}
           open={open}
           realized={realized}

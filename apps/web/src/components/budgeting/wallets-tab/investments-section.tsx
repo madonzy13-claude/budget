@@ -47,7 +47,11 @@ import { DashedAddButton } from "@/components/common/dashed-add-button";
 import { centsToBare, centsToRounded } from "@/lib/cents-format";
 import { amountColumnChars } from "@/lib/amount-column";
 import { useBudget } from "@/hooks/use-budget-data";
-import { useInvestments, type HoldingDto } from "@/hooks/use-investments";
+import {
+  useHiddenHoldings,
+  useInvestments,
+  type HoldingDto,
+} from "@/hooks/use-investments";
 import { useSetTypeOrder, useTypeSummary } from "@/hooks/use-type-summary";
 import { useReorderHoldings } from "@/hooks/use-reorder-holdings";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
@@ -70,7 +74,10 @@ import {
 import { InvestmentRowSheet } from "./investment-row-sheet";
 import { AssetLedger } from "./asset-ledger";
 import { useQueries } from "@tanstack/react-query";
-import { useArchiveHolding } from "@/hooks/use-archive-holding";
+import {
+  useArchiveHolding,
+  useRestoreHolding,
+} from "@/hooks/use-archive-holding";
 import { useDeleteEntry } from "@/hooks/use-delete-entry";
 import {
   entriesKey,
@@ -283,9 +290,23 @@ export function InvestmentsSection({
   // 13.1 UAT 7: "New transaction" picks Buy / Sell / Transfer first.
   const [choosing, setChoosing] = useState(false);
   const [editing, setEditing] = useState<HoldingDto | null>(null);
-  // Round 4: Archive asks first; history stays, a buy / sell / move revives.
-  const [archiving, setArchiving] = useState<HoldingDto | null>(null);
+  // R6 (user): Hide / Unhide act at once (no confirm); history stays.
   const archiveMut = useArchiveHolding(budgetId);
+  const restoreMut = useRestoreHolding(budgetId);
+  const hiddenQuery = useHiddenHoldings(budgetId);
+  const hidden = useMemo(
+    () =>
+      (hiddenQuery.data ?? []).filter((h) => h.holdingType !== "possession"),
+    [hiddenQuery.data],
+  );
+  // Groups whose hidden assets are listed (the "N hidden" link toggles).
+  const [showHidden, setShowHidden] = useState<Set<string>>(new Set());
+  const toggleHidden = (uiType: string) =>
+    setShowHidden((cur) => {
+      const next = new Set(cur);
+      if (!next.delete(uiType)) next.add(uiType);
+      return next;
+    });
   // Round 4: an asset with nothing but its opening entry is deleted (its
   // last entry wipes it, D-17); ledgers are preloaded so this is known.
   const [deleting, setDeleting] = useState<{
@@ -316,10 +337,16 @@ export function InvestmentsSection({
   }
 
   // ── Type blocks (D-12..D-16) ──
-  const blocks = useMemo(
-    () => buildTypeBlocks(holdings, typeOrder),
-    [holdings, typeOrder],
-  );
+  // A type with only hidden assets keeps its block, so they can come back.
+  const blocks = useMemo(() => {
+    const ids = new Set(hidden.map((h) => h.id));
+    return buildTypeBlocks([...holdings, ...hidden], typeOrder).map((b) => ({
+      ...b,
+      holdings: b.holdings.filter((h) => !ids.has(h.id)),
+    }));
+  }, [holdings, hidden, typeOrder]);
+  const hiddenOf = (uiType: string) =>
+    hidden.filter((h) => typeOf(h) === uiType);
   const blockPL = useMemo(
     () =>
       new Map(
@@ -633,7 +660,7 @@ export function InvestmentsSection({
                               }
                               onEdit={openEdit}
                               onSwap={setSwapping}
-                              onArchive={setArchiving}
+                              onArchive={(x) => archiveMut.mutate(x.id)}
                               onDelete={
                                 soleEntry.get(h.id)
                                   ? (x) =>
@@ -670,6 +697,41 @@ export function InvestmentsSection({
                           </div>
                         ))}
                       </SortableContext>
+                      {hiddenOf(block.uiType).length > 0 && (
+                        <button
+                          type="button"
+                          data-testid={`hidden-toggle-${block.uiType}`}
+                          data-count={hiddenOf(block.uiType).length}
+                          onClick={() => toggleHidden(block.uiType)}
+                          className="self-start pl-7 text-left text-[12px] text-[var(--muted-foreground)] underline decoration-dotted underline-offset-2"
+                        >
+                          {showHidden.has(block.uiType)
+                            ? t("asset.hidden.close")
+                            : t("asset.hidden.show", {
+                                count: hiddenOf(block.uiType).length,
+                              })}
+                        </button>
+                      )}
+                      {showHidden.has(block.uiType) &&
+                        hiddenOf(block.uiType).map((h) => (
+                          <div
+                            key={h.id}
+                            data-testid={`hidden-asset-${h.id}`}
+                            className="flex flex-col pl-4"
+                            // R6 (user): listed like any asset, but fainter.
+                            style={{ opacity: 0.5 }}
+                          >
+                            <InvestmentRowSheet
+                              holding={h}
+                              nested
+                              maxAmountChars={amountCols.group[block.uiType]}
+                              realized={summary?.holdings?.[h.id]}
+                              onEdit={openEdit}
+                              onSwap={setSwapping}
+                              onUnhide={(x) => restoreMut.mutate(x.id)}
+                            />
+                          </div>
+                        ))}
                     </div>
                   </SlideCollapse>
                 </SortableTypeBlock>
@@ -748,33 +810,6 @@ export function InvestmentsSection({
               }}
             >
               {t("ledger.confirm.last.confirm")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <AlertDialog
-        open={archiving !== null}
-        onOpenChange={(o) => !o && setArchiving(null)}
-      >
-        <AlertDialogContent onCloseAutoFocus={(e) => e.preventDefault()}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t("asset.archive.title", { name: archiving?.name ?? "" })}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("asset.archive.body")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("asset.archive.cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              data-testid="investment-archive-confirm"
-              onClick={() => {
-                if (archiving) archiveMut.mutate(archiving.id);
-                setArchiving(null);
-              }}
-            >
-              {t("asset.archive.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -91,6 +91,22 @@ export interface HoldingDto {
   depositCapFrequency: string | null;
 }
 
+/** R6 (user): the hidden (archived) assets, for each group's "N hidden" link. */
+export function useHiddenHoldings(budgetId: string) {
+  return useQuery({
+    queryKey: ["budget", budgetId, "investments", "hidden"],
+    queryFn: async () => {
+      const res = await clientApiFetch(
+        `/budgets/${budgetId}/investments?hidden=1`,
+        { signal: AbortSignal.timeout(7000) },
+      );
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json();
+      return (json.holdings ?? []) as HoldingDto[];
+    },
+  });
+}
+
 export function useInvestments(budgetId: string, initialData?: HoldingDto[]) {
   return useQuery({
     queryKey: ["budget", budgetId, "investments"],

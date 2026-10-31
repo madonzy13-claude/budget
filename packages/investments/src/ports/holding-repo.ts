@@ -79,11 +79,13 @@ export interface HoldingRepo {
   archive(tenantId: string, userId: string, id: string): Promise<void>;
   /** Round 5: an archived asset comes back by id (names never join). */
   restore(tenantId: string, userId: string, id: string): Promise<void>;
-  /** Active (non-archived) holdings; tracked-instrument current price joined from the cache. */
+  /** Active (non-archived) holdings — or, with `hidden`, only the hidden
+   *  (archived) ones; tracked-instrument current price joined from the cache. */
   listForBudget(
     tenantId: string,
     budgetId: string,
     userId: string,
+    opts?: { hidden?: boolean },
   ): Promise<Holding[]>;
   reorder(
     tenantId: string,

@@ -721,8 +721,8 @@
         "createFailed": "Nie udało się dodać inwestycji. Spróbuj ponownie.",
         "saved": "Zaktualizowano inwestycję",
         "saveFailed": "Nie udało się zapisać zmian. Sprawdź połączenie i spróbuj ponownie.",
-        "archived": "Usunięto inwestycję",
-        "archiveFailed": "Nie udało się usunąć inwestycji. Spróbuj ponownie.",
+        "archived": "Inwestycja ukryta",
+        "archiveFailed": "Nie udało się ukryć inwestycji. Spróbuj ponownie.",
         "reorderFailed": "Nie udało się zmienić kolejności. Spróbuj ponownie.",
         "crossSectionRejected": "Aktywa mogą być tylko w Inwestycjach."
       },
@@ -777,19 +777,22 @@
         "name": {
           "label": "Nazwa",
           "create": "Dodaj jako nowe aktywo „{name}”",
-          "closed": "Zarchiwizowane",
+          "closed": "Ukryte",
           "reopens": "Ponownie otworzy {name}.",
           "pickOrCreate": "Wybierz istniejące aktywo lub wpisz nową nazwę.",
           "pickedValue": "Wartość aktywa: {value}"
         },
         "archive": {
-          "title": "Zarchiwizować {name}?",
-          "body": "Zniknie z listy, historia zostaje. Zakup, sprzedaż lub przeniesienie do niego przywróci je.",
-          "confirm": "Archiwizuj",
-          "cancel": "Zostaw",
-          "aria": "Archiwizuj {name}",
-          "done": "Aktywo zarchiwizowane",
-          "failed": "Nie udało się zarchiwizować aktywa."
+          "confirm": "Ukryj",
+          "aria": "Ukryj {name}",
+          "done": "Aktywo ukryte",
+          "failed": "Nie udało się ukryć aktywa."
+        },
+        "hidden": {
+          "show": "Pokaż ukryte aktywa ({count})",
+          "close": "Zwiń ukryte aktywa",
+          "unhide": "Pokaż",
+          "unhideAria": "Pokaż {name}"
         }
       },
       "swap": {

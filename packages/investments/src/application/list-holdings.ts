@@ -36,6 +36,8 @@ export function listHoldings(deps: {
     /** Viewer's IANA timezone — deposits accrue by the viewer's calendar day, so
      *  "today" rolls at their local midnight (not UTC). Defaults to UTC. */
     timezone?: string;
+    /** R6 (user): only the hidden (archived) assets — no portfolio share. */
+    hidden?: boolean;
   }): Promise<
     Result<
       {
@@ -50,6 +52,7 @@ export function listHoldings(deps: {
         input.tenantId,
         input.budgetId,
         input.actorUserId,
+        { hidden: input.hidden },
       );
       const budgetCcy = input.budgetCurrency;
       const asOf = new Date();
@@ -219,7 +222,7 @@ export function listHoldings(deps: {
             avgShown === null ? null : avgShown.round(0, 2).toFixed(0),
           profitLossDisplayCents:
             plShown === null ? null : plShown.round(0, 2).toFixed(0),
-          weightPct: weights.get(h.id) ?? 0,
+          weightPct: input.hidden ? 0 : (weights.get(h.id) ?? 0),
           sortOrder: h.sortOrder,
           createdAt: h.createdAt.toISOString(),
           depositRateBps: h.depositRateBps,

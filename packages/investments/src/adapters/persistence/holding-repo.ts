@@ -258,6 +258,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
     tenantId: string,
     budgetId: string,
     userId: string,
+    opts: { hidden?: boolean } = {},
   ): Promise<Holding[]> {
     const r = await withTenantTx(
       TenantId(tenantId),
@@ -303,7 +304,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                    ON i.id = inv.instrument_id
            WHERE inv.budget_id = ${budgetId}::uuid
              AND inv.tenant_id = ${tenantId}::uuid
-             AND inv.archived_at IS NULL
+             AND (inv.archived_at IS NOT NULL) = ${opts.hidden === true}
            ORDER BY inv.sort_order ASC, inv.created_at ASC
         `);
         return res.rows.map(mapRow);

@@ -23,7 +23,8 @@ import { typeGroupPL } from "@/lib/investment-type-groups";
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
-  Archive,
+  Eye,
+  EyeOff,
   Pencil,
   ArrowUpDown,
   Trash2,
@@ -65,8 +66,10 @@ interface InvestmentRowProps {
     realizedAssetCents?: string;
     assetCurrency?: string;
   };
-  /** Round 4: archive (the section asks first). */
+  /** Hide (R6, user: was Archive; no confirm). */
   onArchive?: () => void;
+  /** R6 (user): Unhide a hidden asset. */
+  onUnhide?: () => void;
   /** Round 4: delete an asset that has nothing but its opening entry. */
   onDelete?: () => void;
   /** 13.1 D-27: the row opened/closed — the section shows/hides its ledger. */
@@ -97,6 +100,7 @@ export function InvestmentRow({
   onEdit,
   onSwap,
   onArchive,
+  onUnhide,
   onDelete,
   onToggle,
   open,
@@ -539,7 +543,8 @@ export function InvestmentRow({
           [
             [onEdit, Pencil, "asset.swipe.edit", "edit"],
             [onSwap, ArrowUpDown, "asset.swipe.newTxn", "swap"],
-            [onArchive, Archive, "asset.archive.confirm", "archive"],
+            [onArchive, EyeOff, "asset.archive.confirm", "hide"],
+            [onUnhide, Eye, "asset.hidden.unhide", "unhide"],
             [onDelete, Trash2, "ledger.confirm.last.confirm", "delete"],
           ] as const
         ).map(([fn, Icon, key, id]) =>

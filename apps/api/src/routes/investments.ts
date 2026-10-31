@@ -174,6 +174,7 @@ export function createInvestmentsRoute(deps: BootedDeps) {
       actorUserId: userId,
       budgetCurrency,
       timezone,
+      hidden: c.req.query("hidden") === "1",
     });
     if (r.isErr()) return serverError(c, "list_holdings_failed", r.error);
     return c.json(r.value);

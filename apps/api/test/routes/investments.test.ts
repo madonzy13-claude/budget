@@ -329,6 +329,49 @@ describe("Investments routes", () => {
     expect(row.valueInBudgetCents).toBe("15000");
   });
 
+  // R6 (user): hidden assets leave the list but are fetched on their own, so
+  // each group can offer "Show N hidden assets".
+  it("GET /?hidden=1 lists only the hidden assets; GET / leaves them out", async () => {
+    const fix = await createFixture("USD");
+    const app = await buildApp(fix);
+    const add = async (name: string) =>
+      (
+        (await (
+          await app.request("/investments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name,
+              holdingType: "cash_fx",
+              uiType: "cash",
+              quantity: "1",
+              currentPriceCents: 10000,
+              currentPriceCurrency: "USD",
+            }),
+          })
+        ).json()) as { id: string }
+      ).id;
+    const shown = await add("Shown");
+    const hidden = await add("Hidden");
+    const hide = await app.request(`/investments/${hidden}/archive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    expect(hide.status).toBe(200);
+    const ids = async (q: string) =>
+      (
+        (await (await app.request(`/investments${q}`)).json()) as {
+          holdings: { id: string; weightPct: number }[];
+        }
+      ).holdings;
+    expect((await ids("")).map((h) => h.id)).toEqual([shown]);
+    const list = await ids("?hidden=1");
+    expect(list.map((h) => h.id)).toEqual([hidden]);
+    // A hidden asset is no share of the portfolio.
+    expect(list[0]!.weightPct).toBe(0);
+  });
+
   // R6 (user, USDC - Kraken): the name picker read the stored row price, so a
   // bad or stale one showed there while the list showed the live price.
   it("GET /names values a tracked asset at the cache price, like the list", async () => {

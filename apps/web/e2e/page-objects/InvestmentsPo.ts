@@ -232,7 +232,7 @@ export class InvestmentsPo {
    *  mouse pointers), hover on desktop (D-05: Swap · Edit). */
   private async rowAction(
     name: string,
-    action: "swap" | "edit" | "archive" | "delete",
+    action: "swap" | "edit" | "hide" | "unhide" | "delete",
   ): Promise<void> {
     const wrapper = this.wrapper(name);
     await wrapper.waitFor({ state: "visible" });
@@ -271,8 +271,8 @@ export class InvestmentsPo {
         const tid =
           action === "swap"
             ? `investment-swap-${id}`
-            : action === "archive"
-              ? `investment-archive-${id}`
+            : action === "hide" || action === "unhide"
+              ? `investment-${action}-${id}`
               : action === "delete"
                 ? `investment-delete-${id}`
                 : `holding-swipe-edit-${id}`;
@@ -439,14 +439,28 @@ export class InvestmentsPo {
     expect((await res).ok()).toBe(true);
   }
 
-  /** Round 4: archive an asset through its row action + the confirm. */
-  async archive(name: string): Promise<void> {
-    await this.rowAction(name, "archive");
+  /** R6 (user): hide an asset through its row action — no confirm. */
+  async hide(name: string): Promise<void> {
     const res = this.page.waitForResponse(
       (r) => r.url().endsWith("/archive") && r.request().method() === "POST",
       { timeout: 15000 },
     );
-    await this.page.getByTestId("investment-archive-confirm").click();
+    await this.rowAction(name, "hide");
+    expect((await res).ok()).toBe(true);
+  }
+
+  /** The "N hidden assets" link at the bottom of a type group. */
+  hiddenLink(type: string) {
+    return this.page.getByTestId(`hidden-toggle-${type}`);
+  }
+
+  /** R6 (user): unhide a listed hidden asset through its row action. */
+  async unhide(name: string): Promise<void> {
+    const res = this.page.waitForResponse(
+      (r) => r.url().endsWith("/restore") && r.request().method() === "POST",
+      { timeout: 15000 },
+    );
+    await this.rowAction(name, "unhide");
     expect((await res).ok()).toBe(true);
   }
 

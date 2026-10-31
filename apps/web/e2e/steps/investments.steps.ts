@@ -1095,7 +1095,7 @@ When(
     const field = page.getByTestId("holding-sheet-name");
     await field.fill(typed);
     const option = page.getByTestId("asset-name-option-0");
-    await expect(option).toContainText("Archived");
+    await expect(option).toContainText("Hidden");
     // Round 5: names never join — picking the archived asset restores it
     // (by id) and opens its Buy form.
     const restored = page.waitForResponse(
@@ -2748,12 +2748,42 @@ Then(
 );
 
 // Round 4 (user): archive is an explicit action; buying into it revives it.
-When("I archive the asset {string}", async ({ page }, name: string) => {
-  await new InvestmentsPo(page).archive(name);
+When("I hide the asset {string}", async ({ page }, name: string) => {
+  await new InvestmentsPo(page).hide(name);
+});
+
+When("I open the hidden assets of {string}", async ({ page }, type: string) => {
+  const link = new InvestmentsPo(page).hiddenLink(type);
+  await expect(link).toHaveAttribute("data-count", "1", { timeout: 15000 });
+  await link.click();
 });
 
 Then(
-  "the {string} Add form offers {string} as archived and buying {string} into it brings it back",
+  "the hidden asset {string} is listed fainter",
+  async ({ page }, name: string) => {
+    const box = page.locator(
+      `[data-testid^="hidden-asset-"]:has([data-testid="holding-row-${name}"])`,
+    );
+    await expect(box).toBeVisible();
+    await expect(box).toHaveCSS("opacity", "0.5");
+  },
+);
+
+When("I unhide the asset {string}", async ({ page }, name: string) => {
+  await new InvestmentsPo(page).unhide(name);
+});
+
+Then(
+  "the {string} group has no hidden assets",
+  async ({ page }, type: string) => {
+    await expect(new InvestmentsPo(page).hiddenLink(type)).toHaveCount(0, {
+      timeout: 15000,
+    });
+  },
+);
+
+Then(
+  "the {string} Add form offers {string} as hidden and buying {string} into it brings it back",
   async ({ page }, type: string, name: string, amount: string) => {
     const po = new InvestmentsPo(page);
     await po.openAdd(type);

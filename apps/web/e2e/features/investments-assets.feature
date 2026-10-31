@@ -528,16 +528,31 @@ Feature: Investments as assets with transactions (13.1)
     And I delete the asset "Fresh"
     Then the holding row "Fresh" is gone
 
-  # Gaps 20 + 21: archive is explicit; buying into an archived asset revives it.
+  # Gaps 20 + 21: hiding is explicit; buying into a hidden asset revives it.
   @r4-archive
-  Scenario: Archiving hides an asset and buying into it brings it back
+  Scenario: Hiding an asset removes it and buying into it brings it back
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
     When I open the investments wallets tab
-    # A transaction beyond the opening entry, so Archive (not Delete) is offered.
+    # A transaction beyond the opening entry, so Hide (not Delete) is offered.
     And I buy into broker "IBKR" adding "1000" with the account now at "97000"
-    And I archive the asset "IBKR"
+    And I hide the asset "IBKR"
     Then the holding row "IBKR" is gone
-    And the "broker" Add form offers "IBKR" as archived and buying "1000" into it brings it back
+    And the "broker" Add form offers "IBKR" as hidden and buying "1000" into it brings it back
+
+  # R6 (user): Hide acts at once; the group's bottom link lists its hidden
+  # assets, fainter, and Unhide on the swipe brings one back.
+  @r6-hidden
+  Scenario: A group's hidden assets are one tap away and Unhide brings one back
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "broker" holding "Exante" deposited 100000 cents worth 100000 cents exists in my budget
+    When I open the investments wallets tab
+    And I buy into broker "IBKR" adding "1000" with the account now at "97000"
+    And I hide the asset "IBKR"
+    Then the holding row "IBKR" is gone
+    When I open the hidden assets of "broker"
+    Then the hidden asset "IBKR" is listed fainter
+    When I unhide the asset "IBKR"
+    Then the "broker" group has no hidden assets
 
   # Gap 22: tapped crypto / metal rows stay inside their card.
   @r4-wide

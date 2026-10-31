@@ -721,8 +721,8 @@
         "createFailed": "Couldn't add investment. Try again.",
         "saved": "Investment updated",
         "saveFailed": "Couldn't save changes. Check your connection and try again.",
-        "archived": "Investment removed",
-        "archiveFailed": "Couldn't remove investment. Try again.",
+        "archived": "Investment hidden",
+        "archiveFailed": "Couldn't hide the investment. Try again.",
         "reorderFailed": "Couldn't reorder. Try again.",
         "crossSectionRejected": "Holdings can only be in Investments."
       },
@@ -777,19 +777,22 @@
         "name": {
           "label": "Name",
           "create": "Add as new asset \"{name}\"",
-          "closed": "Archived",
+          "closed": "Hidden",
           "reopens": "This reopens {name}.",
           "pickOrCreate": "Pick an existing asset or type a new name.",
           "pickedValue": "Asset value: {value}"
         },
         "archive": {
-          "title": "Archive {name}?",
-          "body": "It leaves the list; its history stays. Buying, selling or moving into it brings it back.",
-          "confirm": "Archive",
-          "cancel": "Keep",
-          "aria": "Archive {name}",
-          "done": "Asset archived",
-          "failed": "Could not archive the asset."
+          "confirm": "Hide",
+          "aria": "Hide {name}",
+          "done": "Asset hidden",
+          "failed": "Could not hide the asset."
+        },
+        "hidden": {
+          "show": "Show {count, plural, one {# hidden asset} other {# hidden assets}}",
+          "close": "Collapse hidden assets",
+          "unhide": "Unhide",
+          "unhideAria": "Unhide {name}"
         }
       },
       "swap": {
