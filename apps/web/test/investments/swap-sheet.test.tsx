@@ -187,6 +187,16 @@ describe("Buy tab", () => {
     });
   });
 
+  // R6 (user): a Buy takes an optional note.
+  it("a buy sends an optional note", async () => {
+    mount(cash);
+    type("swap-buy-amount", "50");
+    type("swap-note", "Salary");
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody()).toMatchObject({ note: "Salary" });
+  });
+
   it("cash: amount + currency with the P/L-unchanged helper", async () => {
     mount(cash);
     expect(screen.getByText("swap.buy.cashHelp")).toBeInTheDocument();
@@ -242,6 +252,15 @@ describe("Transfer tab", () => {
       screen.getByText("swap.err.beforeDest(date=2026-09-20,name=BTC Cold)"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("swap-submit")).toBeDisabled();
+  });
+
+  // R6 (user): a Transfer takes an optional note.
+  it("a transfer sends an optional note", async () => {
+    await transferTo(null);
+    type("swap-note", "Rebalance");
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody()).toMatchObject({ note: "Rebalance" });
   });
 
   it("picking an existing asset from the list transfers into it", async () => {

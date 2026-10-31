@@ -945,7 +945,14 @@
           },
           "interestNote": "The interest after it is recalculated."
         },
-        "openLinked": "Open {name}"
+        "openLinked": "Open {name}",
+        "edit": {
+          "title": "Edit transaction",
+          "aria": "Edit {kind}, {date}",
+          "saved": "Transaction updated",
+          "range": "Pick a date between {min} and {max}.",
+          "dateLocked": "A deposit's dates set its interest — they can't change."
+        }
       },
       "heldUnit": {
         "g": "{n, plural, one {{qty} g} other {{qty} g}}",

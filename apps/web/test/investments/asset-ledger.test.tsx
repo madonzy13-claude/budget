@@ -397,22 +397,92 @@ describe("Asset ledger strip", () => {
     expect(rows[2]).not.toHaveTextContent("ledger.realized");
   });
 
-  // R6 (user): a sale out of investments shows its note where a link would.
-  it("a note shows on the row's second line", async () => {
+  // R6 (user): the note sits under the link when there is one, else under
+  // the date.
+  it("a note shows under the date, or under the link when linked", async () => {
     mount([
+      e({ id: "n1", kind: "withdraw", note: "Paid the car loan" }),
       e({
-        id: "n1",
-        kind: "withdraw",
-        note: "Paid the car loan",
-        deletable: true,
-        blockedReason: null,
+        id: "n2",
+        kind: "convert_out",
+        linked: true,
+        counterpartyName: "BTC Binance",
+        note: "Rebalance",
       }),
     ]);
-    const row = await screen.findByTestId("ledger-row-n1");
-    expect(screen.getByTestId("ledger-note-n1")).toHaveTextContent(
-      "Paid the car loan",
-    );
-    expect(row.contains(screen.getByTestId("ledger-note-n1"))).toBe(true);
+    const plain = await screen.findByTestId("ledger-note-n1");
+    expect(plain).toHaveTextContent("Paid the car loan");
+    const row2 = screen.getByTestId("ledger-row-n2");
+    const linkText = [...row2.querySelectorAll("span")].find(
+      (x) => x.textContent === "ledger.toAsset",
+    )!;
+    const note = screen.getByTestId("ledger-note-n2");
+    expect(
+      linkText.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  // R6 (user): Edit a transaction — note and date (within its neighbours).
+  it("Edit opens a sheet with the note and a bounded date, and saves changes", async () => {
+    mount([
+      e({
+        id: "b1",
+        kind: "buy",
+        effectiveDate: "2026-10-12",
+        note: "Old",
+        dateMin: "2026-10-01",
+        dateMax: "2026-10-20",
+        dateEditable: true,
+      }),
+    ]);
+    fireEvent.click(await screen.findByTestId("ledger-edit-b1"));
+    const date = await screen.findByTestId("entry-edit-date");
+    expect(date).toHaveValue("2026-10-12");
+    expect(date).toHaveAttribute("min", "2026-10-01");
+    expect(date).toHaveAttribute("max", "2026-10-20");
+    fireEvent.change(screen.getByTestId("entry-edit-note"), {
+      target: { value: "New" },
+    });
+    fireEvent.change(date, { target: { value: "2026-10-15" } });
+    fireEvent.click(screen.getByTestId("entry-edit-save"));
+    await waitFor(() => expect(mockWrite).toHaveBeenCalled());
+    const [url, init] = mockWrite.mock.calls.at(-1)!;
+    expect(String(url)).toMatch(/\/investments\/entries\/b1$/);
+    expect((init as RequestInit).method).toBe("PATCH");
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      note: "New",
+      effectiveDate: "2026-10-15",
+    });
+  });
+
+  it("a date outside the range blocks Save; a locked date can't change", async () => {
+    mount([
+      e({
+        id: "b1",
+        kind: "buy",
+        effectiveDate: "2026-10-12",
+        dateMin: "2026-10-01",
+        dateMax: "2026-10-20",
+        dateEditable: true,
+      }),
+      e({ id: "d1", kind: "start", dateEditable: false }),
+    ]);
+    fireEvent.click(await screen.findByTestId("ledger-edit-b1"));
+    fireEvent.change(await screen.findByTestId("entry-edit-date"), {
+      target: { value: "2026-10-25" },
+    });
+    expect(screen.getByTestId("entry-edit-save")).toBeDisabled();
+    expect(screen.getByText("ledger.edit.range")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("entry-edit-cancel"));
+    fireEvent.click(await screen.findByTestId("ledger-edit-d1"));
+    expect(await screen.findByTestId("entry-edit-date")).toBeDisabled();
+  });
+
+  it("interest rows have no Edit", async () => {
+    mount(ENTRIES);
+    await screen.findByTestId("ledger-row-b1");
+    expect(screen.queryByTestId("ledger-edit-interest-2026-10-20")).toBeNull();
+    expect(screen.getByTestId("ledger-edit-b1")).toBeInTheDocument();
   });
 
   // Round 6 (user): qty × price and realized are lighter, like the asset row.

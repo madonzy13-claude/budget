@@ -32,6 +32,8 @@ import {
   num,
   qtyString,
   SwapDateField,
+  NoteField,
+  noteBody,
   useOtherAssetDate,
   SwapFooter,
   toCents,
@@ -75,6 +77,8 @@ export function SwapTransferTab({
     setTargetId(null);
   };
   const [serverError, setServerError] = useState<string | null>(null);
+  // R6 (user): an optional note for the ledger row.
+  const [note, setNote] = useState("");
 
   const target =
     label.trim() === ""
@@ -131,6 +135,7 @@ export function SwapTransferTab({
         holdingId: holding.id,
         body: {
           effectiveDate: date,
+          ...noteBody(note),
           move: byQty
             ? { quantity: qtyString(m) }
             : { valueCents: String(toCents(move)) },
@@ -215,6 +220,7 @@ export function SwapTransferTab({
           min={targetDate.min}
           error={targetDate.error}
         />
+        <NoteField value={note} onChange={setNote} />
         <p
           className={`${caption} flex items-start gap-1`}
           style={{ color: "var(--muted-foreground)" }}

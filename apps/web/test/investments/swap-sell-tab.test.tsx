@@ -533,29 +533,27 @@ describe("Sell tab", () => {
     );
   });
 
-  // R6 (user): Out of investments takes an optional note.
-  it("Out of investments sends an optional note", async () => {
+  // R6 (user): every sale takes an optional note (top-level).
+  it("a sale sends an optional note, into investments or out", async () => {
     mount();
     type("swap-sell-sold", "1");
     fireEvent.click(screen.getByTestId("swap-dest-out"));
-    type("swap-sell-note", "  Paid the car loan ");
+    type("swap-note", "  Paid the car loan ");
     fireEvent.click(screen.getByTestId("swap-submit"));
     await waitFor(() => expect(writeMock).toHaveBeenCalled());
-    expect(lastBody().destination).toMatchObject({
-      kind: "out",
-      note: "Paid the car loan",
-    });
+    expect(lastBody()).toMatchObject({ note: "Paid the car loan" });
+    expect(lastBody().destination.note).toBeUndefined();
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    expect(screen.getByTestId("swap-note")).toBeInTheDocument();
   });
 
-  it("an empty note is not sent; Into investments has no note", async () => {
+  it("an empty note is not sent", async () => {
     mount();
     type("swap-sell-sold", "1");
-    fireEvent.click(screen.getByTestId("swap-dest-invest"));
-    expect(screen.queryByTestId("swap-sell-note")).toBeNull();
     fireEvent.click(screen.getByTestId("swap-dest-out"));
     fireEvent.click(screen.getByTestId("swap-submit"));
     await waitFor(() => expect(writeMock).toHaveBeenCalled());
-    expect(lastBody().destination.note).toBeUndefined();
+    expect(lastBody().note).toBeUndefined();
   });
 
   it("Out defaults to Nowhere and books without a wallet", async () => {

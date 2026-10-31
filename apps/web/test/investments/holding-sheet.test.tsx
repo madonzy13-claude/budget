@@ -1392,6 +1392,21 @@ describe("HoldingSheet — money source", () => {
     delete minDates.ike;
   });
 
+  // R6 (user): Add takes an optional note — on the plain create and on a
+  // sale from another asset alike.
+  it("an Add sends its note", async () => {
+    createMutate.mockClear();
+    render(<HoldingSheet {...baseProps} holding={cashNew()} />);
+    fireEvent.change(screen.getByTestId("holding-sheet-amount"), {
+      target: { value: "500" },
+    });
+    fireEvent.change(screen.getByTestId("holding-sheet-note"), {
+      target: { value: " Gift " },
+    });
+    fireEvent.click(screen.getByTestId("holding-sheet-submit"));
+    expect(createMutate.mock.calls[0]![0]).toMatchObject({ note: "Gift" });
+  });
+
   it("no type yet → no money source either", () => {
     render(<HoldingSheet {...baseProps} holding={null} />);
     expect(screen.queryByTestId("swap-buy-from-asset")).toBeNull();

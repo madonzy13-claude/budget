@@ -17,6 +17,8 @@ import { useAssetEntries, type EntryDto } from "@/hooks/use-asset-entries";
 import { useDeleteEntry } from "@/hooks/use-delete-entry";
 import { LedgerRow, kindKey, ledgerDate } from "./ledger-row";
 import { LedgerDeleteConfirm } from "./ledger-delete-confirm";
+import { EntryEditDialog } from "./entry-edit-dialog";
+import { useEditEntry } from "@/hooks/use-edit-entry";
 import { SlideCollapse } from "@/components/common/slide-collapse";
 
 interface AssetLedgerProps {
@@ -56,6 +58,8 @@ export function AssetLedger({
   const { data: entries, isLoading } = useAssetEntries(budgetId, assetId, open);
   const deleteMut = useDeleteEntry(budgetId);
   const [confirming, setConfirming] = useState<EntryDto | null>(null);
+  const [editing, setEditing] = useState<EntryDto | null>(null);
+  const editMut = useEditEntry(budgetId);
   const stripRef = useRef<HTMLDivElement>(null);
   // After a jump from the partner: bring the matching row into view.
   useEffect(() => {
@@ -112,6 +116,7 @@ export function AssetLedger({
                   first={i === 0}
                   noRealized={noRealized}
                   onDelete={() => setConfirming(e)}
+                  onEdit={e.id ? () => setEditing(e) : undefined}
                   flash={!!flashTransferId && e.transferId === flashTransferId}
                   onOpenLinked={
                     onOpenLinked &&
@@ -125,6 +130,14 @@ export function AssetLedger({
                 />
               );
             })}
+        <EntryEditDialog
+          entry={editing}
+          onOpenChange={(o) => !o && setEditing(null)}
+          onSave={(body) => {
+            if (editing?.id) editMut.mutate({ entryId: editing.id, body });
+            setEditing(null);
+          }}
+        />
         <LedgerDeleteConfirm
           entry={confirming}
           assetName={assetName}

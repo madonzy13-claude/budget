@@ -47,8 +47,12 @@ export interface EntryDto {
   linked: boolean;
   walletName: string | null;
   walletDelta: string | null;
-  /** R6: a sale out of investments' note. */
+  /** R6: the booking's note. */
   note?: string | null;
+  /** R6 Edit: the date range within this asset's ledger (null = open). */
+  dateMin?: string | null;
+  dateMax?: string | null;
+  dateEditable?: boolean;
   backfilled: boolean;
   deletable: boolean;
   blockedReason: "not_newest" | "linked_not_newest" | "interest" | null;

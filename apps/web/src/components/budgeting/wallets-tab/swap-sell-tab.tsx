@@ -68,6 +68,8 @@ import {
   num,
   qtyString,
   SwapDateField,
+  NoteField,
+  noteBody,
   useOtherAssetDate,
   SwapFooter,
   toCents,
@@ -147,7 +149,7 @@ export function SwapSellTab({
   const [walletKind, setWalletKind] = useState<WalletKind>("nowhere");
   const [walletId, setWalletId] = useState("");
   const [walletName, setWalletName] = useState("");
-  // R6 (user): Out of investments — an optional note for the ledger row.
+  // R6 (user): an optional note for the ledger row.
   const [note, setNote] = useState("");
   const [walletType, setWalletType] =
     useState<(typeof WALLET_TYPES)[number]>("SPENDINGS");
@@ -437,7 +439,6 @@ export function SwapSellTab({
         ? ({
             kind: "out",
             wallet: walletBody,
-            ...(note.trim() ? { note: note.trim() } : {}),
           } as const)
         : mode === "existing"
           ? {
@@ -478,6 +479,7 @@ export function SwapSellTab({
         holdingId: holding.id,
         body: {
           effectiveDate: date,
+          ...noteBody(note),
           left: leftBody,
           destination,
           // A quantity destination's received is quantity × price (server).
@@ -743,15 +745,6 @@ export function SwapSellTab({
                   {t("swap.sell.wallet.help")}
                 </p>
               )}
-              <Field label={t("swap.sell.note")}>
-                <Input
-                  data-testid="swap-sell-note"
-                  value={note}
-                  maxLength={200}
-                  placeholder={t("swap.sell.notePlaceholder")}
-                  onChange={(e) => setNote(e.target.value)}
-                />
-              </Field>
             </section>
           )}
         </section>
@@ -815,6 +808,7 @@ export function SwapSellTab({
           min={effMin}
           error={dateError}
         />
+        <NoteField value={note} onChange={setNote} />
         {serverError && <ErrorLine>{serverError}</ErrorLine>}
       </div>
       <SwapFooter

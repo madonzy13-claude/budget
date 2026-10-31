@@ -23,6 +23,8 @@ export type WalletTarget =
 
 export interface SellHoldingBody {
   effectiveDate: string;
+  /** R6: optional note (≤ 200). */
+  note?: string;
   left: { quantity: string } | { valueCents: string };
   destination:
     | { kind: "new"; holding: Record<string, unknown>; priceCents?: string }
@@ -32,7 +34,7 @@ export interface SellHoldingBody {
         quantityBought?: string;
         priceCents?: string;
       }
-    | { kind: "out"; wallet?: WalletTarget; note?: string };
+    | { kind: "out"; wallet?: WalletTarget };
   /** Out / amount destinations; a quantity destination is qty × price. */
   receivedCents?: string;
   receivedCurrency: string;

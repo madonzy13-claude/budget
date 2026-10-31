@@ -202,6 +202,37 @@ export function useOtherAssetDate(
   };
 }
 
+/** R6 (user): an optional note on any booking (≤ 200), shown in the ledger. */
+export function NoteField({
+  value,
+  onChange,
+  testId = "swap-note",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  testId?: string;
+}) {
+  const t = useTranslations("budget.investments");
+  return (
+    <label className="block space-y-1">
+      <span className="text-caption text-[var(--muted-foreground)]">
+        {t("swap.sell.note")}
+      </span>
+      <Input
+        data-testid={testId}
+        value={value}
+        maxLength={200}
+        placeholder={t("swap.sell.notePlaceholder")}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
+  );
+}
+
+/** `{ note }` when one was typed, else nothing (an empty note is not sent). */
+export const noteBody = (note: string) =>
+  note.trim() ? { note: note.trim() } : {};
+
 /** Date valid for a new entry: not future, not before the latest entry. */
 export const dateOk = (d: string, min: string | null) =>
   !!d && d <= today() && (!min || d >= min);

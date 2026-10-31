@@ -16,18 +16,24 @@ export type BuyAssetBody =
       priceCents: string;
       currency: string;
       effectiveDate: string;
+      /** R6: optional note (≤ 200). */
+      note?: string;
     }
   | {
       kind: "amount";
       amountCents: string;
       currency: string;
       effectiveDate: string;
+      /** R6: optional note (≤ 200). */
+      note?: string;
     }
   | {
       kind: "broker";
       amountCents: string;
       valueAfterCents: string;
       effectiveDate: string;
+      /** R6: optional note (≤ 200). */
+      note?: string;
     };
 
 export function useBuyAsset(budgetId: string) {

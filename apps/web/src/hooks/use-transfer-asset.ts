@@ -10,6 +10,8 @@ import { assetWrite, invalidateInvestments } from "@/lib/investment-invalidate";
 
 export interface TransferAssetBody {
   effectiveDate: string;
+  /** R6: optional note (≤ 200). */
+  note?: string;
   move: { quantity: string } | { valueCents: string };
   to: { kind: "existing"; holdingId: string } | { kind: "new"; name: string };
 }

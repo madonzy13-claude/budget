@@ -945,7 +945,14 @@
           },
           "interestNote": "Odsetki naliczone po nim zostaną przeliczone."
         },
-        "openLinked": "Otwórz {name}"
+        "openLinked": "Otwórz {name}",
+        "edit": {
+          "title": "Edytuj transakcję",
+          "aria": "Edytuj {kind}, {date}",
+          "saved": "Transakcja zaktualizowana",
+          "range": "Wybierz datę od {min} do {max}.",
+          "dateLocked": "Daty lokaty wyznaczają jej odsetki — nie można ich zmienić."
+        }
       },
       "heldUnit": {
         "g": "{n, plural, one {{qty} gram} few {{qty} gramy} many {{qty} gramów} other {{qty} grama}}",

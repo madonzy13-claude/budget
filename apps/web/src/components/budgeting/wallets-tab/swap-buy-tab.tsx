@@ -26,6 +26,8 @@ import {
   ErrorLine,
   LockedField,
   SwapDateField,
+  NoteField,
+  noteBody,
   useOtherAssetDate,
   SwapFooter,
   caption,
@@ -98,6 +100,8 @@ export function SwapBuyTab({
     setAmountState(v);
     setDraft?.(v);
   };
+  // R6 (user): an optional note for the ledger row.
+  const [note, setNote] = useState("");
   const [ccy, setCcy] = useState(peg ?? holding.buyCurrency ?? assetCcy);
   // A carried amount prefills "value after" like a typed one (D-08).
   const [valueAfter, setValueAfter] = useState(
@@ -227,6 +231,7 @@ export function SwapBuyTab({
           holdingId: src.id,
           body: {
             effectiveDate: date,
+            ...noteBody(note),
             left,
             destination:
               shape === "quantity"
@@ -255,6 +260,7 @@ export function SwapBuyTab({
             priceCents: String(toCents(price)),
             currency: ccy,
             effectiveDate: date,
+            ...noteBody(note),
           }
         : shape === "amount"
           ? {
@@ -262,12 +268,14 @@ export function SwapBuyTab({
               amountCents: String(toCents(amount)),
               currency: ccy,
               effectiveDate: date,
+              ...noteBody(note),
             }
           : {
               kind: "broker",
               amountCents: String(toCents(amount)),
               valueAfterCents: String(toCents(valueAfter)),
               effectiveDate: date,
+              ...noteBody(note),
             };
     buyMut.mutate({ holdingId: holding.id, body }, { onSuccess, onError });
   }
@@ -429,6 +437,7 @@ export function SwapBuyTab({
           min={srcDate.min}
           error={srcDate.error}
         />
+        <NoteField value={note} onChange={setNote} />
         {serverError && <ErrorLine>{serverError}</ErrorLine>}
       </div>
       <SwapFooter

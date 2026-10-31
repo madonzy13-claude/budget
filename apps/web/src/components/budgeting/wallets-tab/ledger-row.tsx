@@ -18,6 +18,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Link2,
+  Pencil,
   Percent,
   Trash2,
   TrendingDown,
@@ -126,6 +127,8 @@ interface LedgerRowProps {
   rowKey: string;
   first: boolean;
   onDelete: () => void;
+  /** R6 (user): Edit the note / date; absent for computed (interest) rows. */
+  onEdit?: () => void;
   /** Round 4: open the partner entry in the other asset (visible partner only). */
   onOpenLinked?: () => void;
   /** Briefly highlighted after a jump from its partner. */
@@ -141,6 +144,7 @@ export function LedgerRow({
   rowKey,
   first,
   onDelete,
+  onEdit,
   onOpenLinked,
   flash,
   noRealized,
@@ -190,8 +194,32 @@ export function LedgerRow({
         : t("ledger.onlyLatest");
 
   const rowRef = useRef<HTMLDivElement>(null);
-  const { offset, swiping, close } = useSwipeReveal(rowRef, ACTION_W);
-  const swipedOpen = offset <= -ACTION_W / 2;
+  // R6 (user): Edit sits left of Delete — the swipe reveals both.
+  const actionW = onEdit ? ACTION_W + 48 : ACTION_W;
+  const { offset, swiping, close } = useSwipeReveal(rowRef, actionW);
+  const swipedOpen = offset <= -actionW / 2;
+  const editButton = onEdit && (
+    <button
+      type="button"
+      data-no-swipe
+      data-open={swipedOpen}
+      data-testid={`ledger-edit-${rowKey}`}
+      aria-label={t("ledger.edit.aria", { kind, date })}
+      onClick={(ev) => {
+        ev.stopPropagation();
+        close();
+        onEdit();
+      }}
+      className={[
+        "absolute bottom-0 right-12 top-0 flex w-12 items-center justify-center",
+        "bg-[var(--surface-elevated-dark)] text-[var(--foreground)] transition-opacity",
+        "pointer-events-none opacity-0 data-[open=true]:pointer-events-auto data-[open=true]:opacity-100",
+        "sm:pointer-events-auto sm:opacity-100",
+      ].join(" ")}
+    >
+      <Pencil className="h-4 w-4" aria-hidden="true" />
+    </button>
+  );
   const deleteButton = (
     <button
       type="button"
@@ -236,6 +264,7 @@ export function LedgerRow({
       }}
       className="relative"
     >
+      {editButton}
       {reason ? (
         <Popover>
           <PopoverTrigger asChild>{deleteButton}</PopoverTrigger>
@@ -263,7 +292,8 @@ export function LedgerRow({
           transition: swiping ? "none" : "transform 200ms ease-out",
         }}
         className={[
-          "relative flex items-center gap-2 px-2 py-1 sm:mr-12",
+          "relative flex items-center gap-2 px-2 py-1",
+          onEdit ? "sm:mr-24" : "sm:mr-12",
           entry.deletable ? "min-h-[44px]" : "min-h-[40px]",
         ].join(" ")}
       >
@@ -313,20 +343,21 @@ export function LedgerRow({
                   </span>
                 );
               })()
-            : entry.note && (
-                // R6 (user): a sale out of investments shows its note here.
-                <span
-                  data-testid={`ledger-note-${rowKey}`}
-                  className="break-words"
-                  style={{
-                    fontSize: "11px",
-                    lineHeight: 1.4,
-                    color: "var(--muted-foreground)",
-                  }}
-                >
-                  {entry.note}
-                </span>
-              )}
+            : null}
+          {entry.note && (
+            // R6 (user): under the link when there is one, else the date.
+            <span
+              data-testid={`ledger-note-${rowKey}`}
+              className="break-words"
+              style={{
+                fontSize: "11px",
+                lineHeight: 1.4,
+                color: "var(--muted-foreground)",
+              }}
+            >
+              {entry.note}
+            </span>
+          )}
         </div>
         <div className="num flex shrink-0 flex-col items-end text-right tabular-nums">
           {qty != null && (

@@ -86,7 +86,13 @@ import { PriceBlockedBanner } from "./price-blocked-banner";
 import { SwapBuyTab } from "./swap-buy-tab";
 import { useBuySource } from "./swap-buy-source";
 import { useSellHolding } from "@/hooks/use-sell-holding";
-import { ErrorLine, today as todayIso, useOtherAssetDate } from "./swap-shared";
+import {
+  ErrorLine,
+  NoteField,
+  noteBody,
+  today as todayIso,
+  useOtherAssetDate,
+} from "./swap-shared";
 import { useMinEntryDate } from "@/hooks/use-asset-entries";
 import { useInvestments } from "@/hooks/use-investments";
 import {
@@ -347,6 +353,8 @@ export function HoldingSheet({
 
   const today = new Date().toLocaleDateString("en-CA");
   const [openedOn, setOpenedOnState] = useState(sharedDate ?? today);
+  // R6 (user): an optional note for the ledger row.
+  const [note, setNote] = useState("");
   const setOpenedOn = (d: string) => {
     setOpenedOnState(d);
     setSharedDate?.(d);
@@ -801,6 +809,7 @@ export function HoldingSheet({
         holdingId: source.src.id,
         body: {
           effectiveDate: sourceDate,
+          ...noteBody(note),
           left: source.left,
           destination: {
             kind: "new",
@@ -817,8 +826,12 @@ export function HoldingSheet({
       return;
     }
     // R5-1: a deposit is dated by its start date — no separate Date.
-    const payload =
-      behavior === "deposit" ? buildPayload() : { ...buildPayload(), openedOn };
+    const payload = {
+      ...(behavior === "deposit"
+        ? buildPayload()
+        : { ...buildPayload(), openedOn }),
+      ...noteBody(note),
+    };
     createMut.mutate(
       payload as unknown as Parameters<typeof createMut.mutate>[0],
     );
@@ -1468,6 +1481,16 @@ export function HoldingSheet({
                 onChange={setOpenedOn}
               />
             </Field>
+          )}
+          {uiType && (
+            <NoteField
+              value={note}
+              onChange={(v) => {
+                markDirty();
+                setNote(v);
+              }}
+              testId="holding-sheet-note"
+            />
           )}
 
           {/* Actions live at the END of the scrolling form (NOT a pinned footer):
