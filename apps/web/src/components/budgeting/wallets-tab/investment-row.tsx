@@ -19,6 +19,7 @@
  * dimmed (opacity-50, --muted-strong) which overrides any P/L color (D-09/25).
  */
 import { isCashLike } from "@/lib/cash-like";
+import { typeGroupPL } from "@/lib/investment-type-groups";
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -129,7 +130,11 @@ export function InvestmentRow({
   const value = centsToShort(holding.valueCents, locale);
   // Round 4: "40%", not "40.0%"; "12.5%" keeps its decimal.
   const weight = `${Number(holding.weightPct.toFixed(1))}%`;
-  const pct = holding.profitLossPct;
+  // R6 (user): P/L is all of it — unrealized + realized over everything ever
+  // put in — the type header's formula for one asset. Cash is just money.
+  const lifetime =
+    realized && !isCashLike(holding) ? typeGroupPL([holding], realized) : null;
+  const pct = lifetime ? lifetime.pct : holding.profitLossPct;
   const delisted = holding.isDelisted;
 
   // Name: cash shows its user-given name when set, else falls back to "Cash"
@@ -238,8 +243,11 @@ export function InvestmentRow({
   // Shown beside the P/L% in the mobile expanded stack (D-#plmoney).
   const plMoney = (() => {
     const plCents = holding.profitLossDisplayCents ?? holding.profitLossCents;
-    if (pct == null || plCents == null) return null;
-    const amt = Number(plCents); // cents, in the shown currency (R6)
+    if (pct == null || (plCents == null && !lifetime)) return null;
+    // cents, in the shown currency (R6), plus realized in that currency
+    const amt =
+      Number(plCents ?? 0) +
+      (lifetime ? Number(realized?.realizedAssetCents ?? 0) : 0);
     if (!Number.isFinite(amt)) return null;
     const sign = amt < 0 ? "−" : "+";
     return `${sign}${centsToShort(String(Math.round(Math.abs(amt))), locale)}`;

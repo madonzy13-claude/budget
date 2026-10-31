@@ -516,6 +516,46 @@ describe("InvestmentRow", () => {
     expect(captionText()).not.toMatch(/avg price|qty:/);
   });
 
+  // R6 (user): an asset's P/L is all of it — unrealized + realized — over
+  // everything ever put in (held + sold cost), like its type header.
+  it("P/L % counts realized over lifetime cost", () => {
+    render(
+      <InvestmentRow
+        holding={holding({ costInBudgetCents: "300000" })}
+        realized={{
+          realizedBudgetCents: "60000",
+          soldCostBudgetCents: "200000",
+          realizedAssetCents: "60000",
+          assetCurrency: "USD",
+        }}
+      />,
+    );
+    // (120,000 unrealized + 60,000 realized) / (300,000 + 200,000) = 36%
+    expect(screen.getByLabelText(/profit\/loss/).textContent).toMatch(/36/);
+  });
+
+  it("an emptied asset's P/L is its realized", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          quantity: "0",
+          valueCents: "0",
+          valueInBudgetCents: "0",
+          costInBudgetCents: "0",
+          profitLossPct: null,
+          profitLossCents: null,
+        })}
+        realized={{
+          realizedBudgetCents: "-5000",
+          soldCostBudgetCents: "20000",
+          realizedAssetCents: "-5000",
+          assetCurrency: "USD",
+        }}
+      />,
+    );
+    expect(screen.getByLabelText(/profit\/loss/).textContent).toMatch(/-?−?25/);
+  });
+
   // Round 6 (user): the asset's own currency, not the budget's.
   it("unrealized and realized are in the asset's own currency", () => {
     render(
