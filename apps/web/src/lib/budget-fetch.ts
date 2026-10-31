@@ -86,8 +86,7 @@ async function doFetch(path: string, init: RequestInit): Promise<Response> {
   const callerSignal = init.signal;
   if (callerSignal) {
     if (callerSignal.aborted) ctl.abort();
-    else
-      callerSignal.addEventListener("abort", () => ctl.abort(), { once: true });
+    else callerSignal.addEventListener("abort", () => ctl.abort(), { once: true });
   }
   const abortTimer = setTimeout(() => ctl.abort(), READ_ABORT_MS);
   let raceTimer: ReturnType<typeof setTimeout> | undefined;

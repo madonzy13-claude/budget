@@ -10,7 +10,10 @@
 import { api } from "@/lib/api-client";
 
 export type PushSubscribeResult =
-  "subscribed" | "denied" | "unsupported" | "error";
+  | "subscribed"
+  | "denied"
+  | "unsupported"
+  | "error";
 
 export function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
