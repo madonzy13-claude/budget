@@ -326,31 +326,187 @@ describe("Investment entries ledger", () => {
     }
   });
 
-  // R6 (user): a sale out of investments can carry a note; the ledger shows it.
-  it("a sale out of investments keeps its note on the entry", async () => {
+  // R6 (user): every booking takes an optional note (≤ 200), on all its legs.
+  it("a note on add, buy, sell and transfer is kept on every leg", async () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
-    const h = await seed(fix);
-    await startEntry(fix, h);
-    const res = await call(app, "POST", `/${h}/sell`, {
-      effectiveDate: "2026-10-01",
-      left: { valueCents: "500000" },
-      destination: { kind: "out", note: "  Paid the car loan  " },
-      receivedCents: "500000",
-      receivedCurrency: "PLN",
+    const created = await call(app, "POST", "", {
+      name: "Pot",
+      holdingType: "cash_fx",
+      uiType: "cash",
+      buyPriceCents: "100000",
+      buyCurrency: "PLN",
+      quantity: "1",
+      currentPriceCents: "100000",
+      currentPriceCurrency: "PLN",
+      openedOn: "2026-09-01",
+      note: "  Opening  ",
     });
-    expect(res.status).toBe(201);
-    const [sale] = await entriesOf(app, h);
-    expect(sale).toMatchObject({ kind: "withdraw", note: "Paid the car loan" });
-    // Too long is refused.
-    const long = await call(app, "POST", `/${h}/sell`, {
-      effectiveDate: "2026-10-02",
-      left: { valueCents: "400000" },
-      destination: { kind: "out", note: "x".repeat(201) },
-      receivedCents: "100000",
+    expect(created.status).toBe(201);
+    const pot = ((await created.json()) as { id: string }).id;
+    expect((await entriesOf(app, pot))[0]).toMatchObject({ note: "Opening" });
+
+    expect(
+      (
+        await call(app, "POST", `/${pot}/buy`, {
+          kind: "amount",
+          amountCents: "5000",
+          currency: "PLN",
+          effectiveDate: "2026-09-02",
+          note: "Top-up",
+        })
+      ).status,
+    ).toBe(201);
+    expect((await entriesOf(app, pot))[0]).toMatchObject({ note: "Top-up" });
+
+    const other = await seed(fix, { name: "Other" });
+    await startEntry(fix, other);
+    expect(
+      (
+        await call(app, "POST", `/${pot}/transfer`, {
+          effectiveDate: "2026-10-03",
+          move: { valueCents: "1000" },
+          to: { kind: "existing", holdingId: other },
+          note: "Rebalance",
+        })
+      ).status,
+    ).toBe(201);
+    expect((await entriesOf(app, pot))[0]).toMatchObject({ note: "Rebalance" });
+    expect((await entriesOf(app, other))[0]).toMatchObject({
+      note: "Rebalance",
+    });
+
+    const out = await call(app, "POST", `/${pot}/sell`, {
+      effectiveDate: "2026-10-04",
+      left: { valueCents: "50000" },
+      destination: { kind: "out" },
+      receivedCents: "500",
       receivedCurrency: "PLN",
+      note: "Paid the car loan",
+    });
+    expect(out.status).toBe(201);
+    expect((await entriesOf(app, pot))[0]).toMatchObject({
+      kind: "withdraw",
+      note: "Paid the car loan",
+    });
+    // No note → null; too long → refused.
+    const long = await call(app, "POST", `/${pot}/buy`, {
+      kind: "amount",
+      amountCents: "100",
+      currency: "PLN",
+      effectiveDate: "2026-10-05",
+      note: "x".repeat(201),
     });
     expect(long.status).toBe(422);
+  });
+
+  // R6 (user): Edit a transaction — its note, and its date between neighbours.
+  describe("PATCH /entries/:id", () => {
+    it("changes the note and the date within its neighbours", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix);
+      const h = await seed(fix);
+      await startEntry(fix, h); // 2026-09-01
+      await buy(app, h, "2026-09-10");
+      await buy(app, h, "2026-09-20");
+      const mid = (await entriesOf(app, h))[1]!;
+      expect(mid).toMatchObject({
+        effectiveDate: "2026-09-10",
+        dateMin: "2026-09-01",
+        dateMax: "2026-09-20",
+      });
+
+      const res = await call(app, "PATCH", `/entries/${mid.id}`, {
+        effectiveDate: "2026-09-15",
+        note: " Bonus ",
+      });
+      expect(res.status).toBe(200);
+      expect((await entriesOf(app, h))[1]).toMatchObject({
+        id: mid.id,
+        effectiveDate: "2026-09-15",
+        note: "Bonus",
+      });
+
+      const out = await call(app, "PATCH", `/entries/${mid.id}`, {
+        effectiveDate: "2026-09-25",
+      });
+      expect(out.status).toBe(422);
+      expect(await out.json()).toMatchObject({
+        error: "date_out_of_range",
+        min: "2026-09-01",
+        max: "2026-09-20",
+      });
+
+      // An empty note clears it.
+      await call(app, "PATCH", `/entries/${mid.id}`, { note: "" });
+      expect((await entriesOf(app, h))[1]).toMatchObject({ note: null });
+    });
+
+    it("moves both legs of a transfer, bounded by both assets", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix);
+      const a = await seed(fix, { name: "A" });
+      const b = await seed(fix, { name: "B" });
+      await startEntry(fix, a);
+      await startEntry(fix, b);
+      await buy(app, b, "2026-09-05");
+      await call(app, "POST", `/${a}/transfer`, {
+        effectiveDate: "2026-09-10",
+        move: { valueCents: "1000" },
+        to: { kind: "existing", holdingId: b },
+      });
+      const leg = (await entriesOf(app, a))[0]!;
+      // B's buy on 09-05 bounds the pair from below.
+      const low = await call(app, "PATCH", `/entries/${leg.id}`, {
+        effectiveDate: "2026-09-03",
+      });
+      expect(low.status).toBe(422);
+      expect(
+        (
+          await call(app, "PATCH", `/entries/${leg.id}`, {
+            effectiveDate: "2026-09-07",
+            note: "Moved",
+          })
+        ).status,
+      ).toBe(200);
+      for (const id of [a, b])
+        expect((await entriesOf(app, id))[0]).toMatchObject({
+          effectiveDate: "2026-09-07",
+          note: "Moved",
+        });
+    });
+
+    it("a deposit's dates are locked; another tenant's entry is 404", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix);
+      const dep = await seed(fix, {
+        name: "Bank",
+        holdingType: "deposit",
+        uiType: "deposit",
+        depositRateBps: 500,
+        depositStartDate: "2026-09-01",
+        depositCapFrequency: "monthly",
+      });
+      await startEntry(fix, dep);
+      const start = (await entriesOf(app, dep)).find((x) => x.kind === "start");
+      const res = await call(app, "PATCH", `/entries/${start!.id}`, {
+        effectiveDate: "2026-08-20",
+      });
+      expect(res.status).toBe(422);
+      expect(await res.json()).toMatchObject({ error: "date_locked" });
+      // The note still edits.
+      expect(
+        (await call(app, "PATCH", `/entries/${start!.id}`, { note: "Opened" }))
+          .status,
+      ).toBe(200);
+
+      const other = await createFixture();
+      const otherApp = await buildApp(other);
+      expect(
+        (await call(otherApp, "PATCH", `/entries/${start!.id}`, { note: "x" }))
+          .status,
+      ).toBe(404);
+    });
   });
 
   it("a malformed id is 404; another tenant's entry is 404 and nothing changes", async () => {

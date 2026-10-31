@@ -32,6 +32,24 @@ export function newestEntry(entries: LedgerKey[]): LedgerKey | null {
   return top;
 }
 
+/** R6 (user): the dates an entry may move to without changing its place in
+ *  the ledger — from the entry before it to the one after it (null = open).
+ *  `others` may include the target itself; it is skipped. */
+export function entryDateRange(
+  others: LedgerKey[],
+  target: LedgerKey,
+): { min: string | null; max: string | null } {
+  let min: string | null = null;
+  let max: string | null = null;
+  for (const x of others) {
+    if (x.id === target.id) continue;
+    if (after(target, x)) {
+      if (min === null || x.effectiveDate > min) min = x.effectiveDate;
+    } else if (max === null || x.effectiveDate < max) max = x.effectiveDate;
+  }
+  return { min, max };
+}
+
 export function deletableEntry(
   target: LedgerKey,
   ownLive: LedgerKey[],

@@ -81,6 +81,8 @@ export interface HoldingPatch {
 
 export interface BookingPlan {
   budgetId: string;
+  /** R6 (user): the booking's note — written on every entry it inserts. */
+  note?: string | null;
   patches: HoldingPatch[];
   newHolding?: NewHolding;
   entries: NewHistoryEntry[];
@@ -192,6 +194,13 @@ export interface HistoryRepo {
     userId: string,
     entryId: string,
   ): Promise<StoredEntry[]>;
+  /** R6 Edit: set note (null clears) and/or date on these live entries. */
+  editEntries(
+    tenantId: string,
+    userId: string,
+    entryIds: string[],
+    patch: { note?: string | null; effectiveDate?: string },
+  ): Promise<void>;
   /** A holding's live entries, oldest first (effective_date, created_at). */
   listForHolding(
     tenantId: string,

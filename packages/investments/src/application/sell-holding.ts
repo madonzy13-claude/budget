@@ -47,7 +47,7 @@ type Destination = SellAssetInput["destination"];
 export type SellInput = Omit<SellAssetInput, "destination"> & {
   destination:
     | Exclude<Destination, { kind: "out" }>
-    | { kind: "out"; wallet?: WalletTargetInput; note?: string };
+    | { kind: "out"; wallet?: WalletTargetInput };
 };
 import { toNewHolding } from "./create-holding";
 import { FxUnavailableError, makeRate } from "./fx-memo";
@@ -295,7 +295,6 @@ export function sellHolding(deps: {
           assetAmountCents: fx.proceedsCents,
           budgetCurrency: input.budgetCurrency,
           transfer,
-          note: dest.kind === "out" ? dest.note || null : null,
         }),
       ];
       const leg = (e: Partial<NewHistoryEntry> & { holdingRef: string }) =>
@@ -432,6 +431,7 @@ export function sellHolding(deps: {
         input.actorUserId,
         {
           budgetId: input.budgetId,
+          note: input.note || null,
           patches,
           newHolding,
           entries,

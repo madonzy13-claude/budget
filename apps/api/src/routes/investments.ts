@@ -353,6 +353,30 @@ export function createInvestmentsRoute(deps: BootedDeps) {
     });
   });
 
+  // PATCH /entries/:entryId — R6 (user): Edit a transaction's note / date.
+  app.patch("/entries/:entryId", async (c) => {
+    const { editEntrySchema } = await getSchemas();
+    if (!c.get("session")) return c.json({ error: "unauthorized" }, 401);
+    const entryId = c.req.param("entryId");
+    if (await badId(entryId)) return c.json({ error: "not_found" }, 404);
+    const parsed = editEntrySchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!parsed.success) return invalid(c, parsed.error.issues);
+    const r = await deps.investments.editEntry({
+      ...who(c),
+      entryId,
+      ...parsed.data,
+    });
+    if (r.isErr()) {
+      const e = r.error as Error & { min?: string | null; max?: string | null };
+      if (e.message === "date_out_of_range")
+        return c.json({ error: e.message, min: e.min, max: e.max }, 422);
+      return fail(c, e, await assetErrors(), "edit_entry_failed");
+    }
+    return c.json(r.value);
+  });
+
   // POST /:id/transfer — Swap → Transfer (D-10): same type, linked flow-0 legs.
   app.post("/:id/transfer", async (c) => {
     const { transferAssetSchema } = await getSchemas();

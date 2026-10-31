@@ -138,7 +138,11 @@ const centsInput = z
   .union([z.string(), z.number()])
   .refine(isSaneMagnitude, "cents out of range");
 
+/** R6 (user): an optional note on any booking, shown in the ledger row. */
+const noteField = z.string().trim().max(200).optional();
+
 export const createHoldingSchema = z.object({
+  note: noteField,
   name: z.string().min(1).max(120),
   holdingType: holdingTypeSchema,
   uiType: uiTypeSchema.nullish(),
@@ -306,18 +310,21 @@ export const buyAssetSchema = z.discriminatedUnion("kind", [
     priceCents: positiveCents,
     currency: currencyCode,
     effectiveDate: notFutureIsoDate,
+    note: noteField,
   }),
   z.object({
     kind: z.literal("amount"),
     amountCents: positiveCents,
     currency: currencyCode,
     effectiveDate: notFutureIsoDate,
+    note: noteField,
   }),
   z.object({
     kind: z.literal("broker"),
     amountCents: positiveCents,
     valueAfterCents: centsString,
     effectiveDate: notFutureIsoDate,
+    note: noteField,
   }),
 ]);
 export type BuyAssetInput = z.infer<typeof buyAssetSchema>;
@@ -375,7 +382,7 @@ export const sellAssetSchema = z.object({
       // currentPriceCents = the instrument's live price (tracked) — the buy
       // price is priceCents, never received ÷ quantity (13.1 UAT 10).
       holding: createHoldingSchema
-        .omit({ buyPriceCents: true, openedOn: true })
+        .omit({ buyPriceCents: true, openedOn: true, note: true })
         .extend({ name: label(120), quantity: positiveQty.optional() }),
       priceCents: positiveCents.optional(),
     }),
@@ -390,14 +397,13 @@ export const sellAssetSchema = z.object({
     z.object({
       kind: z.literal("out"),
       wallet: walletTargetSchema.default({ kind: "nowhere" }),
-      // R6 (user): optional note, shown in the ledger row.
-      note: z.string().trim().max(200).optional(),
     }),
   ]),
   // Out / amount destinations only; a quantity destination's received is
   // quantity × price, computed by the server.
   receivedCents: positiveCents.optional(),
   receivedCurrency: currencyCode,
+  note: noteField,
 });
 export type SellAssetInput = z.infer<typeof sellAssetSchema>;
 
@@ -412,7 +418,20 @@ export const transferAssetSchema = z.object({
     z.object({ kind: z.literal("existing"), holdingId: z.uuid() }),
     z.object({ kind: z.literal("new"), name: label(120) }),
   ]),
+  note: noteField,
 });
+/** R6 (user): Edit a transaction — its note and/or its date. "" clears the
+ *  note. strict: unknown keys are a 400. */
+export const editEntrySchema = z
+  .strictObject({
+    note: z.string().trim().max(200).optional(),
+    effectiveDate: notFutureIsoDate.optional(),
+  })
+  .refine((v) => v.note !== undefined || v.effectiveDate !== undefined, {
+    message: "nothing_to_edit",
+  });
+export type EditEntryInput = z.infer<typeof editEntrySchema>;
+
 export type TransferAssetInput = z.infer<typeof transferAssetSchema>;
 
 /** D-02 autocomplete over a type's assets, hidden ones included. */
@@ -477,8 +496,14 @@ export interface EntryDto {
   linked: boolean;
   walletName: string | null;
   walletDelta: string | null;
-  /** R6: the note on a sale out of investments. */
+  /** R6: the booking's note. */
   note: string | null;
+  /** R6 Edit: the dates this entry may move to within its own ledger (null =
+   *  open); a linked partner may narrow it (the server checks). */
+  dateMin: string | null;
+  dateMax: string | null;
+  /** A deposit's dates drive its interest — they are not editable. */
+  dateEditable: boolean;
   backfilled: boolean;
   deletable: boolean;
   blockedReason: "not_newest" | "linked_not_newest" | "interest" | null;
@@ -502,6 +527,8 @@ export const INVESTMENT_ERRORS = {
     "sell_qty_out_of_range",
     "qty_precision",
     "invalid_cents",
+    "date_out_of_range",
+    "date_locked",
   ],
   409: ["not_newest", "linked_not_newest", "stale"],
   404: ["not_found"],

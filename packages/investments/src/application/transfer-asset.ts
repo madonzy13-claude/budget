@@ -215,6 +215,7 @@ export function transferAsset(deps: {
         input.actorUserId,
         {
           budgetId: input.budgetId,
+          note: input.note || null,
           patches,
           newHolding,
           entries,

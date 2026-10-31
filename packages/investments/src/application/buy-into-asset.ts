@@ -200,7 +200,10 @@ export function buyIntoAsset(deps: {
         budgetCurrency: input.budgetCurrency,
         fx: deps.fxProvider,
       });
-      await deps.historyRepo.commit(input.tenantId, input.actorUserId, plan);
+      await deps.historyRepo.commit(input.tenantId, input.actorUserId, {
+        ...plan,
+        note: input.note || null,
+      });
       return ok({ holdingId: h.id });
     } catch (e) {
       if (e instanceof RangeError) return err(fail(e.message));

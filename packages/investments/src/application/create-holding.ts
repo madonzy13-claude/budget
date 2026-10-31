@@ -115,6 +115,7 @@ export function createHolding(deps: {
         input.actorUserId,
         {
           budgetId: input.budgetId,
+          note: input.note || null,
           patches: [],
           newHolding: nh,
           entries: [

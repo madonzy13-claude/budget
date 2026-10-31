@@ -19,6 +19,7 @@ import { listAssetNames } from "../application/list-asset-names";
 import { transferAsset } from "../application/transfer-asset";
 import { listEntries } from "../application/list-entries";
 import { deleteEntry } from "../application/delete-entry";
+import { editEntry } from "../application/edit-entry";
 import { archiveHolding, restoreHolding } from "../application/archive-holding";
 import { listHoldings } from "../application/list-holdings";
 import { reorderHoldings } from "../application/reorder-holdings";
@@ -59,6 +60,7 @@ export function createInvestmentsModule(deps: {
     transferAsset: transferAsset({ ...ledger, fxProvider: deps.fxProvider }),
     listEntries: listEntries({ ...ledger, fxProvider: deps.fxProvider }),
     deleteEntry: deleteEntry(ledger),
+    editEntry: editEntry(ledger),
     archiveHolding: archiveHolding({ holdingRepo: deps.holdingRepo }),
     restoreHolding: restoreHolding({ holdingRepo: deps.holdingRepo }),
     listHoldings: listHoldings({

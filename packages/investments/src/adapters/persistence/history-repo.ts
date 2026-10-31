@@ -269,7 +269,7 @@ export class DrizzleHistoryRepo implements HistoryRepo {
                ${e.walletId === "$newWallet" ? wallet.walletId : e.walletId}::uuid,
                ${e.walletDeltaNumeric}::numeric, ${e.walletCreated},
                ${e.priorPriceCents}::numeric, ${e.priorPriceCurrency}, ${e.backfilled},
-               ${s(e.assetAmountCents)}::bigint, ${e.note})
+               ${s(e.assetAmountCents)}::bigint, ${e.note ?? plan.note ?? null})
           `);
         }
         return { newHoldingId, transferId, ...wallet };
@@ -422,6 +422,24 @@ export class DrizzleHistoryRepo implements HistoryRepo {
                                      WHERE id = ${entryId}::uuid AND deleted_at IS NULL))
       `);
       return res.rows.map(mapEntry);
+    });
+  }
+
+  async editEntries(
+    tenantId: string,
+    userId: string,
+    entryIds: string[],
+    patch: { note?: string | null; effectiveDate?: string },
+  ): Promise<void> {
+    // ponytail: no lock — the range was checked just before; a concurrent
+    // append inside that window is the same race delete-entry's lock covers.
+    await this.read(tenantId, userId, async (dt) => {
+      await dt.execute(sql`
+        UPDATE budgeting.investment_history
+           SET note = CASE WHEN ${patch.note !== undefined} THEN ${patch.note ?? null} ELSE note END,
+               effective_date = COALESCE(${patch.effectiveDate ?? null}::date, effective_date)
+         WHERE id IN (${ids(entryIds)}) AND deleted_at IS NULL
+      `);
     });
   }
 

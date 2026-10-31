@@ -15,7 +15,11 @@
 import { ok, err, type Result } from "neverthrow";
 import { Temporal } from "temporal-polyfill";
 import type { FxProvider } from "@budget/shared-kernel";
-import { newestEntry, type LedgerKey } from "../domain/asset-ledger";
+import {
+  entryDateRange,
+  newestEntry,
+  type LedgerKey,
+} from "../domain/asset-ledger";
 import { depositInterestRows } from "../domain/deposit-interest";
 import type { CapFrequency } from "../domain/deposit-value";
 import { big, cents } from "../domain/sell-booking";
@@ -90,6 +94,7 @@ export function listEntries(deps: {
         input.holdingId,
       );
       if (!h) return err(new Error("not_found"));
+      const isDeposit = h.holdingType === "deposit" || h.uiType === "deposit";
       const today =
         input.today ??
         Temporal.Now.plainDateISO(input.timezone ?? "UTC").toString();
@@ -233,6 +238,11 @@ export function listEntries(deps: {
           walletName: e.walletName,
           walletDelta: e.walletDeltaNumeric,
           note: e.note,
+          ...(() => {
+            const r = entryDateRange(live.map(key), key(e));
+            return { dateMin: r.min, dateMax: r.max };
+          })(),
+          dateEditable: !isDeposit,
           backfilled: e.backfilled,
           deletable: isNewest && partnerOk,
           blockedReason: !isNewest
@@ -284,6 +294,9 @@ export function listEntries(deps: {
             walletName: null,
             walletDelta: null,
             note: null,
+            dateMin: null,
+            dateMax: null,
+            dateEditable: false,
             backfilled: false,
             deletable: false,
             blockedReason: "interest",

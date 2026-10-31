@@ -260,7 +260,7 @@ export class MemoryWorld {
           priorPriceCents: e.priorPriceCents,
           priorPriceCurrency: e.priorPriceCurrency,
           backfilled: e.backfilled,
-          note: e.note ?? null,
+          note: e.note ?? plan.note ?? null,
           deleted: false,
         });
       }
@@ -291,6 +291,13 @@ export class MemoryWorld {
         ? this.live().filter((x) => x.transferId === r.transferId)
         : [r];
       return legs.map((x) => this.stored(x));
+    },
+    editEntries: async (_t, _u, ids, patch) => {
+      for (const r of this.live())
+        if (ids.includes(r.id)) {
+          if (patch.note !== undefined) r.note = patch.note;
+          if (patch.effectiveDate) r.effectiveDate = patch.effectiveDate;
+        }
     },
     listForHolding: async (_t, _u, holdingId) =>
       this.live()

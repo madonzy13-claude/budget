@@ -1,6 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import {
   newestEntry,
+  entryDateRange,
   deletableEntry,
   assertNotBeforeLatest,
   transferCost,
@@ -159,5 +160,48 @@ describe("Price change", () => {
     expect(() =>
       priceChange({ priorPriceCents: "120000", newPriceCents: "0" }),
     ).toThrow("price_positive");
+  });
+});
+
+// R6 (user): an entry's date can be edited between its neighbours.
+describe("entryDateRange", () => {
+  const k = (id: string, d: string, c = "2026-01-01T00:00:00Z") => ({
+    id,
+    effectiveDate: d,
+    createdAt: c,
+    transferId: null,
+    holdingId: "h",
+  });
+  const list = [
+    k("a", "2026-01-05"),
+    k("b", "2026-02-10"),
+    k("c", "2026-03-01"),
+  ];
+
+  test("a middle entry sits between the one before and the one after", () => {
+    expect(entryDateRange(list, list[1]!)).toEqual({
+      min: "2026-01-05",
+      max: "2026-03-01",
+    });
+  });
+  test("the first has no lower bound; the newest no upper bound", () => {
+    expect(entryDateRange(list, list[0]!)).toEqual({
+      min: null,
+      max: "2026-02-10",
+    });
+    expect(entryDateRange(list, list[2]!)).toEqual({
+      min: "2026-02-10",
+      max: null,
+    });
+  });
+  test("same-day neighbours keep their creation order", () => {
+    const same = [
+      k("x", "2026-04-01", "2026-04-01T10:00:00Z"),
+      k("y", "2026-04-01", "2026-04-01T11:00:00Z"),
+    ];
+    expect(entryDateRange(same, same[1]!)).toEqual({
+      min: "2026-04-01",
+      max: null,
+    });
   });
 });
