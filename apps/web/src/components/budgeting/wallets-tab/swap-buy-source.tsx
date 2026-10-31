@@ -292,5 +292,18 @@ export function useBuySource({
       )}
     </>
   );
-  return { fromAsset, src, left: left as SourceLeft | null, node };
+  /** The source's value before → after, for the summary (null while invalid). */
+  const drain =
+    src && left
+      ? {
+          name: src.name,
+          v0: srcValue,
+          v1:
+            "quantity" in left
+              ? (srcValue * num(left.quantity ?? "0")) / num(src.quantity ?? "0")
+              : Number(left.valueCents),
+          ccy: srcCcy,
+        }
+      : null;
+  return { fromAsset, src, left: left as SourceLeft | null, drain, node };
 }

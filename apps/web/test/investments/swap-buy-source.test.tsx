@@ -143,6 +143,10 @@ describe("Buy — where did the money come from?", () => {
     expect(screen.getByTestId("swap-buy-takes")).toHaveTextContent(
       "swap.buy.takes(amount=500 PLN,name=Envelope)",
     );
+    // R6 (user): the summary says what leaves the source too.
+    expect(screen.getByTestId("swap-summary")).toHaveTextContent(
+      /Envelope:\s*1,000 PLN\s*→\s*500 PLN/,
+    );
     fireEvent.click(screen.getByTestId("swap-submit"));
     await waitFor(() => expect(writeMock).toHaveBeenCalled());
     expect(lastUrl()).toMatch(new RegExp(`/investments/${cash.id}/sell$`));
@@ -166,6 +170,11 @@ describe("Buy — where did the money come from?", () => {
     // "You hold" fills everything.
     fireEvent.click(screen.getByTestId("swap-buy-src-held"));
     expect(screen.getByTestId("swap-buy-taken")).toHaveValue("1");
+    type("swap-buy-amount", "300");
+    // Taking all of it: the source is gone from the list.
+    expect(screen.getByTestId("swap-summary")).toHaveTextContent(
+      /BTC Cold:\s*60,000 PLN\s*→\s*swap\.sum\.gone/,
+    );
     type("swap-buy-taken", "0.5");
     type("swap-buy-amount", "300");
     fireEvent.click(screen.getByTestId("swap-submit"));

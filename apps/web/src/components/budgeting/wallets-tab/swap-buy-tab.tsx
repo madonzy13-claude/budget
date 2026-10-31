@@ -122,7 +122,7 @@ export function SwapBuyTab({
     recvCents,
     recvCcy,
   });
-  const { src, left } = source;
+  const { src, left, drain } = source;
   const money = (c: number) => centsToBare(String(Math.round(Math.abs(c))));
   const signed = (c: number) => `${c > 0 ? "+" : c < 0 ? "−" : ""}${money(c)}`;
 
@@ -165,6 +165,7 @@ export function SwapBuyTab({
             valueCents +
             num(qty) * (held > 0 ? valueCents / held : toCents(price)),
           ccy: assetCcy,
+          from: drain,
         })
       : shape === "amount"
         ? buildSwapSummary({
@@ -174,6 +175,7 @@ export function SwapBuyTab({
             v0: valueCents,
             v1: valueCents + toCents(amount),
             ccy: assetCcy,
+            from: drain,
           })
         : buildSwapSummary({
             tab: "buy",
@@ -184,6 +186,7 @@ export function SwapBuyTab({
             ccy: assetCcy,
             marketCents: toCents(valueAfter) - valueCents - toCents(amount),
             depositCents: 0,
+            from: drain,
           });
 
   const onError = (e: unknown) => {

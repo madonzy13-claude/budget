@@ -45,8 +45,11 @@ interface Source {
   ccy: string;
 }
 
+/** Buy from another asset: what leaves the source (R6, user). */
+type BuyFrom = { from?: Source | null };
+
 export type SwapCase =
-  | {
+  | ({
       tab: "buy";
       shape: "quantity";
       name: string;
@@ -55,21 +58,22 @@ export type SwapCase =
       v0: number;
       v1: number;
       ccy: string;
-    }
-  | {
+    } & BuyFrom)
+  | ({
       tab: "buy";
       shape: "amount";
       name: string;
       v0: number;
       v1: number;
       ccy: string;
-    }
+    } & BuyFrom)
   | ({
       tab: "buy";
       shape: "broker";
       marketCents: number;
       depositCents: number;
-    } & Source)
+    } & Source &
+      BuyFrom)
   | ({
       tab: "sell";
       realized: number;
@@ -113,35 +117,44 @@ const move = (
   ccy,
 });
 
+const drained = (s: Source): MoveLine => ({
+  ...move(s.name, s.v0, s.v1, s.ccy),
+  ...(s.v1 === 0 ? { gone: true } : {}),
+});
+
 function lines(c: SwapCase): SumLine[] {
-  if (c.tab === "buy") {
-    if (c.shape === "quantity")
-      return [
-        { ...move(c.name, c.qty0, c.qty1, c.ccy), unit: "qty" },
-        {
-          key: "swap.sum.line",
-          labelKey: "edit.currentValue",
-          before: c.v0,
-          after: c.v1,
-          ccy: c.ccy,
-        },
-      ];
-    if (c.shape === "amount")
-      return [move(c.name, c.v0, c.v1, c.ccy), { key: "swap.sum.plUnchanged" }];
+  if (c.tab === "buy")
+    return [...(c.from ? [drained(c.from)] : []), ...bought(c)];
+  return moved(c);
+}
+
+function bought(c: Extract<SwapCase, { tab: "buy" }>): SumLine[] {
+  if (c.shape === "quantity")
     return [
-      move(c.name, c.v0, c.v1, c.ccy),
+      { ...move(c.name, c.qty0, c.qty1, c.ccy), unit: "qty" },
       {
-        key: "swap.buy.split",
-        market: c.marketCents,
-        deposit: c.depositCents,
+        key: "swap.sum.line",
+        labelKey: "edit.currentValue",
+        before: c.v0,
+        after: c.v1,
         ccy: c.ccy,
       },
     ];
-  }
-  const src: SumLine = {
-    ...move(c.name, c.v0, c.v1, c.ccy),
-    ...(c.v1 === 0 ? { gone: true } : {}),
-  };
+  if (c.shape === "amount")
+    return [move(c.name, c.v0, c.v1, c.ccy), { key: "swap.sum.plUnchanged" }];
+  return [
+    move(c.name, c.v0, c.v1, c.ccy),
+    {
+      key: "swap.buy.split",
+      market: c.marketCents,
+      deposit: c.depositCents,
+      ccy: c.ccy,
+    },
+  ];
+}
+
+function moved(c: Exclude<SwapCase, { tab: "buy" }>): SumLine[] {
+  const src: SumLine = drained(c);
   if (c.tab === "transfer") {
     const d = c.dest;
     return d.kind === "existing"
