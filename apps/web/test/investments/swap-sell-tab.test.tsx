@@ -193,29 +193,78 @@ describe("Sell tab", () => {
     expect(lastBody().left).toEqual({ valueCents: "0" });
   });
 
-  // UAT 13.1 test 10: a quantity destination is quantity × price; the price
-  // never follows the quantity.
-  it("a new tracked destination starts at its live price; typing a quantity never moves it", async () => {
+  // R6 (user): nothing is filled on pick — the user types quantity or price
+  // and the other follows, once.
+  it("a new tracked destination starts empty; quantity fills the price on the fly", async () => {
     mount();
     type("swap-sell-sold", "1"); // sold value 60,000 PLN
     fireEvent.click(screen.getByTestId("swap-dest-invest"));
     fireEvent.click(screen.getByTestId("dest-form-usdt"));
     expect(screen.getAllByTestId("swap-dest-qty")).toHaveLength(1);
     expect(screen.queryByTestId("swap-sell-received")).toBeNull();
-    expect(screen.getByTestId("swap-dest-price")).toHaveValue("1");
-    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("60000");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("");
+    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("");
+    type("swap-dest-qty", "1");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("60000");
     type("swap-dest-qty", "1000");
-    expect(screen.getByTestId("swap-dest-price")).toHaveValue("1");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("60");
     fireEvent.click(screen.getByTestId("swap-submit"));
     await waitFor(() => expect(writeMock).toHaveBeenCalled());
     const body = lastBody();
     expect(body.receivedCents).toBeUndefined();
     expect(body.destination).toMatchObject({
       kind: "new",
-      priceCents: "100",
+      priceCents: "6000",
       holding: { name: "USDT", quantity: "1000", currentPriceCents: "100" },
     });
     expect(body.destination.holding.livePriceCents).toBeUndefined();
+  });
+
+  it("price typed first fills the quantity on the fly", () => {
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    fireEvent.click(screen.getByTestId("dest-form-qty"));
+    type("swap-dest-price", "2");
+    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("30000");
+    type("swap-dest-price", "3");
+    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("20000");
+  });
+
+  it("the fill happens once: after leaving the field, corrections move nothing", () => {
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    fireEvent.click(screen.getByTestId("dest-form-qty"));
+    type("swap-dest-price", "2");
+    fireEvent.blur(screen.getByTestId("swap-dest-price"));
+    type("swap-dest-qty", "1000");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("2");
+    type("swap-dest-price", "3");
+    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("1000");
+    expect(screen.queryByText("swap.sell.linked")).toBeNull();
+  });
+
+  it("typing the other field ends the fill too", () => {
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    fireEvent.click(screen.getByTestId("dest-form-qty"));
+    type("swap-dest-qty", "2");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("30000");
+    type("swap-dest-price", "29000");
+    type("swap-dest-qty", "3");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("29000");
+  });
+
+  it("changing the currency never changes a typed price", () => {
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    fireEvent.click(screen.getByTestId("dest-form-usdt"));
+    type("swap-dest-price", "4");
+    type("currency-picker", "USD");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("4");
   });
 
   // R6 (user): BTC → new USDC asked "Buy price (EUR)" with no way to pick USD.
@@ -229,26 +278,13 @@ describe("Sell tab", () => {
     // R6 (user): just "Buy price" — the currency sits beside it.
     expect(screen.getByText("swap.buy.price")).toBeInTheDocument();
     expect(screen.queryByText(/swap\.buy\.price \(/)).toBeNull();
+    type("swap-dest-qty", "1");
     fireEvent.click(screen.getByTestId("swap-submit"));
     await waitFor(() => expect(writeMock).toHaveBeenCalled());
     expect(lastBody().receivedCurrency).toBe("USD");
   });
 
-  it("an untouched quantity follows the price; a typed one never moves", () => {
-    mount();
-    type("swap-sell-sold", "1");
-    fireEvent.click(screen.getByTestId("swap-dest-invest"));
-    fireEvent.click(screen.getByTestId("dest-form-qty"));
-    type("swap-dest-price", "2");
-    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("30000");
-    type("swap-dest-qty", "1000");
-    expect(screen.getByTestId("swap-dest-price")).toHaveValue("2");
-    type("swap-dest-price", "3");
-    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("1000");
-    expect(screen.queryByText("swap.sell.linked")).toBeNull();
-  });
-
-  it("an existing quantity destination starts at its own price", async () => {
+  it("an existing quantity destination starts empty and books what was typed", async () => {
     mount();
     type("swap-sell-sold", "1");
     fireEvent.click(screen.getByTestId("swap-dest-invest"));
@@ -263,10 +299,10 @@ describe("Sell tab", () => {
     expect(screen.getByTestId("swap-dest-price")).not.toHaveAttribute(
       "readonly",
     );
-    expect(screen.getByTestId("swap-dest-price")).toHaveValue("60000");
-    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("1");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("");
+    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("");
     type("swap-dest-qty", "0.5");
-    expect(screen.getByTestId("swap-dest-price")).toHaveValue("60000");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("120000");
     fireEvent.click(screen.getByTestId("swap-submit"));
     await waitFor(() => expect(writeMock).toHaveBeenCalled());
     expect(lastBody().receivedCents).toBeUndefined();
@@ -274,6 +310,7 @@ describe("Sell tab", () => {
       kind: "existing",
       holdingId: btcCold.id,
       quantityBought: "0.5",
+      priceCents: "12000000",
     });
   });
 

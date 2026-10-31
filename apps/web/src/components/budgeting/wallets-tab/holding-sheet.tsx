@@ -1707,12 +1707,14 @@ export function NumericInput({
   testId,
   placeholder,
   readOnly,
+  onBlur,
 }: {
   value: string;
   onChange: (v: string) => void;
   testId?: string;
   placeholder?: string;
   readOnly?: boolean;
+  onBlur?: () => void;
 }) {
   return (
     <Input
@@ -1723,6 +1725,7 @@ export function NumericInput({
       readOnly={readOnly}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
       className="text-num-md tabular-nums"
     />
   );

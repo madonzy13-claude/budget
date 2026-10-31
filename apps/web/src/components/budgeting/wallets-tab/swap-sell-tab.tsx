@@ -134,8 +134,10 @@ export function SwapSellTab({
   const [dest, setDest] = useState<Dest>("invest");
   const [newHolding, setNewHolding] = useState<DestinationHolding | null>(null);
   const [destQty, setDestQty] = useState("");
-  const [qtyTouched, setQtyTouched] = useState(false);
   const [destPrice, setDestPrice] = useState("");
+  // R6 (user): the first of quantity / price typed fills the other on the
+  // fly, once — leaving it or typing the other ends that ("done").
+  const [filler, setFiller] = useState<"qty" | "price" | "done" | null>(null);
   const [existingId, setExistingId] = useState("");
   const [walletKind, setWalletKind] = useState<WalletKind>("nowhere");
   const [walletId, setWalletId] = useState("");
@@ -162,7 +164,9 @@ export function SwapSellTab({
   const assetCcy = existing ? ccyOf(existing, budgetCurrency) : receivedCcy;
   const pickExisting = (id: string | null) => {
     setExistingId(id ?? "");
+    setDestQty("");
     setDestPrice("");
+    setFiller(null);
     if (!id) return;
     const h = holdings.find((x) => x.id === id);
     if (h) setChosenCcy(ccyOf(h, budgetCurrency));
@@ -259,27 +263,26 @@ export function SwapSellTab({
   const newIsQty = !!newHolding && isQtyUiType(newHolding.uiType);
   const qtyDest =
     (mode === "existing" && existingIsQty) || (mode === "new" && newIsQty);
-  const livePrice = newHolding?.livePriceCents
-    ? plain(Number(newHolding.livePriceCents) / 100)
-    : "";
-  // R6 (user): never locked — a typed price wins over the asset's own.
-  const priceText =
-    destPrice !== ""
-      ? destPrice
-      : mode === "existing"
-        ? existing
-          ? plain((Number(existing.currentPriceCents ?? 0) / 100) * assetRate)
-          : ""
-        : livePrice;
+  // Nothing is prefilled (R6, user): quantity × price is what the user says.
+  const priceText = destPrice;
   const price = num(priceText);
-  // Quantity follows sold value ÷ price until the user types it.
   const soldInReceived =
     calc && !calc.invalid ? (calc.soldValue * rate) / 100 : 0;
-  const qtyText = qtyTouched
-    ? destQty
-    : price > 0 && soldInReceived > 0
-      ? plain(soldInReceived / price)
-      : "";
+  const qtyText = destQty;
+  /** sold value ÷ the typed figure — the other field's fill. */
+  const counterpart = (v: string) =>
+    num(v) > 0 && soldInReceived > 0 ? plain(soldInReceived / num(v)) : "";
+  const typeDest = (field: "qty" | "price", v: string) => {
+    (field === "qty" ? setDestQty : setDestPrice)(v);
+    if (filler === null || filler === field) {
+      setFiller(field);
+      (field === "qty" ? setDestPrice : setDestQty)(counterpart(v));
+    } else if (filler !== "done") setFiller("done");
+  };
+  const leaveDest = (field: "qty" | "price") => {
+    if (filler === field && (field === "qty" ? destQty : destPrice) !== "")
+      setFiller("done");
+  };
   const qty = num(qtyText);
 
   // ponytail: display-only Number math (no-float-money keys on member names).
@@ -393,7 +396,7 @@ export function SwapSellTab({
               kind: "existing" as const,
               holdingId: existingId,
               ...(existingIsQty ? { quantityBought: qtyString(qty) } : {}),
-              ...(existingIsQty && destPrice !== ""
+              ...(existingIsQty
                 ? { priceCents: String(Math.round(price * 100)) }
                 : {}),
             }
@@ -472,17 +475,16 @@ export function SwapSellTab({
         <NumericInput
           testId="swap-dest-qty"
           value={qtyText}
-          onChange={(v) => {
-            setQtyTouched(true);
-            setDestQty(v);
-          }}
+          onChange={(v) => typeDest("qty", v)}
+          onBlur={() => leaveDest("qty")}
         />
       </Field>
       <Field label={t("swap.buy.price")}>
         <NumericInput
           testId="swap-dest-price"
           value={priceText}
-          onChange={setDestPrice}
+          onChange={(v) => typeDest("price", v)}
+          onBlur={() => leaveDest("price")}
         />
       </Field>
       <div data-testid="swap-dest-ccy">
