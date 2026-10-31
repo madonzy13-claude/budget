@@ -876,6 +876,7 @@
           "positive": "Wpisz kwotę większą od 0.",
           "futureDate": "Data nie może być w przyszłości.",
           "beforeLatest": "Data nie może być wcześniejsza niż ostatni wpis ({date}).",
+          "beforeDest": "{name} ma wpis z {date} — wybierz tę datę lub późniejszą.",
           "fx": "Brak kursu dla {currency} na {date}. Wybierz inną datę lub walutę.",
           "walletRequired": "Wybierz portfel lub opcję Nigdzie.",
           "nameRequired": "Wpisz nazwę.",

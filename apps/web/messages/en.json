@@ -876,6 +876,7 @@
           "positive": "Enter an amount greater than 0.",
           "futureDate": "Date can't be in the future.",
           "beforeLatest": "Date can't be before the latest entry ({date}).",
+          "beforeDest": "{name} has an entry on {date} — pick that date or later.",
           "fx": "No exchange rate for {currency} on {date}. Pick another date or currency.",
           "walletRequired": "Pick a wallet or choose Nowhere.",
           "nameRequired": "Enter a name.",

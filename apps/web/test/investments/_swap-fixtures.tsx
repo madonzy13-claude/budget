@@ -269,8 +269,27 @@ export const deposit = H({
 });
 
 /** entries + wallets + fx routed by URL. */
-export function routeFetch(opts: { latest?: string; rate?: string } = {}) {
+export function routeFetch(
+  opts: {
+    latest?: string;
+    rate?: string;
+    /** Per-asset newest entry date, by holding id. */
+    latestOf?: Record<string, string>;
+  } = {},
+) {
   fetchMock.mockImplementation(async (url: string) => {
+    const own = Object.entries(opts.latestOf ?? {}).find(([id]) =>
+      url.includes(`/${id}/entries`),
+    );
+    if (own)
+      return new Response(
+        JSON.stringify({
+          entries: [
+            { id: "d1", kind: "buy", effectiveDate: own[1], deletable: true },
+          ],
+        }),
+        { status: 200 },
+      );
     if (url.includes("/entries"))
       return new Response(
         JSON.stringify({

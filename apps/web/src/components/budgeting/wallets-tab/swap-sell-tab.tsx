@@ -25,6 +25,7 @@
  *   amount:   kept cost = buy × kept ÷ value
  *   deposit:  sold cost = principal − kept (all interest realized)
  */
+import { useMinEntryDate } from "@/hooks/use-asset-entries";
 import { isCashLike } from "@/lib/cash-like";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -318,12 +319,22 @@ export function SwapSellTab({
       : mode === "existing"
         ? !!existing && (!existingIsQty || qty > 0)
         : newHolding !== null && (!newIsQty || (qty > 0 && price > 0));
+  // R6 (user): the ledger only appends — an existing destination's newest
+  // entry bounds the date too (the server refuses before it).
+  const destMin = useMinEntryDate(budgetId, existingId, mode === "existing");
+  const destBinds =
+    mode === "existing" && !!destMin && (!minDate || destMin > minDate);
+  const effMin = destBinds ? destMin : minDate;
+  const dateError =
+    destBinds && date !== "" && date < destMin!
+      ? t("swap.err.beforeDest", { date: destMin!, name: existing?.name ?? "" })
+      : null;
   const valid =
     !!calc &&
     !calc.invalid &&
     receivedCents > 0 &&
     destOk &&
-    dateOk(date, minDate);
+    dateOk(date, effMin);
 
   const destName =
     mode === "existing"
@@ -464,7 +475,12 @@ export function SwapSellTab({
                   date: w.date ?? "",
                 })
               : w.code === "before_latest_entry"
-                ? t("swap.err.beforeLatest", { date: minDate ?? "" })
+                ? destBinds
+                  ? t("swap.err.beforeDest", {
+                      date: destMin!,
+                      name: existing?.name ?? "",
+                    })
+                  : t("swap.err.beforeLatest", { date: minDate ?? "" })
                 : t("swap.err.saveFailed"),
           );
         },
@@ -756,7 +772,12 @@ export function SwapSellTab({
           </section>
         )}
 
-        <SwapDateField value={date} onChange={setDate} min={minDate} />
+        <SwapDateField
+          value={date}
+          onChange={setDate}
+          min={effMin}
+          error={dateError}
+        />
         {serverError && <ErrorLine>{serverError}</ErrorLine>}
       </div>
       <SwapFooter

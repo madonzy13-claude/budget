@@ -356,6 +356,34 @@ describe("Sell tab", () => {
   });
 
   // R6 (user): laid out like Buy — quantity alone, then price + currency.
+  // R6 (user): ETH (newest 2024-03-19) sold on 2025-06-15 into USDC whose
+  // newest entry is 2025-06-25 — the server refused, and the message named
+  // the SOURCE's date. The destination's own newest entry bounds the date.
+  it("an existing destination's newest entry bounds the date, and is named", async () => {
+    routeFetch({
+      latest: "2024-03-19",
+      latestOf: { [btcCold.id]: "2025-06-25" },
+    });
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    pickDest(btcCold.id);
+    type("swap-dest-qty", "1");
+    type("swap-date", "2025-06-15");
+    await waitFor(() =>
+      expect(screen.getByTestId("swap-date")).toHaveAttribute(
+        "min",
+        "2025-06-25",
+      ),
+    );
+    expect(
+      screen.getByText("swap.err.beforeDest(date=2025-06-25,name=BTC Cold)"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("swap-submit")).toBeDisabled();
+    type("swap-date", "2025-06-25");
+    expect(screen.getByTestId("swap-submit")).not.toBeDisabled();
+  });
+
   it("quantity sits on its own row; price and currency share the next", () => {
     mount();
     type("swap-sell-sold", "1");
