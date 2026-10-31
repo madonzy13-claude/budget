@@ -379,6 +379,39 @@ export class InvestmentsPo {
     await opt.click();
   }
 
+  /** Search the instrument catalog and pick the suggestion labelled `label`. */
+  async pickCatalogInstrument(label: string): Promise<void> {
+    const sheet = this.sheet();
+    await sheet
+      .getByTestId("holding-sheet-instrument")
+      .fill(label.split(" (")[0]!);
+    await sheet
+      .getByTestId("instrument-suggestions")
+      .getByRole("option")
+      .filter({ hasText: label })
+      .first()
+      .click({ timeout: 15000 });
+  }
+
+  /** R6: a stablecoin's buy price + its peg currency, picker disabled. */
+  async expectLockedBuyCurrency(price: string, ccy: string): Promise<void> {
+    const sheet = this.sheet();
+    await expect(sheet.getByTestId("holding-sheet-buy-price")).toHaveValue(
+      price,
+    );
+    const native = sheet.getByTestId("currency-picker-native");
+    if (await native.isVisible().catch(() => false)) {
+      await expect(native).toHaveValue(ccy);
+      await expect(native).toBeDisabled();
+    } else {
+      const trigger = sheet.getByRole("combobox", {
+        name: /currency|waluta|валюта/i,
+      });
+      await expect(trigger).toContainText(ccy);
+      await expect(trigger).toBeDisabled();
+    }
+  }
+
   /** Focus the name field — the type's assets list without typing. */
   async focusName(): Promise<void> {
     await this.sheet().getByTestId("holding-sheet-name").click();

@@ -2868,3 +2868,20 @@ Then(
 When("I delete the asset {string}", async ({ page }, name: string) => {
   await new InvestmentsPo(page).deleteAsset(name);
 });
+
+When(
+  "I pick {string} from the catalog in the {string} Add form",
+  async ({ page }, label: string, type: string) => {
+    const po = new InvestmentsPo(page);
+    await po.openAdd(type);
+    await po.pickCatalogInstrument(label);
+  },
+);
+
+Then(
+  "the Add form buys at {string} in {string} with the currency locked",
+  async ({ page }, price: string, ccy: string) => {
+    const po = new InvestmentsPo(page);
+    await po.expectLockedBuyCurrency(price, ccy);
+  },
+);

@@ -615,3 +615,10 @@ Feature: Investments as assets with transactions (13.1)
       | pl     | light |
       | uk     | dark  |
       | uk     | light |
+
+  # R6 (user): a stablecoin is bought at 1 in the fiat it tracks — locked.
+  @r6-stablecoin
+  Scenario: Picking a stablecoin from the catalog buys at 1 USD, currency locked
+    When I open the investments wallets tab
+    And I pick "Tether (USDT)" from the catalog in the "crypto" Add form
+    Then the Add form buys at "1" in "USD" with the currency locked
