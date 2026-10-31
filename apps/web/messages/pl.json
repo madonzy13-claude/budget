@@ -793,7 +793,7 @@
         }
       },
       "swap": {
-        "title": "Zamień {name}",
+        "title": "Nowa transakcja: {name}",
         "tab": {
           "buy": "Kup",
           "sell": "Sprzedaj",
