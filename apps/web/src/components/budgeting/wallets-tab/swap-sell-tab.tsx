@@ -598,16 +598,21 @@ export function SwapSellTab({
                 selectedId={existingId || null}
                 excludeId={holding.id}
                 onPickExisting={pickExisting}
+                nameHint={
+                  mode === "new" &&
+                  newHolding && (
+                    <p
+                      data-testid="swap-dest-new-marker"
+                      className={caption}
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      {t("swap.sell.dest.willCreate", {
+                        name: newHolding.name,
+                      })}
+                    </p>
+                  )
+                }
               />
-              {mode === "new" && newHolding && (
-                <p
-                  data-testid="swap-dest-new-marker"
-                  className={caption}
-                  style={{ color: "var(--muted-foreground)" }}
-                >
-                  {t("swap.sell.dest.willCreate", { name: newHolding.name })}
-                </p>
-              )}
               {qtyDest && destPair()}
             </>
           )}

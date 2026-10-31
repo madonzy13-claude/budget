@@ -115,6 +115,8 @@ interface HoldingSheetProps {
     selectedId?: string | null;
     /** The asset being sold (never its own destination). */
     excludeId?: string;
+    /** Shown right under the name field. */
+    nameHint?: React.ReactNode;
   };
   /** Add mode: start with this type chosen. */
   initialUiType?: UiType;
@@ -851,33 +853,41 @@ export function HoldingSheet({
   // from the Asset search — it never fills it (user, round 5).
   const tracked = behavior === "tracked";
   const nameField = (
-    <AssetNameCombobox
-      budgetId={budgetId}
-      uiType={uiType || null}
-      value={tracked ? customName : name}
-      testId="holding-sheet-name"
-      ariaLabel={t(tracked && !manualEntry ? "field.customName" : "field.name")}
-      onChange={(v) => {
-        markDirty();
-        setPickedId(null);
-        if (dest?.selectedId) dest.onPickExisting?.(null);
-        if (!tracked) return setName(v);
-        setCustomName(v);
-      }}
-      selectedId={dest ? (dest.selectedId ?? null) : pickedId}
-      onCreate={() => (dest ? dest.onPickExisting?.(null) : setPickedId(null))}
-      excludeId={dest?.excludeId}
-      // A sale lands in a live, non-deposit asset (server: same_holding,
-      // unsupported_destination).
-      include={
-        dest ? (a) => !a.archived && a.holdingType !== "deposit" : undefined
-      }
-      onPickExisting={(a) => {
-        if (dest) return dest.onPickExisting?.(a.id);
-        if (a.archived) restoreMut.mutate(a.id);
-        setPickedId(a.id);
-      }}
-    />
+    <>
+      <AssetNameCombobox
+        budgetId={budgetId}
+        uiType={uiType || null}
+        value={tracked ? customName : name}
+        testId="holding-sheet-name"
+        ariaLabel={t(
+          tracked && !manualEntry ? "field.customName" : "field.name",
+        )}
+        onChange={(v) => {
+          markDirty();
+          setPickedId(null);
+          if (dest?.selectedId) dest.onPickExisting?.(null);
+          if (!tracked) return setName(v);
+          setCustomName(v);
+        }}
+        selectedId={dest ? (dest.selectedId ?? null) : pickedId}
+        onCreate={() =>
+          dest ? dest.onPickExisting?.(null) : setPickedId(null)
+        }
+        excludeId={dest?.excludeId}
+        // A sale lands in a live, non-deposit asset (server: same_holding,
+        // unsupported_destination).
+        include={
+          dest ? (a) => !a.archived && a.holdingType !== "deposit" : undefined
+        }
+        onPickExisting={(a) => {
+          if (dest) return dest.onPickExisting?.(a.id);
+          if (a.archived) restoreMut.mutate(a.id);
+          setPickedId(a.id);
+        }}
+      />
+      {/* R6 (user): the Sell destination's "will be created" sits here. */}
+      {dest?.nameHint}
+    </>
   );
 
   // The type + type-specific fields — shared by the sheet and the Sell
@@ -1787,6 +1797,7 @@ export function HoldingFormFields(props: {
   onPickExisting?: (id: string | null) => void;
   selectedId?: string | null;
   excludeId?: string;
+  nameHint?: React.ReactNode;
 }) {
   return (
     <HoldingSheet
@@ -1801,6 +1812,7 @@ export function HoldingFormFields(props: {
         onPickExisting: props.onPickExisting,
         selectedId: props.selectedId,
         excludeId: props.excludeId,
+        nameHint: props.nameHint,
       }}
     />
   );

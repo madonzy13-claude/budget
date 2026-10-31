@@ -935,6 +935,30 @@ describe("HoldingSheet — type-first", () => {
 
 // Phase 13 Sell → "New investment" reuses the Add form's type fields.
 describe("HoldingFormFields — sale destination", () => {
+  // R6 (user): "New asset … will be created" sits under the (custom) name,
+  // not below the Asset search.
+  it("the name hint renders right under the name field", () => {
+    render(
+      <HoldingFormFields
+        budgetId="b1"
+        budgetCurrency="USD"
+        receivedCurrency="PLN"
+        initialUiType="crypto"
+        onChange={vi.fn()}
+        nameHint={<p data-testid="name-hint">hint</p>}
+      />,
+    );
+    const name = screen.getByTestId("holding-sheet-name");
+    const hint = screen.getByTestId("name-hint");
+    const asset = screen.getByTestId("holding-sheet-instrument");
+    expect(
+      name.compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      hint.compareDocumentPosition(asset) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("cash: just a name; emits a cash holding in the received currency", async () => {
     const onChange = vi.fn();
     render(

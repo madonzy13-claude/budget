@@ -65,13 +65,16 @@ vi.mock("../../src/components/budgeting/wallets-tab/holding-sheet", () => ({
     onPickExisting,
     selectedId,
     excludeId,
+    nameHint,
   }: {
     onChange: (h: unknown) => void;
     onPickExisting?: (id: string | null) => void;
     selectedId?: string | null;
     excludeId?: string;
+    nameHint?: React.ReactNode;
   }) => (
     <>
+      {nameHint}
       {/* Round 6: the one Into-investments name field — pick by id, in place. */}
       <span
         data-testid="dest-form-state"
