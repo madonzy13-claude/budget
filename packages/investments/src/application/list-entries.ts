@@ -314,6 +314,40 @@ export function listEntries(deps: {
             : (b.createdAt ?? "").localeCompare(a.createdAt ?? "") ||
               (b.id ?? "").localeCompare(a.id ?? ""),
       );
+      // R6 (user): what the asset held right after each entry. Anchored on
+      // today (so the newest is exact) and walked back through each change;
+      // a quantity asset is valued at that deal's own price.
+      const byId = new Map(live.map((e) => [e.id, e]));
+      const valueShape = ["cash_fx", "other", "savings", "possession"].includes(
+        h.holdingType,
+      );
+      const afterCcy = h.currentPriceCurrency ?? h.buyCurrency ?? null;
+      let qtyRun = big(h.quantity);
+      let valueRun =
+        h.currentPriceCents != null
+          ? big(h.currentPriceCents.toString())
+          : null;
+      for (const r of rows) {
+        const e = r.id !== null && !isDeposit ? byId.get(r.id) : undefined;
+        if (!e) {
+          r.afterCents = null;
+          r.afterCurrency = null;
+          continue;
+        }
+        r.afterCurrency = afterCcy;
+        if (valueShape) {
+          r.afterCents = valueRun ? cents(valueRun).toString() : null;
+          if (valueRun) valueRun = valueRun.minus(big(e.valueDeltaCents));
+          continue;
+        }
+        const q = e.qtyDelta != null ? big(e.qtyDelta) : null;
+        const paid = r.displayAmountCents ?? r.amountCents;
+        r.afterCents =
+          q && !q.eq(0) && paid != null
+            ? cents(qtyRun.times(big(paid).abs().div(q.abs()))).toString()
+            : null;
+        if (q) qtyRun = qtyRun.minus(q);
+      }
       return ok(rows);
     } catch (e) {
       return err(e as Error);

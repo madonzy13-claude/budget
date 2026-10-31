@@ -830,16 +830,13 @@ When(
 );
 
 Then(
-  "the ledger of {string} shows the sale as {string} in the asset's currency",
-  async ({ page }, name: string, major: string) => {
+  "the newest ledger row of {string} reads in {string} and leaves {string} in the asset's currency",
+  async ({ page }, name: string, dealCcy: string, after: string) => {
     const ledger = await new InvestmentsPo(page).openLedger(name);
-    const text = await ledger.locator("[data-converted]").first().innerText();
-    // "= −3,000 USD": the suggested amount is rounded in the sale's currency,
-    // so the deal figure may sit one cent off.
-    const n = Number(text.replace(/[^\d.]/g, ""));
-    expect(text).toMatch(/^= −/);
-    expect(Math.abs(n - Number(major.replace(/,/g, "")))).toBeLessThanOrEqual(
-      0.01,
+    const row = ledger.getByRole("row").first();
+    await expect(row).toContainText(dealCcy);
+    await expect(row.locator("[data-after]")).toHaveText(
+      new RegExp(`^= ${after} [A-Z]{3}$`),
     );
   },
 );

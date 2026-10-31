@@ -36,6 +36,9 @@ export interface EntryDto {
   amountCurrency: string | null;
   displayAmountCents: string | null;
   displayCurrency: string | null;
+  /** R6 (user): the asset's total right after this entry, its currency. */
+  afterCents?: string | null;
+  afterCurrency?: string | null;
   realizedBudgetCents: string | null;
   /** R6: realized in the asset's currency. */
   realizedCents?: string | null;

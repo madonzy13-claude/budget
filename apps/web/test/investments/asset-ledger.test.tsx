@@ -547,7 +547,9 @@ describe("Asset ledger strip", () => {
     expect(slide.className).toContain("transition-[grid-template-rows]");
   });
 
-  it("a convert leg shows its stored amount and currency, then the asset's", async () => {
+  // R6 (user): "+690 EUR = 5,000 PLN" — the deal in its own currency, then
+  // what the asset held right after it (smaller, dimmed), for the history.
+  it("a row shows the deal in its currency, then the asset's total after it", async () => {
     mount([
       e({
         id: "ci",
@@ -556,57 +558,40 @@ describe("Asset ledger strip", () => {
         amountCurrency: "EUR",
         displayAmountCents: "298080",
         displayCurrency: "PLN",
+        afterCents: "500000",
+        afterCurrency: "PLN",
       }),
     ]);
     const row = await screen.findByTestId("ledger-row-ci");
     expect(row).toHaveTextContent(/\+690(\.00)? EUR/);
-    // Round-5 gap 13: and what it became in the asset's currency.
-    // Round 6: from 100 up, no cents.
-    expect(row.querySelector("[data-converted]")).toHaveTextContent(
-      /2,981 PLN/,
-    );
+    const after = row.querySelector<HTMLElement>("[data-after]")!;
+    expect(after).toHaveTextContent(/^= 5,000 PLN$/);
+    expect(after.style.fontSize).toBe("11px");
+    expect(Number(after.style.opacity)).toBeLessThan(1);
+    // The deal's re-conversion is gone — the total replaced it.
+    expect(row.querySelector("[data-converted]")).toBeNull();
   });
 
-  it("a buy paid in another currency shows both amounts", async () => {
+  it("a same-currency entry shows its total after it too", async () => {
     mount([
       e({
-        id: "bu",
-        kind: "buy",
-        amountCents: "10000",
-        amountCurrency: "USD",
-        displayAmountCents: "42500",
-        displayCurrency: "PLN",
+        id: "same",
+        amountCents: "64000",
+        amountCurrency: "PLN",
+        afterCents: "164000",
+        afterCurrency: "PLN",
       }),
     ]);
-    const row = await screen.findByTestId("ledger-row-bu");
-    expect(row).toHaveTextContent(/\+100(\.00)? USD/);
-    expect(row.querySelector("[data-converted]")).toHaveTextContent(
-      /425(\.00)? PLN/,
+    const row = await screen.findByTestId("ledger-row-same");
+    expect(row.querySelector("[data-after]")).toHaveTextContent(
+      /^= 1,640 PLN$/,
     );
   });
 
-  // Round 6: an Out sale (withdraw) keeps its minus on the converted line.
-  it("a sale out in another currency shows a negative converted figure", async () => {
-    mount([
-      e({
-        id: "wd",
-        kind: "withdraw",
-        amountCents: "-69000",
-        amountCurrency: "EUR",
-        displayAmountCents: "-300000",
-        displayCurrency: "USD",
-      }),
-    ]);
-    const row = await screen.findByTestId("ledger-row-wd");
-    expect(row.querySelector("[data-converted]")).toHaveTextContent(
-      /^= −3,000(\.00)? USD$/,
-    );
-  });
-
-  it("a same-currency entry shows one amount", async () => {
+  it("no total when the server has none (interest rows)", async () => {
     mount([e({ id: "same", amountCents: "64000", amountCurrency: "PLN" })]);
     const row = await screen.findByTestId("ledger-row-same");
-    expect(row.querySelector("[data-converted]")).toBeNull();
+    expect(row.querySelector("[data-after]")).toBeNull();
   });
 
   // UAT 13.1 test 12: swipe to delete, like every other row.

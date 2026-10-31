@@ -115,12 +115,12 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     Then there is exactly one asset named "Pot"
     And the ledger of "Pot" lists "EUR"
 
-  # Round-6 gap 2: a cross-currency sale keeps its own figure in the asset's
-  # currency (= what it was worth at the deal), never a later re-conversion.
+  # R6 (user): a row reads "+15 USD = 13,456 PLN" — the deal in its own
+  # currency, then what the asset held right after it, in the asset's.
   @r6-deal-fixed
-  Scenario: A sale in another currency shows the deal's own figure in the asset currency
+  Scenario: A sale in another currency shows the deal, then what the asset held after it
     Given the FX cache is warm
     And a "cash" holding "Pot" deposited 300000 cents worth 300000 cents exists in my budget
     When I open the investments wallets tab
     And I sell everything of "Pot" out of investments in "EUR" at the suggested amount
-    Then the ledger of "Pot" shows the sale as "3,000" in the asset's currency
+    Then the newest ledger row of "Pot" reads in "EUR" and leaves "0" in the asset's currency

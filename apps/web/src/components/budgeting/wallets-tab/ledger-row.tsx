@@ -191,8 +191,6 @@ export function LedgerRow({
     stored || foreign
       ? (entry.amountCurrency ?? "")
       : (entry.displayCurrency ?? entry.amountCurrency ?? "");
-  // The server signs it (money out is negative) — keep that sign.
-  const converted = foreign ? entry.displayAmountCents : null;
   const qty = entry.displayQty ?? entry.qtyDelta;
   const reason = entry.deletable
     ? null
@@ -390,13 +388,19 @@ export function LedgerRow({
               {signed(amount)} {ccy}
             </span>
           )}
-          {converted != null && (
+          {entry.afterCents != null && (
+            // R6 (user): what the asset held right after this — the history
+            // reads as a running total; smaller and dimmed under the deal.
             <span
-              data-converted
-              className="text-[11px] leading-[1.4]"
-              style={{ color: "var(--muted-foreground)" }}
+              data-after
+              className="leading-[1.4]"
+              style={{
+                color: "var(--muted-foreground)",
+                fontSize: "11px",
+                opacity: 0.6,
+              }}
             >
-              {`= ${signed(converted)} ${entry.displayCurrency}`}
+              {`= ${centsToShort(entry.afterCents, locale)} ${entry.afterCurrency ?? ""}`.trimEnd()}
             </span>
           )}
           {!noRealized && entry.realizedBudgetCents != null && (

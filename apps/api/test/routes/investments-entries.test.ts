@@ -222,6 +222,50 @@ describe("Investment entries ledger", () => {
     });
   });
 
+  // R6 (user): each row says what the asset held right after it — the
+  // account's value, or quantity × that deal's own price — in its currency.
+  it("each entry carries the asset's total right after it", async () => {
+    const fix = await createFixture();
+    const app = await buildApp(fix);
+    const cash = await seed(fix); // 10,000 PLN
+    await startEntry(fix, cash);
+    await buy(app, cash, "2026-10-01"); // +10 PLN
+    expect(
+      (await entriesOf(app, cash)).map((e) => [e.afterCents, e.afterCurrency]),
+    ).toEqual([
+      ["1001000", "PLN"],
+      ["1000000", "PLN"],
+    ]);
+
+    const coin = (
+      (await (
+        await call(app, "POST", "", {
+          name: "Coin",
+          holdingType: "crypto",
+          uiType: "crypto",
+          quantity: "1",
+          buyPriceCents: "10000",
+          buyCurrency: "PLN",
+          currentPriceCents: "30000",
+          currentPriceCurrency: "PLN",
+          openedOn: "2026-09-01",
+        })
+      ).json()) as { id: string }
+    ).id;
+    await call(app, "POST", `/${coin}/buy`, {
+      kind: "quantity",
+      quantity: "1",
+      priceCents: "20000",
+      currency: "PLN",
+      effectiveDate: "2026-10-01",
+    });
+    // 2 × 200 at the second buy; 1 × 100 at the first.
+    expect((await entriesOf(app, coin)).map((e) => e.afterCents)).toEqual([
+      "40000",
+      "10000",
+    ]);
+  });
+
   it("deletes the newest entry and restores the asset; an older one is 409 not_newest", async () => {
     const fix = await createFixture();
     const app = await buildApp(fix);

@@ -476,6 +476,10 @@ export type EntryKind =
 export interface EntryDto {
   /** null for synthesized deposit interest rows (D-19). */
   id: string | null;
+  /** R6 (user): what the asset held right after this entry, in its own
+   *  currency — the account's value, or quantity × this deal's price. */
+  afterCents?: string | null;
+  afterCurrency?: string | null;
   kind: EntryKind;
   effectiveDate: string;
   createdAt: string | null;
