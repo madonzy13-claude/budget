@@ -47,6 +47,8 @@ export interface EntryDto {
   linked: boolean;
   walletName: string | null;
   walletDelta: string | null;
+  /** R6: a sale out of investments' note. */
+  note?: string | null;
   backfilled: boolean;
   deletable: boolean;
   blockedReason: "not_newest" | "linked_not_newest" | "interest" | null;

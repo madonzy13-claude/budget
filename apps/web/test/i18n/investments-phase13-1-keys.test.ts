@@ -77,6 +77,8 @@ const KEYS = [
   "swap.discard",
   "swap.err.beforeLatest",
   "swap.err.beforeDest",
+  "swap.sell.note",
+  "swap.sell.notePlaceholder",
   "swap.err.futureDate",
   "swap.err.fx",
   "swap.err.soldRange",

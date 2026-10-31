@@ -26,8 +26,13 @@ export interface SellHoldingBody {
   left: { quantity: string } | { valueCents: string };
   destination:
     | { kind: "new"; holding: Record<string, unknown>; priceCents?: string }
-    | { kind: "existing"; holdingId: string; quantityBought?: string; priceCents?: string }
-    | { kind: "out"; wallet?: WalletTarget };
+    | {
+        kind: "existing";
+        holdingId: string;
+        quantityBought?: string;
+        priceCents?: string;
+      }
+    | { kind: "out"; wallet?: WalletTarget; note?: string };
   /** Out / amount destinations; a quantity destination is qty × price. */
   receivedCents?: string;
   receivedCurrency: string;

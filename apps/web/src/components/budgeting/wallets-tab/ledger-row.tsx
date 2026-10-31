@@ -313,7 +313,20 @@ export function LedgerRow({
                   </span>
                 );
               })()
-            : null}
+            : entry.note && (
+                // R6 (user): a sale out of investments shows its note here.
+                <span
+                  data-testid={`ledger-note-${rowKey}`}
+                  className="break-words"
+                  style={{
+                    fontSize: "11px",
+                    lineHeight: 1.4,
+                    color: "var(--muted-foreground)",
+                  }}
+                >
+                  {entry.note}
+                </span>
+              )}
         </div>
         <div className="num flex shrink-0 flex-col items-end text-right tabular-nums">
           {qty != null && (

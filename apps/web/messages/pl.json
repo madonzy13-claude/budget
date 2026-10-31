@@ -852,7 +852,9 @@
             "name": "Nazwa portfela",
             "type": "Typ portfela"
           },
-          "sold": "Ile sprzedano?"
+          "sold": "Ile sprzedano?",
+          "note": "Notatka (opcjonalnie)",
+          "notePlaceholder": "np. spłata kredytu za auto"
         },
         "transfer": {
           "to": "Do",

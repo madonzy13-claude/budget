@@ -2885,3 +2885,28 @@ Then(
     await po.expectLockedBuyCurrency(price, ccy);
   },
 );
+
+When(
+  "I sell {string} leaving {string} out of investments receiving {string} with the note {string}",
+  async (
+    { page },
+    name: string,
+    left: string,
+    received: string,
+    note: string,
+  ) => {
+    const po = new InvestmentsPo(page);
+    await po.openSwap(name, "sell");
+    expect(await po.sell({ left, dest: "out", received, note })).toBe(201);
+  },
+);
+
+Then(
+  "the ledger of {string} shows the note {string}",
+  async ({ page }, name: string, note: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    await expect(
+      ledger.locator('[data-testid^="ledger-note-"]').first(),
+    ).toHaveText(note);
+  },
+);

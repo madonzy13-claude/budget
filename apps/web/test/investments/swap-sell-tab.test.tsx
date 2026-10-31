@@ -533,6 +533,31 @@ describe("Sell tab", () => {
     );
   });
 
+  // R6 (user): Out of investments takes an optional note.
+  it("Out of investments sends an optional note", async () => {
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-out"));
+    type("swap-sell-note", "  Paid the car loan ");
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody().destination).toMatchObject({
+      kind: "out",
+      note: "Paid the car loan",
+    });
+  });
+
+  it("an empty note is not sent; Into investments has no note", async () => {
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    expect(screen.queryByTestId("swap-sell-note")).toBeNull();
+    fireEvent.click(screen.getByTestId("swap-dest-out"));
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(lastBody().destination.note).toBeUndefined();
+  });
+
   it("Out defaults to Nowhere and books without a wallet", async () => {
     mount();
     type("swap-sell-sold", "1");

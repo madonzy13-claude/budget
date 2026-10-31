@@ -544,6 +544,8 @@ export class InvestmentsPo {
     newName?: string;
     /** Received currency (round 5: any currency into an existing asset). */
     currency?: string;
+    /** R6: Out of investments — the optional note. */
+    note?: string;
     wallet?:
       | { kind: "existing"; name: string }
       | { kind: "new"; name: string; type: string };
@@ -589,6 +591,7 @@ export class InvestmentsPo {
       }
     }
     await sheet.getByTestId("swap-sell-received").fill(opts.received);
+    if (opts.note) await sheet.getByTestId("swap-sell-note").fill(opts.note);
     return this.submitSwap("/sell");
   }
 

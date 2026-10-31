@@ -852,7 +852,9 @@
             "name": "Wallet name",
             "type": "Wallet type"
           },
-          "sold": "How much was sold?"
+          "sold": "How much was sold?",
+          "note": "Note (optional)",
+          "notePlaceholder": "e.g. paid the car loan"
         },
         "transfer": {
           "to": "To",

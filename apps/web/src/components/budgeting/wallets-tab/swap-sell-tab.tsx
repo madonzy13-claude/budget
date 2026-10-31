@@ -147,6 +147,8 @@ export function SwapSellTab({
   const [walletKind, setWalletKind] = useState<WalletKind>("nowhere");
   const [walletId, setWalletId] = useState("");
   const [walletName, setWalletName] = useState("");
+  // R6 (user): Out of investments — an optional note for the ledger row.
+  const [note, setNote] = useState("");
   const [walletType, setWalletType] =
     useState<(typeof WALLET_TYPES)[number]>("SPENDINGS");
   const [chosenCcy, setChosenCcy] = useState(srcCcy);
@@ -432,7 +434,11 @@ export function SwapSellTab({
           : { kind: "nowhere" };
     const destination =
       dest === "out"
-        ? ({ kind: "out", wallet: walletBody } as const)
+        ? ({
+            kind: "out",
+            wallet: walletBody,
+            ...(note.trim() ? { note: note.trim() } : {}),
+          } as const)
         : mode === "existing"
           ? {
               kind: "existing" as const,
@@ -742,6 +748,15 @@ export function SwapSellTab({
                   {t("swap.sell.wallet.help")}
                 </p>
               )}
+              <Field label={t("swap.sell.note")}>
+                <Input
+                  data-testid="swap-sell-note"
+                  value={note}
+                  maxLength={200}
+                  placeholder={t("swap.sell.notePlaceholder")}
+                  onChange={(e) => setNote(e.target.value)}
+                />
+              </Field>
             </section>
           )}
         </section>

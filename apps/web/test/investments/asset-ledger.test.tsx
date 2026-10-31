@@ -397,6 +397,24 @@ describe("Asset ledger strip", () => {
     expect(rows[2]).not.toHaveTextContent("ledger.realized");
   });
 
+  // R6 (user): a sale out of investments shows its note where a link would.
+  it("a note shows on the row's second line", async () => {
+    mount([
+      e({
+        id: "n1",
+        kind: "withdraw",
+        note: "Paid the car loan",
+        deletable: true,
+        blockedReason: null,
+      }),
+    ]);
+    const row = await screen.findByTestId("ledger-row-n1");
+    expect(screen.getByTestId("ledger-note-n1")).toHaveTextContent(
+      "Paid the car loan",
+    );
+    expect(row.contains(screen.getByTestId("ledger-note-n1"))).toBe(true);
+  });
+
   // Round 6 (user): qty × price and realized are lighter, like the asset row.
   it("the qty × price and realized lines are dimmed to 0.7", async () => {
     mount(ENTRIES);

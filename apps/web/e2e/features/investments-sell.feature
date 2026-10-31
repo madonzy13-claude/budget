@@ -24,6 +24,14 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     And the holding row "IBKR" shows "74.5%"
     And the "broker" type shows realized "+28,188"
 
+  # R6 (user): a sale out of investments can carry a note, shown in the ledger.
+  @r6-sell-note
+  Scenario: A note on a sale out of investments shows in the ledger
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I sell "IBKR" leaving "30000" out of investments receiving "66000" with the note "Paid the car loan"
+    Then the ledger of "IBKR" shows the note "Paid the car loan"
+
   # Roadmap 13.3: realized stays with the source type even when it is gone.
   Scenario: Selling a broker completely into a new cash holding keeps the realized gain
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
