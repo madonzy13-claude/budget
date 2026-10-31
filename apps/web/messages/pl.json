@@ -688,7 +688,8 @@
         "headerAria": "{name}, {pct} portfela. {state}.",
         "expanded": "Rozwinięte",
         "collapsed": "Zwinięte",
-        "dragAria": "Przeciągnij, aby przenieść grupę {name}."
+        "dragAria": "Przeciągnij, aby przenieść grupę {name}.",
+        "currencyAria": "Pokaż {name} w innej walucie"
       },
       "row": {
         "delisted": "Wycofany",

@@ -688,7 +688,8 @@
         "headerAria": "{name}, {pct} портфеля. {state}.",
         "expanded": "Розгорнуто",
         "collapsed": "Згорнуто",
-        "dragAria": "Перетягніть, щоб перемістити групу {name}."
+        "dragAria": "Перетягніть, щоб перемістити групу {name}.",
+        "currencyAria": "Показати {name} в іншій валюті"
       },
       "row": {
         "delisted": "Знято з торгів",

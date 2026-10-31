@@ -688,7 +688,8 @@
         "headerAria": "{name}, {pct} of portfolio. {state}.",
         "expanded": "Expanded",
         "collapsed": "Collapsed",
-        "dragAria": "Drag to move the {name} group."
+        "dragAria": "Drag to move the {name} group.",
+        "currencyAria": "Show {name} in another currency"
       },
       "row": {
         "delisted": "Delisted",

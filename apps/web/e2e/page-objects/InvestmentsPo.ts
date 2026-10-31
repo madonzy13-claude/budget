@@ -449,6 +449,21 @@ export class InvestmentsPo {
     expect((await res).ok()).toBe(true);
   }
 
+  /** R6 (user): show a type group in another currency (wallets' picker). */
+  async pickGroupCurrency(type: string, currency: string): Promise<void> {
+    const cell = this.page.getByTestId(`investment-type-currency-${type}`);
+    const native = cell.getByTestId("currency-picker-native");
+    if (await native.isVisible().catch(() => false))
+      await native.selectOption(currency);
+    else {
+      await cell.getByRole("combobox").click();
+      await this.page
+        .getByTestId(`currency-option-${currency}`)
+        .first()
+        .click();
+    }
+  }
+
   /** The "N hidden assets" link at the bottom of a type group. */
   hiddenLink(type: string) {
     return this.page.getByTestId(`hidden-toggle-${type}`);

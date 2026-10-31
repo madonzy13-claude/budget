@@ -2748,6 +2748,22 @@ Then(
 );
 
 // Round 4 (user): archive is an explicit action; buying into it revives it.
+When(
+  "I show the {string} group in {string}",
+  async ({ page }, type: string, ccy: string) => {
+    await new InvestmentsPo(page).pickGroupCurrency(type, ccy);
+  },
+);
+
+Then(
+  "the {string} group total reads in {string} and differs from {string}",
+  async ({ page }, type: string, ccy: string, before: string) => {
+    const value = page.getByTestId(`investment-type-value-${type}`);
+    await expect(value).toContainText(ccy, { timeout: 15000 });
+    await expect(value).not.toContainText(before, { timeout: 15000 });
+  },
+);
+
 When("I hide the asset {string}", async ({ page }, name: string) => {
   await new InvestmentsPo(page).hide(name);
 });

@@ -47,6 +47,8 @@ import { DashedAddButton } from "@/components/common/dashed-add-button";
 import { centsToBare, centsToRounded } from "@/lib/cents-format";
 import { amountColumnChars } from "@/lib/amount-column";
 import { useBudget } from "@/hooks/use-budget-data";
+import { useMemberUiPrefs } from "@/hooks/use-member-ui-prefs";
+import { useFxRates } from "@/hooks/use-fx-rates";
 import {
   useHiddenHoldings,
   useInvestments,
@@ -70,6 +72,7 @@ import {
   typeGroupPL,
   typeOf,
   type TypeBlock,
+  type TypeGroupPL,
 } from "@/lib/investment-type-groups";
 import { InvestmentRowSheet } from "./investment-row-sheet";
 import { AssetLedger } from "./asset-ledger";
@@ -357,6 +360,33 @@ export function InvestmentsSection({
       ),
     [blocks, summary],
   );
+  // R6 (user): each group may be shown in another currency — the member's
+  // pick, converted at today's rate (the % is unchanged).
+  const uiPrefs = useMemberUiPrefs(budgetId);
+  const ccyKey = (uiType: string) => `invGroupCcy.${uiType}`;
+  const groupCcy = (uiType: string) =>
+    uiPrefs.prefs[ccyKey(uiType)]?.[0] ?? budgetCurrency;
+  const rates = useFxRates(
+    budgetCurrency,
+    blocks.map((b) => groupCcy(b.uiType)),
+  );
+  /** The group's P/L in its chosen currency (budget currency until the
+   *  rate arrives). */
+  const shownPL = (uiType: string, pl: TypeGroupPL) => {
+    const ccy = groupCcy(uiType);
+    const r = rates.get(ccy);
+    if (r == null) return { ccy: budgetCurrency, pl };
+    return {
+      ccy,
+      pl: {
+        ...pl,
+        valueBudgetCents: pl.valueBudgetCents * r,
+        unrealizedCents: pl.unrealizedCents * r,
+        realizedCents: pl.realizedCents * r,
+        totalPLCents: pl.totalPLCents * r,
+      },
+    };
+  };
   const total = useMemo(
     () => portfolioPL(holdings, summary),
     [holdings, summary],
@@ -603,8 +633,11 @@ export function InvestmentsSection({
                     <InvestmentTypeHeader
                       dragHandle={handle}
                       uiType={block.uiType}
-                      budgetCurrency={budgetCurrency}
-                      pl={pl}
+                      budgetCurrency={shownPL(block.uiType, pl).ccy}
+                      pl={shownPL(block.uiType, pl).pl}
+                      onCurrencyChange={(c) =>
+                        void uiPrefs.save(ccyKey(block.uiType), [c])
+                      }
                       portfolioPct={
                         totalBudgetCents > 0
                           ? (pl.valueBudgetCents / totalBudgetCents) * 100

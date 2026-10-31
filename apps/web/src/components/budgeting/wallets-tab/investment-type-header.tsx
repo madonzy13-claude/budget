@@ -23,6 +23,7 @@ import { TrendingDown, TrendingUp } from "lucide-react";
 import { centsToShort } from "@/lib/cents-format";
 import type { UiType } from "@/lib/investment-types";
 import { UI_TYPE_COLOR, UI_TYPE_ICON } from "@/lib/investment-icons";
+import { CurrencyPicker } from "@/components/common/currency-picker";
 import type { TypeGroupPL } from "@/lib/investment-type-groups";
 
 interface InvestmentTypeHeaderProps {
@@ -35,6 +36,8 @@ interface InvestmentTypeHeaderProps {
   maxAmountChars?: number;
   expanded: boolean;
   onToggle: () => void;
+  /** R6 (user): show the group in another currency (the wallets' picker). */
+  onCurrencyChange?: (currency: string) => void;
   /** Block drag handle slot (the parent's useSortable listeners). */
   dragHandle?: React.ReactNode;
 }
@@ -114,6 +117,7 @@ export function InvestmentTypeHeader({
   maxAmountChars,
   expanded,
   onToggle,
+  onCurrencyChange,
   dragHandle,
 }: InvestmentTypeHeaderProps) {
   const t = useTranslations("budget.investments");
@@ -150,12 +154,30 @@ export function InvestmentTypeHeader({
         data-testid={`investment-type-value-${uiType}`}
         className="flex items-baseline gap-1"
       >
-        <span
-          className="text-num-sm"
-          style={{ color: "var(--muted-foreground)" }}
-        >
-          {budgetCurrency}
-        </span>
+        {onCurrencyChange ? (
+          // Picking a currency never toggles the group.
+          <span
+            data-testid={`investment-type-currency-${uiType}`}
+            className="text-num-sm"
+            style={{ color: "var(--muted-foreground)" }}
+            onClick={stop}
+            onKeyDown={stop}
+            onPointerDown={stop}
+          >
+            <CurrencyPicker
+              value={budgetCurrency}
+              onSelect={onCurrencyChange}
+              aria-label={t("group.currencyAria", { name })}
+            />
+          </span>
+        ) : (
+          <span
+            className="text-num-sm"
+            style={{ color: "var(--muted-foreground)" }}
+          >
+            {budgetCurrency}
+          </span>
+        )}
         <span
           // R6 (user): desktop is never compact — the asset row's amount column.
           className={`num text-right sm:min-w-[var(--amount-w)] sm:text-num-md ${showSplit ? "text-num-sm" : "text-num-md"}`}

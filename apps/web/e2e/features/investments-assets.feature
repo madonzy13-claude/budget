@@ -638,3 +638,15 @@ Feature: Investments as assets with transactions (13.1)
     When I open the investments wallets tab
     And I pick "Tether (USDT)" from the catalog in the "crypto" Add form
     Then the Add form buys at "1" in "USD" with the currency locked
+
+  # R6 (user): a group can be shown in another currency — the amount and
+  # P/L follow today's rate; the pick stays after a reload.
+  @r6-group-ccy
+  Scenario: A group shown in another currency converts its total and keeps the pick
+    Given the FX cache is warm
+    And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I show the "broker" group in "EUR"
+    Then the "broker" group total reads in "EUR" and differs from "96,000"
+    When I open the investments wallets tab
+    Then the "broker" group total reads in "EUR" and differs from "96,000"

@@ -18,6 +18,7 @@ import type { ReactNode } from "react";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 import type { TypeSummaryDto } from "../../src/lib/investment-type-groups";
 
+import { today } from "../../src/components/budgeting/wallets-tab/swap-shared";
 vi.mock("next-intl", () => ({
   useTranslations:
     (_ns: string) => (key: string, params?: Record<string, unknown>) => {
@@ -181,6 +182,38 @@ describe("Investments as type groups", () => {
     expect(screen.getByTestId("investment-group-stocks").className).not.toMatch(
       /(^|\s)(pl|ml)-\d/,
     );
+  });
+
+  // R6 (user): a group can be shown in another currency — its amount and
+  // P/L convert at today's rate; the pick is the member's, per group.
+  it("a group shown in another currency converts its amount and P/L", () => {
+    const qc = client(
+      [
+        h({
+          uiType: "stocks",
+          valueInBudgetCents: "400000",
+          costInBudgetCents: "200000",
+          profitLossPct: 100,
+        }),
+      ],
+      { currency: "PLN", order: [], types: {} },
+    );
+    qc.setQueryData(["budget", B, "ui-prefs"], {
+      "invGroupCcy.stocks": ["USD"],
+    });
+    qc.setQueryData(["fx-rate", "PLN", "USD", today()], "0.25");
+    renderSection(qc);
+    const value = screen.getByTestId("investment-type-value-stocks");
+    expect(value).toHaveTextContent("USD");
+    expect(value).toHaveTextContent("1,000"); // 4,000 PLN × 0.25
+    expect(
+      screen.getByTestId("investment-type-plamt-desktop-stocks"),
+    ).toHaveTextContent("+500"); // +2,000 PLN × 0.25
+    // The picker sits on the header but never toggles the group.
+    const header = screen.getByTestId("investment-group-stocks");
+    const before = header.getAttribute("aria-expanded");
+    fireEvent.click(screen.getByTestId("investment-type-currency-stocks"));
+    expect(header.getAttribute("aria-expanded")).toBe(before);
   });
 
   it("a single-holding type still gets a header (D-13)", () => {
