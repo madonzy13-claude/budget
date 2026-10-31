@@ -329,6 +329,49 @@ describe("Investments routes", () => {
     expect(row.valueInBudgetCents).toBe("15000");
   });
 
+  // R6 (user, USDC - Kraken): the name picker read the stored row price, so a
+  // bad or stale one showed there while the list showed the live price.
+  it("GET /names values a tracked asset at the cache price, like the list", async () => {
+    const fix = await createFixture("USD");
+    const instrumentId = await seedInstrument("NAMECACHE");
+    const app = await buildApp(fix);
+    const postRes = await app.request("/investments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Tracked Names",
+        holdingType: "equities",
+        uiType: "stocks",
+        instrumentId,
+        quantity: "2",
+        buyPriceCents: 10000,
+        buyCurrency: "USD",
+        currentPriceCents: 39370,
+        currentPriceCurrency: "USD",
+      }),
+    });
+    expect(postRes.status).toBe(201);
+    const wk = new Pool({ connectionString: DB_WORKER });
+    try {
+      await wk.query(
+        `INSERT INTO budgeting.instrument_price_cache (instrument_id, price, currency, fetched_at)
+         VALUES ($1::uuid, '150.00', 'USD', now())
+         ON CONFLICT (instrument_id) DO UPDATE SET price = EXCLUDED.price, fetched_at = now()`,
+        [instrumentId],
+      );
+    } finally {
+      await wk.end();
+    }
+    const res = await app.request("/investments/names?type=stocks");
+    const { names } = (await res.json()) as {
+      names: Array<{ name: string; valueCents: string; valueCurrency: string }>;
+    };
+    expect(names.find((n) => n.name === "Tracked Names")).toMatchObject({
+      valueCents: "30000",
+      valueCurrency: "USD",
+    });
+  });
+
   it("the 11th on-add instant price fetch within a minute is rate-limited (INV-14)", async () => {
     const fix = await createFixture("EUR");
     // 11 DISTINCT instruments: the read-through cache (9.2) serves a repeated

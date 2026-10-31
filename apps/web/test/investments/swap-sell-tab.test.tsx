@@ -220,6 +220,22 @@ describe("Sell tab", () => {
     expect(body.destination.holding.livePriceCents).toBeUndefined();
   });
 
+  // R6 (user, USDC - Kraken stored 3.94 "USD"): the live price was fetched
+  // in another currency than the sale's, then sent labelled as the sale's.
+  it("a live price in another currency is not sent as the new asset's price", async () => {
+    mount();
+    type("swap-sell-sold", "1"); // received in PLN
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    fireEvent.click(screen.getByTestId("dest-form-live-usd"));
+    type("swap-dest-qty", "1000");
+    fireEvent.click(screen.getByTestId("swap-submit"));
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    const holding = lastBody().destination.holding;
+    expect(holding.currentPriceCurrency).toBe("PLN");
+    expect(holding.currentPriceCents).toBeUndefined();
+    expect(holding.livePriceCurrency).toBeUndefined();
+  });
+
   it("a filled buy price is rounded to 2 decimals", () => {
     mount();
     type("swap-sell-sold", "1");

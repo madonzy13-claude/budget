@@ -452,9 +452,14 @@ export function SwapSellTab({
           : (() => {
               const {
                 livePriceCents,
+                livePriceCurrency,
                 pegCurrency: _peg, // eslint-disable-line @typescript-eslint/no-unused-vars
                 ...base
               } = newHolding!;
+              // R6: the live price is only the new asset's price in its own
+              // currency; otherwise the server falls back to the buy price.
+              const live =
+                livePriceCurrency === receivedCcy ? livePriceCents : null;
               return {
                 kind: "new" as const,
                 holding: {
@@ -463,9 +468,7 @@ export function SwapSellTab({
                   ...(newIsQty
                     ? {
                         quantity: qtyString(qty),
-                        ...(livePriceCents
-                          ? { currentPriceCents: livePriceCents }
-                          : {}),
+                        ...(live ? { currentPriceCents: live } : {}),
                       }
                     : {}),
                 },

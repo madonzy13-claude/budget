@@ -158,6 +158,8 @@ export interface DestinationHolding {
   /** Tracked: the instrument's fetched price, cents — the sale's default buy
    *  price and the new asset's current price (13.1 UAT 10). */
   livePriceCents?: string | null;
+  /** The currency livePriceCents was fetched in. */
+  livePriceCurrency?: string | null;
   /** A stablecoin's peg (e.g. USD) — the sale buys it at 1 there (R6). Not
    *  sent to the server. */
   pegCurrency?: string | null;
@@ -864,7 +866,10 @@ export function HoldingSheet({
         ? { metal, metalKind, unitOfMeasure: uom }
         : {}),
       ...(behavior === "tracked" && currentPrice
-        ? { livePriceCents: toCents(currentPrice) }
+        ? {
+            livePriceCents: toCents(currentPrice),
+            livePriceCurrency: currentPriceCurrency,
+          }
         : {}),
       ...(instrumentId != null && stablePeg(symbol)
         ? { pegCurrency: stablePeg(symbol) }
@@ -879,6 +884,7 @@ export function HoldingSheet({
     name,
     customName,
     currentPrice,
+    currentPriceCurrency,
     behavior,
     manualEntry,
     manualTicker,

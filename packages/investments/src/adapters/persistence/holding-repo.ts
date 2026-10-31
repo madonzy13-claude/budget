@@ -188,12 +188,19 @@ export class DrizzleHoldingRepo implements HoldingRepo {
         const res = await (tx as DrizzleTx).execute(sql`
         SELECT inv.id::text AS id, inv.name, inv.archived_at IS NOT NULL AS archived,
                inv.instrument_id::text AS instrument_id, inv.quantity::text AS quantity,
-               inv.current_price_cents::text AS current_price_cents,
-               inv.current_price_currency, inv.buy_currency, inv.holding_type,
+               -- R6: the live cache price for a tracked asset, as the list
+               -- reads it — never a stale or mislabelled stored one.
+               CASE WHEN c.price IS NOT NULL
+                    THEN round(c.price * 100)::bigint::text
+                    ELSE inv.current_price_cents::text END AS current_price_cents,
+               COALESCE(c.currency, inv.current_price_currency) AS current_price_currency,
+               inv.buy_currency, inv.holding_type,
                inv.unit_of_measure, COALESCE(i.symbol, inv.manual_ticker) AS symbol,
                i.display_name AS instrument_name
           FROM budgeting.investments inv
           LEFT JOIN budgeting.instruments i ON i.id = inv.instrument_id
+          LEFT JOIN budgeting.instrument_price_cache c
+                 ON c.instrument_id = inv.instrument_id
          WHERE inv.budget_id = ${budgetId}::uuid AND inv.ui_type = ${uiType}
          ORDER BY inv.archived_at IS NOT NULL, lower(inv.name), inv.created_at
       `);
