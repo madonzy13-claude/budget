@@ -242,11 +242,14 @@ describe("Asset ledger strip", () => {
   });
 
   // Round-3 gap 9: the swiped delete is square, shadowed on its left edge.
-  it("the delete button is square with an inset shadow on its left", async () => {
+  // R6 (user): with Edit beside it, the leftmost button (Edit) carries it.
+  it("the swiped buttons are square; the leftmost (Edit) carries the inset shadow", async () => {
     mount(ENTRIES);
     const del = await screen.findByTestId("ledger-delete-b1");
+    const edit = screen.getByTestId("ledger-edit-b1");
     expect(del.className).not.toMatch(/rounded/);
-    expect(del.style.boxShadow).toBe("inset 6px 0 8px -6px rgba(0,0,0,0.7)");
+    expect(edit.style.boxShadow).toBe("inset 6px 0 8px -6px rgba(0,0,0,0.7)");
+    expect(del.style.boxShadow).toBe("");
   });
 
   // Round-4 gap 28: a leading icon says money in (green) / out (red).
@@ -412,6 +415,9 @@ describe("Asset ledger strip", () => {
     ]);
     const plain = await screen.findByTestId("ledger-note-n1");
     expect(plain).toHaveTextContent("Paid the car loan");
+    // R6 (user): quieter than the link — smaller and dimmed.
+    expect(plain.style.fontSize).toBe("10px");
+    expect(plain.style.opacity).toBe("0.6");
     const row2 = screen.getByTestId("ledger-row-n2");
     const linkText = [...row2.querySelectorAll("span")].find(
       (x) => x.textContent === "ledger.toAsset",
@@ -437,6 +443,13 @@ describe("Asset ledger strip", () => {
     ]);
     fireEvent.click(await screen.findByTestId("ledger-edit-b1"));
     const date = await screen.findByTestId("entry-edit-date");
+    // R6 (user): opening must not focus the date — a phone pops its calendar.
+    await waitFor(() =>
+      expect(screen.getByTestId("entry-edit-dialog")).toContainElement(
+        document.activeElement as HTMLElement,
+      ),
+    );
+    expect(document.activeElement).not.toBe(date);
     expect(date).toHaveValue("2026-10-12");
     expect(date).toHaveAttribute("min", "2026-10-01");
     expect(date).toHaveAttribute("max", "2026-10-20");

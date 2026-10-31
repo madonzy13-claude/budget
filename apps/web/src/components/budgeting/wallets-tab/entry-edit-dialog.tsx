@@ -56,7 +56,14 @@ export function EntryEditDialog({
 
   return (
     <Dialog open={!!entry} onOpenChange={onOpenChange}>
-      <DialogContent data-testid="entry-edit-dialog">
+      <DialogContent
+        data-testid="entry-edit-dialog"
+        // R6 (user): focusing the date on open pops a phone's calendar.
+        onOpenAutoFocus={(ev) => {
+          ev.preventDefault();
+          (ev.currentTarget as HTMLElement).focus();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{t("ledger.edit.title")}</DialogTitle>
         </DialogHeader>

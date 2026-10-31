@@ -138,6 +138,7 @@ interface LedgerRowProps {
 }
 
 const ACTION_W = 56;
+const LEFT_SHADE = "inset 6px 0 8px -6px rgba(0,0,0,0.7)";
 
 export function LedgerRow({
   entry,
@@ -205,6 +206,8 @@ export function LedgerRow({
       data-open={swipedOpen}
       data-testid={`ledger-edit-${rowKey}`}
       aria-label={t("ledger.edit.aria", { kind, date })}
+      // R6 (user): the leftmost revealed button carries the under-row shade.
+      style={{ boxShadow: LEFT_SHADE }}
       onClick={(ev) => {
         ev.stopPropagation();
         close();
@@ -228,7 +231,7 @@ export function LedgerRow({
       data-testid={`ledger-delete-${rowKey}`}
       aria-label={t("ledger.deleteAria", { kind, date })}
       aria-disabled={entry.deletable ? undefined : true}
-      style={{ boxShadow: "inset 6px 0 8px -6px rgba(0,0,0,0.7)" }}
+      style={{ boxShadow: onEdit ? undefined : LEFT_SHADE }}
       onClick={(ev) => {
         ev.stopPropagation();
         if (!entry.deletable) return;
@@ -350,8 +353,9 @@ export function LedgerRow({
               data-testid={`ledger-note-${rowKey}`}
               className="break-words"
               style={{
-                fontSize: "11px",
+                fontSize: "10px",
                 lineHeight: 1.4,
+                opacity: 0.6,
                 color: "var(--muted-foreground)",
               }}
             >
