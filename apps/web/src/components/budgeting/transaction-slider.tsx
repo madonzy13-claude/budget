@@ -146,7 +146,8 @@ export function TransactionSlider({
   onOpenChange,
   mode,
   budgetId,
-  month,
+  // Unused since R6: a date edit refreshes every month, not just this one.
+  month: _month,
   budgetCurrency,
   categories,
   initial,
