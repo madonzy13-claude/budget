@@ -46,15 +46,29 @@ export class SpendingsPo {
     return this.page.getByTestId(`txn-row-${amountCents}`);
   }
 
-
-
-
-
-
-
   /** Draft row for a scheduled rule by rule name (lower-cased testid). */
   draftRow(ruleName: string): Locator {
     return this.page.getByTestId(`draft-row-${ruleName.toLowerCase()}`);
+  }
+
+  /** User (R6): change an unconfirmed payment's date through its Edit. */
+  async moveDraft(ruleName: string, date: string): Promise<void> {
+    const row = this.draftRow(ruleName);
+    const edit = row.getByTestId("draft-action-edit");
+    // Hover reveals the actions on desktop; a click there can land on
+    // Confirm (see the confirm step). A phone taps to reveal.
+    if ((this.page.viewportSize()?.width ?? 1280) >= 640) await row.hover();
+    else if (!(await edit.isVisible().catch(() => false))) await row.click();
+    await edit.click();
+    const sheet = this.page.getByTestId("txn-slider-content");
+    await sheet.locator("#txn-slider-date").fill(date);
+    const saved = this.page.waitForResponse(
+      (r) =>
+        r.request().method() === "PATCH" && /\/transactions\//.test(r.url()),
+      { timeout: 15000 },
+    );
+    await sheet.locator('button[type="submit"]').click();
+    if (!(await saved).ok()) throw new Error("date change failed");
   }
 
   /** The Confirm action button inside a draft row. */

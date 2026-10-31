@@ -628,8 +628,7 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     /** The element that actually scrolls this page. The (app) shell is
      *  `h-lvh` with the content in `<main data-shell-scroll>`, so the WINDOW
      *  never scrolls — window.scrollY is always 0 here. */
-    const shellScroller = () =>
-      el!.closest<HTMLElement>("[data-shell-scroll]");
+    const shellScroller = () => el!.closest<HTMLElement>("[data-shell-scroll]");
 
     /** SUM, not a choice between them: the app has two scroll architectures
      *  and which one is live depends on display-mode (global.css). Installed
@@ -640,8 +639,7 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
      *  stylesheet. */
     function pageScrollTop(): number {
       const shell = shellScroller()?.scrollTop ?? 0;
-      const win =
-        window.scrollY || document.documentElement.scrollTop || 0;
+      const win = window.scrollY || document.documentElement.scrollTop || 0;
       return shell + win;
     }
 
@@ -913,6 +911,8 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     );
     if (!found) return undefined;
     return {
+      // R6 (user): an unconfirmed scheduled payment may move to any date.
+      unconfirmed: allDrafts.some((d) => d.id === found.id),
       txId: found.id,
       date: found.transactionDate,
       categoryId: found.categoryId,

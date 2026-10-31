@@ -3,7 +3,7 @@
  * TDD RED: write tests before implementation.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { TestQueryProvider } from "../../setup/query-client";
 
 const fetchMock = vi.fn();
@@ -237,6 +237,83 @@ describe("TransactionSlider", () => {
     expect(date.value).toBe("2026-04-22");
     expect(amount.value).toBe("99");
     expect(note.value).toBe("Cab");
+  });
+
+  // User (R6): an unconfirmed scheduled payment may move to any date — a
+  // future one sets it aside until then; a posted spending stays capped.
+  it("an unconfirmed payment's date has no future cap and saves a date next year", async () => {
+    const next = `${new Date().getFullYear() + 1}-02-10`;
+    render(
+      <TestQueryProvider>
+        <TransactionSlider
+          {...editProps}
+          initial={{ ...editProps.initial!, unconfirmed: true }}
+        />
+      </TestQueryProvider>,
+    );
+    const date = document.getElementById("txn-slider-date") as HTMLInputElement;
+    expect(date.getAttribute("max")).toBeNull();
+    fireEvent.change(date, { target: { value: next } });
+    fireEvent.click(
+      screen
+        .getAllByRole("button")
+        .find((b) => (b.textContent ?? "").includes("txnSlider.cta.save"))!,
+    );
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([, init]) =>
+            (init as RequestInit | undefined)?.method === "PATCH" &&
+            String((init as RequestInit).body).includes(next),
+        ),
+      ).toBe(true),
+    );
+  });
+
+  // The grid mounts the slider first and picks the row later — the cap must
+  // follow the picked row, not the first render (E2E caught it).
+  it("an unconfirmed payment picked after mount still saves a future date", async () => {
+    const next = `${new Date().getFullYear() + 1}-03-05`;
+    const { rerender } = render(
+      <TestQueryProvider>
+        <TransactionSlider {...editProps} open={false} initial={undefined} />
+      </TestQueryProvider>,
+    );
+    rerender(
+      <TestQueryProvider>
+        <TransactionSlider
+          {...editProps}
+          open={true}
+          initial={{ ...editProps.initial!, unconfirmed: true }}
+        />
+      </TestQueryProvider>,
+    );
+    const date = document.getElementById("txn-slider-date") as HTMLInputElement;
+    fireEvent.change(date, { target: { value: next } });
+    fireEvent.click(
+      screen
+        .getAllByRole("button")
+        .find((b) => (b.textContent ?? "").includes("txnSlider.cta.save"))!,
+    );
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([, init]) =>
+            (init as RequestInit | undefined)?.method === "PATCH" &&
+            String((init as RequestInit).body).includes(next),
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it("a posted spending keeps the end-of-month cap", () => {
+    render(
+      <TestQueryProvider>
+        <TransactionSlider {...editProps} />
+      </TestQueryProvider>,
+    );
+    const date = document.getElementById("txn-slider-date") as HTMLInputElement;
+    expect(date.getAttribute("max")).not.toBeNull();
   });
 
   it("Sheet has className including w-screen and sm:w-[480px]", () => {

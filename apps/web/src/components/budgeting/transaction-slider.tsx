@@ -84,19 +84,23 @@ export interface TransactionSliderProps {
     amountOriginalCents: string;
     currencyOriginal: string;
     note?: string | null;
+    /** An unconfirmed scheduled payment — its date is not capped (R6). */
+    unconfirmed?: boolean;
   };
   prefillCategoryId?: string;
 }
 
 /** Schema factory: the future-date cap is the last day of the current month IN
  *  THE USER'S TIMEZONE (r31 item 1), so it matches the picker max + default date. */
-function makeSchema(tz: string) {
+function makeSchema(tz: string, uncapped: () => boolean = () => false) {
   return z.object({
     date: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       // No future-dated transactions — cap at the last day of the current month.
-      .refine((d) => d <= lastDayOfCurrentMonthIso(tz), {
+      // User (R6): an unconfirmed scheduled payment may move anywhere; a
+      // future date sets it aside until then (server side).
+      .refine((d) => uncapped() || d <= lastDayOfCurrentMonthIso(tz), {
         message: "future_date_not_allowed",
       }),
     categoryId: z.string().min(1),
@@ -155,9 +159,11 @@ export function TransactionSlider({
   const [idempotencyKey] = useState(() => generateIdempotencyKey());
 
   function invalidateGrid() {
-    qc.invalidateQueries({ queryKey: ["transactions", budgetId, month] });
-    qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId, month] });
-    qc.invalidateQueries({ queryKey: ["drafts", budgetId, month] });
+    // Every month: a date edit can move a row into another one (R6).
+    qc.invalidateQueries({ queryKey: ["transactions", budgetId] });
+    qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
+    qc.invalidateQueries({ queryKey: ["drafts", budgetId] });
+    qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
     // A confirmed/edited/deleted transaction re-derives the reserve pool (any
     // month) and the RESERVE_TOPUP mismatch — refresh reserves tab + pill badge.
     qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
@@ -176,7 +182,14 @@ export function TransactionSlider({
 
   // Today / month-cap follow the user's timezone (r31 item 1).
   const userTz = useUserTimezone();
-  const schema = useMemo(() => makeSchema(userTz), [userTz]);
+  // Read at validation time: the form keeps the resolver it was created
+  // with, and the slider mounts before a row is picked.
+  const uncappedRef = useRef(false);
+  uncappedRef.current = !!initial?.unconfirmed;
+  const schema = useMemo(
+    () => makeSchema(userTz, () => uncappedRef.current),
+    [userTz],
+  );
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -422,7 +435,11 @@ export function TransactionSlider({
                       <DateInput
                         value={field.value}
                         onChange={field.onChange}
-                        max={lastDayOfCurrentMonthIso(userTz)}
+                        max={
+                          initial?.unconfirmed
+                            ? undefined
+                            : lastDayOfCurrentMonthIso(userTz)
+                        }
                         aria-invalid={!!form.formState.errors.date}
                         id="txn-slider-date"
                       />

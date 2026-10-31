@@ -298,14 +298,69 @@ describe("GET /budgets/:id/overview/projection", () => {
         app
           .request(`/budgets/${fix.budgetId}/overview/projection?days=90`)
           .then(
-            (r) =>
-              r.json() as Promise<{ safe_to_withdraw: { cents: string } }>,
+            (r) => r.json() as Promise<{ safe_to_withdraw: { cents: string } }>,
           ),
       ]);
       // This equality is the whole feature: slicing the wide answer must give
       // the same number the server would compute for that window on its own.
       expect(wide.safe_by_day[89]).toBe(narrow.safe_to_withdraw.cents);
     });
+  });
+
+  // User (R6): an unconfirmed payment set aside to a future date is not
+  // pending today — it is a bill on its own date, so the money stays counted.
+  test("a payment set aside to a future date is a bill on that date, not pending", async () => {
+    const f = await createFixture();
+    const pool = new Pool({ connectionString: DB_URL });
+    const c = await pool.connect();
+    const t = new Date();
+    const due = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 10, 12)
+      .toISOString()
+      .slice(0, 10);
+    try {
+      await c.query("BEGIN");
+      await c.query(
+        `SELECT set_config('app.tenant_ids', '{"${f.budgetId}"}', true)`,
+      );
+      await c.query(
+        `SELECT set_config('app.current_user_id', '${f.userId}', true)`,
+      );
+      const rule = (
+        await c.query(
+          `INSERT INTO budgeting.scheduled_payments
+             (id, tenant_id, amount, currency, cadence, cadence_anchor, active, next_due_date, note, actor_user_id)
+           VALUES (gen_random_uuid(), $1, '70', 'USD', 'MONTHLY', 15, true, '2099-01-15', 'Rent', $2)
+           RETURNING id`,
+          [f.budgetId, f.userId],
+        )
+      ).rows[0].id;
+      await c.query(
+        `INSERT INTO budgeting.expense_ledger
+           (id, tenant_id, budget_id, transaction_date, amount_original_cents, currency_original,
+            amount_converted_cents, fx_rate, fx_as_of, scheduled_payment_id, confirmed_at, kind,
+            deferred_at, created_at, updated_at)
+         VALUES (gen_random_uuid(), $1, $1, $2::date, 7000, 'USD', 7000, 1, $2::date, $3, NULL,
+                 'SPENDING', now(), now(), now())`,
+        [f.budgetId, due, rule],
+      );
+      await c.query("COMMIT");
+    } finally {
+      c.release();
+      await pool.end();
+    }
+    const app = await buildApp({
+      userId: f.userId,
+      allowedTenantIds: [f.budgetId],
+    });
+    const body = (await (
+      await app.request(`/budgets/${f.budgetId}/overview/projection`)
+    ).json()) as {
+      days: { date: string; bill_cents: string }[];
+      pending_points: { date: string }[];
+    };
+    expect(body.pending_points.map((p) => p.date)).not.toContain(due);
+    const day = body.days.find((d) => d.date === due)!;
+    expect(BigInt(day.bill_cents)).toBeGreaterThanOrEqual(7000n);
   });
 
   test("unknown budget → 404 (IDOR guard)", async () => {

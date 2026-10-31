@@ -328,7 +328,6 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
              AND e.confirmed_at IS NULL
              AND e.deleted_at IS NULL
              AND e.dismissed_at IS NULL
-             AND e.transaction_date <= ${today.toString()}::date
            ORDER BY e.transaction_date`);
 
         const incomes = await tx.execute(sql`
@@ -582,7 +581,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
     }
 
     // Already stored in the budget currency (amount_converted_cents), so no FX.
-    const pendingDrafts: CashflowEvent[] = (
+    const unanswered: CashflowEvent[] = (
       L.pendingRows as Record<string, string | null>[]
     ).map((r) => ({
       date: r.date as string,
@@ -590,6 +589,13 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       categoryId: r.category_id,
       amountCents: BigInt(r.amount_cents as string),
     }));
+    const todayIso = today.toString();
+    const pendingDrafts = unanswered.filter((d) => d.date <= todayIso);
+    // User (R6): one set aside to a future date is a bill on that date (the
+    // rule's pointer is already past it, so nothing else projects it).
+    for (const d of unanswered)
+      if (d.date > todayIso && d.date <= windowEnd.toString()) bills.push(d);
+    bills.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
     const simInput = {
       today: today.toString(),

@@ -10,6 +10,7 @@ function makeRepo(
   dismissResult: "ok" | "not_found" | "already_confirmed" = "ok",
 ): ExpenseLedgerDraftPortRepo {
   return {
+    syncDate: async () => "none" as const,
     dismiss: async () => dismissResult,
     confirm: async () => "ok",
   };
@@ -42,6 +43,7 @@ describe("dismissDraft", () => {
 
   it("returns err with kind=Unknown when repo throws", async () => {
     const repo: ExpenseLedgerDraftPortRepo = {
+      syncDate: async () => "none" as const,
       dismiss: async () => {
         throw new Error("db_failure");
       },
@@ -75,9 +77,8 @@ describe.skipIf(!DB_URL_RAW)(
     it("dismiss resolves the PENDING CONFIRM_DRAFT task atomically — no taskRepo dep, no second tx", async () => {
       const { resetPools } = await import("@budget/platform");
       resetPools();
-      const { DrizzleExpenseLedgerDraftPortRepo } = await import(
-        "../../src/adapters/persistence/expense-ledger-draft-port-repo"
-      );
+      const { DrizzleExpenseLedgerDraftPortRepo } =
+        await import("../../src/adapters/persistence/expense-ledger-draft-port-repo");
       const { seedDraftWithTask, readTaskStatus } =
         await import("../draft-task-fixtures");
 
@@ -103,9 +104,8 @@ describe.skipIf(!DB_URL_RAW)(
     it("failed dismiss (draft does not exist) never resolves the task independently", async () => {
       const { resetPools } = await import("@budget/platform");
       resetPools();
-      const { DrizzleExpenseLedgerDraftPortRepo } = await import(
-        "../../src/adapters/persistence/expense-ledger-draft-port-repo"
-      );
+      const { DrizzleExpenseLedgerDraftPortRepo } =
+        await import("../../src/adapters/persistence/expense-ledger-draft-port-repo");
       const { seedDraftWithTask, readTaskStatus } =
         await import("../draft-task-fixtures");
 

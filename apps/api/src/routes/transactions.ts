@@ -28,6 +28,7 @@ import {
   createTransaction,
   type CreateTransactionDeps,
 } from "@budget/budgeting/src/application/create-transaction";
+import { DrizzleExpenseLedgerDraftPortRepo } from "@budget/budgeting/src/adapters/persistence/expense-ledger-draft-port-repo";
 import { editTransaction } from "@budget/budgeting/src/application/edit-transaction";
 import type { BootedDeps } from "../boot";
 
@@ -182,6 +183,7 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
     transactionRepo,
     fxProvider,
     getBudgetCurrency,
+    draftDates: new DrizzleExpenseLedgerDraftPortRepo(),
   });
 
   function pickTenant(c: { get(k: string): unknown }): string {

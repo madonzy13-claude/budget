@@ -11,6 +11,15 @@ export interface ExpenseLedgerDraftPortRepo {
     actorUserId: string,
   ): Promise<"ok" | "not_found" | "already_confirmed">;
 
+  /** User (R6): after an unconfirmed payment's date changed — a future
+   *  date (budget timezone) sets it aside and resolves its confirm task; an
+   *  earlier one keeps the task, now showing the new date. */
+  syncDate(
+    tenantId: string,
+    draftId: string,
+    actorUserId: string,
+  ): Promise<"deferred" | "moved" | "none">;
+
   confirm(
     tenantId: string,
     draftId: string,

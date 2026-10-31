@@ -9,6 +9,7 @@
  *
  * Pitfall 7: date string converted via new Date(s + 'T00:00:00Z').
  */
+import type { ExpenseLedgerDraftPortRepo } from "../ports/expense-ledger-draft-port-repo";
 import { ok, err, type Result } from "@budget/shared-kernel";
 import type {
   TransactionRepo,
@@ -45,6 +46,9 @@ export interface EditTransactionResult {
 
 export interface EditTransactionDeps {
   transactionRepo: TransactionRepo;
+  /** User (R6): an unconfirmed scheduled payment's new date — future sets it
+   *  aside until then; today or earlier moves it (task follows). */
+  draftDates?: Pick<ExpenseLedgerDraftPortRepo, "syncDate">;
   fxProvider: {
     rateAsOf(
       from: string,
@@ -176,6 +180,17 @@ export function editTransaction(deps: EditTransactionDeps) {
     } catch (e) {
       return err(e as Error);
     }
+
+    if (
+      dateChanged &&
+      original.confirmedAt === null &&
+      original.scheduledPaymentId !== null
+    )
+      await deps.draftDates?.syncDate(
+        input.tenantId,
+        input.transactionId,
+        input.actorUserId,
+      );
 
     // Fetch updated row to return full shape
     const updated = await transactionRepo.findById(

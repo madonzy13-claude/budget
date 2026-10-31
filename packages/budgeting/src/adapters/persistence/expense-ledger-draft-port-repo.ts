@@ -17,6 +17,63 @@ type DrizzleTx = {
 };
 
 export class DrizzleExpenseLedgerDraftPortRepo implements ExpenseLedgerDraftPortRepo {
+  async syncDate(
+    tenantId: string,
+    draftId: string,
+    actorUserId: string,
+  ): Promise<"deferred" | "moved" | "none"> {
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(actorUserId),
+      async (tx) => {
+        const drizzleTx = tx as DrizzleTx;
+        // A future date (the budget's own today) sets it aside until then.
+        const deferred = await drizzleTx.execute(sql`
+          UPDATE budgeting.expense_ledger el
+             SET deferred_at = now()
+            FROM tenancy.budgets b
+           WHERE el.id = ${draftId}::uuid
+             AND el.tenant_id = ${tenantId}::uuid
+             AND b.id = el.budget_id
+             AND el.confirmed_at IS NULL AND el.deleted_at IS NULL
+             AND el.dismissed_at IS NULL
+             AND el.scheduled_payment_id IS NOT NULL
+             AND el.transaction_date > (now() AT TIME ZONE b.timezone)::date
+          RETURNING el.id
+        `);
+        if (deferred.rows.length > 0) {
+          await drizzleTx.execute(sql`
+            UPDATE budgeting.tasks
+               SET status = 'RESOLVED', resolved_at = now()
+             WHERE tenant_id = ${tenantId}::uuid
+               AND kind = 'CONFIRM_DRAFT'
+               AND payload_json->>'draft_id' = ${draftId}
+               AND status = 'PENDING'
+          `);
+          return "deferred" as const;
+        }
+        // Today or earlier: the task keeps going, on the new date.
+        const moved = await drizzleTx.execute(sql`
+          UPDATE budgeting.tasks t
+             SET payload_json = jsonb_set(
+                   t.payload_json, '{transaction_date}',
+                   to_jsonb(el.transaction_date::text))
+            FROM budgeting.expense_ledger el
+           WHERE el.id = ${draftId}::uuid
+             AND el.tenant_id = ${tenantId}::uuid
+             AND t.tenant_id = el.tenant_id
+             AND t.kind = 'CONFIRM_DRAFT'
+             AND t.status = 'PENDING'
+             AND t.payload_json->>'draft_id' = ${draftId}
+          RETURNING t.id
+        `);
+        return moved.rows.length > 0 ? ("moved" as const) : ("none" as const);
+      },
+    );
+    if (r.isErr()) throw r.error;
+    return r.value;
+  }
+
   async dismiss(
     tenantId: string,
     draftId: string,

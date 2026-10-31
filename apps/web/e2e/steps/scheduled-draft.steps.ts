@@ -206,3 +206,29 @@ Then(
     await expect(spendings.draftRow(ruleName)).toBeHidden({ timeout: 15000 });
   },
 );
+
+// User (R6): an unconfirmed payment's date — a future one sets it aside until
+// then; an earlier one (another month too) just moves it.
+When(
+  /^I move the unconfirmed payment for rule "(.+?)" to (\d+) days from now$/,
+  async ({ page }, ruleName: string, days: string) => {
+    const d = new Date();
+    d.setDate(d.getDate() + Number(days));
+    await new SpendingsPo(page).moveDraft(
+      ruleName,
+      d.toLocaleDateString("en-CA"),
+    );
+  },
+);
+
+When(
+  /^I move the unconfirmed payment for rule "(.+?)" to the 10th of last month$/,
+  async ({ page }, ruleName: string) => {
+    const t = new Date();
+    const d = new Date(t.getFullYear(), t.getMonth() - 1, 10);
+    await new SpendingsPo(page).moveDraft(
+      ruleName,
+      d.toLocaleDateString("en-CA"),
+    );
+  },
+);
