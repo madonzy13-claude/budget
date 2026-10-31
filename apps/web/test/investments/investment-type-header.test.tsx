@@ -185,15 +185,15 @@ describe("InvestmentTypeHeader", () => {
   it("desktop: the asset row's columns, closed too, share in its own column", () => {
     renderHeader();
     const cls = (id: string) => screen.getByTestId(id).className;
-    expect(cls("investment-type-pl-desktop-stocks")).toMatch(
-      /hidden .*w-20.*sm:flex/,
-    );
+    expect(cls("investment-type-pl-desktop-stocks")).toMatch(/w-20/);
+    expect(
+      screen.getByTestId("investment-type-pl-desktop-stocks").parentElement!
+        .className,
+    ).toMatch(/hidden .*sm:flex/);
     expect(
       screen.getByTestId("investment-type-pl-desktop-stocks"),
     ).toHaveTextContent("53.7%");
-    expect(cls("investment-type-plamt-desktop-stocks")).toMatch(
-      /hidden .*w-24.*sm:flex/,
-    );
+    expect(cls("investment-type-plamt-desktop-stocks")).toMatch(/w-24/);
     expect(cls("investment-type-share-desktop-stocks")).toMatch(
       /hidden .*w-16.*sm:block/,
     );
@@ -358,11 +358,15 @@ describe("InvestmentTypeHeader", () => {
   });
 
   it("stats follow open: none while closed, all while open", () => {
+    // The phone's stats (desktop shows its own, open or closed).
     const h = renderHeader();
-    expect(document.querySelector("[data-pl-caption]")).toBeNull();
+    expect(
+      document.querySelector('[data-testid="investment-type-split-stocks"]'),
+    ).toBeNull();
     h.open();
-    expect(document.querySelector("[data-pl-caption]")).not.toBeNull();
-    expect(document.querySelector("[data-pl-line]")).not.toBeNull();
+    const split = screen.getByTestId("investment-type-split-stocks");
+    expect(split.querySelector("[data-pl-caption]")).not.toBeNull();
+    expect(split.querySelector("[data-pl-line]")).not.toBeNull();
   });
 
   // UAT 13.1 test 3: cash has no profit by design.

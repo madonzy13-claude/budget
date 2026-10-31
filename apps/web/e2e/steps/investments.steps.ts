@@ -294,6 +294,8 @@ Then(
       await page
         .getByTestId(`investment-type-value-${uiType}`)
         .locator(".num")
+        .locator("visible=true")
+        .last()
         .innerText()
     ).trim();
     const col = await rows
@@ -1372,9 +1374,12 @@ Then(
     await expect(
       page.getByTestId(`investment-type-split-${uiType}`),
     ).toHaveCount(0);
-    await expect(
-      page.getByTestId(`investment-group-${uiType}`),
-    ).not.toContainText("%");
+    // A phone closes to the value alone; desktop always shows its columns
+    // (R6, user), so only the phone's stacked sum-up is checked there.
+    if ((page.viewportSize()?.width ?? 1280) < 640)
+      expect(
+        await page.getByTestId(`investment-group-${uiType}`).innerText(),
+      ).not.toContain("%");
   },
 );
 
@@ -1382,7 +1387,9 @@ Then(
   "the {string} header shows the P\\/L sum-up and a guide line beside its assets",
   async ({ page }, uiType: string) => {
     const split = await new InvestmentsPo(page).typeSumUp(uiType);
-    await expect(split.locator("[data-pl-caption]")).toBeVisible();
+    await expect(
+      split.locator("[data-pl-caption]").locator("visible=true"),
+    ).toBeVisible();
     await expect(
       page.getByTestId(`investment-group-guide-${uiType}`),
     ).toBeVisible();
@@ -1393,8 +1400,12 @@ Then(
   "tapping the {string} header shows the P\\/L sum-up",
   async ({ page }, uiType: string) => {
     const split = await new InvestmentsPo(page).typeSumUp(uiType);
-    await expect(split.locator("[data-pl-line]")).toContainText("%");
-    await expect(split.locator("[data-pl-caption]")).toBeVisible();
+    await expect(
+      split.locator("[data-pl-line]").locator("visible=true"),
+    ).toContainText("%");
+    await expect(
+      split.locator("[data-pl-caption]").locator("visible=true"),
+    ).toBeVisible();
   },
 );
 
@@ -1451,7 +1462,8 @@ Then(
           document
             .getAnimations()
             .filter((a) => a instanceof CSSTransition)
-            .map((a) => a.finished),
+            // A cancelled transition rejects — that is settled too.
+            .map((a) => a.finished.catch(() => undefined)),
         ),
       );
       const look = await page.evaluate(
@@ -1812,7 +1824,10 @@ Then(
       row.boundingBox(),
       page.getByTestId(`drag-grip-type ${uiType}`).boundingBox(),
       page.getByTestId(`drag-grip-${name.toLowerCase()}`).boundingBox(),
-      header.getByText(label, { exact: true }).boundingBox(),
+      header
+        .getByText(label, { exact: true })
+        .locator("visible=true")
+        .boundingBox(),
       row
         .getByText(name, { exact: true })
         .locator("visible=true")
@@ -2209,7 +2224,9 @@ Then(
     const label = uiType[0]!.toUpperCase() + uiType.slice(1);
     const weight = (l: Locator) =>
       l.evaluate((el) => getComputedStyle(el).fontWeight);
-    const own = await weight(header.getByText(label, { exact: true }));
+    const own = await weight(
+      header.getByText(label, { exact: true }).locator("visible=true"),
+    );
     // R6-7: a closed group hides its assets — reopen to read one.
     await openGroup(page, uiType);
     const asset = page
@@ -2377,7 +2394,7 @@ Then(
   "the {string} header shows a flat P\\/L",
   async ({ page }, uiType: string) => {
     const split = await new InvestmentsPo(page).typeSumUp(uiType);
-    const line = split.locator("[data-pl-line]");
+    const line = split.locator("[data-pl-line]").locator("visible=true");
     await expect(line.locator('[data-pl-trend="flat"]')).toBeVisible();
     await expect(line).toContainText("+0%");
     await expect(line).toContainText("+0");

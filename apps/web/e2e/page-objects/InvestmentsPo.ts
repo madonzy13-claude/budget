@@ -668,7 +668,10 @@ export class InvestmentsPo {
     await expect(async () => {
       ledger = await this.ledger(name);
       if (!(await ledger.isVisible().catch(() => false)))
-        await this.row(name).locator('[data-testid^="asset-row-"]').click();
+        // The name end: the currency cell and amount keep their own taps.
+        await this.row(name)
+          .locator('[data-testid^="asset-row-"]')
+          .click({ position: { x: 24, y: 12 } });
       await expect(ledger).toBeVisible({ timeout: 3000 });
       await expect(ledger.getByTestId("ledger-skeleton")).toHaveCount(0, {
         timeout: 5000,
@@ -698,6 +701,8 @@ export class InvestmentsPo {
   async revealDelete(del: Locator): Promise<void> {
     const row = del.locator("xpath=ancestor::*[@data-ledger-row][1]");
     if ((this.page.viewportSize()?.width ?? 1280) >= 640) {
+      // Toasts sit at the bottom-right corner, over the row's end icons.
+      await row.evaluate((el) => el.scrollIntoView({ block: "center" }));
       await row.hover();
       await expect(del).toBeVisible({ timeout: 3000 });
       return;
@@ -843,6 +848,10 @@ export class InvestmentsPo {
 
   /** The type header's sum-up — shown while the group is open (R6-7). */
   async typeSumUp(uiType: string) {
+    // R6 (user): desktop shows the P/L in the header's own columns and
+    // caption, open or closed; the stacked sum-up is the phone's.
+    if ((this.page.viewportSize()?.width ?? 1280) >= 640)
+      return this.page.getByTestId(`investment-group-${uiType}`);
     const split = this.page.getByTestId(`investment-type-split-${uiType}`);
     if (!(await split.isVisible().catch(() => false)))
       await this.page.getByTestId(`investment-group-${uiType}`).click();

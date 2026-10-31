@@ -305,6 +305,7 @@ export function InvestmentTypeHeader({
             className="hidden min-w-0 sm:block"
           >
             <PlCaption
+              data-pl-caption
               unrealizedCents={pl.unrealizedCents}
               realizedCents={pl.realizedCents}
             />
@@ -338,17 +339,22 @@ export function InvestmentTypeHeader({
           P/L amount · value · share · the actions slot. */}
       <span className="hidden w-20 shrink-0 sm:block" aria-hidden="true" />
       <span
-        data-testid={`investment-type-pl-desktop-${uiType}`}
-        className="hidden w-20 shrink-0 justify-end text-right text-num-sm tabular-nums sm:flex"
+        {...(hasPL ? { "data-pl-line": true } : {})}
+        className="hidden shrink-0 gap-2 sm:flex"
       >
-        {hasPL ? pctNode : null}
-      </span>
-      <span
-        data-testid={`investment-type-plamt-desktop-${uiType}`}
-        className="hidden w-24 shrink-0 justify-end text-right text-num-sm tabular-nums sm:flex"
-        style={{ color: signColor(pl.totalPLCents) }}
-      >
-        {hasPL ? signed(pl.totalPLCents) : ""}
+        <span
+          data-testid={`investment-type-pl-desktop-${uiType}`}
+          className="flex w-20 shrink-0 justify-end text-right text-num-sm tabular-nums"
+        >
+          {hasPL ? pctNode : null}
+        </span>
+        <span
+          data-testid={`investment-type-plamt-desktop-${uiType}`}
+          className="flex w-24 shrink-0 justify-end text-right text-num-sm tabular-nums"
+          style={{ color: signColor(pl.totalPLCents) }}
+        >
+          {hasPL ? signed(pl.totalPLCents) : ""}
+        </span>
       </span>
       <div
         data-col="right"
