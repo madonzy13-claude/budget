@@ -79,8 +79,13 @@ describe("InvestmentTypeHeader", () => {
     renderHeader();
     expect(screen.getByText("Stocks & ETFs")).toBeInTheDocument();
     expect(screen.getByText("80,000")).toBeInTheDocument();
-    expect(screen.queryByText("+51,000")).toBeNull();
-    expect(screen.queryByText("+53.7%")).toBeNull();
+    // Only the desktop columns (CSS-hidden on a phone) carry the P/L closed.
+    const phone = (text: string) =>
+      screen
+        .queryAllByText(text)
+        .filter((el) => !el.closest('[data-testid$="-desktop-stocks"]'));
+    expect(phone("+51,000")).toEqual([]);
+    expect(phone("+53.7%")).toEqual([]);
     expect(screen.getByTestId("type-handle")).toBeInTheDocument();
   });
 
@@ -168,6 +173,44 @@ describe("InvestmentTypeHeader", () => {
     ).not.toContain("min-w-11");
   });
 
+  // R6 (user): desktop lays the header out like the asset row — its own
+  // P/L %, P/L amount, value and share columns (share under the section's),
+  // closed or open; the stacked compact block is the phone's.
+  it("desktop: the asset row's columns, closed too, share in its own column", () => {
+    renderHeader();
+    const cls = (id: string) => screen.getByTestId(id).className;
+    expect(cls("investment-type-pl-desktop-stocks")).toMatch(
+      /hidden .*w-20.*sm:flex/,
+    );
+    expect(
+      screen.getByTestId("investment-type-pl-desktop-stocks"),
+    ).toHaveTextContent("53.7%");
+    expect(cls("investment-type-plamt-desktop-stocks")).toMatch(
+      /hidden .*w-24.*sm:flex/,
+    );
+    expect(cls("investment-type-share-desktop-stocks")).toMatch(
+      /hidden .*w-16.*sm:block/,
+    );
+    expect(
+      screen.getByTestId("investment-type-share-desktop-stocks"),
+    ).toHaveTextContent("60%");
+    // the asset row's actions slot keeps the columns aligned
+    expect(
+      document.querySelector("[data-desktop-actions-slot]")?.className,
+    ).toMatch(/w-\[92px\].*sm:block/);
+  });
+
+  it("open: the phone's stacked P/L block and share are hidden on desktop", () => {
+    const h = renderHeader();
+    h.open();
+    expect(
+      screen.getByTestId("investment-type-split-stocks").className,
+    ).toMatch(/sm:hidden/);
+    expect(
+      screen.getByTestId("investment-type-share-stocks").className,
+    ).toMatch(/sm:hidden/);
+  });
+
   it("collapsed shows name and value, no sum-up and no share", () => {
     renderHeader();
     expect(
@@ -205,7 +248,7 @@ describe("InvestmentTypeHeader", () => {
     // The revealed value is the asset row's small one, so the lines fit.
     expect(
       screen.getByTestId("investment-type-value-stocks").innerHTML,
-    ).not.toContain("text-num-md");
+    ).not.toMatch(/(^|\s)text-num-md/);
     const share = screen.getByTestId("investment-type-share-stocks");
     expect(share).toHaveTextContent("Share: 60%");
     expect(cap.contains(share)).toBe(false);
@@ -218,9 +261,12 @@ describe("InvestmentTypeHeader", () => {
 
   it("pct null renders a muted dash in the sum-up", () => {
     renderHeader({ pl: pl({ pct: null }), expanded: true });
-    expect(screen.getByText("—").getAttribute("style")).toContain(
-      "var(--muted-strong)",
-    );
+    expect(
+      screen
+        .getAllByText("—")
+        .find((el) => !el.closest('[data-testid$="-desktop-stocks"]'))!
+        .getAttribute("style"),
+    ).toContain("var(--muted-strong)");
   });
 
   // Round-6 gap 7 (user): no chevron — the whole header row is the toggle.

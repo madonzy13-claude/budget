@@ -157,19 +157,53 @@ export function InvestmentTypeHeader({
           {budgetCurrency}
         </span>
         <span
-          className={`num text-right ${showSplit ? "text-num-sm" : "text-num-md"}`}
+          // R6 (user): desktop is never compact — the asset row's amount column.
+          className={`num text-right sm:min-w-[var(--amount-w)] sm:text-num-md ${showSplit ? "text-num-sm" : "text-num-md"}`}
           // Tapped (cash too): currency hugs the amount like the asset row (round-4
           // gap 12 — the column width pushed "PLN" under the P/L line).
-          style={{
-            color: "var(--body-on-dark)",
-            minWidth: showSplit ? undefined : `${(maxAmountChars ?? 4) + 1}ch`,
-          }}
+          style={
+            {
+              color: "var(--body-on-dark)",
+              "--amount-w": `${(maxAmountChars ?? 4) + 1}ch`,
+              minWidth: showSplit
+                ? undefined
+                : `${(maxAmountChars ?? 4) + 1}ch`,
+            } as React.CSSProperties
+          }
         >
           {money(pl.valueBudgetCents)}
         </span>
       </span>
     </div>
   );
+
+  const pctNode =
+    pl.pct == null ? (
+      <span style={{ color: "var(--muted-strong)" }}>—</span>
+    ) : (
+      <span
+        aria-label={t("plAria", { value: pctText(pl.pct) })}
+        className="inline-flex items-center gap-0.5"
+        style={{ color: signColor(pl.pct) }}
+      >
+        {pl.pct < 0 ? (
+          <TrendingDown
+            data-pl-trend="down"
+            className="h-3 w-3"
+            aria-hidden="true"
+          />
+        ) : (
+          <TrendingUp
+            data-pl-trend={pl.pct > 0 ? "up" : "flat"}
+            className="h-3 w-3"
+            aria-hidden="true"
+            style={{ color: signColor(pl.pct) }}
+          />
+        )}
+        {pctText(pl.pct)}
+      </span>
+    );
+  const hasPL = uiType !== "cash";
 
   return (
     <div
@@ -213,7 +247,7 @@ export function InvestmentTypeHeader({
         className="flex min-w-0 flex-1 flex-col justify-center gap-0 leading-tight"
       >
         <span
-          className={`min-w-0 break-words ${split ? "text-num-sm" : "text-body-md"}`}
+          className={`min-w-0 break-words sm:text-body-md ${split ? "text-num-sm" : "text-body-md"}`}
           style={{ color: "var(--body-on-dark)" }}
         >
           {name}
@@ -221,37 +255,13 @@ export function InvestmentTypeHeader({
         {split && (
           <div
             data-testid={`investment-type-split-${uiType}`}
-            className="flex min-w-0 flex-col gap-0"
+            className="flex min-w-0 flex-col gap-0 sm:hidden"
           >
             <span
               data-pl-line
               className="num flex min-w-0 items-baseline gap-2 text-num-sm tabular-nums"
             >
-              {pl.pct == null ? (
-                <span style={{ color: "var(--muted-strong)" }}>—</span>
-              ) : (
-                <span
-                  aria-label={t("plAria", { value: pctText(pl.pct) })}
-                  className="inline-flex items-center gap-0.5"
-                  style={{ color: signColor(pl.pct) }}
-                >
-                  {pl.pct < 0 ? (
-                    <TrendingDown
-                      data-pl-trend="down"
-                      className="h-3 w-3"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <TrendingUp
-                      data-pl-trend={pl.pct > 0 ? "up" : "flat"}
-                      className="h-3 w-3"
-                      aria-hidden="true"
-                      style={{ color: signColor(pl.pct) }}
-                    />
-                  )}
-                  {pctText(pl.pct)}
-                </span>
-              )}
+              {pctNode}
               <span style={{ color: signColor(pl.totalPLCents) }}>
                 {signed(pl.totalPLCents)}
               </span>
@@ -266,6 +276,22 @@ export function InvestmentTypeHeader({
           </div>
         )}
       </div>
+      {/* Desktop columns, as the asset row (R6, user): qty (blank) · P/L % ·
+          P/L amount · value · share · the actions slot. */}
+      <span className="hidden w-20 shrink-0 sm:block" aria-hidden="true" />
+      <span
+        data-testid={`investment-type-pl-desktop-${uiType}`}
+        className="hidden w-20 shrink-0 justify-end text-right text-num-sm tabular-nums sm:flex"
+      >
+        {hasPL ? pctNode : null}
+      </span>
+      <span
+        data-testid={`investment-type-plamt-desktop-${uiType}`}
+        className="hidden w-24 shrink-0 justify-end text-right text-num-sm tabular-nums sm:flex"
+        style={{ color: signColor(pl.totalPLCents) }}
+      >
+        {hasPL ? signed(pl.totalPLCents) : ""}
+      </span>
       <div
         data-col="right"
         className="flex shrink-0 flex-col items-end justify-center gap-0 leading-tight"
@@ -275,7 +301,7 @@ export function InvestmentTypeHeader({
           <span
             ref={shareRef}
             data-testid={`investment-type-share-${uiType}`}
-            className="tabular-nums"
+            className="tabular-nums sm:hidden"
             style={{
               color: "var(--muted-foreground)",
               fontSize: "11px",
@@ -287,6 +313,18 @@ export function InvestmentTypeHeader({
           </span>
         )}
       </div>
+      <span
+        data-testid={`investment-type-share-desktop-${uiType}`}
+        className="hidden w-16 shrink-0 text-right text-num-sm tabular-nums sm:block"
+        style={{ color: "var(--muted-foreground)" }}
+      >
+        {`${Number(portfolioPct.toFixed(1))}%`}
+      </span>
+      <span
+        data-desktop-actions-slot
+        className="hidden w-[92px] shrink-0 sm:block"
+        aria-hidden="true"
+      />
     </div>
   );
 }
