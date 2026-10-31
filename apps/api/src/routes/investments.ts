@@ -117,6 +117,39 @@ export function createInvestmentsRoute(deps: BootedDeps) {
   const invalid = (c: Context, issues: { message: string }[]) =>
     c.json({ error: issues[0]?.message ?? "validation_error", issues }, 422);
 
+  // GET /pl?currency=USD&ids=a,b — R6 (user): a group's or an asset's P/L in
+  // another currency, every entry at its own date's rate. Before /:id routes.
+  app.get("/pl", async (c) => {
+    if (!c.get("session")) return c.json({ error: "unauthorized" }, 401);
+    const currency = (c.req.query("currency") ?? "").toUpperCase();
+    const ids = (c.req.query("ids") ?? "").split(",").filter(Boolean);
+    const { uuidParam } = await getSchemas();
+    if (
+      !/^[A-Z]{3}$/.test(currency) ||
+      ids.length === 0 ||
+      ids.length > 200 ||
+      ids.some((id) => !uuidParam.safeParse(id).success)
+    )
+      return c.json({ error: "validation_error" }, 422);
+    const w = who(c);
+    const budget = await deps.tenancy.workspaceRepo.findById(w.tenantId);
+    const r = await deps.investments.currencyPL({
+      ...w,
+      budgetCurrency: budget?.default_currency ?? "EUR",
+      currency,
+      ids,
+    });
+    if (r.isErr()) {
+      if (
+        r.error.name === "NoFxRateAvailable" ||
+        /fx|rate/i.test(r.error.message)
+      )
+        return c.json({ error: "fx_unavailable" }, 422);
+      return serverError(c, "currency_pl_failed", r.error);
+    }
+    return c.json(r.value);
+  });
+
   // GET /names?type= — autocomplete over a type's assets, hidden included
   // (D-02). Registered before every /:id route so "names" is never an id.
   app.get("/names", async (c) => {

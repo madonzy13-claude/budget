@@ -3,6 +3,7 @@
  * Wires the P03 repos + P02 domain math + the existing FxProvider into the
  * 7 application use-cases consumed by the Hono investments route.
  */
+import { currencyPL } from "../application/currency-pl";
 import type { Pool } from "pg";
 import type { FxProvider } from "@budget/shared-kernel";
 import type { HoldingRepo } from "../ports/holding-repo";
@@ -66,6 +67,15 @@ export function createInvestmentsModule(deps: {
     listHoldings: listHoldings({
       holdingRepo: deps.holdingRepo,
       fxProvider: deps.fxProvider,
+    }),
+    // R6 (user): a group's / asset's P/L in another currency, at history rates.
+    currencyPL: currencyPL({
+      historyRepo: deps.historyRepo,
+      fxProvider: deps.fxProvider,
+      listHoldings: listHoldings({
+        holdingRepo: deps.holdingRepo,
+        fxProvider: deps.fxProvider,
+      }),
     }),
     reorderHoldings: reorderHoldings({ holdingRepo: deps.holdingRepo }),
     searchInstruments: searchInstruments({

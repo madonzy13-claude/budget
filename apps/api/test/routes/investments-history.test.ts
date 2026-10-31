@@ -242,7 +242,10 @@ describe("History repo", () => {
   });
 });
 
-async function buildApp(fix: Fixture) {
+async function buildApp(
+  fix: Fixture,
+  rate: (from: string, to: string, at: Date) => string = () => "1",
+) {
   const { createInvestmentsModule } =
     await import("@budget/investments/src/contracts/factory");
   const { DrizzleInstrumentRepo } =
@@ -255,7 +258,11 @@ async function buildApp(fix: Fixture) {
   const { createInvestmentsRoute } =
     await import("../../src/routes/investments");
   const fxProvider = {
-    rateAsOf: async () => ({ rate: "1", provider: "stub", isStale: false }),
+    rateAsOf: async (from: string, to: string, at: Date) => ({
+      rate: from === to ? "1" : rate(from, to, at),
+      provider: "stub",
+      isStale: false,
+    }),
   } as never;
   const investments = createInvestmentsModule({
     pool: appPool(),
@@ -729,6 +736,40 @@ describe("Ledger, undo, type summary (13-08 → 13.1)", () => {
     };
     expect(types.broker?.contributedBudgetCents).toBe("5900000");
     expect(types.cash?.contributedBudgetCents).toBe("1000000");
+  });
+
+  // R6 (user): a group / asset shown in another currency replays its ledger
+  // at each entry's own date rate — today's rate only values what is held.
+  it("GET /pl?currency= converts each entry at its own date's rate", async () => {
+    const fix = await createFixture();
+    // PLN→USD: 0.25 in 2026-09, 0.20 today; PLN budget.
+    const app = await buildApp(fix, (from, to, at) =>
+      from === "PLN" && to === "USD"
+        ? at.toISOString().slice(0, 7) === "2026-09"
+          ? "0.25"
+          : "0.2"
+        : "1",
+    );
+    const b = await brokerSeed(fix); // deposited 55,000, worth 96,000 PLN
+    await q(
+      fix,
+      `INSERT INTO budgeting.investment_history
+         (tenant_id, budget_id, holding_id, kind, effective_date, amount_cents, amount_currency,
+          cost_delta_cents, cost_currency)
+       VALUES ($1, $1, $2, 'start', '2026-09-01', 5500000, 'PLN', 5500000, 'PLN')`,
+      [fix.tenantId, b],
+    );
+    const res = await req(app, "GET", `/pl?currency=USD&ids=${b}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, string | number | null>;
+    expect(body).toMatchObject({
+      currency: "USD",
+      valueCents: "1920000", // 96,000 PLN × 0.20 today
+      costCents: "1375000", // 55,000 PLN × 0.25 when paid
+      unrealizedCents: "545000",
+      realizedCents: "0",
+      contributedCents: "1375000",
+    });
   });
 
   it("delete + re-enter through the API equals entering once", async () => {
