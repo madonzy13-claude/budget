@@ -680,6 +680,13 @@
       "when": 1783606802012,
       "tag": "0097_delete_pre_13_1_removed_assets",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1783606803012,
+      "tag": "0098_investment_history_note",
+      "breakpoints": true
     }
   ]
 }

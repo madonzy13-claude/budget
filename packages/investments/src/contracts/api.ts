@@ -390,6 +390,8 @@ export const sellAssetSchema = z.object({
     z.object({
       kind: z.literal("out"),
       wallet: walletTargetSchema.default({ kind: "nowhere" }),
+      // R6 (user): optional note, shown in the ledger row.
+      note: z.string().trim().max(200).optional(),
     }),
   ]),
   // Out / amount destinations only; a quantity destination's received is
@@ -475,6 +477,8 @@ export interface EntryDto {
   linked: boolean;
   walletName: string | null;
   walletDelta: string | null;
+  /** R6: the note on a sale out of investments. */
+  note: string | null;
   backfilled: boolean;
   deletable: boolean;
   blockedReason: "not_newest" | "linked_not_newest" | "interest" | null;

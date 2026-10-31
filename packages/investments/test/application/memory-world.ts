@@ -260,6 +260,7 @@ export class MemoryWorld {
           priorPriceCents: e.priorPriceCents,
           priorPriceCurrency: e.priorPriceCurrency,
           backfilled: e.backfilled,
+          note: e.note ?? null,
           deleted: false,
         });
       }

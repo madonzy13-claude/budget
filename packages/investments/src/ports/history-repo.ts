@@ -51,6 +51,8 @@ export interface NewHistoryEntry {
   /** R6-2: unsigned amount in the asset's own currency fixed at the deal
    *  (proceeds of a sale, cost of a buy / leg); null = not recorded. */
   assetAmountCents: bigint | null;
+  /** R6 (user): note on a sale out of investments; null = none. */
+  note: string | null;
 }
 
 /** D-21: a wallet balance moves by a delta inside the booking transaction. */
@@ -136,6 +138,7 @@ export interface StoredEntry {
   priorPriceCents: string | null;
   priorPriceCurrency: string | null;
   backfilled: boolean;
+  note: string | null;
 }
 
 export interface RealizedRow {
@@ -243,6 +246,7 @@ export function entry(
     priorPriceCurrency: null,
     backfilled: false,
     assetAmountCents: null,
+    note: null,
     ...e,
   };
 }

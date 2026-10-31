@@ -232,6 +232,7 @@ export function listEntries(deps: {
           linked,
           walletName: e.walletName,
           walletDelta: e.walletDeltaNumeric,
+          note: e.note,
           backfilled: e.backfilled,
           deletable: isNewest && partnerOk,
           blockedReason: !isNewest
@@ -282,6 +283,7 @@ export function listEntries(deps: {
             linked: false,
             walletName: null,
             walletDelta: null,
+            note: null,
             backfilled: false,
             deletable: false,
             blockedReason: "interest",

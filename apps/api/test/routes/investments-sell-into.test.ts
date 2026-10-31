@@ -257,7 +257,29 @@ describe("Sell into another investment", () => {
     ]);
   });
 
-  it("an existing destination is priced at its own price; a client price is ignored", async () => {
+  it("an existing destination is priced at its own price when none is typed", async () => {
+    const fix = await createFixture();
+    const app = await buildApp(fix);
+    const src = await seed(fix, btc());
+    const eth = await seed(
+      fix,
+      btc({ name: "ETH", buyPriceCents: 900n, currentPriceCents: 1_000n }),
+    );
+    const res = await sell(app, src, {
+      left: { quantity: "0.5" },
+      destination: { kind: "existing", holdingId: eth, quantityBought: "2" },
+      receivedCurrency: "PLN",
+    });
+    expect(res.status).toBe(201);
+    expect(await row(fix, eth)).toEqual({
+      qty: "3.00000000",
+      buy: "967",
+      cur: "1000",
+    });
+  });
+
+  // R6 (user): the destination's price is never locked — a typed one is booked.
+  it("an existing destination books a typed price", async () => {
     const fix = await createFixture();
     const app = await buildApp(fix);
     const src = await seed(fix, btc());
@@ -276,10 +298,10 @@ describe("Sell into another investment", () => {
       receivedCurrency: "PLN",
     });
     expect(res.status).toBe(201);
-    expect(await row(fix, eth)).toEqual({
+    // (1 × 900 + 2 × 5) / 3 = 303.33
+    expect(await row(fix, eth)).toMatchObject({
       qty: "3.00000000",
-      buy: "967",
-      cur: "1000",
+      buy: "303",
     });
   });
 

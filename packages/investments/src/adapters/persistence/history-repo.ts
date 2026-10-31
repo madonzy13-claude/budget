@@ -47,6 +47,7 @@ const ENTRY_SELECT = sql`
          h.wallet_id::text AS wallet_id,
          (SELECT w.name FROM budgeting.wallets w WHERE w.id = h.wallet_id) AS wallet_name,
          h.wallet_delta_numeric::text AS wallet_delta_numeric, h.wallet_created,
+         h.note,
          h.prior_price_cents::text AS prior_price_cents, h.prior_price_currency,
          h.backfilled,
          cp.name AS counterparty_name, cp.holding_id AS counterparty_holding_id
@@ -99,6 +100,7 @@ function mapEntry(row: Record<string, unknown>): StoredEntry {
     priorPriceCents: (row.prior_price_cents as string | null) ?? null,
     priorPriceCurrency: (row.prior_price_currency as string | null) ?? null,
     backfilled: row.backfilled === true,
+    note: (row.note as string | null) ?? null,
   };
 }
 
@@ -253,7 +255,7 @@ export class DrizzleHistoryRepo implements HistoryRepo {
                prior_principal_cents, prior_start_date, transfer_id,
                wallet_id, wallet_delta_numeric, wallet_created,
                prior_price_cents, prior_price_currency, backfilled,
-               asset_amount_cents)
+               asset_amount_cents, note)
             VALUES
               (${tenantId}::uuid, ${plan.budgetId}::uuid, ${holdingId}::uuid,
                ${e.kind}, ${e.effectiveDate}::date,
@@ -267,7 +269,7 @@ export class DrizzleHistoryRepo implements HistoryRepo {
                ${e.walletId === "$newWallet" ? wallet.walletId : e.walletId}::uuid,
                ${e.walletDeltaNumeric}::numeric, ${e.walletCreated},
                ${e.priorPriceCents}::numeric, ${e.priorPriceCurrency}, ${e.backfilled},
-               ${s(e.assetAmountCents)}::bigint)
+               ${s(e.assetAmountCents)}::bigint, ${e.note})
           `);
         }
         return { newHoldingId, transferId, ...wallet };

@@ -326,6 +326,33 @@ describe("Investment entries ledger", () => {
     }
   });
 
+  // R6 (user): a sale out of investments can carry a note; the ledger shows it.
+  it("a sale out of investments keeps its note on the entry", async () => {
+    const fix = await createFixture();
+    const app = await buildApp(fix);
+    const h = await seed(fix);
+    await startEntry(fix, h);
+    const res = await call(app, "POST", `/${h}/sell`, {
+      effectiveDate: "2026-10-01",
+      left: { valueCents: "500000" },
+      destination: { kind: "out", note: "  Paid the car loan  " },
+      receivedCents: "500000",
+      receivedCurrency: "PLN",
+    });
+    expect(res.status).toBe(201);
+    const [sale] = await entriesOf(app, h);
+    expect(sale).toMatchObject({ kind: "withdraw", note: "Paid the car loan" });
+    // Too long is refused.
+    const long = await call(app, "POST", `/${h}/sell`, {
+      effectiveDate: "2026-10-02",
+      left: { valueCents: "400000" },
+      destination: { kind: "out", note: "x".repeat(201) },
+      receivedCents: "100000",
+      receivedCurrency: "PLN",
+    });
+    expect(long.status).toBe(422);
+  });
+
   it("a malformed id is 404; another tenant's entry is 404 and nothing changes", async () => {
     const fix = await createFixture();
     const other = await createFixture();

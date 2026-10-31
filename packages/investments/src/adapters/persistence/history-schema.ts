@@ -43,6 +43,8 @@ export const investmentHistory = budgeting.table(
     realizedBudgetCents: bigint("realized_budget_cents", { mode: "bigint" }),
     /** R6-2: the amount in the asset's own currency fixed at the deal. */
     assetAmountCents: bigint("asset_amount_cents", { mode: "bigint" }),
+    /** R6: the user's note on a sale out of investments (≤ 200 chars). */
+    note: text("note"),
     budgetCurrency: char("budget_currency", { length: 3 }),
     valueDeltaCents: bigint("value_delta_cents", { mode: "bigint" })
       .notNull()
