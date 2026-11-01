@@ -3,7 +3,9 @@
  *
  * v1.1 changes (Plan 02-01, TXN-01..08):
  *   - No account/wallet linkage, no TRANSFER kind, no correction surface.
- *   - Negative amount_original_cents → flip kind to INCOME, store positive (D-PH2-09).
+ *   - Negative amount_original_cents = a REFUND (R6, user): kept as a SPENDING
+ *     with a negative amount, so every spent total takes it off (was: flip to
+ *     INCOME, store positive — D-PH2-09).
  *   - FX: server calls rateAsOf(currencyOriginal, budget.currency, date) on every create.
  *   - Quick-entry path: sets confirmed_at = now() immediately.
  *   - amountOriginalCents and amountConvertedCents are bigint strings.
@@ -37,7 +39,7 @@ export class CurrencyNotSupportedError extends Error {
 export interface CreateTransactionInput {
   date: string; // 'YYYY-MM-DD'
   categoryId: string;
-  /** Signed: negative value → kind flipped to INCOME (D-PH2-09) */
+  /** Signed: negative = a refund (money back into the category). */
   amountOriginalCents: number;
   /** ISO-4217 3-char code; defaults to budget.currency when omitted */
   currencyOriginal?: string | null;
@@ -90,11 +92,10 @@ export function createTransaction(deps: CreateTransactionDeps) {
       deps.getBudgetCurrency ?? deps.getWorkspaceDefaultCurrency!
     )(input.budgetId);
 
-    // D-PH2-09: negative amount → INCOME with positive storage
-    const rawCents = input.amountOriginalCents;
-    const kind = rawCents < 0 ? "INCOME" : "SPENDING";
-    const absCents = Math.abs(rawCents);
-    const amountOriginalCents = String(absCents);
+    // R6 (user): a negative amount is a refund — a SPENDING with a negative
+    // amount, so the category's spent goes down (replaces D-PH2-09's INCOME).
+    const kind = "SPENDING";
+    const amountOriginalCents = String(Math.trunc(input.amountOriginalCents));
 
     // Resolve currency (default to budget currency)
     const currencyOriginal = (
@@ -131,7 +132,7 @@ export function createTransaction(deps: CreateTransactionDeps) {
         return err(new Error(`FX rate out of bounds: ${fxRate}`));
       }
 
-      // SEC: convert via big.js, not `absCents * Number(fxRate)`. The float
+      // SEC: convert via big.js, not `cents * Number(fxRate)`. The float
       // product loses precision once it exceeds 2^53 (large principal × rate),
       // silently storing a wrong converted amount. Big keeps it exact.
       amountConvertedCents = new Big(amountOriginalCents)

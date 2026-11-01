@@ -92,7 +92,8 @@ export function editTransaction(deps: EditTransactionDeps) {
     const newDate = input.fields.date ?? original.date;
     const newAmountCents =
       input.fields.amountOriginalCents !== undefined
-        ? String(Math.abs(input.fields.amountOriginalCents))
+        ? // R6 (user): signed — negative is a refund.
+          String(Math.trunc(input.fields.amountOriginalCents))
         : original.amountOriginalCents;
 
     const currencyChanged =

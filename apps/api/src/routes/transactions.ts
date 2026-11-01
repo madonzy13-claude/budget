@@ -58,7 +58,7 @@ const boundedCents = z.number().int().min(-MAX_TXN_CENTS).max(MAX_TXN_CENTS);
 const createSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
   category_id: z.string().uuid(),
-  /** Signed: negative → INCOME (D-PH2-09) */
+  /** Signed: negative = a refund (R6). */
   amount_original_cents: boundedCents,
   currency_original: z.string().length(3).toUpperCase().optional(),
   note: z.string().nullable().optional(),
@@ -70,7 +70,7 @@ const patchSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   category_id: z.string().uuid().optional(),
-  /** Signed — absolute value stored; kind derived from sign if provided */
+  /** Signed: negative = a refund (R6). */
   amount_original_cents: boundedCents.optional(),
   currency_original: z.string().length(3).toUpperCase().optional(),
   note: z.string().nullable().optional(),

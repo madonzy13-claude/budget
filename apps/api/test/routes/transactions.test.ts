@@ -161,7 +161,10 @@ describe("POST /budgets/:budgetId/transactions", () => {
     expect(tx.amount_converted_cents).toBe(tx.amount_original_cents);
   });
 
-  it("negative amount_original_cents flips kind to INCOME and stores positive", async () => {
+  // R6 (user): a negative amount is a REFUND — money back into the category.
+  // It stays a spending with a negative amount, so every spent total that sums
+  // spendings takes it off automatically.
+  it("a negative amount is a refund: a spending with a negative amount", async () => {
     const app = await buildApp(testUserId, testBudgetId);
     const res = await app.request(`/budgets/${testBudgetId}/transactions`, {
       method: "POST",
@@ -170,16 +173,33 @@ describe("POST /budgets/:budgetId/transactions", () => {
         date: "2026-05-11",
         category_id: testCategoryId,
         amount_original_cents: -596,
-        currency_original: "USD",
       }),
     });
     expect(res.status).toBe(201);
     const body = (await res.json()) as { transaction: Record<string, unknown> };
     const tx = body.transaction;
-    expect(tx.kind).toBe("INCOME");
-    // stored as positive in DB
-    expect(Number(tx.amount_original_cents)).toBeGreaterThan(0);
-    expect(Number(tx.amount_original_cents)).toBe(596);
+    expect(tx.kind).toBe("SPENDING");
+    expect(Number(tx.amount_original_cents)).toBe(-596);
+    expect(Number(tx.amount_converted_cents)).toBe(-596);
+  });
+
+  it("a refund in another currency converts with its sign", async () => {
+    const app = await buildApp(testUserId, testBudgetId);
+    const res = await app.request(`/budgets/${testBudgetId}/transactions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: "2026-05-11",
+        category_id: testCategoryId,
+        amount_original_cents: -1000,
+        currency_original: "USD",
+      }),
+    });
+    expect(res.status).toBe(201);
+    const tx = ((await res.json()) as { transaction: Record<string, unknown> })
+      .transaction;
+    expect(Number(tx.amount_original_cents)).toBe(-1000);
+    expect(Number(tx.amount_converted_cents)).toBeLessThan(0);
   });
 });
 
@@ -234,6 +254,25 @@ describe("PATCH /budgets/:budgetId/transactions/:txId", () => {
     // amount_converted_cents recomputed
     expect(tx.amount_converted_cents).toBeDefined();
     expect(tx.fx_as_of).toBe("2026-05-11");
+  });
+
+  // R6 (user): Edit can turn a spending into a refund — the sign is kept.
+  it("PATCH with a negative amount makes it a refund", async () => {
+    const app = await buildApp(patchUserId, patchBudgetId);
+    const res = await app.request(
+      `/budgets/${patchBudgetId}/transactions/${createdTxId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount_original_cents: -700 }),
+      },
+    );
+    expect(res.status).toBe(200);
+    const tx = ((await res.json()) as { transaction: Record<string, unknown> })
+      .transaction;
+    expect(Number(tx.amount_original_cents)).toBe(-700);
+    expect(Number(tx.amount_converted_cents)).toBeLessThan(0);
+    expect(tx.kind).toBe("SPENDING");
   });
 
   it("PATCH with date change updates fx_as_of and recomputes", async () => {
