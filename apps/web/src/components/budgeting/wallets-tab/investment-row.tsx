@@ -42,7 +42,6 @@ import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { UpdatedAgo } from "./updated-ago";
-import { AutoPriceLock } from "./auto-price-lock";
 import { isAutoPriced, pricesItself } from "@/lib/investment-types";
 import { AssetClassChip } from "./asset-class-chip";
 
@@ -108,6 +107,10 @@ function perUnitCents(cents: string, quantity: string): bigint {
   if (units === 0n) return 0n;
   return (BigInt(cents) * 100_000_000n + units / 2n) / units;
 }
+
+/** G6 (user): an amount that prices itself reads a shade dimmer than one
+ *  typed by hand. */
+const AUTO_DIM = 0.75;
 
 export function InvestmentRow({
   holding,
@@ -337,14 +340,13 @@ export function InvestmentRow({
       className={`flex shrink-0 items-baseline gap-1 text-num-sm tabular-nums ${extra}`}
     >
       <span className="text-[var(--muted-foreground)]">{currency}</span>
-      <span className="text-[var(--body-on-dark)]">{value}</span>
-      {autoPriced && (
-        <AutoPriceLock
-          id={holding.id}
-          label={t("row.autoPriced")}
-          tip={t("row.autoPricedTip")}
-        />
-      )}
+      <span
+        className="text-[var(--body-on-dark)]"
+        style={autoPriced ? { opacity: AUTO_DIM } : undefined}
+        title={autoPriced ? t("row.autoPricedTip") : undefined}
+      >
+        {value}
+      </span>
     </span>
   );
 
@@ -569,10 +571,7 @@ export function InvestmentRow({
             )}
             <div
               data-amount-cell
-              // R6 (user): the group's lock slot (set on the group when any of
-              // its assets prices itself) — every row reserves it on the right,
-              // so amounts and currencies stay straight; the lock hangs in it.
-              className="relative mr-[var(--lock-slot,0px)] text-right tabular-nums min-w-[var(--amt)] sm:min-w-[calc(var(--amt)_+_1ch)]"
+              className="relative text-right tabular-nums min-w-[var(--amt)] sm:min-w-[calc(var(--amt)_+_1ch)]"
               style={
                 { "--amt": `${maxAmountChars ?? 4}ch` } as React.CSSProperties
               }
@@ -605,27 +604,22 @@ export function InvestmentRow({
                 />
               ) : (
                 // R6 (user): can't be typed (fetched or derived) — a tap opens
-                // or closes the asset like the rest of the row. The lock says why.
-                <span className="relative inline-block">
-                  {autoPriced && (
-                    <AutoPriceLock
-                      id={holding.id}
-                      label={t("row.autoPriced")}
-                      tip={t("row.autoPricedTip")}
-                      className="absolute left-full top-1/2 -translate-y-1/2"
-                    />
-                  )}
-                  <span
-                    data-testid={`holding-amount-readonly-${holding.id}`}
-                    className={[
-                      "inline-block text-num-md",
-                      delisted
-                        ? "text-[var(--muted-strong)]"
-                        : "text-[var(--body-on-dark)]",
-                    ].join(" ")}
-                  >
-                    {value}
-                  </span>
+                // or closes the asset like the rest of the row. G6 (user): no
+                // lock — an automatic amount is a shade dimmer and its title
+                // says how it changes; the ↻ line below says "automatic".
+                <span
+                  data-testid={`holding-amount-readonly-${holding.id}`}
+                  data-auto={autoPriced || undefined}
+                  title={autoPriced ? t("row.autoPricedTip") : undefined}
+                  className={[
+                    "inline-block text-num-md",
+                    delisted
+                      ? "text-[var(--muted-strong)]"
+                      : "text-[var(--body-on-dark)]",
+                  ].join(" ")}
+                  style={autoPriced ? { opacity: AUTO_DIM } : undefined}
+                >
+                  {value}
                 </span>
               )}
               {/* F9 (user): how long ago, hung right under the amount. */}

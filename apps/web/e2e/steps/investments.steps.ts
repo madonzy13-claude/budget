@@ -334,8 +334,7 @@ When("I tap the amount of holding {string}", async ({ page }, name: string) => {
     .click();
 });
 
-// R6 (user): a tap on an amount that can't be typed opens the asset; its
-// lock explains why it can't be typed.
+// R6 (user): a tap on an amount that can't be typed opens the asset.
 Then(
   "the asset {string} opens and nothing shakes",
   async ({ page }, name: string) => {
@@ -346,20 +345,6 @@ Then(
     await expect(
       page.locator(`[data-testid^="asset-share-"]`).locator("visible=true"),
     ).toBeVisible({ timeout: 10000 });
-  },
-);
-
-Then(
-  "tapping the lock of {string} explains how its amount changes",
-  async ({ page }, name: string) => {
-    await new InvestmentsPo(page)
-      .row(name)
-      .locator('[data-testid^="asset-auto-lock-"]')
-      .locator("visible=true")
-      .click();
-    await expect(page.getByTestId("asset-auto-lock-tip")).toContainText(
-      "add a transaction",
-    );
   },
 );
 

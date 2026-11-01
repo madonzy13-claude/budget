@@ -701,7 +701,6 @@
         "share": "Udział: {pct}",
         "amountAria": "Edytuj wartość {name}",
         "qtyAvg": "{qty} × {avg} śr. koszt",
-        "autoPriced": "Wyceniane automatycznie",
         "autoPricedTip": "Ta kwota aktualizuje się sama. Aby ją zmienić, dodaj transakcję: kupno, sprzedaż lub przeniesienie."
       },
       "rowExpandAria": "Rozwiń szczegóły {name}.",

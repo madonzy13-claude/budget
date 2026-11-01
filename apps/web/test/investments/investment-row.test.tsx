@@ -232,21 +232,16 @@ describe("InvestmentRow", () => {
     expect(onToggle).toHaveBeenCalledWith("h1", true);
   });
 
-  // R6 (user): the lock explains itself on hover / tap, and that tap is the
-  // lock's — the asset stays as it was.
-  it("the lock explains how an automatic price changes", () => {
-    const onToggle = vi.fn();
+  // G6 (user): no lock — an automatic amount is a shade dimmer and explains
+  // itself on hover (its title); the ↻ line under it says "automatic".
+  it("an automatic amount is dimmer, explains itself, and has no lock", () => {
     render(
-      <InvestmentRow
-        holding={holding({ instrumentProvider: "finnhub" })}
-        onToggle={onToggle}
-      />,
+      <InvestmentRow holding={holding({ instrumentProvider: "finnhub" })} />,
     );
-    fireEvent.click(screen.getByTestId("asset-auto-lock-h1"));
-    expect(screen.getByTestId("asset-auto-lock-tip")).toHaveTextContent(
-      "row.autoPricedTip",
-    );
-    expect(onToggle).not.toHaveBeenCalled();
+    const amount = screen.getByTestId("holding-amount-readonly-h1");
+    expect(amount).toHaveAttribute("data-auto", "true");
+    expect(amount).toHaveAttribute("title", "row.autoPricedTip");
+    expect(screen.queryByTestId("asset-auto-lock-h1")).toBeNull();
   });
 
   // 260731: manual-value rows (cash / broker / savings — quantity is 1) edit
@@ -1012,7 +1007,7 @@ describe("InvestmentRow — updated ago and lock", () => {
     expect(screen.queryByTestId("asset-auto-lock-h1")).toBeNull();
   });
 
-  it("an auto-priced asset: price line and a lock", () => {
+  it("an auto-priced asset: price line, no lock (G6)", () => {
     render(
       <InvestmentRow
         holding={holding({
@@ -1026,23 +1021,19 @@ describe("InvestmentRow — updated ago and lock", () => {
       "data-kind",
       "price",
     );
-    expect(screen.getByTestId("asset-auto-lock-h1")).toBeInTheDocument();
+    expect(screen.queryByTestId("asset-auto-lock-h1")).toBeNull();
   });
 });
 
-// R6 (user): the lock sits by the amount but takes no room — each group
-// reserves the same slot (--lock-slot), so currencies stay in one column.
-describe("InvestmentRow — lock keeps the currency column", () => {
-  it("the lock hangs right of the amount; the cell reserves the group's slot", () => {
+// G6 (user): with no lock there is no slot to reserve — the amount column is
+// the same for every row.
+describe("InvestmentRow — no lock slot", () => {
+  it("the amount cell reserves nothing extra", () => {
     render(
       <InvestmentRow holding={holding({ instrumentProvider: "finnhub" })} />,
     );
     const cell = document.querySelector<HTMLElement>("[data-amount-cell]")!;
-    // R6 (user): the lock sits to the RIGHT of the amount.
-    expect(cell.className).toContain("mr-[var(--lock-slot,0px)]");
-    const lock = screen.getByTestId("asset-auto-lock-h1");
-    expect(lock.className).toContain("absolute");
-    expect(lock.className).toContain("left-full");
+    expect(cell.className).not.toContain("lock-slot");
   });
 });
 
