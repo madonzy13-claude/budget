@@ -708,7 +708,7 @@ function WalletDragGhost({
         {name || tRow("untitled")}
       </span>
       {/* Currency — same column width as the row. */}
-      <span className="w-[44px] text-num-md text-[var(--muted-foreground)] sm:w-[96px]">
+      <span className="w-[44px] text-num-md text-[var(--muted-foreground)] max-sm:text-right sm:w-[96px]">
         {currency}
       </span>
       {/* Amount — right-aligned like the row. */}

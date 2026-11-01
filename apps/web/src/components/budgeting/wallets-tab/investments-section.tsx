@@ -44,7 +44,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { DashedAddButton } from "@/components/common/dashed-add-button";
-import { centsToBare, centsToRounded } from "@/lib/cents-format";
+import { centsToRounded, centsToShort } from "@/lib/cents-format";
 import { amountColumnChars } from "@/lib/amount-column";
 import { useBudget } from "@/hooks/use-budget-data";
 import { useMemberUiPrefs } from "@/hooks/use-member-ui-prefs";
@@ -429,23 +429,32 @@ export function InvestmentsSection({
   // Longest formatted amount → dynamic amount-column width so the currency
   // codes line up in a column (mirrors wallet-row, D-#align). Headers share one
   // width; each block's rows get their own.
-  const amountCols = useMemo(
-    () =>
-      amountColumnChars(
-        blocks.map((b) =>
-          centsToBare(
-            String(Math.round(blockPL.get(b.uiType)?.valueBudgetCents ?? 0)),
+  // R6 (user): sized from the figures AS SHOWN (short, picked currency) — the
+  // bare cents version ran ~3 chars wider and pushed the code off the amount.
+  const amountCols = amountColumnChars(
+    blocks.map((b) =>
+      centsToShort(
+        String(
+          Math.round(
+            Math.abs(
+              shownPL(b.uiType, blockPL.get(b.uiType)!).pl.valueBudgetCents,
+            ),
+          ),
+        ),
+        locale,
+      ),
+    ),
+    Object.fromEntries(
+      blocks.map((b) => [
+        b.uiType,
+        b.holdings.map((h) =>
+          centsToShort(
+            assetView(h).converted?.valueCents ?? h.valueCents,
             locale,
           ),
         ),
-        Object.fromEntries(
-          blocks.map((b) => [
-            b.uiType,
-            b.holdings.map((h) => centsToBare(h.valueCents, locale)),
-          ]),
-        ),
-      ),
-    [blocks, blockPL, locale],
+      ]),
+    ),
   );
 
   // ── Collapse state per type (localStorage, default expanded) ──

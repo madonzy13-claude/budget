@@ -516,7 +516,8 @@ export function InvestmentRow({
         >
           <div
             className={[
-              "shrink-0 items-baseline gap-1",
+              // R6 (user): gap-2 on a phone = the wallets' ~10px to the amount.
+              "shrink-0 items-baseline gap-2 sm:gap-1",
               expanded ? "hidden sm:flex" : "flex",
             ].join(" ")}
           >
@@ -524,7 +525,7 @@ export function InvestmentRow({
               // R6 (user): the spending wallets' currency cell + picker.
               <span
                 data-testid={`asset-currency-${holding.id}`}
-                className="block w-[44px] shrink-0 self-center text-num-sm text-[var(--muted-foreground)] sm:w-[96px] md:w-[224px]"
+                className="block w-[44px] shrink-0 self-center text-num-sm text-[var(--muted-foreground)] sm:w-[96px] md:w-[224px] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right]"
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
@@ -543,8 +544,10 @@ export function InvestmentRow({
               </span>
             )}
             <div
-              className="text-right tabular-nums"
-              style={{ minWidth: `${(maxAmountChars ?? 4) + 1}ch` }}
+              className="text-right tabular-nums min-w-[var(--amt)] sm:min-w-[calc(var(--amt)_+_1ch)]"
+              style={
+                { "--amt": `${maxAmountChars ?? 4}ch` } as React.CSSProperties
+              }
               // The whole row body is a click target (expand / open sheet); a click
               // meant for the inline editor must not also fire that.
               onClick={valueIsManual ? (e) => e.stopPropagation() : undefined}

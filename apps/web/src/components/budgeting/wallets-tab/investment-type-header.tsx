@@ -154,7 +154,7 @@ export function InvestmentTypeHeader({
     <div className="flex shrink-0 items-baseline gap-1 tabular-nums">
       <span
         data-testid={`investment-type-value-${uiType}`}
-        className="flex items-baseline gap-1"
+        className={`flex items-baseline ${showSplit ? "gap-1" : "gap-2 sm:gap-1"}`}
       >
         {onCurrencyChange ? (
           // Picking a currency never toggles the group.
@@ -162,7 +162,7 @@ export function InvestmentTypeHeader({
             data-testid={`investment-type-currency-${uiType}`}
             // R6 (user): the spending wallets' currency cell — full label on
             // a wide screen, the code alone on a narrow one.
-            className="block w-[44px] shrink-0 self-center text-num-sm sm:w-[96px] md:w-[224px]"
+            className={`w-[44px] shrink-0 self-center text-num-sm sm:block sm:w-[96px] md:w-[224px] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] ${showSplit ? "hidden" : "block"}`}
             style={{ color: "var(--muted-foreground)" }}
             onClick={stop}
             onKeyDown={stop}
@@ -196,17 +196,24 @@ export function InvestmentTypeHeader({
         >
           {money(pl.valueBudgetCents)}
         </span>
+        {onCurrencyChange && showSplit && (
+          // R6 (user): open on a phone = the asset row's open value line —
+          // plain currency hugging the amount, no picker.
+          <span
+            className="text-num-sm sm:hidden"
+            style={{ color: "var(--muted-foreground)" }}
+          >
+            {budgetCurrency}
+          </span>
+        )}
         <span
-          className={`num text-right sm:hidden ${showSplit ? "text-num-sm" : "text-num-md"}`}
+          className={`num text-right sm:hidden ${showSplit ? "text-num-sm" : "text-num-md min-w-[var(--amt)]"}`}
           // Tapped (cash too): currency hugs the amount like the asset row (round-4
           // gap 12 — the column width pushed "PLN" under the P/L line).
           style={
             {
               color: "var(--body-on-dark)",
-              "--amount-w": `${(maxAmountChars ?? 4) + 1}ch`,
-              minWidth: showSplit
-                ? undefined
-                : `${(maxAmountChars ?? 4) + 1}ch`,
+              "--amt": `${maxAmountChars ?? 4}ch`,
             } as React.CSSProperties
           }
         >

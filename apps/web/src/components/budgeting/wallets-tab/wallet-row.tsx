@@ -283,7 +283,7 @@ function DraftRow({
         // NOTE: keep a space before `${` — Tailwind's scanner does not extract a
         // class glued to an interpolation, and md:w-[224px] silently vanished
         // from the CSS bundle (260812-dgf).
-        className={`w-[44px] shrink-0 rounded sm:w-[96px] md:w-[224px] ${
+        className={`w-[44px] shrink-0 rounded sm:w-[96px] md:w-[224px] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] ${
           currencyOpen ? "ring-1 ring-[var(--primary)]" : ""
         }`}
         data-nav-field="currency"
@@ -307,8 +307,12 @@ function DraftRow({
           (SAME formula as the persisted row) makes the column line up with the
           existing wallets. */}
       <div
-        className="w-0 shrink-0 text-right tabular-nums"
-        style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
+        className={`w-0 shrink-0 text-right tabular-nums min-w-[var(--amt)] sm:min-w-[calc(var(--amt)_+_1ch)]`}
+        style={
+          {
+            "--amt": `${maxAmountChars ?? MIN_AMOUNT_CHARS}ch`,
+          } as React.CSSProperties
+        }
         data-nav-field="amount"
       >
         <Input
@@ -771,7 +775,7 @@ function PersistedRow({
           onSelect directly. */}
         <div
           // Space before `${` is load-bearing — see the draft row above.
-          className={`w-[44px] rounded data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[224px] ${
+          className={`w-[44px] rounded max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[224px] ${
             currencyOpen ? "ring-1 ring-[var(--primary)]" : ""
           }`}
           data-inline-cell
@@ -810,8 +814,12 @@ function PersistedRow({
            code and the right-aligned number. `tabular-nums` keeps digit
            widths uniform so rows in the same section align column-perfect. */}
         <div
-          className="rounded text-right tabular-nums data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)]"
-          style={{ minWidth: `${(maxAmountChars ?? MIN_AMOUNT_CHARS) + 1}ch` }}
+          className="rounded text-right tabular-nums min-w-[var(--amt)] sm:min-w-[calc(var(--amt)_+_1ch)] data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)]"
+          style={
+            {
+              "--amt": `${maxAmountChars ?? MIN_AMOUNT_CHARS}ch`,
+            } as React.CSSProperties
+          }
           data-inline-cell
           data-nav-field="amount"
         >
