@@ -13,15 +13,17 @@ import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { Pool } from "pg";
 
 const RAW = process.env.DATABASE_URL_MIGRATOR ?? process.env.DATABASE_URL_APP;
-if (!RAW) throw new Error("DATABASE_URL_MIGRATOR required for schema tests");
-const pool = new Pool({ connectionString: RAW.replace("@db:", "@localhost:") });
+// The DB-free unit job loads this directory too: skip there, never throw.
+const pool = RAW
+  ? new Pool({ connectionString: RAW.replace("@db:", "@localhost:") })
+  : (undefined as unknown as Pool);
 
 const one = async <T>(q: string, p: unknown[] = []): Promise<T | undefined> =>
   (await pool.query(q, p)).rows[0] as T | undefined;
 
-afterAll(() => pool.end());
+afterAll(() => pool?.end());
 
-describe("Migration 0087 investment history", () => {
+describe.skipIf(!RAW)("Migration 0087 investment history", () => {
   let cols: Record<
     string,
     { data_type: string; is_nullable: string; column_default: string | null }
