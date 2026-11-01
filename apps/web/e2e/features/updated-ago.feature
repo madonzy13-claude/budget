@@ -15,3 +15,4 @@ Feature: Every wallet and asset says when its amount last changed
     Then the wallet "E2E SPENDINGS" says when its balance was updated
     And the asset "Pot" says when it was updated, with no lock
     And the asset "Term deposit" carries a lock
+    And the "cash" group says when it was last updated

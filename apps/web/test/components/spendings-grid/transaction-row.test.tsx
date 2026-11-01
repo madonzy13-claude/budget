@@ -650,7 +650,11 @@ describe("TransactionRow — refund", () => {
         currencyOriginal: "USD",
       },
     });
-    expect(screen.getByTestId("txn-refund-icon")).toBeInTheDocument();
+    const icon = screen.getByTestId("txn-refund-icon");
+    expect(icon).toBeInTheDocument();
+    // R6 (user): the number keeps the text baseline (the note beside it lines
+    // up) — the amount is inline text, not a flex box led by the icon.
+    expect(icon.parentElement!.className).not.toMatch(/flex/);
     expect(screen.getByText("25")).toBeInTheDocument();
     expect(screen.queryByText("-25")).toBeNull();
   });

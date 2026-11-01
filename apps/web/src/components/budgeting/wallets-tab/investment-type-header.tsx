@@ -25,6 +25,7 @@ import type { UiType } from "@/lib/investment-types";
 import { UI_TYPE_COLOR, UI_TYPE_ICON } from "@/lib/investment-icons";
 import { useIsWide } from "@/hooks/use-is-wide";
 import { CurrencyPicker } from "@/components/common/currency-picker";
+import { UpdatedAgo } from "./updated-ago";
 import type { TypeGroupPL } from "@/lib/investment-type-groups";
 
 interface InvestmentTypeHeaderProps {
@@ -41,6 +42,8 @@ interface InvestmentTypeHeaderProps {
   onCurrencyChange?: (currency: string) => void;
   /** Block drag handle slot (the parent's useSortable listeners). */
   dragHandle?: React.ReactNode;
+  /** R6 (user): the newest change among the group's assets — "↻ 5m ago". */
+  updatedAt?: string | null;
 }
 
 const signColor = (n: number) =>
@@ -116,6 +119,7 @@ export function InvestmentTypeHeader({
   pl,
   portfolioPct,
   maxAmountChars,
+  updatedAt,
   expanded,
   onToggle,
   onCurrencyChange,
@@ -154,7 +158,7 @@ export function InvestmentTypeHeader({
     <div className="flex shrink-0 items-baseline gap-1 tabular-nums">
       <span
         data-testid={`investment-type-value-${uiType}`}
-        className={`flex items-baseline ${showSplit ? "gap-1" : "gap-2 sm:gap-1"}`}
+        className={`relative flex items-baseline ${showSplit ? "gap-1" : "gap-2 sm:gap-1"}`}
       >
         {onCurrencyChange ? (
           // Picking a currency never toggles the group.
@@ -219,6 +223,12 @@ export function InvestmentTypeHeader({
         >
           {money(pl.valueBudgetCents)}
         </span>
+        {/* R6 (user): under the amount like the assets; an open group on a
+            phone has its share there instead. */}
+        <UpdatedAgo
+          at={updatedAt}
+          className={showSplit ? "hidden sm:flex" : undefined}
+        />
       </span>
     </div>
   );

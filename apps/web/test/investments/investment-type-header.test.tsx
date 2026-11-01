@@ -406,3 +406,22 @@ describe("InvestmentTypeHeader", () => {
     expect(icon.getAttribute("style")).toContain("var(--muted-strong)");
   });
 });
+
+// R6 (user): a group says how long ago its newest asset changed, under its
+// amount like the assets do.
+describe("InvestmentTypeHeader — updated ago", () => {
+  it("shows the newest change under the group's amount", () => {
+    renderHeader({
+      updatedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+    });
+    const ago = screen.getByTestId("updated-ago");
+    expect(
+      ago.closest('[data-testid="investment-type-value-stocks"]'),
+    ).not.toBeNull();
+  });
+
+  it("no time, no line", () => {
+    renderHeader();
+    expect(screen.queryByTestId("updated-ago")).toBeNull();
+  });
+});

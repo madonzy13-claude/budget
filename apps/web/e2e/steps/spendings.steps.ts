@@ -132,3 +132,24 @@ Then(
     );
   },
 );
+
+Then(
+  "the refund of {int} cents keeps its amount and note on one line",
+  async ({ page }, cents: number) => {
+    const row = new SpendingsPo(page).transactionRowByAmount(-cents);
+    const amount = row.getByTestId("txn-refund-icon").locator("..");
+    const note = row.getByTestId("txn-row-note");
+    await expect(note).toBeVisible({ timeout: 15000 });
+    // Text bottoms of a 14px amount and a 12px note on one baseline differ by
+    // a pixel or two; a shifted number (the reported bug) is far more.
+    const bottom = (l: typeof note) =>
+      l.evaluate((el) => {
+        const r = document.createRange();
+        r.selectNodeContents(el);
+        return r.getBoundingClientRect().bottom;
+      });
+    expect(
+      Math.abs((await bottom(amount)) - (await bottom(note))),
+    ).toBeLessThanOrEqual(3);
+  },
+);

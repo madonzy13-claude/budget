@@ -1970,7 +1970,7 @@ Then(
     const size = (l: Locator) =>
       l.first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
     const linked = await size(ledger.getByText(/^(to|from) /));
-    const dated = await size(ledger.getByText(/· Transfer (out|in)$/));
+    const dated = await size(ledger.getByText(/· Moved (out|in)$/));
     expect(linked).toBeLessThan(dated);
   },
 );

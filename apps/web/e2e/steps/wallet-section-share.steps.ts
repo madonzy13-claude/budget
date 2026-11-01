@@ -221,3 +221,23 @@ Then("the asset {string} carries a lock", async ({ page }, name: string) => {
     row.locator('[data-testid^="asset-auto-lock-"]').locator("visible=true"),
   ).toBeVisible({ timeout: 15000 });
 });
+
+// R6 (user): a group shows its newest asset change under its amount.
+Then(
+  "the {string} group says when it was last updated",
+  async ({ page }, type: string) => {
+    // On a phone an open group shows its share there instead — close it.
+    const group = page.getByTestId(`investment-group-${type}`);
+    if (
+      (page.viewportSize()?.width ?? 1280) < 640 &&
+      (await group.getAttribute("aria-expanded")) === "true"
+    )
+      await group.click({ position: { x: 24, y: 12 } });
+    await expect(
+      page
+        .getByTestId(`investment-type-value-${type}`)
+        .getByTestId("updated-ago")
+        .locator("visible=true"),
+    ).toBeVisible({ timeout: 15000 });
+  },
+);

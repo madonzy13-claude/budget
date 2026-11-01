@@ -10,8 +10,9 @@ Feature: Refunds give money back to a spending category
     Given the budget has a category "Food" with a limit of 1000
     And "Food" has 250 of spending this month
     When I open the spendings tab for the budget
-    And I quick-add "-25" in "Food"
+    And I quick-add "-25 shoes back" in "Food"
     Then the refund of 2500 cents shows a refund mark
+    And the refund of 2500 cents keeps its amount and note on one line
     When I reveal the spent total on the "Food" usage chip
     Then the "Food" usage chip reads "225"
     And editing the refund of 2500 cents shows Refund with 25

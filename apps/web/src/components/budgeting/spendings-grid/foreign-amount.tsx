@@ -29,13 +29,15 @@ export function FxAmount({
     !!row.currencyOriginal &&
     row.currencyOriginal !== row.currencyConverted;
   return (
-    <span className="inline-flex shrink-0 items-center gap-1">
+    // Plain inline text (not flex): the number keeps the text baseline, so a
+    // note beside it lines up; the icon just sits on that line.
+    <span className="shrink-0 whitespace-nowrap">
       {refund && (
         <Undo2
           data-testid="txn-refund-icon"
           role="img"
           aria-label={t("refund")}
-          className="h-3.5 w-3.5 shrink-0 text-[var(--trading-up)]"
+          className="mr-1 inline h-3.5 w-3.5 align-[-0.15em] text-[var(--trading-up)]"
         />
       )}
       {foreign

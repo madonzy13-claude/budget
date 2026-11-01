@@ -13,9 +13,12 @@ import { relativeAgo } from "@/lib/relative-ago";
 export function UpdatedAgo({
   at,
   kind = "value",
+  className = "",
 }: {
   at: string | null | undefined;
   kind?: "value" | "price";
+  /** Extra classes, e.g. hiding it where another line takes the spot. */
+  className?: string;
 }) {
   const t = useTranslations("updatedAgo");
   const locale = useLocale();
@@ -33,7 +36,7 @@ export function UpdatedAgo({
       data-testid="updated-ago"
       data-kind={kind}
       title={t(kind, { when: long })}
-      className="pointer-events-none absolute right-0 top-full flex items-center gap-[3px] whitespace-nowrap text-[var(--muted-foreground)]"
+      className={`pointer-events-none absolute right-0 top-full flex items-center gap-[3px] whitespace-nowrap text-[var(--muted-foreground)] ${className}`}
       style={{ fontSize: "9px", lineHeight: 1.15, opacity: 0.5 }}
     >
       <RotateCw className="h-[8px] w-[8px] shrink-0" aria-hidden="true" />
