@@ -9,7 +9,7 @@
  * No light scope. Brand yellow + trading green/red ride on top.
  *
  * Typography uses Inter (BinanceNova fallback) + IBM Plex Sans (BinancePlex
- * fallback). Both are loaded in app/layout.tsx as next/font CSS variables.
+ * fallback). Both are self-hosted in app/fonts/fonts.css as CSS variables.
  */
 
 @theme inline {
