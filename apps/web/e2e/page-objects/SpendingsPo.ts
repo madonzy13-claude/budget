@@ -76,7 +76,10 @@ export class SpendingsPo {
   async openTxnEdit(amountCents: number): Promise<Locator> {
     const row = this.transactionRowByAmount(amountCents);
     const edit = row.getByTestId("txn-action-edit");
-    if ((this.page.viewportSize()?.width ?? 1280) >= 640) await row.hover();
+    // A mouse reveals the actions on hover (a click there starts the inline
+    // edit); a touch screen taps.
+    if (await this.page.evaluate(() => matchMedia("(hover: hover)").matches))
+      await row.hover();
     else if (!(await edit.isVisible().catch(() => false))) await row.click();
     await edit.click();
     const sheet = this.page.getByTestId("txn-slider-content");

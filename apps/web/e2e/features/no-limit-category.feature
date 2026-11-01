@@ -47,5 +47,5 @@ Feature: No limit — a category that is deliberately unbounded
     And "Trip" has a spending of 12.50 EUR worth 13.50 in the budget currency this month
     When I open the spendings tab for the budget
     Then the spending worth 1350 cents reads "€12.50" with "$13.50" below
-    And editing the spending worth 1350 cents shows 12.5 EUR with the rate below
+    And editing the spending worth 1350 cents shows 12.50 EUR with the rate below
 
