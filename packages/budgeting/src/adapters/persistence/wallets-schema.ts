@@ -35,6 +35,10 @@ export const wallets = budgeting.table(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    /** 0101: last balance change, stamped by a trigger (R6). */
+    balanceUpdatedAt: timestamp("balance_updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
     actorUserId: uuid("actor_user_id").notNull(),
   },
   (t) => [

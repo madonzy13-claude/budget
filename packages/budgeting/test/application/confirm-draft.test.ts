@@ -8,12 +8,10 @@ import type { ExpenseLedgerDraftPortRepo } from "../../src/ports/expense-ledger-
 
 function makeRepo(
   confirmResult:
-    | "ok"
-    | "not_found"
-    | "already_confirmed"
-    | "already_dismissed" = "ok",
+    "ok" | "not_found" | "already_confirmed" | "already_dismissed" = "ok",
 ): ExpenseLedgerDraftPortRepo {
   return {
+    syncDate: async () => "none" as const,
     dismiss: async () => "ok",
     confirm: async () => confirmResult,
   };
@@ -55,6 +53,7 @@ describe("confirmDraft", () => {
 
   it("returns err with kind=Unknown when repo throws", async () => {
     const repo: ExpenseLedgerDraftPortRepo = {
+      syncDate: async () => "none" as const,
       dismiss: async () => "ok",
       confirm: async () => {
         throw new Error("db_failure");

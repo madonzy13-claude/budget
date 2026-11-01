@@ -16,12 +16,21 @@ import { destroyFixtureUser } from "./cleanup-fixture-data";
  */
 const mintedUsers: { userId: string; email: string }[] = [];
 
+/** Other per-scenario teardown a step registers when it creates shared state
+ *  (e.g. seeded fx_rates rows). playwright-bdd's After hooks are not wired by
+ *  bddgen here, so the auto fixture below drains these too. */
+const scenarioCleanups: (() => Promise<void>)[] = [];
+export function afterScenario(fn: () => Promise<void>): void {
+  scenarioCleanups.push(fn);
+}
+
 /** Auto fixture: drains the registry after every scenario. Applied to all three
  *  exported `test` objects, so it runs whichever one a feature binds to. */
 const base = bddBase.extend<{ _fixtureDataCleanup: void }>({
   _fixtureDataCleanup: [
     async ({}, use) => {
       await use();
+      for (const fn of scenarioCleanups.splice(0)) await fn();
       for (const u of mintedUsers.splice(0)) await destroyFixtureUser(u);
     },
     { auto: true },

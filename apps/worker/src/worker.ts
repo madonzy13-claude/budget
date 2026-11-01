@@ -15,6 +15,7 @@ import {
   FX_FETCH_QUEUE,
   FX_FETCH_CRON,
 } from "./handlers/fx-daily-fetch";
+import { backfillFxHistory } from "./handlers/fx-history-backfill";
 import { registerIdempotencyCleanup } from "./handlers/idempotency-cleanup";
 import { registerScheduledEngine } from "./handlers/scheduled-payment-engine";
 import { registerBudgetingReconciliation } from "./handlers/budgeting-reconciliation";
@@ -48,6 +49,7 @@ import { registerBudgetReminder } from "./handlers/budget-reminder";
 import { registerBudgetWealthSnapshot3h } from "./handlers/budget-wealth-snapshot-3h";
 import { createInvestmentsModule } from "@budget/investments/src/contracts/factory";
 import { DrizzleHoldingRepo } from "@budget/investments/src/adapters/persistence/holding-repo";
+import { DrizzleHistoryRepo } from "@budget/investments/src/adapters/persistence/history-repo";
 import { DrizzleInstrumentRepo } from "@budget/investments/src/adapters/persistence/instrument-repo";
 import { DrizzlePriceCacheRepo } from "@budget/investments/src/adapters/persistence/price-cache-repo";
 import { createOverviewCardsRepo } from "@budget/budgeting/src/adapters/persistence/overview-cards-repo";
@@ -241,6 +243,11 @@ async function main() {
     boss as unknown as Parameters<typeof registerFxDailyFetch>[0],
     fxProvider,
   );
+  // Past dates need rates too (a 2024 sale had none). Idempotent: stored
+  // years are skipped, so a restart costs a few COUNTs. Never blocks startup.
+  void backfillFxHistory({ pool: workerPool() })
+    .then((r) => console.log("[worker] fx history backfill", r))
+    .catch((e) => console.error("[worker] fx history backfill failed", e));
 
   // Idempotency-key cleanup — hourly, deletes expired rows via worker_role + cleanup pgPolicy
   await boss.createQueue("idempotency-cleanup");
@@ -446,6 +453,7 @@ async function main() {
     pool: appPool(),
     fxProvider,
     holdingRepo: new DrizzleHoldingRepo(),
+    historyRepo: new DrizzleHistoryRepo(),
     instrumentRepo: new DrizzleInstrumentRepo(appPool()),
     priceCacheRepo: new DrizzlePriceCacheRepo(appPool()),
     priceProvider,
@@ -464,6 +472,8 @@ async function main() {
           budgetId: input.budgetId,
           actorUserId: WEALTH_SYSTEM_USER,
           budgetCurrency: input.defaultCurrency,
+          // R6 (user): hidden assets are still owned — they count.
+          hidden: "all",
         });
         if (r.isErr()) throw r.error;
         return r.value.holdings
@@ -480,6 +490,8 @@ async function main() {
           budgetId: input.budgetId,
           actorUserId: WEALTH_SYSTEM_USER,
           budgetCurrency: input.defaultCurrency,
+          // R6 (user): hidden assets are still owned — they count.
+          hidden: "all",
         });
         if (r.isErr()) throw r.error;
         return r.value.holdings

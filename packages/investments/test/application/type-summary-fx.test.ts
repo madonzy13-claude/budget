@@ -1,0 +1,227 @@
+/**
+ * type-summary-fx.test.ts — one row whose currency has no rate must not take
+ * the whole type summary down (Phase 13 review WR-10).
+ */
+import { describe, test, expect } from "bun:test";
+import { typeSummary } from "../../src/application/history-queries";
+import type { HistoryRepo } from "../../src/ports/history-repo";
+
+describe("Type summary FX isolation", () => {
+  test("a row without a rate is skipped; the others are still summed", async () => {
+    const historyRepo = {
+      realizedByType: async () => [
+        {
+          uiType: "crypto",
+          budgetCurrency: "PLN",
+          realizedBudgetCents: 100n,
+          soldCostBudgetCents: 50n,
+        },
+        {
+          uiType: "stocks",
+          budgetCurrency: "XXX",
+          realizedBudgetCents: 7n,
+          soldCostBudgetCents: 7n,
+        },
+      ],
+      getTypeOrder: async () => [],
+      contributionsByType: async () => [],
+    } as unknown as HistoryRepo;
+    const fxProvider = {
+      rateAsOf: async () => {
+        throw new Error("no rate");
+      },
+    } as never;
+    const r = await typeSummary({ historyRepo, fxProvider })({
+      tenantId: "t",
+      budgetId: "t",
+      actorUserId: "u",
+      budgetCurrency: "PLN",
+    });
+    expect(r._unsafeUnwrap().types).toEqual({
+      crypto: { realizedBudgetCents: "100", soldCostBudgetCents: "50" },
+    });
+  });
+});
+
+// Round-6 gap 6: each asset's own realized, the same sum the header uses.
+describe("Per-asset realized", () => {
+  test("holdings sum per asset; types still sum per type", async () => {
+    const row = (holdingId: string, r: bigint, s: bigint, ccy = "PLN") => ({
+      uiType: "stocks",
+      holdingId,
+      budgetCurrency: ccy,
+      realizedBudgetCents: r,
+      soldCostBudgetCents: s,
+    });
+    const historyRepo = {
+      realizedByType: async () => [
+        row("A", 100n, 400n),
+        row("B", -40n, 100n),
+        row("B", 10n, 10n, "EUR"),
+      ],
+      getTypeOrder: async () => [],
+      contributionsByType: async () => [],
+    } as unknown as HistoryRepo;
+    const fxProvider = {
+      rateAsOf: async () => ({ rate: "4", provider: "s", isStale: false }),
+    } as never;
+    const r = (
+      await typeSummary({ historyRepo, fxProvider })({
+        tenantId: "t",
+        budgetId: "t",
+        actorUserId: "u",
+        budgetCurrency: "PLN",
+      })
+    )._unsafeUnwrap();
+    expect(r.types.stocks).toEqual({
+      realizedBudgetCents: "100",
+      soldCostBudgetCents: "540",
+    });
+    expect(r.holdings).toMatchObject({
+      A: { realizedBudgetCents: "100", soldCostBudgetCents: "400" },
+      B: { realizedBudgetCents: "0", soldCostBudgetCents: "140" },
+    });
+  });
+});
+
+// Round 6 (user): an asset's realized in its OWN currency, not the budget's.
+describe("Per-asset realized in the asset currency", () => {
+  test("exact where the deal says so; today's rate only for the rest", async () => {
+    const historyRepo = {
+      realizedByType: async () => [
+        {
+          uiType: "stocks",
+          holdingId: "A",
+          budgetCurrency: "PLN",
+          costCurrency: "USD",
+          realizedBudgetCents: 400n,
+          soldCostBudgetCents: 0n,
+          realizedAssetExactCents: 100n,
+          realizedBudgetRestCents: 80n,
+        },
+      ],
+      getTypeOrder: async () => [],
+      contributionsByType: async () => [],
+    } as unknown as HistoryRepo;
+    const fxProvider = {
+      rateAsOf: async (f: string, t: string) => ({
+        rate: f === "PLN" && t === "USD" ? "0.25" : "4",
+        provider: "s",
+        isStale: false,
+      }),
+    } as never;
+    const r = (
+      await typeSummary({ historyRepo, fxProvider })({
+        tenantId: "t",
+        budgetId: "t",
+        actorUserId: "u",
+        budgetCurrency: "PLN",
+      })
+    )._unsafeUnwrap();
+    expect(r.holdings.A).toMatchObject({
+      realizedAssetCents: "120",
+      assetCurrency: "USD",
+    });
+  });
+});
+
+describe("Per-asset realized in the shown currency", () => {
+  test("a PLN-cost asset shown in EUR reports realized in EUR", async () => {
+    const historyRepo = {
+      realizedByType: async () => [
+        {
+          uiType: "collectibles",
+          holdingId: "C",
+          budgetCurrency: "PLN",
+          costCurrency: "PLN",
+          displayCurrency: "EUR",
+          realizedBudgetCents: 400n,
+          soldCostBudgetCents: 0n,
+          realizedAssetExactCents: 400n,
+          realizedBudgetRestCents: 0n,
+        },
+      ],
+      getTypeOrder: async () => [],
+      contributionsByType: async () => [],
+    } as unknown as HistoryRepo;
+    const fxProvider = {
+      rateAsOf: async (f: string, t: string) => ({
+        rate: f === "PLN" && t === "EUR" ? "0.25" : "1",
+        provider: "s",
+        isStale: false,
+      }),
+    } as never;
+    const r = (
+      await typeSummary({ historyRepo, fxProvider })({
+        tenantId: "t",
+        budgetId: "t",
+        actorUserId: "u",
+        budgetCurrency: "PLN",
+      })
+    )._unsafeUnwrap();
+    expect(r.holdings.C).toMatchObject({
+      realizedAssetCents: "100",
+      assetCurrency: "EUR",
+    });
+  });
+});
+
+// R6 (user): realized happened on the sale's date — every conversion of it
+// uses that day's rate, never today's.
+describe("Realized converts at each sale's own date", () => {
+  test("shown-currency, rest and old-budget-currency rows use the sale date", async () => {
+    const sale = (date: string) => ({
+      uiType: "collectibles",
+      holdingId: "C",
+      effectiveDate: date,
+      budgetCurrency: "EUR", // booked when the budget was in EUR
+      costCurrency: "PLN",
+      displayCurrency: "USD",
+      realizedBudgetCents: 100n,
+      soldCostBudgetCents: 100n,
+      realizedAssetExactCents: 400n,
+      realizedBudgetRestCents: 0n,
+    });
+    const historyRepo = {
+      realizedByType: async () => [sale("2024-06-01"), sale("2025-06-01")],
+      getTypeOrder: async () => [],
+      contributionsByType: async () => [],
+    } as unknown as HistoryRepo;
+    // PLN→USD 0.25 in 2024, 0.20 in 2025, 0.30 today; EUR→PLN 4 then 5, 6 today.
+    const fxProvider = {
+      rateAsOf: async (f: string, t: string, d: Date) => {
+        const y = d.toISOString().slice(0, 4);
+        const pick = (a: string, b: string, today: string) =>
+          y === "2024" ? a : y === "2025" ? b : today;
+        return {
+          rate:
+            f === "PLN" && t === "USD"
+              ? pick("0.25", "0.2", "0.3")
+              : f === "EUR" && t === "PLN"
+                ? pick("4", "5", "6")
+                : "1",
+          provider: "s",
+          isStale: false,
+        };
+      },
+    } as never;
+    const r = (
+      await typeSummary({ historyRepo, fxProvider })({
+        tenantId: "t",
+        budgetId: "t",
+        actorUserId: "u",
+        budgetCurrency: "PLN",
+      })
+    )._unsafeUnwrap();
+    // 400 × 0.25 + 400 × 0.20 = 180 USD (today's 0.30 would say 240).
+    expect(r.holdings.C).toMatchObject({
+      realizedAssetCents: "180",
+      assetCurrency: "USD",
+    });
+    // 100 EUR × 4 + 100 EUR × 5 = 900 PLN (today's 6 would say 1,200).
+    expect(r.types.collectibles).toEqual({
+      realizedBudgetCents: "900",
+      soldCostBudgetCents: "900",
+    });
+  });
+});

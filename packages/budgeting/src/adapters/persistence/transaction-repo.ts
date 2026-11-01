@@ -337,6 +337,8 @@ export class DrizzleTransactionRepo implements TransactionRepo {
               AND transaction_date < ${nextMonth}::date
               AND deleted_at IS NULL
               AND dismissed_at IS NULL
+              -- User (R6): set aside to a future date — back on that date.
+              AND deferred_at IS NULL
               AND ${confirmedFilter}
             ORDER BY transaction_date DESC, created_at DESC`,
         );
@@ -380,6 +382,49 @@ export class DrizzleTransactionRepo implements TransactionRepo {
     );
     if (r.isErr()) throw r.error;
     return r.value ? new Date(r.value as string | Date).toISOString() : null;
+  }
+
+  /** R6 (user): confirmed spending per day in [monthStart, monthEnd), budget
+   *  currency — so a month's spend converts at the days it was paid. */
+  async spendByDayForMonth(
+    tenantId: string,
+    budgetId: string,
+    monthStart: string,
+    monthEnd: string,
+  ): Promise<{ date: string; cents: bigint }[]> {
+    const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(SYSTEM_USER_ID),
+      async (tx) => {
+        const res = await (
+          tx as {
+            execute: (
+              q: unknown,
+            ) => Promise<{ rows: { d: string; cents: string }[] }>;
+          }
+        ).execute(sql`
+          SELECT transaction_date::text AS d,
+                 SUM(amount_converted_cents)::text AS cents
+            FROM budgeting.expense_ledger
+           WHERE tenant_id = ${tenantId}::uuid
+             AND budget_id = ${budgetId}::uuid
+             AND kind = 'SPENDING'
+             AND transaction_date >= ${monthStart}::date
+             AND transaction_date < ${monthEnd}::date
+             AND confirmed_at IS NOT NULL
+             AND deleted_at IS NULL
+           GROUP BY transaction_date
+           ORDER BY transaction_date
+        `);
+        return res.rows.map((row) => ({
+          date: row.d,
+          cents: BigInt(row.cents),
+        }));
+      },
+    );
+    if (r.isErr()) throw r.error;
+    return r.value;
   }
 
   async spendByCategoryForMonth(

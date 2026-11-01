@@ -19,7 +19,8 @@ import { useConnectivity } from "@/components/common/connectivity-provider";
 import { removePendingSpending } from "@/lib/pending-spendings";
 import { useDeleteTransaction } from "@/hooks/use-delete-transaction";
 import { useUpdateTransaction } from "@/hooks/use-update-transaction";
-import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
+import { centsToDisplayCompact } from "@/lib/cents-format";
+import { FxAmount } from "./foreign-amount";
 import { parseAmountAndNote } from "@/lib/decimal";
 import { MobileKeyboardToggle } from "./mobile-keyboard-toggle";
 import { formatInstantDate } from "@/lib/format-date";
@@ -232,7 +233,6 @@ export function TransactionRow({
     };
   }, [revealed]);
 
-  const formattedAmount = centsToBare(txn.amountConvertedCents, locale);
   // The SPENDING date, day + short month, no year ("31 Jul").
   //
   // SUPERSEDES r40b, which showed the creation date here: a spending entered
@@ -252,10 +252,14 @@ export function TransactionRow({
     undefined,
     { month: "short", year: false },
   );
+  // R6 (user): the row's own amount — what an edit starts from and saves.
+  const ownCents = txn.amountOriginalCents ?? txn.amountConvertedCents;
+  // R6 (user): the delete prompt names what was paid, in its own currency.
   const confirmAmount = centsToDisplayCompact(
-    txn.amountConvertedCents,
-    txn.currencyConverted,
+    ownCents,
+    txn.currencyOriginal ?? txn.currencyConverted,
     locale,
+    true,
   );
   const confirmDate = new Date(
     `${txn.transactionDate}T00:00:00`,
@@ -268,7 +272,8 @@ export function TransactionRow({
   // Seed the inline editor with "amount note" so an edit preserves (and can
   // change or clear) the existing note. commitEdit's parser splits it back apart.
   function seedEditValue() {
-    const amt = (parseInt(txn.amountConvertedCents, 10) / 100).toString();
+    // R6 (user): edits are in the row's own currency (it keeps it).
+    const amt = (parseInt(ownCents, 10) / 100).toString();
     return txn.note ? `${amt} ${txn.note}` : amt;
   }
 
@@ -358,7 +363,7 @@ export function TransactionRow({
     };
     el.addEventListener("touchstart", handler, { passive: false });
     return () => el.removeEventListener("touchstart", handler);
-  }, [txn.amountConvertedCents, canEdit]);
+  }, [ownCents, canEdit]);
 
   function commitEdit() {
     // 260722-d: an ABC/123 switch blurs then refocuses in the same gesture —
@@ -371,7 +376,7 @@ export function TransactionRow({
     // 260722-note: same parser as quick-add — a space after the number starts
     // the note ("11.45 lunch" → 1145 + "lunch"). The editor seeds "amount note".
     const parsed = parseAmountAndNote(trimmed);
-    const original = parseInt(txn.amountConvertedCents, 10);
+    const original = parseInt(ownCents, 10);
     // Clearing the field or zeroing the amount deletes the row.
     if (trimmed === "" || parsed?.cents === 0) {
       focusAfterDelete();
@@ -566,7 +571,7 @@ export function TransactionRow({
           </>
         ) : (
           <span className="flex min-w-0 flex-1 items-baseline gap-2 text-sm text-[var(--body-on-dark)]">
-            <span className="shrink-0">{formattedAmount}</span>
+            <FxAmount row={txn} locale={locale} />
             {/* 260731-osq: queued-offline marker — this row saves itself once
                 the connection is back. */}
             {pending ? (

@@ -179,13 +179,9 @@ export async function runScheduledEngine(
             const fxAsOf = fxComputed.fxAsOf;
             const amountConvertedCents = fxComputed.amountConvertedCents;
 
-            // Lock the draft to the BUDGET currency (UAT-Phase6-Test7) — matches the
-            // app-layer engine, the create-scheduled-payment inline catch-up, and the
-            // edit-transaction lock semantics. The rule's foreign currency is consumed
-            // ONLY to compute the conversion: `amount_original_cents` becomes the
-            // converted value, `currency_original` is the budget currency, `fx_rate`
-            // is identity. Without this, foreign-currency scheduled drafts surfaced
-            // unconverted (in the rule's currency) everywhere they render.
+            // R6 (user): the payment keeps the rule's currency and amount; the
+            // budget figure is converted at the due date's rate (replaces the
+            // UAT-Phase6-Test7 lock to the budget currency).
             const insertResult = await drizzleTx.execute(sql`
             INSERT INTO budgeting.expense_ledger
               (id, tenant_id, budget_id, category_id, transaction_date,
@@ -195,8 +191,8 @@ export async function runScheduledEngine(
             VALUES
               (gen_random_uuid(), ${tenant_id}::uuid, ${tenant_id}::uuid,
                ${categoryId}::uuid, ${dueDateStr}::date,
-               ${amountConvertedCents}::bigint, ${budgetCurrency},
-               ${amountConvertedCents}::bigint, 1::numeric, ${fxAsOf}::date,
+               ${amountOriginalCents}::bigint, ${rule.currency},
+               ${amountConvertedCents}::bigint, ${fxComputed.fxRate}::numeric, ${fxAsOf}::date,
                ${note}, ${rule.id}::uuid,
                NULL,
                'SPENDING',
@@ -238,10 +234,10 @@ export async function runScheduledEngine(
                 {
                   draft_id: draftId,
                   rule_name: rule.note ?? "",
-                  // Budget-currency-locked (see the INSERT above): the task card
-                  // shows the converted amount in the budget currency, matching the draft.
-                  amount_cents: amountConvertedCents,
-                  currency: budgetCurrency,
+                  // R6 (user): the task names what's due — the rule's own
+                  // amount and currency, like the row.
+                  amount_cents: amountOriginalCents,
+                  currency: rule.currency,
                   transaction_date: dueDateStr,
                   category_id: categoryId ?? "",
                 },
@@ -287,6 +283,103 @@ export async function runScheduledEngine(
     );
 
     if (r.isOk()) totalDrafts += r.value;
+  }
+
+  // Step 7 (user, R6): an unconfirmed payment moved to a future date was set
+  // aside (deferred_at). On its date it comes back as if just generated: back
+  // in the unconfirmed list, with a fresh CONFIRM_DRAFT task (and its push).
+  const deferredResult = await withInfraTx(async (tx) => {
+    const drizzleTx = tx as {
+      execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+    };
+    // Budgets with a schedule (the worker's RLS scan policy covers
+    // scheduled_payments, not the ledger); each release runs tenant-scoped.
+    const res = await drizzleTx.execute(sql`
+      SELECT DISTINCT tenant_id FROM budgeting.scheduled_payments
+    `);
+    return res.rows as Array<{ tenant_id: string }>;
+  });
+  if (deferredResult.isOk()) {
+    for (const { tenant_id } of deferredResult.value) {
+      const released = await withTenantTx(
+        TenantId(tenant_id),
+        UserId(SYSTEM_USER_ID),
+        async (tx) => {
+          const drizzleTx = tx as {
+            execute: (
+              q: unknown,
+            ) => Promise<{ rows: Record<string, unknown>[] }>;
+          };
+          const released = await drizzleTx.execute(sql`
+            WITH r AS (
+              UPDATE budgeting.expense_ledger
+                 SET deferred_at = NULL, updated_at = now()
+               WHERE tenant_id = ${tenant_id}::uuid
+                 AND deferred_at IS NOT NULL
+                 AND transaction_date <= ${today}::date
+                 AND deleted_at IS NULL AND dismissed_at IS NULL
+                 AND confirmed_at IS NULL
+              RETURNING id, budget_id, transaction_date, amount_original_cents,
+                        currency_original, category_id, scheduled_payment_id
+            )
+            SELECT r.id, r.budget_id, r.transaction_date::text AS date,
+                   r.amount_original_cents::text AS amount, r.currency_original,
+                   r.category_id, sp.note, b.default_currency AS budget_currency
+              FROM r
+              LEFT JOIN budgeting.scheduled_payments sp ON sp.id = r.scheduled_payment_id
+              LEFT JOIN tenancy.budgets b ON b.id = r.budget_id
+          `);
+          for (const row of released.rows) {
+            // R6 (user): it was converted when it was moved; back on its own
+            // date it converts again at that day's rate.
+            const ccy = String(row.currency_original).trim();
+            const budgetCcy = String(row.budget_currency ?? ccy).trim();
+            if (ccy !== budgetCcy) {
+              try {
+                const fx = await computeScheduledFx({
+                  ruleCurrency: ccy,
+                  budgetCurrency: budgetCcy,
+                  amountOriginalCents: String(row.amount),
+                  dueDateStr: String(row.date),
+                  fxProvider,
+                });
+                await drizzleTx.execute(sql`
+                  UPDATE budgeting.expense_ledger
+                     SET amount_converted_cents = ${fx.amountConvertedCents}::bigint,
+                         fx_rate = ${fx.fxRate}::numeric,
+                         fx_as_of = ${fx.fxAsOf}::date,
+                         updated_at = now()
+                   WHERE id = ${String(row.id)}::uuid
+                `);
+              } catch (e) {
+                // Keeps the rate it had — never blocks bringing it back.
+                console.warn(
+                  "[scheduled-engine] deferred fx failed",
+                  String(row.id),
+                  (e as Error).message,
+                );
+              }
+            }
+            await taskRepo.emitConfirmDraft(
+              tenant_id,
+              String(row.budget_id),
+              {
+                draft_id: String(row.id),
+                rule_name: (row.note as string | null) ?? "",
+                amount_cents: String(row.amount),
+                currency: String(row.currency_original).trim(),
+                transaction_date: String(row.date),
+                category_id: (row.category_id as string | null) ?? "",
+              },
+              tx as unknown as TenantTx,
+            );
+            totalDrafts++;
+          }
+        },
+      );
+      if (released.isErr())
+        console.error("[scheduled-engine] release failed", released.error);
+    }
   }
 
   return ok({ tenantsScanned: tenants.length, draftsGenerated: totalDrafts });

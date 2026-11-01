@@ -68,7 +68,7 @@ const SEED: Seed[] = [
   {
     name: "Apple shares",
     holding_type: "equities",
-    ui_type: "equity",
+    ui_type: "stocks",
     group: "Brokerage",
     qty: "10",
     curCents: 1980000,
@@ -153,14 +153,15 @@ async function main() {
     );
     let sort = 0;
     for (const s of SEED) {
-      await c.query(
+      const h = await c.query<{ id: string; quantity: string }>(
         `INSERT INTO budgeting.investments
            (id, tenant_id, budget_id, name, holding_type, ui_type, group_name,
             quantity, current_price_cents, current_price_currency,
             buy_price_cents, buy_currency, metal, metal_kind, unit_of_measure,
             sort_order, created_at)
          VALUES (gen_random_uuid(), $1::uuid, $1::uuid, $2, $3, $4, $5,
-                 $6, $7, $8, $9, $10, $11, $12, $13, $14, now())`,
+                 $6, $7, $8, $9, $10, $11, $12, $13, $14, now())
+         RETURNING id, quantity::text AS quantity`,
         [
           budgetId,
           s.name,
@@ -177,6 +178,20 @@ async function main() {
           s.uom ?? null,
           sort++,
         ],
+      );
+      // 13.1 (D-35): every asset has at least one ledger entry.
+      const qtyShape =
+        ["stocks", "crypto", "precious_metals"].includes(s.ui_type) ||
+        Number(s.qty) !== 1;
+      const cost =
+        s.buyCents == null ? 0 : Math.round(s.buyCents * Number(s.qty));
+      const ccy = s.buyCcy ?? s.curCcy;
+      await c.query(
+        `INSERT INTO budgeting.investment_history
+           (tenant_id, budget_id, holding_id, kind, effective_date, amount_cents, amount_currency,
+            qty_delta, cost_delta_cents, cost_currency, flow_cents, flow_currency)
+         VALUES ($1::uuid, $1::uuid, $2::uuid, 'start', CURRENT_DATE, $3, $4, $5, $3, $4, $3, $4)`,
+        [budgetId, h.rows[0].id, cost, ccy, qtyShape ? s.qty : null],
       );
     }
   });

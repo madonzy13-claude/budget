@@ -52,7 +52,9 @@ describe("getAggregateWealthTrend", () => {
     const zeroLead = {
       ...deps,
       getAggPrefsForUser: async () =>
-        new Map([["b1", { ownership_share_pct: 100, include_in_aggregation: true }]]),
+        new Map([
+          ["b1", { ownership_share_pct: 100, include_in_aggregation: true }],
+        ]),
       listForUser: async () => [{ id: "b1", default_currency: "USD" }],
       getWealthForBudget: async () => ({
         currency: "USD",
@@ -90,5 +92,75 @@ describe("getAggregateWealthTrend", () => {
       { label: "Jan", value_cents: "100000" },
       { label: "Feb", value_cents: "120000" },
     ]);
+  });
+});
+
+// R6 (user): a past point is what the budget held THEN, so it converts at
+// that day's rate — never today's.
+describe("getAggregateWealthTrend — history rates", () => {
+  it("converts each dated point at its own day's rate", async () => {
+    const out = await getAggregateWealthTrend({
+      ...deps,
+      getAggPrefsForUser: async () =>
+        new Map([
+          ["b2", { ownership_share_pct: 100, include_in_aggregation: true }],
+        ]),
+      listForUser: async () => [{ id: "b2", default_currency: "EUR" }],
+      getWealthForBudget: async () => ({
+        currency: "EUR",
+        series: [
+          { label: "2025-01-01", value_cents: 100000n },
+          { label: "2026-07-16T10", value_cents: 100000n },
+        ],
+      }),
+      fxProvider: {
+        rateAsOf: async (_f: string, _t: string, d: Date) => ({
+          rate: d.toISOString() < "2026" ? "1.05" : "1.20",
+          provider: "t",
+          isStale: false,
+        }),
+      },
+    } as any)({ userId: "u1", range: "All", includeIds: ["b2"] });
+    expect(out.series).toEqual([
+      { label: "2025-01-01", value_cents: "105000" },
+      { label: "2026-07-16T10", value_cents: "120000" },
+    ]);
+  });
+});
+
+// R6 (user): money paid into investments converts at the month it was paid.
+describe("getAggregateWealthTrend — invested per month", () => {
+  it("sums each month's contributions at that month's rate", async () => {
+    const out = await getAggregateWealthTrend({
+      ...deps,
+      getAggPrefsForUser: async () =>
+        new Map([
+          ["b2", { ownership_share_pct: 100, include_in_aggregation: true }],
+        ]),
+      listForUser: async () => [{ id: "b2", default_currency: "EUR" }],
+      getWealthForBudget: async () => ({
+        currency: "EUR",
+        series: [{ label: "2026-07-16", value_cents: 0n }],
+        invested_cents: 200000n,
+        invested_by_month: [
+          { month: "2025-03", cents: 100000n },
+          { month: "2026-05", cents: 100000n },
+        ],
+      }),
+      fxProvider: {
+        rateAsOf: async (_f: string, _t: string, d: Date) => ({
+          rate: d.toISOString() < "2026" ? "1.05" : "1.20",
+          provider: "t",
+          isStale: false,
+        }),
+      },
+    } as any)({
+      userId: "u1",
+      range: "All",
+      includeIds: ["b2"],
+      view: "investments",
+    });
+    // 1,000 × 1.05 + 1,000 × 1.20 = 2,250 (today's 1.20 would say 2,400)
+    expect(out.invested_cents).toBe("225000");
   });
 });

@@ -3,15 +3,25 @@
  * Wires the P03 repos + P02 domain math + the existing FxProvider into the
  * 7 application use-cases consumed by the Hono investments route.
  */
+import { currencyPL } from "../application/currency-pl";
 import type { Pool } from "pg";
 import type { FxProvider } from "@budget/shared-kernel";
 import type { HoldingRepo } from "../ports/holding-repo";
+import type { HistoryRepo } from "../ports/history-repo";
 import type { InstrumentRepo } from "../ports/instrument-repo";
 import type { PriceCacheRepo } from "../ports/price-cache-repo";
 import type { PriceProvider } from "../ports/price-provider";
 import { createHolding } from "../application/create-holding";
-import { updateHolding } from "../application/update-holding";
-import { archiveHolding } from "../application/archive-holding";
+import { sellHolding } from "../application/sell-holding";
+import { setTypeOrder, typeSummary } from "../application/history-queries";
+import { buyIntoAsset } from "../application/buy-into-asset";
+import { editAsset } from "../application/edit-asset";
+import { listAssetNames } from "../application/list-asset-names";
+import { transferAsset } from "../application/transfer-asset";
+import { listEntries } from "../application/list-entries";
+import { deleteEntry } from "../application/delete-entry";
+import { editEntry } from "../application/edit-entry";
+import { archiveHolding, restoreHolding } from "../application/archive-holding";
 import { listHoldings } from "../application/list-holdings";
 import { reorderHoldings } from "../application/reorder-holdings";
 import { searchInstruments } from "../application/search-instruments";
@@ -22,17 +32,52 @@ export function createInvestmentsModule(deps: {
   pool: Pool;
   fxProvider: FxProvider;
   holdingRepo: HoldingRepo;
+  /** Phase 13 history ledger (sell / first entry / delete). */
+  historyRepo: HistoryRepo;
   instrumentRepo: InstrumentRepo;
   priceCacheRepo: PriceCacheRepo;
   priceProvider: PriceProvider;
 }) {
+  const sell = sellHolding({
+    holdingRepo: deps.holdingRepo,
+    historyRepo: deps.historyRepo,
+    fxProvider: deps.fxProvider,
+  });
+  const ledger = {
+    holdingRepo: deps.holdingRepo,
+    historyRepo: deps.historyRepo,
+  };
   return {
-    createHolding: createHolding({ holdingRepo: deps.holdingRepo }),
-    updateHolding: updateHolding({ holdingRepo: deps.holdingRepo }),
+    sellHolding: sell,
+    typeSummary: typeSummary({
+      historyRepo: deps.historyRepo,
+      fxProvider: deps.fxProvider,
+    }),
+    setTypeOrder: setTypeOrder(ledger),
+    createHolding: createHolding({ ...ledger, fxProvider: deps.fxProvider }),
+    buyIntoAsset: buyIntoAsset({ ...ledger, fxProvider: deps.fxProvider }),
+    editAsset: editAsset({ ...ledger, fxProvider: deps.fxProvider }),
+    listAssetNames: listAssetNames({ holdingRepo: deps.holdingRepo }),
+    transferAsset: transferAsset({ ...ledger, fxProvider: deps.fxProvider }),
+    listEntries: listEntries({ ...ledger, fxProvider: deps.fxProvider }),
+    deleteEntry: deleteEntry(ledger),
+    editEntry: editEntry(ledger),
     archiveHolding: archiveHolding({ holdingRepo: deps.holdingRepo }),
+    restoreHolding: restoreHolding({ holdingRepo: deps.holdingRepo }),
     listHoldings: listHoldings({
       holdingRepo: deps.holdingRepo,
       fxProvider: deps.fxProvider,
+      historyRepo: deps.historyRepo,
+    }),
+    // R6 (user): a group's / asset's P/L in another currency, at history rates.
+    currencyPL: currencyPL({
+      historyRepo: deps.historyRepo,
+      fxProvider: deps.fxProvider,
+      listHoldings: listHoldings({
+        holdingRepo: deps.holdingRepo,
+        fxProvider: deps.fxProvider,
+        historyRepo: deps.historyRepo,
+      }),
     }),
     reorderHoldings: reorderHoldings({ holdingRepo: deps.holdingRepo }),
     searchInstruments: searchInstruments({

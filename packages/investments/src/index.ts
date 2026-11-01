@@ -3,11 +3,9 @@ export { createInvestmentsModule } from "./contracts/factory";
 export {
   holdingTypeSchema,
   createHoldingSchema,
-  updateHoldingSchema,
   reorderHoldingsSchema,
   searchQuerySchema,
   type CreateHoldingInput,
-  type UpdateHoldingInput,
   type ReorderHoldingsInput,
   type EnrichedHoldingDto,
 } from "./contracts/api";

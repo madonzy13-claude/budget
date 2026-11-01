@@ -82,6 +82,8 @@ async function buildApp(fix: Fixture, priceSymbol?: string | string[]) {
     await import("@budget/investments/src/contracts/factory");
   const { DrizzleHoldingRepo } =
     await import("@budget/investments/src/adapters/persistence/holding-repo");
+  const { DrizzleHistoryRepo } =
+    await import("@budget/investments/src/adapters/persistence/history-repo");
   const { DrizzleInstrumentRepo } =
     await import("@budget/investments/src/adapters/persistence/instrument-repo");
   const { DrizzlePriceCacheRepo } =
@@ -109,6 +111,7 @@ async function buildApp(fix: Fixture, priceSymbol?: string | string[]) {
     pool: appPool(),
     fxProvider,
     holdingRepo: new DrizzleHoldingRepo(),
+    historyRepo: new DrizzleHistoryRepo(),
     instrumentRepo: new DrizzleInstrumentRepo(appPool()),
     priceCacheRepo: new DrizzlePriceCacheRepo(appPool()),
     priceProvider,
@@ -188,6 +191,8 @@ describe("Investments routes", () => {
     expect(row).toBeDefined();
     expect(row.name).toBe("Vintage Watch");
     expect(row.valueInBudgetCents).toBe("250000");
+    // R6 (user): every asset says when its value last changed.
+    expect(Number.isNaN(Date.parse(row.valueUpdatedAt))).toBe(false);
   });
 
   // user, 261023: typing 170 for 3 units stored 56.67/unit and showed 169.98.
@@ -219,6 +224,40 @@ describe("Investments routes", () => {
     const row = body.holdings.find((h: any) => h.id === created.id);
     expect(row.currentPriceCents).toBe("5666.666667");
     expect(row.valueCents).toBe("17000");
+  });
+
+  // 13.1 CR-01 regression: a label edit never writes quantity or cost.
+  it("a label PATCH leaves quantity and buy price unchanged", async () => {
+    const fix = await createFixture("PLN");
+    const app = await buildApp(fix);
+    const created = (await (
+      await app.request("/investments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Bond fund",
+          holdingType: "other",
+          uiType: "other",
+          quantity: "3",
+          buyPriceCents: "1000",
+          buyCurrency: "PLN",
+          currentPriceCents: "1200",
+          currentPriceCurrency: "PLN",
+        }),
+      })
+    ).json()) as any;
+    const res = await app.request(`/investments/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Bond fund II" }),
+    });
+    expect(res.status).toBe(200);
+    const after = (await res.json()) as any;
+    expect(after).toMatchObject({
+      name: "Bond fund II",
+      quantity: "3.00000000",
+      buyPriceCents: "1000",
+    });
   });
 
   it("a holding created under tenant B is NOT visible in tenant A's GET (RLS, INV-03)", async () => {
@@ -292,6 +331,94 @@ describe("Investments routes", () => {
     expect(row.valueInBudgetCents).toBe("15000");
   });
 
+  // R6 (user): hidden assets leave the list but are fetched on their own, so
+  // each group can offer "Show N hidden assets".
+  it("GET /?hidden=1 lists only the hidden assets; GET / leaves them out", async () => {
+    const fix = await createFixture("USD");
+    const app = await buildApp(fix);
+    const add = async (name: string) =>
+      (
+        (await (
+          await app.request("/investments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name,
+              holdingType: "cash_fx",
+              uiType: "cash",
+              quantity: "1",
+              currentPriceCents: 10000,
+              currentPriceCurrency: "USD",
+            }),
+          })
+        ).json()) as { id: string }
+      ).id;
+    const shown = await add("Shown");
+    const hidden = await add("Hidden");
+    const hide = await app.request(`/investments/${hidden}/archive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    expect(hide.status).toBe(200);
+    const ids = async (q: string) =>
+      (
+        (await (await app.request(`/investments${q}`)).json()) as {
+          holdings: { id: string; weightPct: number }[];
+        }
+      ).holdings;
+    expect((await ids("")).map((h) => h.id)).toEqual([shown]);
+    const list = await ids("?hidden=1");
+    expect(list.map((h) => h.id)).toEqual([hidden]);
+    // R6 (user): hidden is not removed — it still owns its share (two equal
+    // assets → 50% each), and the visible one is NOT inflated to 100%.
+    expect(list[0]!.weightPct).toBeCloseTo(50, 5);
+    expect((await ids(""))[0]!.weightPct).toBeCloseTo(50, 5);
+  });
+
+  // R6 (user, USDC - Kraken): the name picker read the stored row price, so a
+  // bad or stale one showed there while the list showed the live price.
+  it("GET /names values a tracked asset at the cache price, like the list", async () => {
+    const fix = await createFixture("USD");
+    const instrumentId = await seedInstrument("NAMECACHE");
+    const app = await buildApp(fix);
+    const postRes = await app.request("/investments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Tracked Names",
+        holdingType: "equities",
+        uiType: "stocks",
+        instrumentId,
+        quantity: "2",
+        buyPriceCents: 10000,
+        buyCurrency: "USD",
+        currentPriceCents: 39370,
+        currentPriceCurrency: "USD",
+      }),
+    });
+    expect(postRes.status).toBe(201);
+    const wk = new Pool({ connectionString: DB_WORKER });
+    try {
+      await wk.query(
+        `INSERT INTO budgeting.instrument_price_cache (instrument_id, price, currency, fetched_at)
+         VALUES ($1::uuid, '150.00', 'USD', now())
+         ON CONFLICT (instrument_id) DO UPDATE SET price = EXCLUDED.price, fetched_at = now()`,
+        [instrumentId],
+      );
+    } finally {
+      await wk.end();
+    }
+    const res = await app.request("/investments/names?type=stocks");
+    const { names } = (await res.json()) as {
+      names: Array<{ name: string; valueCents: string; valueCurrency: string }>;
+    };
+    expect(names.find((n) => n.name === "Tracked Names")).toMatchObject({
+      valueCents: "30000",
+      valueCurrency: "USD",
+    });
+  });
+
   it("the 11th on-add instant price fetch within a minute is rate-limited (INV-14)", async () => {
     const fix = await createFixture("EUR");
     // 11 DISTINCT instruments: the read-through cache (9.2) serves a repeated
@@ -313,5 +440,71 @@ describe("Investments routes", () => {
     // First 10 succeed (200); the 11th is rate-limited (429).
     expect(statuses.slice(0, 10).every((s) => s === 200)).toBe(true);
     expect(statuses[10]).toBe(429);
+  });
+});
+
+describe("Stocks type (Phase 13, D-10/D-11)", () => {
+  const post = (app: Awaited<ReturnType<typeof buildApp>>, uiType: string) =>
+    app.request("/investments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: `S-${uiType}`,
+        holdingType: "equities",
+        uiType,
+        quantity: "1",
+        buyPriceCents: 10000,
+        buyCurrency: "EUR",
+        currentPriceCents: 12000,
+        currentPriceCurrency: "EUR",
+      }),
+    });
+  const storedUiType = async (fix: Fixture, id: string) => {
+    const pool = new Pool({ connectionString: DB_APP });
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
+        `{"${fix.tenantId}"}`,
+      ]);
+      const r = await c.query<{ ui_type: string }>(
+        `SELECT ui_type FROM budgeting.investments WHERE id = $1`,
+        [id],
+      );
+      await c.query("COMMIT");
+      return r.rows[0]?.ui_type;
+    } finally {
+      c.release();
+      await pool.end();
+    }
+  };
+
+  it("POST uiType stocks stores stocks", async () => {
+    const fix = await createFixture("EUR");
+    const app = await buildApp(fix);
+    const res = await post(app, "stocks");
+    expect(res.status).toBe(201);
+    const { id } = (await res.json()) as { id: string };
+    expect(await storedUiType(fix, id)).toBe("stocks");
+  });
+
+  it("a stale client's legacy 'equity' is stored as stocks", async () => {
+    const fix = await createFixture("EUR");
+    const app = await buildApp(fix);
+    const res = await post(app, "equity");
+    expect(res.status).toBe(201);
+    const { id } = (await res.json()) as { id: string };
+    expect(await storedUiType(fix, id)).toBe("stocks");
+  });
+
+  it("GET carries typeWeights and no custom-group fields", async () => {
+    const fix = await createFixture("EUR");
+    const app = await buildApp(fix);
+    await post(app, "stocks");
+    const body = (await (await app.request("/investments")).json()) as any;
+    expect(body.typeWeights).toEqual({ stocks: 100 });
+    // 13-12: custom-group compat fields are gone.
+    expect(body.groupWeights).toBeUndefined();
+    expect("group" in body.holdings[0]).toBe(false);
   });
 });

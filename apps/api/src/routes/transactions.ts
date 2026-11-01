@@ -28,6 +28,7 @@ import {
   createTransaction,
   type CreateTransactionDeps,
 } from "@budget/budgeting/src/application/create-transaction";
+import { DrizzleExpenseLedgerDraftPortRepo } from "@budget/budgeting/src/adapters/persistence/expense-ledger-draft-port-repo";
 import { editTransaction } from "@budget/budgeting/src/application/edit-transaction";
 import type { BootedDeps } from "../boot";
 
@@ -57,7 +58,7 @@ const boundedCents = z.number().int().min(-MAX_TXN_CENTS).max(MAX_TXN_CENTS);
 const createSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
   category_id: z.string().uuid(),
-  /** Signed: negative → INCOME (D-PH2-09) */
+  /** Signed: negative = a refund (R6). */
   amount_original_cents: boundedCents,
   currency_original: z.string().length(3).toUpperCase().optional(),
   note: z.string().nullable().optional(),
@@ -69,7 +70,7 @@ const patchSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   category_id: z.string().uuid().optional(),
-  /** Signed — absolute value stored; kind derived from sign if provided */
+  /** Signed: negative = a refund (R6). */
   amount_original_cents: boundedCents.optional(),
   currency_original: z.string().length(3).toUpperCase().optional(),
   note: z.string().nullable().optional(),
@@ -182,6 +183,7 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
     transactionRepo,
     fxProvider,
     getBudgetCurrency,
+    draftDates: new DrizzleExpenseLedgerDraftPortRepo(),
   });
 
   function pickTenant(c: { get(k: string): unknown }): string {
@@ -359,7 +361,17 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
       confirmed ?? "any",
     );
 
-    return c.json({ transactions: rows.map(serializeRow) }, 200);
+    // R6 (user): the converted figure names its currency (the budget's).
+    const currencyConverted = await getBudgetCurrency(budgetId);
+    return c.json(
+      {
+        transactions: rows.map((r) => ({
+          ...serializeRow(r),
+          currency_converted: currencyConverted,
+        })),
+      },
+      200,
+    );
   });
 
   // ── GET /:txId — single transaction ──────────────────────────────────

@@ -3,6 +3,8 @@ import {
   Holding,
   HOLDING_TYPES,
   isHoldingType,
+  isQuantityHolding,
+  holdingShape,
   type HoldingType,
 } from "../../src/domain/holding";
 
@@ -11,7 +13,6 @@ interface Init {
   tenantId?: string;
   name?: string;
   holdingType?: HoldingType;
-  group?: string | null;
   instrumentId?: string | null;
   buyPriceCents?: bigint | null;
   buyCurrency?: string | null;
@@ -36,7 +37,6 @@ export const mk = (o: Init = {}): Holding =>
     o.tenantId ?? "t1",
     o.name ?? "Apple",
     o.holdingType ?? "equities",
-    o.group === undefined ? null : o.group,
     o.instrumentId === undefined ? "i1" : o.instrumentId,
     o.buyPriceCents === undefined ? 10000n : o.buyPriceCents,
     o.buyCurrency === undefined ? "USD" : o.buyCurrency,
@@ -107,5 +107,19 @@ describe("Holding entity", () => {
   test("isArchived() reflects archivedAt", () => {
     expect(mk({ archivedAt: null }).isArchived()).toBe(false);
     expect(mk({ archivedAt: new Date() }).isArchived()).toBe(true);
+  });
+});
+
+// Round-6 gap 1 (user): collectibles are counted — units × price.
+describe("Collectibles are quantity assets", () => {
+  test("a collectible is quantity-shaped, even at quantity 1", () => {
+    expect(isQuantityHolding("collectibles")).toBe(true);
+    expect(
+      holdingShape({
+        holdingType: "other",
+        uiType: "collectibles",
+        quantity: "1",
+      }),
+    ).toBe("quantity");
   });
 });

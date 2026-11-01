@@ -3,23 +3,24 @@
  * investment-row-sheet.tsx — Interactive wrapper around <InvestmentRow> (Phase 9).
  *
  * Owns the dnd-kit sortable binding (drag handle only — Pitfall 2, prevents the
- * tap-expand / long-press-drag collision), the mobile swipe-to-reveal Edit +
- * Delete panel (D-19 — extends the wallet Delete-only swipe to Edit + Delete for
- * holdings without touching wallet-row), and the archive confirm dialog. Edit
- * bubbles up to the section's single <HoldingSheet>; Delete archives optimistically.
+ * tap-expand / long-press-drag collision) and the mobile swipe-to-reveal
+ * Swap · Edit panel (13.1 D-05 — no asset delete; entries are deleted in the
+ * L3 ledger). Both bubble up to the section's sheets.
  *
- * The native-pointer swipe mirrors wallet-row.tsx's proven gesture handling
- * (passive:false so preventDefault works mid-swipe; iOS-safe).
+ * The native-pointer swipe is useSwipeReveal (wallet-row.tsx's proven
+ * gesture, shared with the ledger rows); its offset is reported up so the
+ * open L3 ledger slides with the row.
  */
+import type { CurrencyPL } from "@/hooks/use-fx-rates";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { useTranslations } from "next-intl";
-import { Pencil, Trash2 } from "lucide-react";
+import { ArrowUpDown, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
+import { useSwipeReveal } from "@/hooks/use-swipe-reveal";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { InvestmentRow } from "./investment-row";
-import { HoldingDeleteConfirm } from "./holding-delete-confirm";
 
 interface InvestmentRowSheetProps {
   holding: HoldingDto;
@@ -31,14 +32,31 @@ interface InvestmentRowSheetProps {
   /** Longest formatted amount in the section → dynamic amount-column width. */
   maxAmountChars?: number;
   onEdit: (holding: HoldingDto) => void;
-  onArchive: (holdingId: string) => void;
+  /** 13.1: open the Swap sheet (Buy / Sell / Transfer) for this asset. */
+  onSwap?: (holding: HoldingDto) => void;
+  /** Hide the asset (R6, user: was Archive; no confirm, history stays). */
+  onArchive?: (holding: HoldingDto) => void;
+  /** R6 (user): a hidden asset's row offers Unhide instead of Hide. */
+  onUnhide?: (holding: HoldingDto) => void;
+  /** R6 (user): the asset in another currency (passed to the row). */
+  currencyPick?: { value: string; onChange: (currency: string) => void };
+  converted?: CurrencyPL;
+  /** Round 4: an asset with nothing but its opening entry is deleted, not
+   *  archived — the section passes this only for such an asset. */
+  onDelete?: (holding: HoldingDto) => void;
+  /** The row opened/closed (the section renders the L3 ledger). */
+  onToggle?: (id: string, open: boolean) => void;
+  open?: boolean;
+  /** R6-6: this asset's realized (type-summary `holdings`). */
+  realized?: { realizedBudgetCents: string; soldCostBudgetCents: string };
+  /** Swipe offset (px, ≤ 0) of this row — the section moves its ledger too. */
+  onSwipeOffset?: (id: string, px: number, live: boolean) => void;
   /** Save an inline-edited value (manual-value holdings only — see InvestmentRow). */
   onValueChange?: (amount: string) => Promise<void> | void;
 }
 
-// Two rounded action buttons (w-14=56) + the gap between them (gap-3=12) + an
-// equal lead gap between the row and the edit button (12) → 56+12+56+12.
-const ACTION_W = 136;
+// Three 56px buttons (Swap · Edit · Archive) + two 12px gaps + a 12px lead gap.
+const ACTION_W = 204;
 
 export function InvestmentRowSheet({
   holding,
@@ -46,115 +64,29 @@ export function InvestmentRowSheet({
   ghost,
   maxAmountChars,
   onEdit,
+  onSwap,
   onArchive,
+  onUnhide,
+  currencyPick,
+  converted,
+  onDelete,
+  onToggle,
+  open,
+  realized,
+  onSwipeOffset,
   onValueChange,
 }: InvestmentRowSheetProps) {
   const t = useTranslations("budget.investments");
-  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const [offset, setOffset] = useState(0);
-  const [swiping, setSwiping] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const offsetRef = useRef(0);
-  const suppressClickUntilRef = useRef(0);
-
-  useEffect(() => {
-    offsetRef.current = offset;
-  }, [offset]);
-
-  const prevConfirmRef = useRef(false);
-  useEffect(() => {
-    if (prevConfirmRef.current && !confirmOpen) {
-      if (offsetRef.current !== 0) setOffset(0);
-    }
-    prevConfirmRef.current = confirmOpen;
-  }, [confirmOpen]);
-
-  useEffect(() => {
-    const el = wrapperRef.current;
-    if (!el) return;
-    const state = { x: 0, y: 0, base: 0, locked: false, pid: -1 };
-
-    const isInteractive = (target: EventTarget | null) => {
-      const node = target as HTMLElement | null;
-      if (!node) return false;
-      if (node.closest("[data-no-swipe]")) return true;
-      if (node.closest('[data-testid^="drag-grip-"]')) return true;
-      return false;
-    };
-
-    const onPointerDown = (e: PointerEvent) => {
-      if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
-      if (isInteractive(e.target)) return;
-      state.x = e.clientX;
-      state.y = e.clientY;
-      state.base = offsetRef.current;
-      state.locked = false;
-      state.pid = e.pointerId;
-    };
-
-    const onPointerMove = (e: PointerEvent) => {
-      if (state.pid !== e.pointerId) return;
-      const dx = e.clientX - state.x;
-      const dy = e.clientY - state.y;
-      if (!state.locked) {
-        if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
-        if (Math.abs(dy) > Math.abs(dx)) {
-          state.pid = -1;
-          return;
-        }
-        state.locked = true;
-        setSwiping(true);
-        try {
-          el.setPointerCapture(e.pointerId);
-        } catch {
-          /* best-effort */
-        }
-      }
-      if (e.cancelable) e.preventDefault();
-      setOffset(Math.max(-ACTION_W, Math.min(0, state.base + dx)));
-    };
-
-    const onPointerUp = (e: PointerEvent) => {
-      if (state.pid !== e.pointerId) return;
-      if (state.locked) {
-        const finalOffset = offsetRef.current <= -ACTION_W / 2 ? -ACTION_W : 0;
-        setOffset(finalOffset);
-        setSwiping(false);
-        suppressClickUntilRef.current = Date.now() + 400;
-        try {
-          el.releasePointerCapture(e.pointerId);
-        } catch {
-          /* best-effort */
-        }
-      }
-      state.x = 0;
-      state.y = 0;
-      state.base = 0;
-      state.locked = false;
-      state.pid = -1;
-    };
-
-    const onClickCapture = (e: MouseEvent) => {
-      if (Date.now() < suppressClickUntilRef.current) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    };
-
-    el.addEventListener("pointerdown", onPointerDown);
-    el.addEventListener("pointermove", onPointerMove, { passive: false });
-    el.addEventListener("pointerup", onPointerUp);
-    el.addEventListener("pointercancel", onPointerUp);
-    el.addEventListener("click", onClickCapture, true);
-    return () => {
-      el.removeEventListener("pointerdown", onPointerDown);
-      el.removeEventListener("pointermove", onPointerMove);
-      el.removeEventListener("pointerup", onPointerUp);
-      el.removeEventListener("pointercancel", onPointerUp);
-      el.removeEventListener("click", onClickCapture, true);
-    };
-  }, []);
+  const {
+    offset,
+    swiping,
+    close: closeSwipe,
+  } = useSwipeReveal(wrapperRef, ACTION_W, {
+    // 13.1 UAT 5: the open ledger strip slides with its asset.
+    onOffset: (px, live) => onSwipeOffset?.(holding.id, px, live),
+  });
 
   const {
     attributes,
@@ -165,6 +97,8 @@ export function InvestmentRowSheet({
     isDragging,
   } = useSortable({
     id: holding.id,
+    // A hidden asset sits outside the sortable list.
+    disabled: !!onUnhide,
     // Don't animate the post-drop layout change. The reorder comes from React
     // Query (the DOM order changes on drop); if @dnd-kit also animates the
     // transform-reset, the drop-neighbour renders at (new slot + leftover drag
@@ -190,16 +124,8 @@ export function InvestmentRowSheet({
       }}
       className={[
         "relative",
-        // Grouped child: indent + a continuous left rail. The flat list has no
-        // nested container to carry a `border-l`, so each child draws its own 1px
-        // rail via a ::before that extends up into the gap-2 above it (−top-2),
-        // joining the header's rail through to the last child (D-#flat-rail). Kept
-        // while dragging too: a grouped child reordered in place must keep its
-        // indent (matching its slot geometry) or the in-group reorder gap can't
-        // animate and the row reads as un-nested (UAT).
-        nested
-          ? "ml-3 pl-3 before:absolute before:left-0 before:-top-2 before:bottom-0 before:w-px before:bg-[var(--hairline-dark)] before:content-['']"
-          : "",
+        // 13.1-19: the section indents the asset block (row + ledger) under
+        // its type header; the darker `nested` surface marks the level too.
         // Lift above siblings while dragging (z) / HIDE when this row's group is
         // dragged as a block (ghost → opacity-0). The cohesive copy lives in the
         // DragOverlay; a dimmed in-place child slid independently of its header and
@@ -217,7 +143,8 @@ export function InvestmentRowSheet({
         transition: swiping ? "none" : transition,
       }}
     >
-      {/* Mobile swipe-revealed Edit + Delete panel (sm:hidden). */}
+      {/* Mobile swipe-revealed Edit · + (new transaction) panel (sm:hidden,
+          R6-4: + second). */}
       <div
         aria-hidden={offset === 0}
         style={{
@@ -227,16 +154,17 @@ export function InvestmentRowSheet({
         }}
         className="absolute right-0 top-0 bottom-0 flex items-stretch gap-3 sm:hidden"
       >
-        {/* Two separate rounded buttons (edit + delete) with empty space between
-            them — mirrors the wallets swipe button style (D-#swipe). */}
+        {/* Separate rounded buttons (sell + edit + delete) with empty space
+            between them — mirrors the wallets swipe button style (D-#swipe).
+            Sell is neutral (not green/red): red is reserved for destructive. */}
         <button
           type="button"
           data-no-swipe
           data-testid={`holding-swipe-edit-${holding.id}`}
-          aria-label={t("row.editAria", { name: holding.name })}
+          aria-label={`${t("asset.swipe.edit")} ${holding.name}`}
           tabIndex={offset === 0 ? -1 : 0}
           onClick={() => {
-            setOffset(0);
+            closeSwipe();
             onEdit(holding);
           }}
           className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
@@ -246,14 +174,63 @@ export function InvestmentRowSheet({
         <button
           type="button"
           data-no-swipe
-          data-testid={`holding-swipe-delete-${holding.id}`}
-          aria-label={t("row.deleteAria", { name: holding.name })}
+          data-testid={`investment-swap-${holding.id}`}
+          aria-label={`${t("asset.swipe.newTxn")} ${holding.name}`}
           tabIndex={offset === 0 ? -1 : 0}
-          onClick={() => setConfirmOpen(true)}
-          className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--destructive)] text-white"
+          onClick={() => {
+            closeSwipe();
+            onSwap?.(holding);
+          }}
+          className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--info)] text-white"
         >
-          <Trash2 className="h-5 w-5" aria-hidden="true" />
+          <ArrowUpDown className="h-5 w-5" aria-hidden="true" />
         </button>
+        {onUnhide ? (
+          <button
+            type="button"
+            data-no-swipe
+            data-testid={`investment-unhide-${holding.id}`}
+            aria-label={t("asset.hidden.unhideAria", { name: holding.name })}
+            tabIndex={offset === 0 ? -1 : 0}
+            onClick={() => {
+              closeSwipe();
+              onUnhide(holding);
+            }}
+            className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--warning)] text-[var(--warning-foreground)]"
+          >
+            <Eye className="h-5 w-5" aria-hidden="true" />
+          </button>
+        ) : onDelete ? (
+          <button
+            type="button"
+            data-no-swipe
+            data-testid={`investment-delete-${holding.id}`}
+            aria-label={t("ledger.confirm.last.confirm")}
+            tabIndex={offset === 0 ? -1 : 0}
+            onClick={() => {
+              closeSwipe();
+              onDelete(holding);
+            }}
+            className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--destructive)] text-white"
+          >
+            <Trash2 className="h-5 w-5" aria-hidden="true" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            data-no-swipe
+            data-testid={`investment-hide-${holding.id}`}
+            aria-label={t("asset.archive.aria", { name: holding.name })}
+            tabIndex={offset === 0 ? -1 : 0}
+            onClick={() => {
+              closeSwipe();
+              onArchive?.(holding);
+            }}
+            className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--warning)] text-[var(--warning-foreground)]"
+          >
+            <EyeOff className="h-5 w-5" aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       <div
@@ -280,20 +257,22 @@ export function InvestmentRowSheet({
             />
           }
           onEdit={() => onEdit(holding)}
-          onDelete={() => setConfirmOpen(true)}
+          onSwap={onSwap ? () => onSwap(holding) : undefined}
+          onArchive={
+            onArchive && !onDelete && !onUnhide
+              ? () => onArchive(holding)
+              : undefined
+          }
+          onUnhide={onUnhide ? () => onUnhide(holding) : undefined}
+          currencyPick={currencyPick}
+          converted={converted}
+          onDelete={onDelete && !onUnhide ? () => onDelete(holding) : undefined}
+          onToggle={onToggle}
+          open={open}
+          realized={realized}
           onValueChange={onValueChange}
         />
       </div>
-
-      <HoldingDeleteConfirm
-        name={holding.name}
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        onConfirm={() => {
-          onArchive(holding.id);
-          setConfirmOpen(false);
-        }}
-      />
     </div>
   );
 }

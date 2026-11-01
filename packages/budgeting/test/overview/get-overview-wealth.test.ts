@@ -451,3 +451,152 @@ describe("getOverviewWealth", () => {
     expect(dto.grow_from_open.delta_pct).toBeCloseTo(35.0, 5); // 28000 / 80000
   });
 });
+
+describe("Overview without contributions — history hybrid (D-08)", () => {
+  const row = (iso: string, value: bigint, cost: bigint) => ({
+    captured_at: new Date(iso),
+    capitalization_cents: value,
+    investment_value_cents: value,
+    investment_cost_basis_cents: cost,
+  });
+  const repo = (
+    opening: ReturnType<typeof row> | null = null,
+  ): GetOverviewWealthDeps["snapshotRepo"] => ({
+    async seriesForRange() {
+      return [
+        row("2026-10-20T00:00:00Z", 10_000n, 6_000n),
+        // post-sale snapshot: stored cost inflated to the full value
+        row("2026-10-26T00:00:00Z", 14_000n, 14_000n),
+      ];
+    },
+    async openingBefore() {
+      return opening;
+    },
+  });
+  const history =
+    (
+      firstDate: string | null,
+      at: (d: string) => bigint | null,
+      seen: string[] = [],
+    ): GetOverviewWealthDeps["contributionsHistory"] =>
+    async () => ({
+      firstDate,
+      async at(d: string) {
+        seen.push(d);
+        return at(d);
+      },
+    });
+  const oct = {
+    tenantId: "b1",
+    budgetId: "b1",
+    from: "2026-10-01",
+    to: "2026-10-31",
+    view: "investments" as const,
+    net: true,
+    now: () => new Date("2026-11-05T12:00:00Z"), // live out of range
+  };
+  const go = async (
+    over: Partial<GetOverviewWealthDeps>,
+    input: Partial<typeof oct> = {},
+  ) =>
+    getOverviewWealth(deps({ snapshotRepo: repo(), ...over }))({
+      ...oct,
+      ...input,
+    });
+
+  test("post-boundary points subtract history contributions; the jump disappears", async () => {
+    const dto = (
+      await go({ contributionsHistory: history("2026-10-22", () => 6_000n) })
+    )._unsafeUnwrap();
+    expect(valueAt(dto, "2026-10-20T00")).toBe("4000"); // stored, before boundary
+    expect(valueAt(dto, "2026-10-26T00")).toBe("8000"); // 14000 − 6000 history
+  });
+
+  test("live point uses contributions at today's date", async () => {
+    const seen: string[] = [];
+    const dto = (
+      await go(
+        {
+          contributionsHistory: history("2026-10-22", () => 6_000n, seen),
+        },
+        { now: () => new Date("2026-10-26T12:00:00Z") },
+      )
+    )._unsafeUnwrap();
+    expect(seen).toContain("2026-10-26");
+    expect(valueAt(dto, "2026-10-26T12")).toBe(String(56_000 - 6_000));
+  });
+
+  test("opening before the boundary keeps stored cost; after it uses history", async () => {
+    const opening = row("2026-09-30T00:00:00Z", 9_000n, 5_000n);
+    const before = (
+      await go({
+        snapshotRepo: repo(opening),
+        contributionsHistory: history("2026-10-22", () => 6_000n),
+      })
+    )._unsafeUnwrap();
+    expect(before.series[0]!.value_cents).toBe("4000");
+    const after = (
+      await go({
+        snapshotRepo: repo(opening),
+        contributionsHistory: history("2026-09-01", (d) =>
+          d === "2026-09-30" ? 7_000n : 6_000n,
+        ),
+      })
+    )._unsafeUnwrap();
+    expect(after.series[0]!.value_cents).toBe("2000");
+  });
+
+  test("no history (dep absent or firstDate null) keeps stored cost", async () => {
+    const a = (await go({}))._unsafeUnwrap();
+    const b = (
+      await go({ contributionsHistory: history(null, () => 0n) })
+    )._unsafeUnwrap();
+    expect(valueAt(a, "2026-10-26T00")).toBe("0");
+    expect(b.series).toEqual(a.series);
+  });
+
+  test("gross view or capitalization never reads history", async () => {
+    const seen: string[] = [];
+    let called = 0;
+    const dep: GetOverviewWealthDeps["contributionsHistory"] = async () => {
+      called++;
+      return history("2026-10-22", () => 6_000n, seen)!({
+        tenantId: "",
+        budgetId: "",
+        budgetCurrency: "",
+      });
+    };
+    await go({ contributionsHistory: dep }, { net: false });
+    await go(
+      { contributionsHistory: dep },
+      { view: "capitalization" as never },
+    );
+    expect(called).toBe(0);
+  });
+
+  test("missing historic FX falls back to that point's stored cost", async () => {
+    const r = await go(
+      {
+        contributionsHistory: history("2026-10-22", (d) =>
+          d === "2026-10-26" ? null : 6_000n,
+        ),
+      },
+      { now: () => new Date("2026-10-26T12:00:00Z") },
+    );
+    expect(r.isOk()).toBe(true);
+    const dto = r._unsafeUnwrap();
+    expect(valueAt(dto, "2026-10-26T00")).toBe("0"); // 14000 − stored 14000
+    // live: computeWealthNow's own cost basis (56000 − 40000)
+    expect(valueAt(dto, "2026-10-26T12")).toBe("16000");
+  });
+
+  test("a failing history read falls back to stored cost everywhere", async () => {
+    const r = await go({
+      contributionsHistory: async () => {
+        throw new Error("repo down");
+      },
+    });
+    expect(r.isOk()).toBe(true);
+    expect(valueAt(r._unsafeUnwrap(), "2026-10-26T00")).toBe("0");
+  });
+});

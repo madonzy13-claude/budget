@@ -628,8 +628,7 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     /** The element that actually scrolls this page. The (app) shell is
      *  `h-lvh` with the content in `<main data-shell-scroll>`, so the WINDOW
      *  never scrolls — window.scrollY is always 0 here. */
-    const shellScroller = () =>
-      el!.closest<HTMLElement>("[data-shell-scroll]");
+    const shellScroller = () => el!.closest<HTMLElement>("[data-shell-scroll]");
 
     /** SUM, not a choice between them: the app has two scroll architectures
      *  and which one is live depends on display-mode (global.css). Installed
@@ -640,8 +639,7 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
      *  stylesheet. */
     function pageScrollTop(): number {
       const shell = shellScroller()?.scrollTop ?? 0;
-      const win =
-        window.scrollY || document.documentElement.scrollTop || 0;
+      const win = window.scrollY || document.documentElement.scrollTop || 0;
       return shell + win;
     }
 
@@ -755,6 +753,18 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     // the same number and writes the same string.
     const shellContent = shellScroller()?.firstElementChild;
     if (shellContent) ro.observe(shellContent);
+    // …and rows mounting/unmounting ABOVE it. On a locked tab the content keeps
+    // the shell's height, so collapsing the tasks strip moved the grid up with
+    // no resize anywhere — it kept the height it had while the strip was open,
+    // leaving a black band of exactly that size (user, round 6).
+    let moFrame = 0;
+    const mo = new MutationObserver((records) => {
+      if (records.every((r) => el.contains(r.target))) return;
+      cancelAnimationFrame(moFrame);
+      moFrame = requestAnimationFrame(updateMaxH);
+    });
+    if (shellContent)
+      mo.observe(shellContent, { childList: true, subtree: true });
 
     window.addEventListener("resize", updateMaxH, { passive: true });
     // SHELL-R17: orientationchange fires on iOS when the user rotates the
@@ -769,6 +779,8 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     return () => {
       el.removeEventListener("focusout", onFocusOut);
       ro.disconnect();
+      mo.disconnect();
+      cancelAnimationFrame(moFrame);
       window.removeEventListener("resize", updateMaxH);
       window.removeEventListener("orientationchange", updateMaxH);
       if (typeof window !== "undefined" && window.visualViewport) {
@@ -913,11 +925,16 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     );
     if (!found) return undefined;
     return {
+      // R6 (user): an unconfirmed scheduled payment may move to any date.
+      unconfirmed: allDrafts.some((d) => d.id === found.id),
       txId: found.id,
       date: found.transactionDate,
       categoryId: found.categoryId,
-      amountOriginalCents: found.amountConvertedCents,
-      currencyOriginal: found.currencyConverted,
+      // R6 (user): the spending as it was paid — its own amount and
+      // currency; the form shows the rate + budget figure below as info.
+      amountOriginalCents:
+        found.amountOriginalCents ?? found.amountConvertedCents,
+      currencyOriginal: found.currencyOriginal ?? found.currencyConverted,
       note: found.note ?? null,
     };
   }, [txSlider.txId, txns.data, drafts.data]);

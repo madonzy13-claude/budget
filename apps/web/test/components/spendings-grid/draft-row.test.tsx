@@ -341,3 +341,55 @@ describe("DraftRow — keyboard", () => {
     expect(mockConfirmMutate).not.toHaveBeenCalled();
   });
 });
+
+// R6 (user): a spending in another currency reads in that currency (short
+// sign) only — the budget figure lives in its Edit, not on the row.
+describe("DraftRow — foreign currency", () => {
+  it("shows the original amount, and no converted line", () => {
+    renderDraftRow({
+      draft: {
+        ...draft,
+        amountOriginalCents: "10000",
+        currencyOriginal: "SEK",
+        amountConvertedCents: "92000",
+        currencyConverted: "PLN",
+      },
+    });
+    expect(screen.getByText("100 kr")).toBeInTheDocument();
+    expect(screen.queryByTestId("txn-converted")).toBeNull();
+  });
+
+  it("a budget-currency row has no converted line", () => {
+    renderDraftRow({
+      draft: {
+        ...draft,
+        amountOriginalCents: draft.amountConvertedCents,
+        currencyOriginal: draft.currencyConverted,
+      },
+    });
+    expect(screen.queryByTestId("txn-converted")).toBeNull();
+  });
+
+  it("a quick edit starts from the amount in its own currency", () => {
+    renderDraftRow({
+      draft: {
+        ...draft,
+        amountOriginalCents: "10000",
+        currencyOriginal: "SEK",
+        amountConvertedCents: "92000",
+        currencyConverted: "PLN",
+      },
+    });
+    const row = screen.getByTestId("draft-row-rent");
+    fireEvent.doubleClick(row.querySelector(".flex-1") as HTMLElement);
+    const input = row.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement;
+    expect(input.value).toBe("100");
+    fireEvent.change(input, { target: { value: "120" } });
+    fireEvent.blur(input);
+    expect(mockConfirmMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ draftId: "draft-1", amountOverride: 12000 }),
+    );
+  });
+});

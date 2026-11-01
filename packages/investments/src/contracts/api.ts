@@ -26,12 +26,16 @@ export const holdingTypeSchema = z.enum([
 ]);
 export type HoldingTypeInput = z.infer<typeof holdingTypeSchema>;
 
-/** Phase 9.1/9.2 — user-facing type the add/edit form was filled with. */
-export const uiTypeSchema = z.enum([
-  "equity",
-  "etf",
-  "etb",
-  "reit",
+/** Phase 13 (D-11): a stale client may still send the pre-merge type names. */
+export function normalizeLegacyUiType(v: unknown): unknown {
+  if (v === "equity" || v === "etf" || v === "reit") return "stocks";
+  if (v === "etb") return "treasury_bond";
+  return v;
+}
+
+const UI_TYPES = [
+  // Phase 13 (D-10): equity + ETF are one type; search returns both.
+  "stocks",
   "crypto",
   "treasury_bond",
   "collectibles",
@@ -47,15 +51,23 @@ export const uiTypeSchema = z.enum([
   "savings",
   // Physical possession: name + single current amount + a per-item icon.
   "possession",
-]);
-export type UiTypeInput = z.infer<typeof uiTypeSchema>;
+] as const;
+
+/** Phase 9.1/9.2 — user-facing type the add/edit form was filled with. */
+export const uiTypeSchema = z.preprocess(
+  normalizeLegacyUiType,
+  z.enum(UI_TYPES),
+);
+export type UiTypeInput = (typeof UI_TYPES)[number];
+
+/** The investment type-group keys (possessions are wallets, not a group). */
+export const UI_TYPE_KEYS = UI_TYPES.filter(
+  (t): t is Exclude<UiTypeInput, "possession"> => t !== "possession",
+);
 
 /** Coarse holding_type each ui_type maps to (price routing / asset_class). */
 export const UI_TYPE_TO_HOLDING_TYPE: Record<UiTypeInput, HoldingTypeInput> = {
-  equity: "equities",
-  etf: "etf",
-  etb: "bond",
-  reit: "reit",
+  stocks: "equities",
   crypto: "crypto",
   treasury_bond: "bond",
   collectibles: "other",
@@ -80,6 +92,13 @@ export const capFrequencySchema = z.enum([
 export type CapFrequencyInput = z.infer<typeof capFrequencySchema>;
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+/** A user-picked entry date: past allowed, future refused (D-06). One day of
+ *  slack so a user ahead of UTC can still pick their own today. */
+export const notFutureIsoDate = isoDate.refine(
+  (d) => d <= new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
+  "future_date",
+);
 
 export const metalSchema = z.enum(["gold", "silver", "platinum", "palladium"]);
 export const metalKindSchema = z.enum(["coin", "bar", "other"]);
@@ -119,7 +138,11 @@ const centsInput = z
   .union([z.string(), z.number()])
   .refine(isSaneMagnitude, "cents out of range");
 
+/** R6 (user): an optional note on any booking, shown in the ledger row. */
+const noteField = z.string().trim().max(200).optional();
+
 export const createHoldingSchema = z.object({
+  note: noteField,
   name: z.string().min(1).max(120),
   holdingType: holdingTypeSchema,
   uiType: uiTypeSchema.nullish(),
@@ -127,7 +150,6 @@ export const createHoldingSchema = z.object({
   icon: z.string().max(40).nullish(),
   /** Possession-only: hex color (e.g. "#e63946"); null otherwise. */
   color: z.string().max(40).nullish(),
-  group: z.string().max(120).nullish(),
   instrumentId: z.string().uuid().nullish(),
   /** User-typed ticker for a manual (no-instrument) tracked holding. */
   manualTicker: z.string().max(20).nullish(),
@@ -152,16 +174,44 @@ export const createHoldingSchema = z.object({
   /** Optional maturity 'YYYY-MM-DD'; value freezes on/after it. */
   depositEndDate: isoDate.nullish(),
   depositCapFrequency: capFrequencySchema.nullish(),
+  /** Phase 13: date of the first history entry (default today). */
+  openedOn: notFutureIsoDate.optional(),
 });
 export type CreateHoldingInput = z.infer<typeof createHoldingSchema>;
 
-// `.partial()` keeps quantity's create-time `.default("1")`, which turned every
-// PATCH that left quantity out into "quantity = 1" (user, 261023). An update
-// changes only what it sends.
-export const updateHoldingSchema = createHoldingSchema
-  .partial()
-  .extend({ quantity: numericString.optional() });
-export type UpdateHoldingInput = z.infer<typeof updateHoldingSchema>;
+/** D-12: per-budget type-group order. */
+export const typeOrderSchema = z.object({
+  order: z
+    .array(z.enum(UI_TYPE_KEYS as [string, ...string[]]))
+    .max(11)
+    .refine((a) => new Set(a).size === a.length, "duplicate_type"),
+});
+
+export interface TypeSummaryDto {
+  currency: string;
+  order: string[];
+  types: Record<
+    string,
+    {
+      realizedBudgetCents: string;
+      soldCostBudgetCents: string;
+      /** R6: money put into the type from outside it, budget currency at
+       *  each entry's date — the base of the type's P/L %. */
+      contributedBudgetCents?: string;
+    }
+  >;
+  /** R6-6: the same sums per asset (holding id), plus its realized in the
+   *  asset's own currency (what the asset row shows). */
+  holdings: Record<
+    string,
+    {
+      realizedBudgetCents: string;
+      soldCostBudgetCents: string;
+      realizedAssetCents: string;
+      assetCurrency: string;
+    }
+  >;
+}
 
 export const reorderHoldingsSchema = z.object({
   orderedIds: z.array(z.string().uuid()).min(1).max(500),
@@ -180,7 +230,6 @@ export interface EnrichedHoldingDto {
   icon: string | null;
   /** Possession-only hex color (e.g. "#e63946"); null for every other type. */
   color: string | null;
-  group: string | null;
   instrumentId: string | null;
   metal: string | null;
   metalKind: string | null;
@@ -205,6 +254,8 @@ export interface EnrichedHoldingDto {
   /** ISO time the auto-fetched price was last refreshed (hourly cron); null for
    *  manual/cash holdings or no cache row. Lets the UI show the real price age. */
   priceFetchedAt: string | null;
+  /** R6 (user): when the value last changed — "updated 5 min ago". */
+  valueUpdatedAt?: string | null;
   /** value in the holding's current-price currency (cents, string). */
   valueCents: string;
   /** value in the budget default currency (cents, string). */
@@ -219,6 +270,10 @@ export interface EnrichedHoldingDto {
    *  Computed server-side from the real cost basis so a near-total loss stays a
    *  real number (the client must NOT back-derive it from value + rounded pct). */
   profitLossCents: string | null;
+  /** R6 (user): avg buy price and P/L in the SHOWN currency (the value
+   *  currency) — the cost basis converted at today's rate, display only. */
+  avgPriceDisplayCents: string | null;
+  profitLossDisplayCents: string | null;
   /** weight % within group (grouped) or whole portfolio (ungrouped). */
   weightPct: number;
   sortOrder: number;
@@ -229,3 +284,264 @@ export interface EnrichedHoldingDto {
   depositEndDate: string | null;
   depositCapFrequency: string | null;
 }
+
+// ─── Phase 13.1: assets with a ledger ────────────────────────────────────────
+// Every id is a uuid and every cents field is a plain digit string BEFORE it
+// reaches BigInt() (13 review WR-01/WR-02: SyntaxError used to surface as 500).
+
+/** Non-negative integer cents, digits only (no sign, decimals, exponent). */
+export const centsString = z
+  .string()
+  .regex(/^\d{1,18}$/, "invalid_cents")
+  .refine(isSaneMagnitude, "cents out of range");
+/** CR-03: money the user moves must be > 0. */
+// Zod v4 still runs refines after a failed regex — guard before BigInt().
+export const positiveCents = centsString.refine(
+  (v) => /^\d+$/.test(v) && BigInt(v) > 0n,
+  "positive",
+);
+/** Quantity > 0 with at most 8 decimals (IN-02: no rounding up to a full sale). */
+const qtyString = numericString.refine(
+  (v) => /^\d+(\.\d{1,8})?$/.test(v),
+  "qty_precision",
+);
+export const positiveQty = qtyString.refine((v) => Number(v) > 0, "positive");
+export const uuidParam = z.uuid();
+
+const label = (max: number) => z.string().trim().min(1).max(max);
+
+/** D-08 Swap → Buy. Quantity types / cash & savings / broker add. */
+export const buyAssetSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("quantity"),
+    quantity: positiveQty,
+    priceCents: positiveCents,
+    currency: currencyCode,
+    effectiveDate: notFutureIsoDate,
+    note: noteField,
+  }),
+  z.object({
+    kind: z.literal("amount"),
+    amountCents: positiveCents,
+    currency: currencyCode,
+    effectiveDate: notFutureIsoDate,
+    note: noteField,
+  }),
+  z.object({
+    kind: z.literal("broker"),
+    amountCents: positiveCents,
+    valueAfterCents: centsString,
+    effectiveDate: notFutureIsoDate,
+    note: noteField,
+  }),
+]);
+export type BuyAssetInput = z.infer<typeof buyAssetSchema>;
+
+/** D-06 Edit: label, display currency, hand value/price — nothing ledger-owned
+ *  (CR-01 root cause). strict: unknown keys are a 400, not silently dropped. */
+export const editAssetSchema = z
+  .strictObject({
+    name: label(120).optional(),
+    displayCurrency: currencyCode.optional(),
+    currentValueCents: centsString.optional(),
+    // A unit price keeps 6 sub-cent places: a total typed for several units
+    // only multiplies back exactly from a fractional unit price (261023).
+    currentPriceCents: z
+      .string()
+      .regex(/^\d{1,18}(\.\d{1,6})?$/, "invalid_cents")
+      .refine((v) => Number(v) > 0, "positive")
+      .optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, "empty_edit");
+export type EditAssetInput = z.infer<typeof editAssetSchema>;
+
+export const WALLET_TYPES = [
+  "SPENDINGS",
+  "CUSHION",
+  "RESERVE",
+  "POSSESSION",
+  "OTHER",
+] as const;
+
+/** D-20/D-22/D-23 where Out-of-investments money lands. */
+export const walletTargetSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("existing"), walletId: z.uuid() }),
+  z.object({
+    kind: z.literal("new"),
+    name: label(80),
+    walletType: z.enum(WALLET_TYPES),
+    currency: currencyCode,
+  }),
+  z.object({ kind: z.literal("nowhere") }),
+]);
+export type WalletTargetInput = z.infer<typeof walletTargetSchema>;
+
+/** D-09 Swap → Sell. `left` = what stays; destination New names an asset label
+ *  (find-or-create), Out may credit a wallet. */
+export const sellAssetSchema = z.object({
+  effectiveDate: notFutureIsoDate,
+  left: z.union([
+    z.object({ quantity: qtyString }),
+    z.object({ valueCents: centsString }),
+  ]),
+  destination: z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("new"),
+      // currentPriceCents = the instrument's live price (tracked) — the buy
+      // price is priceCents, never received ÷ quantity (13.1 UAT 10).
+      holding: createHoldingSchema
+        .omit({ buyPriceCents: true, openedOn: true, note: true })
+        .extend({ name: label(120), quantity: positiveQty.optional() }),
+      priceCents: positiveCents.optional(),
+    }),
+    z.object({
+      kind: z.literal("existing"),
+      holdingId: z.uuid(),
+      // Priced at the destination's own price unless one is typed (R6, user:
+      // never locked) — priceCents is per unit, in the received currency.
+      quantityBought: positiveQty.optional(),
+      priceCents: positiveCents.optional(),
+    }),
+    z.object({
+      kind: z.literal("out"),
+      wallet: walletTargetSchema.default({ kind: "nowhere" }),
+    }),
+  ]),
+  // Out / amount destinations only; a quantity destination's received is
+  // quantity × price, computed by the server.
+  receivedCents: positiveCents.optional(),
+  receivedCurrency: currencyCode,
+  note: noteField,
+});
+export type SellAssetInput = z.infer<typeof sellAssetSchema>;
+
+/** D-10 Swap → Transfer: same type, existing asset or a new label. */
+export const transferAssetSchema = z.object({
+  effectiveDate: notFutureIsoDate,
+  move: z.union([
+    z.object({ quantity: positiveQty }),
+    z.object({ valueCents: positiveCents }),
+  ]),
+  to: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("existing"), holdingId: z.uuid() }),
+    z.object({ kind: z.literal("new"), name: label(120) }),
+  ]),
+  note: noteField,
+});
+/** R6 (user): Edit a transaction — its note and/or its date. "" clears the
+ *  note. strict: unknown keys are a 400. */
+export const editEntrySchema = z
+  .strictObject({
+    note: z.string().trim().max(200).optional(),
+    effectiveDate: notFutureIsoDate.optional(),
+  })
+  .refine((v) => v.note !== undefined || v.effectiveDate !== undefined, {
+    message: "nothing_to_edit",
+  });
+export type EditEntryInput = z.infer<typeof editEntrySchema>;
+
+export type TransferAssetInput = z.infer<typeof transferAssetSchema>;
+
+/** D-02 autocomplete over a type's assets, hidden ones included. */
+export const assetNamesQuerySchema = z.object({ type: uiTypeSchema });
+
+export interface AssetNameDto {
+  id: string;
+  name: string;
+  archived: boolean;
+  instrumentId: string | null;
+  /** Trimmed quantity ("10", "1.5") — the list says what each asset is. */
+  quantity: string;
+  valueCents: string | null;
+  valueCurrency: string | null;
+  /** How the UI names the unit ("1 BTC", "3 oz") — see instrumentLabel. */
+  symbol: string | null;
+  instrumentName: string | null;
+  holdingType: string;
+  unitOfMeasure: string | null;
+}
+
+export type EntryKind =
+  | "start"
+  | "buy"
+  | "add"
+  | "value_change"
+  | "withdraw"
+  | "convert_out"
+  | "convert_in"
+  | "transfer_out"
+  | "transfer_in"
+  | "price_change"
+  | "interest";
+
+/** One L3 ledger line. `deletable` is computed by the server (D-14/D-16). */
+export interface EntryDto {
+  /** null for synthesized deposit interest rows (D-19). */
+  id: string | null;
+  /** R6 (user): what the asset held right after this entry, in its own
+   *  currency — the account's value, or quantity × this deal's price. */
+  afterCents?: string | null;
+  afterCurrency?: string | null;
+  kind: EntryKind;
+  effectiveDate: string;
+  createdAt: string | null;
+  qtyDelta: string | null;
+  /** What the ledger shows as "±qty": qtyDelta, or ±1 for a one-unit
+   *  quantity asset's value entry (round-2 gap 13). */
+  displayQty: string | null;
+  priceCents: string | null;
+  /** Signed, in amountCurrency. */
+  amountCents: string | null;
+  amountCurrency: string | null;
+  displayAmountCents: string | null;
+  displayCurrency: string | null;
+  realizedBudgetCents: string | null;
+  /** R6: realized in the asset's currency (exact deal figure, else the sale-date rate). */
+  realizedCents: string | null;
+  realizedCurrency: string | null;
+  budgetCurrency: string | null;
+  counterpartyName: string | null;
+  /** Round 4: the partner asset + shared transfer id, so a linked row can
+   *  open its partner entry. null unless linked. */
+  counterpartyHoldingId: string | null;
+  transferId: string | null;
+  linked: boolean;
+  walletName: string | null;
+  walletDelta: string | null;
+  /** R6: the booking's note. */
+  note: string | null;
+  /** R6 Edit: the dates this entry may move to within its own ledger (null =
+   *  open); a linked partner may narrow it (the server checks). */
+  dateMin: string | null;
+  dateMax: string | null;
+  /** A deposit's dates drive its interest — they are not editable. */
+  dateEditable: boolean;
+  backfilled: boolean;
+  deletable: boolean;
+  blockedReason: "not_newest" | "linked_not_newest" | "interest" | null;
+  /** Deleting it wipes the asset (D-17). */
+  isLastEntry: boolean;
+}
+
+/** Error codes the 13.1 routes may return, by HTTP status. */
+export const INVESTMENT_ERRORS = {
+  422: [
+    "before_latest_entry",
+    "before_deposit_start",
+    "wallet_currency_mismatch",
+    "fx_unavailable",
+    "deposit_not_allowed",
+    "shape_mismatch",
+    "transfer_type_mismatch",
+    "transfer_same_asset",
+    "transfer_instrument_mismatch",
+    "move_qty_out_of_range",
+    "sell_qty_out_of_range",
+    "qty_precision",
+    "invalid_cents",
+    "date_out_of_range",
+    "date_locked",
+  ],
+  409: ["not_newest", "linked_not_newest", "stale"],
+  404: ["not_found"],
+} as const;

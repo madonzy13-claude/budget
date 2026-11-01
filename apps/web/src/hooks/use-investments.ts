@@ -5,7 +5,7 @@
  * Query key: ["budget", budgetId, "investments"]  (INV-16)
  * Mirrors use-wallets.ts: plain client fetch, offline handled by React Query
  * networkMode + the persisted query cache. GET /investments returns an enriched
- * payload ({ holdings, groupWeights }); the hook returns the holdings array.
+ * payload ({ holdings, typeWeights }); the hook returns the holdings array.
  */
 import { useQuery } from "@tanstack/react-query";
 import { clientApiFetch } from "@/lib/budget-fetch";
@@ -40,7 +40,6 @@ export interface HoldingDto {
   icon: string | null;
   /** Possession-only hex color (e.g. "#e63946"); null for every other type. */
   color: string | null;
-  group: string | null;
   instrumentId: string | null;
   /** Precious-metals attributes (null otherwise). */
   metal: string | null;
@@ -66,14 +65,22 @@ export interface HoldingDto {
   /** ISO time the auto-fetched price was last refreshed (hourly cron); null for
    *  manual/cash holdings. Drives the "last updated" age in the holding sheet. */
   priceFetchedAt: string | null;
+  /** R6 (user): when the value last changed — "updated 5 min ago". */
+  valueUpdatedAt?: string | null;
   /** value in the holding's current-price currency (cents, string). */
   valueCents: string;
   /** value in the budget default currency (cents, string). */
   valueInBudgetCents: string;
+  /** held cost (buy price × qty) in the budget currency (cents, string). */
+  costInBudgetCents: string;
   /** signed P/L %, 1 decimal; null for cash / no-basis. */
   profitLossPct: number | null;
   /** signed absolute P/L in cents (server-computed); null for cash / no-basis. */
   profitLossCents: string | null;
+  /** R6 (user): avg buy price and P/L in the SHOWN currency (cost basis
+   *  converted at today's rate); absent from an older api. */
+  avgPriceDisplayCents?: string | null;
+  profitLossDisplayCents?: string | null;
   /** weight % within group (grouped) or whole portfolio (ungrouped). */
   weightPct: number;
   sortOrder: number;
@@ -84,6 +91,22 @@ export interface HoldingDto {
   depositStartDate: string | null;
   depositEndDate: string | null;
   depositCapFrequency: string | null;
+}
+
+/** R6 (user): the hidden (archived) assets, for each group's "N hidden" link. */
+export function useHiddenHoldings(budgetId: string) {
+  return useQuery({
+    queryKey: ["budget", budgetId, "investments", "hidden"],
+    queryFn: async () => {
+      const res = await clientApiFetch(
+        `/budgets/${budgetId}/investments?hidden=1`,
+        { signal: AbortSignal.timeout(7000) },
+      );
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json();
+      return (json.holdings ?? []) as HoldingDto[];
+    },
+  });
 }
 
 export function useInvestments(budgetId: string, initialData?: HoldingDto[]) {

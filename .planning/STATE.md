@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: track)_
-status: complete
-stopped_at: "Phase 11 complete: all 10 plans executed + verified (backend 27+14 tests, FE 73 Vitest, 10 @overview E2E green on dev host)."
-last_updated: "2026-06-28T19:10:00.000Z"
-last_activity: 2026-06-28 -- Phase 11 complete (Budget Overview tab shipped + E2E-verified)
+status: executing
+stopped_at: Phase 13.1 UI-SPEC approved
+last_updated: "2026-10-30T11:30:18.196Z"
+last_activity: 2026-10-30
 progress:
-  total_phases: 11
+  total_phases: 14
   completed_phases: 11
-  total_plans: 86
-  completed_plans: 86
-  percent: 100
+  total_plans: 165
+  completed_plans: 164
+  percent: 79
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 **Core value:** A family can replace a complex personal-budget spreadsheet with a multi-user, multi-currency tool that tells them — through a single Tasks queue — exactly what to do this week to keep budget, reserve, and cushion healthy.
-**Current focus:** Phase 11 — budget-overview
+**Current focus:** Phase 13.1 — investments-assets-with-transactions-type-asset-transaction-
 
 ## Current Position
 
-Phase: 11 (budget-overview) — COMPLETE
-Plan: 10 of 10
-Next: Phase 11 milestone done — Budget Overview tab live (cards + 4 chart sections + 3h wealth snapshot), localized EN/PL/UK, E2E-verified on dev host.
-Status: Phase 11 complete (all 11 phases done)
-Last activity: 2026-06-28 -- Phase 11 complete + verified
+Phase: 13.1 (investments-assets-with-transactions-type-asset-transaction-) — EXECUTING
+Plan: 21 of 45
+Next: Phase 13.1 inserted — /gsd:discuss-phase 13.1 (assets with transactions redesign); Phase 13 UAT paused at test 7
+Status: Ready to execute
+Last activity: 2026-10-30
 
 ### Known test-debt (non-CI, non-blocking)
 
@@ -114,6 +114,8 @@ _Updated after each plan completion_
 
 - Phase 10 added (2026-06-26): User Settings Redesign — 2-pill carousel (General · User) reusing the BDP pill/prefetch frame + Settings-tab accordion; remove AI/voice Provider feature end-to-end (incl. column-drop migration); add profile name/email edit (email re-verify), email-gated password change (reuses reset flow), active-sessions revoke + sign-out-others, Danger Zone account deletion (GDPR); build the missing logged-out forgot/reset-password pages + fix the dead sign-in link. Depends on Phase 3 (BDP frame) + Phase 6 (settings). _(v1.2 track)_
 - Phase 12 added (2026-08-29): Demo Account — one shared login for prospect walkthroughs, backed by a nightly pg-boss job that wipes and re-copies two real budgets (`Private Budget` → demo personal, `Family Budget` → demo family) into a demo tenant through an allowlist scrub manifest. Decided with the user: shared login (not per-visitor sandboxes), copied-from-live (not synthetic), nightly re-pull (not a frozen fixture) — the re-pull risk is bought off by the manifest preflight, which ABORTS the refresh on any unmanifested column instead of publishing it. Money uniformly scaled + PLN relabeled USD; demo user is a member of the demo budgets only, so RLS is the isolation guarantee (pinned by a new ci-gate test). Depends on Phase 9 (investments), Phase 10 (`purgeUserData` cascade order, reused for the wipe), Phase 11 (all-budgets aggregate, which the 2nd demo budget populates). _(v1.2 track)_
+- Phase 13 added (2026-10-25): Investments — type-based groups, sell/convert flow, realized P/L and contributions history. Groups become the investment type (no custom groups, no cross-type drag). Row actions Sell / Withdraw / Delete. A sale records realized gain on the source type, and the destination starts at the amount received. Contributions become money in − money out. Hand-entered value edits ask "value changed / added / withdrew". Existing holdings get a starting history entry, and the user supplies real history. Avoids the reverted per-group-name ledger (7b0664a) by keying on fixed types. Depends on Phase 12.
+- Phase 13.1 inserted after Phase 13: Redesign investments as assets grouping transactions; replaces Phase 13 sell sheet + edit 'What happened?' flows; Phase 13 UAT paused at test 7 (URGENT)
 
 ### Decisions
 
@@ -172,6 +174,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - Phase 1 complete — begin Phase 2 planning (Domain & API Restructure)
 - Decide reserves auto-compute as regular view vs materialized view in Phase 2 plan
 - Probe Better Auth orgs invite-token revocation API in Phase 2 spike
+- **Phase 13.1 follow-up (D-35):** after 13.1 ships, enter REAL cost basis for investment assets whose Start entry was backfilled with cost 0 by migration 0088 (applied 2026-10-27: 97 entries = 15 active + 82 archived assets). Find them with `investment_history.backfilled = true`.
+- **Phase 13.1 follow-up (0088 backups):** once the merge is verified on dev, drop `budgeting._investments_bak_0088`, `_investment_history_bak_0088`, `_tasks_bak_0088` in a new migration and remove their EXCLUDED lines from `tests/tenant-leak/USER-DATA-TABLES.txt` (0075 precedent — they hold user data outside RLS/GDPR cascade).
 - Investigate pre-existing make ci-gate coverage threshold failure (tenant-leak tests pull transitive imports; ~51% aggregate vs 80% threshold — security tests all pass 25/25)
 
 ### Plan 01-01 Decisions (recorded 2026-05-11, execution)
@@ -259,9 +263,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-06-21T10:54:15.616Z
-Stopped at: Phase 09: 6/7 plans complete (waves 1-3). Paused before 09-07 web UI (human-verify checkpoint) for fresh context.
-Resume file: .planning/phases/09-investments-wallet/09-07-PLAN.md
+Last session: 2026-10-27T12:23:21.130Z
+Stopped at: Phase 13.1 UI-SPEC approved
+Resume file: .planning/phases/13.1-investments-assets-with-transactions-type-asset-transaction-/13.1-UI-SPEC.md
 
 ## v1.0 History (archived)
 

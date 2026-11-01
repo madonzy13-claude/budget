@@ -603,6 +603,125 @@
       "when": 1782742801012,
       "tag": "0086_investment_price_subcent",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1782829201012,
+      "tag": "0087_investment_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1782915601012,
+      "tag": "0088_investment_assets",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1783002001012,
+      "tag": "0089_reconcile_asset_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1783088401012,
+      "tag": "0090_asset_label_currency",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1783174801012,
+      "tag": "0091_deposit_start_entry_date",
+      "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1783261201012,
+      "tag": "0092_fill_zero_start_entries",
+      "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1783347601012,
+      "tag": "0093_drop_asset_label_uniqueness",
+      "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1783434001012,
+      "tag": "0094_entry_asset_amount",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1783520401012,
+      "tag": "0095_backfill_entry_asset_amount",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1783606801012,
+      "tag": "0096_zero_qty_sold_out_collectibles",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1783606802012,
+      "tag": "0097_delete_pre_13_1_removed_assets",
+      "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1783606803012,
+      "tag": "0098_investment_history_note",
+      "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1783606803013,
+      "tag": "0099_expense_ledger_deferred_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1783700000000,
+      "tag": "0100_expense_ledger_worker_fx_grant",
+      "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1783710000000,
+      "tag": "0101_amount_updated_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1783720000000,
+      "tag": "0102_amount_updated_only_amount",
+      "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1783730000000,
+      "tag": "0103_better_auth_17_columns",
+      "breakpoints": true
     }
   ]
 }

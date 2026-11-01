@@ -63,6 +63,9 @@ export interface GetAggregateWealthTrendDeps {
     currency: string;
     series: { label: string; value_cents: bigint }[];
     invested_cents: bigint | null;
+    /** R6 (user): the same contributions per month ('YYYY-MM'), so each
+     *  converts at the month it was paid. */
+    invested_by_month?: { month: string; cents: bigint }[] | null;
     pie: { holding_type: string; value_cents: bigint }[] | null;
   }>;
   displayCurrencyReader: {
@@ -137,10 +140,70 @@ export function getAggregateWealthTrend(deps: GetAggregateWealthTrendDeps) {
         const share = prefs.get(b.id)?.ownership_share_pct ?? 100;
         const conv = (c: bigint) =>
           toDisplayCcyShared(c, w.currency, rate, displayCcy, share);
+        // R6 (user): a past point is what the budget held THEN — convert it at
+        // that day's rate. Undated labels (and the pie, today's mix) keep today's.
+        const dayRates = new Map<string, Promise<string>>();
+        const rateOn = (label: string) => {
+          const day = /^\d{4}-\d{2}-\d{2}/.exec(label)?.[0];
+          if (!day || w.currency === displayCcy) return Promise.resolve(rate);
+          let p = dayRates.get(day);
+          if (!p) {
+            const at = new Date(`${day}T12:00:00Z`);
+            p = deps.fxProvider
+              .rateAsOf(
+                w.currency as Currency,
+                displayCcy as Currency,
+                at > now ? now : at,
+              )
+              .then((r) => r.rate)
+              .catch(() => rate);
+            dayRates.set(day, p);
+          }
+          return p;
+        };
         const byLabel = new Map<string, bigint>();
-        for (const pt of w.series) byLabel.set(pt.label, conv(pt.value_cents));
+        const pointRates = await Promise.all(
+          w.series.map((pt) => rateOn(pt.label)),
+        );
+        w.series.forEach((pt, i) =>
+          byLabel.set(
+            pt.label,
+            toDisplayCcyShared(
+              pt.value_cents,
+              w.currency,
+              pointRates[i]!,
+              displayCcy,
+              share,
+            ),
+          ),
+        );
         const invested =
-          w.invested_cents != null ? conv(w.invested_cents) : null;
+          w.invested_by_month && w.currency !== displayCcy
+            ? (
+                await Promise.all(
+                  w.invested_by_month.map(async (m) => {
+                    const mid = new Date(`${m.month}-15T12:00:00Z`);
+                    const r = await deps.fxProvider
+                      .rateAsOf(
+                        w.currency as Currency,
+                        displayCcy as Currency,
+                        mid > now ? now : mid,
+                      )
+                      .then((x) => x.rate)
+                      .catch(() => rate);
+                    return toDisplayCcyShared(
+                      m.cents,
+                      w.currency,
+                      r,
+                      displayCcy,
+                      share,
+                    );
+                  }),
+                )
+              ).reduce((a, b) => a + b, 0n)
+            : w.invested_cents != null
+              ? conv(w.invested_cents)
+              : null;
         const pie = w.pie
           ? w.pie.map((s) => ({
               holding_type: s.holding_type,

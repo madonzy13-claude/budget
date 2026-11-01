@@ -330,6 +330,22 @@ describe("GET /budgets/:budgetId/spendings-summary", () => {
     expect(Array.isArray(body.categories)).toBe(true);
   });
 
+  // R6 (user): a refund (negative spending) gives money back to the category.
+  it("a refund lowers the category's spent and raises what's left", async () => {
+    const f = await createFixture("EUR", "UTC");
+    const cat = await seedCategory(f.budgetId, f.userId, "Clothes");
+    await seedLimit(f.budgetId, f.userId, cat, 100000, 100000, "2026-01-01");
+    await seedTransaction(f.budgetId, f.userId, cat, 60000, "2026-05-10");
+    await seedTransaction(f.budgetId, f.userId, cat, -15000, "2026-05-12");
+    const app = await buildApp(f.userId, f.budgetId);
+    const body = (await (
+      await app.request(`/budgets/${f.budgetId}/spendings-summary?month=2026-05`)
+    ).json()) as any;
+    const c = body.categories.find((x: any) => x.categoryId === cat);
+    expect(c.spentCents).toBe("45000");
+    expect(c.balanceCents).toBe("55000");
+  });
+
   it("returns category with correct planned/cushion/spent math", async () => {
     const localFix = await createFixture("EUR", "UTC");
     const catId = await seedCategory(
@@ -584,5 +600,31 @@ describe("GET /budgets/:budgetId/spendings-summary", () => {
       `/budgets/${otherBudgetId}/spendings-summary?month=2026-05`,
     );
     expect(res.status).toBe(403);
+  });
+});
+
+// R6 (user): the all-budgets card converts this month's spend at the days it
+// was paid — the repo sums confirmed spending per day.
+describe("spendByDayForMonth", () => {
+  it("sums confirmed spending per day inside the month", async () => {
+    const fix = await createFixture("EUR", "UTC");
+    const cat = await seedCategory(fix.budgetId, fix.userId, "Food");
+    await seedTransaction(fix.budgetId, fix.userId, cat, 1000, "2026-07-02");
+    await seedTransaction(fix.budgetId, fix.userId, cat, 500, "2026-07-02");
+    await seedTransaction(fix.budgetId, fix.userId, cat, 700, "2026-07-10");
+    await seedTransaction(fix.budgetId, fix.userId, cat, 999, "2026-08-01");
+    const { DrizzleTransactionRepo } = await import(
+      "@budget/budgeting/src/adapters/persistence/transaction-repo"
+    );
+    const rows = await new DrizzleTransactionRepo().spendByDayForMonth(
+      fix.budgetId,
+      fix.budgetId,
+      "2026-07-01",
+      "2026-08-01",
+    );
+    expect(rows).toEqual([
+      { date: "2026-07-02", cents: 1500n },
+      { date: "2026-07-10", cents: 700n },
+    ]);
   });
 });

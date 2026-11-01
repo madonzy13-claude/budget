@@ -96,6 +96,14 @@ export interface TransactionRepo {
    * Keys: categoryId → bigint cents (amount_converted_cents sum).
    * Categories with no spend are absent from the map (treat as 0n at call site).
    */
+  /** R6 (user): confirmed spending per day (budget currency) in the range. */
+  spendByDayForMonth?(
+    tenantId: string,
+    budgetId: string,
+    monthStart: string,
+    monthEnd: string,
+  ): Promise<{ date: string; cents: bigint }[]>;
+
   spendByCategoryForMonth(
     tenantId: string,
     budgetId: string,

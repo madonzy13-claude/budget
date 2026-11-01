@@ -3,7 +3,7 @@
  * TDD RED: write tests before implementation.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { TestQueryProvider } from "../../setup/query-client";
 
 const fetchMock = vi.fn();
@@ -239,6 +239,83 @@ describe("TransactionSlider", () => {
     expect(note.value).toBe("Cab");
   });
 
+  // User (R6): an unconfirmed scheduled payment may move to any date — a
+  // future one sets it aside until then; a posted spending stays capped.
+  it("an unconfirmed payment's date has no future cap and saves a date next year", async () => {
+    const next = `${new Date().getFullYear() + 1}-02-10`;
+    render(
+      <TestQueryProvider>
+        <TransactionSlider
+          {...editProps}
+          initial={{ ...editProps.initial!, unconfirmed: true }}
+        />
+      </TestQueryProvider>,
+    );
+    const date = document.getElementById("txn-slider-date") as HTMLInputElement;
+    expect(date.getAttribute("max")).toBeNull();
+    fireEvent.change(date, { target: { value: next } });
+    fireEvent.click(
+      screen
+        .getAllByRole("button")
+        .find((b) => (b.textContent ?? "").includes("txnSlider.cta.save"))!,
+    );
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([, init]) =>
+            (init as RequestInit | undefined)?.method === "PATCH" &&
+            String((init as RequestInit).body).includes(next),
+        ),
+      ).toBe(true),
+    );
+  });
+
+  // The grid mounts the slider first and picks the row later — the cap must
+  // follow the picked row, not the first render (E2E caught it).
+  it("an unconfirmed payment picked after mount still saves a future date", async () => {
+    const next = `${new Date().getFullYear() + 1}-03-05`;
+    const { rerender } = render(
+      <TestQueryProvider>
+        <TransactionSlider {...editProps} open={false} initial={undefined} />
+      </TestQueryProvider>,
+    );
+    rerender(
+      <TestQueryProvider>
+        <TransactionSlider
+          {...editProps}
+          open={true}
+          initial={{ ...editProps.initial!, unconfirmed: true }}
+        />
+      </TestQueryProvider>,
+    );
+    const date = document.getElementById("txn-slider-date") as HTMLInputElement;
+    fireEvent.change(date, { target: { value: next } });
+    fireEvent.click(
+      screen
+        .getAllByRole("button")
+        .find((b) => (b.textContent ?? "").includes("txnSlider.cta.save"))!,
+    );
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([, init]) =>
+            (init as RequestInit | undefined)?.method === "PATCH" &&
+            String((init as RequestInit).body).includes(next),
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it("a posted spending keeps the end-of-month cap", () => {
+    render(
+      <TestQueryProvider>
+        <TransactionSlider {...editProps} />
+      </TestQueryProvider>,
+    );
+    const date = document.getElementById("txn-slider-date") as HTMLInputElement;
+    expect(date.getAttribute("max")).not.toBeNull();
+  });
+
   it("Sheet has className including w-screen and sm:w-[480px]", () => {
     const { container } = render(
       <TestQueryProvider>
@@ -296,5 +373,90 @@ describe("TransactionSlider", () => {
     expect(screen.getByText("txnSlider.field.date")).toBeTruthy();
     expect(screen.getByText("txnSlider.field.amount")).toBeTruthy();
     expect(screen.getByText("txnSlider.field.note")).toBeTruthy();
+  });
+
+  // R6 (user): Edit chooses Spending or Refund explicitly — default Spending;
+  // the amount itself is always positive here.
+  describe("spending or refund", () => {
+    const patchBody = () => {
+      const call = fetchMock.mock.calls.find(
+        (c) =>
+          (c[1] as { method?: string })?.method === "PATCH" &&
+          String(c[0]).includes("/transactions/tx-1"),
+      );
+      return call ? JSON.parse((call[1] as { body: string }).body) : null;
+    };
+    const save = () =>
+      screen
+        .getAllByRole("button")
+        .find((b) => b.textContent?.includes("txnSlider.cta.save"))!;
+
+    it("defaults to Spending", () => {
+      render(
+        <TestQueryProvider>
+          <TransactionSlider {...editProps} />
+        </TestQueryProvider>,
+      );
+      expect(screen.getByTestId("txn-kind-spending")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(screen.getByTestId("txn-kind-refund")).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    });
+
+    it("Refund saves the amount as money back (negative)", async () => {
+      const user = (
+        await import("@testing-library/user-event")
+      ).default.setup();
+      render(
+        <TestQueryProvider>
+          <TransactionSlider {...editProps} />
+        </TestQueryProvider>,
+      );
+      await user.click(screen.getByTestId("txn-kind-refund"));
+      await user.click(save());
+      expect(patchBody()?.amount_original_cents).toBe(-5000);
+    });
+
+    it("a refund opens as Refund with a positive amount", () => {
+      render(
+        <TestQueryProvider>
+          <TransactionSlider
+            {...editProps}
+            initial={{ ...editProps.initial, amountOriginalCents: "-5000" }}
+          />
+        </TestQueryProvider>,
+      );
+      expect(screen.getByTestId("txn-kind-refund")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(
+        (document.getElementById("txn-slider-amount") as HTMLInputElement)
+          .value,
+      ).toBe("50");
+    });
+
+    it("a minus in the amount is not accepted here", async () => {
+      const user = (
+        await import("@testing-library/user-event")
+      ).default.setup();
+      render(
+        <TestQueryProvider>
+          <TransactionSlider {...editProps} />
+        </TestQueryProvider>,
+      );
+      const amount = document.getElementById(
+        "txn-slider-amount",
+      ) as HTMLInputElement;
+      await user.clear(amount);
+      await user.type(amount, "-50");
+      await user.click(save());
+      expect(patchBody()?.amount_original_cents ?? 5000).toBeGreaterThan(0);
+      expect(amount.value).not.toContain("-");
+    });
   });
 });

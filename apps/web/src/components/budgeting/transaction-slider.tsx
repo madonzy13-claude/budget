@@ -3,7 +3,7 @@
 /**
  * transaction-slider.tsx — Sheet drawer for creating/editing a transaction.
  * Per UI-SPEC §9: 480px desktop / 100vw mobile; RHF + Zod validation.
- * Composes DateInput, AmountInput, CurrencyPicker, FxPreviewLine, FxFreshnessBadge.
+ * Composes DateInput, AmountInput, CurrencyPicker, FxPreviewLine. (R6: no freshness label.)
  * Delete confirmation via AlertDialog (T-04-04-08 mitigation).
  */
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
@@ -55,7 +55,6 @@ import { DateInput } from "@/components/budgeting/fields/date-input";
 import { AmountInput } from "@/components/budgeting/fields/amount-input";
 import { parseDecimal } from "@/lib/decimal";
 import { FxPreviewLine } from "@/components/budgeting/fields/fx-preview-line";
-import { FxFreshnessBadge } from "@/components/budgeting/fx-freshness-badge";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
@@ -84,19 +83,23 @@ export interface TransactionSliderProps {
     amountOriginalCents: string;
     currencyOriginal: string;
     note?: string | null;
+    /** An unconfirmed scheduled payment — its date is not capped (R6). */
+    unconfirmed?: boolean;
   };
   prefillCategoryId?: string;
 }
 
 /** Schema factory: the future-date cap is the last day of the current month IN
  *  THE USER'S TIMEZONE (r31 item 1), so it matches the picker max + default date. */
-function makeSchema(tz: string) {
+function makeSchema(tz: string, uncapped: () => boolean = () => false) {
   return z.object({
     date: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       // No future-dated transactions — cap at the last day of the current month.
-      .refine((d) => d <= lastDayOfCurrentMonthIso(tz), {
+      // User (R6): an unconfirmed scheduled payment may move anywhere; a
+      // future date sets it aside until then (server side).
+      .refine((d) => uncapped() || d <= lastDayOfCurrentMonthIso(tz), {
         message: "future_date_not_allowed",
       }),
     categoryId: z.string().min(1),
@@ -104,6 +107,9 @@ function makeSchema(tz: string) {
     // the comma to a dot on submit. A period-only regex here rejected "10,50"
     // before submit ever ran, so the comma fix in onSubmit could never apply.
     amountOrig: z.string().regex(/^\d+([.,]\d{1,2})?$/),
+    // R6 (user): a spending or a refund (money back) — chosen here, never by
+    // a minus in the amount.
+    kind: z.enum(["spending", "refund"]),
     currencyOrig: z.string().length(3),
     note: z.string().max(500).nullable().optional(),
   });
@@ -142,7 +148,8 @@ export function TransactionSlider({
   onOpenChange,
   mode,
   budgetId,
-  month,
+  // Unused since R6: a date edit refreshes every month, not just this one.
+  month: _month,
   budgetCurrency,
   categories,
   initial,
@@ -155,9 +162,11 @@ export function TransactionSlider({
   const [idempotencyKey] = useState(() => generateIdempotencyKey());
 
   function invalidateGrid() {
-    qc.invalidateQueries({ queryKey: ["transactions", budgetId, month] });
-    qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId, month] });
-    qc.invalidateQueries({ queryKey: ["drafts", budgetId, month] });
+    // Every month: a date edit can move a row into another one (R6).
+    qc.invalidateQueries({ queryKey: ["transactions", budgetId] });
+    qc.invalidateQueries({ queryKey: ["spendings-summary", budgetId] });
+    qc.invalidateQueries({ queryKey: ["drafts", budgetId] });
+    qc.invalidateQueries({ queryKey: ["budget", budgetId, "projection"] });
     // A confirmed/edited/deleted transaction re-derives the reserve pool (any
     // month) and the RESERVE_TOPUP mismatch — refresh reserves tab + pill badge.
     qc.invalidateQueries({ queryKey: ["budget", budgetId, "reserves"] });
@@ -176,7 +185,14 @@ export function TransactionSlider({
 
   // Today / month-cap follow the user's timezone (r31 item 1).
   const userTz = useUserTimezone();
-  const schema = useMemo(() => makeSchema(userTz), [userTz]);
+  // Read at validation time: the form keeps the resolver it was created
+  // with, and the slider mounts before a row is picked.
+  const uncappedRef = useRef(false);
+  uncappedRef.current = !!initial?.unconfirmed;
+  const schema = useMemo(
+    () => makeSchema(userTz, () => uncappedRef.current),
+    [userTz],
+  );
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -185,8 +201,11 @@ export function TransactionSlider({
       categoryId:
         initial?.categoryId ?? prefillCategoryId ?? categories[0]?.id ?? "",
       amountOrig: initial?.amountOriginalCents
-        ? centsToInputValue(initial.amountOriginalCents)
+        ? centsToInputValue(initial.amountOriginalCents.replace(/^-/, ""))
         : "",
+      kind: initial?.amountOriginalCents?.startsWith("-")
+        ? "refund"
+        : "spending",
       currencyOrig: initial?.currencyOriginal ?? budgetCurrency,
       note: initial?.note ?? "",
     },
@@ -225,8 +244,11 @@ export function TransactionSlider({
         categoryId:
           initial?.categoryId ?? prefillCategoryId ?? categories[0]?.id ?? "",
         amountOrig: initial?.amountOriginalCents
-          ? centsToInputValue(initial.amountOriginalCents)
+          ? centsToInputValue(initial.amountOriginalCents.replace(/^-/, ""))
           : "",
+        kind: initial?.amountOriginalCents?.startsWith("-")
+          ? "refund"
+          : "spending",
         currencyOrig: initial?.currencyOriginal ?? budgetCurrency,
         note: initial?.note ?? "",
       });
@@ -270,7 +292,9 @@ export function TransactionSlider({
     // API contract is snake_case with integer cents (createSchema / patchSchema).
     // Sending camelCase keys here would silently drop most fields server-side.
     // parseDecimal accepts both "." and "," as the decimal separator → cents.
-    const amountCents = parseDecimal(values.amountOrig) ?? 0;
+    const amountCents =
+      (parseDecimal(values.amountOrig) ?? 0) *
+      (values.kind === "refund" ? -1 : 1);
     const body: Record<string, unknown> = {
       date: values.date,
       category_id: values.categoryId,
@@ -361,8 +385,6 @@ export function TransactionSlider({
   const showFxLine =
     !fxLoading && fxPreview && currencyOrig !== budgetCurrency && amountOrig;
 
-  const showStaleBadge = fxPreview && !fxPreview.isStale === false;
-
   return (
     <>
       <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -422,7 +444,11 @@ export function TransactionSlider({
                       <DateInput
                         value={field.value}
                         onChange={field.onChange}
-                        max={lastDayOfCurrentMonthIso(userTz)}
+                        max={
+                          initial?.unconfirmed
+                            ? undefined
+                            : lastDayOfCurrentMonthIso(userTz)
+                        }
                         aria-invalid={!!form.formState.errors.date}
                         id="txn-slider-date"
                       />
@@ -460,6 +486,36 @@ export function TransactionSlider({
                 )}
               />
 
+              {/* R6 (user): spending or refund — explicit, default spending. */}
+              <FormField
+                control={form.control}
+                name="kind"
+                render={({ field }) => (
+                  <div
+                    role="group"
+                    aria-label={t("txnSlider.field.kind")}
+                    className="grid grid-cols-2 gap-1 rounded-[var(--radius-md)] bg-[var(--surface-sunken-dark)] p-1"
+                  >
+                    {(["spending", "refund"] as const).map((k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        data-testid={`txn-kind-${k}`}
+                        aria-pressed={field.value === k}
+                        onClick={() => field.onChange(k)}
+                        className={`min-h-9 rounded-[var(--radius-sm)] text-sm transition-colors ${
+                          field.value === k
+                            ? "bg-[var(--surface-card-dark)] text-[var(--body-on-dark)]"
+                            : "text-[var(--muted-foreground)]"
+                        }`}
+                      >
+                        {t(`txnSlider.kind.${k}`)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              />
+
               {/* Amount + Currency */}
               <div className="flex gap-3">
                 <FormField
@@ -473,7 +529,10 @@ export function TransactionSlider({
                       <FormControl>
                         <AmountInput
                           value={field.value}
-                          onChange={field.onChange}
+                          // R6 (user): no minus here — Refund is chosen above.
+                          onChange={(v: string) =>
+                            field.onChange(v.replace(/[-−]/g, ""))
+                          }
                           aria-invalid={!!form.formState.errors.amountOrig}
                           id="txn-slider-amount"
                         />
@@ -532,12 +591,7 @@ export function TransactionSlider({
                   asOf={fxPreview.fxRateDate}
                 />
               )}
-              {showStaleBadge && fxPreview && (
-                <FxFreshnessBadge
-                  fxRateDate={fxPreview.fxRateDate}
-                  provider={fxPreview.provider}
-                />
-              )}
+              {/* R6 (user): no "rate N days ago" cache label. */}
 
               {/* Note */}
               <FormField

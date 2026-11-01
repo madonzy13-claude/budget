@@ -166,7 +166,6 @@ Then("the no-limit toggle is checked", async ({ page }) => {
   await expect(po.catSliderNoLimit()).toHaveAttribute("aria-pressed", "true");
 });
 
-
 When(
   /^I open the overview planned section for "(.+?)"$/,
   async ({ page, freshUser }, name: string) => {
@@ -188,7 +187,71 @@ Then("the planned total reads as unlimited", async ({ page }) => {
 
 Then("the planned breakdown reports no overspend", async ({ page }) => {
   // The over/under figure is a dash — there is nothing to be over.
-  await expect(
-    page.getByTestId("planned-total-difference"),
-  ).toContainText("\u2014", { timeout: 15000 });
+  await expect(page.getByTestId("planned-total-difference")).toContainText(
+    "\u2014",
+    { timeout: 15000 },
+  );
 });
+
+// R6 (user): a spending paid in another currency keeps it.
+Given(
+  /^"(.+?)" has a spending of ([\d.]+) EUR worth ([\d.]+) in the budget currency this month$/,
+  async ({ freshUser }, name: string, eur: string, budget: string) => {
+    const orig = Math.round(Number(eur) * 100);
+    const conv = Math.round(Number(budget) * 100);
+    await withTenant(freshUser.budgetId, freshUser.userId, async (q) => {
+      const cat = (await q(
+        `SELECT id FROM budgeting.categories
+          WHERE tenant_id = $1::uuid AND name = $2`,
+        [freshUser.budgetId, name],
+      )) as { rows: { id: string }[] };
+      await q(
+        `INSERT INTO budgeting.expense_ledger
+           (tenant_id, budget_id, category_id, kind,
+            amount_original_cents, currency_original, amount_converted_cents,
+            fx_rate, fx_as_of, transaction_date, confirmed_at)
+         VALUES ($1::uuid, $1::uuid, $2::uuid, 'SPENDING',
+                 $3::bigint, 'EUR', $4::bigint,
+                 $4::numeric / $3::numeric, $5::date, $5::date, now())`,
+        [freshUser.budgetId, cat.rows[0]!.id, orig, conv, monthStart()],
+      );
+    });
+  },
+);
+
+Then(
+  /^the spending worth (\d+) cents reads "(.+?)" only$/,
+  async ({ page }, cents: string, own: string) => {
+    const row = new SpendingsPo(page).transactionRowByAmount(Number(cents));
+    await expect(row).toContainText(own, { timeout: 15000 });
+    // R6 (user): the budget figure lives in Edit, not on the row.
+    await expect(row.getByTestId("txn-converted")).toHaveCount(0);
+  },
+);
+
+Then(
+  /^deleting the spending worth (\d+) cents asks about "(.+?)"$/,
+  async ({ page }, cents: string, own: string) => {
+    await (
+      await new SpendingsPo(page).revealTxnAction(Number(cents), "delete")
+    ).click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toContainText(own);
+    await page.keyboard.press("Escape");
+  },
+);
+
+Then(
+  /^editing the spending worth (\d+) cents shows (.+?) (\w{3}) with the rate below$/,
+  async ({ page }, cents: string, amount: string, ccy: string) => {
+    const sheet = await new SpendingsPo(page).openTxnEdit(Number(cents));
+    await expect(sheet.locator("#txn-slider-amount")).toHaveValue(amount);
+    await expect(sheet).toContainText(ccy);
+    const line = sheet.getByTestId("fx-preview-line");
+    await expect(line).toContainText("@", { timeout: 15000 });
+    // R6 (user): a friendly date, no stored-format rate, no cache label.
+    await expect(line).not.toContainText(/\d{4}-\d{2}-\d{2}/);
+    await expect(line).not.toContainText(/\.\d*0\b \(/);
+    await expect(sheet).not.toContainText(/ago|cached/i);
+  },
+);

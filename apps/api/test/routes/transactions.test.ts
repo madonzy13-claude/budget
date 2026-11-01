@@ -15,7 +15,10 @@ if (!DB_URL) throw new Error("DATABASE_URL_APP required");
 
 const DB_URL_WORKER_RAW = process.env.DATABASE_URL_WORKER;
 if (DB_URL_WORKER_RAW) {
-  process.env.DATABASE_URL_WORKER = DB_URL_WORKER_RAW.replace("@db:", "@localhost:");
+  process.env.DATABASE_URL_WORKER = DB_URL_WORKER_RAW.replace(
+    "@db:",
+    "@localhost:",
+  );
 }
 process.env.DATABASE_URL_APP = DB_URL.replace("@db:", "@localhost:");
 const { resetPools } = await import("@budget/platform");
@@ -44,8 +47,12 @@ async function createTestFixture(currency = "EUR") {
        VALUES ($1, $2, 'TX v1.1 Budget', 'PRIVATE', $3, $4, 1, now())`,
       [budgetId, `ws-txv11-${budgetId.slice(0, 8)}`, currency, userId],
     );
-    await client.query(`SELECT set_config('app.tenant_ids', '{"${budgetId}"}', true)`);
-    await client.query(`SELECT set_config('app.current_user_id', '${userId}', true)`);
+    await client.query(
+      `SELECT set_config('app.tenant_ids', '{"${budgetId}"}', true)`,
+    );
+    await client.query(
+      `SELECT set_config('app.current_user_id', '${userId}', true)`,
+    );
     await client.query(
       `INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id)
        VALUES ($1, $2, 'Food', now(), $3)`,
@@ -64,7 +71,8 @@ async function createTestFixture(currency = "EUR") {
 }
 
 async function buildApp(userId: string, budgetId: string) {
-  const { createTransactionsRoute } = await import("../../src/routes/transactions");
+  const { createTransactionsRoute } =
+    await import("../../src/routes/transactions");
   const { StubFxProvider } = await import("../fixtures/fx-provider");
 
   // Build a minimal deps object wiring the new v1.1 transaction route
@@ -117,7 +125,7 @@ describe("POST /budgets/:budgetId/transactions", () => {
       }),
     });
     expect(res.status).toBe(201);
-    const body = await res.json() as { transaction: Record<string, unknown> };
+    const body = (await res.json()) as { transaction: Record<string, unknown> };
     const tx = body.transaction;
     expect(tx.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(tx.date).toBe("2026-05-11");
@@ -147,13 +155,16 @@ describe("POST /budgets/:budgetId/transactions", () => {
       }),
     });
     expect(res.status).toBe(201);
-    const body = await res.json() as { transaction: Record<string, unknown> };
+    const body = (await res.json()) as { transaction: Record<string, unknown> };
     const tx = body.transaction;
     expect(tx.fx_rate).toBe("1");
     expect(tx.amount_converted_cents).toBe(tx.amount_original_cents);
   });
 
-  it("negative amount_original_cents flips kind to INCOME and stores positive", async () => {
+  // R6 (user): a negative amount is a REFUND — money back into the category.
+  // It stays a spending with a negative amount, so every spent total that sums
+  // spendings takes it off automatically.
+  it("a negative amount is a refund: a spending with a negative amount", async () => {
     const app = await buildApp(testUserId, testBudgetId);
     const res = await app.request(`/budgets/${testBudgetId}/transactions`, {
       method: "POST",
@@ -162,16 +173,33 @@ describe("POST /budgets/:budgetId/transactions", () => {
         date: "2026-05-11",
         category_id: testCategoryId,
         amount_original_cents: -596,
+      }),
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { transaction: Record<string, unknown> };
+    const tx = body.transaction;
+    expect(tx.kind).toBe("SPENDING");
+    expect(Number(tx.amount_original_cents)).toBe(-596);
+    expect(Number(tx.amount_converted_cents)).toBe(-596);
+  });
+
+  it("a refund in another currency converts with its sign", async () => {
+    const app = await buildApp(testUserId, testBudgetId);
+    const res = await app.request(`/budgets/${testBudgetId}/transactions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: "2026-05-11",
+        category_id: testCategoryId,
+        amount_original_cents: -1000,
         currency_original: "USD",
       }),
     });
     expect(res.status).toBe(201);
-    const body = await res.json() as { transaction: Record<string, unknown> };
-    const tx = body.transaction;
-    expect(tx.kind).toBe("INCOME");
-    // stored as positive in DB
-    expect(Number(tx.amount_original_cents)).toBeGreaterThan(0);
-    expect(Number(tx.amount_original_cents)).toBe(596);
+    const tx = ((await res.json()) as { transaction: Record<string, unknown> })
+      .transaction;
+    expect(Number(tx.amount_original_cents)).toBe(-1000);
+    expect(Number(tx.amount_converted_cents)).toBeLessThan(0);
   });
 });
 
@@ -200,7 +228,7 @@ describe("PATCH /budgets/:budgetId/transactions/:txId", () => {
         currency_original: "USD",
       }),
     });
-    const body = await res.json() as { transaction: Record<string, unknown> };
+    const body = (await res.json()) as { transaction: Record<string, unknown> };
     createdTxId = body.transaction.id as string;
     oldFxRate = body.transaction.fx_rate as string;
   });
@@ -216,20 +244,35 @@ describe("PATCH /budgets/:budgetId/transactions/:txId", () => {
       },
     );
     expect(res.status).toBe(200);
-    const body = await res.json() as { transaction: Record<string, unknown> };
+    const body = (await res.json()) as { transaction: Record<string, unknown> };
     const tx = body.transaction;
     // GBP→EUR rate (1.10) must differ from USD→EUR rate (0.84)
     expect(tx.fx_rate).not.toBe(oldFxRate);
-    // …and the row then LOCKS to the budget currency. The foreign code the user
-    // typed is consumed to compute the converted amount and is not kept: once
-    // persisted the row reads as if it had always been in the budget currency,
-    // so the spendings grid never shows foreign labels beside converted amounts
-    // (edit-transaction.ts, UAT-Phase6-Test7 retest #5). This test predated that
-    // decision and still expected the GBP it sent back.
-    expect(tx.currency_original).toBe("EUR");
+    // R6 (user): the row keeps the currency it was paid in (it used to lock
+    // to the budget currency); the converted figure follows the rate.
+    expect(tx.currency_original).toBe("GBP");
     // amount_converted_cents recomputed
     expect(tx.amount_converted_cents).toBeDefined();
     expect(tx.fx_as_of).toBe("2026-05-11");
+  });
+
+  // R6 (user): Edit can turn a spending into a refund — the sign is kept.
+  it("PATCH with a negative amount makes it a refund", async () => {
+    const app = await buildApp(patchUserId, patchBudgetId);
+    const res = await app.request(
+      `/budgets/${patchBudgetId}/transactions/${createdTxId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount_original_cents: -700 }),
+      },
+    );
+    expect(res.status).toBe(200);
+    const tx = ((await res.json()) as { transaction: Record<string, unknown> })
+      .transaction;
+    expect(Number(tx.amount_original_cents)).toBe(-700);
+    expect(Number(tx.amount_converted_cents)).toBeLessThan(0);
+    expect(tx.kind).toBe("SPENDING");
   });
 
   it("PATCH with date change updates fx_as_of and recomputes", async () => {
@@ -243,7 +286,7 @@ describe("PATCH /budgets/:budgetId/transactions/:txId", () => {
       },
     );
     expect(res.status).toBe(200);
-    const body = await res.json() as { transaction: Record<string, unknown> };
+    const body = (await res.json()) as { transaction: Record<string, unknown> };
     const tx = body.transaction;
     // fx_as_of must equal the new date
     expect(tx.fx_as_of).toBe("2026-04-01");
@@ -257,7 +300,9 @@ describe("PATCH /budgets/:budgetId/transactions/:txId", () => {
     const getRes = await app.request(
       `/budgets/${patchBudgetId}/transactions/${createdTxId}`,
     );
-    const beforeBody = await getRes.json() as { transaction: Record<string, unknown> };
+    const beforeBody = (await getRes.json()) as {
+      transaction: Record<string, unknown>;
+    };
     const beforeFxRate = beforeBody.transaction.fx_rate;
     const beforeFxAsOf = beforeBody.transaction.fx_as_of;
 
@@ -270,7 +315,7 @@ describe("PATCH /budgets/:budgetId/transactions/:txId", () => {
       },
     );
     expect(res.status).toBe(200);
-    const body = await res.json() as { transaction: Record<string, unknown> };
+    const body = (await res.json()) as { transaction: Record<string, unknown> };
     const tx = body.transaction;
     // FX fields unchanged
     expect(tx.fx_rate).toBe(beforeFxRate);
@@ -310,11 +355,14 @@ describe("GET /budgets/:budgetId/transactions", () => {
       `/budgets/${listBudgetId}/transactions?month=2026-05`,
     );
     expect(res.status).toBe(200);
-    const body = await res.json() as { transactions: unknown[] };
+    const body = (await res.json()) as { transactions: unknown[] };
     expect(Array.isArray(body.transactions)).toBe(true);
     // Each confirmed txn has confirmed_at set
     for (const tx of body.transactions as Array<Record<string, unknown>>) {
       expect(tx.confirmed_at).toBeTruthy();
+      // R6 (user): the converted figure names its currency (the budget's),
+      // so a foreign row can show both.
+      expect(tx.currency_converted).toBe("EUR");
     }
   });
 
@@ -324,7 +372,7 @@ describe("GET /budgets/:budgetId/transactions", () => {
       `/budgets/${listBudgetId}/transactions?month=2026-05&confirmed=false`,
     );
     expect(res.status).toBe(200);
-    const body = await res.json() as { transactions: unknown[] };
+    const body = (await res.json()) as { transactions: unknown[] };
     expect(Array.isArray(body.transactions)).toBe(true);
     // All returned transactions are drafts (confirmed_at = null)
     for (const tx of body.transactions as Array<Record<string, unknown>>) {
@@ -344,8 +392,12 @@ describe("POST /budgets/:budgetId/transactions/:txId/confirm", () => {
     const txId = crypto.randomUUID();
     try {
       await client.query("BEGIN");
-      await client.query(`SELECT set_config('app.tenant_ids', '{"${f.budgetId}"}', true)`);
-      await client.query(`SELECT set_config('app.current_user_id', '${f.userId}', true)`);
+      await client.query(
+        `SELECT set_config('app.tenant_ids', '{"${f.budgetId}"}', true)`,
+      );
+      await client.query(
+        `SELECT set_config('app.current_user_id', '${f.userId}', true)`,
+      );
       await client.query(
         `INSERT INTO budgeting.expense_ledger
            (id, tenant_id, budget_id, category_id, transaction_date, amount_original_cents, currency_original,
@@ -367,7 +419,7 @@ describe("POST /budgets/:budgetId/transactions/:txId/confirm", () => {
       { method: "POST" },
     );
     expect(res.status).toBe(200);
-    const body = await res.json() as { transaction: Record<string, unknown> };
+    const body = (await res.json()) as { transaction: Record<string, unknown> };
     expect(body.transaction.confirmed_at).toBeTruthy();
   });
 });
@@ -387,7 +439,9 @@ describe("DELETE /budgets/:budgetId/transactions/:txId", () => {
         amount_original_cents: 300,
       }),
     });
-    const createBody = await createRes.json() as { transaction: Record<string, unknown> };
+    const createBody = (await createRes.json()) as {
+      transaction: Record<string, unknown>;
+    };
     const txId = createBody.transaction.id as string;
 
     // Delete
@@ -402,5 +456,154 @@ describe("DELETE /budgets/:budgetId/transactions/:txId", () => {
       `/budgets/${f.budgetId}/transactions/${txId}`,
     );
     expect(getRes.status).toBe(404);
+  });
+});
+
+// User (R6): changing an unconfirmed scheduled payment's date — today or
+// earlier just moves it (even to another month); a future date sets it aside
+// (out of the unconfirmed list, task resolved) until that date.
+describe("PATCH an unconfirmed scheduled payment's date", () => {
+  async function seedDraft(budgetId: string, userId: string, date: string) {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(
+        `SELECT set_config('app.tenant_ids', '{"${budgetId}"}', true)`,
+      );
+      await c.query(
+        `SELECT set_config('app.current_user_id', '${userId}', true)`,
+      );
+      const rule = (
+        await c.query(
+          `INSERT INTO budgeting.scheduled_payments
+             (id, tenant_id, amount, currency, cadence, cadence_anchor, active, next_due_date, note, actor_user_id)
+           VALUES (gen_random_uuid(), $1, '50', 'EUR', 'MONTHLY', 15, true, '2099-01-15', 'Rent', $2)
+           RETURNING id`,
+          [budgetId, userId],
+        )
+      ).rows[0].id as string;
+      const draft = (
+        await c.query(
+          `INSERT INTO budgeting.expense_ledger
+             (id, tenant_id, budget_id, transaction_date, amount_original_cents, currency_original,
+              amount_converted_cents, fx_rate, fx_as_of, scheduled_payment_id, confirmed_at, kind,
+              created_at, updated_at)
+           VALUES (gen_random_uuid(), $1, $1, $2::date, 5000, 'EUR', 5000, 1, $2::date, $3, NULL,
+                   'SPENDING', now(), now())
+           RETURNING id`,
+          [budgetId, date, rule],
+        )
+      ).rows[0].id as string;
+      await c.query(
+        `INSERT INTO budgeting.tasks (id, tenant_id, budget_id, kind, status, payload_json, created_at)
+         VALUES (gen_random_uuid(), $1, $1, 'CONFIRM_DRAFT', 'PENDING', $2::jsonb, now())`,
+        [
+          budgetId,
+          JSON.stringify({
+            draft_id: draft,
+            rule_name: "Rent",
+            amount_cents: "5000",
+            currency: "EUR",
+            transaction_date: date,
+            category_id: "",
+          }),
+        ],
+      );
+      await c.query("COMMIT");
+      return draft;
+    } finally {
+      c.release();
+      await pool.end();
+    }
+  }
+  async function state(budgetId: string, draftId: string) {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(
+        `SELECT set_config('app.tenant_ids', '{"${budgetId}"}', true)`,
+      );
+      const row = (
+        await c.query(
+          `SELECT transaction_date::text AS date, deferred_at IS NOT NULL AS deferred
+             FROM budgeting.expense_ledger WHERE id = $1`,
+          [draftId],
+        )
+      ).rows[0];
+      const task = (
+        await c.query(
+          `SELECT status, payload_json->>'transaction_date' AS date FROM budgeting.tasks
+            WHERE payload_json->>'draft_id' = $1`,
+          [draftId],
+        )
+      ).rows[0];
+      await c.query("COMMIT");
+      return { ...row, task };
+    } finally {
+      c.release();
+      await pool.end();
+    }
+  }
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const today = new Date();
+  const thisMonth = iso(today).slice(0, 7);
+  const future = iso(new Date(Date.now() + 40 * 86_400_000));
+  const lastMonth = iso(
+    new Date(today.getFullYear(), today.getMonth() - 1, 10, 12),
+  );
+
+  it("a future date sets it aside: gone from the unconfirmed list, task resolved", async () => {
+    const f = await createTestFixture("EUR");
+    const draft = await seedDraft(f.budgetId, f.userId, iso(today));
+    const app = await buildApp(f.userId, f.budgetId);
+    const res = await app.request(
+      `/budgets/${f.budgetId}/transactions/${draft}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: future }),
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(await state(f.budgetId, draft)).toMatchObject({
+      date: future,
+      deferred: true,
+      task: { status: "RESOLVED" },
+    });
+    const list = (await (
+      await app.request(
+        `/budgets/${f.budgetId}/transactions?month=${future.slice(0, 7)}&confirmed=false`,
+      )
+    ).json()) as { transactions: { id: string }[] };
+    expect(list.transactions.map((t) => t.id)).not.toContain(draft);
+  });
+
+  it("an earlier date just moves it — to another month too — and the task follows", async () => {
+    const f = await createTestFixture("EUR");
+    const draft = await seedDraft(f.budgetId, f.userId, iso(today));
+    const app = await buildApp(f.userId, f.budgetId);
+    const res = await app.request(
+      `/budgets/${f.budgetId}/transactions/${draft}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: lastMonth }),
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(await state(f.budgetId, draft)).toMatchObject({
+      date: lastMonth,
+      deferred: false,
+      task: { status: "PENDING", date: lastMonth },
+    });
+    const list = (await (
+      await app.request(
+        `/budgets/${f.budgetId}/transactions?month=${lastMonth.slice(0, 7)}&confirmed=false`,
+      )
+    ).json()) as { transactions: { id: string }[] };
+    expect(list.transactions.map((t) => t.id)).toContain(draft);
+    expect(thisMonth).not.toBe(lastMonth.slice(0, 7));
   });
 });

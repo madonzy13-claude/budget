@@ -8,9 +8,7 @@
  */
 import {
   TrendingUp,
-  BarChart2,
   Landmark,
-  Building2,
   Bitcoin,
   Gem,
   Home,
@@ -26,10 +24,7 @@ import { deriveUiType, type UiType } from "@/lib/investment-types";
 import type { HoldingDto } from "@/hooks/use-investments";
 
 export const UI_TYPE_ICON: Record<UiType, LucideIcon> = {
-  equity: TrendingUp,
-  etf: BarChart2,
-  etb: Landmark,
-  reit: Building2,
+  stocks: TrendingUp,
   crypto: Bitcoin,
   treasury_bond: Landmark,
   collectibles: Gem,
@@ -48,10 +43,7 @@ export const UI_TYPE_ICON: Record<UiType, LucideIcon> = {
  * family (the old map had three near-identical greens and two golds/greys).
  */
 export const UI_TYPE_COLOR: Record<UiType, string> = {
-  equity: "#3b82f6", // blue
-  etf: "#06b6d4", // cyan
-  etb: "#94a3b8", // light slate (bonds)
-  reit: "#a855f7", // purple
+  stocks: "#3b82f6", // blue
   crypto: "#f7931a", // bitcoin orange
   treasury_bond: "#10b981", // emerald
   collectibles: "#ec4899", // magenta/pink

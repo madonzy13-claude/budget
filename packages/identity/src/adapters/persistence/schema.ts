@@ -90,6 +90,8 @@ export const sessions = identity.table(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
+    // better-auth 1.7 organization plugin field (0103); the app never reads it.
+    activeOrganizationId: text("active_organization_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

@@ -93,31 +93,26 @@ function buildDeps(
   return { deps, updates };
 }
 
-describe("edit-transaction currency lock (UAT-Phase6-Test7 retest #5)", () => {
-  test("EUR budget + user changes currency USD → PLN: row LOCKS to EUR", async () => {
-    // Budget is EUR. Existing transaction is in USD. User edits the
-    // currency to PLN. Expected: the row becomes EUR with the converted
-    // amount.
+describe("edit-transaction keeps the chosen currency (R6, user — was the UAT-Phase6-Test7 lock)", () => {
+  test("EUR budget + user changes currency USD → PLN: row stays PLN, converted at the date's rate", async () => {
+    // R6 (user): a spending in another currency shows in that currency with
+    // the budget-currency figure underneath — so the row keeps PLN and its
+    // own amount, and the converted figure + rate follow the date.
     const { deps, updates } = buildDeps("EUR", "0.21", "USD");
     const input: EditTransactionInput = {
       transactionId: TX_ID,
       tenantId: TENANT_ID,
       actorUserId: USER_ID,
-      fields: { currencyOriginal: "PLN" }, // user-chosen new currency
+      fields: { currencyOriginal: "PLN" },
     };
     const result = await editTransaction(deps)(input);
     expect(result.isOk()).toBe(true);
     expect(updates.length).toBe(1);
     const patch = updates[0]!;
-    // The row's persisted currency is the budget currency, NOT the
-    // user-chosen PLN. Amount is the converted EUR value.
-    expect(patch.currencyOriginal).toBe("EUR");
-    // 10000 cents (USD) * 0.21 (PLN per USD) is the rate the stub
-    // returns; we re-use that rate for both legs in this stub setup,
-    // so the converted amount is `round(10000 * 0.21) = 2100`.
-    expect(patch.amountOriginalCents).toBe("2100");
+    expect(patch.currencyOriginal).toBe("PLN");
+    expect(patch.amountOriginalCents).toBe("10000");
     expect(patch.amountConvertedCents).toBe("2100");
-    expect(patch.fxRate).toBe("1");
+    expect(patch.fxRate).toBe("0.21");
   });
 
   test("EUR budget + user picks EUR (same as budget): rate=1, no conversion", async () => {

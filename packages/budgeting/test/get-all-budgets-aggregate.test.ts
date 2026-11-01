@@ -319,3 +319,54 @@ describe("getAllBudgetsAggregate — forecast figures for the spend card", () =>
     expect(out.forecast_free_to_move_cents).toBe("0");
   });
 });
+
+// R6 (user): this month's spending happened on its own days — spent and
+// overspent convert at those days' rates (weighted by what was paid each
+// day); "left" is money still held, today's rate.
+describe("getAllBudgetsAggregate — payment-date rates", () => {
+  it("spent and overspent use each payment day's rate; left uses today's", async () => {
+    const out = await getAllBudgetsAggregate({
+      ...deps,
+      getOverviewCardsForTenant: async () =>
+        ok(
+          cards({
+            overspent: {
+              count: 1,
+              currency: "EUR",
+              total_cents: 10000n,
+              top: [
+                { category_id: "c", name: "Food", over_amount_cents: 10000n },
+              ],
+            },
+          }),
+        ),
+      spendByDay: async (_t: string, _b: string, from: string, to: string) => {
+        expect([from, to]).toEqual(["2026-07-01", "2026-08-01"]);
+        return [
+          { date: "2026-07-02", cents: 30000n },
+          { date: "2026-07-10", cents: 20000n },
+        ];
+      },
+      fxProvider: {
+        rateAsOf: async (_f: string, _t: string, d: Date) => ({
+          rate:
+            d.toISOString().slice(0, 10) === "2026-07-02"
+              ? "1.00"
+              : d.toISOString().slice(0, 10) === "2026-07-10"
+                ? "1.20"
+                : "1.10",
+          provider: "test",
+          isStale: false,
+        }),
+      },
+    } as any)("u1");
+    const row = out.budgets[0]!;
+    // 300 × 1.00 + 200 × 1.20 = 540 (today's 1.10 would say 550)
+    expect(row.spent_month_cents).toBe("54000");
+    // the month's weighted rate 1.08: 100 → 108
+    expect(row.overspent_total_cents).toBe("10800");
+    expect(row.overspent_top_cents).toBe("10800");
+    // left is still held money: today's 1.10
+    expect(row.left_month_cents).toBe("66000");
+  });
+});

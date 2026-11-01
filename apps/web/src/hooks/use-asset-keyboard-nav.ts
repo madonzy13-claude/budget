@@ -132,8 +132,12 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
         const next = nextNavIndex(curIdx, list.length, dir);
         setHighlight(next >= 0 ? list[next]! : null);
       };
+      // The row itself may be the control (R6-7: a group header row toggles).
       const clickIn = (row: HTMLElement, selector: string) =>
-        row.querySelector<HTMLElement>(selector)?.click();
+        (row.matches(selector)
+          ? row
+          : row.querySelector<HTMLElement>(selector)
+        )?.click();
       const activateField = (row: HTMLElement, idx: number) => {
         const field = NAV_FIELDS[idx];
         const cell = row.querySelector<HTMLElement>(

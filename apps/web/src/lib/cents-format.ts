@@ -229,3 +229,24 @@ export function centsToRounded(
     },
   );
 }
+
+/** Bare amount (no currency) that drops its cents from 100 units up — the
+ *  same line as centsToPlAmount (round 6, user: big amounts' cents only take
+ *  space). Below it, centsToBare. */
+export function centsToShort(cents: string | bigint, locale = "en"): string {
+  let big: bigint;
+  try {
+    big = typeof cents === "string" ? BigInt(cents) : cents;
+  } catch {
+    big = 0n;
+  }
+  const neg = big < 0n;
+  const abs = neg ? -big : big;
+  if (abs < PL_CENTS_THRESHOLD) return centsToBare(big, locale);
+  let units = abs / 100n;
+  if (abs % 100n >= 50n) units += 1n;
+  const formatted = new Intl.NumberFormat(locale, {
+    maximumFractionDigits: 0,
+  }).format(Number(units));
+  return neg ? `-${formatted}` : formatted;
+}

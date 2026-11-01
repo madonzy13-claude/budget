@@ -82,6 +82,18 @@ export interface GetOverviewWealthDeps {
     from: string;
     to: string;
   }) => Promise<Map<string, bigint> | null>;
+  /** Phase 13 hybrid (D-08/D-19): contributions from investment history. From
+   *  `firstDate` onward, net points subtract `at(pointDate)` (flows converted at
+   *  that date's rate) instead of the snapshot's stored cost. `at` → null (no
+   *  historic FX) or a rejecting dep falls back to the stored cost. */
+  contributionsHistory?: (input: {
+    tenantId: string;
+    budgetId: string;
+    budgetCurrency: string;
+  }) => Promise<{
+    firstDate: string | null;
+    at(date: string): Promise<bigint | null>;
+  }>;
 }
 
 export interface GetOverviewWealthInput {
@@ -118,6 +130,9 @@ export interface OverviewWealthDTO {
    *  null when the budget has no Investments category. Investments view only.
    *  When net=true, `series`/`grow`/`dynamics` are already reduced by contributions. */
   invested_cents: string | null;
+  /** R6 (user): `invested_cents` per month ('YYYY-MM'), so another currency
+   *  converts each month at its own rate. */
+  invested_by_month?: { month: string; cents: string }[] | null;
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -229,39 +244,78 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
       // 0 unless net=true. Cost is captured per snapshot so it tracks over time
       // with NO creation-date cliff; a null cost (legacy, un-backfilled row) leaves
       // that bucket unadjusted.
-      const costOf = (r: {
-        investment_cost_basis_cents: bigint | null;
-      }): bigint =>
-        input.net && view === "investments"
-          ? (r.investment_cost_basis_cents ?? 0n)
-          : 0n;
-      const pickAdj = (r: {
-        capitalization_cents: bigint;
-        investment_value_cents: bigint;
-        investment_cost_basis_cents: bigint | null;
-      }) => pick(r) - costOf(r);
+      const net = !!input.net && view === "investments";
 
-      const openingVal = opening ? pickAdj(opening) : null;
-
-      // VALUE series aggregated at the value bucket (last-in-bucket wins).
-      const byValue = new Map<string, bigint>();
-      for (const r of rows)
-        byValue.set(bucketLabel(r.captured_at, hours), pickAdj(r));
-
-      // Live current point (D-04): overrides the current value bucket so the
-      // rightmost point reflects the last few hours. Only when `now` is in range.
       const live = await deps.computeWealthNow({
         budgetId: input.budgetId,
         tenantId: input.tenantId,
         defaultCurrency: ccy,
         now,
       });
+
+      // D-08 hybrid: on/after the first history entry, contributions come from
+      // history (resolved up-front per distinct UTC date); before it — or when
+      // the history read/FX fails — the snapshot's stored cost stays.
+      const dayOf = (d: Date) => d.toISOString().slice(0, 10);
+      const historyCost = new Map<string, bigint | null>();
+      let boundary: string | null = null;
+      if (net && deps.contributionsHistory) {
+        try {
+          const reader = await deps.contributionsHistory({
+            tenantId: input.tenantId,
+            budgetId: input.budgetId,
+            budgetCurrency: ccy,
+          });
+          boundary = reader.firstDate;
+          if (boundary !== null) {
+            const dates = new Set(rows.map((r) => dayOf(r.captured_at)));
+            if (opening) dates.add(dayOf(opening.captured_at));
+            dates.add(dayOf(now));
+            for (const d of dates)
+              if (d >= boundary) historyCost.set(d, await reader.at(d));
+          }
+        } catch {
+          console.warn("overview_wealth.contributions_history_failed");
+          boundary = null;
+          historyCost.clear();
+        }
+      }
+
+      const costOf = (
+        r: { investment_cost_basis_cents: bigint | null },
+        at: Date,
+      ): bigint => {
+        if (!net) return 0n;
+        const h = historyCost.get(dayOf(at));
+        return h ?? r.investment_cost_basis_cents ?? 0n;
+      };
+      const pickAdj = (
+        r: {
+          capitalization_cents: bigint;
+          investment_value_cents: bigint;
+          investment_cost_basis_cents: bigint | null;
+        },
+        at: Date,
+      ) => pick(r) - costOf(r, at);
+
+      const openingVal = opening ? pickAdj(opening, opening.captured_at) : null;
+
+      // VALUE series aggregated at the value bucket (last-in-bucket wins).
+      const byValue = new Map<string, bigint>();
+      for (const r of rows)
+        byValue.set(
+          bucketLabel(r.captured_at, hours),
+          pickAdj(r, r.captured_at),
+        );
+
+      // Live current point (D-04): overrides the current value bucket so the
+      // rightmost point reflects the last few hours. Only when `now` is in range.
       const liveLabel = bucketLabel(now, hours);
       const fromLabel = bucketLabel(new Date(`${input.from}T00:00:00Z`), hours);
       // to is an inclusive day → compare against the LAST bucket of that day.
       const toLabel = bucketLabel(new Date(`${input.to}T23:59:59Z`), hours);
       const liveInRange = liveLabel >= fromLabel && liveLabel <= toLabel;
-      if (liveInRange) byValue.set(liveLabel, pickAdj(live));
+      if (liveInRange) byValue.set(liveLabel, pickAdj(live, now));
 
       // grow/loss (D-15) from the DATA points only (first vs last real value) — not
       // the zero-fill, so leading empty buckets don't turn grow into "0 → net worth".
@@ -322,8 +376,11 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
         (a, b) => a.captured_at.getTime() - b.captured_at.getTime(),
       );
       for (const r of chronoRows)
-        pushDyn(dynLabelOf(r.captured_at, dynBucket), pickAdj(r));
-      if (liveInRange) pushDyn(dynLabelOf(now, dynBucket), pickAdj(live));
+        pushDyn(
+          dynLabelOf(r.captured_at, dynBucket),
+          pickAdj(r, r.captured_at),
+        );
+      if (liveInRange) pushDyn(dynLabelOf(now, dynBucket), pickAdj(live, now));
       const dynamics = dynOrder.map((label) => {
         const first = dynFirst.get(label)!;
         const last = dynLast.get(label)!;
@@ -375,6 +432,12 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
         dynamics,
         pie,
         invested_cents,
+        invested_by_month: contribMap
+          ? [...contribMap].map(([month, cents]) => ({
+              month,
+              cents: cents.toString(),
+            }))
+          : null,
       });
     } catch (e) {
       return err(e as Error);

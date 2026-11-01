@@ -209,6 +209,9 @@
        (= the old color-mix(card,#000 22%)); flips LIGHTER than the card in the
        light scope so sub-items read as a deeper level either way. */
     --surface-nested-dark: #171b20;
+    /* L3 ledger strip — clearly below the nested asset card; spendings
+       to-confirm look (13.1 round-2 gap 4). */
+    --surface-ledger-dark: #0f1216;
     /* Surface the CONFIRM_DRAFT arrival flash lifts a draft row to. A separate
        token because the two themes need opposite DIRECTIONS: dark lifts to the
        hover step (lighter), while light's greys are packed so tightly that the
@@ -282,6 +285,8 @@
     --surface-elevated-dark: #e2e6ec;
     /* Nested investment rows read LIGHTER than the group/card in light mode. */
     --surface-nested-dark: #fafafa;
+    /* Ledger strip: already clearly darker than the light nested row. */
+    --surface-ledger-dark: var(--surface-sunken-dark);
     /* Lift the flashed row UP off the sunken lane rather than down: elevated
        is only 5 units from sunken here, which shipped invisible. */
     --draft-flash-surface: var(--surface-nested-dark);
@@ -981,28 +986,6 @@ html.is-server-down
    normal author declarations in the cascade, inline style included. Holding
    the lift through the first third gives the eye time to arrive before it
    settles back. */
-/* "This amount can't be quick-edited" (user, 261023): a short left-right
-   shake on the tapped number. Reduced motion skips it. */
-@keyframes amount-shake {
-  25% {
-    transform: translateX(-3px);
-  }
-  50% {
-    transform: translateX(3px);
-  }
-  75% {
-    transform: translateX(-2px);
-  }
-}
-[data-shake] {
-  animation: amount-shake 0.32s ease-in-out;
-}
-@media (prefers-reduced-motion: reduce) {
-  [data-shake] {
-    animation: none;
-  }
-}
-
 @keyframes draft-flash {
   0%,
   35% {
@@ -1056,4 +1039,99 @@ main[data-shell-scroll]:has([data-lock-page-scroll]) {
   min-height: 0;
   overflow-y: hidden;
   overscroll-behavior-y: none;
+}
+
+/* FitLine (round-4 gap 17): an overflowing one-line caption scrolls to its end
+   and back — pause, glide, pause, return. */
+@keyframes fit-line-scroll {
+  0%,
+  20% {
+    transform: translateX(0);
+  }
+  50%,
+  70% {
+    transform: translateX(var(--fit-shift));
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+.fit-line-scroll {
+  animation: fit-line-scroll 8s ease-in-out infinite;
+}
+/* Soft edges instead of a hard cut while it scrolls — only on the side with
+   hidden text (round-5 gap 12): at rest on the start the left edge is sharp,
+   at rest on the end the right edge is, so the first and last characters show.
+   The fade widths animate in step with fit-line-scroll (same 8s timeline). */
+@property --fit-fl {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --fit-fr {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 10px;
+}
+@keyframes fit-line-fade {
+  0%,
+  20% {
+    --fit-fl: 0px;
+    --fit-fr: 10px;
+  }
+  50%,
+  70% {
+    --fit-fl: 10px;
+    --fit-fr: 0px;
+  }
+  100% {
+    --fit-fl: 0px;
+    --fit-fr: 10px;
+  }
+}
+.fit-line-fade {
+  animation: fit-line-fade 8s ease-in-out infinite;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--fit-fl),
+    #000 calc(100% - var(--fit-fr)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--fit-fl),
+    #000 calc(100% - var(--fit-fr)),
+    transparent 100%
+  );
+}
+@media (prefers-reduced-motion: reduce) {
+  .fit-line-scroll,
+  .fit-line-fade {
+    animation: none;
+  }
+}
+
+/* I1 (user): a quiet dotted line under everything the user can tap and type
+   on the assets page (wallet names, currencies, amounts; typed asset
+   amounts). Form controls don't inherit text-decoration: the picker's trigger
+   gets it explicitly, and a native <select> (where iOS never paints one) gets
+   it through an invisible copy of its code laid over it. */
+.editable-dots,
+.editable-dots button,
+.editable-dots [data-dots-overlay] {
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  /* R6 (user): small and faint — a hint, not a line. */
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--muted-foreground) 55%,
+    transparent
+  );
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+}
+.editable-dots [data-dots-overlay] {
+  display: flex;
 }

@@ -372,3 +372,27 @@ Then(
     );
   },
 );
+
+// R6 (user): opening then closing the tasks strip on Spendings must hand the
+// space back — the grid ends at the same place it did before.
+Then(
+  "opening and closing the spendings tasks gives the grid its height back",
+  async ({ page }) => {
+    const grid = page.getByTestId("spendings-grid");
+    await expect(grid).toBeVisible({ timeout: 15000 });
+    const bottom = async () =>
+      Math.round(
+        (await grid.boundingBox())!.y + (await grid.boundingBox())!.height,
+      );
+    const before = await bottom();
+    const header = page
+      .getByTestId("pill-task-slider")
+      .getByRole("button")
+      .first();
+    await header.click();
+    await expect(page.getByTestId("pill-task-slider-rows")).toBeVisible();
+    await header.click();
+    await expect(page.getByTestId("pill-task-slider-rows")).toHaveCount(0);
+    await expect.poll(bottom, { timeout: 3000 }).toBe(before);
+  },
+);

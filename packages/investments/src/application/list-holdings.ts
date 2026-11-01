@@ -3,12 +3,14 @@ import { Temporal } from "temporal-polyfill";
 import { ok, err, type Result } from "neverthrow";
 import type { FxProvider } from "@budget/shared-kernel";
 import type { HoldingRepo } from "../ports/holding-repo";
+import type { HistoryRepo, StoredEntry } from "../ports/history-repo";
+import { replayInCurrency } from "../domain/currency-pl";
 import {
   holdingValue,
   profitLossPct,
   profitLossCents,
   portfolioWeights,
-  groupWeights,
+  typeWeights,
   type RateMap,
 } from "../domain/portfolio-metrics";
 import {
@@ -27,6 +29,9 @@ import type { EnrichedHoldingDto } from "../contracts/api";
 export function listHoldings(deps: {
   holdingRepo: HoldingRepo;
   fxProvider: FxProvider;
+  /** R6 (user): with the ledger, cost converts at each entry's own date
+   *  rate; without it (or an asset with no ledger), today's rate. */
+  historyRepo?: HistoryRepo;
 }) {
   return async (input: {
     tenantId: string;
@@ -36,18 +41,31 @@ export function listHoldings(deps: {
     /** Viewer's IANA timezone — deposits accrue by the viewer's calendar day, so
      *  "today" rolls at their local midnight (not UTC). Defaults to UTC. */
     timezone?: string;
+    /** R6 (user): which assets to return — the visible ones (default), only
+     *  the hidden ones (true), or both ("all", for totals). Hidden assets are
+     *  still owned: every share is of the whole portfolio, hidden included. */
+    hidden?: boolean | "all";
   }): Promise<
     Result<
-      { holdings: EnrichedHoldingDto[]; groupWeights: Record<string, number> },
+      {
+        holdings: EnrichedHoldingDto[];
+        typeWeights: Record<string, number>;
+      },
       Error
     >
   > => {
     try {
+      // Load every asset: shares (and anything summed) are of the whole
+      // portfolio; the visibility filter applies to what is returned.
       const holdings = await deps.holdingRepo.listForBudget(
         input.tenantId,
         input.budgetId,
         input.actorUserId,
+        { hidden: "all" },
       );
+      const wanted = (h: { archivedAt: Date | null }) =>
+        input.hidden === "all" ||
+        (h.archivedAt != null) === (input.hidden === true);
       const budgetCcy = input.budgetCurrency;
       const asOf = new Date();
 
@@ -96,6 +114,76 @@ export function listHoldings(deps: {
         }
       };
 
+      // R6 (user): what was paid is converted at the rate of the day it was
+      // paid — never today's. Each asset's ledger replays into the target
+      // currency (domain/currency-pl); null = no ledger / a rate missing, and
+      // the caller falls back to today's rate.
+      // ponytail: one ledger read per asset; a budget-wide read if it shows.
+      const ledgers = new Map<string, StoredEntry[]>();
+      if (deps.historyRepo)
+        await Promise.all(
+          holdings.map(async (h) =>
+            ledgers.set(
+              h.id,
+              await deps.historyRepo!.listForHolding(
+                input.tenantId,
+                input.actorUserId,
+                h.id,
+              ),
+            ),
+          ),
+        );
+      const dayRates = new Map<string, Promise<number>>();
+      const dayRate = (from: string, to: string, date: string) => {
+        const k = `${from}>${to}@${date}`;
+        let p = dayRates.get(k);
+        if (!p) {
+          p = deps.fxProvider
+            .rateAsOf(from as never, to as never, new Date(`${date}T12:00:00Z`))
+            .then((r) => Number(r.rate));
+          dayRates.set(k, p);
+        }
+        return p;
+      };
+      const heldCostIn = async (
+        id: string,
+        target: string,
+        /** The stored cost (buy currency) the ledger must account for. */
+        storedCents: Big,
+      ): Promise<Big | null> => {
+        const entries = ledgers.get(id);
+        if (!entries?.some((e) => e.costDeltaCents !== 0n)) return null;
+        // Only a ledger that explains the stored cost (±1%) — an asset whose
+        // early history was never booked keeps today's-rate conversion.
+        const booked = entries.reduce((a, e) => a + e.costDeltaCents, 0n);
+        if (
+          new Big(booked.toString())
+            .minus(storedCents)
+            .abs()
+            .gt(storedCents.abs().times(0.01).plus(100))
+        )
+          return null;
+        try {
+          const rates = new Map<string, number>();
+          await Promise.all(
+            entries.map(async (e) => {
+              const ccy = e.amountCurrency ?? e.costCurrency;
+              if (ccy && ccy !== target)
+                rates.set(
+                  `${ccy}|${e.effectiveDate}`,
+                  await dayRate(ccy, target, e.effectiveDate),
+                );
+            }),
+          );
+          const r = replayInCurrency(entries, (ccy, date) =>
+            ccy === target ? 1 : rates.get(`${ccy}|${date}`)!,
+          );
+          return new Big(r.costCents.toString());
+        } catch {
+          return null;
+        }
+      };
+
       // Re-denominate the live price into the currency the user chose for the
       // holding when they differ (metals: the cache price is USD but the user
       // valued the coins in PLN). Mutates the price into displayCurrency so all
@@ -130,10 +218,11 @@ export function listHoldings(deps: {
       for (const c of valueCcys) rateMap[c] = await getRate(c, budgetCcy);
 
       const weights = portfolioWeights(holdings, rateMap, budgetCcy);
-      const gWeights = groupWeights(holdings, rateMap, budgetCcy);
+      const tWeights = typeWeights(holdings, rateMap, budgetCcy);
 
       const enriched: EnrichedHoldingDto[] = [];
       for (const h of holdings) {
+        if (!wanted(h)) continue;
         const value = holdingValue(h); // cents, in the holding's value currency
         const valueCcy = h.currentPriceCurrency ?? h.buyCurrency ?? budgetCcy;
         const toBudget = rateMap[valueCcy] ?? "1";
@@ -152,7 +241,10 @@ export function listHoldings(deps: {
           h.buyPriceCents === null
             ? "1"
             : (rateMap[buyCcy] ?? (await getRate(buyCcy, budgetCcy)));
-        const costInBudget = costRaw.times(new Big(buyToBudget));
+        const costInBudget =
+          (buyCcy !== budgetCcy && h.buyPriceCents !== null
+            ? await heldCostIn(h.id, budgetCcy, costRaw)
+            : null) ?? costRaw.times(new Big(buyToBudget));
 
         // P/L converts current -> buy currency only when they differ.
         const plRate =
@@ -162,6 +254,27 @@ export function listHoldings(deps: {
             ? await getRate(h.currentPriceCurrency, h.buyCurrency)
             : "1";
 
+        // R6 (user): the same figures in the shown (value) currency.
+        const toShown =
+          h.buyPriceCents === null || buyCcy === valueCcy
+            ? "1"
+            : await getRate(buyCcy, valueCcy);
+        const heldShown =
+          h.buyPriceCents !== null && buyCcy !== valueCcy
+            ? await heldCostIn(h.id, valueCcy, costRaw)
+            : null;
+        const qtyBig = new Big(h.quantity.toString());
+        const avgShown =
+          h.buyPriceCents === null
+            ? null
+            : heldShown !== null && qtyBig.gt(0)
+              ? heldShown.div(qtyBig)
+              : new Big(h.buyPriceCents.toString()).times(new Big(toShown));
+        const plShown =
+          h.isCash() || avgShown === null || h.currentPriceCents === null
+            ? null
+            : value.minus(avgShown.times(new Big(h.quantity.toString())));
+
         enriched.push({
           id: h.id,
           name: h.name,
@@ -169,7 +282,6 @@ export function listHoldings(deps: {
           uiType: h.uiType,
           icon: h.icon,
           color: h.color,
-          group: h.group,
           instrumentId: h.instrumentId,
           metal: h.metal,
           metalKind: h.metalKind,
@@ -191,6 +303,7 @@ export function listHoldings(deps: {
               ? null
               : h.currentPriceCents.toString(),
           currentPriceCurrency: h.currentPriceCurrency,
+          valueUpdatedAt: h.valueUpdatedAt?.toISOString() ?? null,
           priceFetchedAt: h.priceFetchedAt
             ? h.priceFetchedAt.toISOString()
             : null,
@@ -199,6 +312,10 @@ export function listHoldings(deps: {
           costInBudgetCents: costInBudget.toFixed(0),
           profitLossPct: profitLossPct(h, plRate),
           profitLossCents: profitLossCents(h, plRate),
+          avgPriceDisplayCents:
+            avgShown === null ? null : avgShown.round(0, 2).toFixed(0),
+          profitLossDisplayCents:
+            plShown === null ? null : plShown.round(0, 2).toFixed(0),
           weightPct: weights.get(h.id) ?? 0,
           sortOrder: h.sortOrder,
           createdAt: h.createdAt.toISOString(),
@@ -211,7 +328,7 @@ export function listHoldings(deps: {
 
       return ok({
         holdings: enriched,
-        groupWeights: Object.fromEntries(gWeights),
+        typeWeights: Object.fromEntries(tWeights),
       });
     } catch (e) {
       return err(e as Error);

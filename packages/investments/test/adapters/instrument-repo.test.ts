@@ -78,6 +78,14 @@ beforeAll(async () => {
     quoteCurrency: "USD",
     rank: 5,
   });
+  // Phase 13 (D-10): an ETF next to the equity, for the combined stocks search.
+  await repo.upsert({
+    symbol: "QQZZVO",
+    displayName: "Qqzz Vanguard ETF",
+    provider: TEST_PROVIDER,
+    assetClass: "etf",
+    quoteCurrency: "USD",
+  });
   // The non-US, un-priceable `manual:<MIC>` row this fixture used to seed can no
   // longer be written at all — see the constraint test below.
 });
@@ -88,6 +96,21 @@ afterAll(async () => {
     [TEST_PROVIDER],
   );
   await pool.end();
+});
+
+describe("Stocks search returns stocks and ETFs (Phase 13, D-10)", () => {
+  it("type=stocks finds the equity and the ETF, never crypto", async () => {
+    const r = (await repo.search("Qqzz", 50, "stocks")).map((i) => i.symbol);
+    expect(r).toContain("QQZZAP");
+    expect(r).toContain("QQZZVO");
+    expect(r).not.toContain("QQZZBT");
+  });
+
+  it("type=etf still returns only ETFs", async () => {
+    const r = (await repo.search("Qqzz", 50, "etf")).map((i) => i.symbol);
+    expect(r).toContain("QQZZVO");
+    expect(r).not.toContain("QQZZAP");
+  });
 });
 
 describe("DrizzleInstrumentRepo.search (local trigram, INV-07)", () => {

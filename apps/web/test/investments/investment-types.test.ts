@@ -7,17 +7,19 @@
  * budget's currency, converted via FX — same as crypto/metals).
  */
 import { describe, it, expect } from "vitest";
-import { unitPriceCents,
+import {
+  unitPriceCents,
   usesUserChosenCurrency,
   UI_TYPE_META,
   UI_TYPE_ORDER,
   deriveUiType,
+  holdingShape,
+  isQtyUiType,
 } from "@/lib/investment-types";
 
 describe("usesUserChosenCurrency", () => {
-  it("equity + ETF are user-currency (FX-converted), like crypto", () => {
-    expect(usesUserChosenCurrency("equity")).toBe(true);
-    expect(usesUserChosenCurrency("etf")).toBe(true);
+  it("stocks & ETFs are user-currency (FX-converted), like crypto", () => {
+    expect(usesUserChosenCurrency("stocks")).toBe(true);
     expect(usesUserChosenCurrency("crypto")).toBe(true);
   });
 
@@ -76,5 +78,58 @@ describe("unitPriceCents", () => {
   it("falls back to the total when the quantity is zero or unreadable", () => {
     expect(unitPriceCents(5000, "0")).toBe("5000");
     expect(unitPriceCents(5000, "")).toBe("5000");
+  });
+});
+
+// Phase 13 (D-10/D-11): equity + ETF are one "stocks" type; legacy ui types map.
+describe("stocks type merge", () => {
+  it("offers 11 investment types, stocks first", () => {
+    expect(UI_TYPE_ORDER).toEqual([
+      "stocks",
+      "crypto",
+      "treasury_bond",
+      "collectibles",
+      "real_estate",
+      "precious_metals",
+      "cash",
+      "savings",
+      "deposit",
+      "broker",
+      "other",
+    ]);
+  });
+
+  it("stocks is a tracked equities type searching stocks + ETFs", () => {
+    expect(UI_TYPE_META.stocks).toEqual({
+      holdingType: "equities",
+      behavior: "tracked",
+      assetClass: "stocks",
+    });
+  });
+
+  it("legacy ui types resolve to stocks / treasury bonds", () => {
+    expect(deriveUiType("equity", "equities", false)).toBe("stocks");
+    expect(deriveUiType("etf", "etf", false)).toBe("stocks");
+    expect(deriveUiType("reit", "reit", false)).toBe("stocks");
+    expect(deriveUiType("etb", "bond", false)).toBe("treasury_bond");
+    expect(deriveUiType(null, "equities", false)).toBe("stocks");
+    expect(deriveUiType(null, "etf", false)).toBe("stocks");
+    expect(deriveUiType(null, "reit", false)).toBe("stocks");
+    expect(deriveUiType(null, "bond", false)).toBe("treasury_bond");
+  });
+});
+
+// Round-6 gap 1 (user): collectibles are counted — units × price.
+describe("Collectibles shape", () => {
+  it("a collectible is a quantity asset, even at quantity 1", () => {
+    expect(isQtyUiType("collectibles")).toBe(true);
+    expect(
+      holdingShape({
+        holdingType: "other",
+        uiType: "collectibles",
+        isCustom: true,
+        quantity: "1",
+      }),
+    ).toBe("quantity");
   });
 });

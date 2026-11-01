@@ -1,4 +1,4 @@
-import { type Page, type Locator } from "@playwright/test";
+import { expect, type Page, type Locator } from "@playwright/test";
 
 /**
  * Page Object for the BDP Spendings tab (Phase 08 offline/sync features).
@@ -46,15 +46,52 @@ export class SpendingsPo {
     return this.page.getByTestId(`txn-row-${amountCents}`);
   }
 
-
-
-
-
-
-
   /** Draft row for a scheduled rule by rule name (lower-cased testid). */
   draftRow(ruleName: string): Locator {
     return this.page.getByTestId(`draft-row-${ruleName.toLowerCase()}`);
+  }
+
+  /** User (R6): change an unconfirmed payment's date through its Edit. */
+  async moveDraft(ruleName: string, date: string): Promise<void> {
+    const row = this.draftRow(ruleName);
+    const edit = row.getByTestId("draft-action-edit");
+    // Hover reveals the actions on desktop; a click there can land on
+    // Confirm (see the confirm step). A phone taps to reveal.
+    if ((this.page.viewportSize()?.width ?? 1280) >= 640) await row.hover();
+    else if (!(await edit.isVisible().catch(() => false))) await row.click();
+    await edit.click();
+    const sheet = this.page.getByTestId("txn-slider-content");
+    await sheet.locator("#txn-slider-date").fill(date);
+    const saved = this.page.waitForResponse(
+      (r) =>
+        r.request().method() === "PATCH" && /\/transactions\//.test(r.url()),
+      { timeout: 15000 },
+    );
+    await sheet.locator('button[type="submit"]').click();
+    if (!(await saved).ok()) throw new Error("date change failed");
+  }
+
+  /** A confirmed spending's row action. A mouse reveals the actions on hover
+   *  (a click there starts the inline edit); a touch screen taps. */
+  async revealTxnAction(
+    amountCents: number,
+    action: "edit" | "delete",
+  ): Promise<Locator> {
+    const row = this.transactionRowByAmount(amountCents);
+    const btn = row.getByTestId(`txn-action-${action}`);
+    if (await this.page.evaluate(() => matchMedia("(hover: hover)").matches))
+      await row.hover();
+    else if (!(await btn.isVisible().catch(() => false))) await row.click();
+    return btn;
+  }
+
+  /** R6: open a confirmed spending's Edit form (hover on desktop, tap on a
+   *  phone to reveal its actions). */
+  async openTxnEdit(amountCents: number): Promise<Locator> {
+    await (await this.revealTxnAction(amountCents, "edit")).click();
+    const sheet = this.page.getByTestId("txn-slider-content");
+    await expect(sheet).toBeVisible();
+    return sheet;
   }
 
   /** The Confirm action button inside a draft row. */

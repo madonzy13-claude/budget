@@ -6,6 +6,7 @@
  * D-PH4-INT4: double-click on any cell is NO-OP (explicitly preventDefault).
  * D-PH4-INT1: Single click on name cell reveals [Pen] — no hover.
  */
+import { useLayoutEffect, useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { Pencil, Trash2, Undo2 } from "lucide-react";
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
@@ -54,6 +55,11 @@ export interface ColumnHeaderProps {
   onUnarchive?: (categoryId: string) => void;
 }
 
+/** A real hover (desktop) — a phone's tap must only toggle. */
+const canHover = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia?.("(hover: hover)").matches === true;
+
 export function ColumnHeader({
   category,
   summary,
@@ -68,6 +74,19 @@ export function ColumnHeader({
   const t = useTranslations("grid.header");
   const locale = useLocale();
   const { revealed, setRevealed, ref } = useRevealActions();
+  // R6 (user): the usage chip swaps to the spent total — tap toggles, a mouse
+  // shows it while over the chip. Local state, so a reload is back to %.
+  const [showSpent, setShowSpent] = useState(false);
+  const spent = BigInt(summary.spentCents);
+  const spentWhole = centsToBare(((spent + 50n) / 100n) * 100n, locale);
+  // With a mouse the pen shows on hover LEFT of the chip, which stays put and
+  // hoverable (a reserved slot truncated names; sliding the chip aside moved
+  // it out from under the pointer).
+  const chipRef = useRef<HTMLSpanElement>(null);
+  const [chipW, setChipW] = useState(0);
+  useLayoutEffect(() => {
+    setChipW(chipRef.current?.offsetWidth ?? 0);
+  }, [showSpent, spentWhole, revealed]);
 
   const overspentCents = BigInt(summary.overspentCents);
   const reserveUsedCents = BigInt(summary.reserveUsedCents);
@@ -121,8 +140,10 @@ export function ColumnHeader({
   // (revealed) or desktop hover anywhere in the header (group-hover — the
   // `group` lives on the header ROOT, so all 5 rows reveal, 260611-vuo).
   const revealCls = revealed
-    ? "opacity-100"
-    : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto";
+    ? "opacity-100 pointer-events-auto"
+    : // R6 (user): hover only where hovering exists — a tap leaves :hover stuck on
+      // a phone, and the pen then sat on the usage chip and caught the next tap.
+      "opacity-0 pointer-events-none [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto";
 
   function toggleReveal() {
     setRevealed(!revealed);
@@ -174,13 +195,26 @@ export function ColumnHeader({
             <span
               data-testid={`category-usage-${category.name.toLowerCase()}`}
               data-tone={usage.tone}
+              ref={chipRef}
+              data-showing={showSpent ? "spent" : "pct"}
               title={t("usageOfPool", { pct: usage.pct })}
+              onClick={(e) => {
+                e.stopPropagation(); // not the name cell's pen reveal
+                setShowSpent((v) => !v);
+              }}
+              onPointerEnter={(e) => {
+                if (e.pointerType === "mouse" && canHover()) setShowSpent(true);
+              }}
+              onPointerLeave={(e) => {
+                if (e.pointerType === "mouse" && canHover())
+                  setShowSpent(false);
+              }}
               className={cn(
                 "shrink-0 rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums",
                 // The action cluster is an absolute overlay pinned right, so a
                 // shown pen sits ON the chip. The pen wins the slot: the chip
-                // goes on reveal, and on desktop hover along with it.
-                "group-hover:invisible",
+                // goes on reveal.
+                "cursor-pointer",
                 usage.tone === "ok" &&
                   "bg-[color-mix(in_oklab,var(--trading-up)_18%,transparent)] text-[var(--trading-up)]",
                 usage.tone === "warn" &&
@@ -189,7 +223,7 @@ export function ColumnHeader({
                   "bg-[color-mix(in_oklab,var(--trading-down)_20%,transparent)] text-[var(--trading-down)]",
               )}
             >
-              {usage.pct}%
+              {showSpent ? spentWhole : `${usage.pct}%`}
             </span>
           )}
           {/* "archived" tag — inline + shrink-0 so the row stays single-line and
@@ -205,15 +239,22 @@ export function ColumnHeader({
             invisible cluster never paints over the name's tail. */}
           <div
             data-testid="column-header-actions"
+            style={
+              chipW > 0 && !revealed
+                ? ({ "--chip-off": `${chipW + 8}px` } as React.CSSProperties)
+                : undefined
+            }
             className={cn(
-              "absolute right-1 top-1/2 -translate-y-1/2 z-10 flex items-center gap-0.5 rounded",
+              // R6 (user): the box itself never takes a tap — it sat on the usage
+              // chip and turned "show the spent total" into "show the pen".
+              "pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 z-10 flex items-center gap-0.5 rounded [@media(hover:hover)]:right-[var(--chip-off,0.25rem)]",
               revealed
                 ? archived
                   ? "bg-[#14181D]"
                   : "bg-[var(--surface-card-dark)]"
                 : archived
-                  ? "group-hover:bg-[#14181D]"
-                  : "group-hover:bg-[var(--surface-card-dark)]",
+                  ? "[@media(hover:hover)]:group-hover:bg-[#14181D]"
+                  : "[@media(hover:hover)]:group-hover:bg-[var(--surface-card-dark)]",
             )}
           >
             {/* Archived categories are read-only — no edit pen. */}

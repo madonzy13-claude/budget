@@ -12,10 +12,7 @@
 import type { HoldingType } from "@/hooks/use-investments";
 
 export type UiType =
-  | "equity"
-  | "etf"
-  | "etb"
-  | "reit"
+  | "stocks"
   | "crypto"
   | "treasury_bond"
   | "collectibles"
@@ -28,20 +25,11 @@ export type UiType =
   | "savings";
 
 export type InvestmentBehavior =
-  | "tracked"
-  | "manual"
-  | "metals"
-  | "cash"
-  | "broker"
-  | "deposit";
+  "tracked" | "manual" | "metals" | "cash" | "broker" | "deposit";
 
 /** Deposit interest capitalization cadence (mirrors the server contract). */
 export type CapFrequency =
-  | "daily"
-  | "monthly"
-  | "quarterly"
-  | "semiannual"
-  | "yearly";
+  "daily" | "monthly" | "quarterly" | "semiannual" | "yearly";
 export const CAP_FREQUENCIES: CapFrequency[] = [
   "daily",
   "monthly",
@@ -59,18 +47,13 @@ export interface UiTypeMeta {
 }
 
 export const UI_TYPE_META: Record<UiType, UiTypeMeta> = {
-  equity: {
+  // Phase 13 (D-10): equity + ETF are one type. assetClass "stocks" makes the
+  // instrument search return both stocks and ETFs.
+  stocks: {
     holdingType: "equities",
     behavior: "tracked",
-    assetClass: "equities",
+    assetClass: "stocks",
   },
-  etf: { holdingType: "etf", behavior: "tracked", assetClass: "etf" },
-  // The catalog (Twelve Data) doesn't tag REITs or exchange-traded bonds as their
-  // own class — a REIT is an `equities` row, a bond ETF is an `etf` row. So DON'T
-  // filter their autocomplete (would be empty); search the whole universe and keep
-  // the user's REIT/ETB tag on the holding via ui_type / holding_type.
-  etb: { holdingType: "bond", behavior: "tracked" },
-  reit: { holdingType: "reit", behavior: "tracked" },
   crypto: { holdingType: "crypto", behavior: "tracked", assetClass: "crypto" },
   treasury_bond: { holdingType: "bond", behavior: "manual" },
   collectibles: { holdingType: "other", behavior: "manual" },
@@ -86,12 +69,11 @@ export const UI_TYPE_META: Record<UiType, UiTypeMeta> = {
 };
 
 /** Dropdown order (tracked first, then manual, then metals/cash/broker; the
- *  catch-all "Other" is always last). REIT + exchange-traded bonds were dropped —
- *  the catalog has no separate class for them; track via Equity/ETF + a Group. The
- *  `reit`/`etb` UI types still exist (deriveUiType/edit) for any pre-existing rows. */
+ *  catch-all "Other" is always last). Also the default type-group order. Stocks &
+ *  ETFs is one type since Phase 13 (D-10); legacy equity/etf/reit/etb rows resolve
+ *  through deriveUiType. */
 export const UI_TYPE_ORDER: UiType[] = [
-  "equity",
-  "etf",
+  "stocks",
   "crypto",
   "treasury_bond",
   "collectibles",
@@ -112,6 +94,23 @@ export const AUTO_PRICE_PROVIDERS = [
   "coingecko",
   "twelve_data",
 ] as const;
+
+/** R6 (user): an asset whose amount prices itself — a feed, the metal spot
+ *  price or a deposit's rate. It carries a lock: the amount can't be typed. */
+export function pricesItself(h: {
+  holdingType: string;
+  uiType?: string | null;
+  metal?: string | null;
+  instrumentProvider?: string | null;
+}): boolean {
+  return (
+    h.holdingType === "deposit" ||
+    h.uiType === "deposit" ||
+    h.metal != null ||
+    h.uiType === "precious_metals" ||
+    isAutoPriced(h.instrumentProvider)
+  );
+}
 
 export function isAutoPriced(provider: string | null | undefined): boolean {
   return (
@@ -139,7 +138,7 @@ export function unitPriceCents(totalCents: number, quantity: string): string {
  * FX-converted into it. For these the form keeps the currency picker visible even
  * after an instrument is selected, and changing the currency re-fetches converted.
  * - crypto: quoted USD on CoinGecko, valued in the user's currency.
- * - equity / etf: a US stock/ETF is quoted USD (Finnhub) but can be tracked in the
+ * - stocks: a US stock/ETF is quoted USD (Finnhub) but can be tracked in the
  *   budget's (or any) currency — default adopts the instrument's own currency when
  *   found in suggestions, else the budget currency; changing it converts via FX.
  * Metals are handled separately by their `metals` behavior.
@@ -147,7 +146,7 @@ export function unitPriceCents(totalCents: number, quantity: string): string {
 export function usesUserChosenCurrency(
   uiType: UiType | "" | null | undefined,
 ): boolean {
-  return uiType === "crypto" || uiType === "equity" || uiType === "etf";
+  return uiType === "crypto" || uiType === "stocks";
 }
 
 export type Metal = "gold" | "silver" | "platinum" | "palladium";
@@ -172,20 +171,23 @@ export const OZ_PER_UNIT: Record<Uom, number> = {
   kg: 32.15074656862,
 };
 
-/** Best-effort UI type for an existing holding (edit mode) when ui_type is null. */
+/** Best-effort UI type for an existing holding (edit mode) when ui_type is null.
+ *  Legacy pre-Phase-13 values (stale rows / stale clients) map to stocks /
+ *  treasury_bond (D-11). */
 export function deriveUiType(
   uiType: string | null | undefined,
   holdingType: string,
-  isCustom: boolean,
+  _isCustom: boolean,
 ): UiType {
   if (uiType && uiType in UI_TYPE_META) return uiType as UiType;
+  if (uiType === "equity" || uiType === "etf" || uiType === "reit")
+    return "stocks";
+  if (uiType === "etb") return "treasury_bond";
   switch (holdingType) {
     case "equities":
-      return "equity";
     case "etf":
-      return "etf";
     case "reit":
-      return "reit";
+      return "stocks";
     case "crypto":
       return "crypto";
     case "commodity":
@@ -199,8 +201,33 @@ export function deriveUiType(
     case "savings":
       return "savings";
     case "bond":
-      return isCustom ? "treasury_bond" : "etb";
+      return "treasury_bond";
     default:
       return "other";
   }
+}
+
+/** Mirror of the server's holdingShape (Phase 13): quantity holdings sell and
+ *  buy by units; amount holdings (qty 1) by value; deposits restart (D-20). */
+/** Counted per unit (R6-1: collectibles too) — the one web copy of the rule
+ *  in packages/investments/src/domain/holding.ts isQuantityHolding. */
+export const QTY_UI_TYPES = new Set<string>([
+  "stocks",
+  "crypto",
+  "precious_metals",
+  "collectibles",
+]);
+export const isQtyUiType = (ui: string | null | undefined): boolean =>
+  QTY_UI_TYPES.has(ui ?? "");
+
+export function holdingShape(h: {
+  holdingType: string;
+  uiType: string | null;
+  isCustom: boolean;
+  quantity: string;
+}): "quantity" | "amount" | "deposit" {
+  if (h.holdingType === "deposit") return "deposit";
+  const ui = deriveUiType(h.uiType, h.holdingType, h.isCustom);
+  if (isQtyUiType(ui)) return "quantity";
+  return Number(h.quantity) === 1 ? "amount" : "quantity";
 }

@@ -23,6 +23,7 @@ function rowToWallet(row: {
   color: string | null;
   icon: string | null;
   sort_order: number;
+  balance_updated_at?: Date;
 }): Wallet {
   const { Wallet: WalletClass } = require("../../domain/wallet");
   const w = new WalletClass(
@@ -40,6 +41,10 @@ function rowToWallet(row: {
   w.color = row.color ?? null;
   w.icon = row.icon ?? null;
   w.sortOrder = Number(row.sort_order ?? 0);
+  // R6 (user): when the balance last changed (0101 trigger).
+  w.balanceUpdatedAt = row.balance_updated_at
+    ? new Date(row.balance_updated_at)
+    : null;
   return w;
 }
 
@@ -121,9 +126,10 @@ export class DrizzleWalletRepo implements WalletRepo {
         color: string | null;
         icon: string | null;
         sort_order: number;
+        balance_updated_at: Date;
       }>(
         sql`SELECT id, tenant_id, name, wallet_type, currency, current_balance::text,
-                   archived_at, created_at, actor_user_id, color, icon, sort_order
+                   archived_at, created_at, actor_user_id, color, icon, sort_order, balance_updated_at
             FROM budgeting.wallets
             WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid`,
       );
@@ -153,9 +159,10 @@ export class DrizzleWalletRepo implements WalletRepo {
           color: string | null;
           icon: string | null;
           sort_order: number;
+          balance_updated_at: Date;
         }>(
           sql`SELECT id, tenant_id, name, wallet_type, currency, current_balance::text,
-                     archived_at, created_at, actor_user_id, color, icon, sort_order
+                     archived_at, created_at, actor_user_id, color, icon, sort_order, balance_updated_at
               FROM budgeting.wallets
               WHERE tenant_id = ${tenantId}::uuid
               ORDER BY wallet_type ASC, sort_order ASC, created_at ASC`,
@@ -174,9 +181,10 @@ export class DrizzleWalletRepo implements WalletRepo {
           color: string | null;
           icon: string | null;
           sort_order: number;
+          balance_updated_at: Date;
         }>(
           sql`SELECT id, tenant_id, name, wallet_type, currency, current_balance::text,
-                     archived_at, created_at, actor_user_id, color, icon, sort_order
+                     archived_at, created_at, actor_user_id, color, icon, sort_order, balance_updated_at
               FROM budgeting.wallets
               WHERE tenant_id = ${tenantId}::uuid AND archived_at IS NULL
               ORDER BY wallet_type ASC, sort_order ASC, created_at ASC`,

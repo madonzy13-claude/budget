@@ -118,9 +118,8 @@ export async function materialiseDueDrafts(
       fxProvider: deps.fxProvider,
     });
 
-    // The draft is locked to the BUDGET currency: original and converted are
-    // the same figure at rate 1, so a later FX move cannot restate a payment
-    // the household has already been shown.
+    // R6 (user): the payment keeps the rule's currency and amount; the budget
+    // figure is converted at the due date's rate and never restated after.
     const inserted = await drizzleTx.execute(sql`
       INSERT INTO budgeting.expense_ledger
         (id, tenant_id, budget_id, category_id, transaction_date,
@@ -130,9 +129,9 @@ export async function materialiseDueDrafts(
       VALUES
         (gen_random_uuid(), ${input.tenantId}::uuid, ${input.tenantId}::uuid,
          ${input.categoryId ?? null}::uuid, ${dueStr}::date,
-         ${fx.amountConvertedCents}::bigint, ${input.budgetCurrency},
+         ${amountCents}::bigint, ${input.currency},
          ${fx.amountConvertedCents}::bigint,
-         1::numeric, ${fx.fxAsOf}::date,
+         ${fx.fxRate}::numeric, ${fx.fxAsOf}::date,
          ${input.note ?? null}, ${input.ruleId}::uuid,
          NULL, 'SPENDING', now(), now())
       ON CONFLICT (scheduled_payment_id, transaction_date)
@@ -163,8 +162,8 @@ export async function materialiseDueDrafts(
         {
           draft_id: draftId,
           rule_name: input.note ?? "",
-          amount_cents: fx.amountConvertedCents,
-          currency: input.budgetCurrency,
+          amount_cents: amountCents,
+          currency: input.currency,
           transaction_date: dueStr,
           category_id: input.categoryId ?? "",
         },

@@ -33,6 +33,8 @@ export interface WalletDto {
   color?: string | null;
   icon?: string | null;
   sortOrder?: number;
+  /** R6 (user): when the balance last changed — "updated 5 min ago". */
+  balanceUpdatedAt?: string | null;
 }
 
 export function useWallets(budgetId: string, initialData?: WalletDto[]) {

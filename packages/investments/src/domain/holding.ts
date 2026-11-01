@@ -50,14 +50,39 @@ export function isHoldingType(value: string): value is HoldingType {
   return HOLDING_TYPE_SET.has(value);
 }
 
+/** Phase 13: priced per unit (sell by quantity) vs a single hand-valued
+ *  amount (qty 1, sell by value left). Deposits are amount holdings whose
+ *  remainder restarts (D-20). Collectibles are counted too (R6-1, user). */
+const QUANTITY_UI_TYPES = new Set([
+  "stocks",
+  "crypto",
+  "precious_metals",
+  "collectibles",
+]);
+export function isQuantityHolding(uiType: string | null): boolean {
+  return QUANTITY_UI_TYPES.has(uiType ?? "");
+}
+
+export type HoldingShape = "quantity" | "amount" | "deposit";
+
+export function holdingShape(h: {
+  holdingType: string;
+  uiType: string | null;
+  quantity: string;
+}): HoldingShape {
+  if (h.holdingType === "deposit") return "deposit";
+  // ponytail: a hand-valued type stored with qty ≠ 1 is still sold by quantity.
+  if (isQuantityHolding(h.uiType) || Number(h.quantity) !== 1)
+    return "quantity";
+  return "amount";
+}
+
 export class Holding {
   constructor(
     public readonly id: string,
     public readonly tenantId: string,
     public name: string,
     public holdingType: HoldingType,
-    /** User-defined grouping label within the Investments section; null = ungrouped. */
-    public group: string | null,
     /** null = custom/cash holding (no tracked instrument). */
     public readonly instrumentId: string | null,
     /** null for cash / no buy basis. */
@@ -125,6 +150,8 @@ export class Holding {
     public icon: string | null = null,
     /** Possession-only: per-item hex color (e.g. "#e63946"); null otherwise. */
     public color: string | null = null,
+    /** R6 (user): when the value last changed (0101 trigger) — "updated 5 min ago". */
+    public valueUpdatedAt: Date | null = null,
   ) {}
 
   /** Bank deposit: value accrues from principal+rate+time, computed on read. */

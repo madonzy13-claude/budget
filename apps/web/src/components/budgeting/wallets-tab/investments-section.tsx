@@ -1,33 +1,28 @@
 "use client";
 /**
- * investments-section.tsx — Investments section client island (Phase 9 + group
- * redesign).
+ * investments-section.tsx — Investments section client island (Phase 9, type
+ * groups since Phase 13).
  *
- * Rendered LAST on the Wallets tab when investments_enabled. The list is a SINGLE
- * FLAT sortable: group headers AND holdings are sortable items in one container
- * (no nested DOM subtrees). Grouped children render indented under a CSS rail, but
- * are real siblings of the header — so a holding dragged across groups is a plain
- * reorder in the same parent (it never re-mounts → no mid-drag crash, D-#flat).
- *   - drag a GROUP (its handle)           → the whole block moves as a unit
- *   - drag a holding onto a group header  → join that group
- *   - drag a holding ABOVE a group header → stays loose above it (rect midpoint)
- *   - drag a holding onto a row / loose    → move there / reorder
- *   - drop a holding on a loose boundary zone → loose at the top / end (UAT #3/#4)
- *   - drag a group (overlay preview) onto a row → block lands there, last via drop
- *   - drop on a wallet section            → rejected (cross-section), toast
- * The interleave + reorder maths is the pure `investment-grouping` module; this
- * island renders entries and dispatches its DragResult to the reorder +
- * group-update mutations. Group amount/P/L/% are aggregated client-side so they
- * track optimistic mutations.
+ * Rendered LAST on the Wallets tab when investments_enabled. Holdings render
+ * as one BLOCK per investment type that has holdings (D-13): an
+ * InvestmentTypeHeader (value · total P/L incl. realized · lifetime %) and its
+ * rows. Types with realized gain but no holdings are hidden; their realized
+ * still shows as a muted line under the section total (D-14). Block order =
+ * the budget's saved type order, then picker order (D-12).
  *
- * ⚠️ Before changing ANY drag logic, read ./INVESTMENTS-DND.md — the model, the
- * join-band geometry, the no-flicker rules, and the don'ts are each a bug we
- * already paid for, plus the live-verification recipe (@dnd-kit interaction bugs
- * don't show up in unit tests).
+ * Three levels (13.1): type block → asset row → the asset's ledger strip,
+ * opened by tapping the asset. Open state lives in memory only — every asset
+ * starts closed after a reload, and collapsing a type closes its assets (R5-3,
+ * overturns D-27's per-device memory). Assets with quantity 0 are hidden (D-17).
+ *
+ * Drag: a block moves by its header handle (order saved per budget); a row
+ * moves only within its own type — a drop on another type is a no-op. Ledger
+ * strips are never sortable and collapse while an asset is dragged (D-30).
+ * ⚠️ Before changing ANY drag logic, read ./INVESTMENTS-DND.md.
  */
+import { isCashLike } from "@/lib/cash-like";
 import {
   DndContext,
-  DragOverlay,
   closestCenter,
   useSensors,
   useSensor,
@@ -35,8 +30,8 @@ import {
   TouchSensor,
   KeyboardSensor,
   MeasuringStrategy,
+  type CollisionDetection,
   type DragEndEvent,
-  type DragMoveEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
@@ -46,39 +41,69 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { DashedAddButton } from "@/components/common/dashed-add-button";
-import { RowDragHandle } from "@/components/common/row-drag-handle";
-import { centsToBare, centsToRounded } from "@/lib/cents-format";
+import { centsToRounded, centsToShort } from "@/lib/cents-format";
 import { amountColumnChars } from "@/lib/amount-column";
 import { useBudget } from "@/hooks/use-budget-data";
-import { useInvestments, type HoldingDto } from "@/hooks/use-investments";
+import { useMemberUiPrefs } from "@/hooks/use-member-ui-prefs";
+import { useCurrencyPLs } from "@/hooks/use-fx-rates";
+import {
+  useHiddenHoldings,
+  useInvestments,
+  type HoldingDto,
+} from "@/hooks/use-investments";
+import { useSetTypeOrder, useTypeSummary } from "@/hooks/use-type-summary";
+import { useReorderHoldings } from "@/hooks/use-reorder-holdings";
+import { RowDragHandle } from "@/components/common/row-drag-handle";
+import { setDndDragging } from "@/lib/dnd-dragging";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
 import { parseDecimal } from "@/lib/decimal";
-import { unitPriceCents } from "@/lib/investment-types";
-import { setDndDragging } from "@/lib/dnd-dragging";
-import { useReorderHoldings } from "@/hooks/use-reorder-holdings";
-import { useArchiveHolding } from "@/hooks/use-archive-holding";
 import {
-  buildInvestmentEntries,
-  groupAggregate,
-  resolveDragEnd,
-  resolveHoldingDrop,
-  computeJoinBands,
-  groupSortId,
-  isGroupSortId,
-  groupNameFromSortId,
-  type InvestmentEntry,
-  type DragResult,
-  type GroupGeom,
-} from "@/lib/investment-grouping";
+  deriveUiType,
+  unitPriceCents,
+  type UiType,
+} from "@/lib/investment-types";
+import {
+  buildTypeBlocks,
+  moveTypeBlock,
+  portfolioPL,
+  typeGroupPL,
+  typeOf,
+  type TypeBlock,
+  type TypeGroupPL,
+} from "@/lib/investment-type-groups";
 import { InvestmentRowSheet } from "./investment-row-sheet";
+import { AssetLedger } from "./asset-ledger";
+import { useQueries } from "@tanstack/react-query";
+import {
+  useArchiveHolding,
+  useRestoreHolding,
+} from "@/hooks/use-archive-holding";
+import { useDeleteEntry } from "@/hooks/use-delete-entry";
+import {
+  entriesKey,
+  fetchAssetEntries,
+  usePrefetchAssetEntries,
+} from "@/hooks/use-asset-entries";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { SlideCollapse } from "@/components/common/slide-collapse";
+import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import { sharePercentLabel } from "@/lib/share-bar";
-import { InvestmentRow } from "./investment-row";
-import { InvestmentGroupHeader } from "./investment-group-header";
-import { HoldingSheet } from "./holding-sheet";
+import { InvestmentTypeHeader } from "./investment-type-header";
+import { NewTransactionSheet } from "./new-transaction-sheet";
+import { SwapSheet } from "./swap-sheet";
+import { EditAssetSheet } from "./edit-asset-sheet";
 
 interface InvestmentsSectionProps {
   budgetId: string;
@@ -88,34 +113,22 @@ interface InvestmentsSectionProps {
   assetsTotalBudgetCents?: number;
 }
 
-/**
- * Group header as a SORTABLE item (D-#flat): a single flat list slot that is a
- * drop target for "join this group" and whose handle drags the whole block. While
- * dragging, the cohesive lifted copy lives in the DragOverlay (header + children)
- * and the real block dims in place; the move commits on drop (UAT #1). The header's
- * children render as its siblings right after it. Only the drag handle starts a
- * drag (listeners on the handle, not the body) so the body click still toggles
- * collapse.
- */
-function GroupHeaderItem({
-  entry,
-  budgetCurrency,
-  totalBudgetCents,
-  maxAmountChars,
-  expanded,
-  onToggle,
+const BLOCK = "type:";
+const blockId = (ui: UiType) => `${BLOCK}${ui}`;
+const isBlockId = (id: string) => id.startsWith(BLOCK);
+
+/** A type block as ONE sortable item: its header carries the drag handle, so
+ *  header + rows move together. Rows sort in the block's own context. */
+function SortableTypeBlock({
+  uiType,
+  children,
+  header,
 }: {
-  entry: Extract<InvestmentEntry, { kind: "group" }>;
-  budgetCurrency: string;
-  totalBudgetCents: number;
-  maxAmountChars: number;
-  expanded: boolean;
-  onToggle: () => void;
+  uiType: UiType;
+  header: (handle: React.ReactNode) => React.ReactNode;
+  children: React.ReactNode;
 }) {
   const t = useTranslations("budget.investments");
-  const agg = groupAggregate(entry.holdings);
-  const portfolioPct =
-    totalBudgetCents > 0 ? (agg.valueBudgetCents / totalBudgetCents) * 100 : 0;
   const {
     setNodeRef,
     attributes,
@@ -123,109 +136,32 @@ function GroupHeaderItem({
     transform,
     transition,
     isDragging,
-    isOver,
-  } = useSortable({
-    id: groupSortId(entry.name),
-    animateLayoutChanges: () => false,
-  });
-  const dndTransform = CSS.Transform.toString(transform) ?? "";
+  } = useSortable({ id: blockId(uiType), animateLayoutChanges: () => false });
+  const name = t(`uitype.${uiType}`);
   return (
     <div
       ref={setNodeRef}
+      data-testid={`investment-type-block-${uiType}`}
       style={{
-        // While dragging, the lifted copy lives in the DragOverlay (so the whole
-        // block — header + children — moves as one cohesive unit, UAT #1). The real
-        // header is hidden (opacity-0, not dimmed): its children are SEPARATE
-        // sortables that slide independently under the list strategy, so a dimmed
-        // header left a broken/overlapping remnant in place (UAT #3). The open gap
-        // already marks where the block will land.
-        transform: isDragging
-          ? undefined
-          : dndTransform && dndTransform !== "none"
-            ? dndTransform
-            : undefined,
+        transform: CSS.Transform.toString(transform) ?? undefined,
         transition,
       }}
-      className={isDragging ? "relative opacity-0" : "relative"}
+      className={[
+        "flex flex-col gap-2",
+        isDragging ? "relative z-50" : "",
+      ].join(" ")}
     >
-      <InvestmentGroupHeader
-        groupName={entry.name}
-        budgetCurrency={budgetCurrency}
-        valueBudgetCents={agg.valueBudgetCents}
-        plPct={agg.plPct}
-        plCents={agg.plCents}
-        portfolioPct={portfolioPct}
-        maxAmountChars={maxAmountChars}
-        expanded={expanded}
-        onToggle={onToggle}
-        isOver={isOver}
-        dragHandle={
-          <RowDragHandle
-            name={`group ${entry.name}`}
-            listeners={listeners}
-            attributes={attributes}
-            ariaLabel={t("group.dragAria", { name: entry.name })}
-          />
-        }
-      />
+      {header(
+        <RowDragHandle
+          name={`type ${uiType}`}
+          listeners={listeners}
+          attributes={attributes}
+          ariaLabel={t("group.dragAria", { name })}
+        />,
+      )}
+      {children}
     </div>
   );
-}
-
-/** Cohesive drag preview for a whole group block (DragOverlay content, UAT #1):
- *  a static copy of the header + its (expanded) children that follows the pointer
- *  as one unit, while the real block dims in place. */
-function GroupBlockPreview({
-  entry,
-  budgetCurrency,
-  totalBudgetCents,
-  maxAmountChars,
-  rowAmountChars,
-  expanded,
-}: {
-  entry: Extract<InvestmentEntry, { kind: "group" }>;
-  budgetCurrency: string;
-  totalBudgetCents: number;
-  maxAmountChars: number;
-  rowAmountChars: number;
-  expanded: boolean;
-}) {
-  const agg = groupAggregate(entry.holdings);
-  const portfolioPct =
-    totalBudgetCents > 0 ? (agg.valueBudgetCents / totalBudgetCents) * 100 : 0;
-  return (
-    <div className="flex flex-col gap-2 rounded-[var(--radius-md)] opacity-95 shadow-lg ring-1 ring-[var(--info-ring)]">
-      <InvestmentGroupHeader
-        groupName={entry.name}
-        budgetCurrency={budgetCurrency}
-        valueBudgetCents={agg.valueBudgetCents}
-        plPct={agg.plPct}
-        plCents={agg.plCents}
-        portfolioPct={portfolioPct}
-        maxAmountChars={maxAmountChars}
-        expanded={expanded}
-        onToggle={() => {}}
-      />
-      {expanded &&
-        entry.holdings.map((h) => (
-          <div
-            key={h.id}
-            className="relative ml-3 pl-3 before:absolute before:left-0 before:-top-2 before:bottom-0 before:w-px before:bg-[var(--hairline-dark)] before:content-['']"
-          >
-            <InvestmentRow
-              holding={h}
-              nested
-              maxAmountChars={rowAmountChars}
-            />
-          </div>
-        ))}
-    </div>
-  );
-}
-
-/** Midpoint of a dnd-kit rect (top + half height); null when the rect is absent. */
-function midY(rect: { top: number; height: number } | null | undefined) {
-  return rect ? rect.top + rect.height / 2 : null;
 }
 
 export function InvestmentsSection({
@@ -234,7 +170,6 @@ export function InvestmentsSection({
   assetsTotalBudgetCents,
 }: InvestmentsSectionProps) {
   const t = useTranslations("budget.investments");
-  const tToast = useTranslations("budget.investments.toast");
   const locale = useLocale();
 
   // Self-gate (the list also gates) + currency fallback.
@@ -254,48 +189,134 @@ export function InvestmentsSection({
     "EUR";
 
   const investmentsQuery = useInvestments(budgetId);
-  const holdings = useMemo(
+  const summary = useTypeSummary(budgetId).data;
+  const serverHoldings = useMemo(
     // Possessions share the holdings endpoint but render in their own section.
     () =>
       (investmentsQuery.data ?? []).filter(
+        // Round 4 (user): a sold-out asset stays listed; only an explicit
+        // Archive hides it (archived rows never reach this list).
         (h) => h.holdingType !== "possession",
       ),
     [investmentsQuery.data],
   );
-  // The id currently being dragged (null when idle) → drives the group-block
-  // DragOverlay + the dimming of the dragged block in place.
-  const [activeId, setActiveId] = useState<string | null>(null);
-  // Post-drop optimistic order: the committed arrangement applied synchronously on
-  // drop so the DOM is already in its final order on the pointer-up frame. Without
-  // this the row snaps back to its origin for one frame (the reorder mutation's
-  // optimistic cache update lands a tick later, after `await cancelQueries`) →
-  // "the item disappears then reappears" (UAT). Cleared once the server/optimistic
-  // data catches up (the effect below), so it never masks later updates.
+  // Post-drop optimistic orders, applied synchronously on drop so the DOM is
+  // final on the pointer-up frame (the mutations' cache updates land a tick
+  // later, after `await cancelQueries` → one frame of snap-back). Each clears
+  // once the live data matches it.
   const [committed, setCommitted] = useState<HoldingDto[] | null>(null);
-  const liveHoldings = committed ?? holdings;
+  const [committedOrder, setCommittedOrder] = useState<UiType[] | null>(null);
+  const holdings = committed ?? serverHoldings;
+  // Round 4: preload every ledger; read them back to know which assets have
+  // nothing but their opening entry (those offer Delete instead of Archive).
+  usePrefetchAssetEntries(
+    budgetId,
+    holdings.map((h) => h.id),
+  );
+  const ledgers = useQueries({
+    queries: holdings.map((h) => ({
+      queryKey: entriesKey(budgetId, h.id),
+      queryFn: () => fetchAssetEntries(budgetId, h.id),
+      enabled: false,
+    })),
+  });
+  const soleEntry = new Map<string, string>();
+  holdings.forEach((h, i) => {
+    const stored = (ledgers[i]?.data ?? []).filter((e) => e.id !== null);
+    if (ledgers[i]?.data && stored.length === 1)
+      soleEntry.set(h.id, stored[0]!.id!);
+  });
+  const typeOrder = committedOrder ?? summary?.order ?? [];
   useEffect(() => {
-    // Drop the post-drop override only once live data MATCHES it (same id order +
-    // same groups). A GROUP-change drop fires TWO optimistic mutations on the same
-    // cache key — reorder (sortOrder) and group (PATCH) — which land on separate
-    // ticks. Clearing on the FIRST holdings change rendered the half-applied state
-    // (reordered but still the OLD group) for a frame → the drop "flicker" (UAT).
-    // Waiting for a full match bridges to the settled/refetched data with no flash.
-    if (activeId !== null || committed == null) return;
-    const sorted = [...holdings].sort(
-      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
-    );
-    const matches =
-      sorted.length === committed.length &&
-      sorted.every(
-        (hh, i) =>
-          hh.id === committed[i].id &&
-          (hh.group ?? null) === (committed[i].group ?? null),
-      );
-    if (matches) setCommitted(null);
-  }, [holdings, activeId, committed]);
+    if (!committed) return;
+    const live = [...serverHoldings].sort((a, b) => a.sortOrder - b.sortOrder);
+    if (live.map((h) => h.id).join() === committed.map((h) => h.id).join())
+      setCommitted(null);
+  }, [serverHoldings, committed]);
+  useEffect(() => {
+    if (committedOrder && summary?.order.join() === committedOrder.join())
+      setCommittedOrder(null);
+  }, [summary?.order, committedOrder]);
+  const [draggingBlock, setDraggingBlock] = useState(false);
+  const [draggingRow, setDraggingRow] = useState(false);
+  // R5-3: open assets in memory only (the row's own tap state still survives
+  // pill navigation via the BDP store).
+  const bdpStore = useBdpUiStore();
+  const [openAssets, setOpenAssets] = useState<Set<string>>(
+    () =>
+      new Set(
+        Object.entries(bdpStore?.wallets.expandedRows ?? {})
+          .filter(([, v]) => v)
+          .map(([id]) => id),
+      ),
+  );
+  useEffect(() => {
+    try {
+      // ponytail: stale-key cleanup from the per-device era; drop later.
+      localStorage.removeItem("inv.assetOpen.v1");
+    } catch {
+      /* private mode */
+    }
+  }, []);
+  // 13.1 UAT 5: the swiped asset's open ledger slides with it.
+  const [swipe, setSwipe] = useState<{
+    id: string;
+    px: number;
+    live: boolean;
+  } | null>(null);
+  const toggleAsset = (id: string, open: boolean) =>
+    setOpenAssets((prev) => {
+      const next = new Set(prev);
+      if (open) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  // Round 4: a linked ledger entry opens its partner, highlighted for 1.5s.
+  const [flash, setFlash] = useState<{
+    holdingId: string;
+    transferId: string;
+  } | null>(null);
+  const openLinked = (holdingId: string, transferId: string) => {
+    const h = holdings.find((x) => x.id === holdingId);
+    if (!h) return;
+    const ui = deriveUiType(h.uiType, h.holdingType, h.isCustom);
+    if (!isExpanded(ui)) toggleType(ui);
+    toggleAsset(holdingId, true);
+    setFlash({ holdingId, transferId });
+    window.setTimeout(() => setFlash(null), 1500);
+  };
   const updateMut = useUpdateHolding(budgetId);
   const reorderMut = useReorderHoldings(budgetId);
+  const setOrderMut = useSetTypeOrder(budgetId);
+  // One Swap and one Edit sheet for the section (13.1 D-05).
+  const [swapping, setSwapping] = useState<HoldingDto | null>(null);
+  // 13.1 UAT 7: "New transaction" picks Buy / Sell / Transfer first.
+  const [choosing, setChoosing] = useState(false);
+  const [editing, setEditing] = useState<HoldingDto | null>(null);
+  // R6 (user): Hide / Unhide act at once (no confirm); history stays.
   const archiveMut = useArchiveHolding(budgetId);
+  const restoreMut = useRestoreHolding(budgetId);
+  const hiddenQuery = useHiddenHoldings(budgetId);
+  const hidden = useMemo(
+    () =>
+      (hiddenQuery.data ?? []).filter((h) => h.holdingType !== "possession"),
+    [hiddenQuery.data],
+  );
+  // Groups whose hidden assets are listed (the "N hidden" link toggles).
+  const [showHidden, setShowHidden] = useState<Set<string>>(new Set());
+  const toggleHidden = (uiType: string) =>
+    setShowHidden((cur) => {
+      const next = new Set(cur);
+      if (!next.delete(uiType)) next.add(uiType);
+      return next;
+    });
+  // Round 4: an asset with nothing but its opening entry is deleted (its
+  // last entry wipes it, D-17); ledgers are preloaded so this is known.
+  const [deleting, setDeleting] = useState<{
+    holding: HoldingDto;
+    entryId: string;
+  } | null>(null);
+  const deleteMut = useDeleteEntry(budgetId);
 
   /**
    * 260731: inline value edit on a manual-value row (cash / broker / savings —
@@ -303,117 +324,195 @@ export function InvestmentsSection({
    * price moves; the buy price stays the cost basis, so savings keeps its
    * "started at" figure and the %-change stays honest.
    */
-  // The row edits the TOTAL; the price is per unit (user, 261023).
+  // The row edits the TOTAL; the price is per unit (user, 261023). 13.1
+  // WR-06: the server books it as a Value/Price updated ledger entry.
   async function saveInlineValue(holding: HoldingDto, amount: string) {
     const cents = parseDecimal(amount);
     if (cents === null) return;
-    await updateMut.mutateAsync({
-      holdingId: holding.id,
-      currentPriceCents: unitPriceCents(cents, holding.quantity),
-    });
+    await updateMut.mutateAsync(
+      Number(holding.quantity) === 1
+        ? { holdingId: holding.id, currentValueCents: String(cents) }
+        : {
+            holdingId: holding.id,
+            currentPriceCents: unitPriceCents(cents, holding.quantity),
+          },
+    );
   }
 
-  // ── Sheet state (single shared instance for add + edit) ──
-  const [sheet, setSheet] = useState<{
-    open: boolean;
-    mode: "create" | "edit";
-    holding: HoldingDto | null;
-  }>({ open: false, mode: "create", holding: null });
-
-  // ── Interleaved entries (groups + loose) ──
-  const entries = useMemo(
-    () => buildInvestmentEntries(liveHoldings),
-    [liveHoldings],
-  );
-  const groupNames = useMemo(
-    () => entries.flatMap((e) => (e.kind === "group" ? [e.name] : [])),
-    [entries],
-  );
-
-  const totalBudgetCents = useMemo(
+  // ── Type blocks (D-12..D-16) ──
+  // A type with only hidden assets keeps its block, so they can come back.
+  const blocks = useMemo(() => {
+    const ids = new Set(hidden.map((h) => h.id));
+    return buildTypeBlocks([...holdings, ...hidden], typeOrder).map((b) => ({
+      ...b,
+      holdings: b.holdings.filter((h) => !ids.has(h.id)),
+    }));
+  }, [holdings, hidden, typeOrder]);
+  const hiddenOf = (uiType: string) =>
+    hidden.filter((h) => typeOf(h) === uiType);
+  const blockPL = useMemo(
     () =>
-      liveHoldings.reduce((s, h) => s + Number(h.valueInBudgetCents || 0), 0),
-    [liveHoldings],
+      new Map(
+        blocks.map((b) => [
+          b.uiType,
+          // R6 (user): hidden assets are still owned — they count.
+          typeGroupPL(
+            [...b.holdings, ...hidden.filter((h) => typeOf(h) === b.uiType)],
+            summary?.types[b.uiType],
+          ),
+        ]),
+      ),
+    [blocks, hidden, summary],
   );
+  // R6 (user): each group may be shown in another currency — the member's
+  // pick, converted at today's rate (the % is unchanged).
+  const uiPrefs = useMemberUiPrefs(budgetId);
+  const ccyKey = (uiType: string) => `invGroupCcy.${uiType}`;
+  const groupCcy = (uiType: string) =>
+    uiPrefs.prefs[ccyKey(uiType)]?.[0] ?? budgetCurrency;
+  // R6 (user): every currency — the budget's too — is a replay of the
+  // group's ledger at each entry's own date's rate (GET /investments/pl).
+  const groupPLs = useCurrencyPLs(
+    budgetId,
+    blocks.map((b) => ({
+      currency: groupCcy(b.uiType),
+      ids: [...b.holdings, ...hiddenOf(b.uiType)].map((h) => h.id),
+    })),
+  );
+  // R6 (user): an asset may be shown in another currency too — the member's
+  // pick per asset, figures from the same replay.
+  const assetKey = (id: string) => `invAssetCcy.${id}`;
+  const ownCcy = (h: HoldingDto) =>
+    h.currentPriceCurrency ?? h.buyCurrency ?? budgetCurrency;
+  const assetCcy = (h: HoldingDto) =>
+    uiPrefs.prefs[assetKey(h.id)]?.[0] ?? ownCcy(h);
+  const convertedAssets = [...holdings, ...hidden].filter(
+    (h) => assetCcy(h) !== ownCcy(h),
+  );
+  const assetPLs = useCurrencyPLs(
+    budgetId,
+    convertedAssets.map((h) => ({ currency: assetCcy(h), ids: [h.id] })),
+  );
+  const assetView = (h: HoldingDto) => {
+    const i = convertedAssets.findIndex((x) => x.id === h.id);
+    return {
+      currencyPick: {
+        value: assetCcy(h),
+        onChange: (c: string) => void uiPrefs.save(assetKey(h.id), [c]),
+      },
+      converted: i >= 0 ? assetPLs[i] : undefined,
+    };
+  };
+  /** The group's P/L in its chosen currency; until the replay lands, the
+   *  budget-currency figures already on hand. */
+  const shownPL = (uiType: string, pl: TypeGroupPL) => {
+    const r = groupPLs[blocks.findIndex((b) => b.uiType === uiType)];
+    if (!r) return { ccy: budgetCurrency, pl };
+    return {
+      ccy: r.currency,
+      pl: {
+        valueBudgetCents: Number(r.valueCents),
+        unrealizedCents: Number(r.unrealizedCents),
+        realizedCents: Number(r.realizedCents),
+        totalPLCents: Number(r.totalPLCents),
+        lifetimeCostCents: Number(r.contributedCents),
+        pct: r.pct,
+      },
+    };
+  };
+  // R6 (user): the investments total keeps hidden assets — still owned.
+  const total = useMemo(
+    () => portfolioPL([...holdings, ...hidden], summary),
+    [holdings, hidden, summary],
+  );
+  const totalBudgetCents = total.valueBudgetCents;
   const investmentsShare = sharePercentLabel(
     totalBudgetCents,
     assetsTotalBudgetCents,
   );
 
   // Longest formatted amount → dynamic amount-column width so the currency
-  // codes line up in a column (mirrors wallet-row, D-#align). Group headers and
-  // ungrouped holdings share one width; each group's rows get their own.
-  const amountCols = useMemo(() => {
-    const top: string[] = [];
-    const groups: Record<string, string[]> = {};
-    for (const e of entries)
-      if (e.kind === "group") {
-        const v = groupAggregate(e.holdings).valueBudgetCents;
-        top.push(centsToBare(String(Math.round(v)), locale));
-        groups[e.name] = e.holdings.map((h) =>
-          centsToBare(h.valueCents, locale),
-        );
-      } else top.push(centsToBare(e.holding.valueCents, locale));
-    return amountColumnChars(top, groups);
-  }, [entries, locale]);
-  const maxAmountChars = amountCols.top;
+  // codes line up in a column (mirrors wallet-row, D-#align). Headers share one
+  // width; each block's rows get their own.
+  // R6 (user): sized from the figures AS SHOWN (short, picked currency) — the
+  // bare cents version ran ~3 chars wider and pushed the code off the amount.
+  const amountCols = amountColumnChars(
+    blocks.map((b) =>
+      centsToShort(
+        String(
+          Math.round(
+            Math.abs(
+              shownPL(b.uiType, blockPL.get(b.uiType)!).pl.valueBudgetCents,
+            ),
+          ),
+        ),
+        locale,
+      ),
+    ),
+    Object.fromEntries(
+      blocks.map((b) => [
+        b.uiType,
+        b.holdings.map((h) =>
+          centsToShort(
+            assetView(h).converted?.valueCents ?? h.valueCents,
+            locale,
+          ),
+        ),
+      ]),
+    ),
+  );
 
-  // ── Collapse state (localStorage, default expanded) ──
-  const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
-  const groupNamesKey = groupNames.join("|");
+  // ── Collapse state per type (localStorage, default expanded) ──
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const typesKey = blocks.map((b) => b.uiType).join("|");
   useEffect(() => {
-    setExpandedMap((prev) => {
+    setCollapsed((prev) => {
       const next = { ...prev };
-      for (const name of groupNames) {
-        if (!(name in next)) {
+      for (const b of blocks)
+        if (!(b.uiType in next)) {
           let stored: string | null = null;
           try {
-            stored = localStorage.getItem(
-              `inv-group-${budgetId}-${slug(name)}`,
-            );
+            stored = localStorage.getItem(`inv-type-${budgetId}-${b.uiType}`);
           } catch {
             stored = null;
           }
-          // Collapsed by default (D-#1); a stored "1"/"0" preference still wins.
-          next[name] = stored == null ? false : stored === "1";
+          next[b.uiType] = stored === "0";
         }
-      }
       return next;
     });
-  }, [groupNamesKey, budgetId]);
-
-  const isExpanded = (name: string) => expandedMap[name] ?? false;
-  const toggleGroup = (name: string) => {
-    setExpandedMap((prev) => {
-      const val = !(prev[name] ?? false);
+  }, [typesKey, budgetId]);
+  // Blocks collapse while one is dragged, for a stable target (UI-SPEC).
+  const isExpanded = (ui: UiType) => !draggingBlock && !collapsed[ui];
+  const toggleType = (ui: UiType) =>
+    setCollapsed((prev) => {
+      const nowCollapsed = !prev[ui];
+      // R5-3: closing a type closes its assets.
+      if (nowCollapsed) {
+        const ids = holdings
+          .filter(
+            (h) => deriveUiType(h.uiType, h.holdingType, h.isCustom) === ui,
+          )
+          .map((h) => h.id);
+        setOpenAssets((open) => {
+          const next = new Set(open);
+          for (const id of ids) next.delete(id);
+          return next;
+        });
+        if (bdpStore)
+          for (const id of ids) bdpStore.wallets.expandedRows[id] = false;
+      }
       try {
         localStorage.setItem(
-          `inv-group-${budgetId}-${slug(name)}`,
-          val ? "1" : "0",
+          `inv-type-${budgetId}-${ui}`,
+          nowCollapsed ? "0" : "1",
         );
       } catch {
         /* ignore */
       }
-      return { ...prev, [name]: val };
+      return { ...prev, [ui]: nowCollapsed };
     });
-  };
 
-  // Flat sortable items, in render order: each group HEADER id, then (if expanded)
-  // its children, then loose rows. Group headers ARE sortable items now, so the
-  // whole list lives in one SortableContext and a child never crosses contexts.
-  // Collapsed children aren't rendered → excluded to keep measurements consistent.
-  const sortableIds: string[] = [];
-  for (const e of entries) {
-    if (e.kind === "group") {
-      sortableIds.push(groupSortId(e.name));
-      if (isExpanded(e.name))
-        for (const h of e.holdings) sortableIds.push(h.id);
-    } else {
-      sortableIds.push(e.holding.id);
-    }
-  }
-
-  // ── DnD ──
+  // ── DnD (D-12) ──
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, {
@@ -421,287 +520,88 @@ export function InvestmentsSection({
     }),
     useSensor(KeyboardSensor),
   );
-  // Apply a DragResult to a holdings array → new array in the result's order with
-  // the moved holding's group updated. Used to seed the post-drop optimistic order
-  // (`committed`) so the DOM is already final on the pointer-up frame.
-  function applyResult(base: HoldingDto[], result: DragResult): HoldingDto[] {
-    const map = new Map(base.map((h) => [h.id, h]));
-    if (result.groupChange) {
-      const h = map.get(result.groupChange.holdingId);
-      if (h) map.set(h.id, { ...h, group: result.groupChange.group });
-    }
-    return result.orderedIds.map((id, i) => ({
-      ...map.get(id)!,
-      sortOrder: i,
-    }));
-  }
 
-  // The active holding's live target group during a drag → drives the dragged row's
-  // indentation preview (UAT #5: it adopts the level it will drop into). Null when
-  // idle or dragging a group block.
-  const [dragActive, setDragActive] = useState<{
-    id: string;
-    group: string | null;
-  } | null>(null);
-
-  // Layout snapshotted at drag-START (the STABLE, untransformed positions — reading
-  // rects mid-drag would include @dnd-kit's gap transforms). `groupSpans` is each
-  // group's JOIN band: top = the header's CENTRE (so it aligns with where the list
-  // strategy swaps the dragged row across the header — child below / loose above),
-  // bottom = its last visible member (expanded) or the header bottom (collapsed).
-  // The dragged centre inside a band → join that group; outside → loose.
-  const dragGeomRef = useRef<{
-    groupSpans: { group: string; top: number; bottom: number }[];
-  }>({ groupSpans: [] });
-
-  // The dragged row's CENTRE at drag-start. The live centre = this + dnd-kit's
-  // `delta.y` (the raw pointer displacement) — reliable on every move, unlike
-  // `active.rect.translated` which can lag → the indent preview never updated
-  // (UAT). Used for BOTH the live preview and the drop so they always agree.
-  const activeStartMidRef = useRef<number | null>(null);
-
-  // `activeGroup` = the dragged item's CURRENT group (null for a loose item). The
-  // group the item already belongs to is treated as "ejecting": its band starts at
-  // the header BOTTOM so the indent clears the instant the item rises to cover the
-  // header (UAT: "moving an item out above the group shouldn't keep the indent").
-  function snapshotDragGeometry(activeGroup: string | null) {
-    let geoms: GroupGeom[] = [];
-    if (typeof document !== "undefined") {
-      // Header rect per group (the root `investment-group-<Name>`, not -toggle/etc).
-      const headers = new Map<
-        string,
-        { top: number; center: number; bottom: number }
-      >();
-      for (const el of document.querySelectorAll<HTMLElement>(
-        '[data-testid^="investment-group-"]',
-      )) {
-        const name = (el.getAttribute("data-testid") ?? "").slice(
-          "investment-group-".length,
-        );
-        if (!name || !groupNames.includes(name) || headers.has(name)) continue;
-        const r = el.getBoundingClientRect();
-        headers.set(name, {
-          top: r.top,
-          center: r.top + r.height / 2,
-          bottom: r.bottom,
-        });
-      }
-      // Visible member rows → the bottom of each expanded group's band.
-      const memberBottoms = new Map<string, number>();
-      for (const el of document.querySelectorAll<HTMLElement>(
-        "[data-investment-row-wrapper]",
-      )) {
-        const id = el.getAttribute("data-investment-row-wrapper");
-        if (!id) continue;
-        const g = holdings.find((h) => h.id === id)?.group ?? null;
-        if (!g) continue;
-        const b = el.getBoundingClientRect().bottom;
-        memberBottoms.set(g, Math.max(memberBottoms.get(g) ?? b, b));
-      }
-      geoms = groupNames.flatMap((name) => {
-        const h = headers.get(name);
-        if (!h) return [];
-        return [
-          {
-            name,
-            headerTop: h.top,
-            headerCenter: h.center,
-            headerBottom: h.bottom,
-            memberBottom: memberBottoms.get(name) ?? null,
-          },
-        ];
-      });
-    }
-    // Band TOP/BOTTOM rules live in the pure `computeJoinBands` (unit-tested): a
-    // group joined from outside starts at headerTop − gap/2 (the swap point, so the
-    // indent turns on the instant the row clears the header — no dead zone), while
-    // ejecting / collapsed groups start at headerBottom.
-    dragGeomRef.current = { groupSpans: computeJoinBands(geoms, activeGroup) };
-  }
-
-  // Which group (if any) the dragged centre is currently within → join that group;
-  // null = loose (on a header band of an expanded group, in a gap, or among loose
-  // rows). Pure vertical test, so the indent preview never feeds back into layout.
-  function computeTargetGroup(aMid: number): string | null {
-    for (const s of dragGeomRef.current.groupSpans)
-      if (aMid >= s.top && aMid <= s.bottom) return s.group;
-    return null;
-  }
-
-  // Insertion index in the HOLDINGS order, derived from @dnd-kit's `over` so the
-  // commit matches exactly what the user sees previewed (arrayMove of the visible
-  // sortable items — headers + visible holdings), then collapsed group headers are
-  // expanded back to their members. This is what fixes the "drop jumps back" cases,
-  // incl. reordering relative to a COLLAPSED group (its members aren't rendered, so
-  // the old geometry had no anchor for them). Returns null when unresolvable.
-  function computeInsertIndex(activeId: string, overId: string): number | null {
-    const ai = sortableIds.indexOf(activeId);
-    const oi = sortableIds.indexOf(overId);
-    if (ai === -1 || oi === -1) return null;
-    const moved = ai === oi ? sortableIds : arrayMove(sortableIds, ai, oi);
-    const flat: string[] = [];
-    for (const id of moved) {
-      if (isGroupSortId(id)) {
-        const name = groupNameFromSortId(id);
-        if (!isExpanded(name)) {
-          // Collapsed → its members aren't in `moved`; re-insert them in order.
-          for (const h of holdings
-            .filter((h) => (h.group ?? null) === name && h.id !== activeId)
-            .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)))
-            flat.push(h.id);
-        }
-        // Expanded → members are their own ids in `moved`; skip the header.
-      } else {
-        flat.push(id);
-      }
-    }
-    const idx = flat.indexOf(activeId);
-    return idx === -1 ? null : idx;
-  }
+  // Blocks and rows share one DndContext, so the big block droppables would win
+  // closestCenter for a row drag. Each drag only sees its own kind: a block sees
+  // blocks, a row sees rows of ITS type (cross-type drop impossible, D-12).
+  const collisionDetection: CollisionDetection = (args) => {
+    const aId = String(args.active.id);
+    const aType = isBlockId(aId) ? null : holdings.find((h) => h.id === aId);
+    return closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((c) => {
+        const id = String(c.id);
+        if (!aType) return isBlockId(id);
+        const o = holdings.find((h) => h.id === id);
+        return !!o && typeOf(o) === typeOf(aType);
+      }),
+    });
+  };
 
   function handleDragStart(e: DragStartEvent) {
     setDndDragging(true);
-    const id = String(e.active.id);
-    const activeGroup = isGroupSortId(id)
-      ? null
-      : (holdings.find((h) => h.id === id)?.group ?? null);
-    snapshotDragGeometry(activeGroup);
-    setActiveId(id);
-    // Capture the dragged row's start centre from its untransformed rect.
-    const el = isGroupSortId(id)
-      ? document.querySelector<HTMLElement>(
-          `[data-testid="investment-group-${groupNameFromSortId(id)}"]`,
-        )
-      : document.querySelector<HTMLElement>(
-          `[data-investment-row-wrapper="${id}"]`,
-        );
-    activeStartMidRef.current = el
-      ? (() => {
-          const r = el.getBoundingClientRect();
-          return r.top + r.height / 2;
-        })()
-      : null;
-    if (!isGroupSortId(id))
-      setDragActive({
-        id,
-        group: holdings.find((h) => h.id === id)?.group ?? null,
-      });
+    if (isBlockId(String(e.active.id))) setDraggingBlock(true);
+    else setDraggingRow(true);
   }
 
-  // The dragged centre, live, from the start centre + dnd-kit's pointer delta.
-  function liveMid(deltaY: number): number | null {
-    return activeStartMidRef.current == null
-      ? null
-      : activeStartMidRef.current + deltaY;
-  }
+  function handleDragEnd(e: DragEndEvent) {
+    setDndDragging(false);
+    setDraggingBlock(false);
+    setDraggingRow(false);
+    const { active, over } = e;
+    if (!over) return;
+    const aId = String(active.id);
+    const oId = String(over.id);
+    const typeOfId = (id: string): UiType | null => {
+      if (isBlockId(id)) return id.slice(BLOCK.length) as UiType;
+      const h = holdings.find((x) => x.id === id);
+      return h ? typeOf(h) : null;
+    };
 
-  // Track the dragged holding's live target group so its row previews the indent of
-  // the level it will land in (UAT). Fires on EVERY move (onDragMove, not onDragOver)
-  // and we only setState when the group actually changes → no re-measure loop / #185.
-  function handleDragMove(e: DragMoveEvent) {
-    const aId = String(e.active.id);
-    if (isGroupSortId(aId)) return;
-    const aMid = liveMid(e.delta.y);
-    if (aMid == null) return;
-    const group = computeTargetGroup(aMid);
-    setDragActive((prev) =>
-      prev && prev.id === aId && prev.group === group
-        ? prev
-        : { id: aId, group },
+    if (isBlockId(aId)) {
+      const from = typeOfId(aId);
+      const to = typeOfId(oId);
+      if (!from || !to || from === to) return;
+      const next = moveTypeBlock(
+        blocks.map((b) => b.uiType),
+        from,
+        to,
+      );
+      setCommittedOrder(next);
+      // WR-09: a failed save must not leave the optimistic order on screen.
+      setOrderMut.mutate(next, { onError: () => setCommittedOrder(null) });
+      return;
+    }
+
+    // A row moves only within its own type (D-12): anything else is a no-op.
+    const from = typeOfId(aId);
+    if (!from || isBlockId(oId) || typeOfId(oId) !== from || aId === oId)
+      return;
+    const moved: TypeBlock[] = blocks.map((b) => {
+      if (b.uiType !== from) return b;
+      const ids = b.holdings.map((h) => h.id);
+      return {
+        ...b,
+        holdings: arrayMove(b.holdings, ids.indexOf(aId), ids.indexOf(oId)),
+      };
+    });
+    const flat = moved.flatMap((b) => b.holdings);
+    setCommitted(flat.map((h, i) => ({ ...h, sortOrder: i + 1 })));
+    reorderMut.mutate(
+      { orderedIds: flat.map((h) => h.id) },
+      { onError: () => setCommitted(null) },
     );
   }
 
   function handleDragCancel() {
     setDndDragging(false);
-    setActiveId(null);
-    setDragActive(null);
-  }
-
-  // No onDragOver live-move: the list is a single flat SortableContext, so
-  // @dnd-kit's verticalListSortingStrategy animates EVERY reorder (within a group,
-  // across groups, in/out of loose) via transforms — the rows slide, the dragged
-  // row never leaves the DOM, and nothing shrinks mid-drag (UAT #4). Group
-  // membership is inferred purely from the DROP target + rect direction here, and
-  // committed once. (This also removes the onDragOver setState that, with
-  // MeasuringStrategy.Always, used to re-fire and crash with React #185.)
-  function handleDragEnd(e: DragEndEvent) {
-    const { active, over } = e;
-    setDndDragging(false);
-    setActiveId(null);
-    setDragActive(null);
-    if (!over) return;
-    const aId = String(active.id);
-    const overId = String(over.id);
-
-    // Cross-section drop (a wallet section) → rejected.
-    if (overId.startsWith("section-")) {
-      toast.error(tToast("crossSectionRejected"));
-      return;
-    }
-
-    const aMid = liveMid(e.delta.y);
-    const oMid = midY(over.rect);
-
-    // A GROUP block drag commits via the over target + direction (placeAfter, UAT
-    // #6) — its cohesive overlay already shows the move.
-    if (isGroupSortId(aId)) {
-      const placeAfter = aMid != null && oMid != null ? aMid > oMid : false;
-      const result = resolveDragEnd(holdings, aId, overId, { placeAfter });
-      if (result) {
-        setCommitted(applyResult(holdings, result));
-        reorderMut.mutate({ orderedIds: result.orderedIds });
-      }
-      return;
-    }
-
-    // A HOLDING drag: POSITION comes from @dnd-kit's `over` (so the commit equals
-    // the previewed gap — no jump-back, and it works against a COLLAPSED group);
-    // GROUP comes from the children-span (dragged centre inside a group's member
-    // band → join; on a header band / gap / loose → loose).
-    if (aMid == null) return;
-    const insertIndex = computeInsertIndex(aId, overId);
-    if (insertIndex == null) return;
-    const targetGroup = computeTargetGroup(aMid);
-    const result = resolveHoldingDrop(holdings, aId, insertIndex, targetGroup);
-    if (!result) return;
-    if (result.groupChange) {
-      // Silent: a drag is not a "saved" moment — the reorder already feels done
-      // (UAT: no "Investments updated" toast on sort).
-      updateMut.mutate({
-        holdingId: aId,
-        group: result.groupChange.group,
-        silent: true,
-      });
-    }
-    setCommitted(applyResult(holdings, result));
-    reorderMut.mutate({ orderedIds: result.orderedIds });
+    setDraggingBlock(false);
+    setDraggingRow(false);
   }
 
   function openEdit(holding: HoldingDto) {
-    setSheet({ open: true, mode: "edit", holding });
+    setEditing(holding);
   }
-  function openAdd() {
-    setSheet({ open: true, mode: "create", holding: null });
-  }
-
-  // The group block currently being dragged → its cohesive DragOverlay preview +
-  // the dimming of the real block in place (UAT #1).
-  const activeGroupName =
-    activeId != null && isGroupSortId(activeId)
-      ? groupNameFromSortId(activeId)
-      : null;
-  const activeGroupEntry = activeGroupName
-    ? entries.find((e) => e.kind === "group" && e.name === activeGroupName)
-    : undefined;
-
-  // A holding row is indented when it's a grouped child. WHILE that row is being
-  // dragged, it previews the level it will land in instead (UAT #5: indent appears
-  // when entering a group, disappears when leaving) — `dragActive.group` is the
-  // live target from onDragOver.
-  const rowNested = (holdingId: string, defaultNested: boolean) =>
-    dragActive && dragActive.id === holdingId
-      ? dragActive.group != null
-      : defaultNested;
 
   if (!investmentsEnabled) return null;
 
@@ -755,121 +655,273 @@ export function InvestmentsSection({
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
-        // Always-measure so collisions stay accurate as @dnd-kit slides the rows
-        // during a drag (the dragged rect is compared against live row rects).
+        collisionDetection={collisionDetection}
         measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
         onDragStart={handleDragStart}
-        onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
         <SortableContext
-          items={sortableIds}
+          items={blocks.map((b) => blockId(b.uiType))}
           strategy={verticalListSortingStrategy}
         >
-          {/* FLAT children — every header and holding is a DIRECT child of this one
-              container (no per-group <Fragment> wrapper). A <Fragment> is a
-              reconciliation boundary: a holding moving in/out of a group's Fragment
-              on drop would unmount at the old spot and remount at the new one, so the
-              row blinked out for a frame ("disappears then reappears", UAT). As a
-              flat list keyed by holding id, React MOVES the row instead → no remount,
-              no flicker. */}
           <div className="flex flex-col gap-2">
-            {entries.flatMap((entry) =>
-              entry.kind === "group"
-                ? [
-                    <GroupHeaderItem
-                      key={`group:${entry.name}`}
-                      entry={entry}
-                      budgetCurrency={budgetCurrency}
-                      totalBudgetCents={totalBudgetCents}
-                      maxAmountChars={maxAmountChars}
-                      expanded={isExpanded(entry.name)}
-                      onToggle={() => toggleGroup(entry.name)}
-                    />,
-                    ...(isExpanded(entry.name)
-                      ? entry.holdings.map((h) => (
-                          <InvestmentRowSheet
-                            key={h.id}
-                            holding={h}
-                            nested={rowNested(h.id, true)}
-                            // Dim the children of the group being dragged — the
-                            // lifted copy lives in the DragOverlay (cohesive block).
-                            ghost={activeGroupName === entry.name}
-                            maxAmountChars={amountCols.group[entry.name]}
-                            onEdit={openEdit}
-                            onArchive={(id) => archiveMut.mutate(id)}
-                            onValueChange={(amount) =>
-                              saveInlineValue(h, amount)
-                            }
-                          />
-                        ))
-                      : []),
-                  ]
-                : [
-                    <InvestmentRowSheet
-                      key={entry.holding.id}
-                      holding={entry.holding}
-                      nested={rowNested(entry.holding.id, false)}
-                      maxAmountChars={maxAmountChars}
-                      onEdit={openEdit}
-                      onArchive={(id) => archiveMut.mutate(id)}
-                      onValueChange={(amount) =>
-                        saveInlineValue(entry.holding, amount)
+            {blocks.map((block) => {
+              const pl = blockPL.get(block.uiType)!;
+              return (
+                <SortableTypeBlock
+                  key={block.uiType}
+                  uiType={block.uiType}
+                  header={(handle) => (
+                    <InvestmentTypeHeader
+                      dragHandle={handle}
+                      uiType={block.uiType}
+                      budgetCurrency={shownPL(block.uiType, pl).ccy}
+                      pl={shownPL(block.uiType, pl).pl}
+                      onCurrencyChange={(c) =>
+                        void uiPrefs.save(ccyKey(block.uiType), [c])
                       }
-                    />,
-                  ],
-            )}
+                      portfolioPct={
+                        totalBudgetCents > 0
+                          ? (pl.valueBudgetCents / totalBudgetCents) * 100
+                          : 0
+                      }
+                      maxAmountChars={amountCols.top}
+                      expanded={isExpanded(block.uiType)}
+                      onToggle={() => toggleType(block.uiType)}
+                    />
+                  )}
+                >
+                  {/* Round 4: assets slide open / shut under the header (no
+                      slide while a block is dragged). The header gap lives
+                      inside the slide so it closes with it. */}
+                  <SlideCollapse
+                    open={isExpanded(block.uiType)}
+                    instant={draggingBlock}
+                    className="-mt-2"
+                  >
+                    <div
+                      // R6-7: an open group draws a hairline guide in the
+                      // assets' indent (a 1px background stripe — no layout shift).
+                      data-testid={`investment-group-guide-${block.uiType}`}
+                      className="flex flex-col gap-2 pt-2"
+                      style={{
+                        backgroundImage:
+                          "linear-gradient(var(--color-hairline-dark), var(--color-hairline-dark))",
+                        backgroundSize: "1px calc(100% - 0.5rem)",
+                        backgroundPosition: "7px 0.5rem",
+                        backgroundRepeat: "no-repeat",
+                      }}
+                    >
+                      <SortableContext
+                        items={block.holdings.map((h) => h.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {block.holdings.map((h) => (
+                          <div
+                            key={h.id}
+                            data-asset-block
+                            // UAT 13.1 test 4: assets nest under their type header.
+                            className="flex flex-col pl-4"
+                          >
+                            <InvestmentRowSheet
+                              holding={h}
+                              nested
+                              maxAmountChars={amountCols.group[block.uiType]}
+                              open={openAssets.has(h.id)}
+                              realized={summary?.holdings?.[h.id]}
+                              {...assetView(h)}
+                              onToggle={toggleAsset}
+                              onSwipeOffset={(id, px, live) =>
+                                setSwipe({ id, px, live })
+                              }
+                              onEdit={openEdit}
+                              onSwap={setSwapping}
+                              onArchive={(x) => archiveMut.mutate(x.id)}
+                              onDelete={
+                                soleEntry.get(h.id)
+                                  ? (x) =>
+                                      setDeleting({
+                                        holding: x,
+                                        entryId: soleEntry.get(h.id)!,
+                                      })
+                                  : undefined
+                              }
+                              onValueChange={(amount) =>
+                                saveInlineValue(h, amount)
+                              }
+                            />
+                            {/* L3: same left edge as the asset, outside the sortable
+                            row; collapsed while an asset is dragged (D-28/D-30). */}
+                            <AssetLedger
+                              budgetId={budgetId}
+                              assetId={h.id}
+                              assetName={h.name}
+                              noRealized={isCashLike(h)}
+                              currency={
+                                assetCcy(h) !== ownCcy(h)
+                                  ? assetCcy(h)
+                                  : undefined
+                              }
+                              open={openAssets.has(h.id) && !draggingRow}
+                              swipeOffset={swipe?.id === h.id ? swipe.px : 0}
+                              swiping={swipe?.id === h.id && swipe.live}
+                              onOpenLinked={openLinked}
+                              canOpen={(id) =>
+                                holdings.some((x) => x.id === id)
+                              }
+                              flashTransferId={
+                                flash?.holdingId === h.id
+                                  ? flash.transferId
+                                  : null
+                              }
+                            />
+                          </div>
+                        ))}
+                      </SortableContext>
+                      {hiddenOf(block.uiType).length > 0 && (
+                        <button
+                          type="button"
+                          data-testid={`hidden-toggle-${block.uiType}`}
+                          data-count={hiddenOf(block.uiType).length}
+                          onClick={() => toggleHidden(block.uiType)}
+                          className="self-start pl-7 text-left text-[12px] text-[var(--muted-foreground)] underline decoration-dotted underline-offset-2"
+                        >
+                          {showHidden.has(block.uiType)
+                            ? t("asset.hidden.close")
+                            : t("asset.hidden.show", {
+                                count: hiddenOf(block.uiType).length,
+                              })}
+                        </button>
+                      )}
+                      {showHidden.has(block.uiType) &&
+                        hiddenOf(block.uiType).map((h) => (
+                          <div
+                            key={h.id}
+                            data-testid={`hidden-asset-${h.id}`}
+                            className="flex flex-col pl-4"
+                            // R6 (user): listed like any asset, but fainter.
+                            style={{ opacity: 0.5 }}
+                          >
+                            <InvestmentRowSheet
+                              holding={h}
+                              nested
+                              maxAmountChars={amountCols.group[block.uiType]}
+                              open={openAssets.has(h.id)}
+                              realized={summary?.holdings?.[h.id]}
+                              {...assetView(h)}
+                              onToggle={toggleAsset}
+                              onSwipeOffset={(id, px, live) =>
+                                setSwipe({ id, px, live })
+                              }
+                              onEdit={openEdit}
+                              onSwap={setSwapping}
+                              onUnhide={(x) => restoreMut.mutate(x.id)}
+                            />
+                            {/* R6 (user): its transactions open like any asset's. */}
+                            <AssetLedger
+                              budgetId={budgetId}
+                              assetId={h.id}
+                              assetName={h.name}
+                              noRealized={isCashLike(h)}
+                              currency={
+                                assetCcy(h) !== ownCcy(h)
+                                  ? assetCcy(h)
+                                  : undefined
+                              }
+                              open={openAssets.has(h.id)}
+                              swipeOffset={swipe?.id === h.id ? swipe.px : 0}
+                              swiping={swipe?.id === h.id && swipe.live}
+                              onOpenLinked={openLinked}
+                              canOpen={(id) =>
+                                holdings.some((x) => x.id === id)
+                              }
+                              flashTransferId={null}
+                            />
+                          </div>
+                        ))}
+                    </div>
+                  </SlideCollapse>
+                </SortableTypeBlock>
+              );
+            })}
           </div>
         </SortableContext>
-
-        {/* Cohesive group drag preview (UAT #1): the whole block follows the
-            pointer as one unit while the real block dims in place. Null for a
-            holding drag (those keep their in-place transform).
-            dropAnimation={null}: with the overlay mounted, @dnd-kit's default drop
-            animation pins the SOURCE row at opacity:0 for ~250ms after pointer-up
-            while it "flies" the overlay home — even for a holding drag (overlay
-            child null) → the dropped row blinks out then back ("flicker", UAT). We
-            already place the row instantly via `committed`, so the animation is
-            pure downside; disabling it makes the drop land with no blink. */}
-        <DragOverlay dropAnimation={null}>
-          {activeGroupEntry && activeGroupEntry.kind === "group" ? (
-            <GroupBlockPreview
-              entry={activeGroupEntry}
-              budgetCurrency={budgetCurrency}
-              totalBudgetCents={totalBudgetCents}
-              maxAmountChars={maxAmountChars}
-              rowAmountChars={amountCols.group[activeGroupEntry.name] ?? 4}
-              expanded={isExpanded(activeGroupEntry.name)}
-            />
-          ) : null}
-        </DragOverlay>
       </DndContext>
 
       <DashedAddButton
-        onClick={openAdd}
+        onClick={() => setChoosing(true)}
         label={t("add.cta")}
         testId="add-investment-button"
         navKey="add-invest"
       />
 
-      <HoldingSheet
-        key={`${sheet.mode}-${sheet.holding?.id ?? "new"}-${sheet.open}`}
-        open={sheet.open}
-        onOpenChange={(open) => setSheet((s) => ({ ...s, open }))}
-        mode={sheet.mode}
+      <NewTransactionSheet
+        key={`tx-${choosing}`}
+        open={choosing}
+        onOpenChange={setChoosing}
         budgetId={budgetId}
         budgetCurrency={budgetCurrency}
-        groups={groupNames}
-        holding={sheet.holding}
+        holdings={holdings}
       />
+      {swapping && (
+        <SwapSheet
+          key={swapping.id}
+          open
+          onOpenChange={(o) => {
+            if (o) return;
+            setSwapping(null);
+          }}
+          budgetId={budgetId}
+          budgetCurrency={budgetCurrency}
+          holding={swapping}
+          holdings={holdings}
+        />
+      )}
+      {editing && (
+        <EditAssetSheet
+          key={editing.id}
+          open
+          onOpenChange={(o) => !o && setEditing(null)}
+          budgetId={budgetId}
+          budgetCurrency={budgetCurrency}
+          holding={editing}
+        />
+      )}
+      <AlertDialog
+        open={deleting !== null}
+        onOpenChange={(o) => !o && setDeleting(null)}
+      >
+        <AlertDialogContent onCloseAutoFocus={(e) => e.preventDefault()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("ledger.confirm.last.title", {
+                name: deleting?.holding.name ?? "",
+              })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("ledger.confirm.last.body", {
+                name: deleting?.holding.name ?? "",
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {t("ledger.confirm.last.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="investment-delete-confirm"
+              className="bg-[var(--trading-down)] text-white"
+              onClick={() => {
+                if (deleting) deleteMut.mutate({ entryId: deleting.entryId });
+                setDeleting(null);
+              }}
+            >
+              {t("ledger.confirm.last.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }
-
-const slug = (name: string) =>
-  name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");

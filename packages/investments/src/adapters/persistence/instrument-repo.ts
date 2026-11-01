@@ -55,6 +55,8 @@ export class DrizzleInstrumentRepo implements InstrumentRepo {
     // D-07: >=2 char minimum so a single keystroke does not scan the table.
     if (q.length < 2) return [];
     const ac = assetClass ?? null;
+    // Phase 13 (D-10): "stocks" is the merged equity + ETF type.
+    const stocks = ac === "stocks";
 
     // q + ac are BOUND parameters; the `|| '%'` concatenation is SQL-side, so the
     // query value can only ever be a filter, never alter the statement (T-9-08).
@@ -68,7 +70,9 @@ export class DrizzleInstrumentRepo implements InstrumentRepo {
          -- offers assets that will never get a quote. Auto-priced providers
          -- (finnhub US, coingecko, metals) do NOT start with 'manual'.
          AND provider NOT LIKE 'manual%'
-         AND (${ac}::text IS NULL OR asset_class = ${ac})
+         AND (${ac}::text IS NULL
+              OR (${stocks} AND asset_class IN ('equities','etf'))
+              OR (NOT ${stocks} AND asset_class = ${ac}))
          AND (symbol ILIKE ${q} || '%' OR display_name ILIKE '%' || ${q} || '%')
        ORDER BY CASE
                   WHEN symbol ILIKE ${q} THEN 0

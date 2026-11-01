@@ -4,7 +4,8 @@ import { sql } from "drizzle-orm";
  * Every (base, quote) the app will need in order to convert money.
  *
  *   - every (transaction currency → its budget's default) in the ledger, and
- *   - every (wallet currency → its budget's default) for live wallets.
+ *   - every (wallet currency → its budget's default) for live wallets, and
+ *   - every pair among the currency picker's currencies (13.1 round 6).
  *
  * The wallet half matters on its own: a wallet holding a currency that has no
  * TRANSACTIONS in it still counts toward capitalization and net worth, and with
@@ -32,6 +33,12 @@ export const FX_PAIRS_SQL = sql`
       FROM budgeting.wallets w
       JOIN tenancy.budgets b ON b.id = w.tenant_id
      WHERE w.archived_at IS NULL AND b.archived_at IS NULL
+    UNION
+    -- Any of the currency picker's currencies can become an asset's currency
+    -- in Edit, and the API reads rates from the cache only: collect them all.
+    SELECT f.c, t.c
+      FROM (VALUES ('USD'),('EUR'),('PLN'),('GBP'),('UAH'),('CHF'),('NOK'),('SEK')) f(c)
+     CROSS JOIN (VALUES ('USD'),('EUR'),('PLN'),('GBP'),('UAH'),('CHF'),('NOK'),('SEK')) t(c)
   ) p
   WHERE base IS NOT NULL AND quote IS NOT NULL AND base <> quote
 `;

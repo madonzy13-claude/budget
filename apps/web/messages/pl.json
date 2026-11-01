@@ -592,7 +592,11 @@
         "title": "INWESTYCJE"
       },
       "add": {
-        "cta": "Dodaj inwestycję"
+        "cta": "Nowa transakcja"
+      },
+      "newTx": {
+        "title": "Nowa transakcja",
+        "pickAsset": "Aktywo"
       },
       "sheet": {
         "title": {
@@ -604,10 +608,8 @@
       },
       "field": {
         "name": "Nazwa",
-        "nameOptional": "Nazwa (opcjonalnie)",
         "type": "Typ",
         "typePlaceholder": "Wybierz typ",
-        "group": "Grupa",
         "groupPlaceholder": "Bez grupy",
         "buyPrice": "Cena zakupu",
         "buyCurrency": "Waluta zakupu",
@@ -632,13 +634,10 @@
         "startDate": "Data rozpoczęcia",
         "endDateOptional": "Data zakończenia (opcjonalnie)",
         "ticker": "Symbol",
-        "tickerPlaceholder": "np. AAPL"
+        "tickerPlaceholder": "np. AAPL",
+        "customName": "Własna nazwa"
       },
       "uitype": {
-        "equity": "Akcje",
-        "etf": "ETF",
-        "etb": "Obligacje giełdowe",
-        "reit": "REIT",
         "crypto": "Krypto",
         "treasury_bond": "Detaliczne obligacje skarbowe",
         "collectibles": "Kolekcje",
@@ -648,7 +647,8 @@
         "cash": "Gotówka",
         "broker": "Konto maklerskie",
         "deposit": "Lokata",
-        "savings": "Oszczędności"
+        "savings": "Oszczędności",
+        "stocks": "Akcje i ETF-y"
       },
       "capFrequency": {
         "daily": "Dzienna",
@@ -685,29 +685,26 @@
         "other": "Inne"
       },
       "group": {
-        "portfolioSuffix": "portfela",
-        "noGroups": "Brak grup.",
-        "create": "Utwórz \"{name}\"",
         "headerAria": "{name}, {pct} portfela. {state}.",
         "expanded": "Rozwinięte",
         "collapsed": "Zwinięte",
         "dragAria": "Przeciągnij, aby przenieść grupę {name}.",
-        "metricsAria": "Pokaż zysk/stratę i udział w portfelu dla {name}."
+        "currencyAria": "Pokaż {name} w innej walucie"
       },
       "row": {
         "delisted": "Wycofany",
         "editAria": "Edytuj {name}.",
         "deleteAria": "Usuń {name}.",
         "dragAria": "Przeciągnij, aby zmienić kolejność {name}.",
-        "qty": "Ilość: {qty}",
-        "started": "Początek: {amount}",
+        "qty": "ilość: {qty}",
+        "started": "początek: {amount}",
         "share": "Udział: {pct}",
-        "amountAria": "Edytuj wartość {name}"
+        "amountAria": "Edytuj wartość {name}",
+        "qtyAvg": "{qty} × {avg} śr. koszt",
+        "autoPricedTip": "Ta kwota aktualizuje się sama. Aby ją zmienić, dodaj transakcję: kupno, sprzedaż lub przeniesienie."
       },
       "rowExpandAria": "Rozwiń szczegóły {name}.",
       "plAria": "{value} zysk/strata",
-      "ungroupZone": "Upuść tutaj, aby usunąć z grupy",
-      "looseZone": "Upuść tutaj, aby zostawić luzem",
       "search": {
         "placeholder": "Szukaj instrumentów…",
         "loading": "Szukanie…",
@@ -726,8 +723,8 @@
         "createFailed": "Nie udało się dodać inwestycji. Spróbuj ponownie.",
         "saved": "Zaktualizowano inwestycję",
         "saveFailed": "Nie udało się zapisać zmian. Sprawdź połączenie i spróbuj ponownie.",
-        "archived": "Usunięto inwestycję",
-        "archiveFailed": "Nie udało się usunąć inwestycji. Spróbuj ponownie.",
+        "archived": "Inwestycja ukryta",
+        "archiveFailed": "Nie udało się ukryć inwestycji. Spróbuj ponownie.",
         "reorderFailed": "Nie udało się zmienić kolejności. Spróbuj ponownie.",
         "crossSectionRejected": "Aktywa mogą być tylko w Inwestycjach."
       },
@@ -756,6 +753,217 @@
         "premium": "Premia",
         "withPremium": "Z premią",
         "pl": "Zysk/strata"
+      },
+      "sell": {
+        "qtyHelper": "Masz {qty}",
+        "valueHelper": "Obecna wartość {value}",
+        "date": "Data",
+        "toastSale": "Sprzedaż zapisana",
+        "toastWithdraw": "Wypłata zapisana",
+        "qtySold": "Sprzedana ilość",
+        "valueSold": "Sprzedana wartość"
+      },
+      "typeGroup": {
+        "stats": {
+          "avgPrice": "śr. cena: {price}"
+        },
+        "unrealizedLabel": "niezreal.: {value}",
+        "realizedLabel": "zreal.: {value}"
+      },
+      "addDate": "Data",
+      "asset": {
+        "swipe": {
+          "edit": "Edytuj",
+          "newTxn": "Nowa transakcja"
+        },
+        "name": {
+          "label": "Nazwa",
+          "create": "Dodaj jako nowe aktywo „{name}”",
+          "closed": "Ukryte",
+          "reopens": "Ponownie otworzy {name}.",
+          "pickOrCreate": "Wybierz istniejące aktywo lub wpisz nową nazwę.",
+          "pickedValue": "Wartość aktywa: {value}"
+        },
+        "archive": {
+          "confirm": "Ukryj",
+          "aria": "Ukryj {name}",
+          "done": "Aktywo ukryte",
+          "failed": "Nie udało się ukryć aktywa."
+        },
+        "hidden": {
+          "show": "Pokaż ukryte aktywa ({count})",
+          "close": "Zwiń ukryte aktywa",
+          "unhide": "Pokaż",
+          "unhideAria": "Pokaż {name}"
+        },
+        "currencyAria": "Pokaż {name} w innej walucie"
+      },
+      "swap": {
+        "title": "Nowa transakcja: {name}",
+        "tab": {
+          "buy": "Kup",
+          "sell": "Sprzedaj",
+          "transfer": "Przenieś"
+        },
+        "sellTitle": "Sprzedaj {name}",
+        "cta": {
+          "buy": "Dodaj do {name}",
+          "sell": "Zapisz sprzedaż",
+          "sellOut": "Zapisz wypłatę",
+          "transfer": "Przenieś do {target}",
+          "transferNoTarget": "Przenieś aktywo"
+        },
+        "discard": "Odrzuć",
+        "saving": "Zapisywanie…",
+        "dateMin": "Nie wcześniej niż {date} — ostatni wpis tego aktywa.",
+        "buy": {
+          "amountAdded": "Wpłacona kwota",
+          "valueAfter": "Wartość konta po wpłacie",
+          "valueAfterHelp": "Było {current} + {amount}. Wpisz wartość z aplikacji brokera.",
+          "split": "Zysk/strata {market} z ruchu rynku · {deposit} z wpłaty",
+          "cashHelp": "Koszt i wartość rosną o tę kwotę. Zysk/strata się nie zmienia.",
+          "quantity": "Ilość",
+          "price": "Cena zakupu",
+          "total": "Razem {amount}",
+          "from": "Skąd pochodzą pieniądze?",
+          "srcAsset": "Aktywo źródłowe",
+          "srcPlaceholder": "Wybierz aktywo",
+          "takes": "Pobiera {amount} z {name}",
+          "src": {
+            "out": "Spoza inwestycji",
+            "outDesc": "Nowe pieniądze dla inwestycji",
+            "asset": "Z innego aktywa",
+            "assetDesc": "Sprzedane z posiadanego aktywa"
+          }
+        },
+        "locked": "Zablokowane",
+        "sell": {
+          "where": "Gdzie trafiły pieniądze?",
+          "dest": {
+            "out": "Poza inwestycjami",
+            "outDesc": "Opuszczają Twoje inwestycje",
+            "invest": "Do inwestycji",
+            "investDesc": "Wybierz istniejące aktywo lub wpisz nowe",
+            "willCreate": "Zostanie utworzone nowe aktywo „{name}”"
+          },
+          "received": "Otrzymana kwota",
+          "receivedHelp": "Wstępnie wg dzisiejszej wartości. Zmień na kwotę, która faktycznie wpłynęła.",
+          "walletTitle": "Gdzie mają trafić pieniądze?",
+          "wallet": {
+            "existing": "Istniejący portfel",
+            "new": "Nowy portfel",
+            "nowhere": "Nigdzie",
+            "help": "Dodane do salda portfela. Nie liczy się jako przychód.",
+            "newHelp": "Portfel zaczyna od tej kwoty.",
+            "name": "Nazwa portfela",
+            "type": "Typ portfela"
+          },
+          "sold": "Ile sprzedano?",
+          "note": "Notatka (opcjonalnie)",
+          "notePlaceholder": "np. spłata kredytu za auto"
+        },
+        "transfer": {
+          "to": "Do",
+          "sameInstrument": "Tylko ten sam instrument.",
+          "note": "To nie sprzedaż: brak zrealizowanego zysku, koszt przechodzi razem.",
+          "moveQty": "Ilość do przeniesienia",
+          "moveAmount": "Kwota do przeniesienia"
+        },
+        "sum": {
+          "title": "Co się stanie",
+          "line": "{label}: {before} → {after}",
+          "created": "Nowe aktywo {name} z kwotą {amount}",
+          "walletNew": "Nowy portfel {name} zaczyna od {amount}",
+          "leaves": "Opuszcza Twoje inwestycje",
+          "plUnchanged": "Zysk/strata bez zmian",
+          "realized": "Zrealizowano {amount}",
+          "realizedUnchanged": "Zrealizowany zysk bez zmian"
+        },
+        "err": {
+          "received": "Wpisz otrzymaną kwotę większą od 0.",
+          "positive": "Wpisz kwotę większą od 0.",
+          "futureDate": "Data nie może być w przyszłości.",
+          "beforeLatest": "Data nie może być wcześniejsza niż ostatni wpis ({date}).",
+          "beforeDest": "{name} ma wpis z {date} — wybierz tę datę lub późniejszą.",
+          "fx": "Brak kursu dla {currency} na {date}. Wybierz inną datę lub walutę.",
+          "walletRequired": "Wybierz portfel lub opcję Nigdzie.",
+          "nameRequired": "Wpisz nazwę.",
+          "saveFailed": "Nie udało się zapisać. Sprawdź połączenie i spróbuj ponownie.",
+          "staleEntry": "To aktywo się zmieniło. Odśwież i spróbuj ponownie.",
+          "soldRange": "Wpisz więcej niż 0 i nie więcej, niż posiadasz.",
+          "overHeld": "To więcej, niż posiadasz ({held})."
+        }
+      },
+      "edit": {
+        "label": "Nazwa",
+        "displayCurrency": "Waluta",
+        "fxLoading": "Przeliczanie…",
+        "fxUnavailable": "Kurs niedostępny — wartość zostanie przeliczona przy zapisie.",
+        "currentValue": "Aktualna wartość",
+        "currentPrice": "Aktualna cena za jednostkę",
+        "save": "Zapisz zmiany",
+        "saved": "Zapisano"
+      },
+      "ledger": {
+        "kind": {
+          "bought": "Zakup",
+          "sold": "Sprzedaż",
+          "transferIn": "Przeniesienie z",
+          "transferOut": "Przeniesienie do",
+          "convertedIn": "Zakup",
+          "convertedOut": "Sprzedaż",
+          "added": "Zakup",
+          "valueUpdated": "Zaktualizowana wartość",
+          "priceUpdated": "Zaktualizowana cena",
+          "interest": "Odsetki"
+        },
+        "realized": "zrealizowano {amount}",
+        "toAsset": "do {name}",
+        "fromAsset": "z {name}",
+        "deleteAria": "Usuń: {kind} z {date}",
+        "onlyLatest": "Można usunąć tylko ostatni wpis.",
+        "removeLaterIn": "Najpierw usuń późniejsze wpisy w {name}.",
+        "deleted": "Wpis usunięty",
+        "confirm": {
+          "entry": {
+            "title": "Usunąć ten wpis?",
+            "body": "To cofa operację „{kind}” z {date}. Ilość, koszt, wartość, zrealizowany zysk i wpłaty wrócą do stanu sprzed niej.",
+            "confirm": "Usuń wpis",
+            "cancel": "Zachowaj wpis"
+          },
+          "wallet": {
+            "title": "Usunąć tę sprzedaż?",
+            "body": "To cofa sprzedaż z {date} i zabiera {amount} z portfela {wallet}. Portfel utworzony przy tej sprzedaży zostaje, tylko bez tej kwoty.",
+            "confirm": "Usuń sprzedaż",
+            "cancel": "Zachowaj sprzedaż"
+          },
+          "linked": {
+            "title": "Usunąć obie strony?",
+            "body": "Ten wpis jest powiązany. Usunięcie go usunie też odpowiadający wpis w {other}. Oba aktywa wrócą do stanu sprzed niego.",
+            "confirm": "Usuń oba wpisy",
+            "cancel": "Zachowaj wpisy"
+          },
+          "last": {
+            "title": "Usunąć {name}?",
+            "body": "To jedyny wpis. Usunięcie go całkowicie usunie {name} razem z historią i zrealizowanym zyskiem. Tego nie można cofnąć.",
+            "confirm": "Usuń aktywo",
+            "cancel": "Zachowaj aktywo"
+          },
+          "interestNote": "Odsetki naliczone po nim zostaną przeliczone."
+        },
+        "openLinked": "Otwórz {name}",
+        "edit": {
+          "title": "Edytuj transakcję",
+          "aria": "Edytuj {kind}, {date}",
+          "saved": "Transakcja zaktualizowana",
+          "range": "Wybierz datę od {min} do {max}.",
+          "dateLocked": "Daty lokaty wyznaczają jej odsetki — nie można ich zmienić."
+        }
+      },
+      "heldUnit": {
+        "g": "{n, plural, one {{qty} gram} few {{qty} gramy} many {{qty} gramów} other {{qty} grama}}",
+        "oz": "{n, plural, one {{qty} uncja} few {{qty} uncje} many {{qty} uncji} other {{qty} uncji}}",
+        "kg": "{n, plural, one {{qty} kilogram} few {{qty} kilogramy} many {{qty} kilogramów} other {{qty} kilograma}}"
       }
     },
     "cushionMode": {
@@ -1057,7 +1265,6 @@
       "capture": {
         "saveExpense": "Zapisz wydatek",
         "saveIncome": "Zapisz przychód",
-        "saveTransfer": "Zapisz przelew",
         "amountLabel": "Kwota",
         "currencyLabel": "Waluta",
         "dateLabel": "Data",
@@ -1065,8 +1272,7 @@
         "accountLabel": "Portfel",
         "noteLabel": "Notatka (opcjonalna)",
         "kindExpense": "Wydatek",
-        "kindIncome": "Przychód",
-        "kindTransfer": "Przelew"
+        "kindIncome": "Przychód"
       },
       "list": {
         "editedBadge": "edytowane",
@@ -1196,7 +1402,6 @@
         "kindLabel": "Typ",
         "kindExpense": "Wydatek",
         "kindIncome": "Przychód",
-        "kindTransfer": "Przelew",
         "accountLabel": "Portfel",
         "categoryLabel": "Kategoria",
         "categoryNone": "(bez kategorii)",
@@ -1861,9 +2066,14 @@
         "category": "Kategoria",
         "amount": "Kwota",
         "currency": "Waluta",
-        "note": "Notatka (opcjonalna)"
+        "note": "Notatka (opcjonalna)",
+        "kind": "Rodzaj"
       },
-      "fxLine": "{original} · ~{converted} @ {rate} ({asOf})"
+      "fxLine": "{original} · ~{converted} @ {rate} ({asOf})",
+      "kind": {
+        "spending": "Wydatek",
+        "refund": "Zwrot"
+      }
     },
     "catSlider": {
       "cta": {
@@ -1939,7 +2149,8 @@
         "queued": "Zapisano na tym urządzeniu — prześlemy, gdy wrócisz online.",
         "badge": "Czeka na połączenie — zapisze się automatycznie",
         "waiting": "Czeka na synchronizację"
-      }
+      },
+      "refund": "Zwrot"
     },
     "lastAdded": "Ostatni wydatek dodano {when}",
     "quickEntry": {

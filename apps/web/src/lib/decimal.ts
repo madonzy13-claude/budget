@@ -57,7 +57,9 @@ export function parseAmountAndNote(
   const sp = trimmed.search(/\s/);
   const amountPart = sp === -1 ? trimmed : trimmed.slice(0, sp);
   const note = sp === -1 ? "" : trimmed.slice(sp + 1).trim();
-  const cents = parseDecimal(amountPart);
-  if (cents === null) return null;
-  return { cents, note: note || null };
+  // R6 (user): a leading minus (- or −) is a refund — money back.
+  const refund = /^[-−]/.test(amountPart);
+  const cents = parseDecimal(refund ? amountPart.slice(1) : amountPart);
+  if (cents === null || (refund && cents === 0)) return null;
+  return { cents: refund ? -cents : cents, note: note || null };
 }

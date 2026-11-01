@@ -129,6 +129,15 @@ export interface GetAllBudgetsAggregateDeps {
     getDisplayCurrency: (userId: string) => Promise<string | null>;
   };
   fxProvider: FxProvider;
+  /** R6 (user): the month's confirmed spending per day (budget currency), so
+   *  spent / overspent convert at the days the money went out. Optional:
+   *  without it they use today's rate. */
+  spendByDay?: (
+    tenantId: string,
+    budgetId: string,
+    monthStart: string,
+    monthEnd: string,
+  ) => Promise<{ date: string; cents: bigint }[]>;
   /** Per-budget cash-flow forecast, for the cross-budget spend verdict. Optional:
    *  without it the aggregate still builds and reports "green". */
   getCashflowProjectionForTenant?: (input: {
@@ -299,6 +308,50 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
 
         const s = p.ownership_share_pct;
         const ccy = c.default_currency;
+        // R6 (user): spent happened on its own days — each day's spend at that
+        // day's rate; overspent takes the month's resulting (spend-weighted)
+        // rate. "Left" and balances are money held now: today's rate.
+        let flow = (cents: bigint) =>
+          toDisplayCcyFlow(cents, ccy, rate, displayCcy);
+        if (deps.spendByDay && ccy !== displayCcy) {
+          const y = now.getUTCFullYear();
+          const m = now.getUTCMonth();
+          const ymd = (yy: number, mm: number) =>
+            `${yy + Math.floor(mm / 12)}-${String((mm % 12) + 1).padStart(2, "0")}-01`;
+          try {
+            const days = await deps.spendByDay(
+              b.id,
+              b.id,
+              ymd(y, m),
+              ymd(y, m + 1),
+            );
+            let paid = 0n;
+            let shown = 0n;
+            for (const d of days) {
+              const r = (
+                await deps.fxProvider.rateAsOf(
+                  ccy as Currency,
+                  displayCcy as Currency,
+                  new Date(`${d.date}T12:00:00Z`),
+                )
+              ).rate;
+              paid += d.cents;
+              shown += BigInt(toDisplayCcyFlow(d.cents, ccy, r, displayCcy));
+            }
+            if (paid > 0n) {
+              const scale = (cents: bigint) => {
+                const n = cents * shown;
+                return (
+                  (n + (n >= 0n ? paid / 2n : -paid / 2n)) /
+                  paid
+                ).toString();
+              };
+              flow = scale;
+            }
+          } catch {
+            /* a missing day rate keeps today's — never drops the row */
+          }
+        }
         return {
           ...base,
           net_worth_cents: toDisplayCcyShared(
@@ -343,33 +396,18 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
             displayCcy,
             s,
           ),
-          spent_month_cents: toDisplayCcyFlow(
-            c.spendings.spent_cents,
-            ccy,
-            rate,
-            displayCcy,
-          ),
+          spent_month_cents: flow(c.spendings.spent_cents),
           left_month_cents: toDisplayCcyFlow(
             c.spendings.left_cents,
             ccy,
             rate,
             displayCcy,
           ),
-          overspent_total_cents: toDisplayCcyFlow(
-            c.overspent.total_cents,
-            ccy,
-            rate,
-            displayCcy,
-          ),
+          overspent_total_cents: flow(c.overspent.total_cents),
           overspent_count: c.overspent.count,
           overspent_top_name: c.overspent.top[0]?.name ?? null,
           overspent_top_cents: c.overspent.top[0]
-            ? toDisplayCcyFlow(
-                c.overspent.top[0].over_amount_cents,
-                ccy,
-                rate,
-                displayCcy,
-              )
+            ? flow(c.overspent.top[0].over_amount_cents)
             : "0",
           cushion_breached: c.cushion.enabled && !c.cushion.covered,
           reserves_status: c.reserves.status,

@@ -9,6 +9,7 @@
  *
  * Pitfall 7: date string converted via new Date(s + 'T00:00:00Z').
  */
+import type { ExpenseLedgerDraftPortRepo } from "../ports/expense-ledger-draft-port-repo";
 import { ok, err, type Result } from "@budget/shared-kernel";
 import type {
   TransactionRepo,
@@ -45,6 +46,9 @@ export interface EditTransactionResult {
 
 export interface EditTransactionDeps {
   transactionRepo: TransactionRepo;
+  /** User (R6): an unconfirmed scheduled payment's new date — future sets it
+   *  aside until then; today or earlier moves it (task follows). */
+  draftDates?: Pick<ExpenseLedgerDraftPortRepo, "syncDate">;
   fxProvider: {
     rateAsOf(
       from: string,
@@ -88,7 +92,8 @@ export function editTransaction(deps: EditTransactionDeps) {
     const newDate = input.fields.date ?? original.date;
     const newAmountCents =
       input.fields.amountOriginalCents !== undefined
-        ? String(Math.abs(input.fields.amountOriginalCents))
+        ? // R6 (user): signed — negative is a refund.
+          String(Math.trunc(input.fields.amountOriginalCents))
         : original.amountOriginalCents;
 
     const currencyChanged =
@@ -106,6 +111,7 @@ export function editTransaction(deps: EditTransactionDeps) {
       )(original.budgetId);
 
       let newAmountConverted: string;
+      let newRate = "1";
 
       if (newCurrency === budgetCurrency) {
         newAmountConverted = newAmountCents;
@@ -120,25 +126,23 @@ export function editTransaction(deps: EditTransactionDeps) {
         if (!Number.isFinite(rateNum) || rateNum <= 0 || rateNum >= 1e6) {
           return err(new Error(`FX rate out of bounds: ${fxResult.rate}`));
         }
+        newRate = fxResult.rate;
         newAmountConverted = String(
           Math.round(Number(newAmountCents) * rateNum),
         );
       }
 
-      // UAT-Phase6-Test7 retest #5: lock the row to the budget currency
-      // after any cross-currency edit. The user's chosen non-budget code
-      // is consumed only to compute the converted amount — once the row
-      // is persisted it reads as if it had always been in the budget
-      // currency. This preserves "spent vs budget" math without showing
-      // a confusing mix of foreign-code labels alongside converted
-      // amounts in the spendings grid.
+      // R6 (user): the row keeps the currency and amount it was paid in; the
+      // budget-currency figure (and its rate) follows the date. This replaces
+      // the UAT-Phase6-Test7 lock, which rewrote the row into the budget
+      // currency — the grid now shows both: original, converted underneath.
       updateFields = {
         ...updateFields,
-        fxRate: "1",
+        fxRate: newRate,
         fxAsOf: newDate,
-        amountOriginalCents: newAmountConverted,
+        amountOriginalCents: newAmountCents,
         amountConvertedCents: newAmountConverted,
-        currencyOriginal: budgetCurrency,
+        currencyOriginal: newCurrency,
       };
     }
 
@@ -176,6 +180,17 @@ export function editTransaction(deps: EditTransactionDeps) {
     } catch (e) {
       return err(e as Error);
     }
+
+    if (
+      dateChanged &&
+      original.confirmedAt === null &&
+      original.scheduledPaymentId !== null
+    )
+      await deps.draftDates?.syncDate(
+        input.tenantId,
+        input.transactionId,
+        input.actorUserId,
+      );
 
     // Fetch updated row to return full shape
     const updated = await transactionRepo.findById(

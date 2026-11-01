@@ -15,8 +15,11 @@ import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { generateIdempotencyKey } from "@/lib/idempotency";
 import { toast } from "sonner";
 import type { HoldingDto, HoldingType } from "./use-investments";
+import { typeSummaryKey } from "./use-type-summary";
 
 export interface CreateHoldingInput {
+  /** Phase 13: date of the first history entry (default today). */
+  openedOn?: string;
   name: string;
   holdingType: HoldingType;
   uiType?: string | null;
@@ -24,7 +27,6 @@ export interface CreateHoldingInput {
   icon?: string | null;
   /** Possession-only hex color (e.g. "#e63946"). */
   color?: string | null;
-  group?: string | null;
   instrumentId?: string | null;
   buyPriceCents?: string | number | null;
   buyCurrency?: string | null;
@@ -62,7 +64,6 @@ function optimisticRow(input: CreateHoldingInput): HoldingDto {
     uiType: input.uiType ?? null,
     icon: input.icon ?? null,
     color: input.color ?? null,
-    group: input.group ?? null,
     instrumentId: input.instrumentId ?? null,
     metal: input.metal ?? null,
     metalKind: input.metalKind ?? null,
@@ -87,6 +88,8 @@ function optimisticRow(input: CreateHoldingInput): HoldingDto {
     // Optimistic row: the real fetch time arrives with the list refetch.
     priceFetchedAt: null,
     valueCents,
+    // Server fills the real cost on refetch; no P/L % yet, so it is unused.
+    costInBudgetCents: "0",
     valueInBudgetCents: valueCents,
     profitLossPct: null,
     profitLossCents: null,
@@ -163,6 +166,9 @@ export function useCreateHolding(budgetId: string) {
       // Revalidate, then persist the server-reconciled list so the durable cache
       // holds the real (enriched) row rather than the optimistic placeholder.
       await qc.invalidateQueries({ queryKey: key });
+      // A new holding writes its first history entry (a contribution).
+      void qc.invalidateQueries({ queryKey: typeSummaryKey(budgetId) });
+      void qc.invalidateQueries({ queryKey: ["budget", budgetId, "overview"] });
       void persistNow(qc);
     },
   });

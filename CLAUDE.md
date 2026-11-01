@@ -152,14 +152,14 @@ module to have a function wrapper` → `Failed to collect page data for
   (GHSA-cjq9-62q9-8jv4), both fixed in 16.3.8. `bun audit --audit-level=high`
   is a blocking CI job, so main was red until each moved.
 
-- **better-auth stays 1.6.28**, likewise pinned in `overrides`. 1.7.1 breaks
-  sign-up outright — `BetterAuthError: The field "issuer" does not exist in the
-"account" Drizzle schema`. 1.7.x added an `issuer` column to its `account`
-  model that `identity.account` does not have. Measured 2026-08-28:
-  `bun test packages/identity packages/tenancy` is 99 pass / 0 fail on 1.6.28
-  and 53 pass / 46 fail on 1.7.1, every red a failed sign-up. Unblocks with a
-  migration adding `issuer` to `identity.account` (plus its RLS grant), not
-  with a version bump alone.
+- **better-auth: NOT held — now 1.7.15** (2026-11-01), still an exact pin and
+  an `overrides` entry. Forced by advisories: every 1.6.x (incl. the 1.6.34
+  backport line) sits inside `<1.7.0-rc.3` for GHSA-965c-763c-88jm (CRITICAL)
+  plus two HIGHs, so `bun audit` was red. 1.7.x checks the Drizzle schema
+  against every plugin field and refuses sign-up on a gap — `Drizzle schema
+  mismatch / Missing columns session.activeOrganizationId, budgets.logo`
+  (the old `issuer` error was 1.7.1 only). Migration 0103 adds both as nullable
+  text. Gate any bump on `bun test packages/identity packages/tenancy` (99/0).
 
 **Not every `overrides` entry is a hold — most are advisory FLOORS.** `sharp`,
 `brace-expansion`, `source-map-js`, `@grpc/grpc-js`, `postcss`, `browserslist`

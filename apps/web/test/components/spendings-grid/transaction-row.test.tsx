@@ -574,3 +574,109 @@ describe("TransactionRow", () => {
     });
   });
 });
+
+// R6 (user): a spending in another currency reads in that currency (short
+// sign) only — the budget figure lives in its Edit, not on the row.
+describe("TransactionRow — foreign currency", () => {
+  it("shows the original amount, and no converted line", () => {
+    renderRow({
+      txn: {
+        ...txn,
+        amountOriginalCents: "1250",
+        currencyOriginal: "EUR",
+        amountConvertedCents: "5400",
+        currencyConverted: "PLN",
+      },
+    });
+    expect(screen.getByText("€12.50")).toBeInTheDocument();
+    expect(screen.queryByTestId("txn-converted")).toBeNull();
+  });
+
+  it("a budget-currency row has no converted line", () => {
+    renderRow({
+      txn: {
+        ...txn,
+        amountOriginalCents: txn.amountConvertedCents,
+        currencyOriginal: txn.currencyConverted,
+      },
+    });
+    expect(screen.queryByTestId("txn-converted")).toBeNull();
+  });
+
+  it("inline edit starts from the amount in its own currency", () => {
+    renderRow({
+      txn: {
+        ...txn,
+        amountOriginalCents: "1250",
+        currencyOriginal: "EUR",
+        amountConvertedCents: "5400",
+        currencyConverted: "PLN",
+      },
+    });
+    fireEvent.click(screen.getByText("€12.50"));
+    const input = document.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement;
+    expect(input.value).toBe("12.5");
+    fireEvent.blur(input);
+    expect(mockUpdateMutate).not.toHaveBeenCalled();
+  });
+
+  it("delete confirmation names the amount in its own currency", () => {
+    setHoverCapable(false);
+    renderRow({
+      txn: {
+        ...txn,
+        amountOriginalCents: "1000",
+        currencyOriginal: "EUR",
+        amountConvertedCents: "4369",
+        currencyConverted: "PLN",
+      },
+    });
+    fireEvent.click(screen.getByText("€10"));
+    fireEvent.click(screen.getByTestId("txn-action-delete"));
+    expect(document.body.textContent).toContain('"amount":"€10"');
+  });
+});
+
+// R6 (user): a refund reads with a refund mark before the amount, no minus.
+describe("TransactionRow — refund", () => {
+  it("shows the refund mark and the amount without a minus", () => {
+    renderRow({
+      txn: {
+        ...txn,
+        amountConvertedCents: "-2500",
+        amountOriginalCents: "-2500",
+        currencyOriginal: "USD",
+      },
+    });
+    const icon = screen.getByTestId("txn-refund-icon");
+    expect(icon).toBeInTheDocument();
+    // R6 (user): the number keeps the text baseline (the note beside it lines
+    // up) — the amount is inline text, not a flex box led by the icon.
+    expect(icon.parentElement!.className).not.toMatch(/flex/);
+    expect(screen.getByText("25")).toBeInTheDocument();
+    expect(screen.queryByText("-25")).toBeNull();
+  });
+
+  it("a spending has no refund mark", () => {
+    renderRow();
+    expect(screen.queryByTestId("txn-refund-icon")).toBeNull();
+  });
+
+  it("an inline edit of a refund starts from its signed amount", () => {
+    setHoverCapable(true);
+    renderRow({
+      txn: {
+        ...txn,
+        amountConvertedCents: "-2500",
+        amountOriginalCents: "-2500",
+      },
+    });
+    fireEvent.click(screen.getByText("25"));
+    const input = document.querySelector(
+      'input[inputmode="decimal"], input[type="text"]',
+    ) as HTMLInputElement;
+    expect(input.value).toBe("-25");
+  });
+});

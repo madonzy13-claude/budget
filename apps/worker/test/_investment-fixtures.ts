@@ -130,6 +130,15 @@ export async function seedHolding(
         opts.currentPriceCurrency ?? null,
       ],
     );
+    // 13.1 (D-35): every asset carries at least one ledger entry.
+    await c.query(
+      `INSERT INTO budgeting.investment_history
+         (tenant_id, budget_id, holding_id, kind, effective_date, qty_delta,
+          cost_delta_cents, cost_currency, flow_cents, flow_currency)
+       VALUES ($1::uuid, $1::uuid, $2, 'start', CURRENT_DATE, $3,
+               round(10000 * $3::numeric)::bigint, $4, round(10000 * $3::numeric)::bigint, $4)`,
+      [budgetId, id, opts.quantity ?? "1", opts.buyCurrency ?? "USD"],
+    );
     await c.query("COMMIT");
   } catch (e) {
     await c.query("ROLLBACK");

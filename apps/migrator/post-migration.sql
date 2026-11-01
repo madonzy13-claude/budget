@@ -704,8 +704,14 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.tasks TO app_role, worker_role
 -- Phase 4 plan 04-02: added dismissed_at (per-occurrence scheduled-payment draft dismiss, RECR-06)
 GRANT UPDATE (note, transaction_date, category_id, amount_original_cents, currency_original,
               amount_converted_cents, fx_rate, fx_as_of, kind, scheduled_payment_id,
-              confirmed_at, dismissed_at, deleted_at, updated_at)
+              confirmed_at, dismissed_at, deleted_at, updated_at, deferred_at)
   ON budgeting.expense_ledger TO app_role;
+-- R6 (0099/0100): the worker brings a set-aside unconfirmed payment back on
+-- its date (deferred_at) and re-converts it at that day's rate. Re-applied
+-- HERE because the REVOKE UPDATE above drops column grants on every migrate —
+-- a grant only in a numbered migration vanishes on the next run.
+GRANT UPDATE (deferred_at, updated_at, amount_converted_cents, fx_rate, fx_as_of)
+  ON budgeting.expense_ledger TO worker_role;
 
 -- Phase 2 plan 02-03: GRANT on reserves auto-compute view —
 -- REMOVED in Phase 05 reserve rewrite (migration 0030, decision B): the
@@ -798,6 +804,10 @@ GRANT SELECT ON budgeting.instruments, budgeting.instrument_price_cache, budgeti
 GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.instruments, budgeting.instrument_price_cache, budgeting.instrument_price_snapshots TO worker_role;
 -- Phase 9 (09-06): the on-add instant fetch (app_role path) upserts the price cache.
 GRANT INSERT, UPDATE ON budgeting.instrument_price_cache TO app_role;
+
+-- Phase 13 (migration 0087): investment history ledger. Policy lives in 0087.
+GRANT SELECT, INSERT, UPDATE, DELETE ON budgeting.investment_history TO app_role, worker_role;
+ALTER TABLE budgeting.investment_history FORCE ROW LEVEL SECURITY;
 
 -- INV-14 / T-9-16: per-user throttle (no RLS). app_role upserts on the on-add fetch path;
 -- worker_role mirrored for defense-in-depth.

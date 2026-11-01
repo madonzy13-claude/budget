@@ -30,7 +30,12 @@
     "./src/adapters/persistence/instruments-schema": "./src/adapters/persistence/instruments-schema.ts",
     "./src/adapters/persistence/price-cache-schema": "./src/adapters/persistence/price-cache-schema.ts",
     "./src/adapters/persistence/price-snapshot-schema": "./src/adapters/persistence/price-snapshot-schema.ts",
-    "./src/adapters/instruments/universe-catalog": "./src/adapters/instruments/universe-catalog.ts"
+    "./src/adapters/instruments/universe-catalog": "./src/adapters/instruments/universe-catalog.ts",
+    "./src/ports/history-repo": "./src/ports/history-repo.ts",
+    "./src/adapters/persistence/history-repo": "./src/adapters/persistence/history-repo.ts",
+    "./src/adapters/persistence/history-schema": "./src/adapters/persistence/history-schema.ts",
+    "./src/domain/contributions": "./src/domain/contributions.ts",
+    "./src/domain/sell-booking": "./src/domain/sell-booking.ts"
   },
   "scripts": {
     "test": "bun test",

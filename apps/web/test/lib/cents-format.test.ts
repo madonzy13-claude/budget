@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   centsToBare,
+  centsToShort,
   centsToDisplayCompact,
   centsToPlAmount,
   centsToRounded,
@@ -154,5 +155,20 @@ describe("centsToPlAmount", () => {
 
   it("survives a non-numeric amount instead of crashing the card", () => {
     expect(norm(centsToPlAmount("NaN", "USD", "en", true))).toBe("$0");
+  });
+});
+
+// Round 6 (user): big amounts drop their cents — they only take space. Same
+// 100-unit line the P/L amounts already use (centsToPlAmount).
+describe("centsToShort", () => {
+  it("keeps cents below 100", () => {
+    expect(centsToShort("1234")).toBe("12.34");
+    expect(centsToShort("-9999")).toBe("-99.99");
+  });
+  it("drops them from 100 up, rounding half away from zero", () => {
+    expect(centsToShort("10000")).toBe("100");
+    expect(centsToShort("304297")).toBe("3,043");
+    expect(centsToShort("-304250")).toBe("-3,043");
+    expect(centsToShort("123456789")).toBe("1,234,568");
   });
 });

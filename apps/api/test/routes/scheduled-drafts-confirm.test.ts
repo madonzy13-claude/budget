@@ -77,7 +77,13 @@ let _draftDateOffset = 0;
 async function seedDraft(
   tenantId: string,
   ruleId: string,
-  opts: { confirmedAt?: boolean; dismissedAt?: boolean } = {},
+  opts: {
+    confirmedAt?: boolean;
+    dismissedAt?: boolean;
+    /** R6: a payment in another currency — its code and rate. */
+    currency?: string;
+    rate?: string;
+  } = {},
 ): Promise<string> {
   const pool = new Pool({ connectionString: DB_URL });
   const client = await pool.connect();
@@ -97,7 +103,8 @@ async function seedDraft(
          (id, tenant_id, budget_id, transaction_date, amount_original_cents, currency_original,
           amount_converted_cents, fx_rate, fx_as_of, kind, scheduled_payment_id,
           confirmed_at, dismissed_at, created_at, updated_at)
-       VALUES ($1, $2, $2, (CURRENT_DATE + ($4 || ' days')::interval)::date, 5000, 'USD', 5000, '1', CURRENT_DATE, 'SPENDING', $3,
+       VALUES ($1, $2, $2, (CURRENT_DATE + ($4 || ' days')::interval)::date, 5000, '${opts.currency ?? "USD"}',
+               round(5000 * ${opts.rate ?? "1"}), '${opts.rate ?? "1"}', CURRENT_DATE, 'SPENDING', $3,
                ${opts.confirmedAt ? "now()" : "NULL"},
                ${opts.dismissedAt ? "now()" : "NULL"},
                now(), now())`,
@@ -276,6 +283,42 @@ describe("POST /budgets/:budgetId/scheduled-payments/drafts/:draftId/confirm", (
     expect(row?.confirmed_at).not.toBeNull();
     expect(String(row?.amount_original_cents)).toBe("6000");
     expect(String(row?.amount_converted_cents)).toBe("6000");
+  });
+
+  // R6 (user): the override is in the payment's own currency; the budget
+  // figure follows at the rate of its date.
+  it("an override on a foreign payment converts at its stored rate", async () => {
+    const draftId = await seedDraft(fix.tenantId, fix.ruleId, {
+      currency: "EUR",
+      rate: "4.3",
+    });
+    const app = await buildApp(fix.userId, fix.tenantId);
+    const res = await app.request(
+      `/budgets/${fix.tenantId}/scheduled-payments/drafts/${draftId}/confirm`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount_override_cents: 6000 }),
+      },
+    );
+    expect(res.status).toBe(204);
+    const pool = new Pool({ connectionString: DB_URL });
+    const c = await pool.connect();
+    try {
+      await c.query(`SELECT set_config('app.tenant_ids', $1, false)`, [
+        `{"${fix.tenantId}"}`,
+      ]);
+      const { rows } = await c.query(
+        `SELECT amount_original_cents::text AS o, amount_converted_cents::text AS v,
+                currency_original AS ccy
+           FROM budgeting.expense_ledger WHERE id = $1::uuid`,
+        [draftId],
+      );
+      expect(rows[0]).toEqual({ o: "6000", v: "25800", ccy: "EUR" });
+    } finally {
+      c.release();
+      await pool.end();
+    }
   });
 
   it("rejects negative / non-integer amount_override_cents → 422", async () => {

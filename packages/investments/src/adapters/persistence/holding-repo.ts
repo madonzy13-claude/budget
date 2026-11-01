@@ -11,7 +11,12 @@ import { sql } from "drizzle-orm";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import { Holding, type HoldingType } from "../../domain/holding";
-import type { HoldingRepo, NewHolding } from "../../ports/holding-repo";
+import type {
+  AssetEdit,
+  AssetNameRow,
+  HoldingRepo,
+  NewHolding,
+} from "../../ports/holding-repo";
 
 type DrizzleTx = {
   execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
@@ -32,7 +37,6 @@ function mapRow(row: Record<string, unknown>): Holding {
     String(row.tenant_id),
     String(row.name),
     String(row.holding_type) as HoldingType,
-    (row.group_name as string | null) ?? null,
     (row.instrument_id as string | null) ?? null,
     cents("buy_price_cents"),
     (row.buy_currency as string | null) ?? null,
@@ -63,7 +67,63 @@ function mapRow(row: Record<string, unknown>): Holding {
     (row.deposit_end_date as string | null) ?? null,
     (row.icon as string | null) ?? null,
     (row.color as string | null) ?? null,
+    row.value_updated_at ? new Date(String(row.value_updated_at)) : null,
   );
+}
+
+const RETURNING = sql`
+  id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
+  ui_type, icon, color, instrument_id::text AS instrument_id,
+  buy_price_cents::text AS buy_price_cents, buy_currency,
+  quantity::text AS quantity,
+  current_price_cents::text AS current_price_cents,
+  current_price_currency, metal, metal_kind, unit_of_measure,
+  manual_ticker, manual_ticker AS symbol, premium_pct::text AS premium_pct,
+  deposit_rate_bps, deposit_start_date::text AS deposit_start_date,
+  deposit_end_date::text AS deposit_end_date, deposit_cap_frequency,
+  sort_order, archived_at, created_at`;
+
+/** The one INSERT of a holding. Shared by create() and the Phase 13 booking
+ *  commit (a sale into a NEW holding), so both run inside the caller's tx. */
+export async function insertHoldingTx(
+  tx: unknown,
+  tenantId: string,
+  budgetId: string,
+  input: NewHolding,
+): Promise<Holding> {
+  const dt = tx as DrizzleTx;
+  const res = await dt.execute(sql`
+      INSERT INTO budgeting.investments
+        (id, tenant_id, budget_id, instrument_id, name, holding_type, ui_type, icon, color,
+         buy_price_cents, buy_currency, quantity, current_price_cents,
+         current_price_currency, metal, metal_kind, unit_of_measure, manual_ticker,
+         premium_pct, deposit_rate_bps, deposit_start_date, deposit_end_date,
+         deposit_cap_frequency, sort_order, created_at)
+      VALUES
+        (gen_random_uuid(), ${tenantId}::uuid, ${budgetId}::uuid, ${input.instrumentId}::uuid,
+         ${input.name}, ${input.holdingType}, ${input.uiType}, ${input.icon}, ${input.color},
+         ${b8(input.buyPriceCents)}::bigint, ${input.buyCurrency},
+         ${input.quantity}::numeric, ${dec(input.currentPriceCents)}::numeric,
+         ${input.currentPriceCurrency},
+         ${input.metal}, ${input.metalKind}, ${input.unitOfMeasure},
+         ${input.manualTicker}, ${input.premiumPct ?? null}::numeric,
+         ${input.depositRateBps ?? null}::integer, ${input.depositStartDate ?? null}::date,
+         ${input.depositEndDate ?? null}::date, ${input.depositCapFrequency ?? null},
+         COALESCE((SELECT MAX(sort_order) + 1 FROM budgeting.investments
+                    WHERE budget_id = ${budgetId}::uuid AND archived_at IS NULL), 0),
+         now())
+      RETURNING id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
+                ui_type, icon, color, instrument_id::text AS instrument_id,
+                buy_price_cents::text AS buy_price_cents, buy_currency,
+                quantity::text AS quantity,
+                current_price_cents::text AS current_price_cents,
+                current_price_currency, metal, metal_kind, unit_of_measure,
+                manual_ticker, manual_ticker AS symbol, premium_pct::text AS premium_pct,
+                deposit_rate_bps, deposit_start_date::text AS deposit_start_date,
+                deposit_end_date::text AS deposit_end_date, deposit_cap_frequency,
+                sort_order, archived_at, created_at
+    `);
+  return mapRow(res.rows[0]);
 }
 
 export class DrizzleHoldingRepo implements HoldingRepo {
@@ -77,51 +137,21 @@ export class DrizzleHoldingRepo implements HoldingRepo {
       TenantId(tenantId),
       UserId(userId),
       async (tx) => {
-        const dt = tx as DrizzleTx;
-        const res = await dt.execute(sql`
-          INSERT INTO budgeting.investments
-            (id, tenant_id, budget_id, instrument_id, name, holding_type, ui_type, icon, color,
-             group_name, buy_price_cents, buy_currency, quantity, current_price_cents,
-             current_price_currency, metal, metal_kind, unit_of_measure, manual_ticker,
-             premium_pct, deposit_rate_bps, deposit_start_date, deposit_end_date,
-             deposit_cap_frequency, sort_order, created_at)
-          VALUES
-            (gen_random_uuid(), ${tenantId}::uuid, ${budgetId}::uuid, ${input.instrumentId}::uuid,
-             ${input.name}, ${input.holdingType}, ${input.uiType}, ${input.icon}, ${input.color},
-             ${input.group},
-             ${b8(input.buyPriceCents)}::bigint, ${input.buyCurrency},
-             ${input.quantity}::numeric, ${dec(input.currentPriceCents)}::numeric,
-             ${input.currentPriceCurrency},
-             ${input.metal}, ${input.metalKind}, ${input.unitOfMeasure},
-             ${input.manualTicker}, ${input.premiumPct ?? null}::numeric,
-             ${input.depositRateBps ?? null}::integer, ${input.depositStartDate ?? null}::date,
-             ${input.depositEndDate ?? null}::date, ${input.depositCapFrequency ?? null},
-             COALESCE((SELECT MAX(sort_order) + 1 FROM budgeting.investments
-                        WHERE budget_id = ${budgetId}::uuid AND archived_at IS NULL), 0),
-             now())
-          RETURNING id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
-                    ui_type, icon, color, group_name, instrument_id::text AS instrument_id,
-                    buy_price_cents::text AS buy_price_cents, buy_currency,
-                    quantity::text AS quantity,
-                    current_price_cents::text AS current_price_cents,
-                    current_price_currency, metal, metal_kind, unit_of_measure,
-                    manual_ticker, manual_ticker AS symbol, premium_pct::text AS premium_pct,
-                    deposit_rate_bps, deposit_start_date::text AS deposit_start_date,
-                    deposit_end_date::text AS deposit_end_date, deposit_cap_frequency,
-                    sort_order, archived_at, created_at
-        `);
-        return mapRow(res.rows[0]);
+        return insertHoldingTx(tx, tenantId, budgetId, input);
       },
     );
     if (r.isErr()) throw r.error;
     return r.value;
   }
 
+  /** D-06 Edit: label + display value only. Quantity, cost and type are
+   *  ledger-owned (CR-01: a PATCH that wrote them raced /adjust). Archived
+   *  assets are editable too (rename a hidden label). */
   async update(
     tenantId: string,
     userId: string,
     id: string,
-    input: NewHolding,
+    input: AssetEdit,
   ): Promise<Holding | null> {
     const r = await withTenantTx(
       TenantId(tenantId),
@@ -130,40 +160,66 @@ export class DrizzleHoldingRepo implements HoldingRepo {
         const dt = tx as DrizzleTx;
         const res = await dt.execute(sql`
           UPDATE budgeting.investments SET
-            instrument_id = ${input.instrumentId}::uuid,
-            name = ${input.name},
-            holding_type = ${input.holdingType},
-            ui_type = ${input.uiType},
-            icon = ${input.icon},
-            color = ${input.color},
-            group_name = ${input.group},
-            buy_price_cents = ${b8(input.buyPriceCents)}::bigint,
-            buy_currency = ${input.buyCurrency},
-            quantity = ${input.quantity}::numeric,
-            current_price_cents = ${dec(input.currentPriceCents)}::numeric,
-            current_price_currency = ${input.currentPriceCurrency},
-            metal = ${input.metal},
-            metal_kind = ${input.metalKind},
-            unit_of_measure = ${input.unitOfMeasure},
-            manual_ticker = ${input.manualTicker},
-            premium_pct = ${input.premiumPct ?? null}::numeric,
-            deposit_rate_bps = ${input.depositRateBps ?? null}::integer,
-            deposit_start_date = ${input.depositStartDate ?? null}::date,
-            deposit_end_date = ${input.depositEndDate ?? null}::date,
-            deposit_cap_frequency = ${input.depositCapFrequency ?? null}
-          WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid AND archived_at IS NULL
-          RETURNING id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
-                    ui_type, icon, color, group_name, instrument_id::text AS instrument_id,
-                    buy_price_cents::text AS buy_price_cents, buy_currency,
-                    quantity::text AS quantity,
-                    current_price_cents::text AS current_price_cents,
-                    current_price_currency, metal, metal_kind, unit_of_measure,
-                    manual_ticker, manual_ticker AS symbol, premium_pct::text AS premium_pct,
-                    deposit_rate_bps, deposit_start_date::text AS deposit_start_date,
-                    deposit_end_date::text AS deposit_end_date, deposit_cap_frequency,
-                    sort_order, archived_at, created_at
+            name = COALESCE(${input.name?.trim() ?? null}, name),
+            current_price_cents = CASE WHEN ${input.currentPriceCents !== undefined}
+                                       THEN ${dec(input.currentPriceCents ?? null)}::numeric
+                                       ELSE current_price_cents END,
+            current_price_currency = CASE WHEN ${input.currentPriceCurrency !== undefined}
+                                          THEN ${input.currentPriceCurrency ?? null}
+                                          ELSE current_price_currency END
+          WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid
+          RETURNING ${RETURNING}
         `);
         return res.rows.length ? mapRow(res.rows[0]) : null;
+      },
+    );
+    if (r.isErr()) throw r.error;
+    return r.value;
+  }
+
+  async listNames(
+    tenantId: string,
+    budgetId: string,
+    uiType: string,
+  ): Promise<AssetNameRow[]> {
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(tenantId),
+      async (tx) => {
+        const res = await (tx as DrizzleTx).execute(sql`
+        SELECT inv.id::text AS id, inv.name, inv.archived_at IS NOT NULL AS archived,
+               inv.instrument_id::text AS instrument_id, inv.quantity::text AS quantity,
+               -- R6: the live cache price for a tracked asset, as the list
+               -- reads it — never a stale or mislabelled stored one.
+               CASE WHEN c.price IS NOT NULL
+                    THEN round(c.price * 100)::bigint::text
+                    ELSE inv.current_price_cents::text END AS current_price_cents,
+               COALESCE(c.currency, inv.current_price_currency) AS current_price_currency,
+               inv.buy_currency, inv.holding_type,
+               inv.unit_of_measure, COALESCE(i.symbol, inv.manual_ticker) AS symbol,
+               i.display_name AS instrument_name
+          FROM budgeting.investments inv
+          LEFT JOIN budgeting.instruments i ON i.id = inv.instrument_id
+          LEFT JOIN budgeting.instrument_price_cache c
+                 ON c.instrument_id = inv.instrument_id
+         WHERE inv.budget_id = ${budgetId}::uuid AND inv.ui_type = ${uiType}
+         ORDER BY inv.archived_at IS NOT NULL, lower(inv.name), inv.created_at
+      `);
+        return res.rows.map((row) => ({
+          id: String(row.id),
+          name: String(row.name),
+          archived: row.archived === true,
+          instrumentId: (row.instrument_id as string | null) ?? null,
+          quantity: String(row.quantity),
+          currentPriceCents: (row.current_price_cents as string | null) ?? null,
+          currentPriceCurrency:
+            (row.current_price_currency as string | null) ?? null,
+          buyCurrency: (row.buy_currency as string | null) ?? null,
+          symbol: (row.symbol as string | null) ?? null,
+          instrumentName: (row.instrument_name as string | null) ?? null,
+          holdingType: String(row.holding_type),
+          unitOfMeasure: (row.unit_of_measure as string | null) ?? null,
+        }));
       },
     );
     if (r.isErr()) throw r.error;
@@ -185,10 +241,25 @@ export class DrizzleHoldingRepo implements HoldingRepo {
     if (r.isErr()) throw r.error;
   }
 
+  async restore(tenantId: string, userId: string, id: string): Promise<void> {
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(userId),
+      async (tx) => {
+        await (tx as DrizzleTx).execute(sql`
+          UPDATE budgeting.investments SET archived_at = NULL
+           WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid
+        `);
+      },
+    );
+    if (r.isErr()) throw r.error;
+  }
+
   async listForBudget(
     tenantId: string,
     budgetId: string,
     userId: string,
+    opts: { hidden?: boolean | "all" } = {},
   ): Promise<Holding[]> {
     const r = await withTenantTx(
       TenantId(tenantId),
@@ -197,7 +268,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
         const dt = tx as DrizzleTx;
         const res = await dt.execute(sql`
           SELECT inv.id::text AS id, inv.tenant_id::text AS tenant_id, inv.name,
-                 inv.holding_type, inv.ui_type, inv.icon, inv.color, inv.group_name,
+                 inv.holding_type, inv.ui_type, inv.icon, inv.color,
                  inv.metal, inv.metal_kind, inv.unit_of_measure,
                  inv.premium_pct::text AS premium_pct,
                  inv.instrument_id::text AS instrument_id,
@@ -209,7 +280,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                  CASE WHEN inv.instrument_id IS NOT NULL AND c.currency IS NOT NULL
                       THEN c.currency
                       ELSE inv.current_price_currency END AS current_price_currency,
-                 inv.sort_order, inv.archived_at, inv.created_at,
+                 inv.sort_order, inv.archived_at, inv.created_at, inv.value_updated_at,
                  inv.manual_ticker,
                  -- The currency the user chose to value the holding in. The CASE above
                  -- may put current_price_currency in the price source's currency (a
@@ -234,7 +305,11 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                    ON i.id = inv.instrument_id
            WHERE inv.budget_id = ${budgetId}::uuid
              AND inv.tenant_id = ${tenantId}::uuid
-             AND inv.archived_at IS NULL
+             ${
+               opts.hidden === "all"
+                 ? sql``
+                 : sql`AND (inv.archived_at IS NOT NULL) = ${opts.hidden === true}`
+             }
            ORDER BY inv.sort_order ASC, inv.created_at ASC
         `);
         return res.rows.map(mapRow);
@@ -277,7 +352,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
         const dt = tx as DrizzleTx;
         const res = await dt.execute(sql`
           SELECT id::text AS id, tenant_id::text AS tenant_id, name, holding_type,
-                 ui_type, icon, color, group_name, metal, metal_kind, unit_of_measure,
+                 ui_type, icon, color, metal, metal_kind, unit_of_measure,
                  premium_pct::text AS premium_pct,
                  instrument_id::text AS instrument_id, manual_ticker,
                  manual_ticker AS symbol,

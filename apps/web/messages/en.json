@@ -592,7 +592,11 @@
         "title": "INVESTMENTS"
       },
       "add": {
-        "cta": "Add investment"
+        "cta": "New transaction"
+      },
+      "newTx": {
+        "title": "New transaction",
+        "pickAsset": "Asset"
       },
       "sheet": {
         "title": {
@@ -604,10 +608,8 @@
       },
       "field": {
         "name": "Name",
-        "nameOptional": "Name (optional)",
         "type": "Type",
         "typePlaceholder": "Select a type",
-        "group": "Group",
         "groupPlaceholder": "Ungrouped",
         "buyPrice": "Buy price",
         "buyCurrency": "Buy currency",
@@ -632,13 +634,10 @@
         "startDate": "Start date",
         "endDateOptional": "End date (optional)",
         "ticker": "Ticker",
-        "tickerPlaceholder": "e.g. AAPL"
+        "tickerPlaceholder": "e.g. AAPL",
+        "customName": "Custom name"
       },
       "uitype": {
-        "equity": "Equity",
-        "etf": "ETF",
-        "etb": "Exchange-traded bonds",
-        "reit": "REIT",
         "crypto": "Crypto",
         "treasury_bond": "Retail treasury bonds",
         "collectibles": "Collectibles",
@@ -648,7 +647,8 @@
         "cash": "Cash",
         "broker": "Broker",
         "deposit": "Deposit",
-        "savings": "Savings"
+        "savings": "Savings",
+        "stocks": "Stocks & ETFs"
       },
       "capFrequency": {
         "daily": "Daily",
@@ -685,29 +685,26 @@
         "other": "Other"
       },
       "group": {
-        "portfolioSuffix": "of portfolio",
-        "noGroups": "No groups yet.",
-        "create": "Create \"{name}\"",
         "headerAria": "{name}, {pct} of portfolio. {state}.",
         "expanded": "Expanded",
         "collapsed": "Collapsed",
         "dragAria": "Drag to move the {name} group.",
-        "metricsAria": "Show {name} profit/loss and portfolio percentage."
+        "currencyAria": "Show {name} in another currency"
       },
       "row": {
         "delisted": "Delisted",
         "editAria": "Edit {name}.",
         "deleteAria": "Remove {name}.",
         "dragAria": "Drag to reorder {name}.",
-        "qty": "Qty: {qty}",
-        "started": "Started: {amount}",
+        "qty": "qty: {qty}",
+        "started": "started: {amount}",
         "share": "Share: {pct}",
-        "amountAria": "Edit value of {name}"
+        "amountAria": "Edit value of {name}",
+        "qtyAvg": "{qty} × {avg} avg. cost",
+        "autoPricedTip": "This amount updates by itself. To change it, add a transaction: buy, sell or move."
       },
       "rowExpandAria": "Expand {name} details.",
       "plAria": "{value} profit/loss",
-      "ungroupZone": "Drop here to remove from group",
-      "looseZone": "Drop here to keep it separate",
       "search": {
         "placeholder": "Search instruments…",
         "loading": "Searching…",
@@ -726,8 +723,8 @@
         "createFailed": "Couldn't add investment. Try again.",
         "saved": "Investment updated",
         "saveFailed": "Couldn't save changes. Check your connection and try again.",
-        "archived": "Investment removed",
-        "archiveFailed": "Couldn't remove investment. Try again.",
+        "archived": "Investment hidden",
+        "archiveFailed": "Couldn't hide the investment. Try again.",
         "reorderFailed": "Couldn't reorder. Try again.",
         "crossSectionRejected": "Holdings can only be in Investments."
       },
@@ -756,6 +753,217 @@
         "premium": "Premium",
         "withPremium": "With premium",
         "pl": "P/L"
+      },
+      "sell": {
+        "qtyHelper": "You hold {qty}",
+        "valueHelper": "Current value {value}",
+        "date": "Date",
+        "toastSale": "Sale recorded",
+        "toastWithdraw": "Withdrawal recorded",
+        "qtySold": "Quantity sold",
+        "valueSold": "Value sold"
+      },
+      "typeGroup": {
+        "stats": {
+          "avgPrice": "avg price: {price}"
+        },
+        "unrealizedLabel": "unreal.: {value}",
+        "realizedLabel": "real.: {value}"
+      },
+      "addDate": "Date",
+      "asset": {
+        "swipe": {
+          "edit": "Edit",
+          "newTxn": "New transaction"
+        },
+        "name": {
+          "label": "Name",
+          "create": "Add as new asset \"{name}\"",
+          "closed": "Hidden",
+          "reopens": "This reopens {name}.",
+          "pickOrCreate": "Pick an existing asset or type a new name.",
+          "pickedValue": "Asset value: {value}"
+        },
+        "archive": {
+          "confirm": "Hide",
+          "aria": "Hide {name}",
+          "done": "Asset hidden",
+          "failed": "Could not hide the asset."
+        },
+        "hidden": {
+          "show": "Show {count, plural, one {# hidden asset} other {# hidden assets}}",
+          "close": "Collapse hidden assets",
+          "unhide": "Unhide",
+          "unhideAria": "Unhide {name}"
+        },
+        "currencyAria": "Show {name} in another currency"
+      },
+      "swap": {
+        "title": "New transaction: {name}",
+        "tab": {
+          "buy": "Buy",
+          "sell": "Sell",
+          "transfer": "Move"
+        },
+        "sellTitle": "Sell {name}",
+        "cta": {
+          "buy": "Add to {name}",
+          "sell": "Record sale",
+          "sellOut": "Record withdrawal",
+          "transfer": "Move to {target}",
+          "transferNoTarget": "Move asset"
+        },
+        "discard": "Discard",
+        "saving": "Saving…",
+        "dateMin": "Not before {date} — the latest entry on this asset.",
+        "buy": {
+          "amountAdded": "Amount added",
+          "valueAfter": "Account value after",
+          "valueAfterHelp": "Was {current} + {amount}. Set it to what your broker app shows.",
+          "split": "P/L {market} from market move · {deposit} from deposit",
+          "cashHelp": "Cost and value both go up by this amount. P/L doesn't change.",
+          "quantity": "Quantity",
+          "price": "Buy price",
+          "total": "Total {amount}",
+          "from": "Where did the money come from?",
+          "srcAsset": "Source asset",
+          "srcPlaceholder": "Pick an asset",
+          "takes": "Takes {amount} from {name}",
+          "src": {
+            "out": "Out of investments",
+            "outDesc": "New money for your investments",
+            "asset": "From another asset",
+            "assetDesc": "Sold from an asset you hold"
+          }
+        },
+        "locked": "Locked",
+        "sell": {
+          "where": "Where did the money go?",
+          "dest": {
+            "out": "Out of investments",
+            "outDesc": "It leaves your investments",
+            "invest": "Into investments",
+            "investDesc": "Pick an asset you have or name a new one",
+            "willCreate": "New asset “{name}” will be created"
+          },
+          "received": "Amount received",
+          "receivedHelp": "Prefilled from today's value. Change it to what actually landed.",
+          "walletTitle": "Where should the money go?",
+          "wallet": {
+            "existing": "Existing wallet",
+            "new": "New wallet",
+            "nowhere": "Nowhere",
+            "help": "Added to the wallet balance. Not counted as income.",
+            "newHelp": "The wallet starts with this amount.",
+            "name": "Wallet name",
+            "type": "Wallet type"
+          },
+          "sold": "How much was sold?",
+          "note": "Note (optional)",
+          "notePlaceholder": "e.g. paid the car loan"
+        },
+        "transfer": {
+          "to": "To",
+          "sameInstrument": "Same instrument only.",
+          "note": "Not a sale: no realized gain, cost moves with it.",
+          "moveQty": "Quantity to move",
+          "moveAmount": "Amount to move"
+        },
+        "sum": {
+          "title": "What will happen",
+          "line": "{label}: {before} → {after}",
+          "created": "New asset {name} created with {amount}",
+          "walletNew": "New wallet {name} starts with {amount}",
+          "leaves": "Leaves your investments",
+          "plUnchanged": "P/L unchanged",
+          "realized": "Realized {amount}",
+          "realizedUnchanged": "Realized unchanged"
+        },
+        "err": {
+          "received": "Enter an amount received greater than 0.",
+          "positive": "Enter an amount greater than 0.",
+          "futureDate": "Date can't be in the future.",
+          "beforeLatest": "Date can't be before the latest entry ({date}).",
+          "beforeDest": "{name} has an entry on {date} — pick that date or later.",
+          "fx": "No exchange rate for {currency} on {date}. Pick another date or currency.",
+          "walletRequired": "Pick a wallet or choose Nowhere.",
+          "nameRequired": "Enter a name.",
+          "saveFailed": "Couldn't save this. Check your connection and try again.",
+          "staleEntry": "This asset changed. Reload and try again.",
+          "soldRange": "Enter more than 0 and no more than you hold.",
+          "overHeld": "That's more than you hold ({held})."
+        }
+      },
+      "edit": {
+        "label": "Name",
+        "displayCurrency": "Currency",
+        "fxLoading": "Converting…",
+        "fxUnavailable": "Exchange rate unavailable — the value converts when you save.",
+        "currentValue": "Current value",
+        "currentPrice": "Current price per unit",
+        "save": "Save changes",
+        "saved": "Saved"
+      },
+      "ledger": {
+        "kind": {
+          "bought": "Bought",
+          "sold": "Sold",
+          "transferIn": "Moved in",
+          "transferOut": "Moved out",
+          "convertedIn": "Bought",
+          "convertedOut": "Sold",
+          "added": "Added money",
+          "valueUpdated": "Value updated",
+          "priceUpdated": "Price updated",
+          "interest": "Interest"
+        },
+        "realized": "realized {amount}",
+        "toAsset": "to {name}",
+        "fromAsset": "from {name}",
+        "deleteAria": "Delete {kind} from {date}",
+        "onlyLatest": "Only the latest entry can be deleted.",
+        "removeLaterIn": "Remove the later entries in {name} first.",
+        "deleted": "Entry deleted",
+        "confirm": {
+          "entry": {
+            "title": "Delete this entry?",
+            "body": "This undoes the {kind} from {date}. Quantity, cost, value, realized gain and contributions go back to what they were before it.",
+            "confirm": "Delete entry",
+            "cancel": "Keep entry"
+          },
+          "wallet": {
+            "title": "Delete this sale?",
+            "body": "This undoes the sale from {date} and takes {amount} back out of {wallet}. A wallet created by this sale stays, with the amount removed.",
+            "confirm": "Delete sale",
+            "cancel": "Keep sale"
+          },
+          "linked": {
+            "title": "Delete both sides?",
+            "body": "This entry is linked. Deleting it also removes the matching entry in {other}. Both assets go back to what they were before it.",
+            "confirm": "Delete both entries",
+            "cancel": "Keep entries"
+          },
+          "last": {
+            "title": "Delete {name}?",
+            "body": "This is the only entry. Deleting it removes {name} completely, with its history and realized gain. This can't be undone.",
+            "confirm": "Delete asset",
+            "cancel": "Keep asset"
+          },
+          "interestNote": "The interest after it is recalculated."
+        },
+        "openLinked": "Open {name}",
+        "edit": {
+          "title": "Edit transaction",
+          "aria": "Edit {kind}, {date}",
+          "saved": "Transaction updated",
+          "range": "Pick a date between {min} and {max}.",
+          "dateLocked": "A deposit's dates set its interest — they can't change."
+        }
+      },
+      "heldUnit": {
+        "g": "{n, plural, one {{qty} g} other {{qty} g}}",
+        "oz": "{n, plural, one {{qty} oz} other {{qty} oz}}",
+        "kg": "{n, plural, one {{qty} kg} other {{qty} kg}}"
       }
     },
     "cushionMode": {
@@ -1034,7 +1242,6 @@
       "capture": {
         "saveExpense": "Save expense",
         "saveIncome": "Save income",
-        "saveTransfer": "Save transfer",
         "amountLabel": "Amount",
         "currencyLabel": "Currency",
         "dateLabel": "Date",
@@ -1042,8 +1249,7 @@
         "accountLabel": "Wallet",
         "noteLabel": "Note (optional)",
         "kindExpense": "Expense",
-        "kindIncome": "Income",
-        "kindTransfer": "Transfer"
+        "kindIncome": "Income"
       },
       "list": {
         "editedBadge": "edited",
@@ -1173,7 +1379,6 @@
         "kindLabel": "Kind",
         "kindExpense": "Expense",
         "kindIncome": "Income",
-        "kindTransfer": "Transfer",
         "accountLabel": "Wallet",
         "categoryLabel": "Category",
         "categoryNone": "(no category)",
@@ -1838,9 +2043,14 @@
         "category": "Category",
         "amount": "Amount",
         "currency": "Currency",
-        "note": "Note (optional)"
+        "note": "Note (optional)",
+        "kind": "Type"
       },
-      "fxLine": "{original} · ~{converted} @ {rate} ({asOf})"
+      "fxLine": "{original} · ~{converted} @ {rate} ({asOf})",
+      "kind": {
+        "spending": "Spending",
+        "refund": "Refund"
+      }
     },
     "catSlider": {
       "cta": {
@@ -1916,7 +2126,8 @@
         "queued": "Saved on this device — it'll sync when you're back online.",
         "badge": "Waiting for connection — saves automatically",
         "waiting": "Waiting to sync"
-      }
+      },
+      "refund": "Refund"
     },
     "lastAdded": "Last spending added {when}",
     "quickEntry": {

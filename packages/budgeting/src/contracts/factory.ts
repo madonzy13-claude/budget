@@ -2,6 +2,7 @@
  * factory.ts — DI factory for the Budgeting bounded context.
  * Wires adapters to ports. Plans 02-04..02-09 extend this incrementally.
  */
+import { DrizzleExpenseLedgerDraftPortRepo } from "../adapters/persistence/expense-ledger-draft-port-repo";
 import { FrankfurterFxProvider } from "../adapters/fx/frankfurter";
 import { CacheOnlyFxProvider } from "../adapters/fx/cache-only";
 import { ok } from "@budget/shared-kernel";
@@ -371,6 +372,7 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     getLatestTransactions: getLatestTransactions({ transactionRepo }),
     editTransaction: editTransaction({
       transactionRepo,
+      draftDates: new DrizzleExpenseLedgerDraftPortRepo(),
       fxProvider,
       getWorkspaceDefaultCurrency,
       taskRepo: createTaskRepo(),

@@ -368,9 +368,9 @@ describe("scheduled engine handler", () => {
     { timeout: 15000 },
     async () => {
       // Budget currency is USD (seedTenantForEngine). Rule is in EUR; stub FX EUR→USD = 1.1.
-      // 200 EUR → 220 USD → 22000 cents. The draft must surface as a BUDGET-currency row:
-      // currency_original = USD, amount_original_cents = converted, fx_rate = identity —
-      // matching the app-layer engine + inline catch-up + edit-transaction lock semantics.
+      // 200 EUR → 220 USD → 22000 cents. R6 (user): the draft keeps the rule's
+      // currency and amount (20000 EUR) with the due date's rate; the budget
+      // figure (22000 USD) is the converted one shown underneath.
       const tenant = await seedTenantForEngine("EngineFx");
       const ruleId = crypto.randomUUID();
       const pool = new Pool({ connectionString: DB_URL });
@@ -434,10 +434,186 @@ describe("scheduled engine handler", () => {
       }
 
       expect(row).toBeDefined();
-      expect(row!.currency_original).toBe("USD");
-      expect(String(row!.amount_original_cents)).toBe("22000");
+      expect(row!.currency_original).toBe("EUR");
+      expect(String(row!.amount_original_cents)).toBe("20000");
       expect(String(row!.amount_converted_cents)).toBe("22000");
-      expect(Number(row!.fx_rate)).toBe(1);
+      expect(Number(row!.fx_rate)).toBe(1.1);
+    },
+  );
+});
+
+// User (R6): an unconfirmed payment moved to a future date is set aside
+// (deferred_at) — it comes back, with its confirm task, on that date.
+describe("deferred unconfirmed payments", () => {
+  const TODAY = new Date().toISOString().slice(0, 10);
+  async function asTenant<T>(
+    tenantId: string,
+    userId: string,
+    run: (c: import("pg").PoolClient) => Promise<T>,
+  ): Promise<T> {
+    const pool = new Pool({ connectionString: DB_URL });
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query(
+        `SELECT set_config('app.tenant_ids', '{"${tenantId}"}', true)`,
+      );
+      await c.query(
+        `SELECT set_config('app.current_user_id', '${userId}', true)`,
+      );
+      const r = await run(c);
+      await c.query("COMMIT");
+      return r;
+    } finally {
+      c.release();
+      await pool.end();
+    }
+  }
+
+  test(
+    "a set-aside payment comes back on its date with a confirm task; a later one waits",
+    { timeout: 15000 },
+    async () => {
+      const t = await seedTenantForEngine("Deferred");
+      // The rule itself is not due (its pointer is next year).
+      const ruleId = await seedRuleWithDueDate(
+        t.tenantId,
+        t.accountId,
+        t.userId,
+        "2099-01-15",
+      );
+      const later = "2099-01-10";
+      const [dueId, laterId] = await asTenant(
+        t.tenantId,
+        t.userId,
+        async (c) => {
+          const ins = async (date: string) =>
+            (
+              await c.query(
+                `INSERT INTO budgeting.expense_ledger
+                 (id, tenant_id, budget_id, transaction_date, amount_original_cents,
+                  currency_original, amount_converted_cents, fx_rate, fx_as_of,
+                  scheduled_payment_id, confirmed_at, kind, deferred_at, created_at, updated_at)
+               VALUES (gen_random_uuid(), $1, $1, $2::date, 20000, 'USD', 20000, 1, $2::date,
+                       $3, NULL, 'SPENDING', now(), now(), now())
+               RETURNING id`,
+                [t.tenantId, date, ruleId],
+              )
+            ).rows[0].id as string;
+          return [await ins(TODAY), await ins(later)];
+        },
+      );
+
+      const result = await runScheduledEngine({ todayOverride: TODAY });
+      expect(result.isOk()).toBe(true);
+
+      const state = await asTenant(t.tenantId, t.userId, async (c) => {
+        const rows = (
+          await c.query(
+            `SELECT id, deferred_at IS NOT NULL AS deferred FROM budgeting.expense_ledger
+              WHERE id = ANY($1::uuid[])`,
+            [[dueId, laterId]],
+          )
+        ).rows as { id: string; deferred: boolean }[];
+        const tasks = (
+          await c.query(
+            `SELECT payload_json->>'draft_id' AS draft, payload_json->>'transaction_date' AS date
+               FROM budgeting.tasks
+              WHERE tenant_id = $1 AND kind = 'CONFIRM_DRAFT' AND status = 'PENDING'`,
+            [t.tenantId],
+          )
+        ).rows as { draft: string; date: string }[];
+        return { rows, tasks };
+      });
+      const deferred = Object.fromEntries(
+        state.rows.map((r) => [r.id, r.deferred]),
+      );
+      expect(deferred[dueId]).toBe(false);
+      expect(deferred[laterId]).toBe(true);
+      expect(state.tasks).toEqual([{ draft: dueId, date: TODAY }]);
+
+      // Idempotent: a second run raises no second task.
+      await runScheduledEngine({ todayOverride: TODAY });
+      const again = await asTenant(
+        t.tenantId,
+        t.userId,
+        async (c) =>
+          (
+            await c.query(
+              `SELECT count(*)::int AS n FROM budgeting.tasks
+              WHERE tenant_id = $1 AND kind = 'CONFIRM_DRAFT'`,
+              [t.tenantId],
+            )
+          ).rows[0].n as number,
+      );
+      expect(again).toBe(1);
+    },
+  );
+
+  // R6 (user): it was converted when it was moved; on its own date it is
+  // converted again at THAT day's rate.
+  test(
+    "a returning foreign payment is re-converted at its date's rate",
+    { timeout: 15000 },
+    async () => {
+      const t = await seedTenantForEngine("DeferredFx"); // budget in USD
+      const ruleId = await seedRuleWithDueDate(
+        t.tenantId,
+        t.accountId,
+        t.userId,
+        "2099-01-15",
+      );
+      const id = await asTenant(
+        t.tenantId,
+        t.userId,
+        async (c) =>
+          (
+            await c.query(
+              `INSERT INTO budgeting.expense_ledger
+             (id, tenant_id, budget_id, transaction_date, amount_original_cents,
+              currency_original, amount_converted_cents, fx_rate, fx_as_of,
+              scheduled_payment_id, confirmed_at, kind, deferred_at, created_at, updated_at)
+           VALUES (gen_random_uuid(), $1, $1, $2::date, 10000, 'EUR', 11000, 1.1, '2026-01-01',
+                   $3, NULL, 'SPENDING', now(), now(), now())
+           RETURNING id`,
+              [t.tenantId, TODAY, ruleId],
+            )
+          ).rows[0].id as string,
+      );
+      const stubFx = {
+        rateAsOf: async () => ({
+          rate: "1.25",
+          provider: "stub",
+          isStale: false,
+        }),
+      };
+      const result = await runScheduledEngine({
+        todayOverride: TODAY,
+        fxProvider: stubFx,
+      });
+      expect(result.isOk()).toBe(true);
+      const row = await asTenant(
+        t.tenantId,
+        t.userId,
+        async (c) =>
+          (
+            await c.query(
+              `SELECT amount_converted_cents::text AS conv, fx_rate::text AS rate,
+                    fx_as_of::text AS asof, deferred_at IS NULL AS back
+               FROM budgeting.expense_ledger WHERE id = $1`,
+              [id],
+            )
+          ).rows[0] as {
+            conv: string;
+            rate: string;
+            asof: string;
+            back: boolean;
+          },
+      );
+      expect(row.back).toBe(true);
+      expect(row.conv).toBe("12500");
+      expect(Number(row.rate)).toBe(1.25);
+      expect(row.asof).toBe(TODAY);
     },
   );
 });

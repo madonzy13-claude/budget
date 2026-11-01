@@ -174,7 +174,7 @@ export function CurrencyPicker({
             "text-num-md text-[var(--foreground)]",
             "focus:outline-none focus:shadow-none focus:border-0",
           ];
-    return (
+    const select = (
       <select
         aria-label={ariaLabel ?? t("picker.aria_label")}
         value={value ?? ""}
@@ -206,6 +206,23 @@ export function CurrencyPicker({
           </option>
         ))}
       </select>
+    );
+    if (variant === "field") return select;
+    // R6 (user): iOS never paints an underline inside a native <select>, so an
+    // invisible copy of the code lies exactly over it; inside `.editable-dots`
+    // that copy carries the same dotted line as every other editable value.
+    return (
+      <span className="relative block w-full">
+        {select}
+        <span
+          data-dots-overlay
+          aria-hidden="true"
+          // Centred in the select's box, as the browser centres the code.
+          className="pointer-events-none absolute inset-0 hidden items-center whitespace-nowrap text-num-md text-transparent max-sm:justify-end"
+        >
+          {value}
+        </span>
+      </span>
     );
   }
 

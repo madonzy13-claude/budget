@@ -35,6 +35,7 @@ shared_kernel.user_keys                   USER-SCOPED   # PC-12: user_keys_owner
 budgeting.expense_ledger                  TENANT-SCOPED # expense_ledger_tenant_isolation policy (app.tenant_ids)
 budgeting.budget_mode_history             TENANT-SCOPED # budget_mode_history_tenant_isolation policy (app.tenant_ids)
 budgeting.tasks                           TENANT-SCOPED # tasks_tenant_isolation policy (app.tenant_ids)
+budgeting.investment_history              TENANT-SCOPED # investment_history_tenant_isolation (0087)
 budgeting.investments                     TENANT-SCOPED # investments_tenant_isolation policy (app.tenant_ids); T-9-01, Phase 9
 budgeting.category_reserve_adjustments   TENANT-SCOPED # category_reserve_adjustments_tenant_isolation policy (app.tenant_ids); Phase 5 D-PH5-R8, T-05-04
 budgeting.reserve_fit_exclusions          TENANT-SCOPED # reserve_fit_exclusions_tenant_isolation policy (app.tenant_ids); 0073, the spends a budget has set aside as one-offs
@@ -74,3 +75,18 @@ identity.users                            EXCLUDED      # Phase 1: SELECT permis
 identity.accounts                         EXCLUDED      # Phase 1: SELECT permissive for Better Auth password-hash lookup during sign-in. Password column is hashed (argon2/bcrypt). UPDATE/DELETE remain RLS-gated.
 # pgboss.*                               EXCLUDED      # job queue infrastructure (separate pgboss schema)
 # drizzle.*                              EXCLUDED      # migration metadata (separate drizzle schema)
+
+# 0088 (Phase 13.1) pre-merge backups. Owner-only (REVOKE ALL from app/worker).
+# TEMPORARY: drop in a follow-up migration once the merge is verified (0075 precedent: GDPR cascade).
+budgeting._investments_bak_0088           EXCLUDED      # migration backup, owner-only
+budgeting._investment_history_bak_0088    EXCLUDED      # migration backup, owner-only
+budgeting._tasks_bak_0088                 EXCLUDED      # migration backup, owner-only
+budgeting._investments_bak_0089           EXCLUDED      # migration backup, owner-only
+budgeting._investments_bak_0090           EXCLUDED      # migration backup, owner-only
+budgeting._investment_history_bak_0091    EXCLUDED      # migration backup, owner-only
+budgeting._investments_bak_0092           EXCLUDED      # migration backup, owner-only
+budgeting._investment_history_bak_0092    EXCLUDED      # migration backup, owner-only
+budgeting._investments_bak_0095           EXCLUDED      # migration backup, owner-only
+budgeting._investments_bak_0096           EXCLUDED      # migration backup, owner-only
+budgeting._investments_bak_0097           EXCLUDED      # migration backup, owner-only
+budgeting._investment_history_bak_0097    EXCLUDED      # migration backup, owner-only

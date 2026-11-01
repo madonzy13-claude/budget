@@ -222,6 +222,12 @@ describe("WalletRow — persisted mode", () => {
     // Should have aria-label indicating read-only
     const readOnlySpan = screen.getByLabelText(/Currency EUR/);
     expect(readOnlySpan).toBeInTheDocument();
+    // R6 (user): same font as the other wallets' currency, dimmed — it can't
+    // be changed here.
+    expect(readOnlySpan.className).toContain("text-num-md");
+    // I1 (user): not dimmed, and no dotted line — it can't be changed.
+    expect(readOnlySpan.style.opacity).toBe("");
+    expect(readOnlySpan.className).not.toContain("editable-dots");
   });
 
   // UAT-PH5-T3-14 + T3-45: Share column reflects wallet's share among
@@ -537,5 +543,49 @@ describe("WalletRow — the name stays readable", () => {
 
   it("lets a long name wrap", () => {
     expect(renderRow().innerHTML).toContain("break-words");
+  });
+});
+
+// R6 (user): no "updated … ago" line any more.
+describe("WalletRow — no age line", () => {
+  it("shows no updated line even with a change time", () => {
+    render(
+      <WalletRow
+        mode="persisted"
+        wallet={{
+          ...SPENDINGS_WALLET,
+          balanceUpdatedAt: new Date().toISOString(),
+        }}
+        budgetCurrency="EUR"
+        onUpdate={vi.fn().mockResolvedValue(undefined)}
+        onArchive={vi.fn()}
+        isReserveSection={false}
+      />,
+    );
+    expect(screen.queryByTestId("updated-ago")).toBeNull();
+  });
+});
+
+// I1 (user): a wallet's name, currency and amount are all tap-and-type —
+// each carries the dotted line.
+describe("WalletRow — dotted lines (I1)", () => {
+  it("marks name, currency and amount", () => {
+    render(
+      <WalletRow
+        mode="persisted"
+        wallet={SPENDINGS_WALLET}
+        budgetCurrency="EUR"
+        onUpdate={vi.fn().mockResolvedValue(undefined)}
+        onArchive={vi.fn()}
+        isReserveSection={false}
+      />,
+    );
+    for (const field of ["name", "currency", "amount"])
+      expect(
+        document.querySelector(
+          `[data-nav-field="${field}"].editable-dots, [data-nav-field="${field}"] .editable-dots`,
+        ),
+        field,
+      ).not.toBeNull();
   });
 });

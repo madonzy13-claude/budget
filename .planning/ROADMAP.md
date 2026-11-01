@@ -384,6 +384,117 @@ Plans:
 - [ ] 12-03 — Isolation gate test, demoGuard middleware, outbound suppression (wave 3)
 - [ ] 12-04 — /demo route, welcome dialog + language picker, banner, i18n, E2E (wave 3)
 
+### Phase 13: Investments: type-based groups, sell/convert flow, realized P/L and contributions history
+
+**Goal:** Moving money between investments (selling, converting, buying with proceeds) no longer distorts contributions or erases gains. Every holding keeps a history of changes, so gain is tracked per investment type and survives sales.
+
+**Why (user, 261024):** archiving 3 broker holdings and adding 2 cash holdings dropped contributions by ~240k zł (the brokers' cost left with them, cash has no cost) and erased ~182k zł of real broker gain, while the Overview "without contributions" line jumped +275k that never happened. Buying/selling crypto (BTC → USDT) has the same problem.
+
+**Scope (agreed in discussion):**
+
+1. **Groups = investment type, automatic.** Custom groups are removed; holdings group by their type (broker, crypto, precious metals, deposit, cash, ETF, …). Drag only reorders within a type. A holding cannot be dragged to another type.
+2. **Row actions: Sell, Withdraw, Delete.**
+   - **Sell** (new swipe-left icon): popup like "add investment". First "How much is left?" (all sold / part left), then "Where did the money go?": a _new_ investment (pick from the full type list → type-specific form, same as adding) or an _existing_ investment (e.g. top up USDT). "Amount received" is prefilled with today's value of the sold part and is editable (fees, actual sale price).
+   - **Withdraw**: money leaves investments. Placement (own swipe icon vs a destination inside Sell) still to be decided.
+   - **Delete**: for something entered by mistake. Erases the holding and its history as if it never existed.
+3. **Gain on a sale stays with the type that made it.** The source records a realized gain (received − cost of the sold part). The destination starts with cost = amount received, so cash never shows a gain earned by brokers. Per-type P/L = unrealized + realized. Realized gain is also shown at portfolio level and survives when a type has no holdings left.
+4. **Contributions = money put in − money taken out** (portfolio-level history), not the sum of current costs. Sells and conversions don't change it; only new money and withdrawals do. The Overview "without contributions" line uses this.
+5. **Editing a hand-entered value asks what happened**: _Value changed_ (market move → gain), _Added money_ or _Withdrew money_ (→ contributions). Quick edit defaults to _Value changed_.
+6. **Wrong type = correction, not a sale.** "Change type" in edit moves the holding to the right group and keeps its history.
+7. **What a partial sell changes on the row (user, 261025):** the row P/L shows only what is left; the gain on the sold part becomes realized and shows in the type group header (and the portfolio total), never on the row.
+   - _Quantity holdings_ (crypto, metals, ETF): **quantity** goes down; buy price per unit and current price stay. P/L % stays, P/L amount shrinks. Example: 0.4 BTC bought at 25k, now 60k (+14k, +140%). Sell 0.1 for 6k → 0.3 BTC, +10.5k (+140%) on the row; realized = 6k − 0.1×25k = +3.5k in the Crypto header.
+   - _Amount holdings_ (broker, cash, other; quantity is always 1): "how much is left" is an **amount**. Current amount = what is left, and cost goes down by the same share, so P/L % stays. Example: broker 96k, cost 55k (+41k, +75%). Keep 30k → cost 17.2k (55k×30/96), +12.8k (+75%) on the row; realized = received − 37.8k sold cost (+28.2k if exactly 66k received) in the Broker header.
+   - _Sold completely_: the row disappears, its history stays, and the realized gain stays in the group header.
+   - _Destination_: cost = amount received, so its P/L starts at 0. Cash then shows P/L only from currency moves against the budget currency (e.g. EUR cash in a PLN budget); it never inherits the source's gain.
+8. **Existing data gets a starting entry**: each current holding starts with one history entry at its current cost, so no past trades have to be reconstructed. The user will supply real history for manually valued holdings (BOSSA - IKE; the archived Exante – World, Interactive Brokers and Exante (GPW); Erste EUR/USD; the 8 "Tato …" deposits). For live-priced holdings (crypto, metals) they will supply buys/sells. The 24 Oct broker → Erste move is entered as a conversion, which restores the ~182k realized gain and the contributions.
+
+**Prior art — do not repeat:** a per-_group-name_ gain ledger was built and reverted (7b0664a, migrations 0054–0058): empty groups showed "—", recreated same-name groups inherited stale P/L, half-built groups showed inflated amounts. Fixed type keys avoid all three; keep realized gain off user-named entities.
+
+**Requirements**: CONTEXT D-01..D-19 (no REQ IDs registered)
+**Depends on:** Phase 12
+**Plans:** 13/14 plans executed
+
+Plans:
+
+- [x] 13-01-PLAN.md — Pure booking math incl. reverseEntry (full undo) and partial deposit sale, TDD (wave 1)
+- [x] 13-02-PLAN.md — History contributions reader + Overview hybrid with missing-FX fallback (wave 1)
+- [x] 13-03-PLAN.md — Migration 0087: investment_history (+undo columns) + RLS, stocks merge, Start backfill, type order; registries; apply (wave 1)
+- [x] 13-04-PLAN.md — Web foundation: all i18n, stocks type config, type-group math, type header (wave 1)
+- [x] 13-05-PLAN.md — Backend contracts: stocks + legacy normalization, typeWeights (compat kept) (wave 2)
+- [x] 13-06-PLAN.md — Backend adapters: combined stocks search, route tests, api/worker rebuild (wave 3)
+- [x] 13-07-PLAN.md — Sell API (new/existing/out, partial deposit), create entry with date, Overview wiring (wave 4)
+- [x] 13-08-PLAN.md — Adjust, full-undo delete, history/type summary/order, hard delete, PATCH cost guard (wave 5)
+- [x] 13-09-PLAN.md — Web type blocks + type-summary hook (wave 6)
+- [x] 13-10-PLAN.md — Web DnD (blocks + within type) + custom-group UI removal + web rebuild (wave 7)
+- [x] 13-11-PLAN.md — Web Sell sheet, row Sell action, hard Delete (wave 8)
+- [x] 13-12-PLAN.md — Backend custom-group compat removal (wave 8)
+- [x] 13-13-PLAN.md — Web Edit "What happened?", History with full undo, Add date (wave 9)
+- [ ] 13-14-PLAN.md — E2E Gherkin (sell + history), full gate, user real-data acceptance (wave 10)
+
 ---
 
 _Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.1 requirements mapped. Phase 7 rescoped 2026-05-30: 3-kind set (RESERVE_TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET); TASK-05 dropped from v1.1; TASK-04 reassigned semantic to CUSHION_BELOW_TARGET. Phase 11 added 2026-06-28 (v1.2 Overview tab — single phase; budget-side compute-on-read + per-budget 3h wealth aggregate snapshot)._
+
+### Phase 13.1: Investments: assets with transactions (type → asset → transaction, Swap buy/sell/transfer, sell to wallet) (INSERTED)
+
+**Goal:** Every investment type becomes type → asset → entries: same-name buys join one asset (DCA), each asset has Swap (Buy / Sell / Transfer) and a slim Edit, entries are an immutable date-ordered ledger deletable newest-first only, and selling out of investments can credit a budget wallet. Migration 0088 merges existing same-name holdings.
+**Requirements**: CONTEXT decisions D-01..D-37 (no REQ ids mapped)
+**Depends on:** Phase 13
+**Plans:** 53/54 plans executed
+
+Plans:
+
+- [x] 13.1-01-PLAN.md — Domain math: newest-entry rule, date guard, transfer cost, broker add, interest rows, CR-03 guards (wave 1)
+- [x] 13.1-02-PLAN.md — Migration 0088 (merge / rename / backfill / unique label) + data-conservation test (wave 1)
+- [x] 13.1-03-PLAN.md — Contracts (Zod) + extended ports + memory-world (wave 1)
+- [x] 13.1-04-PLAN.md — i18n EN/PL/UK for all 13.1 copy (wave 1)
+- [x] 13.1-05-PLAN.md — [BLOCKING] Dump, rehearse, approve, apply 0088 to dev (wave 2, checkpoint)
+- [x] 13.1-06-PLAN.md — Web hooks: buy/sell/transfer/edit/delete-entry/entries/names (wave 2)
+- [x] 13.1-07-PLAN.md — Adapter: locked commit, stale check, wallet credit/reverse, label lookup (wave 3)
+- [x] 13.1-08-PLAN.md — Web L1/L2/L3 list, ledger strip, newest-only delete, same-level DnD (wave 3)
+- [x] 13.1-09-PLAN.md — Web Swap sheet (Buy/Sell/Transfer), sum-up card, wallet target, name combobox (wave 3)
+- [x] 13.1-10-PLAN.md — Backend create-or-join, Swap Buy, slim Edit, names endpoint (wave 4)
+- [x] 13.1-11-PLAN.md — Web Add autocomplete, Edit sheet, wiring, remove Phase 13 sell/history UI (wave 4)
+- [x] 13.1-12-PLAN.md — Backend Sell with destination-by-label + sell to wallet + RESERVE/CUSHION recompute (wave 5)
+- [x] 13.1-13-PLAN.md — Backend Transfer (wave 6)
+- [x] 13.1-14-PLAN.md — Backend ledger list + LIFO delete use cases + routes (wave 7)
+- [x] 13.1-15-PLAN.md — Remove legacy adjust/delete/history paths, tenant-leak, D-32 CR re-check (wave 8)
+- [x] 13.1-16-PLAN.md — E2E Gherkin, rebuild, full gate, 3-locale phone drive, user check (wave 9, checkpoint)
+- [x] 13.1-17-PLAN.md — Gap: row == Σentries invariant tests, audit query, reconcile SQL 0089 (unjournaled) (gap wave 1)
+- [x] 13.1-18-PLAN.md — Gap: sell-into qty × price destination + single-rate realized (gap wave 1)
+- [x] 13.1-19-PLAN.md — Gap: type header tap/indent/cash gate, asset indent, no top realized, stats font, corners (gap wave 1)
+- [x] 13.1-20-PLAN.md — Gap: swipeable ledger rows (red/grey + tooltip), asset swipe drags ledger, blue Swap, slide, year, destructive confirm (gap wave 2)
+- [x] 13.1-21-PLAN.md — Gap: Swap summary hidden until change, not sticky, localized date; Edit currency FX conversion (gap wave 1)
+- [x] 13.1-22-PLAN.md — Gap: name-first Add form, autocomplete for all types incl. crypto, "Add as new asset", locked join (gap wave 1)
+- [x] 13.1-23-PLAN.md — Gap: Sell-into one qty/price pair, per-field touched, no Amount received; wallet target layout + inline currency (gap wave 3)
+- [x] 13.1-24-PLAN.md — Gap: "New transaction" chooser (Buy/Sell/Transfer) + single-field Transfer target (gap wave 4)
+- [x] 13.1-25-PLAN.md — Gap: [CHECKPOINT] dev data repair — reconcile 0089, e2e-seed fx cleanup, Diamonds sale; stop E2E FX pollution (gap wave 4)
+- [x] 13.1-26-PLAN.md — Gap: ship gate — rebuild, served bundle, dead i18n keys, phone EN/PL/UK × light/dark, user UAT re-run (gap wave 5, checkpoint)
+- [x] 13.1-27-PLAN.md — Gap r2: deposit ledger shows interest accrued so far (TDD, domain) (gap wave 1)
+- [x] 13.1-28-PLAN.md — Gap r2: diagnose ledger clip + low pickers; i18n contract keys; RED @r2 E2E scenarios (gap wave 2)
+- [x] 13.1-29-PLAN.md — Gap r2: type header = asset-row geometry + 3-line tap reveal; share under amount (gap wave 3)
+- [x] 13.1-30-PLAN.md — Gap r2: darker ledger token + visible to-confirm shadow; swipe never clips the ledger; grey amounts, smaller linked line (gap wave 3)
+- [x] 13.1-31-PLAN.md — Gap r2: New transaction opens on Buy, switch kept, embedded Add form (gap wave 3)
+- [x] 13.1-32-PLAN.md — Gap r2: "How much was sold?", editable everything toggles, Radix pickers in Sell (gap wave 3)
+- [x] 13.1-34-PLAN.md — Gap r2: Edit shows locked configuration; every quantity entry carries qty @ price (server fallback) (gap wave 3)
+- [x] 13.1-33-PLAN.md — Gap r2: ship gate (gaps 1–13) — dead keys, rebuild, served bundle, @investments chromium+mobile, user UAT (gap wave 5, checkpoint)
+- [x] 13.1-35-PLAN.md — Gap r3: RED @r3 E2E scenarios, i18n label keys, measure header widening (gap wave 1)
+- [x] 13.1-36-PLAN.md — Gap r3: cash reveal on two lines, normal-weight width-stable header, labelled caption, signed zero + grey trend (gap wave 2)
+- [x] 13.1-37-PLAN.md — Gap r3: New transaction Radix type picker + embedded Sell/Transfer form (gap wave 2)
+- [x] 13.1-38-PLAN.md — Gap r3: tap held amount to fill (no everything buttons); square ledger delete with left shadow (gap wave 2)
+- [x] 13.1-39-PLAN.md — Gap r3: ship gate + user phone re-test (gap wave 3, checkpoint)
+- [x] 13.1-40-PLAN.md — Gap r4: RED @r4 E2E scenarios, i18n (openLinked, pickOrCreate), reproduce Sell↔Transfer asset-field loss (gap wave 1)
+- [x] 13.1-41-PLAN.md — Gap r4: header + asset rows as two centred columns; type icon on the header (gap wave 2)
+- [x] 13.1-42-PLAN.md — Gap r4: suggestions show qty · value · currency; no join note; pick-or-create hint (gap wave 2)
+- [x] 13.1-43-PLAN.md — Gap r4: New transaction/Swap carry type, asset, amount, date; auto-pick single asset; icon type list; sell-into meta (gap wave 2)
+- [x] 13.1-44-PLAN.md — Gap r4: linked entry opens its partner in the other asset (gap wave 3)
+- [x] 13.1-46-PLAN.md — Gap r4: archive is a row action; sold-out assets stay; suggestions show value only + "Archived" (gap wave 4)
+- [x] 13.1-47-PLAN.md — Gap r4: assets unique by (type, name, currency); taken currencies disabled; "(2)" rows renamed back (migration 0090, checkpoint) (gap wave 4)
+- [x] 13.1-48-PLAN.md — Gap r4: preload ledgers; Delete an entry-less asset, amber Archive otherwise (gap wave 4)
+- [x] 13.1-45-PLAN.md — Gap r4: ship gate + user phone re-test (gap wave 5, checkpoint)
+- [x] 13.1-49-PLAN.md — Gap r5: deposit opening entry dated on its start date (migration 0091, checkpoint) (gap wave 1)
+- [x] 13.1-50-PLAN.md — Gap r5: uk copy, transfer over-held error, unit in held helper, assets start closed (gap wave 2)
+- [x] 13.1-51-PLAN.md — Gap r5: no asset uniqueness (migration 0092), id-only destinations, sell in any currency (server, checkpoint) (gap wave 3)
+- [x] 13.1-52-PLAN.md — Gap r5: Sell to existing asset, currency preselected and changeable (gap wave 4)
+- [x] 13.1-53-PLAN.md — Gap r5: "Add as new asset" always; pick by id; amount + currency on every option (gap wave 5)
+- [ ] 13.1-54-PLAN.md — Gap r5: ship gate + user phone re-test (gap wave 6, checkpoint)
