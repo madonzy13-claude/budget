@@ -753,6 +753,18 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     // the same number and writes the same string.
     const shellContent = shellScroller()?.firstElementChild;
     if (shellContent) ro.observe(shellContent);
+    // …and rows mounting/unmounting ABOVE it. On a locked tab the content keeps
+    // the shell's height, so collapsing the tasks strip moved the grid up with
+    // no resize anywhere — it kept the height it had while the strip was open,
+    // leaving a black band of exactly that size (user, round 6).
+    let moFrame = 0;
+    const mo = new MutationObserver((records) => {
+      if (records.every((r) => el.contains(r.target))) return;
+      cancelAnimationFrame(moFrame);
+      moFrame = requestAnimationFrame(updateMaxH);
+    });
+    if (shellContent)
+      mo.observe(shellContent, { childList: true, subtree: true });
 
     window.addEventListener("resize", updateMaxH, { passive: true });
     // SHELL-R17: orientationchange fires on iOS when the user rotates the
@@ -767,6 +779,8 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     return () => {
       el.removeEventListener("focusout", onFocusOut);
       ro.disconnect();
+      mo.disconnect();
+      cancelAnimationFrame(moFrame);
       window.removeEventListener("resize", updateMaxH);
       window.removeEventListener("orientationchange", updateMaxH);
       if (typeof window !== "undefined" && window.visualViewport) {
