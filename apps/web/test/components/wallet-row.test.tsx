@@ -225,7 +225,9 @@ describe("WalletRow — persisted mode", () => {
     // R6 (user): same font as the other wallets' currency, dimmed — it can't
     // be changed here.
     expect(readOnlySpan.className).toContain("text-num-md");
-    expect(readOnlySpan.style.opacity).toBe("0.75");
+    // I1 (user): not dimmed, and no dotted line — it can't be changed.
+    expect(readOnlySpan.style.opacity).toBe("");
+    expect(readOnlySpan.className).not.toContain("editable-dots");
   });
 
   // UAT-PH5-T3-14 + T3-45: Share column reflects wallet's share among
@@ -564,5 +566,29 @@ describe("WalletRow — updated ago", () => {
       "data-kind",
       "value",
     );
+  });
+});
+
+// I1 (user): a wallet's name, currency and amount are all tap-and-type —
+// each carries the dotted line.
+describe("WalletRow — dotted lines (I1)", () => {
+  it("marks name, currency and amount", () => {
+    render(
+      <WalletRow
+        mode="persisted"
+        wallet={SPENDINGS_WALLET}
+        budgetCurrency="EUR"
+        onUpdate={vi.fn().mockResolvedValue(undefined)}
+        onArchive={vi.fn()}
+        isReserveSection={false}
+      />,
+    );
+    for (const field of ["name", "currency", "amount"])
+      expect(
+        document.querySelector(
+          `[data-nav-field="${field}"].editable-dots, [data-nav-field="${field}"] .editable-dots`,
+        ),
+        field,
+      ).not.toBeNull();
   });
 });

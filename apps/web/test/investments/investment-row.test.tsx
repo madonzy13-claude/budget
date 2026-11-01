@@ -234,13 +234,15 @@ describe("InvestmentRow", () => {
 
   // G6 (user): no lock — an automatic amount is a shade dimmer and explains
   // itself on hover (its title); the ↻ line under it says "automatic".
-  it("an automatic amount is dimmer, explains itself, and has no lock", () => {
+  it("an automatic amount explains itself, has no lock, no dots, no dimming", () => {
     render(
       <InvestmentRow holding={holding({ instrumentProvider: "finnhub" })} />,
     );
     const amount = screen.getByTestId("holding-amount-readonly-h1");
     expect(amount).toHaveAttribute("data-auto", "true");
     expect(amount).toHaveAttribute("title", "row.autoPricedTip");
+    expect(amount.style.opacity).toBe("");
+    expect(amount.className).not.toContain("editable-dots");
     expect(screen.queryByTestId("asset-auto-lock-h1")).toBeNull();
   });
 
@@ -1059,30 +1061,42 @@ describe("InvestmentRow — deposit line", () => {
   });
 });
 
-// R6 (user): an opened asset's amount line can't be typed — dimmed for
-// every asset, typed or automatic.
+// I1 (user): no dimming — the opened amount line is plain.
 describe("InvestmentRow — opened amount line is dimmed", () => {
-  it("dims the open line of a typed asset too", () => {
+  it("does not dim the open line", () => {
     render(
       <InvestmentRow
         holding={holding({ instrumentId: null, instrumentProvider: null })}
       />,
     );
     fireEvent.click(screen.getByLabelText("Expand AAPL"));
-    expect(screen.getByTestId("asset-value-amount-h1").style.opacity).toBe(
-      "0.75",
-    );
+    expect(screen.getByTestId("asset-value-amount-h1").style.opacity).toBe("");
   });
 });
 
-// H2 (user): an asset's name can't be typed in place — dimmed.
+// I1 (user): names are not dimmed.
 describe("InvestmentRow — name dimmed (H2)", () => {
-  it("dims the asset name on phone and desktop", () => {
+  it("does not dim the asset name", () => {
     render(<InvestmentRow holding={holding()} />);
     for (const el of [
       screen.getByTestId("asset-name-mobile-h1"),
       screen.getByTestId("asset-name-desktop-h1"),
     ])
-      expect(el.style.opacity).toBe("0.75");
+      expect(el.style.opacity).toBe("");
+  });
+});
+
+// I1 (user): a dotted line marks what can be tapped and typed — a typed
+// amount has it.
+describe("InvestmentRow — dotted line on a typed amount (I1)", () => {
+  it("a typed amount carries the dotted line", () => {
+    render(
+      <InvestmentRow
+        holding={holding({ instrumentId: null, instrumentProvider: null })}
+        onValueChange={vi.fn()}
+      />,
+    );
+    const cell = document.querySelector("[data-amount-cell]")!;
+    expect(cell.querySelector(".editable-dots")).not.toBeNull();
   });
 });

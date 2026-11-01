@@ -23,6 +23,8 @@ describe("UpdatedAgo", () => {
     expect(line).toHaveTextContent(/^5m ago$/);
     expect(line.querySelector("svg")).not.toBeNull();
     expect(line.className).toContain("absolute");
+    // R6 (user): a little lower, clear of the amount.
+    expect(line.className).toContain("mt-[3px]");
     expect(line.getAttribute("title")).toBe("updated 5 minutes ago");
     expect(line.style.fontSize).toBe("9px");
     expect(Number(line.style.opacity)).toBeLessThanOrEqual(0.5);

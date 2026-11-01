@@ -435,31 +435,30 @@ describe("InvestmentTypeHeader — updated ago", () => {
   });
 });
 
-// R6 (user): a group's total can never be typed — it always reads dimmed,
-// like an automatic asset amount.
+// I1 (user): no dimming — what can't be typed simply has no dotted line.
 describe("InvestmentTypeHeader — the total is always dimmed", () => {
   const amounts = () => [
     screen.getByTestId("investment-type-amount-desktop-stocks"),
     screen.getByTestId("investment-type-amount-mobile-stocks"),
   ];
-  it("dims both amounts whatever changed last", () => {
+  it("never dims the total", () => {
     renderHeader({ updatedAt: new Date().toISOString() });
-    for (const a of amounts()) expect(a.style.opacity).toBe("0.75");
+    for (const a of amounts()) expect(a.style.opacity).toBe("");
   });
-  it("dims a group with no change time too", () => {
+  it("never dims it without a change time either", () => {
     renderHeader();
-    for (const a of amounts()) expect(a.style.opacity).toBe("0.75");
+    for (const a of amounts()) expect(a.style.opacity).toBe("");
   });
 });
 
-// H2 (user): a group's name can't be typed in place — dimmed like its total.
+// I1 (user): names are not dimmed (they replaced H2's dimming).
 describe("InvestmentTypeHeader — name dimmed (H2)", () => {
-  it("dims the group name on phone and desktop", () => {
+  it("does not dim the group name", () => {
     renderHeader();
     for (const el of [
       screen.getByTestId("investment-type-name-mobile-stocks"),
       screen.getByTestId("investment-type-name-desktop-stocks"),
     ])
-      expect(el.style.opacity).toBe("0.75");
+      expect(el.style.opacity).toBe("");
   });
 });

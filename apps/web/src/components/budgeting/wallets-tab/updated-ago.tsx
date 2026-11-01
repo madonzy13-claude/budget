@@ -37,7 +37,7 @@ export function UpdatedAgo({
       data-kind={kind}
       data-icon={kind === "price" ? "reload" : "pen"}
       title={t(kind, { when: long })}
-      className={`pointer-events-none absolute right-0 top-full flex items-center gap-[3px] whitespace-nowrap text-[var(--muted-foreground)] ${className}`}
+      className={`pointer-events-none absolute right-0 top-full mt-[3px] flex items-center gap-[3px] whitespace-nowrap text-[var(--muted-foreground)] ${className}`}
       style={{ fontSize: "9px", lineHeight: 1.15, opacity: 0.5 }}
     >
       {/* R6 (user): ↻ for a price that updates itself, a pen for one typed. */}

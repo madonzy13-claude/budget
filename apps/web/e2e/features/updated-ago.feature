@@ -15,5 +15,6 @@ Feature: Every wallet and asset says when its amount last changed
     Then the wallet "E2E SPENDINGS" says when its balance was updated
     And the asset "Pot" says when it was updated, with no lock
     And the asset "Term deposit" is marked automatic
+    And the wallet "E2E SPENDINGS" and the asset "Pot" carry the dotted line
+    And the asset "Term deposit" and the "deposit" group carry no dotted line
     And the "cash" group says when it was last updated
-    And the "deposit" and "cash" group totals are dimmed

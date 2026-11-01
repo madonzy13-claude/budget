@@ -1112,3 +1112,18 @@ main[data-shell-scroll]:has([data-lock-page-scroll]) {
     animation: none;
   }
 }
+
+/* I1 (user): a quiet dotted line under everything the user can tap and type
+   on the assets page (wallet names, currencies, amounts; typed asset
+   amounts). Form controls don't inherit text-decoration, so the picker's
+   select / trigger text gets it explicitly. */
+.editable-dots,
+.editable-dots select,
+.editable-dots button {
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  /* R6 (user): small and faint — a hint, not a line. */
+  text-decoration-color: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}

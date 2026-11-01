@@ -42,7 +42,7 @@ import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { UpdatedAgo } from "./updated-ago";
-import { AUTO_DIM, isAutoPriced, pricesItself } from "@/lib/investment-types";
+import { isAutoPriced, pricesItself } from "@/lib/investment-types";
 import { AssetClassChip } from "./asset-class-chip";
 
 /** User (round 6): secondary lines a bit lighter so the row reads cleaner. */
@@ -339,9 +339,6 @@ export function InvestmentRow({
       <span
         data-testid={`asset-value-amount-${holding.id}`}
         className="text-[var(--body-on-dark)]"
-        // R6 (user): the opened asset's amount line can't be typed — dimmed
-        // for every asset, like any amount the user can't change there.
-        style={{ opacity: AUTO_DIM }}
         title={autoPriced ? t("row.autoPricedTip") : undefined}
       >
         {value}
@@ -416,8 +413,6 @@ export function InvestmentRow({
                   : "text-[var(--body-on-dark)]",
               ].join(" ")}
               data-testid={`asset-name-mobile-${holding.id}`}
-              // H2 (user): a name that can't be typed in place reads dimmed.
-              style={{ opacity: AUTO_DIM }}
             >
               {mobileName}
             </span>
@@ -429,7 +424,6 @@ export function InvestmentRow({
                   : "text-[var(--body-on-dark)]",
               ].join(" ")}
               data-testid={`asset-name-desktop-${holding.id}`}
-              style={{ opacity: AUTO_DIM }}
             >
               {desktopName}
             </span>
@@ -591,7 +585,10 @@ export function InvestmentRow({
                   )}
                   ariaLabel={t("row.amountAria", { name: holding.name })}
                   testId={`holding-amount-${holding.id}`}
-                  render={() => <span className="text-num-md">{value}</span>}
+                  // I1 (user): a dotted line marks what can be tapped and typed.
+                  render={() => (
+                    <span className="editable-dots text-num-md">{value}</span>
+                  )}
                   renderEditor={(draft, onChange) => (
                     <Input
                       autoFocus
@@ -621,7 +618,6 @@ export function InvestmentRow({
                       ? "text-[var(--muted-strong)]"
                       : "text-[var(--body-on-dark)]",
                   ].join(" ")}
-                  style={autoPriced ? { opacity: AUTO_DIM } : undefined}
                 >
                   {value}
                 </span>

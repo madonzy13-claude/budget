@@ -30,7 +30,6 @@ import { Input } from "@/components/ui/input";
 import { WalletDeleteConfirm } from "./wallet-delete-confirm";
 import { WalletCustomizer } from "./wallet-customizer";
 import { UpdatedAgo } from "./updated-ago";
-import { AUTO_DIM } from "@/lib/investment-types";
 import { centsToBare } from "@/lib/cents-format";
 import type { WalletDto } from "@/hooks/use-wallets";
 
@@ -737,7 +736,8 @@ function PersistedRow({
             // tell apart (user, 261016). The row grows; currency and amount
             // keep their places.
             render={(v) => (
-              <span className="block break-words">
+              // I1 (user): a dotted line marks what can be tapped and typed.
+              <span className="editable-dots block break-words">
                 {v || (
                   <span className="text-[var(--muted-foreground)]">
                     {t("namePlaceholder")}
@@ -784,25 +784,26 @@ function PersistedRow({
           data-nav-field="currency"
         >
           {isReserveSection ? (
-            // R6 (user): the other wallets' currency font, dimmed — it can't
-            // be changed here (reserve wallets use the budget currency).
+            // R6 (user): the other wallets' currency font; no dotted line —
+            // it can't be changed here (reserve wallets use the budget currency).
             <span
               className="block w-full text-num-md text-[var(--foreground)] max-sm:text-right"
-              style={{ opacity: AUTO_DIM }}
               aria-label={t("currencyReadOnlyAria", { ccy: wallet.currency })}
             >
               {wallet.currency}
             </span>
           ) : (
-            <CurrencyPicker
-              value={wallet.currency}
-              aria-label={t("currencyAria")}
-              onSelect={(v: string) => onUpdate({ currency: v })}
-              richLabel={wide}
-              desktopDropdown={wide}
-              open={currencyOpen}
-              onOpenChange={setCurrencyOpen}
-            />
+            <span className="editable-dots contents">
+              <CurrencyPicker
+                value={wallet.currency}
+                aria-label={t("currencyAria")}
+                onSelect={(v: string) => onUpdate({ currency: v })}
+                richLabel={wide}
+                desktopDropdown={wide}
+                open={currencyOpen}
+                onOpenChange={setCurrencyOpen}
+              />
+            </span>
           )}
         </div>
 
@@ -846,7 +847,7 @@ function PersistedRow({
               // fractions to two digits, locale-aware grouping. `value` above
               // is reserved for the editor; display uses centsToBare directly
               // so "0" renders as "0" not "0.00", "1050" as "10.50".
-              <span className="text-num-md">
+              <span className="editable-dots text-num-md">
                 {centsToBare(wallet.currentBalanceCents, locale)}
               </span>
             )}

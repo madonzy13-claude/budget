@@ -26,7 +26,6 @@ import { UI_TYPE_COLOR, UI_TYPE_ICON } from "@/lib/investment-icons";
 import { useIsWide } from "@/hooks/use-is-wide";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { UpdatedAgo } from "./updated-ago";
-import { AUTO_DIM } from "@/lib/investment-types";
 import type { TypeGroupPL } from "@/lib/investment-type-groups";
 
 interface InvestmentTypeHeaderProps {
@@ -150,9 +149,6 @@ export function InvestmentTypeHeader({
   // R6-7 (user): open = stats shown; closed = value only. No separate reveal.
   const showSplit = expanded;
   const split = expanded && uiType !== "cash";
-  // R6 (user): a group's total can never be typed — it always reads a shade
-  // dimmer, like an automatic asset amount (G6).
-  const autoDim = { opacity: AUTO_DIM };
   const Icon = UI_TYPE_ICON[uiType];
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
@@ -199,7 +195,6 @@ export function InvestmentTypeHeader({
           data-testid={`investment-type-amount-desktop-${uiType}`}
           className="num hidden text-right text-num-md sm:inline"
           style={{
-            ...autoDim,
             color: "var(--body-on-dark)",
             minWidth: `${(maxAmountChars ?? 4) + 1}ch`,
           }}
@@ -223,7 +218,6 @@ export function InvestmentTypeHeader({
           // gap 12 — the column width pushed "PLN" under the P/L line).
           style={
             {
-              ...autoDim,
               color: "var(--body-on-dark)",
               "--amt": `${maxAmountChars ?? 4}ch`,
             } as React.CSSProperties
@@ -311,18 +305,17 @@ export function InvestmentTypeHeader({
         data-col="left"
         className="flex min-w-0 flex-1 flex-col justify-center gap-0 leading-tight"
       >
-        {/* H2 (user): the group name can't be typed in place — dimmed. */}
         <span
           data-testid={`investment-type-name-mobile-${uiType}`}
           className={`min-w-0 break-words sm:hidden ${split ? "text-num-sm" : "text-body-md"}`}
-          style={{ color: "var(--body-on-dark)", opacity: AUTO_DIM }}
+          style={{ color: "var(--body-on-dark)" }}
         >
           {name}
         </span>
         <span
           data-testid={`investment-type-name-desktop-${uiType}`}
           className="hidden min-w-0 break-words text-body-md sm:block"
-          style={{ color: "var(--body-on-dark)", opacity: AUTO_DIM }}
+          style={{ color: "var(--body-on-dark)" }}
         >
           {name}
         </span>

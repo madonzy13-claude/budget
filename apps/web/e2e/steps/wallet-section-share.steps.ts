@@ -268,23 +268,45 @@ Then(
   },
 );
 
-// R6 (user): a group's total can never be typed — every one reads dimmed.
+// I1 (user): a dotted line marks what can be tapped and typed — nothing is
+// dimmed any more.
 Then(
-  "the {string} and {string} group totals are dimmed",
-  async ({ page }, a: string, b: string) => {
-    for (const type of [a, b])
-      await expect
-        .poll(
-          () =>
-            page
-              .locator(
-                `[data-testid="investment-type-amount-desktop-${type}"], [data-testid="investment-type-amount-mobile-${type}"]`,
-              )
-              .locator("visible=true")
-              .first()
-              .evaluate((el) => Number(getComputedStyle(el).opacity)),
-          { timeout: 15000 },
-        )
-        .toBeLessThan(1);
+  "the wallet {string} and the asset {string} carry the dotted line",
+  async ({ page }, wallet: string, asset: string) => {
+    const walletRow = page
+      .locator("[data-wallet-row-wrapper]", { hasText: wallet })
+      .locator("visible=true")
+      .first();
+    for (const field of ["name", "amount"])
+      await expect(
+        walletRow
+          .locator(`[data-nav-field="${field}"] .editable-dots`)
+          .locator("visible=true")
+          .first(),
+      ).toHaveCSS("text-decoration-style", "dotted");
+    await expect(
+      page
+        .getByTestId(`holding-row-${asset}`)
+        .locator("[data-amount-cell] .editable-dots")
+        .locator("visible=true")
+        .first(),
+    ).toHaveCSS("text-decoration-style", "dotted");
+  },
+);
+
+Then(
+  "the asset {string} and the {string} group carry no dotted line",
+  async ({ page }, asset: string, type: string) => {
+    await expect(
+      page.getByTestId(`holding-row-${asset}`).locator(".editable-dots"),
+    ).toHaveCount(0);
+    await expect(
+      page.getByTestId(`investment-group-${type}`).locator(".editable-dots"),
+    ).toHaveCount(0);
+    const amount = page
+      .getByTestId(`holding-row-${asset}`)
+      .locator('[data-testid^="holding-amount-readonly-"]')
+      .locator("visible=true");
+    await expect(amount).toHaveCSS("opacity", "1");
   },
 );
