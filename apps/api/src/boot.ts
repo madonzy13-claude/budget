@@ -726,6 +726,11 @@ export async function boot(): Promise<BootedDeps> {
             result.value.invested_cents != null
               ? BigInt(result.value.invested_cents)
               : null,
+          invested_by_month:
+            result.value.invested_by_month?.map((m) => ({
+              month: m.month,
+              cents: BigInt(m.cents),
+            })) ?? null,
           pie: result.value.pie
             ? result.value.pie.map((s) => ({
                 holding_type: s.holding_type,

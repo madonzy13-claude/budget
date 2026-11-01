@@ -130,6 +130,9 @@ export interface OverviewWealthDTO {
    *  null when the budget has no Investments category. Investments view only.
    *  When net=true, `series`/`grow`/`dynamics` are already reduced by contributions. */
   invested_cents: string | null;
+  /** R6 (user): `invested_cents` per month ('YYYY-MM'), so another currency
+   *  converts each month at its own rate. */
+  invested_by_month?: { month: string; cents: string }[] | null;
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -429,6 +432,12 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
         dynamics,
         pie,
         invested_cents,
+        invested_by_month: contribMap
+          ? [...contribMap].map(([month, cents]) => ({
+              month,
+              cents: cents.toString(),
+            }))
+          : null,
       });
     } catch (e) {
       return err(e as Error);

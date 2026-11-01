@@ -63,6 +63,9 @@ export interface GetAggregateWealthTrendDeps {
     currency: string;
     series: { label: string; value_cents: bigint }[];
     invested_cents: bigint | null;
+    /** R6 (user): the same contributions per month ('YYYY-MM'), so each
+     *  converts at the month it was paid. */
+    invested_by_month?: { month: string; cents: bigint }[] | null;
     pie: { holding_type: string; value_cents: bigint }[] | null;
   }>;
   displayCurrencyReader: {
@@ -175,7 +178,32 @@ export function getAggregateWealthTrend(deps: GetAggregateWealthTrendDeps) {
           ),
         );
         const invested =
-          w.invested_cents != null ? conv(w.invested_cents) : null;
+          w.invested_by_month && w.currency !== displayCcy
+            ? (
+                await Promise.all(
+                  w.invested_by_month.map(async (m) => {
+                    const mid = new Date(`${m.month}-15T12:00:00Z`);
+                    const r = await deps.fxProvider
+                      .rateAsOf(
+                        w.currency as Currency,
+                        displayCcy as Currency,
+                        mid > now ? now : mid,
+                      )
+                      .then((x) => x.rate)
+                      .catch(() => rate);
+                    return toDisplayCcyShared(
+                      m.cents,
+                      w.currency,
+                      r,
+                      displayCcy,
+                      share,
+                    );
+                  }),
+                )
+              ).reduce((a, b) => a + b, 0n)
+            : w.invested_cents != null
+              ? conv(w.invested_cents)
+              : null;
         const pie = w.pie
           ? w.pie.map((s) => ({
               holding_type: s.holding_type,

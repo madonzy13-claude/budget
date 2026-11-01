@@ -334,7 +334,9 @@ describe("getAllBudgetsAggregate — payment-date rates", () => {
               count: 1,
               currency: "EUR",
               total_cents: 10000n,
-              top: [{ category_id: "c", name: "Food", over_amount_cents: 10000n }],
+              top: [
+                { category_id: "c", name: "Food", over_amount_cents: 10000n },
+              ],
             },
           }),
         ),
