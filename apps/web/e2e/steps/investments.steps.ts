@@ -3038,3 +3038,30 @@ Then(
       .toEqual(before);
   },
 );
+
+// R6 (user): hiding must not make the total dip for a moment — record every
+// figure the investments total shows while it happens.
+When("I watch the investments total", async ({ page }) => {
+  await page.evaluate(() => {
+    const el = [
+      ...document.querySelectorAll<HTMLElement>(
+        '[data-testid="section-total-INVESTMENTS"]',
+      ),
+    ].find((e) => e.offsetParent !== null)!;
+    const seen = new Set([el.innerText.trim()]);
+    (window as unknown as { __seenTotals: Set<string> }).__seenTotals = seen;
+    new MutationObserver(() => seen.add(el.innerText.trim())).observe(el, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+  });
+});
+
+Then("the investments total never showed another figure", async ({ page }) => {
+  await page.waitForTimeout(1500); // let the refetches land
+  const seen = await page.evaluate(() => [
+    ...(window as unknown as { __seenTotals: Set<string> }).__seenTotals,
+  ]);
+  expect(seen).toHaveLength(1);
+});
