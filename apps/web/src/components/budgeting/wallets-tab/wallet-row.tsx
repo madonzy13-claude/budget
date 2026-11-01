@@ -763,7 +763,6 @@ function PersistedRow({
               return onUpdate({ name: v.trim() });
             }}
           />
-          <UpdatedAgo at={wallet.balanceUpdatedAt} />
         </div>
 
         {/* Currency — read-only for Reserve section per D-PH5-R3; editable otherwise.
@@ -816,7 +815,8 @@ function PersistedRow({
            code and the right-aligned number. `tabular-nums` keeps digit
            widths uniform so rows in the same section align column-perfect. */}
         <div
-          className="rounded text-right tabular-nums min-w-[var(--amt)] sm:min-w-[calc(var(--amt)_+_1ch)] data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)]"
+          data-amount-cell
+          className="relative rounded text-right tabular-nums min-w-[var(--amt)] sm:min-w-[calc(var(--amt)_+_1ch)] data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)]"
           style={
             {
               "--amt": `${maxAmountChars ?? MIN_AMOUNT_CHARS}ch`,
@@ -869,6 +869,8 @@ function PersistedRow({
             )}
             onSave={(v) => onUpdate({ amount: amountForSave(v) })}
           />
+          {/* F9 (user): how long ago the balance changed, under the amount. */}
+          <UpdatedAgo at={wallet.balanceUpdatedAt} />
         </div>
 
         {/* UAT-PH5-T3-14: Share — wallet's slice of its section's total.

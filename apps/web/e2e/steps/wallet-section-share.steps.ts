@@ -101,6 +101,12 @@ Then(
       page.locator('[data-testid^="asset-currency-"]').first(),
     ).toBeVisible({ timeout: 15000 });
     const gaps = await page.evaluate(() => {
+      // The "↻ 5m ago" line hangs under the amount (F9); it is not the
+      // amount's width — leave it out of the measurement.
+      for (const el of document.querySelectorAll<HTMLElement>(
+        '[data-testid="updated-ago"]',
+      ))
+        el.style.display = "none";
       const visible = (el: Element) =>
         (el as HTMLElement).offsetParent !== null &&
         el.getBoundingClientRect().width > 0;
@@ -189,9 +195,10 @@ Then(
       .locator("[data-wallet-row-wrapper]", { hasText: name })
       .locator("visible=true")
       .first();
-    await expect(row.getByTestId("updated-ago")).toBeVisible({
-      timeout: 15000,
-    });
+    // F9 (user): right under the amount.
+    await expect(
+      row.locator("[data-amount-cell]").getByTestId("updated-ago"),
+    ).toBeVisible({ timeout: 15000 });
   },
 );
 
@@ -199,11 +206,9 @@ Then(
   "the asset {string} says when it was updated, with no lock",
   async ({ page }, name: string) => {
     const row = page.getByTestId(`holding-row-${name}`).locator("visible=true");
-    await expect(row.getByTestId("updated-ago")).toHaveAttribute(
-      "data-kind",
-      "value",
-      { timeout: 15000 },
-    );
+    await expect(
+      row.locator("[data-amount-cell]").getByTestId("updated-ago"),
+    ).toHaveAttribute("data-kind", "value", { timeout: 15000 });
     await expect(row.locator('[data-testid^="asset-auto-lock-"]')).toHaveCount(
       0,
     );

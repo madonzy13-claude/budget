@@ -215,23 +215,38 @@ describe("InvestmentRow", () => {
     expect(screen.queryByTestId("holding-amount-h1")).toBeNull();
   });
 
-  // user, 261023: a tap on an amount that can't be quick-edited did nothing
-  // visible — shake it so the "no" is felt.
-  it("auto-priced holding: tapping the amount shakes it", () => {
+  // R6 (user): tapping an amount that can't be typed simply opens / closes
+  // the asset, like the rest of the row — no shake.
+  it("auto-priced holding: tapping the amount opens the asset, no shake", () => {
+    const onToggle = vi.fn();
     render(
       <InvestmentRow
         holding={holding({ instrumentProvider: "finnhub" })}
         onValueChange={vi.fn()}
+        onToggle={onToggle}
       />,
     );
     const amount = screen.getByTestId("holding-amount-readonly-h1");
-    expect(amount.hasAttribute("data-shake")).toBe(false);
     fireEvent.click(amount);
-    expect(amount.hasAttribute("data-shake")).toBe(true);
-    // The tap is the amount's, not the row's: no expand to move it away.
-    expect(screen.queryByText(/Share:/)).toBeNull();
-    fireEvent.animationEnd(amount);
     expect(amount.hasAttribute("data-shake")).toBe(false);
+    expect(onToggle).toHaveBeenCalledWith("h1", true);
+  });
+
+  // R6 (user): the lock explains itself on hover / tap, and that tap is the
+  // lock's — the asset stays as it was.
+  it("the lock explains how an automatic price changes", () => {
+    const onToggle = vi.fn();
+    render(
+      <InvestmentRow
+        holding={holding({ instrumentProvider: "finnhub" })}
+        onToggle={onToggle}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("asset-auto-lock-h1"));
+    expect(screen.getByTestId("asset-auto-lock-tip")).toHaveTextContent(
+      "row.autoPricedTip",
+    );
+    expect(onToggle).not.toHaveBeenCalled();
   });
 
   // 260731: manual-value rows (cash / broker / savings — quantity is 1) edit
@@ -990,10 +1005,10 @@ describe("InvestmentRow — updated ago and lock", () => {
         })}
       />,
     );
-    expect(screen.getByTestId("updated-ago")).toHaveAttribute(
-      "data-kind",
-      "value",
-    );
+    const ago = screen.getByTestId("updated-ago");
+    expect(ago).toHaveAttribute("data-kind", "value");
+    // F9 (user): right under the amount, not under the name.
+    expect(ago.closest("[data-amount-cell]")).not.toBeNull();
     expect(screen.queryByTestId("asset-auto-lock-h1")).toBeNull();
   });
 
@@ -1012,5 +1027,19 @@ describe("InvestmentRow — updated ago and lock", () => {
       "price",
     );
     expect(screen.getByTestId("asset-auto-lock-h1")).toBeInTheDocument();
+  });
+});
+
+// R6 (user): the lock sits by the amount but takes no room — each group
+// reserves the same slot (--lock-slot), so currencies stay in one column.
+describe("InvestmentRow — lock keeps the currency column", () => {
+  it("the lock hangs left of the amount; the cell reserves the group's slot", () => {
+    render(
+      <InvestmentRow holding={holding({ instrumentProvider: "finnhub" })} />,
+    );
+    const cell = document.querySelector<HTMLElement>("[data-amount-cell]")!;
+    expect(cell.className).toContain("ml-[var(--lock-slot,0px)]");
+    const lock = screen.getByTestId("asset-auto-lock-h1");
+    expect(lock.className).toContain("absolute");
   });
 });

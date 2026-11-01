@@ -1,11 +1,13 @@
 "use client";
 /**
- * updated-ago.tsx — R6 (user): under every wallet and asset name, when its
- * amount last changed ("updated 5 minutes ago"; a fetched price says "price
- * updated …"). Small and faded — information, not a control.
+ * updated-ago.tsx — R6 (user, F9): right under a wallet's / asset's amount,
+ * how long ago it last changed — "↻ 5m ago", small and faded. It hangs below
+ * the amount (absolute), so the amount stays exactly where it was; the
+ * parent amount cell is `relative`. The full sentence is its title.
  */
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { RotateCw } from "lucide-react";
 import { relativeAgo } from "@/lib/relative-ago";
 
 export function UpdatedAgo({
@@ -23,15 +25,19 @@ export function UpdatedAgo({
     return () => clearInterval(id);
   }, []);
   if (!at) return null;
-  const when = relativeAgo(new Date(at), now, locale) ?? t("justNow");
+  const date = new Date(at);
+  const short = relativeAgo(date, now, locale, true) ?? t("justNow");
+  const long = relativeAgo(date, now, locale) ?? t("justNow");
   return (
     <span
       data-testid="updated-ago"
       data-kind={kind}
-      className="block text-[var(--muted-foreground)]"
-      style={{ fontSize: "10px", lineHeight: 1.3, opacity: 0.5 }}
+      title={t(kind, { when: long })}
+      className="pointer-events-none absolute right-0 top-full flex items-center gap-[3px] whitespace-nowrap text-[var(--muted-foreground)]"
+      style={{ fontSize: "9px", lineHeight: 1.15, opacity: 0.5 }}
     >
-      {t(kind, { when })}
+      <RotateCw className="h-[8px] w-[8px] shrink-0" aria-hidden="true" />
+      {short}
     </span>
   );
 }

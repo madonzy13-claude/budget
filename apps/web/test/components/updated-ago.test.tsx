@@ -16,17 +16,23 @@ vi.mock("next-intl", () => ({
 }));
 
 describe("UpdatedAgo", () => {
-  it("says when the amount changed, small and faded", () => {
+  it("says how long ago, short, with a refresh mark — hung under the amount", () => {
     render(<UpdatedAgo at={new Date(Date.now() - 5 * 60_000).toISOString()} />);
     const line = screen.getByTestId("updated-ago");
-    expect(line).toHaveTextContent("updated 5 minutes ago");
-    expect(line.style.fontSize).toBe("10px");
+    // F9 (user): "↻ 5m ago" under the amount, which stays where it is.
+    expect(line).toHaveTextContent(/^5m ago$/);
+    expect(line.querySelector("svg")).not.toBeNull();
+    expect(line.className).toContain("absolute");
+    expect(line.getAttribute("title")).toBe("updated 5 minutes ago");
+    expect(line.style.fontSize).toBe("9px");
     expect(Number(line.style.opacity)).toBeLessThanOrEqual(0.5);
   });
 
   it("a fetched price says so", () => {
     render(<UpdatedAgo at={new Date().toISOString()} kind="price" />);
-    expect(screen.getByTestId("updated-ago")).toHaveTextContent(
+    expect(screen.getByTestId("updated-ago")).toHaveTextContent("just now");
+    expect(screen.getByTestId("updated-ago")).toHaveAttribute(
+      "title",
       "price updated just now",
     );
   });

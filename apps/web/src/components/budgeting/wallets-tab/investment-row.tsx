@@ -33,7 +33,6 @@ import {
   Trash2,
   TrendingUp,
   TrendingDown,
-  Lock,
 } from "lucide-react";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { Input } from "@/components/ui/input";
@@ -43,7 +42,8 @@ import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { UpdatedAgo } from "./updated-ago";
-import { isAutoPriced } from "@/lib/investment-types";
+import { AutoPriceLock } from "./auto-price-lock";
+import { isAutoPriced, pricesItself } from "@/lib/investment-types";
 import { AssetClassChip } from "./asset-class-chip";
 
 /** User (round 6): secondary lines a bit lighter so the row reads cleaner. */
@@ -134,7 +134,6 @@ export function InvestmentRow({
   const [expanded, setExpanded] = useState(
     () => open ?? bdpStore?.wallets.expandedRows[holding.id] ?? false,
   );
-  const [shaking, setShaking] = useState(false);
   // The caption may use the room up to the share before it scrolls.
   const shareRef = useRef<HTMLSpanElement>(null);
   // Opened or closed from elsewhere (a linked entry's jump, round 4; its type
@@ -212,12 +211,7 @@ export function InvestmentRow({
         !isAutoPriced(holding.instrumentProvider)));
   // R6 (user): an amount that prices itself (a feed, the spot price, the
   // deposit's rate) carries a lock, and its line says when the PRICE refreshed.
-  const autoPriced =
-    holding.holdingType === "deposit" ||
-    holding.uiType === "deposit" ||
-    holding.metal != null ||
-    holding.uiType === "precious_metals" ||
-    isAutoPriced(holding.instrumentProvider);
+  const autoPriced = pricesItself(holding);
   const priceAge = autoPriced && holding.priceFetchedAt != null;
   const isSavings = holding.uiType === "savings";
   // D-29: average buy price per unit, quantity assets only (an amount asset's
@@ -343,6 +337,13 @@ export function InvestmentRow({
       className={`flex shrink-0 items-baseline gap-1 text-num-sm tabular-nums ${extra}`}
     >
       <span className="text-[var(--muted-foreground)]">{currency}</span>
+      {autoPriced && (
+        <AutoPriceLock
+          id={holding.id}
+          label={t("row.autoPriced")}
+          tip={t("row.autoPricedTip")}
+        />
+      )}
       <span className="text-[var(--body-on-dark)]">{value}</span>
     </span>
   );
@@ -472,10 +473,6 @@ export function InvestmentRow({
               )}
             </div>
           </div>
-          <UpdatedAgo
-            at={priceAge ? holding.priceFetchedAt : holding.valueUpdatedAt}
-            kind={priceAge ? "price" : "value"}
-          />
           {/* R6 (user): desktop shows unrealized · realized, closed too. */}
           {!isCash && (
             <div
@@ -571,7 +568,11 @@ export function InvestmentRow({
               </span>
             )}
             <div
-              className="text-right tabular-nums min-w-[var(--amt)] sm:min-w-[calc(var(--amt)_+_1ch)]"
+              data-amount-cell
+              // R6 (user): the group's lock slot (set on the group when any of
+              // its assets prices itself) — every row reserves it, so the
+              // currency column stays straight; the lock hangs in it.
+              className="relative ml-[var(--lock-slot,0px)] text-right tabular-nums min-w-[var(--amt)] sm:min-w-[calc(var(--amt)_+_1ch)]"
               style={
                 { "--amt": `${maxAmountChars ?? 4}ch` } as React.CSSProperties
               }
@@ -603,25 +604,19 @@ export function InvestmentRow({
                   }}
                 />
               ) : (
-                // A tap here can't edit (the price is fetched or derived), so
-                // shake the amount to say so (user, 261023). It doesn't expand the
-                // row either: on a phone that moves the amount, hiding the shake.
-                <span className="inline-flex items-center gap-1.5">
+                // R6 (user): can't be typed (fetched or derived) — a tap opens
+                // or closes the asset like the rest of the row. The lock says why.
+                <span className="relative inline-block">
                   {autoPriced && (
-                    <Lock
-                      data-testid={`asset-auto-lock-${holding.id}`}
-                      className="h-3 w-3 shrink-0 text-[var(--muted-foreground)]"
-                      aria-label={t("row.autoPriced")}
+                    <AutoPriceLock
+                      id={holding.id}
+                      label={t("row.autoPriced")}
+                      tip={t("row.autoPricedTip")}
+                      className="absolute right-full top-1/2 -translate-y-1/2"
                     />
                   )}
                   <span
                     data-testid={`holding-amount-readonly-${holding.id}`}
-                    data-shake={shaking || undefined}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShaking(true);
-                    }}
-                    onAnimationEnd={() => setShaking(false)}
                     className={[
                       "inline-block text-num-md",
                       delisted
@@ -633,6 +628,11 @@ export function InvestmentRow({
                   </span>
                 </span>
               )}
+              {/* F9 (user): how long ago, hung right under the amount. */}
+              <UpdatedAgo
+                at={priceAge ? holding.priceFetchedAt : holding.valueUpdatedAt}
+                kind={priceAge ? "price" : "value"}
+              />
             </div>
           </div>
           {expanded && (qtyAvg != null || startedDisplay != null) && (

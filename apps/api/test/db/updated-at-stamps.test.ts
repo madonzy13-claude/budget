@@ -95,6 +95,15 @@ describe("amount-updated stamps", () => {
       ]),
     );
     expect((await stamp())!.getTime()).toBe(first!.getTime());
+    // R6 (user): only the amount counts — a currency switch that converts
+    // the balance is not a new balance.
+    await asTenant(tenantId, userId, (c) =>
+      c.query(
+        `UPDATE budgeting.wallets SET currency = 'EUR', current_balance = 2.3 WHERE id = $1`,
+        [id],
+      ),
+    );
+    expect((await stamp())!.getTime()).toBe(first!.getTime());
     await new Promise((r) => setTimeout(r, 20));
     await asTenant(tenantId, userId, (c) =>
       c.query(
@@ -139,6 +148,22 @@ describe("amount-updated stamps", () => {
       c.query(`UPDATE budgeting.investments SET name = 'Jar' WHERE id = $1`, [
         id,
       ]),
+    );
+    expect((await stamp())!.getTime()).toBe(first!.getTime());
+    // R6 (user): neither the buy price nor a currency switch is a new value.
+    await asTenant(tenantId, userId, (c) =>
+      c.query(
+        `UPDATE budgeting.investments SET buy_price_cents = 9000 WHERE id = $1`,
+        [id],
+      ),
+    );
+    await asTenant(tenantId, userId, (c) =>
+      c.query(
+        `UPDATE budgeting.investments
+            SET current_price_currency = 'EUR', current_price_cents = 2300
+          WHERE id = $1`,
+        [id],
+      ),
     );
     expect((await stamp())!.getTime()).toBe(first!.getTime());
     await new Promise((r) => setTimeout(r, 20));

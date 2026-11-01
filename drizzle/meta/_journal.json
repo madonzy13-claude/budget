@@ -708,6 +708,13 @@
       "when": 1783710000000,
       "tag": "0101_amount_updated_at",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1783720000000,
+      "tag": "0102_amount_updated_only_amount",
+      "breakpoints": true
     }
   ]
 }

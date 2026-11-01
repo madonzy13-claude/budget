@@ -86,14 +86,16 @@ Feature: Investments wallet — section, holdings, type groups, optimistic add
     When I open the investments wallets tab
     Then the amounts inside the "real_estate" type block are narrower than its total
 
-  # user, 261023: tapping an amount that can't be quick-edited did nothing.
-  Scenario: Tapping an amount that can't be quick-edited shakes it
+  # R6 (user): tapping an amount that can't be typed opens the asset (it used
+  # to shake); its lock explains how the amount changes.
+  Scenario: Tapping an amount that can't be typed opens the asset; the lock explains
     Given I am on a phone-sized viewport
     And investments are enabled for my budget
     And a deposit "Term deposit" of 500000 cents exists in my budget
     When I open the investments wallets tab
     And I tap the amount of holding "Term deposit"
-    Then the amount of holding "Term deposit" shakes
+    Then the asset "Term deposit" opens and nothing shakes
+    And tapping the lock of "Term deposit" explains how its amount changes
 
   # Phase 13 (D-12/D-13): groups are the investment type. Every held type gets a
   # header; blocks drag by their header grip and the order is saved per budget.

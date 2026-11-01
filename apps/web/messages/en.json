@@ -701,7 +701,8 @@
         "share": "Share: {pct}",
         "amountAria": "Edit value of {name}",
         "qtyAvg": "{qty} × {avg} avg. cost",
-        "autoPriced": "Priced automatically"
+        "autoPriced": "Priced automatically",
+        "autoPricedTip": "This amount updates by itself. To change it, add a transaction: buy, sell or move."
       },
       "rowExpandAria": "Expand {name} details.",
       "plAria": "{value} profit/loss",

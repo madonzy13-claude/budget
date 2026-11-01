@@ -95,6 +95,23 @@ export const AUTO_PRICE_PROVIDERS = [
   "twelve_data",
 ] as const;
 
+/** R6 (user): an asset whose amount prices itself — a feed, the metal spot
+ *  price or a deposit's rate. It carries a lock: the amount can't be typed. */
+export function pricesItself(h: {
+  holdingType: string;
+  uiType?: string | null;
+  metal?: string | null;
+  instrumentProvider?: string | null;
+}): boolean {
+  return (
+    h.holdingType === "deposit" ||
+    h.uiType === "deposit" ||
+    h.metal != null ||
+    h.uiType === "precious_metals" ||
+    isAutoPriced(h.instrumentProvider)
+  );
+}
+
 export function isAutoPriced(provider: string | null | undefined): boolean {
   return (
     !!provider && (AUTO_PRICE_PROVIDERS as readonly string[]).includes(provider)

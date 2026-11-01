@@ -20,6 +20,7 @@
  * strips are never sortable and collapse while an asset is dragged (D-30).
  * ⚠️ Before changing ANY drag logic, read ./INVESTMENTS-DND.md.
  */
+import { pricesItself } from "@/lib/investment-types";
 import { isCashLike } from "@/lib/cash-like";
 import {
   DndContext,
@@ -701,6 +702,11 @@ export function InvestmentsSection({
                       data-testid={`investment-group-guide-${block.uiType}`}
                       className="flex flex-col gap-2 pt-2"
                       style={{
+                        // R6 (user): a group with a self-priced asset reserves a
+                        // lock slot on every amount, keeping currencies aligned.
+                        ...(block.holdings.some(pricesItself)
+                          ? { "--lock-slot": "20px" }
+                          : {}),
                         backgroundImage:
                           "linear-gradient(var(--color-hairline-dark), var(--color-hairline-dark))",
                         backgroundSize: "1px calc(100% - 0.5rem)",

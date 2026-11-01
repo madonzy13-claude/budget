@@ -23,4 +23,11 @@ describe("relativeAgo", () => {
     expect(relativeAgo(ago(5 * 60_000), now, "pl")).toBe("5 minut temu");
     expect(relativeAgo(ago(5 * 60_000), now, "uk")).toBe("5 хвилин тому");
   });
+  it("a short form for tight spots", () => {
+    const short = (ms: number, l = "en") => relativeAgo(ago(ms), now, l, true);
+    expect(short(5 * 60_000)).toBe("5m ago");
+    expect(short(26 * 3_600_000)).toBe("1d ago");
+    expect(short(15 * 86_400_000)).toBe("2w ago");
+    expect(short(5 * 60_000, "uk")).toBe("5 хв тому");
+  });
 });
