@@ -426,6 +426,54 @@ describe("Deal figure in the ledger", () => {
     })({ ...who, holdingId: "dia", today: "2026-10-30" });
   };
 
+  // R6 (user): BTC bought in EUR but priced in USD read "= 89,900 PLN" — the
+  // EUR deal figure was stamped USD. The total converts into the asset's own
+  // currency at the entry's date first.
+  test("the total after an entry is in the asset's currency, not the deal's", async () => {
+    const s = spyFx("1.1"); // 1 EUR = 1.10 USD
+    const w = new MemoryWorld([
+      hold({
+        id: "coin",
+        name: "Coin",
+        holdingType: "crypto",
+        uiType: "crypto",
+        buy: 50_000n,
+        buyCcy: "EUR",
+        curCcy: "USD",
+        qty: "2",
+        current: 60_000n,
+      }),
+    ]);
+    await w.historyRepo.commit(T, U, {
+      budgetId: T,
+      patches: [],
+      entries: [
+        entry({
+          holdingRef: "coin",
+          kind: "buy",
+          effectiveDate: "2026-10-01",
+          qtyDelta: "2",
+          amountCents: 100_000n,
+          amountCurrency: "EUR",
+          costDeltaCents: 100_000n,
+          costCurrency: "EUR",
+          assetAmountCents: 100_000n,
+        } as never),
+      ],
+    });
+    const rows = (
+      await listEntries({
+        holdingRepo: w.holdingRepo,
+        historyRepo: w.historyRepo,
+        fxProvider: s.fx,
+      })({ ...who, holdingId: "coin", today: "2026-10-30" })
+    )._unsafeUnwrap();
+    expect([rows[0]!.afterCents, rows[0]!.afterCurrency]).toEqual([
+      "110000",
+      "USD",
+    ]);
+  });
+
   test("the stored figure shows as is, with no FX lookup", async () => {
     const s = spyFx("4.41");
     const rows = (await listWith(s.fx, 300_000n))._unsafeUnwrap();

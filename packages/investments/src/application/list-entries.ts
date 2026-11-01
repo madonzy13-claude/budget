@@ -339,11 +339,29 @@ export function listEntries(deps: {
         const e = r.id !== null ? byId.get(r.id) : undefined;
         const paid = r.displayAmountCents ?? r.amountCents;
         if (!e?.qtyDelta || paid == null || big(e.qtyDelta).eq(0)) continue;
+        // In the asset's own currency at the entry's date: the row's figure
+        // is in its cost currency, which need not be the one it's priced in.
+        let paidX = big(paid).abs();
+        const paidCcy =
+          r.displayAmountCents != null ? r.displayCurrency : r.amountCurrency;
+        if (afterCcy && paidCcy && paidCcy !== afterCcy) {
+          let rate = rates.get(r.effectiveDate);
+          if (!rate)
+            rates.set(
+              r.effectiveDate,
+              (rate = makeRate(deps.fxProvider, r.effectiveDate)),
+            );
+          try {
+            paidX = paidX.times(await rate(paidCcy, afterCcy));
+          } catch {
+            continue;
+          }
+        }
         const d = dayDeals.get(r.effectiveDate) ?? {
           paid: big(0n),
           qty: big(0n),
         };
-        d.paid = d.paid.plus(big(paid).abs());
+        d.paid = d.paid.plus(paidX);
         d.qty = d.qty.plus(big(e.qtyDelta).abs());
         dayDeals.set(r.effectiveDate, d);
       }
