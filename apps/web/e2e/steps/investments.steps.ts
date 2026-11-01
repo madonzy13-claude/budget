@@ -281,7 +281,7 @@ Then(
   "the amounts inside the {string} type block are narrower than its total",
   async ({ page }, uiType: string) => {
     const box = (scope: Locator) =>
-      scope.locator('[style*="min-width"]').first().boundingBox();
+      scope.locator('[style*="--amt"]').first().boundingBox();
     const rows = new InvestmentsPo(page);
     const a = await box(rows.row("Flat A"));
     const b = await box(rows.row("Flat B"));
@@ -300,9 +300,11 @@ Then(
     ).trim();
     const col = await rows
       .row("Flat A")
-      .locator('[style*="min-width"]')
+      .locator('[style*="--amt"]')
       .first()
-      .evaluate((el) => parseFloat((el as HTMLElement).style.minWidth));
+      .evaluate((el) =>
+        parseFloat((el as HTMLElement).style.getPropertyValue("--amt")),
+      );
     expect(col).toBeLessThan(total.length + 1);
   },
 );

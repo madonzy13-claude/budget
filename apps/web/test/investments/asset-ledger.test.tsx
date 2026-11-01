@@ -219,8 +219,9 @@ describe("Asset ledger strip", () => {
   it("every amount uses the muted grey, the deletable newest included", async () => {
     mount(ENTRIES);
     const buy = await screen.findByTestId("ledger-row-b1");
-    const amount = [...buy.querySelectorAll<HTMLElement>("span")].find((s) =>
-      /PLN$/.test(s.textContent ?? ""),
+    const amount = [...buy.querySelectorAll<HTMLElement>("span")].find(
+      (s) =>
+        /PLN$/.test(s.textContent ?? "") && !/ × /.test(s.textContent ?? ""),
     )!;
     expect(amount.style.color).toBe("var(--muted-foreground)");
     expect(document.body.innerHTML).not.toContain("var(--body-on-dark)");
@@ -238,7 +239,7 @@ describe("Asset ledger strip", () => {
       }),
     ]);
     const row = await screen.findByTestId("ledger-row-d1");
-    expect(row).toHaveTextContent("−1 × 690");
+    expect(row).toHaveTextContent("−1 × 690 PLN");
   });
 
   // Round-3 gap 9: the swiped delete is square, shadowed on its left edge.
@@ -403,11 +404,11 @@ describe("Asset ledger strip", () => {
     expect(qty.style.fontSize).toBe("11px");
   });
 
-  // R6 (user): realized is in the asset's currency — no currency code shown.
-  it("realized shows the asset-currency figure without its currency", async () => {
+  // R6 (user): realized is in the asset's currency, and now says which.
+  it("realized shows the asset-currency figure with its currency", async () => {
     mount(ENTRIES);
     const rows = await screen.findAllByTestId(/^ledger-row-/);
-    expect(rows[2]).toHaveTextContent("ledger.realized(+12)");
+    expect(rows[2]).toHaveTextContent("ledger.realized(+12 USD)");
   });
 
   // R6 (user): cash and stablecoins are just money — no "realized".

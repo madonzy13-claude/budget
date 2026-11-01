@@ -138,9 +138,11 @@ describe("InvestmentTypeHeader", () => {
     const amount = () =>
       screen.getByTestId("investment-type-value-cash")
         .lastElementChild as HTMLElement;
-    expect(amount().style.minWidth).toBe("13ch");
+    // R6 (user): the phone column is the widest amount, no 1ch slack.
+    expect(amount().style.getPropertyValue("--amt")).toBe("12ch");
+    expect(amount().className).toContain("min-w-[var(--amt)]");
     h.open();
-    expect(amount().style.minWidth).toBe("");
+    expect(amount().className).not.toContain("min-w-");
   });
 
   // Round-4 gaps 1 + 2.

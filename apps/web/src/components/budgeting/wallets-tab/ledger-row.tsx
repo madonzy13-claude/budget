@@ -377,7 +377,7 @@ export function LedgerRow({
             <span style={{ fontSize: "11px", lineHeight: 1.4, opacity: 0.7 }}>
               {`${Number(qty) > 0 ? "+" : Number(qty) < 0 ? MINUS : ""}${trimQty(qty.replace(/^-/, ""))}`}
               {entry.priceCents != null &&
-                ` × ${centsToShort(entry.priceCents, locale)}`}
+                ` × ${centsToShort(entry.priceCents, locale)} ${entry.amountCurrency ?? ""}`.trimEnd()}
             </span>
           )}
           {amount != null && (
@@ -404,7 +404,7 @@ export function LedgerRow({
             </span>
           )}
           {!noRealized && entry.realizedBudgetCents != null && (
-            // R6 (user): in the asset's currency, no code beside it.
+            // R6 (user): in the asset's currency, with its code.
             <span
               className="text-[12px] leading-[1.4]"
               style={{
@@ -415,9 +415,13 @@ export function LedgerRow({
               }}
             >
               {t("ledger.realized", {
-                amount: signed(
+                amount: `${signed(
                   entry.realizedCents ?? entry.realizedBudgetCents,
-                ),
+                )} ${
+                  (entry.realizedCents != null
+                    ? entry.realizedCurrency
+                    : entry.budgetCurrency) ?? ""
+                }`.trimEnd(),
               })}
             </span>
           )}

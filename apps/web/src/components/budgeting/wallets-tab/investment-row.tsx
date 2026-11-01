@@ -99,6 +99,14 @@ function formatPct(pct: number): string {
   return `${sign}${Number(Math.abs(pct).toFixed(1))}%`; // 6%, not 6.0% (round 6)
 }
 
+/** cents ÷ a decimal quantity, rounded half up — bigint, no float money. */
+function perUnitCents(cents: string, quantity: string): bigint {
+  const [i = "0", f = ""] = quantity.replace(/^-/, "").split(".");
+  const units = BigInt(i + f.padEnd(8, "0").slice(0, 8)); // qty × 1e8
+  if (units === 0n) return 0n;
+  return (BigInt(cents) * 100_000_000n + units / 2n) / units;
+}
+
 export function InvestmentRow({
   holding,
   dragHandle,
@@ -208,8 +216,12 @@ export function InvestmentRow({
   const avgPrice =
     showQty && holding.buyPriceCents != null && Number(holding.quantity) > 0
       ? centsToShort(
-          // R6 (user): in the shown currency once the currency was changed.
-          holding.avgPriceDisplayCents ?? holding.buyPriceCents,
+          // R6 (user): a picked currency reads the replay's cost still held
+          // (each buy at its own date's rate) over the quantity; otherwise
+          // the asset's shown currency.
+          converted
+            ? perUnitCents(converted.costCents, holding.quantity)
+            : (holding.avgPriceDisplayCents ?? holding.buyPriceCents),
           locale,
         )
       : null;

@@ -612,6 +612,11 @@ describe("InvestmentRow", () => {
     expect(screen.getByLabelText(/profit\/loss/).textContent).toMatch(/40\.4/);
     expect(screen.getByTestId("holding-amount-readonly-h1")).toHaveTextContent(
       "3,500",
+    );    // R6 (user): avg price in the picked currency too — the replay's cost
+    // still held over the quantity (2,500 ÷ 10), no code beside it.
+    fireEvent.click(screen.getByLabelText("Expand AAPL"));
+    expect(screen.getByTestId("investment-row-qtyavg")).toHaveTextContent(
+      /^10 × 250 avg\. cost$/,
     );
   });
 
