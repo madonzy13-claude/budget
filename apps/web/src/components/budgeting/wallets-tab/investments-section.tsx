@@ -368,10 +368,14 @@ export function InvestmentsSection({
       new Map(
         blocks.map((b) => [
           b.uiType,
-          typeGroupPL(b.holdings, summary?.types[b.uiType]),
+          // R6 (user): hidden assets are still owned — they count.
+          typeGroupPL(
+            [...b.holdings, ...hidden.filter((h) => typeOf(h) === b.uiType)],
+            summary?.types[b.uiType],
+          ),
         ]),
       ),
-    [blocks, summary],
+    [blocks, hidden, summary],
   );
   // R6 (user): each group may be shown in another currency — the member's
   // pick, converted at today's rate (the % is unchanged).
@@ -429,9 +433,10 @@ export function InvestmentsSection({
       },
     };
   };
+  // R6 (user): the investments total keeps hidden assets — still owned.
   const total = useMemo(
-    () => portfolioPL(holdings, summary),
-    [holdings, summary],
+    () => portfolioPL([...holdings, ...hidden], summary),
+    [holdings, hidden, summary],
   );
   const totalBudgetCents = total.valueBudgetCents;
   const investmentsShare = sharePercentLabel(

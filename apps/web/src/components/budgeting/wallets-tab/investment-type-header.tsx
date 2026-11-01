@@ -311,16 +311,18 @@ export function InvestmentTypeHeader({
         data-col="left"
         className="flex min-w-0 flex-1 flex-col justify-center gap-0 leading-tight"
       >
+        {/* H2 (user): the group name can't be typed in place — dimmed. */}
         <span
+          data-testid={`investment-type-name-mobile-${uiType}`}
           className={`min-w-0 break-words sm:hidden ${split ? "text-num-sm" : "text-body-md"}`}
-          style={{ color: "var(--body-on-dark)" }}
+          style={{ color: "var(--body-on-dark)", opacity: AUTO_DIM }}
         >
           {name}
         </span>
         <span
           data-testid={`investment-type-name-desktop-${uiType}`}
           className="hidden min-w-0 break-words text-body-md sm:block"
-          style={{ color: "var(--body-on-dark)" }}
+          style={{ color: "var(--body-on-dark)", opacity: AUTO_DIM }}
         >
           {name}
         </span>

@@ -1074,3 +1074,15 @@ describe("InvestmentRow — opened amount line is dimmed", () => {
     );
   });
 });
+
+// H2 (user): an asset's name can't be typed in place — dimmed.
+describe("InvestmentRow — name dimmed (H2)", () => {
+  it("dims the asset name on phone and desktop", () => {
+    render(<InvestmentRow holding={holding()} />);
+    for (const el of [
+      screen.getByTestId("asset-name-mobile-h1"),
+      screen.getByTestId("asset-name-desktop-h1"),
+    ])
+      expect(el.style.opacity).toBe("0.75");
+  });
+});

@@ -35,7 +35,7 @@ import { nextHighlightIndex } from "@/lib/roving-index";
 import { toast } from "sonner";
 import { useTranslations, useLocale } from "next-intl";
 import { useWallets, type WalletDto } from "@/hooks/use-wallets";
-import { useInvestments } from "@/hooks/use-investments";
+import { useHiddenHoldings, useInvestments } from "@/hooks/use-investments";
 import { useBudget } from "@/hooks/use-budget-data";
 import { WalletsSkeleton } from "@/components/budgeting/wallets-tab/wallets-skeleton";
 import { isRestoreComplete } from "@/lib/query-persist";
@@ -168,6 +168,7 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   // Same query the investments section runs — react-query dedupes it. Needed
   // here for the tab-wide total and column width (see below).
   const investmentsQuery = useInvestments(budgetId);
+  const hiddenInvestmentsQuery = useHiddenHoldings(budgetId);
   const wallets = walletsQuery.data ?? [];
   const updateMut = useUpdateWallet(budgetId);
   const createMut = useCreateWallet(budgetId);
@@ -363,9 +364,11 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   // react-query dedupes the call — reading it here costs no extra request.
   // Possessions share the holdings endpoint and render as wallets, so they are
   // filtered out exactly as the investments section filters them.
-  const investmentHoldings = (investmentsQuery.data ?? []).filter(
-    (h) => h.holdingType !== "possession",
-  );
+  // R6 (user): hidden assets are still owned — they count in the total.
+  const investmentHoldings = [
+    ...(investmentsQuery.data ?? []),
+    ...(hiddenInvestmentsQuery.data ?? []),
+  ].filter((h) => h.holdingType !== "possession");
   const investmentsTotalBudgetCents = investmentHoldings.reduce(
     (sum, h) => sum + Number(h.valueInBudgetCents || 0),
     0,

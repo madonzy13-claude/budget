@@ -451,3 +451,15 @@ describe("InvestmentTypeHeader — the total is always dimmed", () => {
     for (const a of amounts()) expect(a.style.opacity).toBe("0.75");
   });
 });
+
+// H2 (user): a group's name can't be typed in place — dimmed like its total.
+describe("InvestmentTypeHeader — name dimmed (H2)", () => {
+  it("dims the group name on phone and desktop", () => {
+    renderHeader();
+    for (const el of [
+      screen.getByTestId("investment-type-name-mobile-stocks"),
+      screen.getByTestId("investment-type-name-desktop-stocks"),
+    ])
+      expect(el.style.opacity).toBe("0.75");
+  });
+});

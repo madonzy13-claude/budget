@@ -415,6 +415,9 @@ export function InvestmentRow({
                   ? "text-[var(--muted-strong)]"
                   : "text-[var(--body-on-dark)]",
               ].join(" ")}
+              data-testid={`asset-name-mobile-${holding.id}`}
+              // H2 (user): a name that can't be typed in place reads dimmed.
+              style={{ opacity: AUTO_DIM }}
             >
               {mobileName}
             </span>
@@ -425,6 +428,8 @@ export function InvestmentRow({
                   ? "text-[var(--muted-strong)]"
                   : "text-[var(--body-on-dark)]",
               ].join(" ")}
+              data-testid={`asset-name-desktop-${holding.id}`}
+              style={{ opacity: AUTO_DIM }}
             >
               {desktopName}
             </span>

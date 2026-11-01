@@ -3007,3 +3007,34 @@ When(
     await new InvestmentsPo(page).editNewestNote(name, note);
   },
 );
+
+// R6 (user): hiding an asset only takes it off the list — it is still owned,
+// so neither its group's total nor the investments total moves.
+const totalsOf = async (page: Page, type: string) => {
+  const text = async (sel: string) =>
+    (
+      await page.locator(sel).locator("visible=true").first().innerText()
+    ).trim();
+  return {
+    group: await text(
+      `[data-testid="investment-type-amount-desktop-${type}"], [data-testid="investment-type-amount-mobile-${type}"]`,
+    ),
+    section: await text('[data-testid="section-total-INVESTMENTS"]'),
+  };
+};
+const notedTotals = new WeakMap<Page, { group: string; section: string }>();
+When(
+  "I note the {string} group total and the investments total",
+  async ({ page }, type: string) => {
+    notedTotals.set(page, await totalsOf(page, type));
+  },
+);
+Then(
+  "the {string} group total and the investments total are unchanged",
+  async ({ page }, type: string) => {
+    const before = notedTotals.get(page)!;
+    await expect
+      .poll(() => totalsOf(page, type), { timeout: 15000 })
+      .toEqual(before);
+  },
+);

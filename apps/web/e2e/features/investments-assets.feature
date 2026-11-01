@@ -535,8 +535,10 @@ Feature: Investments as assets with transactions (13.1)
     When I open the investments wallets tab
     # A transaction beyond the opening entry, so Hide (not Delete) is offered.
     And I buy into broker "IBKR" adding "1000" with the account now at "97000"
+    And I note the "broker" group total and the investments total
     And I hide the asset "IBKR"
     Then the holding row "IBKR" is gone
+    And the "broker" group total and the investments total are unchanged
     And the "broker" Add form offers "IBKR" as hidden and buying "1000" into it brings it back
 
   # R6 (user): Hide acts at once; the group's bottom link lists its hidden
