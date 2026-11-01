@@ -104,6 +104,37 @@ describe("List an asset's entries", () => {
     expect(rows[2]!.backfilled).toBe(true);
   });
 
+  // R6 (user): "+15 USD" after a 20,000 USD swap the same day jumped the
+  // total by 10k — the small swap's fee'd price valued the whole holding.
+  // A day's deals share one price: their volume-weighted average.
+  test("the total after an entry uses its day's weighted deal price", async () => {
+    const { list, buy, start } = world({ ...btc, qty: "2" });
+    await start("btc", "2026-09-01", {
+      qtyDelta: "2",
+      amountCents: 4_000n,
+      amountCurrency: "PLN",
+      backfilled: true,
+    });
+    for (const [quantity, priceCents] of [
+      ["1", "3000"],
+      ["0.01", "3300"], // a tiny swap, 10% worse
+    ])
+      await buy({
+        ...who,
+        holdingId: "btc",
+        kind: "quantity",
+        quantity,
+        priceCents,
+        currency: "PLN",
+        effectiveDate: "2026-10-01",
+      });
+    const rows = (
+      await list({ ...who, holdingId: "btc", today: "2026-10-27" })
+    )._unsafeUnwrap();
+    // (3,000 + 33) ÷ 1.01 = 3,002.97 a unit on 2026-10-01.
+    expect(rows.map((r) => r.afterCents)).toEqual(["9039", "9009", "4000"]);
+  });
+
   test("a linked leg whose partner has a later entry is linked_not_newest; names are filled", async () => {
     const { list, sell, buy, start, w } = world(btc, eth);
     w.wallets.set("wal", {

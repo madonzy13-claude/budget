@@ -23,6 +23,7 @@ import {
 import { depositInterestRows } from "../domain/deposit-interest";
 import type { CapFrequency } from "../domain/deposit-value";
 import { big, cents } from "../domain/sell-booking";
+import type Big from "big.js";
 import type { HoldingRepo } from "../ports/holding-repo";
 import type { HistoryRepo, StoredEntry } from "../ports/history-repo";
 import type { EntryDto } from "../contracts/api";
@@ -330,6 +331,22 @@ export function listEntries(deps: {
         h.currentPriceCents != null
           ? big(h.currentPriceCents.toString())
           : null;
+      // A day's deals share one price — their volume-weighted average — so a
+      // tiny fee'd swap can't revalue the whole holding (user: "+15 USD"
+      // moved the total by 10k next to a 20,000 USD swap that day).
+      const dayDeals = new Map<string, { paid: Big; qty: Big }>();
+      for (const r of rows) {
+        const e = r.id !== null ? byId.get(r.id) : undefined;
+        const paid = r.displayAmountCents ?? r.amountCents;
+        if (!e?.qtyDelta || paid == null || big(e.qtyDelta).eq(0)) continue;
+        const d = dayDeals.get(r.effectiveDate) ?? {
+          paid: big(0n),
+          qty: big(0n),
+        };
+        d.paid = d.paid.plus(big(paid).abs());
+        d.qty = d.qty.plus(big(e.qtyDelta).abs());
+        dayDeals.set(r.effectiveDate, d);
+      }
       for (const r of rows) {
         const e = r.id !== null && !isDeposit ? byId.get(r.id) : undefined;
         if (!e) {
@@ -344,10 +361,10 @@ export function listEntries(deps: {
           continue;
         }
         const q = e.qtyDelta != null ? big(e.qtyDelta) : null;
-        const paid = r.displayAmountCents ?? r.amountCents;
+        const day = dayDeals.get(r.effectiveDate);
         r.afterCents =
-          q && !q.eq(0) && paid != null
-            ? cents(qtyRun.times(big(paid).abs().div(q.abs()))).toString()
+          q && !q.eq(0) && day
+            ? cents(qtyRun.times(day.paid.div(day.qty))).toString()
             : null;
         if (q) qtyRun = qtyRun.minus(q);
       }
