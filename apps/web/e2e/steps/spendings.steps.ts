@@ -91,3 +91,7 @@ When(
 When("I tap the {string} usage chip", async ({ page }, name: string) => {
   await usageChip(page, name).click();
 });
+
+Then("the category editor is not open", async ({ page }) => {
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});

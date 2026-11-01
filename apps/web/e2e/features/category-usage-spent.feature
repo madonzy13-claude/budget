@@ -19,3 +19,14 @@ Feature: A category's percent chip doubles as its spent total
     When I reveal the spent total on the "Food" usage chip
     And I open the spendings tab for the budget
     Then the "Food" usage chip reads "25%"
+
+  Scenario: On a phone a second tap goes back to the percent, never the pen
+    Given I am on a touch phone
+    And the budget has a category "Food" with a limit of 1000
+    And "Food" has 250 of spending this month
+    When I open the spendings tab for the budget
+    And I tap the "Food" usage chip
+    Then the "Food" usage chip reads "250"
+    When I tap the "Food" usage chip
+    Then the "Food" usage chip reads "25%"
+    And the category editor is not open

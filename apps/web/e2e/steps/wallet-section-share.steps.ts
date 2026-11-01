@@ -83,6 +83,13 @@ Given("I am on a touch phone", async ({ page }) => {
     enabled: true,
     maxTouchPoints: 5,
   });
+  // A phone has no hover — yet a tap leaves :hover stuck, like iOS does.
+  await cdp.send("Emulation.setEmulatedMedia", {
+    features: [
+      { name: "hover", value: "none" },
+      { name: "pointer", value: "coarse" },
+    ],
+  });
 });
 
 // R6 (user): on a phone the currency code sits ~10px from the widest amount
