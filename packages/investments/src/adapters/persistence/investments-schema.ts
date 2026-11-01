@@ -71,6 +71,10 @@ export const investments = budgeting.table(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    /** 0101: last value change, stamped by a trigger (R6). */
+    valueUpdatedAt: timestamp("value_updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (t) => [
     // Round-5 scope change: no label uniqueness (dropped by 0093).

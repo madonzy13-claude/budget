@@ -32,6 +32,7 @@ export function listWallets(deps: ListWalletsDeps) {
           color: (w as any).color ?? null,
           icon: (w as any).icon ?? null,
           sortOrder: Number((w as any).sortOrder ?? 0),
+          balanceUpdatedAt: w.balanceUpdatedAt?.toISOString() ?? null,
         })),
       );
     } catch (e) {

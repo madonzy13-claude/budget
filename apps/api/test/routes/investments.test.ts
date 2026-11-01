@@ -191,6 +191,8 @@ describe("Investments routes", () => {
     expect(row).toBeDefined();
     expect(row.name).toBe("Vintage Watch");
     expect(row.valueInBudgetCents).toBe("250000");
+    // R6 (user): every asset says when its value last changed.
+    expect(Number.isNaN(Date.parse(row.valueUpdatedAt))).toBe(false);
   });
 
   // user, 261023: typing 170 for 3 units stored 56.67/unit and showed 169.98.

@@ -150,6 +150,8 @@ export class Holding {
     public icon: string | null = null,
     /** Possession-only: per-item hex color (e.g. "#e63946"); null otherwise. */
     public color: string | null = null,
+    /** R6 (user): when the value last changed (0101 trigger) — "updated 5 min ago". */
+    public valueUpdatedAt: Date | null = null,
   ) {}
 
   /** Bank deposit: value accrues from principal+rate+time, computed on read. */

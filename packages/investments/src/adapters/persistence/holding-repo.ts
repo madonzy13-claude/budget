@@ -67,6 +67,7 @@ function mapRow(row: Record<string, unknown>): Holding {
     (row.deposit_end_date as string | null) ?? null,
     (row.icon as string | null) ?? null,
     (row.color as string | null) ?? null,
+    row.value_updated_at ? new Date(String(row.value_updated_at)) : null,
   );
 }
 
@@ -279,7 +280,7 @@ export class DrizzleHoldingRepo implements HoldingRepo {
                  CASE WHEN inv.instrument_id IS NOT NULL AND c.currency IS NOT NULL
                       THEN c.currency
                       ELSE inv.current_price_currency END AS current_price_currency,
-                 inv.sort_order, inv.archived_at, inv.created_at,
+                 inv.sort_order, inv.archived_at, inv.created_at, inv.value_updated_at,
                  inv.manual_ticker,
                  -- The currency the user chose to value the holding in. The CASE above
                  -- may put current_price_currency in the price source's currency (a

@@ -295,6 +295,7 @@ export function listHoldings(deps: {
               ? null
               : h.currentPriceCents.toString(),
           currentPriceCurrency: h.currentPriceCurrency,
+          valueUpdatedAt: h.valueUpdatedAt?.toISOString() ?? null,
           priceFetchedAt: h.priceFetchedAt
             ? h.priceFetchedAt.toISOString()
             : null,

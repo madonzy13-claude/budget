@@ -150,10 +150,23 @@ describe("Wallets route (renamed from accounts)", () => {
 
   it("GET /wallets lists wallets", async () => {
     const app = await buildApp(testUserId, testTenantId);
+    await app.request("/wallets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Stamped",
+        walletType: "SPENDINGS",
+        currency: "EUR",
+      }),
+    });
     const res = await app.request("/wallets");
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(Array.isArray(body.wallets)).toBe(true);
+    // R6 (user): every wallet says when its balance last changed.
+    expect(body.wallets.length).toBeGreaterThan(0);
+    for (const w of body.wallets)
+      expect(Number.isNaN(Date.parse(w.balanceUpdatedAt))).toBe(false);
   });
 
   it("POST /accounts returns 404", async () => {

@@ -25,6 +25,8 @@ export class Wallet {
   public color: string | null = null;
   public icon: string | null = null;
   public sortOrder: number = 0;
+  /** R6 (user): when the balance last changed (0101 trigger). */
+  public balanceUpdatedAt: Date | null = null;
 
   constructor(
     public readonly id: string,
