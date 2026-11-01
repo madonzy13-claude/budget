@@ -110,6 +110,7 @@ export function editTransaction(deps: EditTransactionDeps) {
       )(original.budgetId);
 
       let newAmountConverted: string;
+      let newRate = "1";
 
       if (newCurrency === budgetCurrency) {
         newAmountConverted = newAmountCents;
@@ -124,25 +125,23 @@ export function editTransaction(deps: EditTransactionDeps) {
         if (!Number.isFinite(rateNum) || rateNum <= 0 || rateNum >= 1e6) {
           return err(new Error(`FX rate out of bounds: ${fxResult.rate}`));
         }
+        newRate = fxResult.rate;
         newAmountConverted = String(
           Math.round(Number(newAmountCents) * rateNum),
         );
       }
 
-      // UAT-Phase6-Test7 retest #5: lock the row to the budget currency
-      // after any cross-currency edit. The user's chosen non-budget code
-      // is consumed only to compute the converted amount — once the row
-      // is persisted it reads as if it had always been in the budget
-      // currency. This preserves "spent vs budget" math without showing
-      // a confusing mix of foreign-code labels alongside converted
-      // amounts in the spendings grid.
+      // R6 (user): the row keeps the currency and amount it was paid in; the
+      // budget-currency figure (and its rate) follows the date. This replaces
+      // the UAT-Phase6-Test7 lock, which rewrote the row into the budget
+      // currency — the grid now shows both: original, converted underneath.
       updateFields = {
         ...updateFields,
-        fxRate: "1",
+        fxRate: newRate,
         fxAsOf: newDate,
-        amountOriginalCents: newAmountConverted,
+        amountOriginalCents: newAmountCents,
         amountConvertedCents: newAmountConverted,
-        currencyOriginal: budgetCurrency,
+        currencyOriginal: newCurrency,
       };
     }
 

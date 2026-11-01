@@ -368,9 +368,9 @@ describe("scheduled engine handler", () => {
     { timeout: 15000 },
     async () => {
       // Budget currency is USD (seedTenantForEngine). Rule is in EUR; stub FX EUR→USD = 1.1.
-      // 200 EUR → 220 USD → 22000 cents. The draft must surface as a BUDGET-currency row:
-      // currency_original = USD, amount_original_cents = converted, fx_rate = identity —
-      // matching the app-layer engine + inline catch-up + edit-transaction lock semantics.
+      // 200 EUR → 220 USD → 22000 cents. R6 (user): the draft keeps the rule's
+      // currency and amount (20000 EUR) with the due date's rate; the budget
+      // figure (22000 USD) is the converted one shown underneath.
       const tenant = await seedTenantForEngine("EngineFx");
       const ruleId = crypto.randomUUID();
       const pool = new Pool({ connectionString: DB_URL });
@@ -434,10 +434,10 @@ describe("scheduled engine handler", () => {
       }
 
       expect(row).toBeDefined();
-      expect(row!.currency_original).toBe("USD");
-      expect(String(row!.amount_original_cents)).toBe("22000");
+      expect(row!.currency_original).toBe("EUR");
+      expect(String(row!.amount_original_cents)).toBe("20000");
       expect(String(row!.amount_converted_cents)).toBe("22000");
-      expect(Number(row!.fx_rate)).toBe(1);
+      expect(Number(row!.fx_rate)).toBe(1.1);
     },
   );
 });
@@ -547,6 +547,73 @@ describe("deferred unconfirmed payments", () => {
           ).rows[0].n as number,
       );
       expect(again).toBe(1);
+    },
+  );
+
+  // R6 (user): it was converted when it was moved; on its own date it is
+  // converted again at THAT day's rate.
+  test(
+    "a returning foreign payment is re-converted at its date's rate",
+    { timeout: 15000 },
+    async () => {
+      const t = await seedTenantForEngine("DeferredFx"); // budget in USD
+      const ruleId = await seedRuleWithDueDate(
+        t.tenantId,
+        t.accountId,
+        t.userId,
+        "2099-01-15",
+      );
+      const id = await asTenant(
+        t.tenantId,
+        t.userId,
+        async (c) =>
+          (
+            await c.query(
+              `INSERT INTO budgeting.expense_ledger
+             (id, tenant_id, budget_id, transaction_date, amount_original_cents,
+              currency_original, amount_converted_cents, fx_rate, fx_as_of,
+              scheduled_payment_id, confirmed_at, kind, deferred_at, created_at, updated_at)
+           VALUES (gen_random_uuid(), $1, $1, $2::date, 10000, 'EUR', 11000, 1.1, '2026-01-01',
+                   $3, NULL, 'SPENDING', now(), now(), now())
+           RETURNING id`,
+              [t.tenantId, TODAY, ruleId],
+            )
+          ).rows[0].id as string,
+      );
+      const stubFx = {
+        rateAsOf: async () => ({
+          rate: "1.25",
+          provider: "stub",
+          isStale: false,
+        }),
+      };
+      const result = await runScheduledEngine({
+        todayOverride: TODAY,
+        fxProvider: stubFx,
+      });
+      expect(result.isOk()).toBe(true);
+      const row = await asTenant(
+        t.tenantId,
+        t.userId,
+        async (c) =>
+          (
+            await c.query(
+              `SELECT amount_converted_cents::text AS conv, fx_rate::text AS rate,
+                    fx_as_of::text AS asof, deferred_at IS NULL AS back
+               FROM budgeting.expense_ledger WHERE id = $1`,
+              [id],
+            )
+          ).rows[0] as {
+            conv: string;
+            rate: string;
+            asof: string;
+            back: boolean;
+          },
+      );
+      expect(row.back).toBe(true);
+      expect(row.conv).toBe("12500");
+      expect(Number(row.rate)).toBe(1.25);
+      expect(row.asof).toBe(TODAY);
     },
   );
 });

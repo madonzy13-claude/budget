@@ -361,7 +361,17 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
       confirmed ?? "any",
     );
 
-    return c.json({ transactions: rows.map(serializeRow) }, 200);
+    // R6 (user): the converted figure names its currency (the budget's).
+    const currencyConverted = await getBudgetCurrency(budgetId);
+    return c.json(
+      {
+        transactions: rows.map((r) => ({
+          ...serializeRow(r),
+          currency_converted: currencyConverted,
+        })),
+      },
+      200,
+    );
   });
 
   // ── GET /:txId — single transaction ──────────────────────────────────

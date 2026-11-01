@@ -15,7 +15,7 @@ import { useRevealActions } from "./reveal-actions";
 import { usePendingDraftConfirm } from "@/hooks/use-pending-spendings";
 import { useConfirmDraft } from "@/hooks/use-confirm-draft";
 import { useDismissDraft } from "@/hooks/use-dismiss-draft";
-import { centsToBare } from "@/lib/cents-format";
+import { FxAmount } from "./foreign-amount";
 import { parseDecimal } from "@/lib/decimal";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +24,9 @@ export interface DraftRowProps {
     id: string;
     amountConvertedCents: string;
     currencyConverted: string;
+    /** R6 (user): paid in another currency → shown in it, converted below. */
+    amountOriginalCents?: string;
+    currencyOriginal?: string;
     ruleName: string;
     note?: string | null;
   };
@@ -62,7 +65,6 @@ export function DraftRow({
   // Tracks "edit was just committed" so onBlur doesn't fire a second mutation.
   const committedRef = useRef(false);
 
-  const formattedAmount = centsToBare(draft.amountConvertedCents, locale);
   // A scheduled rule's note usually defaults to its name, so the row would render
   // the same label twice (e.g. "T-Mobile  T-Mobile"). Only show the note when it
   // adds something beyond the rule name.
@@ -198,7 +200,7 @@ export function DraftRow({
           />
         ) : (
           <span className="flex min-w-0 items-baseline gap-2 text-sm text-[var(--muted-foreground)]">
-            <span className="shrink-0">{formattedAmount}</span>
+            <FxAmount row={draft} locale={locale} />
             {confirmQueued ? (
               <RotateCw
                 data-testid="draft-row-pending"

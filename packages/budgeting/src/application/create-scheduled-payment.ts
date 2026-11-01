@@ -200,14 +200,9 @@ export function createScheduledPayment(deps: {
             dueDateStr: dueStr,
             fxProvider: deps.fxProvider,
           });
-          // UAT-Phase6-Test7 retest follow-up: lock the draft to the
-          // BUDGET currency — `currency_original` becomes the budget
-          // currency, `amount_original_cents` becomes the converted
-          // value, `fx_rate` is identity. The rule's raw currency
-          // (e.g. "PLN" in an EUR budget) is consumed only to compute
-          // the conversion; the persisted ledger row reads as a
-          // budget-currency row, matching the edit-transaction
-          // lock semantics.
+          // R6 (user): the payment keeps the rule's currency and amount; the
+          // budget-currency figure is converted at the due date's rate (this
+          // replaces the UAT-Phase6-Test7 lock to the budget currency).
           const insertResult = await drizzleTx2.execute(sql`
             INSERT INTO budgeting.expense_ledger
               (id, tenant_id, budget_id, category_id, transaction_date,
@@ -217,9 +212,9 @@ export function createScheduledPayment(deps: {
             VALUES
               (gen_random_uuid(), ${input.tenantId}::uuid, ${input.tenantId}::uuid,
                ${input.categoryId ?? null}::uuid, ${dueStr}::date,
-               ${fxComputed.amountConvertedCents}::bigint, ${budgetCurrency},
+               ${amountCents}::bigint, ${input.currency},
                ${fxComputed.amountConvertedCents}::bigint,
-               1::numeric, ${fxComputed.fxAsOf}::date,
+               ${fxComputed.fxRate}::numeric, ${fxComputed.fxAsOf}::date,
                ${input.note ?? null}, ${ruleId}::uuid,
                NULL, 'SPENDING', now(), now())
             ON CONFLICT (scheduled_payment_id, transaction_date)
@@ -253,7 +248,7 @@ export function createScheduledPayment(deps: {
                 draft_id: draftId,
                 rule_name: input.note ?? "",
                 amount_cents: amountCents,
-                currency: budgetCurrency,
+                currency: input.currency,
                 transaction_date: dueStr,
                 category_id: input.categoryId ?? "",
               },

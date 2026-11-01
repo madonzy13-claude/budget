@@ -228,13 +228,9 @@ describe("PATCH /budgets/:budgetId/transactions/:txId", () => {
     const tx = body.transaction;
     // GBP→EUR rate (1.10) must differ from USD→EUR rate (0.84)
     expect(tx.fx_rate).not.toBe(oldFxRate);
-    // …and the row then LOCKS to the budget currency. The foreign code the user
-    // typed is consumed to compute the converted amount and is not kept: once
-    // persisted the row reads as if it had always been in the budget currency,
-    // so the spendings grid never shows foreign labels beside converted amounts
-    // (edit-transaction.ts, UAT-Phase6-Test7 retest #5). This test predated that
-    // decision and still expected the GBP it sent back.
-    expect(tx.currency_original).toBe("EUR");
+    // R6 (user): the row keeps the currency it was paid in (it used to lock
+    // to the budget currency); the converted figure follows the rate.
+    expect(tx.currency_original).toBe("GBP");
     // amount_converted_cents recomputed
     expect(tx.amount_converted_cents).toBeDefined();
     expect(tx.fx_as_of).toBe("2026-05-11");
@@ -325,6 +321,9 @@ describe("GET /budgets/:budgetId/transactions", () => {
     // Each confirmed txn has confirmed_at set
     for (const tx of body.transactions as Array<Record<string, unknown>>) {
       expect(tx.confirmed_at).toBeTruthy();
+      // R6 (user): the converted figure names its currency (the budget's),
+      // so a foreign row can show both.
+      expect(tx.currency_converted).toBe("EUR");
     }
   });
 

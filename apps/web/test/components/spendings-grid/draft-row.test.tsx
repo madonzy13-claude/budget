@@ -341,3 +341,32 @@ describe("DraftRow — keyboard", () => {
     expect(mockConfirmMutate).not.toHaveBeenCalled();
   });
 });
+
+// R6 (user): a spending in another currency reads in that currency (short
+// sign), with the budget-currency figure at that day's rate underneath.
+describe("DraftRow — foreign currency", () => {
+  it("shows the original amount and the converted line below", () => {
+    renderDraftRow({
+      draft: {
+        ...draft,
+        amountOriginalCents: "10000",
+        currencyOriginal: "SEK",
+        amountConvertedCents: "92000",
+        currencyConverted: "PLN",
+      },
+    });
+    expect(screen.getByText("100 kr")).toBeInTheDocument();
+    expect(screen.getByTestId("txn-converted")).toHaveTextContent("920 zł");
+  });
+
+  it("a budget-currency row has no converted line", () => {
+    renderDraftRow({
+      draft: {
+        ...draft,
+        amountOriginalCents: draft.amountConvertedCents,
+        currencyOriginal: draft.currencyConverted,
+      },
+    });
+    expect(screen.queryByTestId("txn-converted")).toBeNull();
+  });
+});

@@ -348,6 +348,53 @@ describe("/scheduled-payments", () => {
     expect(typeof body.ruleId).toBe("string");
   });
 
+  // R6 (user): a rule in another currency books its payments in THAT
+  // currency, converted at the due date's rate (it used to lock to the budget
+  // currency and lose the original).
+  it("POST in a foreign currency back-fills payments in that currency", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const app = await buildApp(testUserId, testTenantId);
+    const res = await app.request("/scheduled-payments", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        amount: "100.00",
+        currency: "EUR",
+        cadence: "MONTHLY",
+        cadence_anchor: Number(today.slice(8, 10)),
+        first_due_date: today,
+        note: "Foreign rule",
+      }),
+    });
+    expect(res.status).toBe(201);
+    const { ruleId } = (await res.json()) as { ruleId: string };
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
+    const c = await pool.connect();
+    try {
+      await c.query(
+        `SELECT set_config('app.tenant_ids', '{"${testTenantId}"}', false)`,
+      );
+      const r = await c.query(
+        `SELECT currency_original, amount_original_cents::text AS orig,
+                amount_converted_cents::text AS conv, fx_rate::text AS rate
+           FROM budgeting.expense_ledger
+          WHERE scheduled_payment_id = $1 AND deleted_at IS NULL`,
+        [ruleId],
+      );
+      const row = r.rows[0] as Record<string, string>;
+      expect(row.currency_original).toBe("EUR");
+      expect(row.orig).toBe("10000");
+      expect(Number(row.rate)).not.toBe(1);
+      expect(Number(row.conv)).toBe(Math.round(10000 * Number(row.rate)));
+    } finally {
+      c.release();
+      await pool.end();
+    }
+  });
+
   // mig 0069: optional "last date" (end_date)
 
   it("POST with end_date persists it (future first_due, no back-fill)", async () => {

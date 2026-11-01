@@ -574,3 +574,32 @@ describe("TransactionRow", () => {
     });
   });
 });
+
+// R6 (user): a spending in another currency reads in that currency (short
+// sign), with the budget-currency figure at that day's rate underneath.
+describe("TransactionRow — foreign currency", () => {
+  it("shows the original amount and the converted line below", () => {
+    renderRow({
+      txn: {
+        ...txn,
+        amountOriginalCents: "1250",
+        currencyOriginal: "EUR",
+        amountConvertedCents: "5400",
+        currencyConverted: "PLN",
+      },
+    });
+    expect(screen.getByText("€12.50")).toBeInTheDocument();
+    expect(screen.getByTestId("txn-converted")).toHaveTextContent("54 zł");
+  });
+
+  it("a budget-currency row has no converted line", () => {
+    renderRow({
+      txn: {
+        ...txn,
+        amountOriginalCents: txn.amountConvertedCents,
+        currencyOriginal: txn.currencyConverted,
+      },
+    });
+    expect(screen.queryByTestId("txn-converted")).toBeNull();
+  });
+});

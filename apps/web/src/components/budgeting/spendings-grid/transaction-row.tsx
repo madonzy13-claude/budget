@@ -19,7 +19,8 @@ import { useConnectivity } from "@/components/common/connectivity-provider";
 import { removePendingSpending } from "@/lib/pending-spendings";
 import { useDeleteTransaction } from "@/hooks/use-delete-transaction";
 import { useUpdateTransaction } from "@/hooks/use-update-transaction";
-import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
+import { centsToDisplayCompact } from "@/lib/cents-format";
+import { FxAmount } from "./foreign-amount";
 import { parseAmountAndNote } from "@/lib/decimal";
 import { MobileKeyboardToggle } from "./mobile-keyboard-toggle";
 import { formatInstantDate } from "@/lib/format-date";
@@ -232,7 +233,6 @@ export function TransactionRow({
     };
   }, [revealed]);
 
-  const formattedAmount = centsToBare(txn.amountConvertedCents, locale);
   // The SPENDING date, day + short month, no year ("31 Jul").
   //
   // SUPERSEDES r40b, which showed the creation date here: a spending entered
@@ -566,7 +566,7 @@ export function TransactionRow({
           </>
         ) : (
           <span className="flex min-w-0 flex-1 items-baseline gap-2 text-sm text-[var(--body-on-dark)]">
-            <span className="shrink-0">{formattedAmount}</span>
+            <FxAmount row={txn} locale={locale} />
             {/* 260731-osq: queued-offline marker — this row saves itself once
                 the connection is back. */}
             {pending ? (
