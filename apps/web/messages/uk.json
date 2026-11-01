@@ -1266,7 +1266,6 @@
       "capture": {
         "saveExpense": "Зберегти витрату",
         "saveIncome": "Зберегти дохід",
-        "saveTransfer": "Зберегти переказ",
         "amountLabel": "Сума",
         "currencyLabel": "Валюта",
         "dateLabel": "Дата",
@@ -1274,8 +1273,7 @@
         "accountLabel": "Гаманець",
         "noteLabel": "Нотатка (необов'язково)",
         "kindExpense": "Витрата",
-        "kindIncome": "Дохід",
-        "kindTransfer": "Переказ"
+        "kindIncome": "Дохід"
       },
       "list": {
         "editedBadge": "редаговано",
@@ -1405,7 +1403,6 @@
         "kindLabel": "Тип",
         "kindExpense": "Витрата",
         "kindIncome": "Надходження",
-        "kindTransfer": "Переказ",
         "accountLabel": "Гаманець",
         "categoryLabel": "Категорія",
         "categoryNone": "(без категорії)",

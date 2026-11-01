@@ -1266,7 +1266,6 @@
       "capture": {
         "saveExpense": "Zapisz wydatek",
         "saveIncome": "Zapisz przychód",
-        "saveTransfer": "Zapisz przelew",
         "amountLabel": "Kwota",
         "currencyLabel": "Waluta",
         "dateLabel": "Data",
@@ -1274,8 +1273,7 @@
         "accountLabel": "Portfel",
         "noteLabel": "Notatka (opcjonalna)",
         "kindExpense": "Wydatek",
-        "kindIncome": "Przychód",
-        "kindTransfer": "Przelew"
+        "kindIncome": "Przychód"
       },
       "list": {
         "editedBadge": "edytowane",
@@ -1405,7 +1403,6 @@
         "kindLabel": "Typ",
         "kindExpense": "Wydatek",
         "kindIncome": "Przychód",
-        "kindTransfer": "Przelew",
         "accountLabel": "Portfel",
         "categoryLabel": "Kategoria",
         "categoryNone": "(bez kategorii)",

@@ -1243,7 +1243,6 @@
       "capture": {
         "saveExpense": "Save expense",
         "saveIncome": "Save income",
-        "saveTransfer": "Save transfer",
         "amountLabel": "Amount",
         "currencyLabel": "Currency",
         "dateLabel": "Date",
@@ -1251,8 +1250,7 @@
         "accountLabel": "Wallet",
         "noteLabel": "Note (optional)",
         "kindExpense": "Expense",
-        "kindIncome": "Income",
-        "kindTransfer": "Transfer"
+        "kindIncome": "Income"
       },
       "list": {
         "editedBadge": "edited",
@@ -1382,7 +1380,6 @@
         "kindLabel": "Kind",
         "kindExpense": "Expense",
         "kindIncome": "Income",
-        "kindTransfer": "Transfer",
         "accountLabel": "Wallet",
         "categoryLabel": "Category",
         "categoryNone": "(no category)",
