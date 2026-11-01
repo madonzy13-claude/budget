@@ -41,7 +41,6 @@ import { PlCaption } from "./investment-type-header";
 import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
-import { UpdatedAgo } from "./updated-ago";
 import { isAutoPriced, pricesItself } from "@/lib/investment-types";
 import { AssetClassChip } from "./asset-class-chip";
 
@@ -211,7 +210,6 @@ export function InvestmentRow({
   // R6 (user): an amount that prices itself (a feed, the spot price, the
   // deposit's rate) carries a lock, and its line says when the PRICE refreshed.
   const autoPriced = pricesItself(holding);
-  const priceAge = autoPriced && holding.priceFetchedAt != null;
   const isSavings = holding.uiType === "savings";
   // D-29: average buy price per unit, quantity assets only (an amount asset's
   // "price" is its total cost).
@@ -549,7 +547,7 @@ export function InvestmentRow({
               // R6 (user): the spending wallets' currency cell + picker.
               <span
                 data-testid={`asset-currency-${holding.id}`}
-                className="block w-[44px] shrink-0 self-center text-num-sm text-[var(--muted-foreground)] sm:w-[96px] md:w-[224px] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right]"
+                className="editable-dots block w-[44px] shrink-0 self-center text-num-sm text-[var(--muted-foreground)] sm:w-[96px] md:w-[224px] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right]"
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
@@ -622,11 +620,6 @@ export function InvestmentRow({
                   {value}
                 </span>
               )}
-              {/* F9 (user): how long ago, hung right under the amount. */}
-              <UpdatedAgo
-                at={priceAge ? holding.priceFetchedAt : holding.valueUpdatedAt}
-                kind={autoPriced ? "price" : "value"}
-              />
             </div>
           </div>
           {expanded && (qtyAvg != null || startedDisplay != null) && (

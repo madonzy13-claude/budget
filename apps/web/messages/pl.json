@@ -2346,10 +2346,5 @@
     "try_link": "Zobacz demo →",
     "try_hint": "Dane przykładowe, bez zakładania konta",
     "entering": "Otwieranie…"
-  },
-  "updatedAgo": {
-    "value": "zaktualizowano {when}",
-    "price": "cena zaktualizowana {when}",
-    "justNow": "przed chwilą"
   }
 }

@@ -989,40 +989,19 @@ describe("InvestmentRow", () => {
   });
 });
 
-// R6 (user): every asset says when its amount last changed; one that prices
-// itself says "price updated" and carries a lock on its amount.
-describe("InvestmentRow — updated ago and lock", () => {
-  it("a typed asset: updated line, no lock", () => {
-    render(
-      <InvestmentRow
-        holding={holding({
-          instrumentId: null,
-          instrumentProvider: null,
-          valueUpdatedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
-        })}
-      />,
-    );
-    const ago = screen.getByTestId("updated-ago");
-    expect(ago).toHaveAttribute("data-kind", "value");
-    // F9 (user): right under the amount, not under the name.
-    expect(ago.closest("[data-amount-cell]")).not.toBeNull();
-    expect(screen.queryByTestId("asset-auto-lock-h1")).toBeNull();
-  });
-
-  it("an auto-priced asset: price line, no lock (G6)", () => {
+// R6 (user): no "updated … ago" line, and no lock.
+describe("InvestmentRow — no age line, no lock", () => {
+  it("shows neither, typed or automatic", () => {
     render(
       <InvestmentRow
         holding={holding({
           instrumentProvider: "coingecko",
-          priceFetchedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
-          valueUpdatedAt: new Date(Date.now() - 86_400_000).toISOString(),
+          priceFetchedAt: new Date().toISOString(),
+          valueUpdatedAt: new Date().toISOString(),
         })}
       />,
     );
-    expect(screen.getByTestId("updated-ago")).toHaveAttribute(
-      "data-kind",
-      "price",
-    );
+    expect(screen.queryByTestId("updated-ago")).toBeNull();
     expect(screen.queryByTestId("asset-auto-lock-h1")).toBeNull();
   });
 });
@@ -1036,28 +1015,6 @@ describe("InvestmentRow — no lock slot", () => {
     );
     const cell = document.querySelector<HTMLElement>("[data-amount-cell]")!;
     expect(cell.className).not.toContain("lock-slot");
-  });
-});
-
-// R6 (user): a deposit prices itself (its rate) — its line carries the
-// refresh mark even without a fetched price.
-describe("InvestmentRow — deposit line", () => {
-  it("a deposit's line is the automatic kind", () => {
-    render(
-      <InvestmentRow
-        holding={holding({
-          holdingType: "deposit",
-          uiType: "deposit",
-          instrumentProvider: null,
-          priceFetchedAt: null,
-          valueUpdatedAt: new Date().toISOString(),
-        })}
-      />,
-    );
-    expect(screen.getByTestId("updated-ago")).toHaveAttribute(
-      "data-kind",
-      "price",
-    );
   });
 });
 
@@ -1098,5 +1055,20 @@ describe("InvestmentRow — dotted line on a typed amount (I1)", () => {
     );
     const cell = document.querySelector("[data-amount-cell]")!;
     expect(cell.querySelector(".editable-dots")).not.toBeNull();
+  });
+});
+
+// I1 (user): the asset's currency picker can be tapped — dotted too.
+describe("InvestmentRow — dotted currency (I1)", () => {
+  it("the currency picker carries the dotted line", () => {
+    render(
+      <InvestmentRow
+        holding={holding()}
+        currencyPick={{ value: "USD", onChange: () => {} }}
+      />,
+    );
+    expect(screen.getByTestId("asset-currency-h1").className).toContain(
+      "editable-dots",
+    );
   });
 });

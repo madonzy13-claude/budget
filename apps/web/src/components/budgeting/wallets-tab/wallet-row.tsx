@@ -29,7 +29,6 @@ import { CurrencyPicker } from "@/components/common/currency-picker";
 import { Input } from "@/components/ui/input";
 import { WalletDeleteConfirm } from "./wallet-delete-confirm";
 import { WalletCustomizer } from "./wallet-customizer";
-import { UpdatedAgo } from "./updated-ago";
 import { centsToBare } from "@/lib/cents-format";
 import type { WalletDto } from "@/hooks/use-wallets";
 
@@ -872,8 +871,6 @@ function PersistedRow({
             )}
             onSave={(v) => onUpdate({ amount: amountForSave(v) })}
           />
-          {/* F9 (user): how long ago the balance changed, under the amount. */}
-          <UpdatedAgo at={wallet.balanceUpdatedAt} />
         </div>
 
         {/* UAT-PH5-T3-14: Share — wallet's slice of its section's total.

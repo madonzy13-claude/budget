@@ -546,15 +546,15 @@ describe("WalletRow — the name stays readable", () => {
   });
 });
 
-// R6 (user): every wallet says when its balance last changed, small and faded.
-describe("WalletRow — updated ago", () => {
-  it("shows when the balance last changed", () => {
+// R6 (user): no "updated … ago" line any more.
+describe("WalletRow — no age line", () => {
+  it("shows no updated line even with a change time", () => {
     render(
       <WalletRow
         mode="persisted"
         wallet={{
           ...SPENDINGS_WALLET,
-          balanceUpdatedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+          balanceUpdatedAt: new Date().toISOString(),
         }}
         budgetCurrency="EUR"
         onUpdate={vi.fn().mockResolvedValue(undefined)}
@@ -562,10 +562,7 @@ describe("WalletRow — updated ago", () => {
         isReserveSection={false}
       />,
     );
-    expect(screen.getByTestId("updated-ago")).toHaveAttribute(
-      "data-kind",
-      "value",
-    );
+    expect(screen.queryByTestId("updated-ago")).toBeNull();
   });
 });
 

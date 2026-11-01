@@ -2342,10 +2342,5 @@
     "try_link": "Explore the demo →",
     "try_hint": "Sample data, no sign-up needed",
     "entering": "Opening…"
-  },
-  "updatedAgo": {
-    "value": "updated {when}",
-    "price": "price updated {when}",
-    "justNow": "just now"
   }
 }

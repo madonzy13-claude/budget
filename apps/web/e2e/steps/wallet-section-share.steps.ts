@@ -101,12 +101,6 @@ Then(
       page.locator('[data-testid^="asset-currency-"]').first(),
     ).toBeVisible({ timeout: 15000 });
     const gaps = await page.evaluate(() => {
-      // The "↻ 5m ago" line hangs under the amount (F9); it is not the
-      // amount's width — leave it out of the measurement.
-      for (const el of document.querySelectorAll<HTMLElement>(
-        '[data-testid="updated-ago"]',
-      ))
-        el.style.display = "none";
       const visible = (el: Element) =>
         (el as HTMLElement).offsetParent !== null &&
         el.getBoundingClientRect().width > 0;
@@ -186,87 +180,47 @@ Then(
   },
 );
 
-// R6 (user): every wallet and asset says when its amount last changed; an
-// amount that prices itself carries a lock.
+// R6 (user): an automatic amount explains how it changes (its title).
 Then(
-  "the wallet {string} says when its balance was updated",
+  "the asset {string} explains how its amount changes",
   async ({ page }, name: string) => {
-    const row = page
-      .locator("[data-wallet-row-wrapper]", { hasText: name })
-      .locator("visible=true")
-      .first();
-    // F9 (user): right under the amount.
-    await expect(
-      row.locator("[data-amount-cell]").getByTestId("updated-ago"),
-    ).toBeVisible({ timeout: 15000 });
-  },
-);
-
-Then(
-  "the asset {string} says when it was updated, with no lock",
-  async ({ page }, name: string) => {
-    const row = page.getByTestId(`holding-row-${name}`).locator("visible=true");
-    await expect(
-      row.locator("[data-amount-cell]").getByTestId("updated-ago"),
-    ).toHaveAttribute("data-kind", "value", { timeout: 15000 });
-    // R6 (user): typed by hand — a pen.
-    await expect(
-      row.locator("[data-amount-cell]").getByTestId("updated-ago"),
-    ).toHaveAttribute("data-icon", "pen");
-    await expect(row.locator('[data-testid^="asset-auto-lock-"]')).toHaveCount(
-      0,
-    );
-  },
-);
-
-// G6 (user): no lock — an automatic amount is a shade dimmer, explains itself
-// on hover, and its age line carries the refresh mark.
-Then(
-  "the asset {string} is marked automatic",
-  async ({ page }, name: string) => {
-    const row = page.getByTestId(`holding-row-${name}`).locator("visible=true");
-    const amount = row
+    const amount = page
+      .getByTestId(`holding-row-${name}`)
       .locator('[data-testid^="holding-amount-readonly-"]')
       .locator("visible=true");
-    await expect(amount).toHaveAttribute("data-auto", "true", {
+    await expect(amount).toHaveAttribute("title", /add a transaction/, {
       timeout: 15000,
     });
-    await expect(amount).toHaveAttribute("title", /add a transaction/);
-    await expect(
-      row.locator("[data-amount-cell]").getByTestId("updated-ago"),
-    ).toHaveAttribute("data-icon", "reload");
-    await expect(row.locator('[data-testid^="asset-auto-lock-"]')).toHaveCount(
-      0,
-    );
   },
 );
 
-// R6 (user): a group shows its newest asset change under its amount.
+// I1 (user): the asset's and the group's currency pickers are tap-and-switch.
 Then(
-  "the {string} group says when it was last updated",
-  async ({ page }, type: string) => {
-    // On a phone an open group shows its share there instead — close it.
+  "the currency of the asset {string} and of the {string} group carry the dotted line",
+  async ({ page }, name: string, type: string) => {
+    // On a phone an open group shows its currency as plain text — close it.
     const group = page.getByTestId(`investment-group-${type}`);
     if (
       (page.viewportSize()?.width ?? 1280) < 640 &&
       (await group.getAttribute("aria-expanded")) === "true"
     )
       await group.click({ position: { x: 24, y: 12 } });
-    await expect(
+    for (const cell of [
       page
-        .getByTestId(`investment-type-value-${type}`)
-        .getByTestId("updated-ago")
-        .locator("visible=true"),
-    ).toBeVisible({ timeout: 15000 });
-    // R6 (user): a group's total updates by itself — always ↻, never ✎.
-    await expect(
-      page
-        .getByTestId(`investment-type-value-${type}`)
-        .getByTestId("updated-ago")
-        .locator("visible=true"),
-    ).toHaveAttribute("data-icon", "reload");
+        .getByTestId(`holding-row-${name}`)
+        .locator('[data-testid^="asset-currency-"]'),
+      page.getByTestId(`investment-type-currency-${type}`),
+    ])
+      await expect(
+        cell.locator("select, button").locator("visible=true").first(),
+      ).toHaveCSS("text-decoration-style", "dotted");
   },
 );
+
+// R6 (user): the "updated … ago" line is gone everywhere.
+Then("nothing shows an updated line", async ({ page }) => {
+  await expect(page.getByTestId("updated-ago")).toHaveCount(0);
+});
 
 // I1 (user): a dotted line marks what can be tapped and typed — nothing is
 // dimmed any more.
@@ -297,16 +251,42 @@ Then(
 Then(
   "the asset {string} and the {string} group carry no dotted line",
   async ({ page }, asset: string, type: string) => {
+    // Their amounts can't be typed — no dots there (the currency picker is
+    // tap-and-switch, so it is dotted).
     await expect(
-      page.getByTestId(`holding-row-${asset}`).locator(".editable-dots"),
+      page
+        .getByTestId(`holding-row-${asset}`)
+        .locator("[data-amount-cell] .editable-dots"),
     ).toHaveCount(0);
     await expect(
-      page.getByTestId(`investment-group-${type}`).locator(".editable-dots"),
+      page
+        .getByTestId(`investment-type-value-${type}`)
+        .locator(
+          ".editable-dots:not([data-testid^='investment-type-currency-'])",
+        ),
     ).toHaveCount(0);
     const amount = page
       .getByTestId(`holding-row-${asset}`)
       .locator('[data-testid^="holding-amount-readonly-"]')
       .locator("visible=true");
     await expect(amount).toHaveCSS("opacity", "1");
+  },
+);
+
+// iOS never paints an underline inside a native <select>: the phone's
+// currency cell draws its dots as a background instead.
+Then(
+  "the wallet {string} currency shows its dots on a phone",
+  async ({ page }, wallet: string) => {
+    const select = page
+      .locator("[data-wallet-row-wrapper]", { hasText: wallet })
+      .locator("visible=true")
+      .first()
+      .locator('[data-nav-field="currency"] select');
+    await expect(select).toBeVisible({ timeout: 15000 });
+    await expect(select).toHaveCSS(
+      "background-image",
+      /repeating-linear-gradient/,
+    );
   },
 );

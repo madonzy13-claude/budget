@@ -407,31 +407,18 @@ describe("InvestmentTypeHeader", () => {
   });
 });
 
-// R6 (user): a group says how long ago its newest asset changed, under its
-// amount like the assets do.
-describe("InvestmentTypeHeader — updated ago", () => {
-  it("shows the newest change under the group's amount", () => {
-    renderHeader({
-      updatedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
-    });
-    const ago = screen.getByTestId("updated-ago");
-    expect(
-      ago.closest('[data-testid="investment-type-value-stocks"]'),
-    ).not.toBeNull();
-  });
-
-  // R6 (user): a group's total follows its assets — always the ↻ mark.
-  it("always carries the refresh mark, even after a typed change", () => {
-    renderHeader({ updatedAt: new Date().toISOString() });
-    expect(screen.getByTestId("updated-ago")).toHaveAttribute(
-      "data-icon",
-      "reload",
-    );
-  });
-
-  it("no time, no line", () => {
+// R6 (user): no "updated … ago" line on groups; the currency picker is
+// tap-and-switch, so it carries the dotted line (I1).
+describe("InvestmentTypeHeader — no age line, dotted currency", () => {
+  it("shows no updated line", () => {
     renderHeader();
     expect(screen.queryByTestId("updated-ago")).toBeNull();
+  });
+  it("the currency picker carries the dotted line", () => {
+    renderHeader({ onCurrencyChange: () => {} });
+    expect(
+      screen.getByTestId("investment-type-currency-stocks").className,
+    ).toContain("editable-dots");
   });
 });
 

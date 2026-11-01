@@ -25,7 +25,6 @@ import type { UiType } from "@/lib/investment-types";
 import { UI_TYPE_COLOR, UI_TYPE_ICON } from "@/lib/investment-icons";
 import { useIsWide } from "@/hooks/use-is-wide";
 import { CurrencyPicker } from "@/components/common/currency-picker";
-import { UpdatedAgo } from "./updated-ago";
 import type { TypeGroupPL } from "@/lib/investment-type-groups";
 
 interface InvestmentTypeHeaderProps {
@@ -42,9 +41,6 @@ interface InvestmentTypeHeaderProps {
   onCurrencyChange?: (currency: string) => void;
   /** Block drag handle slot (the parent's useSortable listeners). */
   dragHandle?: React.ReactNode;
-  /** R6 (user): the newest change among the group's assets — "↻ 5m ago"
-   *  (a group's total always updates by itself, so always ↻). */
-  updatedAt?: string | null;
 }
 
 const signColor = (n: number) =>
@@ -120,7 +116,6 @@ export function InvestmentTypeHeader({
   pl,
   portfolioPct,
   maxAmountChars,
-  updatedAt,
   expanded,
   onToggle,
   onCurrencyChange,
@@ -167,7 +162,7 @@ export function InvestmentTypeHeader({
             data-testid={`investment-type-currency-${uiType}`}
             // R6 (user): the spending wallets' currency cell — full label on
             // a wide screen, the code alone on a narrow one.
-            className={`w-[44px] shrink-0 self-center text-num-sm sm:block sm:w-[96px] md:w-[224px] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] ${showSplit ? "hidden" : "block"}`}
+            className={`editable-dots w-[44px] shrink-0 self-center text-num-sm sm:block sm:w-[96px] md:w-[224px] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] ${showSplit ? "hidden" : "block"}`}
             style={{ color: "var(--muted-foreground)" }}
             onClick={stop}
             onKeyDown={stop}
@@ -225,13 +220,6 @@ export function InvestmentTypeHeader({
         >
           {money(pl.valueBudgetCents)}
         </span>
-        {/* R6 (user): under the amount like the assets; an open group on a
-            phone has its share there instead. */}
-        <UpdatedAgo
-          at={updatedAt}
-          kind="price"
-          className={showSplit ? "hidden sm:flex" : undefined}
-        />
       </span>
     </div>
   );
