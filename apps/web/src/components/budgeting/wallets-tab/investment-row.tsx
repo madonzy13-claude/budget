@@ -42,7 +42,7 @@ import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { UpdatedAgo } from "./updated-ago";
-import { isAutoPriced, pricesItself } from "@/lib/investment-types";
+import { AUTO_DIM, isAutoPriced, pricesItself } from "@/lib/investment-types";
 import { AssetClassChip } from "./asset-class-chip";
 
 /** User (round 6): secondary lines a bit lighter so the row reads cleaner. */
@@ -107,10 +107,6 @@ function perUnitCents(cents: string, quantity: string): bigint {
   if (units === 0n) return 0n;
   return (BigInt(cents) * 100_000_000n + units / 2n) / units;
 }
-
-/** G6 (user): an amount that prices itself reads a shade dimmer than one
- *  typed by hand. */
-const AUTO_DIM = 0.75;
 
 export function InvestmentRow({
   holding,

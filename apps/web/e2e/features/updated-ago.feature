@@ -16,3 +16,4 @@ Feature: Every wallet and asset says when its amount last changed
     And the asset "Pot" says when it was updated, with no lock
     And the asset "Term deposit" is marked automatic
     And the "cash" group says when it was last updated
+    And the "deposit" group total is dimmer than the "cash" group total

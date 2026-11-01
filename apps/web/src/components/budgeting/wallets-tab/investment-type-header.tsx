@@ -26,6 +26,7 @@ import { UI_TYPE_COLOR, UI_TYPE_ICON } from "@/lib/investment-icons";
 import { useIsWide } from "@/hooks/use-is-wide";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { UpdatedAgo } from "./updated-ago";
+import { AUTO_DIM } from "@/lib/investment-types";
 import type { TypeGroupPL } from "@/lib/investment-type-groups";
 
 interface InvestmentTypeHeaderProps {
@@ -149,6 +150,9 @@ export function InvestmentTypeHeader({
   // R6-7 (user): open = stats shown; closed = value only. No separate reveal.
   const showSplit = expanded;
   const split = expanded && uiType !== "cash";
+  // R6 (user): a group whose newest change was automatic reads a shade
+  // dimmer, like its automatic assets (G6).
+  const autoDim = updated?.kind === "price" ? { opacity: AUTO_DIM } : undefined;
   const Icon = UI_TYPE_ICON[uiType];
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
@@ -195,6 +199,7 @@ export function InvestmentTypeHeader({
           data-testid={`investment-type-amount-desktop-${uiType}`}
           className="num hidden text-right text-num-md sm:inline"
           style={{
+            ...autoDim,
             color: "var(--body-on-dark)",
             minWidth: `${(maxAmountChars ?? 4) + 1}ch`,
           }}
@@ -212,11 +217,13 @@ export function InvestmentTypeHeader({
           </span>
         )}
         <span
+          data-testid={`investment-type-amount-mobile-${uiType}`}
           className={`num text-right sm:hidden ${showSplit ? "text-num-sm" : "text-num-md min-w-[var(--amt)]"}`}
           // Tapped (cash too): currency hugs the amount like the asset row (round-4
           // gap 12 — the column width pushed "PLN" under the P/L line).
           style={
             {
+              ...autoDim,
               color: "var(--body-on-dark)",
               "--amt": `${maxAmountChars ?? 4}ch`,
             } as React.CSSProperties

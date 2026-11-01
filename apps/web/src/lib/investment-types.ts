@@ -95,6 +95,10 @@ export const AUTO_PRICE_PROVIDERS = [
   "twelve_data",
 ] as const;
 
+/** G6 (user): an amount that prices itself reads this much dimmer than one
+ *  typed by hand (asset rows and group totals alike). */
+export const AUTO_DIM = 0.75;
+
 /** R6 (user): an asset whose amount prices itself — a feed, the metal spot
  *  price or a deposit's rate. It carries a lock: the amount can't be typed. */
 export function pricesItself(h: {

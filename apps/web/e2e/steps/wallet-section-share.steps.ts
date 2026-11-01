@@ -260,3 +260,20 @@ Then(
     ).toBeVisible({ timeout: 15000 });
   },
 );
+
+// R6 (user): a group whose newest change was automatic reads dimmer.
+Then(
+  "the {string} group total is dimmer than the {string} group total",
+  async ({ page }, auto: string, typed: string) => {
+    const opacity = (type: string) =>
+      page
+        .locator(
+          `[data-testid="investment-type-amount-desktop-${type}"], [data-testid="investment-type-amount-mobile-${type}"]`,
+        )
+        .locator("visible=true")
+        .first()
+        .evaluate((el) => Number(getComputedStyle(el).opacity));
+    await expect.poll(() => opacity(auto), { timeout: 15000 }).toBeLessThan(1);
+    expect(await opacity(typed)).toBe(1);
+  },
+);
