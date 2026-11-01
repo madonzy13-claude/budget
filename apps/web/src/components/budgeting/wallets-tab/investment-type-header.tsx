@@ -44,8 +44,8 @@ interface InvestmentTypeHeaderProps {
   /** Block drag handle slot (the parent's useSortable listeners). */
   dragHandle?: React.ReactNode;
   /** R6 (user): the newest change among the group's assets — "↻ 5m ago"
-   *  (automatic) or "✎ 5m ago" (typed). */
-  updated?: { at: string; kind: "price" | "value" } | null;
+   *  (a group's total always updates by itself, so always ↻). */
+  updatedAt?: string | null;
 }
 
 const signColor = (n: number) =>
@@ -121,7 +121,7 @@ export function InvestmentTypeHeader({
   pl,
   portfolioPct,
   maxAmountChars,
-  updated,
+  updatedAt,
   expanded,
   onToggle,
   onCurrencyChange,
@@ -234,8 +234,8 @@ export function InvestmentTypeHeader({
         {/* R6 (user): under the amount like the assets; an open group on a
             phone has its share there instead. */}
         <UpdatedAgo
-          at={updated?.at}
-          kind={updated?.kind}
+          at={updatedAt}
+          kind="price"
           className={showSplit ? "hidden sm:flex" : undefined}
         />
       </span>

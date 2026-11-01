@@ -412,15 +412,21 @@ describe("InvestmentTypeHeader", () => {
 describe("InvestmentTypeHeader — updated ago", () => {
   it("shows the newest change under the group's amount", () => {
     renderHeader({
-      updated: {
-        at: new Date(Date.now() - 5 * 60_000).toISOString(),
-        kind: "value",
-      },
+      updatedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
     });
     const ago = screen.getByTestId("updated-ago");
     expect(
       ago.closest('[data-testid="investment-type-value-stocks"]'),
     ).not.toBeNull();
+  });
+
+  // R6 (user): a group's total follows its assets — always the ↻ mark.
+  it("always carries the refresh mark, even after a typed change", () => {
+    renderHeader({ updatedAt: new Date().toISOString() });
+    expect(screen.getByTestId("updated-ago")).toHaveAttribute(
+      "data-icon",
+      "reload",
+    );
   });
 
   it("no time, no line", () => {
@@ -437,7 +443,7 @@ describe("InvestmentTypeHeader — the total is always dimmed", () => {
     screen.getByTestId("investment-type-amount-mobile-stocks"),
   ];
   it("dims both amounts whatever changed last", () => {
-    renderHeader({ updated: { at: new Date().toISOString(), kind: "value" } });
+    renderHeader({ updatedAt: new Date().toISOString() });
     for (const a of amounts()) expect(a.style.opacity).toBe("0.75");
   });
   it("dims a group with no change time too", () => {

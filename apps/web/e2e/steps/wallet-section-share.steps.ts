@@ -258,6 +258,13 @@ Then(
         .getByTestId("updated-ago")
         .locator("visible=true"),
     ).toBeVisible({ timeout: 15000 });
+    // R6 (user): a group's total updates by itself — always ↻, never ✎.
+    await expect(
+      page
+        .getByTestId(`investment-type-value-${type}`)
+        .getByTestId("updated-ago")
+        .locator("visible=true"),
+    ).toHaveAttribute("data-icon", "reload");
   },
 );
 

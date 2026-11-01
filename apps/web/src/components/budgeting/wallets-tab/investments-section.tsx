@@ -166,17 +166,13 @@ function SortableTypeBlock({
 }
 
 /** R6 (user): a group's newest change — the latest of its assets' own
- *  "updated" times (a self-priced asset's is its price refresh), and whether
- *  that newest one was automatic (↻) or typed (pen). */
-function newestUpdate(
-  hs: HoldingDto[],
-): { at: string; kind: "price" | "value" } | null {
-  let best: { at: string; kind: "price" | "value" } | null = null;
+ *  "updated" times (a self-priced asset's is its price refresh). */
+function newestUpdate(hs: HoldingDto[]): string | null {
+  let best: string | null = null;
   for (const h of hs) {
-    const auto = pricesItself(h);
-    const at = auto && h.priceFetchedAt ? h.priceFetchedAt : h.valueUpdatedAt;
-    if (at && (!best || at > best.at))
-      best = { at, kind: auto ? "price" : "value" };
+    const at =
+      pricesItself(h) && h.priceFetchedAt ? h.priceFetchedAt : h.valueUpdatedAt;
+    if (at && (!best || at > best)) best = at;
   }
   return best;
 }
@@ -699,7 +695,7 @@ export function InvestmentsSection({
                           : 0
                       }
                       maxAmountChars={amountCols.top}
-                      updated={newestUpdate(block.holdings)}
+                      updatedAt={newestUpdate(block.holdings)}
                       expanded={isExpanded(block.uiType)}
                       onToggle={() => toggleType(block.uiType)}
                     />
