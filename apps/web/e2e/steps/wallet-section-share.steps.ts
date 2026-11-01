@@ -284,9 +284,13 @@ Then(
       .first()
       .locator('[data-nav-field="currency"] select');
     await expect(select).toBeVisible({ timeout: 15000 });
-    await expect(select).toHaveCSS(
-      "background-image",
-      /repeating-linear-gradient/,
-    );
+    // The same dots as everywhere else: a real dotted underline, on an
+    // invisible copy of the code laid exactly over the select's text.
+    const overlay = select.locator("xpath=..").locator("[data-dots-overlay]");
+    await expect(overlay).toHaveCSS("text-decoration-style", "dotted");
+    await expect(overlay).toHaveText("USD");
+    const sel = (await select.boundingBox())!;
+    const ov = (await overlay.boundingBox())!;
+    expect(Math.abs(sel.x + sel.width - (ov.x + ov.width))).toBeLessThan(1);
   },
 );

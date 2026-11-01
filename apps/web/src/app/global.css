@@ -1115,10 +1115,12 @@ main[data-shell-scroll]:has([data-lock-page-scroll]) {
 
 /* I1 (user): a quiet dotted line under everything the user can tap and type
    on the assets page (wallet names, currencies, amounts; typed asset
-   amounts). Form controls don't inherit text-decoration, so the picker's
-   trigger gets it explicitly. */
+   amounts). Form controls don't inherit text-decoration: the picker's trigger
+   gets it explicitly, and a native <select> (where iOS never paints one) gets
+   it through an invisible copy of its code laid over it. */
 .editable-dots,
-.editable-dots button {
+.editable-dots button,
+.editable-dots [data-dots-overlay] {
   text-decoration-line: underline;
   text-decoration-style: dotted;
   /* R6 (user): small and faint — a hint, not a line. */
@@ -1130,17 +1132,6 @@ main[data-shell-scroll]:has([data-lock-page-scroll]) {
   text-decoration-thickness: 1px;
   text-underline-offset: 5px;
 }
-/* iOS Safari never paints text-decoration inside a native <select> (the
-   phone's currency cell), so the same dots are drawn as a background under
-   the 3-letter code — right-aligned like the code on a phone. */
-.editable-dots select {
-  text-decoration: none;
-  background-image: repeating-linear-gradient(
-    to right,
-    color-mix(in oklab, var(--muted-foreground) 55%, transparent) 0 1px,
-    transparent 1px 3px
-  );
-  background-size: 3.4ch 1px;
-  background-repeat: no-repeat;
-  background-position: right bottom;
+.editable-dots [data-dots-overlay] {
+  display: block;
 }
