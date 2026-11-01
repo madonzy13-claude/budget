@@ -654,6 +654,14 @@ export async function boot(): Promise<BootedDeps> {
         tenancy.workspaceRepo.getAggPrefsForUser(userId),
       displayCurrencyReader,
       fxProvider: baseBudgeting.fxProvider,
+      // R6 (user): this month's spend converts at the days it was paid.
+      spendByDay: (tenantId, budgetId, from, to) =>
+        new DrizzleTransactionRepo().spendByDayForMonth(
+          tenantId,
+          budgetId,
+          from,
+          to,
+        ),
       // The cross-budget spend verdict reads each budget's own forecast, so the
       // all-budgets card answers the same question the per-budget card does.
       getCashflowProjectionForTenant: budgetingFinal.getCashflowProjection,

@@ -586,3 +586,29 @@ describe("GET /budgets/:budgetId/spendings-summary", () => {
     expect(res.status).toBe(403);
   });
 });
+
+// R6 (user): the all-budgets card converts this month's spend at the days it
+// was paid — the repo sums confirmed spending per day.
+describe("spendByDayForMonth", () => {
+  it("sums confirmed spending per day inside the month", async () => {
+    const fix = await createFixture("EUR", "UTC");
+    const cat = await seedCategory(fix.budgetId, fix.userId, "Food");
+    await seedTransaction(fix.budgetId, fix.userId, cat, 1000, "2026-07-02");
+    await seedTransaction(fix.budgetId, fix.userId, cat, 500, "2026-07-02");
+    await seedTransaction(fix.budgetId, fix.userId, cat, 700, "2026-07-10");
+    await seedTransaction(fix.budgetId, fix.userId, cat, 999, "2026-08-01");
+    const { DrizzleTransactionRepo } = await import(
+      "@budget/budgeting/src/adapters/persistence/transaction-repo"
+    );
+    const rows = await new DrizzleTransactionRepo().spendByDayForMonth(
+      fix.budgetId,
+      fix.budgetId,
+      "2026-07-01",
+      "2026-08-01",
+    );
+    expect(rows).toEqual([
+      { date: "2026-07-02", cents: 1500n },
+      { date: "2026-07-10", cents: 700n },
+    ]);
+  });
+});
