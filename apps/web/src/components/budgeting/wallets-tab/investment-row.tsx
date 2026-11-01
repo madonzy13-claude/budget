@@ -337,8 +337,11 @@ export function InvestmentRow({
     >
       <span className="text-[var(--muted-foreground)]">{currency}</span>
       <span
+        data-testid={`asset-value-amount-${holding.id}`}
         className="text-[var(--body-on-dark)]"
-        style={autoPriced ? { opacity: AUTO_DIM } : undefined}
+        // R6 (user): the opened asset's amount line can't be typed — dimmed
+        // for every asset, like any amount the user can't change there.
+        style={{ opacity: AUTO_DIM }}
         title={autoPriced ? t("row.autoPricedTip") : undefined}
       >
         {value}

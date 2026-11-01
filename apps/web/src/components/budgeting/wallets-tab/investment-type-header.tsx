@@ -150,9 +150,9 @@ export function InvestmentTypeHeader({
   // R6-7 (user): open = stats shown; closed = value only. No separate reveal.
   const showSplit = expanded;
   const split = expanded && uiType !== "cash";
-  // R6 (user): a group whose newest change was automatic reads a shade
-  // dimmer, like its automatic assets (G6).
-  const autoDim = updated?.kind === "price" ? { opacity: AUTO_DIM } : undefined;
+  // R6 (user): a group's total can never be typed — it always reads a shade
+  // dimmer, like an automatic asset amount (G6).
+  const autoDim = { opacity: AUTO_DIM };
   const Icon = UI_TYPE_ICON[uiType];
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 

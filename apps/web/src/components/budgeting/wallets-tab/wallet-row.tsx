@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { WalletDeleteConfirm } from "./wallet-delete-confirm";
 import { WalletCustomizer } from "./wallet-customizer";
 import { UpdatedAgo } from "./updated-ago";
+import { AUTO_DIM } from "@/lib/investment-types";
 import { centsToBare } from "@/lib/cents-format";
 import type { WalletDto } from "@/hooks/use-wallets";
 
@@ -783,10 +784,11 @@ function PersistedRow({
           data-nav-field="currency"
         >
           {isReserveSection ? (
-            // Match the investments-row currency: small + grey, right-aligned so it
-            // sits tight to the amount instead of floating mid-column (r31 item 3).
+            // R6 (user): the other wallets' currency font, dimmed — it can't
+            // be changed here (reserve wallets use the budget currency).
             <span
-              className="block w-full text-right text-num-sm text-[var(--muted-foreground)]"
+              className="block w-full text-num-md text-[var(--foreground)] max-sm:text-right"
+              style={{ opacity: AUTO_DIM }}
               aria-label={t("currencyReadOnlyAria", { ccy: wallet.currency })}
             >
               {wallet.currency}

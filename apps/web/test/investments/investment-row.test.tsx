@@ -1058,3 +1058,19 @@ describe("InvestmentRow — deposit line", () => {
     );
   });
 });
+
+// R6 (user): an opened asset's amount line can't be typed — dimmed for
+// every asset, typed or automatic.
+describe("InvestmentRow — opened amount line is dimmed", () => {
+  it("dims the open line of a typed asset too", () => {
+    render(
+      <InvestmentRow
+        holding={holding({ instrumentId: null, instrumentProvider: null })}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Expand AAPL"));
+    expect(screen.getByTestId("asset-value-amount-h1").style.opacity).toBe(
+      "0.75",
+    );
+  });
+});

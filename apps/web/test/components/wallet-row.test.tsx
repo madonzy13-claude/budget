@@ -222,6 +222,10 @@ describe("WalletRow — persisted mode", () => {
     // Should have aria-label indicating read-only
     const readOnlySpan = screen.getByLabelText(/Currency EUR/);
     expect(readOnlySpan).toBeInTheDocument();
+    // R6 (user): same font as the other wallets' currency, dimmed — it can't
+    // be changed here.
+    expect(readOnlySpan.className).toContain("text-num-md");
+    expect(readOnlySpan.style.opacity).toBe("0.75");
   });
 
   // UAT-PH5-T3-14 + T3-45: Share column reflects wallet's share among

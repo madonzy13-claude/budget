@@ -261,19 +261,23 @@ Then(
   },
 );
 
-// R6 (user): a group whose newest change was automatic reads dimmer.
+// R6 (user): a group's total can never be typed — every one reads dimmed.
 Then(
-  "the {string} group total is dimmer than the {string} group total",
-  async ({ page }, auto: string, typed: string) => {
-    const opacity = (type: string) =>
-      page
-        .locator(
-          `[data-testid="investment-type-amount-desktop-${type}"], [data-testid="investment-type-amount-mobile-${type}"]`,
+  "the {string} and {string} group totals are dimmed",
+  async ({ page }, a: string, b: string) => {
+    for (const type of [a, b])
+      await expect
+        .poll(
+          () =>
+            page
+              .locator(
+                `[data-testid="investment-type-amount-desktop-${type}"], [data-testid="investment-type-amount-mobile-${type}"]`,
+              )
+              .locator("visible=true")
+              .first()
+              .evaluate((el) => Number(getComputedStyle(el).opacity)),
+          { timeout: 15000 },
         )
-        .locator("visible=true")
-        .first()
-        .evaluate((el) => Number(getComputedStyle(el).opacity));
-    await expect.poll(() => opacity(auto), { timeout: 15000 }).toBeLessThan(1);
-    expect(await opacity(typed)).toBe(1);
+        .toBeLessThan(1);
   },
 );

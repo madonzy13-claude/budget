@@ -429,19 +429,19 @@ describe("InvestmentTypeHeader — updated ago", () => {
   });
 });
 
-// R6 (user): a group whose newest change was automatic reads a shade dimmer,
-// like its automatic assets; a typed one stays full strength.
-describe("InvestmentTypeHeader — automatic total is dimmer", () => {
+// R6 (user): a group's total can never be typed — it always reads dimmed,
+// like an automatic asset amount.
+describe("InvestmentTypeHeader — the total is always dimmed", () => {
   const amounts = () => [
     screen.getByTestId("investment-type-amount-desktop-stocks"),
     screen.getByTestId("investment-type-amount-mobile-stocks"),
   ];
-  it("dims both amounts when the newest change was a price", () => {
-    renderHeader({ updated: { at: new Date().toISOString(), kind: "price" } });
+  it("dims both amounts whatever changed last", () => {
+    renderHeader({ updated: { at: new Date().toISOString(), kind: "value" } });
     for (const a of amounts()) expect(a.style.opacity).toBe("0.75");
   });
-  it("keeps a typed group's total at full strength", () => {
-    renderHeader({ updated: { at: new Date().toISOString(), kind: "value" } });
-    for (const a of amounts()) expect(a.style.opacity).toBe("");
+  it("dims a group with no change time too", () => {
+    renderHeader();
+    for (const a of amounts()) expect(a.style.opacity).toBe("0.75");
   });
 });
