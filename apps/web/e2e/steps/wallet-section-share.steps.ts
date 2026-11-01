@@ -179,3 +179,40 @@ Then(
     ).toContainText(/USD\s*100/);
   },
 );
+
+// R6 (user): every wallet and asset says when its amount last changed; an
+// amount that prices itself carries a lock.
+Then(
+  "the wallet {string} says when its balance was updated",
+  async ({ page }, name: string) => {
+    const row = page
+      .locator("[data-wallet-row-wrapper]", { hasText: name })
+      .locator("visible=true")
+      .first();
+    await expect(row.getByTestId("updated-ago")).toBeVisible({
+      timeout: 15000,
+    });
+  },
+);
+
+Then(
+  "the asset {string} says when it was updated, with no lock",
+  async ({ page }, name: string) => {
+    const row = page.getByTestId(`holding-row-${name}`).locator("visible=true");
+    await expect(row.getByTestId("updated-ago")).toHaveAttribute(
+      "data-kind",
+      "value",
+      { timeout: 15000 },
+    );
+    await expect(row.locator('[data-testid^="asset-auto-lock-"]')).toHaveCount(
+      0,
+    );
+  },
+);
+
+Then("the asset {string} carries a lock", async ({ page }, name: string) => {
+  const row = page.getByTestId(`holding-row-${name}`).locator("visible=true");
+  await expect(
+    row.locator('[data-testid^="asset-auto-lock-"]').locator("visible=true"),
+  ).toBeVisible({ timeout: 15000 });
+});

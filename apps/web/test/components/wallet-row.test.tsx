@@ -539,3 +539,26 @@ describe("WalletRow — the name stays readable", () => {
     expect(renderRow().innerHTML).toContain("break-words");
   });
 });
+
+// R6 (user): every wallet says when its balance last changed, small and faded.
+describe("WalletRow — updated ago", () => {
+  it("shows when the balance last changed", () => {
+    render(
+      <WalletRow
+        mode="persisted"
+        wallet={{
+          ...SPENDINGS_WALLET,
+          balanceUpdatedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+        }}
+        budgetCurrency="EUR"
+        onUpdate={vi.fn().mockResolvedValue(undefined)}
+        onArchive={vi.fn()}
+        isReserveSection={false}
+      />,
+    );
+    expect(screen.getByTestId("updated-ago")).toHaveAttribute(
+      "data-kind",
+      "value",
+    );
+  });
+});

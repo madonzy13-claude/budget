@@ -700,7 +700,8 @@
         "started": "started: {amount}",
         "share": "Share: {pct}",
         "amountAria": "Edit value of {name}",
-        "qtyAvg": "{qty} × {avg} avg. cost"
+        "qtyAvg": "{qty} × {avg} avg. cost",
+        "autoPriced": "Priced automatically"
       },
       "rowExpandAria": "Expand {name} details.",
       "plAria": "{value} profit/loss",
@@ -2338,5 +2339,10 @@
     "try_link": "Explore the demo →",
     "try_hint": "Sample data, no sign-up needed",
     "entering": "Opening…"
+  },
+  "updatedAgo": {
+    "value": "updated {when}",
+    "price": "price updated {when}",
+    "justNow": "just now"
   }
 }

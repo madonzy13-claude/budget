@@ -700,7 +700,8 @@
         "started": "początek: {amount}",
         "share": "Udział: {pct}",
         "amountAria": "Edytuj wartość {name}",
-        "qtyAvg": "{qty} × {avg} śr. koszt"
+        "qtyAvg": "{qty} × {avg} śr. koszt",
+        "autoPriced": "Wyceniane automatycznie"
       },
       "rowExpandAria": "Rozwiń szczegóły {name}.",
       "plAria": "{value} zysk/strata",
@@ -2342,5 +2343,10 @@
     "try_link": "Zobacz demo →",
     "try_hint": "Dane przykładowe, bez zakładania konta",
     "entering": "Otwieranie…"
+  },
+  "updatedAgo": {
+    "value": "zaktualizowano {when}",
+    "price": "cena zaktualizowana {when}",
+    "justNow": "przed chwilą"
   }
 }

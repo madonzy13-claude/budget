@@ -29,6 +29,7 @@ import { CurrencyPicker } from "@/components/common/currency-picker";
 import { Input } from "@/components/ui/input";
 import { WalletDeleteConfirm } from "./wallet-delete-confirm";
 import { WalletCustomizer } from "./wallet-customizer";
+import { UpdatedAgo } from "./updated-ago";
 import { centsToBare } from "@/lib/cents-format";
 import type { WalletDto } from "@/hooks/use-wallets";
 
@@ -762,6 +763,7 @@ function PersistedRow({
               return onUpdate({ name: v.trim() });
             }}
           />
+          <UpdatedAgo at={wallet.balanceUpdatedAt} />
         </div>
 
         {/* Currency — read-only for Reserve section per D-PH5-R3; editable otherwise.

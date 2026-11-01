@@ -612,7 +612,7 @@ describe("InvestmentRow", () => {
     expect(screen.getByLabelText(/profit\/loss/).textContent).toMatch(/40\.4/);
     expect(screen.getByTestId("holding-amount-readonly-h1")).toHaveTextContent(
       "3,500",
-    );    // R6 (user): avg price in the picked currency too — the replay's cost
+    ); // R6 (user): avg price in the picked currency too — the replay's cost
     // still held over the quantity (2,500 ÷ 10), no code beside it.
     fireEvent.click(screen.getByLabelText("Expand AAPL"));
     expect(screen.getByTestId("investment-row-qtyavg")).toHaveTextContent(
@@ -974,5 +974,43 @@ describe("InvestmentRow", () => {
       "opacity-50",
     );
     expect(screen.getByText("Delisted")).toBeInTheDocument();
+  });
+});
+
+// R6 (user): every asset says when its amount last changed; one that prices
+// itself says "price updated" and carries a lock on its amount.
+describe("InvestmentRow — updated ago and lock", () => {
+  it("a typed asset: updated line, no lock", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          instrumentId: null,
+          instrumentProvider: null,
+          valueUpdatedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+        })}
+      />,
+    );
+    expect(screen.getByTestId("updated-ago")).toHaveAttribute(
+      "data-kind",
+      "value",
+    );
+    expect(screen.queryByTestId("asset-auto-lock-h1")).toBeNull();
+  });
+
+  it("an auto-priced asset: price line and a lock", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          instrumentProvider: "coingecko",
+          priceFetchedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+          valueUpdatedAt: new Date(Date.now() - 86_400_000).toISOString(),
+        })}
+      />,
+    );
+    expect(screen.getByTestId("updated-ago")).toHaveAttribute(
+      "data-kind",
+      "price",
+    );
+    expect(screen.getByTestId("asset-auto-lock-h1")).toBeInTheDocument();
   });
 });

@@ -33,6 +33,7 @@ import {
   Trash2,
   TrendingUp,
   TrendingDown,
+  Lock,
 } from "lucide-react";
 import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { Input } from "@/components/ui/input";
@@ -41,6 +42,7 @@ import { PlCaption } from "./investment-type-header";
 import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
+import { UpdatedAgo } from "./updated-ago";
 import { isAutoPriced } from "@/lib/investment-types";
 import { AssetClassChip } from "./asset-class-chip";
 
@@ -208,6 +210,15 @@ export function InvestmentRow({
       holding.instrumentId == null ||
       (holding.instrumentProvider != null &&
         !isAutoPriced(holding.instrumentProvider)));
+  // R6 (user): an amount that prices itself (a feed, the spot price, the
+  // deposit's rate) carries a lock, and its line says when the PRICE refreshed.
+  const autoPriced =
+    holding.holdingType === "deposit" ||
+    holding.uiType === "deposit" ||
+    holding.metal != null ||
+    holding.uiType === "precious_metals" ||
+    isAutoPriced(holding.instrumentProvider);
+  const priceAge = autoPriced && holding.priceFetchedAt != null;
   const isSavings = holding.uiType === "savings";
   // D-29: average buy price per unit, quantity assets only (an amount asset's
   // "price" is its total cost).
@@ -461,6 +472,10 @@ export function InvestmentRow({
               )}
             </div>
           </div>
+          <UpdatedAgo
+            at={priceAge ? holding.priceFetchedAt : holding.valueUpdatedAt}
+            kind={priceAge ? "price" : "value"}
+          />
           {/* R6 (user): desktop shows unrealized · realized, closed too. */}
           {!isCash && (
             <div
@@ -591,22 +606,31 @@ export function InvestmentRow({
                 // A tap here can't edit (the price is fetched or derived), so
                 // shake the amount to say so (user, 261023). It doesn't expand the
                 // row either: on a phone that moves the amount, hiding the shake.
-                <span
-                  data-testid={`holding-amount-readonly-${holding.id}`}
-                  data-shake={shaking || undefined}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShaking(true);
-                  }}
-                  onAnimationEnd={() => setShaking(false)}
-                  className={[
-                    "inline-block text-num-md",
-                    delisted
-                      ? "text-[var(--muted-strong)]"
-                      : "text-[var(--body-on-dark)]",
-                  ].join(" ")}
-                >
-                  {value}
+                <span className="inline-flex items-center gap-1.5">
+                  {autoPriced && (
+                    <Lock
+                      data-testid={`asset-auto-lock-${holding.id}`}
+                      className="h-3 w-3 shrink-0 text-[var(--muted-foreground)]"
+                      aria-label={t("row.autoPriced")}
+                    />
+                  )}
+                  <span
+                    data-testid={`holding-amount-readonly-${holding.id}`}
+                    data-shake={shaking || undefined}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShaking(true);
+                    }}
+                    onAnimationEnd={() => setShaking(false)}
+                    className={[
+                      "inline-block text-num-md",
+                      delisted
+                        ? "text-[var(--muted-strong)]"
+                        : "text-[var(--body-on-dark)]",
+                    ].join(" ")}
+                  >
+                    {value}
+                  </span>
                 </span>
               )}
             </div>

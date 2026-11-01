@@ -700,7 +700,8 @@
         "started": "початок: {amount}",
         "share": "Частка: {pct}",
         "amountAria": "Редагувати вартість {name}",
-        "qtyAvg": "{qty} × {avg} сер. ціна купівлі"
+        "qtyAvg": "{qty} × {avg} сер. ціна купівлі",
+        "autoPriced": "Ціна оновлюється автоматично"
       },
       "rowExpandAria": "Розгорнути деталі {name}.",
       "plAria": "{value} прибуток/збиток",
@@ -2342,5 +2343,10 @@
     "try_link": "Переглянути демо →",
     "try_hint": "Приклад даних, без реєстрації",
     "entering": "Відкриття…"
+  },
+  "updatedAgo": {
+    "value": "оновлено {when}",
+    "price": "ціну оновлено {when}",
+    "justNow": "щойно"
   }
 }
