@@ -1133,5 +1133,5 @@ main[data-shell-scroll]:has([data-lock-page-scroll]) {
   text-underline-offset: 5px;
 }
 .editable-dots [data-dots-overlay] {
-  display: block;
+  display: flex;
 }

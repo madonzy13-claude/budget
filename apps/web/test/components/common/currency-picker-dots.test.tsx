@@ -37,5 +37,9 @@ describe("CurrencyPicker — dots over a native select", () => {
     expect(overlay.getAttribute("aria-hidden")).toBe("true");
     expect(overlay.className).toContain("pointer-events-none");
     expect(overlay.className).toContain("text-transparent");
+    // Centred in the select's box, as the browser centres the code — iOS
+    // draws a taller box than the line, so a top-aligned copy sat higher
+    // and its dots too close to the code.
+    expect(overlay.className).toContain("items-center");
   });
 });

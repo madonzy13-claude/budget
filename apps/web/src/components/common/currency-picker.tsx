@@ -217,7 +217,8 @@ export function CurrencyPicker({
         <span
           data-dots-overlay
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 hidden whitespace-nowrap text-num-md text-transparent max-sm:text-right"
+          // Centred in the select's box, as the browser centres the code.
+          className="pointer-events-none absolute inset-0 hidden items-center whitespace-nowrap text-num-md text-transparent max-sm:justify-end"
         >
           {value}
         </span>
