@@ -744,6 +744,11 @@ export function InvestmentsSection({
                               assetId={h.id}
                               assetName={h.name}
                               noRealized={isCashLike(h)}
+                              currency={
+                                assetCcy(h) !== ownCcy(h)
+                                  ? assetCcy(h)
+                                  : undefined
+                              }
                               open={openAssets.has(h.id) && !draggingRow}
                               swipeOffset={swipe?.id === h.id ? swipe.px : 0}
                               swiping={swipe?.id === h.id && swipe.live}
@@ -805,6 +810,11 @@ export function InvestmentsSection({
                               assetId={h.id}
                               assetName={h.name}
                               noRealized={isCashLike(h)}
+                              currency={
+                                assetCcy(h) !== ownCcy(h)
+                                  ? assetCcy(h)
+                                  : undefined
+                              }
                               open={openAssets.has(h.id)}
                               swipeOffset={swipe?.id === h.id ? swipe.px : 0}
                               swiping={swipe?.id === h.id && swipe.live}

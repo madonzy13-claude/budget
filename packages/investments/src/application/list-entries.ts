@@ -86,6 +86,9 @@ export function listEntries(deps: {
     holdingId: string;
     today?: string;
     timezone?: string;
+    /** R6 (user): the currency the asset is shown in — the after-totals
+     *  convert to it at each entry's own date rate. */
+    currency?: string;
   }): Promise<Result<EntryDto[], Error>> => {
     try {
       const h = await deps.holdingRepo.findById(
@@ -348,6 +351,26 @@ export function listEntries(deps: {
             : null;
         if (q) qtyRun = qtyRun.minus(q);
       }
+      const pick = input.currency;
+      if (pick && afterCcy && pick !== afterCcy)
+        for (const r of rows) {
+          if (r.afterCents == null) continue;
+          let rate = rates.get(r.effectiveDate);
+          if (!rate)
+            rates.set(
+              r.effectiveDate,
+              (rate = makeRate(deps.fxProvider, r.effectiveDate)),
+            );
+          try {
+            r.afterCents = cents(
+              big(r.afterCents).times(await rate(afterCcy, pick)),
+            ).toString();
+            r.afterCurrency = pick;
+          } catch {
+            r.afterCents = null;
+            r.afterCurrency = null;
+          }
+        }
       return ok(rows);
     } catch (e) {
       return err(e as Error);

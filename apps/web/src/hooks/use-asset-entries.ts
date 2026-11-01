@@ -69,9 +69,10 @@ export const entriesKey = (budgetId: string, assetId: string) =>
 export async function fetchAssetEntries(
   budgetId: string,
   assetId: string,
+  currency?: string,
 ): Promise<EntryDto[]> {
   const res = await clientApiFetch(
-    `/budgets/${budgetId}/investments/${assetId}/entries`,
+    `/budgets/${budgetId}/investments/${assetId}/entries${currency ? `?currency=${currency}` : ""}`,
     { signal: AbortSignal.timeout(7000) },
   );
   if (!res.ok) throw new Error(await res.text());
@@ -122,11 +123,15 @@ export function useAssetEntries(
   budgetId: string,
   assetId: string,
   enabled: boolean,
+  /** R6 (user): the asset's picked currency — the after-totals follow it. */
+  currency?: string,
 ) {
   return useQuery({
-    queryKey: entriesKey(budgetId, assetId),
+    queryKey: currency
+      ? ([...entriesKey(budgetId, assetId), currency] as const)
+      : entriesKey(budgetId, assetId),
     enabled,
-    queryFn: () => fetchAssetEntries(budgetId, assetId),
+    queryFn: () => fetchAssetEntries(budgetId, assetId, currency),
   });
 }
 

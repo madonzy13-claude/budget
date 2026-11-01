@@ -464,6 +464,23 @@ export class InvestmentsPo {
     }
   }
 
+  /** R6 (user): show one asset in another currency (its currency cell). */
+  async pickAssetCurrency(name: string, currency: string): Promise<void> {
+    const cell = this.row(name)
+      .locator('[data-testid^="asset-currency-"]')
+      .locator("visible=true");
+    const native = cell.getByTestId("currency-picker-native");
+    if (await native.isVisible().catch(() => false))
+      await native.selectOption(currency);
+    else {
+      await cell.getByRole("combobox").click();
+      await this.page
+        .getByTestId(`currency-option-${currency}`)
+        .first()
+        .click();
+    }
+  }
+
   /** The "N hidden assets" link at the bottom of a type group. */
   hiddenLink(type: string) {
     return this.page.getByTestId(`hidden-toggle-${type}`);

@@ -37,6 +37,8 @@ interface AssetLedgerProps {
   flashTransferId?: string | null;
   /** Cash / stablecoin: no "realized" on its rows (R6, user). */
   noRealized?: boolean;
+  /** R6 (user): the asset's picked currency, when not its own. */
+  currency?: string;
 }
 
 const rowKeyOf = (e: EntryDto) => e.id ?? `interest-${e.effectiveDate}`;
@@ -52,10 +54,16 @@ export function AssetLedger({
   canOpen,
   flashTransferId,
   noRealized,
+  currency,
 }: AssetLedgerProps) {
   const t = useTranslations("budget.investments");
   const locale = useLocale();
-  const { data: entries, isLoading } = useAssetEntries(budgetId, assetId, open);
+  const { data: entries, isLoading } = useAssetEntries(
+    budgetId,
+    assetId,
+    open,
+    currency,
+  );
   const deleteMut = useDeleteEntry(budgetId);
   const [confirming, setConfirming] = useState<EntryDto | null>(null);
   const [editing, setEditing] = useState<EntryDto | null>(null);

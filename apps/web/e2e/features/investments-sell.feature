@@ -124,3 +124,11 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     When I open the investments wallets tab
     And I sell everything of "Pot" out of investments in "EUR" at the suggested amount
     Then the newest ledger row of "Pot" reads in "EUR" and leaves "0" in the asset's currency
+
+  @r6-after-ccy
+  Scenario: An asset shown in another currency converts what it held after each deal
+    Given the FX cache is warm
+    And a "cash" holding "Jar" deposited 300000 cents worth 300000 cents exists in my budget
+    When I open the investments wallets tab
+    And I show the asset "Jar" in "EUR"
+    Then the newest ledger row of "Jar" leaves a total in "EUR", not "3,000"

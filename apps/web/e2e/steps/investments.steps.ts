@@ -843,6 +843,25 @@ Then(
   },
 );
 
+When(
+  "I show the asset {string} in {string}",
+  async ({ page }, name: string, ccy: string) => {
+    await new InvestmentsPo(page).pickAssetCurrency(name, ccy);
+  },
+);
+
+Then(
+  "the newest ledger row of {string} leaves a total in {string}, not {string}",
+  async ({ page }, name: string, ccy: string, own: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    const after = ledger.getByRole("row").first().locator("[data-after]");
+    await expect(after).toHaveText(new RegExp(`^= [^ ]+ ${ccy}$`), {
+      timeout: 15000,
+    });
+    await expect(after).not.toHaveText(new RegExp(`^= ${own} `));
+  },
+);
+
 // Round-6 gap 1: collectibles by units.
 Then(
   "selling {string} asks how many units, holding {string}",

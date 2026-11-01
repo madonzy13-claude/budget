@@ -366,6 +366,9 @@ export function createInvestmentsRoute(deps: BootedDeps) {
       budgetCurrency: budget?.default_currency ?? "EUR",
       holdingId: id,
       timezone: await viewerTz(w.actorUserId),
+      currency: /^[A-Za-z]{3}$/.test(c.req.query("currency") ?? "")
+        ? c.req.query("currency")!.toUpperCase()
+        : undefined,
     });
     if (r.isErr()) return fail(c, r.error, new Set(), "list_entries_failed");
     return c.json({ entries: r.value });

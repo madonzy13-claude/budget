@@ -124,6 +124,7 @@ const seed = async (fix: Fixture, over: Partial<NewHolding> = {}) =>
 async function buildApp(
   fix: Fixture,
   spies = { reserve: [] as unknown[], cushion: [] as unknown[] },
+  rateOn: (date: Date) => string = () => "1",
 ) {
   const { createInvestmentsModule } =
     await import("@budget/investments/src/contracts/factory");
@@ -137,7 +138,11 @@ async function buildApp(
   const { createInvestmentsRoute } =
     await import("../../src/routes/investments");
   const fxProvider = {
-    rateAsOf: async () => ({ rate: "1", provider: "stub", isStale: false }),
+    rateAsOf: async (_f: string, _t: string, d: Date) => ({
+      rate: rateOn(d),
+      provider: "stub",
+      isStale: false,
+    }),
   } as never;
   const investments = createInvestmentsModule({
     pool: appPool(),
@@ -178,9 +183,9 @@ const call = (app: Hono, method: string, path: string, body?: unknown) =>
     headers: { "Content-Type": "application/json" },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-const entriesOf = async (app: Hono, id: string) =>
+const entriesOf = async (app: Hono, id: string, query = "") =>
   (
-    (await (await call(app, "GET", `/${id}/entries`)).json()) as {
+    (await (await call(app, "GET", `/${id}/entries${query}`)).json()) as {
       entries: Array<Record<string, unknown>>;
     }
   ).entries;
@@ -263,6 +268,28 @@ describe("Investment entries ledger", () => {
     expect((await entriesOf(app, coin)).map((e) => e.afterCents)).toEqual([
       "40000",
       "10000",
+    ]);
+  });
+
+  // R6 (user): with the asset shown in another currency, that total is
+  // converted at the entry's OWN date rate, not today's.
+  it("the total after an entry follows the picked currency at that date's rate", async () => {
+    const fix = await createFixture();
+    // 1 PLN = 0.20 EUR before October, 0.25 from then on.
+    const app = await buildApp(fix, undefined, (d) =>
+      d.toISOString().slice(0, 10) >= "2026-10-01" ? "0.25" : "0.2",
+    );
+    const cash = await seed(fix); // 10,000 PLN
+    await startEntry(fix, cash);
+    await buy(app, cash, "2026-10-01"); // +10 PLN
+    expect(
+      (await entriesOf(app, cash, "?currency=EUR")).map((e) => [
+        e.afterCents,
+        e.afterCurrency,
+      ]),
+    ).toEqual([
+      ["250250", "EUR"], // 10,010 PLN × 0.25
+      ["200000", "EUR"], // 10,000 PLN × 0.20
     ]);
   });
 
