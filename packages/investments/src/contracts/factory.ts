@@ -67,6 +67,7 @@ export function createInvestmentsModule(deps: {
     listHoldings: listHoldings({
       holdingRepo: deps.holdingRepo,
       fxProvider: deps.fxProvider,
+      historyRepo: deps.historyRepo,
     }),
     // R6 (user): a group's / asset's P/L in another currency, at history rates.
     currencyPL: currencyPL({
@@ -75,6 +76,7 @@ export function createInvestmentsModule(deps: {
       listHoldings: listHoldings({
         holdingRepo: deps.holdingRepo,
         fxProvider: deps.fxProvider,
+        historyRepo: deps.historyRepo,
       }),
     }),
     reorderHoldings: reorderHoldings({ holdingRepo: deps.holdingRepo }),

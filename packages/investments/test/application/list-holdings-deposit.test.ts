@@ -189,4 +189,134 @@ describe("listHoldings — figures in the shown currency", () => {
     // The buy-currency figure stays as before: 2 × (16,000 − 8,000) PLN.
     expect(dto.profitLossCents).toBe("1600000");
   });
+
+  // R6 (user): cost converts at each buy's OWN date rate, never today's — the
+  // shown-currency avg / P/L and the budget-currency cost alike.
+  test("cost in another currency uses each buy's date rate", async () => {
+    const h = new Holding(
+      "coin",
+      "tenant-1",
+      "Coin",
+      "other",
+      null,
+      600_000n, // avg 6,000 PLN over 2 units
+      "PLN",
+      "2",
+      400_000n, // now 4,000 EUR each
+      "EUR",
+      0,
+      null,
+      new Date("2024-01-01T00:00:00Z"),
+      "collectibles",
+    );
+    // PLN→EUR 0.20 in 2024, 0.25 in 2025, 0.30 today. EUR→PLN 4.
+    const fx = {
+      rateAsOf: async (f: string, t: string, d: Date) => ({
+        rate:
+          f === "PLN" && t === "EUR"
+            ? d.toISOString() < "2025"
+              ? "0.2"
+              : d.toISOString() < "2026"
+                ? "0.25"
+                : "0.3"
+            : f === "EUR" && t === "PLN"
+              ? "4"
+              : "1",
+        asOf: "2026-10-30",
+      }),
+    } as unknown as Parameters<typeof listHoldings>[0]["fxProvider"];
+    const buy = (date: string, cents: bigint) => ({
+      id: date,
+      kind: "buy",
+      effectiveDate: date,
+      amountCents: cents,
+      amountCurrency: "PLN",
+      costDeltaCents: cents,
+      costCurrency: "PLN",
+      counterpartyHoldingId: null,
+    });
+    const historyRepo = {
+      listForHolding: async () => [
+        buy("2024-06-01", 500_000n), // 5,000 PLN = 1,000 EUR then
+        buy("2025-06-01", 700_000n), // 7,000 PLN = 1,750 EUR then
+      ],
+    } as never;
+    const dto = (
+      await listHoldings({
+        holdingRepo: stubRepo([h]),
+        fxProvider: fx,
+        historyRepo,
+      })({
+        tenantId: "tenant-1",
+        budgetId: "budget-1",
+        actorUserId: "user-1",
+        budgetCurrency: "PLN",
+      })
+    )._unsafeUnwrap().holdings[0]!;
+    // 2,750 EUR held ÷ 2 = 1,375 EUR avg (today's 0.30 would say 1,800).
+    expect(dto.avgPriceDisplayCents).toBe("137500");
+    // 2 × 4,000 − 2,750 = +5,250 EUR.
+    expect(dto.profitLossDisplayCents).toBe("525000");
+    // Budget currency is the buys' own: 12,000 PLN, no rate at all.
+    expect(dto.costInBudgetCents).toBe("1200000");
+  });
+
+  // A ledger that doesn't explain the stored cost (history booked only in
+  // part) can't be replayed — today's rate, as before.
+  test("a ledger short of the stored cost keeps today's rate", async () => {
+    const h = new Holding(
+      "coin",
+      "tenant-1",
+      "Coin",
+      "other",
+      null,
+      600_000n,
+      "PLN",
+      "2",
+      400_000n,
+      "EUR",
+      0,
+      null,
+      new Date("2024-01-01T00:00:00Z"),
+      "collectibles",
+    );
+    const fx = {
+      rateAsOf: async (f: string, t: string) => ({
+        rate:
+          f === "PLN" && t === "EUR"
+            ? "0.3"
+            : f === "EUR" && t === "PLN"
+              ? "4"
+              : "1",
+        asOf: "2026-10-30",
+      }),
+    } as unknown as Parameters<typeof listHoldings>[0]["fxProvider"];
+    const historyRepo = {
+      listForHolding: async () => [
+        {
+          id: "x",
+          kind: "buy",
+          effectiveDate: "2024-06-01",
+          amountCents: 100_000n,
+          amountCurrency: "PLN",
+          costDeltaCents: 100_000n,
+          costCurrency: "PLN",
+          counterpartyHoldingId: null,
+        },
+      ],
+    } as never;
+    const dto = (
+      await listHoldings({
+        holdingRepo: stubRepo([h]),
+        fxProvider: fx,
+        historyRepo,
+      })({
+        tenantId: "tenant-1",
+        budgetId: "budget-1",
+        actorUserId: "user-1",
+        budgetCurrency: "PLN",
+      })
+    )._unsafeUnwrap().holdings[0]!;
+    expect(dto.avgPriceDisplayCents).toBe("180000"); // 6,000 × 0.30
+  });
 });

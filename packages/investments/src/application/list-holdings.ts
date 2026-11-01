@@ -3,6 +3,8 @@ import { Temporal } from "temporal-polyfill";
 import { ok, err, type Result } from "neverthrow";
 import type { FxProvider } from "@budget/shared-kernel";
 import type { HoldingRepo } from "../ports/holding-repo";
+import type { HistoryRepo, StoredEntry } from "../ports/history-repo";
+import { replayInCurrency } from "../domain/currency-pl";
 import {
   holdingValue,
   profitLossPct,
@@ -27,6 +29,9 @@ import type { EnrichedHoldingDto } from "../contracts/api";
 export function listHoldings(deps: {
   holdingRepo: HoldingRepo;
   fxProvider: FxProvider;
+  /** R6 (user): with the ledger, cost converts at each entry's own date
+   *  rate; without it (or an asset with no ledger), today's rate. */
+  historyRepo?: HistoryRepo;
 }) {
   return async (input: {
     tenantId: string;
@@ -102,6 +107,76 @@ export function listHoldings(deps: {
         }
       };
 
+      // R6 (user): what was paid is converted at the rate of the day it was
+      // paid — never today's. Each asset's ledger replays into the target
+      // currency (domain/currency-pl); null = no ledger / a rate missing, and
+      // the caller falls back to today's rate.
+      // ponytail: one ledger read per asset; a budget-wide read if it shows.
+      const ledgers = new Map<string, StoredEntry[]>();
+      if (deps.historyRepo)
+        await Promise.all(
+          holdings.map(async (h) =>
+            ledgers.set(
+              h.id,
+              await deps.historyRepo!.listForHolding(
+                input.tenantId,
+                input.actorUserId,
+                h.id,
+              ),
+            ),
+          ),
+        );
+      const dayRates = new Map<string, Promise<number>>();
+      const dayRate = (from: string, to: string, date: string) => {
+        const k = `${from}>${to}@${date}`;
+        let p = dayRates.get(k);
+        if (!p) {
+          p = deps.fxProvider
+            .rateAsOf(from as never, to as never, new Date(`${date}T12:00:00Z`))
+            .then((r) => Number(r.rate));
+          dayRates.set(k, p);
+        }
+        return p;
+      };
+      const heldCostIn = async (
+        id: string,
+        target: string,
+        /** The stored cost (buy currency) the ledger must account for. */
+        storedCents: Big,
+      ): Promise<Big | null> => {
+        const entries = ledgers.get(id);
+        if (!entries?.some((e) => e.costDeltaCents !== 0n)) return null;
+        // Only a ledger that explains the stored cost (±1%) — an asset whose
+        // early history was never booked keeps today's-rate conversion.
+        const booked = entries.reduce((a, e) => a + e.costDeltaCents, 0n);
+        if (
+          new Big(booked.toString())
+            .minus(storedCents)
+            .abs()
+            .gt(storedCents.abs().times(0.01).plus(100))
+        )
+          return null;
+        try {
+          const rates = new Map<string, number>();
+          await Promise.all(
+            entries.map(async (e) => {
+              const ccy = e.amountCurrency ?? e.costCurrency;
+              if (ccy && ccy !== target)
+                rates.set(
+                  `${ccy}|${e.effectiveDate}`,
+                  await dayRate(ccy, target, e.effectiveDate),
+                );
+            }),
+          );
+          const r = replayInCurrency(entries, (ccy, date) =>
+            ccy === target ? 1 : rates.get(`${ccy}|${date}`)!,
+          );
+          return new Big(r.costCents.toString());
+        } catch {
+          return null;
+        }
+      };
+
       // Re-denominate the live price into the currency the user chose for the
       // holding when they differ (metals: the cache price is USD but the user
       // valued the coins in PLN). Mutates the price into displayCurrency so all
@@ -158,7 +233,10 @@ export function listHoldings(deps: {
           h.buyPriceCents === null
             ? "1"
             : (rateMap[buyCcy] ?? (await getRate(buyCcy, budgetCcy)));
-        const costInBudget = costRaw.times(new Big(buyToBudget));
+        const costInBudget =
+          (buyCcy !== budgetCcy && h.buyPriceCents !== null
+            ? await heldCostIn(h.id, budgetCcy, costRaw)
+            : null) ?? costRaw.times(new Big(buyToBudget));
 
         // P/L converts current -> buy currency only when they differ.
         const plRate =
@@ -173,10 +251,17 @@ export function listHoldings(deps: {
           h.buyPriceCents === null || buyCcy === valueCcy
             ? "1"
             : await getRate(buyCcy, valueCcy);
+        const heldShown =
+          h.buyPriceCents !== null && buyCcy !== valueCcy
+            ? await heldCostIn(h.id, valueCcy, costRaw)
+            : null;
+        const qtyBig = new Big(h.quantity.toString());
         const avgShown =
           h.buyPriceCents === null
             ? null
-            : new Big(h.buyPriceCents.toString()).times(new Big(toShown));
+            : heldShown !== null && qtyBig.gt(0)
+              ? heldShown.div(qtyBig)
+              : new Big(h.buyPriceCents.toString()).times(new Big(toShown));
         const plShown =
           h.isCash() || avgShown === null || h.currentPriceCents === null
             ? null
