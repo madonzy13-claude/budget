@@ -198,8 +198,10 @@ export function SwapSellTab({
     setAutoPrice(null);
     setFiller("price");
   }, [destPeg, existingId, newInstrumentId]);
-  // Today's rate asset currency → received currency (preview of its price
-  // and value; the server books with its own rate).
+  // R6 (user): the sale date's rate asset currency → received currency — the
+  // one the server books with (preview of its price and value).
+  // A half-typed date isn't a day — keep today's until it is one.
+  const rateDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : today();
   const [assetRate, setAssetRate] = useState(1);
   useEffect(() => {
     if (mode !== "existing" || assetCcy === receivedCcy) {
@@ -208,7 +210,7 @@ export function SwapSellTab({
     }
     let live = true;
     void clientApiFetch(
-      `/fx/rate?from=${assetCcy}&to=${receivedCcy}&date=${today()}`,
+      `/fx/rate?from=${assetCcy}&to=${receivedCcy}&date=${rateDate}`,
     )
       .then(async (r) => (r.ok ? ((await r.json()) as { rate: string }) : null))
       .then((q) => live && q && setAssetRate(Number(q.rate)))
@@ -216,9 +218,10 @@ export function SwapSellTab({
     return () => {
       live = false;
     };
-  }, [mode, assetCcy, receivedCcy]);
+  }, [mode, assetCcy, receivedCcy, rateDate]);
 
-  // Today's rate source currency → received currency (prefill + preview only).
+  // The sale date's rate source currency → received currency (prefill +
+  // preview; the server books realized at that date's rate too).
   const [rate, setRate] = useState(1);
   useEffect(() => {
     if (receivedCcy === srcCcy) {
@@ -227,7 +230,7 @@ export function SwapSellTab({
     }
     let live = true;
     void clientApiFetch(
-      `/fx/rate?from=${srcCcy}&to=${receivedCcy}&date=${today()}`,
+      `/fx/rate?from=${srcCcy}&to=${receivedCcy}&date=${rateDate}`,
     )
       .then(async (r) => (r.ok ? ((await r.json()) as { rate: string }) : null))
       .then((q) => live && q && setRate(Number(q.rate)))
@@ -235,7 +238,7 @@ export function SwapSellTab({
     return () => {
       live = false;
     };
-  }, [srcCcy, receivedCcy]);
+  }, [srcCcy, receivedCcy, rateDate]);
 
   const calc = useMemo(() => {
     if (sold.trim() === "") return null;

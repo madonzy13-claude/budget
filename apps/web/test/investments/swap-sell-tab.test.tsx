@@ -22,6 +22,7 @@ import {
   lastBody,
   lastUrl,
   writeMock,
+  fetchMock,
 } from "./_swap-fixtures";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 import { SwapSheet } from "../../src/components/budgeting/wallets-tab/swap-sheet";
@@ -710,5 +711,28 @@ describe("Sell tab", () => {
       receivedCents: "50000",
       destination: { wallet: { kind: "new", currency: "EUR" } },
     });
+  });
+
+  // R6 (user): a backdated sale previews at ITS date's rate — the one the
+  // server books with — never today's.
+  it("the preview rate is the sale date's", async () => {
+    routeFetch({ rate: "0.25", latest: "2024-03-19" });
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-out"));
+    fireEvent.click(screen.getByTestId("wallet-target-new"));
+    fireEvent.change(screen.getByTestId("currency-picker"), {
+      target: { value: "EUR" },
+    });
+    type("swap-date", "2025-06-15");
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([u]) =>
+            String(u).includes("/fx/rate?") &&
+            String(u).includes("date=2025-06-15"),
+        ),
+      ).toBe(true),
+    );
   });
 });
