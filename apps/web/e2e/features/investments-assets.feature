@@ -92,7 +92,7 @@ Feature: Investments as assets with transactions (13.1)
     When I open the investments wallets tab
     And I transfer all of "IBKR" to a new asset "IBKR 2" from New transaction
     Then the holding row "IBKR 2" is visible
-    And the ledger of "IBKR 2" lists "Transfer in"
+    And the ledger of "IBKR 2" lists "Moved in"
 
   Scenario: New transaction → Sell to nowhere books a sale
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget

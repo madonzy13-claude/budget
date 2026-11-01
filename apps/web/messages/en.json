@@ -804,7 +804,7 @@
         "tab": {
           "buy": "Buy",
           "sell": "Sell",
-          "transfer": "Transfer"
+          "transfer": "Move"
         },
         "sellTitle": "Sell {name}",
         "cta": {
@@ -909,8 +909,8 @@
         "kind": {
           "bought": "Bought",
           "sold": "Sold",
-          "transferIn": "Transfer in",
-          "transferOut": "Transfer out",
+          "transferIn": "Moved in",
+          "transferOut": "Moved out",
           "convertedIn": "Bought",
           "convertedOut": "Sold",
           "added": "Added money",
