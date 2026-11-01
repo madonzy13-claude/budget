@@ -6,6 +6,7 @@
  * D-PH4-INT4: double-click on any cell is NO-OP (explicitly preventDefault).
  * D-PH4-INT1: Single click on name cell reveals [Pen] — no hover.
  */
+import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { Pencil, Trash2, Undo2 } from "lucide-react";
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
@@ -68,6 +69,11 @@ export function ColumnHeader({
   const t = useTranslations("grid.header");
   const locale = useLocale();
   const { revealed, setRevealed, ref } = useRevealActions();
+  // R6 (user): the usage chip swaps to the spent total — tap toggles, a mouse
+  // shows it while over the chip. Local state, so a reload is back to %.
+  const [showSpent, setShowSpent] = useState(false);
+  const spent = BigInt(summary.spentCents);
+  const spentWhole = centsToBare(((spent + 50n) / 100n) * 100n, locale);
 
   const overspentCents = BigInt(summary.overspentCents);
   const reserveUsedCents = BigInt(summary.reserveUsedCents);
@@ -174,13 +180,26 @@ export function ColumnHeader({
             <span
               data-testid={`category-usage-${category.name.toLowerCase()}`}
               data-tone={usage.tone}
+              data-showing={showSpent ? "spent" : "pct"}
               title={t("usageOfPool", { pct: usage.pct })}
+              onClick={(e) => {
+                e.stopPropagation(); // not the name cell's pen reveal
+                setShowSpent((v) => !v);
+              }}
+              onPointerEnter={(e) => {
+                if (e.pointerType === "mouse") setShowSpent(true);
+              }}
+              onPointerLeave={(e) => {
+                if (e.pointerType === "mouse") setShowSpent(false);
+              }}
               className={cn(
                 "shrink-0 rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums",
                 // The action cluster is an absolute overlay pinned right, so a
                 // shown pen sits ON the chip. The pen wins the slot: the chip
-                // goes on reveal, and on desktop hover along with it.
-                "group-hover:invisible",
+                // goes on reveal.
+                // R6 (user): with a mouse it sits left of the pen's slot for
+                // good — shifting on hover slid it out from under the pointer.
+                "cursor-pointer [@media(hover:hover)]:mr-7",
                 usage.tone === "ok" &&
                   "bg-[color-mix(in_oklab,var(--trading-up)_18%,transparent)] text-[var(--trading-up)]",
                 usage.tone === "warn" &&
@@ -189,7 +208,7 @@ export function ColumnHeader({
                   "bg-[color-mix(in_oklab,var(--trading-down)_20%,transparent)] text-[var(--trading-down)]",
               )}
             >
-              {usage.pct}%
+              {showSpent ? spentWhole : `${usage.pct}%`}
             </span>
           )}
           {/* "archived" tag — inline + shrink-0 so the row stays single-line and

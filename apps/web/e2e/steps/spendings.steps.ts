@@ -1,5 +1,5 @@
 import { createBdd } from "playwright-bdd";
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { test } from "../fixtures/fresh-user-per-scenario";
 import { SpendingsPo } from "../page-objects/SpendingsPo";
 
@@ -65,3 +65,29 @@ Then(
 // (The reserves.feature auto-deduct scenario uses "I open the spendings tab for
 //  the budget" defined above, plus the column-header assertion above.
 //  The existing reserves.steps.ts handles the Given seed steps.)
+
+// R6 (user): the usage chip swaps to the spent total.
+const usageChip = (page: Page, name: string) =>
+  page.getByTestId(`category-usage-${name.toLowerCase()}`);
+
+Then(
+  "the {string} usage chip reads {string}",
+  async ({ page }, name: string, text: string) => {
+    await expect(usageChip(page, name)).toHaveText(text, { timeout: 15000 });
+  },
+);
+
+// Desktop: the mouse over the chip; phone: a tap.
+When(
+  "I reveal the spent total on the {string} usage chip",
+  async ({ page }, name: string) => {
+    const chip = usageChip(page, name);
+    if (await page.evaluate(() => matchMedia("(hover: hover)").matches))
+      await chip.hover();
+    else await chip.click();
+  },
+);
+
+When("I tap the {string} usage chip", async ({ page }, name: string) => {
+  await usageChip(page, name).click();
+});

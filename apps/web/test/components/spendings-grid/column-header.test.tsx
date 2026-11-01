@@ -514,4 +514,24 @@ describe("ColumnHeader — percent used", () => {
     fireEvent.click(title);
     expect(chip()).not.toBeNull();
   });
+
+  // R6 (user): the chip doubles as the spent total — a tap swaps it, a second
+  // tap swaps back; a mouse shows it while over the chip. Never remembered.
+  it("a tap shows the spent total, rounded, and a second tap the percent", () => {
+    renderHeader({ summary: { ...summary, spentCents: "123456" } });
+    fireEvent.click(chip()!);
+    expect(chip()!.textContent).toBe("1,235");
+    expect(screen.queryByTestId("column-header-pen-groceries")).not.toBeNull();
+    expect(chip()).not.toBeNull(); // the tap did not reveal the pen
+    fireEvent.click(chip()!);
+    expect(chip()!.textContent).toMatch(/^\d+%$/);
+  });
+
+  it("a mouse over the chip shows the spent total until it leaves", () => {
+    renderHeader({ summary: { ...summary, spentCents: "5049" } });
+    fireEvent.pointerEnter(chip()!, { pointerType: "mouse" });
+    expect(chip()!.textContent).toBe("50");
+    fireEvent.pointerLeave(chip()!, { pointerType: "mouse" });
+    expect(chip()!.textContent).toMatch(/%$/);
+  });
 });
