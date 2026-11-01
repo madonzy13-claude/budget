@@ -1,8 +1,8 @@
 /**
  * foreign-amount.tsx — R6 (user): a spending paid in another currency reads
- * in THAT currency (its short sign: €, $, kr, ₴), with the budget-currency
- * figure at that day's rate underneath. A budget-currency row keeps its bare
- * amount and no second line.
+ * in THAT currency (its short sign: €, $, kr, ₴). Its budget-currency figure
+ * (that day's rate) shows only in Edit. A budget-currency row keeps its bare
+ * amount.
  */
 import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
 
@@ -28,28 +28,15 @@ export function FxAmount({
         {centsToBare(row.amountConvertedCents, locale)}
       </span>
     );
+  // R6 (user): the row shows what was paid; the budget figure is in Edit.
   return (
-    <span className="flex shrink-0 flex-col leading-tight">
-      <span>
-        {centsToDisplayCompact(
-          row.amountOriginalCents!,
-          row.currencyOriginal!,
-          locale,
-          true,
-        )}
-      </span>
-      <span
-        data-testid="txn-converted"
-        className="text-[var(--muted-foreground)]"
-        style={{ fontSize: "11px", opacity: 0.6 }}
-      >
-        {centsToDisplayCompact(
-          row.amountConvertedCents,
-          row.currencyConverted,
-          locale,
-          true,
-        )}
-      </span>
+    <span className="shrink-0">
+      {centsToDisplayCompact(
+        row.amountOriginalCents!,
+        row.currencyOriginal!,
+        locale,
+        true,
+      )}
     </span>
   );
 }

@@ -254,10 +254,12 @@ export function TransactionRow({
   );
   // R6 (user): the row's own amount — what an edit starts from and saves.
   const ownCents = txn.amountOriginalCents ?? txn.amountConvertedCents;
+  // R6 (user): the delete prompt names what was paid, in its own currency.
   const confirmAmount = centsToDisplayCompact(
-    txn.amountConvertedCents,
-    txn.currencyConverted,
+    ownCents,
+    txn.currencyOriginal ?? txn.currencyConverted,
     locale,
+    true,
   );
   const confirmDate = new Date(
     `${txn.transactionDate}T00:00:00`,

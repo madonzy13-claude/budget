@@ -576,9 +576,9 @@ describe("TransactionRow", () => {
 });
 
 // R6 (user): a spending in another currency reads in that currency (short
-// sign), with the budget-currency figure at that day's rate underneath.
+// sign) only — the budget figure lives in its Edit, not on the row.
 describe("TransactionRow — foreign currency", () => {
-  it("shows the original amount and the converted line below", () => {
+  it("shows the original amount, and no converted line", () => {
     renderRow({
       txn: {
         ...txn,
@@ -589,7 +589,7 @@ describe("TransactionRow — foreign currency", () => {
       },
     });
     expect(screen.getByText("€12.50")).toBeInTheDocument();
-    expect(screen.getByTestId("txn-converted")).toHaveTextContent("54 zł");
+    expect(screen.queryByTestId("txn-converted")).toBeNull();
   });
 
   it("a budget-currency row has no converted line", () => {
@@ -621,5 +621,20 @@ describe("TransactionRow — foreign currency", () => {
     fireEvent.blur(input);
     expect(mockUpdateMutate).not.toHaveBeenCalled();
   });
-});
 
+  it("delete confirmation names the amount in its own currency", () => {
+    setHoverCapable(false);
+    renderRow({
+      txn: {
+        ...txn,
+        amountOriginalCents: "1000",
+        currencyOriginal: "EUR",
+        amountConvertedCents: "4369",
+        currencyConverted: "PLN",
+      },
+    });
+    fireEvent.click(screen.getByText("€10"));
+    fireEvent.click(screen.getByTestId("txn-action-delete"));
+    expect(document.body.textContent).toContain('"amount":"€10"');
+  });
+});

@@ -71,17 +71,24 @@ export class SpendingsPo {
     if (!(await saved).ok()) throw new Error("date change failed");
   }
 
+  /** A confirmed spending's row action. A mouse reveals the actions on hover
+   *  (a click there starts the inline edit); a touch screen taps. */
+  async revealTxnAction(
+    amountCents: number,
+    action: "edit" | "delete",
+  ): Promise<Locator> {
+    const row = this.transactionRowByAmount(amountCents);
+    const btn = row.getByTestId(`txn-action-${action}`);
+    if (await this.page.evaluate(() => matchMedia("(hover: hover)").matches))
+      await row.hover();
+    else if (!(await btn.isVisible().catch(() => false))) await row.click();
+    return btn;
+  }
+
   /** R6: open a confirmed spending's Edit form (hover on desktop, tap on a
    *  phone to reveal its actions). */
   async openTxnEdit(amountCents: number): Promise<Locator> {
-    const row = this.transactionRowByAmount(amountCents);
-    const edit = row.getByTestId("txn-action-edit");
-    // A mouse reveals the actions on hover (a click there starts the inline
-    // edit); a touch screen taps.
-    if (await this.page.evaluate(() => matchMedia("(hover: hover)").matches))
-      await row.hover();
-    else if (!(await edit.isVisible().catch(() => false))) await row.click();
-    await edit.click();
+    await (await this.revealTxnAction(amountCents, "edit")).click();
     const sheet = this.page.getByTestId("txn-slider-content");
     await expect(sheet).toBeVisible();
     return sheet;

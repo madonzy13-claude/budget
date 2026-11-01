@@ -3,7 +3,7 @@
 /**
  * transaction-slider.tsx — Sheet drawer for creating/editing a transaction.
  * Per UI-SPEC §9: 480px desktop / 100vw mobile; RHF + Zod validation.
- * Composes DateInput, AmountInput, CurrencyPicker, FxPreviewLine, FxFreshnessBadge.
+ * Composes DateInput, AmountInput, CurrencyPicker, FxPreviewLine. (R6: no freshness label.)
  * Delete confirmation via AlertDialog (T-04-04-08 mitigation).
  */
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
@@ -55,7 +55,6 @@ import { DateInput } from "@/components/budgeting/fields/date-input";
 import { AmountInput } from "@/components/budgeting/fields/amount-input";
 import { parseDecimal } from "@/lib/decimal";
 import { FxPreviewLine } from "@/components/budgeting/fields/fx-preview-line";
-import { FxFreshnessBadge } from "@/components/budgeting/fx-freshness-badge";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
@@ -375,8 +374,6 @@ export function TransactionSlider({
   const showFxLine =
     !fxLoading && fxPreview && currencyOrig !== budgetCurrency && amountOrig;
 
-  const showStaleBadge = fxPreview && !fxPreview.isStale === false;
-
   return (
     <>
       <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -550,12 +547,7 @@ export function TransactionSlider({
                   asOf={fxPreview.fxRateDate}
                 />
               )}
-              {showStaleBadge && fxPreview && (
-                <FxFreshnessBadge
-                  fxRateDate={fxPreview.fxRateDate}
-                  provider={fxPreview.provider}
-                />
-              )}
+              {/* R6 (user): no "rate N days ago" cache label. */}
 
               {/* Note */}
               <FormField

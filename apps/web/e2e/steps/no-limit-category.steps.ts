@@ -220,11 +220,24 @@ Given(
 );
 
 Then(
-  /^the spending worth (\d+) cents reads "(.+?)" with "(.+?)" below$/,
-  async ({ page }, cents: string, own: string, below: string) => {
+  /^the spending worth (\d+) cents reads "(.+?)" only$/,
+  async ({ page }, cents: string, own: string) => {
     const row = new SpendingsPo(page).transactionRowByAmount(Number(cents));
     await expect(row).toContainText(own, { timeout: 15000 });
-    await expect(row.getByTestId("txn-converted")).toHaveText(below);
+    // R6 (user): the budget figure lives in Edit, not on the row.
+    await expect(row.getByTestId("txn-converted")).toHaveCount(0);
+  },
+);
+
+Then(
+  /^deleting the spending worth (\d+) cents asks about "(.+?)"$/,
+  async ({ page }, cents: string, own: string) => {
+    await (
+      await new SpendingsPo(page).revealTxnAction(Number(cents), "delete")
+    ).click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toContainText(own);
+    await page.keyboard.press("Escape");
   },
 );
 
@@ -234,8 +247,11 @@ Then(
     const sheet = await new SpendingsPo(page).openTxnEdit(Number(cents));
     await expect(sheet.locator("#txn-slider-amount")).toHaveValue(amount);
     await expect(sheet).toContainText(ccy);
-    await expect(sheet.getByTestId("fx-preview-line")).toContainText("@", {
-      timeout: 15000,
-    });
+    const line = sheet.getByTestId("fx-preview-line");
+    await expect(line).toContainText("@", { timeout: 15000 });
+    // R6 (user): a friendly date, no stored-format rate, no cache label.
+    await expect(line).not.toContainText(/\d{4}-\d{2}-\d{2}/);
+    await expect(line).not.toContainText(/\.\d*0\b \(/);
+    await expect(sheet).not.toContainText(/ago|cached/i);
   },
 );
