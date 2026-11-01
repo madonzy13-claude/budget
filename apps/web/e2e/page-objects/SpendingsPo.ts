@@ -1,4 +1,4 @@
-import { type Page, type Locator } from "@playwright/test";
+import { expect, type Page, type Locator } from "@playwright/test";
 
 /**
  * Page Object for the BDP Spendings tab (Phase 08 offline/sync features).
@@ -69,6 +69,19 @@ export class SpendingsPo {
     );
     await sheet.locator('button[type="submit"]').click();
     if (!(await saved).ok()) throw new Error("date change failed");
+  }
+
+  /** R6: open a confirmed spending's Edit form (hover on desktop, tap on a
+   *  phone to reveal its actions). */
+  async openTxnEdit(amountCents: number): Promise<Locator> {
+    const row = this.transactionRowByAmount(amountCents);
+    const edit = row.getByTestId("txn-action-edit");
+    if ((this.page.viewportSize()?.width ?? 1280) >= 640) await row.hover();
+    else if (!(await edit.isVisible().catch(() => false))) await row.click();
+    await edit.click();
+    const sheet = this.page.getByTestId("txn-slider-content");
+    await expect(sheet).toBeVisible();
+    return sheet;
   }
 
   /** The Confirm action button inside a draft row. */

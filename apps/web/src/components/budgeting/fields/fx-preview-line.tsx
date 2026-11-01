@@ -14,7 +14,10 @@ export function FxPreviewLine({
   asOf,
 }: FxPreviewLineProps) {
   return (
-    <div className="text-num-sm text-[var(--muted-foreground)]">
+    <div
+      data-testid="fx-preview-line"
+      className="text-num-sm text-[var(--muted-foreground)]"
+    >
       {original.amount} {original.currency} · ~{converted.amount}{" "}
       {converted.currency} @ {rate} ({asOf})
     </div>

@@ -602,4 +602,24 @@ describe("TransactionRow — foreign currency", () => {
     });
     expect(screen.queryByTestId("txn-converted")).toBeNull();
   });
+
+  it("inline edit starts from the amount in its own currency", () => {
+    renderRow({
+      txn: {
+        ...txn,
+        amountOriginalCents: "1250",
+        currencyOriginal: "EUR",
+        amountConvertedCents: "5400",
+        currencyConverted: "PLN",
+      },
+    });
+    fireEvent.click(screen.getByText("€12.50"));
+    const input = document.querySelector(
+      'input[inputmode="decimal"]',
+    ) as HTMLInputElement;
+    expect(input.value).toBe("12.5");
+    fireEvent.blur(input);
+    expect(mockUpdateMutate).not.toHaveBeenCalled();
+  });
 });
+

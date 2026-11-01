@@ -930,8 +930,11 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       txId: found.id,
       date: found.transactionDate,
       categoryId: found.categoryId,
-      amountOriginalCents: found.amountConvertedCents,
-      currencyOriginal: found.currencyConverted,
+      // R6 (user): the spending as it was paid — its own amount and
+      // currency; the form shows the rate + budget figure below as info.
+      amountOriginalCents:
+        found.amountOriginalCents ?? found.amountConvertedCents,
+      currencyOriginal: found.currencyOriginal ?? found.currencyConverted,
       note: found.note ?? null,
     };
   }, [txSlider.txId, txns.data, drafts.data]);

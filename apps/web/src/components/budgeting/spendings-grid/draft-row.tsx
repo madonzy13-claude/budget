@@ -51,6 +51,9 @@ export function DraftRow({
   const t = useTranslations("grid.draft");
   const tPending = useTranslations("grid.txn.pending");
   const locale = useLocale();
+  // R6 (user): the payment's own amount — what a quick edit starts from
+  // and saves (in its own currency; the server converts at its rate).
+  const ownCents = draft.amountOriginalCents ?? draft.amountConvertedCents;
   const { revealed, setRevealed, ref } = useRevealActions();
   // 260731-osq round 2: this draft's confirm failed offline and is queued — the
   // row waits for the flusher, so it offers no further actions meanwhile.
@@ -79,7 +82,7 @@ export function DraftRow({
   }
 
   function startEditing() {
-    setEditValue((parseInt(draft.amountConvertedCents, 10) / 100).toString());
+    setEditValue((parseInt(ownCents, 10) / 100).toString());
     cancelledRef.current = false;
     committedRef.current = false;
     setEditing(true);
@@ -119,7 +122,7 @@ export function DraftRow({
   function commitEdit(decides = false) {
     if (committedRef.current) return;
     const cents = parseDecimal(editValue);
-    if (cents === null || cents === parseInt(draft.amountConvertedCents, 10)) {
+    if (cents === null || cents === parseInt(ownCents, 10)) {
       if (decides) {
         confirmUnchanged();
         return;

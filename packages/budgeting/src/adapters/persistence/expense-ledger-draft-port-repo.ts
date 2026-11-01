@@ -178,8 +178,10 @@ export class DrizzleExpenseLedgerDraftPortRepo implements ExpenseLedgerDraftPort
       const amountClause =
         amountOverrideCents !== undefined &&
         Number.isFinite(amountOverrideCents)
-          ? sql`amount_original_cents = ${amountOverrideCents}::bigint,
-                 amount_converted_cents = ${amountOverrideCents}::bigint,`
+          ? // R6 (user): the override is in the payment's own currency; the
+            // budget figure follows at the rate of its date.
+            sql`amount_original_cents = ${amountOverrideCents}::bigint,
+                 amount_converted_cents = round(${amountOverrideCents}::bigint * fx_rate)::bigint,`
           : sql``;
 
       await drizzleTx.execute(sql`

@@ -252,6 +252,8 @@ export function TransactionRow({
     undefined,
     { month: "short", year: false },
   );
+  // R6 (user): the row's own amount — what an edit starts from and saves.
+  const ownCents = txn.amountOriginalCents ?? txn.amountConvertedCents;
   const confirmAmount = centsToDisplayCompact(
     txn.amountConvertedCents,
     txn.currencyConverted,
@@ -268,7 +270,8 @@ export function TransactionRow({
   // Seed the inline editor with "amount note" so an edit preserves (and can
   // change or clear) the existing note. commitEdit's parser splits it back apart.
   function seedEditValue() {
-    const amt = (parseInt(txn.amountConvertedCents, 10) / 100).toString();
+    // R6 (user): edits are in the row's own currency (it keeps it).
+    const amt = (parseInt(ownCents, 10) / 100).toString();
     return txn.note ? `${amt} ${txn.note}` : amt;
   }
 
@@ -358,7 +361,7 @@ export function TransactionRow({
     };
     el.addEventListener("touchstart", handler, { passive: false });
     return () => el.removeEventListener("touchstart", handler);
-  }, [txn.amountConvertedCents, canEdit]);
+  }, [ownCents, canEdit]);
 
   function commitEdit() {
     // 260722-d: an ABC/123 switch blurs then refocuses in the same gesture —
@@ -371,7 +374,7 @@ export function TransactionRow({
     // 260722-note: same parser as quick-add — a space after the number starts
     // the note ("11.45 lunch" → 1145 + "lunch"). The editor seeds "amount note".
     const parsed = parseAmountAndNote(trimmed);
-    const original = parseInt(txn.amountConvertedCents, 10);
+    const original = parseInt(ownCents, 10);
     // Clearing the field or zeroing the amount deletes the row.
     if (trimmed === "" || parsed?.cents === 0) {
       focusAfterDelete();

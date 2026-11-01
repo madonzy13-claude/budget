@@ -37,3 +37,15 @@ Feature: No limit — a category that is deliberately unbounded
     When I open the overview planned section for "House"
     Then the planned total reads as unlimited
     And the planned breakdown reports no overspend
+
+  # R6 (user): a spending paid in another currency reads in it, the budget
+  # figure at that day's rate below; Edit opens in that currency, the rate
+  # and budget total underneath as info.
+  @r6-foreign-spending
+  Scenario: A spending in euros keeps its currency in the row and in Edit
+    Given the budget has a category "Trip" with a limit of 1000
+    And "Trip" has a spending of 12.50 EUR worth 13.50 in the budget currency this month
+    When I open the spendings tab for the budget
+    Then the spending worth 1350 cents reads "€12.50" with "$13.50" below
+    And editing the spending worth 1350 cents shows 12.5 EUR with the rate below
+
