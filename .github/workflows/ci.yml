@@ -371,6 +371,11 @@ jobs:
           # 260814. That table belongs to the worker role; app_role has no
           # INSERT on it and keeps none.
           DATABASE_URL_WORKER: postgresql://worker_role:worker_pwd@db:5432/budget
+          # ...and only the table's owner may DELETE the rows a scenario seeded
+          # (worker_role cannot, by design). Without it every first attempt of
+          # the aggregate scenario failed in cleanup and its retry passed only
+          # because the rows were still there.
+          DATABASE_URL_MIGRATOR: postgresql://migrator:migrator_pwd@db:5432/budget
         # Run from apps/web so bddgen + playwright pick up
         # apps/web/playwright.config.ts — the same config `make test-e2e`
         # uses. It covers both feature trees (apps/web/e2e + tests/e2e) and
