@@ -62,6 +62,12 @@ export function typeSummary(deps: {
           ),
         );
       }
+      // R6 (user): realized happened on the sale's date — convert it at that
+      // day's rate. A row without a date (older repos) falls back to today.
+      const onDay = (row: { effectiveDate?: string }) =>
+        row.effectiveDate
+          ? new Date(`${row.effectiveDate}T12:00:00Z`)
+          : new Date();
       const sums = new Map<string, { r: Big; s: Big }>();
       const perHolding = new Map<string, { r: Big; s: Big }>();
       const add = (
@@ -74,7 +80,7 @@ export function typeSummary(deps: {
         m.set(k, { r: cur.r.plus(r), s: cur.s.plus(s) });
       };
       // R6 (user): each asset's realized in its OWN currency — exact where
-      // the booking allows, today's rate only for the remaining rows.
+      // the booking allows, the sale date's rate for the remaining rows.
       const asset = new Map<string, { r: Big; ccy: string }>();
       for (const row of rows) {
         if (!row.costCurrency) continue;
@@ -88,7 +94,7 @@ export function typeSummary(deps: {
                   await deps.fxProvider.rateAsOf(
                     row.budgetCurrency as never,
                     row.costCurrency as never,
-                    new Date(),
+                    onDay(row),
                   )
                 ).rate,
               ),
@@ -96,7 +102,7 @@ export function typeSummary(deps: {
           } catch {
             /* WR-10: a missing rate drops that part, never the summary */
           }
-        // R6 (user): shown in the asset's display currency (today's rate).
+        // R6 (user): shown in the asset's display currency (the sale's rate).
         const shown = row.displayCurrency || row.costCurrency;
         if (shown !== row.costCurrency && !r.eq(0))
           try {
@@ -105,7 +111,7 @@ export function typeSummary(deps: {
                 await deps.fxProvider.rateAsOf(
                   row.costCurrency as never,
                   shown as never,
-                  new Date(),
+                  onDay(row),
                 )
               ).rate,
             );
@@ -119,7 +125,7 @@ export function typeSummary(deps: {
         });
       }
       for (const row of rows) {
-        // Rows booked in an older budget currency: today's rate. A missing
+        // Rows booked in an older budget currency: the sale date's rate. A missing
         // rate skips that row instead of failing every header (WR-10).
         let rate = "1";
         if (row.budgetCurrency !== input.budgetCurrency)
@@ -128,7 +134,7 @@ export function typeSummary(deps: {
               await deps.fxProvider.rateAsOf(
                 row.budgetCurrency as never,
                 input.budgetCurrency as never,
-                new Date(),
+                onDay(row),
               )
             ).rate;
           } catch {

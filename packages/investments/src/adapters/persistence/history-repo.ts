@@ -470,6 +470,7 @@ export class DrizzleHistoryRepo implements HistoryRepo {
       const res = await dt.execute(sql`
         SELECT COALESCE(i.ui_type, 'other') AS ui_type,
                h.holding_id::text AS holding_id,
+               h.effective_date::text AS effective_date,
                COALESCE(h.budget_currency, '') AS budget_currency,
                COALESCE(h.cost_currency, '') AS cost_currency,
                COALESCE(i.current_price_currency, i.buy_currency, '') AS display_currency,
@@ -488,11 +489,12 @@ export class DrizzleHistoryRepo implements HistoryRepo {
           JOIN budgeting.investments i ON i.id = h.holding_id
          WHERE h.budget_id = ${budgetId}::uuid AND h.deleted_at IS NULL
            AND h.kind IN ('withdraw', 'convert_out')
-         GROUP BY 1, 2, 3, 4, 5
+         GROUP BY 1, 2, 3, 4, 5, 6
       `);
       return res.rows.map((row) => ({
         uiType: String(row.ui_type),
         holdingId: String(row.holding_id),
+        effectiveDate: String(row.effective_date),
         budgetCurrency: String(row.budget_currency),
         costCurrency: String(row.cost_currency),
         displayCurrency: String(row.display_currency),

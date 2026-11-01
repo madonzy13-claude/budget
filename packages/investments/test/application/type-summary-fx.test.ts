@@ -165,3 +165,63 @@ describe("Per-asset realized in the shown currency", () => {
     });
   });
 });
+
+// R6 (user): realized happened on the sale's date — every conversion of it
+// uses that day's rate, never today's.
+describe("Realized converts at each sale's own date", () => {
+  test("shown-currency, rest and old-budget-currency rows use the sale date", async () => {
+    const sale = (date: string) => ({
+      uiType: "collectibles",
+      holdingId: "C",
+      effectiveDate: date,
+      budgetCurrency: "EUR", // booked when the budget was in EUR
+      costCurrency: "PLN",
+      displayCurrency: "USD",
+      realizedBudgetCents: 100n,
+      soldCostBudgetCents: 100n,
+      realizedAssetExactCents: 400n,
+      realizedBudgetRestCents: 0n,
+    });
+    const historyRepo = {
+      realizedByType: async () => [sale("2024-06-01"), sale("2025-06-01")],
+      getTypeOrder: async () => [],
+      contributionsByType: async () => [],
+    } as unknown as HistoryRepo;
+    // PLN→USD 0.25 in 2024, 0.20 in 2025, 0.30 today; EUR→PLN 4 then 5, 6 today.
+    const fxProvider = {
+      rateAsOf: async (f: string, t: string, d: Date) => {
+        const y = d.toISOString().slice(0, 4);
+        const pick = (a: string, b: string, today: string) =>
+          y === "2024" ? a : y === "2025" ? b : today;
+        return {
+          rate:
+            f === "PLN" && t === "USD"
+              ? pick("0.25", "0.2", "0.3")
+              : f === "EUR" && t === "PLN"
+                ? pick("4", "5", "6")
+                : "1",
+          provider: "s",
+          isStale: false,
+        };
+      },
+    } as never;
+    const r = (
+      await typeSummary({ historyRepo, fxProvider })({
+        tenantId: "t",
+        budgetId: "t",
+        actorUserId: "u",
+        budgetCurrency: "PLN",
+      })
+    )._unsafeUnwrap();
+    // 400 × 0.25 + 400 × 0.20 = 180 USD (today's 0.30 would say 240).
+    expect(r.holdings.C).toMatchObject({
+      realizedAssetCents: "180",
+      assetCurrency: "USD",
+    });
+    // 100 EUR × 4 + 100 EUR × 5 = 900 PLN (today's 6 would say 1,200).
+    expect(r.types.collectibles).toEqual({
+      realizedBudgetCents: "900",
+      soldCostBudgetCents: "900",
+    });
+  });
+});

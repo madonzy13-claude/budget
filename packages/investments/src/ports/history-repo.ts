@@ -156,6 +156,8 @@ export interface RealizedRow {
   uiType: string;
   /** R6-6: per-asset realized next to the per-type sum. */
   holdingId: string;
+  /** R6 (user): rows are per sale date, so each converts at that day's rate. */
+  effectiveDate?: string;
   /** The asset's own (cost) currency. */
   costCurrency?: string;
   /** The currency the asset is shown in (value currency) — R6. */
