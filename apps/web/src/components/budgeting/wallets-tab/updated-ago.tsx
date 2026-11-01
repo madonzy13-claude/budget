@@ -7,7 +7,7 @@
  */
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { RotateCw } from "lucide-react";
+import { Pencil, RotateCw } from "lucide-react";
 import { relativeAgo } from "@/lib/relative-ago";
 
 export function UpdatedAgo({
@@ -35,11 +35,17 @@ export function UpdatedAgo({
     <span
       data-testid="updated-ago"
       data-kind={kind}
+      data-icon={kind === "price" ? "reload" : "pen"}
       title={t(kind, { when: long })}
       className={`pointer-events-none absolute right-0 top-full flex items-center gap-[3px] whitespace-nowrap text-[var(--muted-foreground)] ${className}`}
       style={{ fontSize: "9px", lineHeight: 1.15, opacity: 0.5 }}
     >
-      <RotateCw className="h-[8px] w-[8px] shrink-0" aria-hidden="true" />
+      {/* R6 (user): ↻ for a price that updates itself, a pen for one typed. */}
+      {kind === "price" ? (
+        <RotateCw className="h-[8px] w-[8px] shrink-0" aria-hidden="true" />
+      ) : (
+        <Pencil className="h-[8px] w-[8px] shrink-0" aria-hidden="true" />
+      )}
       {short}
     </span>
   );

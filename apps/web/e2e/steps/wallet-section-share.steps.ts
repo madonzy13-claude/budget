@@ -209,6 +209,10 @@ Then(
     await expect(
       row.locator("[data-amount-cell]").getByTestId("updated-ago"),
     ).toHaveAttribute("data-kind", "value", { timeout: 15000 });
+    // R6 (user): typed by hand — a pen.
+    await expect(
+      row.locator("[data-amount-cell]").getByTestId("updated-ago"),
+    ).toHaveAttribute("data-icon", "pen");
     await expect(row.locator('[data-testid^="asset-auto-lock-"]')).toHaveCount(
       0,
     );
@@ -217,9 +221,21 @@ Then(
 
 Then("the asset {string} carries a lock", async ({ page }, name: string) => {
   const row = page.getByTestId(`holding-row-${name}`).locator("visible=true");
+  const lock = row
+    .locator('[data-testid^="asset-auto-lock-"]')
+    .locator("visible=true");
+  await expect(lock).toBeVisible({ timeout: 15000 });
+  // R6 (user): to the RIGHT of the amount.
+  const amount = row
+    .locator('[data-testid^="holding-amount-readonly-"]')
+    .locator("visible=true");
+  const a = (await amount.boundingBox())!;
+  const l = (await lock.boundingBox())!;
+  expect(l.x).toBeGreaterThanOrEqual(a.x + a.width - 1);
+  // …and its age carries the refresh mark (it prices itself).
   await expect(
-    row.locator('[data-testid^="asset-auto-lock-"]').locator("visible=true"),
-  ).toBeVisible({ timeout: 15000 });
+    row.locator("[data-amount-cell]").getByTestId("updated-ago"),
+  ).toHaveAttribute("data-icon", "reload");
 });
 
 // R6 (user): a group shows its newest asset change under its amount.

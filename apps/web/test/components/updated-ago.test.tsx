@@ -41,4 +41,21 @@ describe("UpdatedAgo", () => {
     const { container } = render(<UpdatedAgo at={null} />);
     expect(container.textContent).toBe("");
   });
+
+  // R6 (user): a typed amount shows a pen, an automatic price the ↻ mark.
+  it("a typed amount carries a pen, a fetched price the refresh mark", () => {
+    const { unmount } = render(
+      <UpdatedAgo at={new Date().toISOString()} kind="value" />,
+    );
+    expect(screen.getByTestId("updated-ago")).toHaveAttribute(
+      "data-icon",
+      "pen",
+    );
+    unmount();
+    render(<UpdatedAgo at={new Date().toISOString()} kind="price" />);
+    expect(screen.getByTestId("updated-ago")).toHaveAttribute(
+      "data-icon",
+      "reload",
+    );
+  });
 });

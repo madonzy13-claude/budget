@@ -1033,13 +1033,37 @@ describe("InvestmentRow — updated ago and lock", () => {
 // R6 (user): the lock sits by the amount but takes no room — each group
 // reserves the same slot (--lock-slot), so currencies stay in one column.
 describe("InvestmentRow — lock keeps the currency column", () => {
-  it("the lock hangs left of the amount; the cell reserves the group's slot", () => {
+  it("the lock hangs right of the amount; the cell reserves the group's slot", () => {
     render(
       <InvestmentRow holding={holding({ instrumentProvider: "finnhub" })} />,
     );
     const cell = document.querySelector<HTMLElement>("[data-amount-cell]")!;
-    expect(cell.className).toContain("ml-[var(--lock-slot,0px)]");
+    // R6 (user): the lock sits to the RIGHT of the amount.
+    expect(cell.className).toContain("mr-[var(--lock-slot,0px)]");
     const lock = screen.getByTestId("asset-auto-lock-h1");
     expect(lock.className).toContain("absolute");
+    expect(lock.className).toContain("left-full");
+  });
+});
+
+// R6 (user): a deposit prices itself (its rate) — its line carries the
+// refresh mark even without a fetched price.
+describe("InvestmentRow — deposit line", () => {
+  it("a deposit's line is the automatic kind", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          holdingType: "deposit",
+          uiType: "deposit",
+          instrumentProvider: null,
+          priceFetchedAt: null,
+          valueUpdatedAt: new Date().toISOString(),
+        })}
+      />,
+    );
+    expect(screen.getByTestId("updated-ago")).toHaveAttribute(
+      "data-kind",
+      "price",
+    );
   });
 });

@@ -337,6 +337,7 @@ export function InvestmentRow({
       className={`flex shrink-0 items-baseline gap-1 text-num-sm tabular-nums ${extra}`}
     >
       <span className="text-[var(--muted-foreground)]">{currency}</span>
+      <span className="text-[var(--body-on-dark)]">{value}</span>
       {autoPriced && (
         <AutoPriceLock
           id={holding.id}
@@ -344,7 +345,6 @@ export function InvestmentRow({
           tip={t("row.autoPricedTip")}
         />
       )}
-      <span className="text-[var(--body-on-dark)]">{value}</span>
     </span>
   );
 
@@ -570,9 +570,9 @@ export function InvestmentRow({
             <div
               data-amount-cell
               // R6 (user): the group's lock slot (set on the group when any of
-              // its assets prices itself) — every row reserves it, so the
-              // currency column stays straight; the lock hangs in it.
-              className="relative ml-[var(--lock-slot,0px)] text-right tabular-nums min-w-[var(--amt)] sm:min-w-[calc(var(--amt)_+_1ch)]"
+              // its assets prices itself) — every row reserves it on the right,
+              // so amounts and currencies stay straight; the lock hangs in it.
+              className="relative mr-[var(--lock-slot,0px)] text-right tabular-nums min-w-[var(--amt)] sm:min-w-[calc(var(--amt)_+_1ch)]"
               style={
                 { "--amt": `${maxAmountChars ?? 4}ch` } as React.CSSProperties
               }
@@ -612,7 +612,7 @@ export function InvestmentRow({
                       id={holding.id}
                       label={t("row.autoPriced")}
                       tip={t("row.autoPricedTip")}
-                      className="absolute right-full top-1/2 -translate-y-1/2"
+                      className="absolute left-full top-1/2 -translate-y-1/2"
                     />
                   )}
                   <span
@@ -631,7 +631,7 @@ export function InvestmentRow({
               {/* F9 (user): how long ago, hung right under the amount. */}
               <UpdatedAgo
                 at={priceAge ? holding.priceFetchedAt : holding.valueUpdatedAt}
-                kind={priceAge ? "price" : "value"}
+                kind={autoPriced ? "price" : "value"}
               />
             </div>
           </div>

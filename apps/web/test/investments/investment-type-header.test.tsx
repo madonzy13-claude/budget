@@ -412,7 +412,10 @@ describe("InvestmentTypeHeader", () => {
 describe("InvestmentTypeHeader — updated ago", () => {
   it("shows the newest change under the group's amount", () => {
     renderHeader({
-      updatedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+      updated: {
+        at: new Date(Date.now() - 5 * 60_000).toISOString(),
+        kind: "value",
+      },
     });
     const ago = screen.getByTestId("updated-ago");
     expect(
