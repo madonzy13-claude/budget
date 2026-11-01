@@ -77,7 +77,15 @@ describe.skipIf(!URL)("Reconcile asset rows with their ledger (0089)", () => {
       for (const t of LIFTED)
         await c.query(`ALTER TABLE ${t} NO FORCE ROW LEVEL SECURITY`);
     };
+    let fresh = false;
     const run = async () => {
+      // The applied backup table has the columns of its day; the replay
+      // copies today's rows into it, so give it today's columns (the whole
+      // test ROLLBACKs, so the real backup is untouched).
+      if (!fresh) {
+        await c.query("DROP TABLE IF EXISTS budgeting._investments_bak_0089");
+        fresh = true;
+      }
       for (const s of statements()) await c.query(s);
       await lift(); // 0089 restores FORCE; the owner reads back without it
     };

@@ -472,6 +472,8 @@ async function main() {
           budgetId: input.budgetId,
           actorUserId: WEALTH_SYSTEM_USER,
           budgetCurrency: input.defaultCurrency,
+          // R6 (user): hidden assets are still owned — they count.
+          hidden: "all",
         });
         if (r.isErr()) throw r.error;
         return r.value.holdings
@@ -488,6 +490,8 @@ async function main() {
           budgetId: input.budgetId,
           actorUserId: WEALTH_SYSTEM_USER,
           budgetCurrency: input.defaultCurrency,
+          // R6 (user): hidden assets are still owned — they count.
+          hidden: "all",
         });
         if (r.isErr()) throw r.error;
         return r.value.holdings

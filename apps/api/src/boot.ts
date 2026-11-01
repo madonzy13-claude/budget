@@ -451,6 +451,8 @@ export async function boot(): Promise<BootedDeps> {
         budgetId: input.budgetId,
         actorUserId: SYSTEM_USER_UUID,
         budgetCurrency: input.defaultCurrency,
+        // R6 (user): hidden assets are still owned — they count.
+        hidden: "all",
       });
       if (r.isErr()) throw r.error;
       return r.value.holdings
@@ -467,6 +469,8 @@ export async function boot(): Promise<BootedDeps> {
         budgetId: input.budgetId,
         actorUserId: SYSTEM_USER_UUID,
         budgetCurrency: input.defaultCurrency,
+        // R6 (user): hidden assets are still owned — they count.
+        hidden: "all",
       });
       if (r.isErr()) throw r.error;
       return r.value.holdings
@@ -558,6 +562,8 @@ export async function boot(): Promise<BootedDeps> {
             budgetId: input.budgetId,
             actorUserId: SYSTEM_USER_UUID,
             budgetCurrency: input.defaultCurrency,
+            // R6 (user): hidden assets are still owned — they count.
+            hidden: "all",
           });
           if (r.isErr()) throw r.error;
           // Group by the DISPLAY type (ui_type), not the coarse holding_type: a

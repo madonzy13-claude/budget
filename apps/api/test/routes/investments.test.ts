@@ -370,8 +370,10 @@ describe("Investments routes", () => {
     expect((await ids("")).map((h) => h.id)).toEqual([shown]);
     const list = await ids("?hidden=1");
     expect(list.map((h) => h.id)).toEqual([hidden]);
-    // A hidden asset is no share of the portfolio.
-    expect(list[0]!.weightPct).toBe(0);
+    // R6 (user): hidden is not removed — it still owns its share (two equal
+    // assets → 50% each), and the visible one is NOT inflated to 100%.
+    expect(list[0]!.weightPct).toBeCloseTo(50, 5);
+    expect((await ids(""))[0]!.weightPct).toBeCloseTo(50, 5);
   });
 
   // R6 (user, USDC - Kraken): the name picker read the stored row price, so a

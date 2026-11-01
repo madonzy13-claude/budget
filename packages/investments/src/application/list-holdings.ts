@@ -41,8 +41,10 @@ export function listHoldings(deps: {
     /** Viewer's IANA timezone — deposits accrue by the viewer's calendar day, so
      *  "today" rolls at their local midnight (not UTC). Defaults to UTC. */
     timezone?: string;
-    /** R6 (user): only the hidden (archived) assets — no portfolio share. */
-    hidden?: boolean;
+    /** R6 (user): which assets to return — the visible ones (default), only
+     *  the hidden ones (true), or both ("all", for totals). Hidden assets are
+     *  still owned: every share is of the whole portfolio, hidden included. */
+    hidden?: boolean | "all";
   }): Promise<
     Result<
       {
@@ -53,12 +55,17 @@ export function listHoldings(deps: {
     >
   > => {
     try {
+      // Load every asset: shares (and anything summed) are of the whole
+      // portfolio; the visibility filter applies to what is returned.
       const holdings = await deps.holdingRepo.listForBudget(
         input.tenantId,
         input.budgetId,
         input.actorUserId,
-        { hidden: input.hidden },
+        { hidden: "all" },
       );
+      const wanted = (h: { archivedAt: Date | null }) =>
+        input.hidden === "all" ||
+        (h.archivedAt != null) === (input.hidden === true);
       const budgetCcy = input.budgetCurrency;
       const asOf = new Date();
 
@@ -215,6 +222,7 @@ export function listHoldings(deps: {
 
       const enriched: EnrichedHoldingDto[] = [];
       for (const h of holdings) {
+        if (!wanted(h)) continue;
         const value = holdingValue(h); // cents, in the holding's value currency
         const valueCcy = h.currentPriceCurrency ?? h.buyCurrency ?? budgetCcy;
         const toBudget = rateMap[valueCcy] ?? "1";
@@ -308,7 +316,7 @@ export function listHoldings(deps: {
             avgShown === null ? null : avgShown.round(0, 2).toFixed(0),
           profitLossDisplayCents:
             plShown === null ? null : plShown.round(0, 2).toFixed(0),
-          weightPct: input.hidden ? 0 : (weights.get(h.id) ?? 0),
+          weightPct: weights.get(h.id) ?? 0,
           sortOrder: h.sortOrder,
           createdAt: h.createdAt.toISOString(),
           depositRateBps: h.depositRateBps,

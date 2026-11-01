@@ -85,7 +85,7 @@ export interface HoldingRepo {
     tenantId: string,
     budgetId: string,
     userId: string,
-    opts?: { hidden?: boolean },
+    opts?: { hidden?: boolean | "all" },
   ): Promise<Holding[]>;
   reorder(
     tenantId: string,
