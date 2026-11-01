@@ -2959,6 +2959,31 @@ When("I delete the asset {string}", async ({ page }, name: string) => {
   await new InvestmentsPo(page).deleteAsset(name);
 });
 
+// The cold start seeds only BTC/ETH/SOL; the rest of the crypto catalog comes
+// from the live CoinGecko universe, which a fresh CI database never fetched.
+Given(
+  "the catalog lists the coingecko coin {string} as {string}",
+  async ({}, symbol: string, displayName: string) => {
+    const { Pool } = await import("pg");
+    const dbUrl =
+      process.env.DATABASE_URL_WORKER?.replace("@db:", "@localhost:") ?? "";
+    if (!dbUrl)
+      throw new Error("DATABASE_URL_WORKER not set — cannot seed the catalog");
+    const pool = new Pool({ connectionString: dbUrl });
+    try {
+      await pool.query(
+        `INSERT INTO budgeting.instruments
+           (id, symbol, display_name, provider, asset_class, quote_currency, active, refresh_cadence)
+         VALUES (gen_random_uuid(), $1, $2, 'coingecko', 'crypto', 'USD', true, 'hourly')
+         ON CONFLICT (symbol, provider) DO NOTHING`,
+        [symbol, displayName],
+      );
+    } finally {
+      await pool.end();
+    }
+  },
+);
+
 When(
   "I pick {string} from the catalog in the {string} Add form",
   async ({ page }, label: string, type: string) => {
@@ -3026,7 +3051,23 @@ const notedTotals = new WeakMap<Page, { group: string; section: string }>();
 When(
   "I note the {string} group total and the investments total",
   async ({ page }, type: string) => {
-    notedTotals.set(page, await totalsOf(page, type));
+    // A write just before (a buy) refetches the holdings and the group's
+    // currency P/L separately — note only once both have landed, or the
+    // "unchanged" check compares against a half-updated header.
+    await page.waitForLoadState("networkidle");
+    let prev = await totalsOf(page, type);
+    await expect
+      .poll(
+        async () => {
+          const now = await totalsOf(page, type);
+          const same = JSON.stringify(now) === JSON.stringify(prev);
+          prev = now;
+          return same;
+        },
+        { intervals: [750], timeout: 15000 },
+      )
+      .toBe(true);
+    notedTotals.set(page, prev);
   },
 );
 Then(
