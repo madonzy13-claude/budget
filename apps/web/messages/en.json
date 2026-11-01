@@ -2044,9 +2044,14 @@
         "category": "Category",
         "amount": "Amount",
         "currency": "Currency",
-        "note": "Note (optional)"
+        "note": "Note (optional)",
+        "kind": "Type"
       },
-      "fxLine": "{original} · ~{converted} @ {rate} ({asOf})"
+      "fxLine": "{original} · ~{converted} @ {rate} ({asOf})",
+      "kind": {
+        "spending": "Spending",
+        "refund": "Refund"
+      }
     },
     "catSlider": {
       "cta": {
@@ -2122,7 +2127,8 @@
         "queued": "Saved on this device — it'll sync when you're back online.",
         "badge": "Waiting for connection — saves automatically",
         "waiting": "Waiting to sync"
-      }
+      },
+      "refund": "Refund"
     },
     "lastAdded": "Last spending added {when}",
     "quickEntry": {

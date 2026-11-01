@@ -107,6 +107,9 @@ function makeSchema(tz: string, uncapped: () => boolean = () => false) {
     // the comma to a dot on submit. A period-only regex here rejected "10,50"
     // before submit ever ran, so the comma fix in onSubmit could never apply.
     amountOrig: z.string().regex(/^\d+([.,]\d{1,2})?$/),
+    // R6 (user): a spending or a refund (money back) — chosen here, never by
+    // a minus in the amount.
+    kind: z.enum(["spending", "refund"]),
     currencyOrig: z.string().length(3),
     note: z.string().max(500).nullable().optional(),
   });
@@ -198,8 +201,11 @@ export function TransactionSlider({
       categoryId:
         initial?.categoryId ?? prefillCategoryId ?? categories[0]?.id ?? "",
       amountOrig: initial?.amountOriginalCents
-        ? centsToInputValue(initial.amountOriginalCents)
+        ? centsToInputValue(initial.amountOriginalCents.replace(/^-/, ""))
         : "",
+      kind: initial?.amountOriginalCents?.startsWith("-")
+        ? "refund"
+        : "spending",
       currencyOrig: initial?.currencyOriginal ?? budgetCurrency,
       note: initial?.note ?? "",
     },
@@ -238,8 +244,11 @@ export function TransactionSlider({
         categoryId:
           initial?.categoryId ?? prefillCategoryId ?? categories[0]?.id ?? "",
         amountOrig: initial?.amountOriginalCents
-          ? centsToInputValue(initial.amountOriginalCents)
+          ? centsToInputValue(initial.amountOriginalCents.replace(/^-/, ""))
           : "",
+        kind: initial?.amountOriginalCents?.startsWith("-")
+          ? "refund"
+          : "spending",
         currencyOrig: initial?.currencyOriginal ?? budgetCurrency,
         note: initial?.note ?? "",
       });
@@ -283,7 +292,9 @@ export function TransactionSlider({
     // API contract is snake_case with integer cents (createSchema / patchSchema).
     // Sending camelCase keys here would silently drop most fields server-side.
     // parseDecimal accepts both "." and "," as the decimal separator → cents.
-    const amountCents = parseDecimal(values.amountOrig) ?? 0;
+    const amountCents =
+      (parseDecimal(values.amountOrig) ?? 0) *
+      (values.kind === "refund" ? -1 : 1);
     const body: Record<string, unknown> = {
       date: values.date,
       category_id: values.categoryId,
@@ -475,6 +486,36 @@ export function TransactionSlider({
                 )}
               />
 
+              {/* R6 (user): spending or refund — explicit, default spending. */}
+              <FormField
+                control={form.control}
+                name="kind"
+                render={({ field }) => (
+                  <div
+                    role="group"
+                    aria-label={t("txnSlider.field.kind")}
+                    className="grid grid-cols-2 gap-1 rounded-[var(--radius-md)] bg-[var(--surface-sunken-dark)] p-1"
+                  >
+                    {(["spending", "refund"] as const).map((k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        data-testid={`txn-kind-${k}`}
+                        aria-pressed={field.value === k}
+                        onClick={() => field.onChange(k)}
+                        className={`min-h-9 rounded-[var(--radius-sm)] text-sm transition-colors ${
+                          field.value === k
+                            ? "bg-[var(--surface-card-dark)] text-[var(--body-on-dark)]"
+                            : "text-[var(--muted-foreground)]"
+                        }`}
+                      >
+                        {t(`txnSlider.kind.${k}`)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              />
+
               {/* Amount + Currency */}
               <div className="flex gap-3">
                 <FormField
@@ -488,7 +529,10 @@ export function TransactionSlider({
                       <FormControl>
                         <AmountInput
                           value={field.value}
-                          onChange={field.onChange}
+                          // R6 (user): no minus here — Refund is chosen above.
+                          onChange={(v: string) =>
+                            field.onChange(v.replace(/[-−]/g, ""))
+                          }
                           aria-invalid={!!form.formState.errors.amountOrig}
                           id="txn-slider-amount"
                         />

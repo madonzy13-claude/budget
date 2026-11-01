@@ -95,3 +95,40 @@ When("I tap the {string} usage chip", async ({ page }, name: string) => {
 Then("the category editor is not open", async ({ page }) => {
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
+
+// R6 (user): refunds.
+When(
+  "I quick-add {string} in {string}",
+  async ({ page }, amount: string, name: string) => {
+    const saved = page.waitForResponse(
+      (r) => r.request().method() === "POST" && /\/transactions$/.test(r.url()),
+    );
+    await new SpendingsPo(page).typeQuickEntry(name, amount);
+    expect((await saved).ok()).toBe(true);
+  },
+);
+
+Then(
+  "the refund of {int} cents shows a refund mark",
+  async ({ page }, cents: number) => {
+    const row = new SpendingsPo(page).transactionRowByAmount(-cents);
+    await expect(row.getByTestId("txn-refund-icon")).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(row).not.toContainText("-");
+  },
+);
+
+Then(
+  "editing the refund of {int} cents shows Refund with {int}",
+  async ({ page }, cents: number, amount: number) => {
+    const sheet = await new SpendingsPo(page).openTxnEdit(-cents);
+    await expect(sheet.getByTestId("txn-kind-refund")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(sheet.locator("#txn-slider-amount")).toHaveValue(
+      String(amount),
+    );
+  },
+);

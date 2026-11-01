@@ -638,3 +638,41 @@ describe("TransactionRow — foreign currency", () => {
     expect(document.body.textContent).toContain('"amount":"€10"');
   });
 });
+
+// R6 (user): a refund reads with a refund mark before the amount, no minus.
+describe("TransactionRow — refund", () => {
+  it("shows the refund mark and the amount without a minus", () => {
+    renderRow({
+      txn: {
+        ...txn,
+        amountConvertedCents: "-2500",
+        amountOriginalCents: "-2500",
+        currencyOriginal: "USD",
+      },
+    });
+    expect(screen.getByTestId("txn-refund-icon")).toBeInTheDocument();
+    expect(screen.getByText("25")).toBeInTheDocument();
+    expect(screen.queryByText("-25")).toBeNull();
+  });
+
+  it("a spending has no refund mark", () => {
+    renderRow();
+    expect(screen.queryByTestId("txn-refund-icon")).toBeNull();
+  });
+
+  it("an inline edit of a refund starts from its signed amount", () => {
+    setHoverCapable(true);
+    renderRow({
+      txn: {
+        ...txn,
+        amountConvertedCents: "-2500",
+        amountOriginalCents: "-2500",
+      },
+    });
+    fireEvent.click(screen.getByText("25"));
+    const input = document.querySelector(
+      'input[inputmode="decimal"], input[type="text"]',
+    ) as HTMLInputElement;
+    expect(input.value).toBe("-25");
+  });
+});

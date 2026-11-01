@@ -28,6 +28,15 @@ describe("parseDecimal", () => {
 });
 
 describe("parseAmountAndNote", () => {
+  // R6 (user): a leading minus is a refund.
+  it("'-25 shoes back' → -2500 + note (a refund)", () =>
+    expect(parseAmountAndNote("-25 shoes back")).toEqual({
+      cents: -2500,
+      note: "shoes back",
+    }));
+  it("a typographic minus works too", () =>
+    expect(parseAmountAndNote("−12,50")).toEqual({ cents: -1250, note: null }));
+  it("'-0' is no amount", () => expect(parseAmountAndNote("-0")).toBeNull());
   it("'11.45' → 1145 cents, no note", () =>
     expect(parseAmountAndNote("11.45")).toEqual({ cents: 1145, note: null }));
   it("'11,45' → 1145 cents, no note (comma separator)", () =>

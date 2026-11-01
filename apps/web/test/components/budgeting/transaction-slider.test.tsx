@@ -374,4 +374,89 @@ describe("TransactionSlider", () => {
     expect(screen.getByText("txnSlider.field.amount")).toBeTruthy();
     expect(screen.getByText("txnSlider.field.note")).toBeTruthy();
   });
+
+  // R6 (user): Edit chooses Spending or Refund explicitly — default Spending;
+  // the amount itself is always positive here.
+  describe("spending or refund", () => {
+    const patchBody = () => {
+      const call = fetchMock.mock.calls.find(
+        (c) =>
+          (c[1] as { method?: string })?.method === "PATCH" &&
+          String(c[0]).includes("/transactions/tx-1"),
+      );
+      return call ? JSON.parse((call[1] as { body: string }).body) : null;
+    };
+    const save = () =>
+      screen
+        .getAllByRole("button")
+        .find((b) => b.textContent?.includes("txnSlider.cta.save"))!;
+
+    it("defaults to Spending", () => {
+      render(
+        <TestQueryProvider>
+          <TransactionSlider {...editProps} />
+        </TestQueryProvider>,
+      );
+      expect(screen.getByTestId("txn-kind-spending")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(screen.getByTestId("txn-kind-refund")).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    });
+
+    it("Refund saves the amount as money back (negative)", async () => {
+      const user = (
+        await import("@testing-library/user-event")
+      ).default.setup();
+      render(
+        <TestQueryProvider>
+          <TransactionSlider {...editProps} />
+        </TestQueryProvider>,
+      );
+      await user.click(screen.getByTestId("txn-kind-refund"));
+      await user.click(save());
+      expect(patchBody()?.amount_original_cents).toBe(-5000);
+    });
+
+    it("a refund opens as Refund with a positive amount", () => {
+      render(
+        <TestQueryProvider>
+          <TransactionSlider
+            {...editProps}
+            initial={{ ...editProps.initial, amountOriginalCents: "-5000" }}
+          />
+        </TestQueryProvider>,
+      );
+      expect(screen.getByTestId("txn-kind-refund")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(
+        (document.getElementById("txn-slider-amount") as HTMLInputElement)
+          .value,
+      ).toBe("50");
+    });
+
+    it("a minus in the amount is not accepted here", async () => {
+      const user = (
+        await import("@testing-library/user-event")
+      ).default.setup();
+      render(
+        <TestQueryProvider>
+          <TransactionSlider {...editProps} />
+        </TestQueryProvider>,
+      );
+      const amount = document.getElementById(
+        "txn-slider-amount",
+      ) as HTMLInputElement;
+      await user.clear(amount);
+      await user.type(amount, "-50");
+      await user.click(save());
+      expect(patchBody()?.amount_original_cents ?? 5000).toBeGreaterThan(0);
+      expect(amount.value).not.toContain("-");
+    });
+  });
 });

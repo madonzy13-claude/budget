@@ -2067,9 +2067,14 @@
         "category": "Kategoria",
         "amount": "Kwota",
         "currency": "Waluta",
-        "note": "Notatka (opcjonalna)"
+        "note": "Notatka (opcjonalna)",
+        "kind": "Rodzaj"
       },
-      "fxLine": "{original} · ~{converted} @ {rate} ({asOf})"
+      "fxLine": "{original} · ~{converted} @ {rate} ({asOf})",
+      "kind": {
+        "spending": "Wydatek",
+        "refund": "Zwrot"
+      }
     },
     "catSlider": {
       "cta": {
@@ -2145,7 +2150,8 @@
         "queued": "Zapisano na tym urządzeniu — prześlemy, gdy wrócisz online.",
         "badge": "Czeka na połączenie — zapisze się automatycznie",
         "waiting": "Czeka na synchronizację"
-      }
+      },
+      "refund": "Zwrot"
     },
     "lastAdded": "Ostatni wydatek dodano {when}",
     "quickEntry": {
