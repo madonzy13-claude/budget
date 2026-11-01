@@ -155,11 +155,12 @@ describe("investment history tenant-leak gate", () => {
   let budgetB: SeededBudget;
   let entryInA: string;
   let walletInA: string;
+  let holdingInA: string;
 
   beforeAll(async () => {
     budgetA = await seedBudget();
     budgetB = await seedBudget();
-    const holdingInA = await seedHoldingInBudget(budgetA.budgetId);
+    holdingInA = await seedHoldingInBudget(budgetA.budgetId);
     walletInA = await seedWallet(budgetA.budgetId, budgetA.userId);
     entryInA = await seedHistory(budgetA.budgetId, holdingInA, walletInA);
   });
@@ -240,17 +241,13 @@ describe("investment history tenant-leak gate", () => {
     expect(r.isOk() && r.value).toBe(1);
   });
 
-  it("13.1: label lookups scoped to budgetB never return budgetA's assets", async () => {
+  it("13.1: lookups scoped to budgetB never return budgetA's assets", async () => {
     const { DrizzleHoldingRepo } =
       await import("../../packages/investments/src/adapters/persistence/holding-repo");
     const repo = new DrizzleHoldingRepo();
+    // Labels are not unique since 13.1-51 — assets are found by id.
     expect(
-      await repo.findByLabel(
-        budgetB.budgetId,
-        budgetA.budgetId,
-        "stocks",
-        "AAPL",
-      ),
+      await repo.findById(budgetB.budgetId, budgetB.userId, holdingInA),
     ).toBeNull();
     expect(
       await repo.listNames(budgetB.budgetId, budgetA.budgetId, "stocks"),

@@ -118,6 +118,9 @@ describe.skipIf(!URL)("Backfill the deal figure (0095)", () => {
     try {
       await c.query("BEGIN");
       await lift();
+      // A backup made by the real migration run predates later columns (0101),
+      // so the replay's INSERT … SELECT * would not fit it. Rolled back.
+      await c.query("DROP TABLE IF EXISTS budgeting._investments_bak_0095");
       await c.query(
         `INSERT INTO identity.users (id, email, name, email_verified, created_at, updated_at)
          VALUES ($1, $2, 'mig 0095', true, now(), now())`,

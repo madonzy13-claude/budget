@@ -87,6 +87,11 @@ describe.skipIf(!URL)("Delete assets removed before 13.1 (0097)", () => {
     try {
       await c.query("BEGIN");
       await lift();
+      // A backup made by the real migration run predates later columns (0101),
+      // so the replay's INSERT … SELECT * would not fit it. Rolled back.
+      await c.query(
+        "DROP TABLE IF EXISTS budgeting._investments_bak_0097, budgeting._investment_history_bak_0097",
+      );
       await c.query(
         `INSERT INTO identity.users (id, email, name, email_verified, created_at, updated_at)
          VALUES ($1, $2, 'mig 0097', true, now(), now())`,

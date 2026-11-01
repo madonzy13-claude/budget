@@ -82,3 +82,11 @@ budgeting._investments_bak_0088           EXCLUDED      # migration backup, owne
 budgeting._investment_history_bak_0088    EXCLUDED      # migration backup, owner-only
 budgeting._tasks_bak_0088                 EXCLUDED      # migration backup, owner-only
 budgeting._investments_bak_0089           EXCLUDED      # migration backup, owner-only
+budgeting._investments_bak_0090           EXCLUDED      # migration backup, owner-only
+budgeting._investment_history_bak_0091    EXCLUDED      # migration backup, owner-only
+budgeting._investments_bak_0092           EXCLUDED      # migration backup, owner-only
+budgeting._investment_history_bak_0092    EXCLUDED      # migration backup, owner-only
+budgeting._investments_bak_0095           EXCLUDED      # migration backup, owner-only
+budgeting._investments_bak_0096           EXCLUDED      # migration backup, owner-only
+budgeting._investments_bak_0097           EXCLUDED      # migration backup, owner-only
+budgeting._investment_history_bak_0097    EXCLUDED      # migration backup, owner-only

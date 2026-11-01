@@ -204,6 +204,11 @@ describe.skipIf(!URL)("Migration 0088 investment assets — data", () => {
     c = await pool.connect();
     await c.query("BEGIN");
     await lift();
+    // A backup made by the real migration run predates later columns (0101),
+    // so the replay's INSERT … SELECT * would not fit it. Rolled back.
+    await c.query(
+      "DROP TABLE IF EXISTS budgeting._investments_bak_0088, budgeting._investment_history_bak_0088, budgeting._tasks_bak_0088",
+    );
     await c.query(`DROP INDEX IF EXISTS budgeting.investments_label_uq`);
     // The dev DB keeps 0088's backup table; its copied kind CHECK predates the
     // transfer / price kinds that live rows now carry (rolled back with the tx).
