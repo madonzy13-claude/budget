@@ -137,8 +137,43 @@ export function getAggregateWealthTrend(deps: GetAggregateWealthTrendDeps) {
         const share = prefs.get(b.id)?.ownership_share_pct ?? 100;
         const conv = (c: bigint) =>
           toDisplayCcyShared(c, w.currency, rate, displayCcy, share);
+        // R6 (user): a past point is what the budget held THEN — convert it at
+        // that day's rate. Undated labels (and the pie, today's mix) keep today's.
+        const dayRates = new Map<string, Promise<string>>();
+        const rateOn = (label: string) => {
+          const day = /^\d{4}-\d{2}-\d{2}/.exec(label)?.[0];
+          if (!day || w.currency === displayCcy) return Promise.resolve(rate);
+          let p = dayRates.get(day);
+          if (!p) {
+            const at = new Date(`${day}T12:00:00Z`);
+            p = deps.fxProvider
+              .rateAsOf(
+                w.currency as Currency,
+                displayCcy as Currency,
+                at > now ? now : at,
+              )
+              .then((r) => r.rate)
+              .catch(() => rate);
+            dayRates.set(day, p);
+          }
+          return p;
+        };
         const byLabel = new Map<string, bigint>();
-        for (const pt of w.series) byLabel.set(pt.label, conv(pt.value_cents));
+        const pointRates = await Promise.all(
+          w.series.map((pt) => rateOn(pt.label)),
+        );
+        w.series.forEach((pt, i) =>
+          byLabel.set(
+            pt.label,
+            toDisplayCcyShared(
+              pt.value_cents,
+              w.currency,
+              pointRates[i]!,
+              displayCcy,
+              share,
+            ),
+          ),
+        );
         const invested =
           w.invested_cents != null ? conv(w.invested_cents) : null;
         const pie = w.pie

@@ -92,3 +92,34 @@ describe("getAggregateWealthTrend", () => {
     ]);
   });
 });
+
+// R6 (user): a past point is what the budget held THEN, so it converts at
+// that day's rate — never today's.
+describe("getAggregateWealthTrend — history rates", () => {
+  it("converts each dated point at its own day's rate", async () => {
+    const out = await getAggregateWealthTrend({
+      ...deps,
+      getAggPrefsForUser: async () =>
+        new Map([["b2", { ownership_share_pct: 100, include_in_aggregation: true }]]),
+      listForUser: async () => [{ id: "b2", default_currency: "EUR" }],
+      getWealthForBudget: async () => ({
+        currency: "EUR",
+        series: [
+          { label: "2025-01-01", value_cents: 100000n },
+          { label: "2026-07-16T10", value_cents: 100000n },
+        ],
+      }),
+      fxProvider: {
+        rateAsOf: async (_f: string, _t: string, d: Date) => ({
+          rate: d.toISOString() < "2026" ? "1.05" : "1.20",
+          provider: "t",
+          isStale: false,
+        }),
+      },
+    } as any)({ userId: "u1", range: "All", includeIds: ["b2"] });
+    expect(out.series).toEqual([
+      { label: "2025-01-01", value_cents: "105000" },
+      { label: "2026-07-16T10", value_cents: "120000" },
+    ]);
+  });
+});
