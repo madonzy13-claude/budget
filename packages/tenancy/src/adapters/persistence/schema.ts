@@ -31,6 +31,7 @@ export const budgets = tenancy.table(
     owner_user_id: uuid("owner_user_id").notNull(),
     memberCount: integer("member_count").notNull().default(1),
     metadata: text("metadata"), // Better Auth org metadata
+    logo: text("logo"), // Better Auth org field (0103); unused by the app
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

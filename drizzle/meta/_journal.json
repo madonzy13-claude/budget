@@ -715,6 +715,13 @@
       "when": 1783720000000,
       "tag": "0102_amount_updated_only_amount",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1783730000000,
+      "tag": "0103_better_auth_17_columns",
+      "breakpoints": true
     }
   ]
 }
