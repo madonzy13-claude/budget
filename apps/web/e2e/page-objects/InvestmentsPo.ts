@@ -452,6 +452,13 @@ export class InvestmentsPo {
   /** R6 (user): show a type group in another currency (wallets' picker). */
   async pickGroupCurrency(type: string, currency: string): Promise<void> {
     const cell = this.page.getByTestId(`investment-type-currency-${type}`);
+    // R6 (user): an open group on a phone reads like an open asset — no
+    // picker; it lives on the closed header.
+    if (!(await cell.isVisible().catch(() => false))) {
+      const group = this.page.getByTestId(`investment-group-${type}`);
+      await group.click({ position: { x: 24, y: 12 } });
+      await expect(group).toHaveAttribute("aria-expanded", "false");
+    }
     const native = cell.getByTestId("currency-picker-native");
     if (await native.isVisible().catch(() => false))
       await native.selectOption(currency);

@@ -2112,11 +2112,13 @@ Then(
           (r) =>
             [...r.querySelectorAll(".num span")]
               .map((s) => (s.textContent ?? "").trim())
-              .find((t) => /^[+−-]?\d/.test(t) && !/[A-Z]{3}$/.test(t)) ?? null,
+              .find((t) => / × /.test(t)) ?? null,
         ),
       );
     expect(lines.length).toBeGreaterThan(0);
-    for (const l of lines) expect(l).toMatch(/^[+−-][\d.,\s]+ × [\d.,\s]+$/);
+    // R6 (user): the deal price names its currency.
+    for (const l of lines)
+      expect(l).toMatch(/^[+−-][\d.,\s]+ × [\d.,\s]+ [A-Z]{3}$/);
   },
 );
 
