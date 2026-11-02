@@ -26,7 +26,7 @@ import { UI_TYPE_COLOR, UI_TYPE_ICON } from "@/lib/investment-icons";
 import { useIsWide } from "@/hooks/use-is-wide";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import type { TypeGroupPL } from "@/lib/investment-type-groups";
-import { REVEAL_ON_ROW } from "./row-actions";
+import { REVEAL_ON_ROW, SHOW_ON_ROW } from "./row-actions";
 
 interface InvestmentTypeHeaderProps {
   uiType: UiType;
@@ -317,7 +317,7 @@ export function InvestmentTypeHeader({
         {hasPL && (
           <div
             data-testid={`investment-type-caption-desktop-${uiType}`}
-            className={`hidden min-w-0 sm:block ${revealOnRow}`}
+            className={`hidden min-w-0 ${expanded ? "sm:block" : SHOW_ON_ROW}`}
           >
             <PlCaption
               data-pl-caption
@@ -352,7 +352,11 @@ export function InvestmentTypeHeader({
       </div>
       {/* Desktop columns, as the asset row (R6, user): qty (blank) · P/L % ·
           P/L amount · value · share · the actions slot. */}
-      <span className="hidden w-20 shrink-0 sm:block" aria-hidden="true" />
+      <span
+        data-testid={`investment-type-qty-desktop-${uiType}`}
+        className="hidden w-28 shrink-0 sm:block"
+        aria-hidden="true"
+      />
       <span
         {...(hasPL ? { "data-pl-line": true } : {})}
         className={`hidden shrink-0 gap-2 sm:flex ${revealOnRow}`}

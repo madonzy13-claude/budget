@@ -3275,3 +3275,59 @@ Then(
     await expect.poll(() => opacityOf(toolbar)).toBe("1");
   },
 );
+
+// 261102 (user, round 2): the name is centred while the unreal./real. line is
+// out of sight, and jumps up only when it shows.
+Then(
+  "the {string} name sits centred in its row until hovered",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const row = page.getByTestId(`holding-row-${name}`);
+    const label = page.getByTestId(`asset-name-desktop-${id}`);
+    const mid = async (loc: Locator) => {
+      const b = (await loc.boundingBox())!;
+      return b.y + b.height / 2;
+    };
+    await page.mouse.move(0, 0);
+    expect(Math.abs((await mid(label)) - (await mid(row)))).toBeLessThanOrEqual(
+      2,
+    );
+    await row.hover();
+    await expect(page.getByTestId(`asset-caption-desktop-${id}`)).toBeVisible();
+    expect((await mid(label)) - (await mid(row))).toBeLessThan(-2);
+  },
+);
+
+Then(
+  "the {string} group's columns line up with the {string} asset's",
+  async ({ page }, group: string, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const right = (loc: Locator) =>
+      loc.evaluate((el) => el.getBoundingClientRect().right);
+    const tid = (t: string) => page.getByTestId(t);
+    for (const [g, a] of [
+      [tid(`investment-type-qty-desktop-${group}`), tid(`holding-qty-${name}`)],
+      [
+        tid(`investment-type-pl-desktop-${group}`),
+        tid(`asset-pl-desktop-${id}`),
+      ],
+      [tid(`investment-type-currency-${group}`), tid(`asset-currency-${id}`)],
+      [
+        tid(`investment-type-amount-desktop-${group}`),
+        tid(`holding-row-${name}`).locator("[data-amount-cell]"),
+      ],
+    ] as const) {
+      expect(
+        Math.abs((await right(g)) - (await right(a))),
+        `${g}`,
+      ).toBeLessThanOrEqual(1);
+    }
+  },
+);
+
+Then(
+  "the {string} quantity reads {string}",
+  async ({ page }, name: string, text: string) => {
+    await expect(page.getByTestId(`holding-qty-${name}`)).toHaveText(text);
+  },
+);

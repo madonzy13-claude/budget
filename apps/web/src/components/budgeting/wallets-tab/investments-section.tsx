@@ -434,8 +434,9 @@ export function InvestmentsSection({
   );
 
   // Longest formatted amount → dynamic amount-column width so the currency
-  // codes line up in a column (mirrors wallet-row, D-#align). Headers share one
-  // width; each block's rows get their own.
+  // codes line up in a column (mirrors wallet-row, D-#align). 261102 (user):
+  // ONE width for headers and assets alike, so every column under a group
+  // header runs straight down.
   // R6 (user): sized from the figures AS SHOWN (short, picked currency) — the
   // bare cents version ran ~3 chars wider and pushed the code off the amount.
   const amountCols = amountColumnChars(
@@ -462,6 +463,10 @@ export function InvestmentsSection({
         ),
       ]),
     ),
+  );
+  const amountChars = Math.max(
+    amountCols.top,
+    ...Object.values(amountCols.group),
   );
 
   // ── Collapse state per type (localStorage, default expanded) ──
@@ -631,7 +636,7 @@ export function InvestmentsSection({
                 ? (pl.valueBudgetCents / totalBudgetCents) * 100
                 : 0
             }
-            maxAmountChars={amountCols.top}
+            maxAmountChars={amountChars}
             expanded={isExpanded(block.uiType)}
             onToggle={() => toggleType(block.uiType)}
           />
@@ -672,7 +677,7 @@ export function InvestmentsSection({
                   <InvestmentRowSheet
                     holding={h}
                     nested
-                    maxAmountChars={amountCols.group[block.uiType]}
+                    maxAmountChars={amountChars}
                     open={openAssets.has(h.id)}
                     realized={summary?.holdings?.[h.id]}
                     {...assetView(h)}
@@ -742,7 +747,7 @@ export function InvestmentsSection({
                   <InvestmentRowSheet
                     holding={h}
                     nested
-                    maxAmountChars={amountCols.group[block.uiType]}
+                    maxAmountChars={amountChars}
                     open={openAssets.has(h.id)}
                     realized={summary?.holdings?.[h.id]}
                     {...assetView(h)}

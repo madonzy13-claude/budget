@@ -43,7 +43,12 @@ import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { isAutoPriced, pricesItself } from "@/lib/investment-types";
 import { AssetClassChip } from "./asset-class-chip";
-import { REVEAL_ON_ROW, ROW_ACTION_BUTTON, RowActions } from "./row-actions";
+import {
+  REVEAL_ON_ROW,
+  SHOW_ON_ROW,
+  ROW_ACTION_BUTTON,
+  RowActions,
+} from "./row-actions";
 
 /** User (round 6): secondary lines a bit lighter so the row reads cleaner. */
 const DIM = 0.7;
@@ -454,7 +459,7 @@ export function InvestmentRow({
           {!isCash && (
             <div
               data-testid={`asset-caption-desktop-${holding.id}`}
-              className={`hidden min-w-0 sm:block ${revealOnRow}`}
+              className={`hidden min-w-0 ${expanded ? "sm:block" : SHOW_ON_ROW}`}
             >
               <PlCaption
                 unrealizedCents={assetPL.unrealizedCents}
@@ -495,9 +500,9 @@ export function InvestmentRow({
             columns aligned with rows that do have one. */}
         <span
           data-testid={`holding-qty-${holding.name}`}
-          className={`hidden w-20 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block ${revealOnRow}`}
+          className={`hidden w-28 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block ${revealOnRow}`}
         >
-          {showQty ? qtyDisplay : ""}
+          {showQty ? t("row.qty", { qty: qtyDisplay }) : ""}
         </span>
         {/* P/L% then the P/L money amount (no currency symbol). */}
         <span

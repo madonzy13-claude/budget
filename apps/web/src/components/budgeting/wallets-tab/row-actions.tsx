@@ -82,3 +82,9 @@ export const ROW_ACTION_BUTTON =
  *  highlighted — `invisible` keeps the column's width so nothing shifts. */
 export const REVEAL_ON_ROW =
   "sm:invisible sm:group-hover/row:visible sm:group-focus-within/row:visible sm:group-data-[nav-highlighted=true]/row:visible";
+
+/** Desktop: like REVEAL_ON_ROW but out of the LAYOUT until shown — for a
+ *  second line under a name, so the name sits centred and only moves up when
+ *  the line appears (261102, user). Pair with a base `hidden`. */
+export const SHOW_ON_ROW =
+  "sm:group-hover/row:block sm:group-focus-within/row:block sm:group-data-[nav-highlighted=true]/row:block";

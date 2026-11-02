@@ -597,17 +597,23 @@ describe("InvestmentRow", () => {
   // the asset being opened.
   it("desktop: figures hide until the row is hovered or opened", () => {
     const { unmount } = render(<InvestmentRow holding={holding()} />);
-    for (const id of ["asset-caption-desktop-h1", "asset-pl-desktop-h1"])
-      expect(screen.getByTestId(id).className).toMatch(
-        /sm:invisible sm:group-hover\/row:visible/,
-      );
+    expect(screen.getByTestId("asset-pl-desktop-h1").className).toMatch(
+      /sm:invisible sm:group-hover\/row:visible/,
+    );
     expect(screen.getByTestId("holding-qty-AAPL").className).toMatch(
       /sm:invisible/,
     );
+    // The caption leaves the layout (the name sits centred) until hovered.
+    const cap = screen.getByTestId("asset-caption-desktop-h1").className;
+    expect(cap).toMatch(/sm:group-hover\/row:block/);
+    expect(cap).not.toMatch(/sm:block/);
     unmount();
     render(<InvestmentRow holding={holding()} open />);
     expect(screen.getByTestId("asset-pl-desktop-h1").className).not.toMatch(
       /sm:invisible/,
+    );
+    expect(screen.getByTestId("asset-caption-desktop-h1").className).toMatch(
+      /hidden .*sm:block/,
     );
   });
 
@@ -625,7 +631,7 @@ describe("InvestmentRow", () => {
       />,
     );
     const cap = screen.getByTestId("asset-caption-desktop-h1");
-    expect(cap.className).toMatch(/hidden .*sm:block/);
+    expect(cap.className).toMatch(/hidden .*sm:group-hover\/row:block/);
     expect(cap.textContent).toMatch(/unreal\.: .*real\.: /);
   });
 

@@ -538,12 +538,19 @@ Feature: Investments as assets with transactions (13.1)
     Given I am on a 1280px-wide viewport
     And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
     And a "crypto" asset "BTC Ledger" of "1" units at 5000000 cents exists in my budget
+    And a "crypto" asset "ETH Ledger" of "1" units at 1000 cents exists in my budget
+    # A far bigger broker: the widest total sits in another group (user, 261102).
+    And a "broker" holding "Big Broker" deposited 100000000 cents worth 100000000 cents exists in my budget
     When I open the investments wallets tab
     Then every investments currency field is one width, under 224px, with no dotted line
     And the "IBKR" amount sits level with its currency field
     And the "IBKR" asset shows its P/L only while hovered
     And the "IBKR" asset's actions open from its "…" over a blurred backdrop
     And the "IBKR" transactions open their actions from a "…"
+    And the "BTC Ledger" name sits centred in its row until hovered
+    And the "broker" group's columns line up with the "IBKR" asset's
+    And the "crypto" group's columns line up with the "ETH Ledger" asset's
+    And the "BTC Ledger" quantity reads "qty: 1"
 
   @r4-archive
   Scenario: Hiding an asset removes it and buying into it brings it back

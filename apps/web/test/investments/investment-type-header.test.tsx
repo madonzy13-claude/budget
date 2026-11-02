@@ -237,7 +237,7 @@ describe("InvestmentTypeHeader", () => {
   it("desktop shows the unrealized / realized caption, closed too", () => {
     renderHeader();
     const cap = screen.getByTestId("investment-type-caption-desktop-stocks");
-    expect(cap.className).toMatch(/hidden .*sm:block/);
+    expect(cap.className).toMatch(/hidden .*sm:group-hover\/row:block/);
     expect(cap.textContent).toMatch(/unrealized: .*realized: /);
   });
 
@@ -259,10 +259,12 @@ describe("InvestmentTypeHeader", () => {
     expect(pl().parentElement!.className).toMatch(
       /sm:invisible sm:group-hover\/row:visible/,
     );
-    expect(cap().className).toMatch(/sm:invisible/);
+    // The caption leaves the layout (the name sits centred) until hovered.
+    expect(cap().className).toMatch(/sm:group-hover\/row:block/);
+    expect(cap().className).not.toMatch(/sm:block/);
     h.open();
     expect(pl().parentElement!.className).not.toMatch(/sm:invisible/);
-    expect(cap().className).not.toMatch(/sm:invisible/);
+    expect(cap().className).toMatch(/hidden .*sm:block/);
   });
 
   it("collapsed shows name and value, no sum-up and no share", () => {
