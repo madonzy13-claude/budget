@@ -14,7 +14,7 @@ import { useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { combineChangeBars } from "@/lib/change-bars";
+import { cumulativeReturnPct, investChangeBars } from "@/lib/investment-return";
 import { PL_TONE_CLASS, plPctDecimals, plSign, plTone } from "@/lib/pl-tone";
 import { capitalizationBuckets } from "@/lib/cap-buckets";
 import { OverviewSection } from "./overview-section";
@@ -38,7 +38,11 @@ import {
 } from "@/hooks/use-overview-wealth";
 import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { centsToRounded } from "@/lib/cents-format";
-import { rangeInvestMetrics, selectRangeGrowth } from "@/lib/wealth-growth";
+import {
+  investPoints,
+  rangeInvestMetrics,
+  selectRangeGrowth,
+} from "@/lib/wealth-growth";
 import { chartCompactCents, pctAxisTick } from "@/lib/chart-format";
 import { UI_TYPE_COLOR } from "@/lib/investment-icons";
 import { deriveUiType } from "@/lib/investment-types";
@@ -87,11 +91,15 @@ function PctStat({
   );
 }
 
+/** Change-bar period of a chart label ('2026-01-05T00' / '2026-01-05'). */
+const DYN_LABEL_LEN = { daily: 10, monthly: 7, yearly: 4 } as const;
+
 /**
  * CombinedStat — one metric shown as % (primary, coloured up/down) with its money
  * amount stacked beneath in MUTED grey (secondary). Only the % carries colour so a
  * row of these reads calmly instead of two stacked coloured figures fighting.
  */
+
 export function WealthSection({
   budgetId,
   range,
@@ -302,6 +310,15 @@ export function WealthSection({
                   };
                 })
               : [];
+          // P/L % at each point = the investment return since the chart's
+          // start (lib/investment-return) — tooltip, header and bars agree.
+          const returnByLabel = new Map<string, number>();
+          if (effectiveView === "investments") {
+            const pts = investPoints(seriesPoints, exclByLabel);
+            cumulativeReturnPct(pts).forEach((pct, k) =>
+              returnByLabel.set(pts[k]!.label, pct),
+            );
+          }
           return (
             <>
               {/* VALUE chart + its RANGE-scoped metric: total growth over the whole
@@ -388,22 +405,28 @@ export function WealthSection({
                     xTickFormat={(v) => formatChartDate(v, locale)}
                     maskAmounts={amountPrivacyEnabled}
                     // Each row = three aligned columns: absolute amount (value) +
-                    // growth % + growth AMOUNT, both measured from the range start to
-                    // the hovered tick (so they match the headline metrics at the last
-                    // tick). Contributions & P/L ÷ contributions@start. % and amount
-                    // both mask under privacy.
+                    // change % + change AMOUNT, both from the range start to the
+                    // hovered tick (so they match the headline at the last tick).
+                    // Contributions % ÷ contributions@start; P/L % = the
+                    // investment return. % and amount both mask under privacy.
                     rowSuffix={(row, key) => {
                       const f = investStack[0];
                       if (!f) return undefined;
-                      const cBase = Number(f.contributions);
-                      if (cBase === 0) return undefined;
-                      const delta =
-                        key === "contributions"
-                          ? Number(row.contributions) - cBase
-                          : Number(row.profit) - Number(f.profit);
                       const hidden = amountPrivacyEnabled && !revealed;
+                      if (key === "contributions") {
+                        const cBase = Number(f.contributions);
+                        if (cBase === 0) return undefined;
+                        const delta = Number(row.contributions) - cBase;
+                        return [
+                          hidden ? "•••" : fmtSignedPct((100 * delta) / cBase),
+                          hidden ? "•••" : fmtSigned(String(Math.round(delta))),
+                        ];
+                      }
+                      const pct = returnByLabel.get(String(row.label));
+                      if (pct === undefined) return undefined;
+                      const delta = Number(row.profit) - Number(f.profit);
                       return [
-                        hidden ? "•••" : fmtSignedPct((100 * delta) / cBase),
+                        hidden ? "•••" : fmtSignedPct(pct),
                         hidden ? "•••" : fmtSigned(String(Math.round(delta))),
                       ];
                     }}
@@ -477,23 +500,13 @@ export function WealthSection({
               {data.dynamics.length > 0 &&
                 (effectiveView === "investments" ? (
                   (() => {
-                    // Combined avg-change (user request): two bars per period —
-                    // TOTAL value change (grey, = contributions + profit) and P/L
-                    // change (yellow, excl. contributions) — so deposits don't
-                    // masquerade as performance. P/L dynamics come from the net
-                    // (excl) query already fetched above, aligned by label. P/L is
-                    // a return on the period's starting value (lib/change-bars).
-                    const { rows: combined, avg } = combineChangeBars(
-                      data.dynamics.map((d) => ({
-                        label: d.label,
-                        pct: d.pct,
-                        delta: Number(d.delta_cents),
-                      })),
-                      (exclData?.dynamics ?? []).map((d) => ({
-                        label: d.label,
-                        pct: d.pct,
-                        delta: Number(d.delta_cents),
-                      })),
+                    // Contributions · P/L · Total per period, from the chart's
+                    // own points so they chain into the header: P/L % is each
+                    // period's investment return (lib/investment-return).
+                    const { rows: combined, avg } = investChangeBars(
+                      investPoints(seriesPoints, exclByLabel),
+                      (label) =>
+                        label.slice(0, DYN_LABEL_LEN[data.dynamicsBucket]),
                     );
                     const mask = amountPrivacyEnabled && !revealed;
                     // Amount companion to each avg-change %: the AVERAGE per-period
@@ -530,7 +543,7 @@ export function WealthSection({
                           />
                           <CombinedStat
                             label={t("wealth.total")}
-                            pct={data.monthly_avg_grow_pct}
+                            pct={avg.total}
                             amount={fmtSigned(String(meanAmt("totalDelta")))}
                             mask={amountPrivacyEnabled}
                           />

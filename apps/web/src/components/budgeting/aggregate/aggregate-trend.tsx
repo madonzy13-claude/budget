@@ -31,10 +31,11 @@ import type { OverviewRange } from "@/lib/overview-range";
 import { formatChartDate } from "@/lib/chart-date-format";
 import { chartCompactCents, pctAxisTick } from "@/lib/chart-format";
 import { centsToRounded } from "@/lib/cents-format";
-import { combineChangeBars, geoMean } from "@/lib/change-bars";
+import { geoMean } from "@/lib/change-bars";
+import { cumulativeReturnPct, investChangeBars } from "@/lib/investment-return";
 import { UI_TYPE_COLOR } from "@/lib/investment-icons";
 import { deriveUiType } from "@/lib/investment-types";
-import { rangeInvestMetrics } from "@/lib/wealth-growth";
+import { investPoints, rangeInvestMetrics } from "@/lib/wealth-growth";
 
 const CARD =
   "rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-[var(--hairline-dark)] p-4 min-w-0";
@@ -189,6 +190,16 @@ export function AggregateTrend({
         })
       : [];
 
+  // P/L % at each point = the investment return since the chart's start
+  // (lib/investment-return) — tooltip, header and bars agree (BDP parity).
+  const returnByLabel = new Map<string, number>();
+  if (isInvest && data) {
+    const pts = investPoints(seriesPoints, exclByLabel);
+    cumulativeReturnPct(pts).forEach((pct, k) =>
+      returnByLabel.set(pts[k]!.label, pct),
+    );
+  }
+
   // Contributions · P/L · Total, first tick → last (BDP parity, lib/wealth-growth).
   const invMetrics =
     isInvest && exclQ.data
@@ -226,7 +237,6 @@ export function AggregateTrend({
     });
   };
   const dynamics = hasSeries && data ? intraDynamics(data.series) : [];
-  const dynamicsPL = isInvest ? intraDynamics(exclQ.data?.series) : [];
   const avgTotalPct = geoMean(dynamics.map((d) => d.pct));
   const up = hasSeries ? Number(data.grow.delta_cents) >= 0 : true;
 
@@ -334,19 +344,26 @@ export function AggregateTrend({
                 formatTooltip={(n) => fmt(String(Math.round(n)))}
                 xTickFormat={(v) => formatChartDate(String(v), locale)}
                 maskAmounts
-                // Each row = absolute · growth% · growth amount (from range start
-                // to the hovered tick), % + amount both mask under privacy.
+                // Each row = absolute · change % · change amount (from range
+                // start to the hovered tick); P/L % = the investment return.
+                // % + amount both mask under privacy.
                 rowSuffix={(row, key) => {
                   const f = investStack[0];
                   if (!f) return undefined;
-                  const cBase = Number(f.contributions);
-                  if (cBase === 0) return undefined;
-                  const delta =
-                    key === "contributions"
-                      ? Number(row.contributions) - cBase
-                      : Number(row.profit) - Number(f.profit);
+                  if (key === "contributions") {
+                    const cBase = Number(f.contributions);
+                    if (cBase === 0) return undefined;
+                    const delta = Number(row.contributions) - cBase;
+                    return [
+                      revealed ? fmtSignedPct((100 * delta) / cBase) : "•••",
+                      revealed ? fmtSigned(String(Math.round(delta))) : "•••",
+                    ];
+                  }
+                  const pct = returnByLabel.get(String(row.label));
+                  if (pct === undefined) return undefined;
+                  const delta = Number(row.profit) - Number(f.profit);
                   return [
-                    revealed ? fmtSignedPct((100 * delta) / cBase) : "•••",
+                    revealed ? fmtSignedPct(pct) : "•••",
                     revealed ? fmtSigned(String(Math.round(delta))) : "•••",
                   ];
                 }}
@@ -412,9 +429,9 @@ export function AggregateTrend({
           {dynamics.length > 0 &&
             (isInvest ? (
               (() => {
-                const { rows: combined, avg } = combineChangeBars(
-                  dynamics.map((d) => ({ ...d, delta: d.delta_cents })),
-                  dynamicsPL.map((d) => ({ ...d, delta: d.delta_cents })),
+                const { rows: combined, avg } = investChangeBars(
+                  investPoints(seriesPoints, exclByLabel),
+                  (label) => label.slice(0, dynBucketLen),
                 );
                 const meanAmt = (
                   key: "totalDelta" | "plDelta" | "contribDelta",
@@ -446,7 +463,7 @@ export function AggregateTrend({
                       />
                       <CombinedStat
                         label={t("total")}
-                        pct={avgTotalPct}
+                        pct={avg.total}
                         amount={fmtSigned(String(meanAmt("totalDelta")))}
                       />
                     </div>

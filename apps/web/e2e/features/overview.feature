@@ -52,20 +52,22 @@ Feature: Budget Overview tab
     Then the wealth view "Investments" is active
     And the wealth pie region is visible
 
-  # 261102 (user: "p/l isn't calculated correctly in financial wealth"). P/L %
-  # divided by what was contributed at the range START, so a range that began
-  # small and grew by deposits read absurd (+625% on a real budget's "All").
-  # It is a return on the money at work: 500 profit on 1000 held + 1500 added.
+  # 261102 (user): P/L % is the INVESTMENT RETURN — what the invested money
+  # earned, deposits never counted as gains. 1000 grows +10% to 1100, 10,000 is
+  # added, 11,100 grows +10% to 12,210: +21%. Profit ÷ (start + added) read
+  # +11%; profit ÷ contributions at the start read +121%.
   @wealth-pl-pct
-  Scenario: Investments P/L % is a return on the money at work over the range
+  Scenario: Investments P/L % is the investment return over the range
     Given the budget held investments worth 100000 cents costing 100000 cents 90 days ago
-    And a "broker" holding "Fund" deposited 250000 cents worth 300000 cents exists in my budget
+    And the budget held investments worth 110000 cents costing 100000 cents 60 days ago
+    And the budget held investments worth 1110000 cents costing 1100000 cents 40 days ago
+    And a "broker" holding "Fund" deposited 1100000 cents worth 1221000 cents exists in my budget
     When I open the BDP for "My E2E Budget"
     And I click the "Overview" tab pill
     And I select the "All" overview range
     And I expand the "wealth" overview section
     And I switch the wealth view to "Investments"
-    Then the wealth "pl" metric reads "+20.0%"
+    Then the wealth "pl" metric reads "+21.0%"
 
   # The grid sized its two rows independently, so the Cushion note wrapping to a
   # second line left the row above it visibly shorter (user screenshot, 260825).

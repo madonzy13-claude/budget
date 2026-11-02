@@ -27,36 +27,38 @@ describe("selectRangeGrowth", () => {
   });
 });
 
-// 261102 (user: "p/l isn't calculated correctly in financial wealth"). The
-// range P/L % divided by the contributions at the range START, so a long range
-// that began small read absurdly: All on Private Budget = 464k profit over a
-// 74k Nov-2022 start = +625%. It is now a return on the money at work over the
-// range: start value + what was added (= end value − profit gained).
+// 261102 (user): the range P/L % is the INVESTMENT RETURN — not profit ÷
+// contributions at the start (read +625% for "All"), nor ÷ start + added.
 describe("rangeInvestMetrics", () => {
+  // 1000 held, +100 (+10%), 10,000 deposited, +1,110 (+10% on 11,100).
   const pts = [
-    { label: "2022-11-01", value_cents: "7150840" },
-    { label: "2026-11-02", value_cents: "101946700" },
+    { label: "d1", value_cents: "1000" },
+    { label: "d2", value_cents: "1100" },
+    { label: "d3", value_cents: "11100" },
+    { label: "d4", value_cents: "12210" },
   ];
   const excl = new Map([
-    ["2022-11-01", -279196],
-    ["2026-11-02", 46179900],
+    ["d1", 0],
+    ["d2", 100],
+    ["d3", 100],
+    ["d4", 1210],
   ]);
 
-  it("P/L % is profit gained over start value + contributions added", () => {
+  it("P/L % is the investment return over the range", () => {
     const m = rangeInvestMetrics(pts, excl)!;
-    expect(m.plDelta).toBe(46459096);
-    // 46,459,096 ÷ (101,946,700 − 46,459,096)
-    expect(m.plPct).toBeCloseTo(83.73, 1);
+    expect(m.plDelta).toBe(1210);
+    expect(m.plPct).toBeCloseTo(21, 9);
   });
 
   it("contributions and total keep their own bases", () => {
     const m = rangeInvestMetrics(pts, excl)!;
-    expect(m.contribDelta).toBe(101946700 - 46179900 - (7150840 + 279196));
-    expect(m.totalDelta).toBe(101946700 - 7150840);
-    expect(m.totalPct).toBeCloseTo((100 * (101946700 - 7150840)) / 7150840, 6);
+    expect(m.contribDelta).toBe(10000);
+    expect(m.contribPct).toBeCloseTo(1000, 9);
+    expect(m.totalDelta).toBe(11210);
+    expect(m.totalPct).toBeCloseTo(1121, 9);
   });
 
-  it("no money at work → no %", () => {
+  it("nothing invested at the start → no %", () => {
     const m = rangeInvestMetrics(
       [
         { label: "a", value_cents: "0" },
