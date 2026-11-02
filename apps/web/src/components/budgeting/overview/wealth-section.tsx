@@ -10,10 +10,11 @@
  * UI_TYPE_COLOR map. null % → "—"; empty history → calm copy. Charts via the 11-02
  * wrappers; string cents → Number here.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { combineChangeBars } from "@/lib/change-bars";
 import { PL_TONE_CLASS, plPctDecimals, plSign, plTone } from "@/lib/pl-tone";
 import { capitalizationBuckets } from "@/lib/cap-buckets";
 import { OverviewSection } from "./overview-section";
@@ -32,6 +33,7 @@ import {
 } from "@/components/budgeting/overview/slot-amount";
 import {
   useOverviewWealth,
+  type OverviewWealthDTO,
   type WealthView,
 } from "@/hooks/use-overview-wealth";
 import { useOverviewCards } from "@/hooks/use-overview-cards";
@@ -135,7 +137,7 @@ export function WealthSection({
   // The investments-only series used to take "its own wave behind the totals
   // one". Both now go out together and the pool decides the ordering.
   const warmExcl = true;
-  const { data, isPending, isError } = useOverviewWealth(budgetId, {
+  const mainQ = useOverviewWealth(budgetId, {
     from: range.from,
     to: range.to,
     view: effectiveView,
@@ -152,8 +154,40 @@ export function WealthSection({
     enabled: warmExcl,
     net: true,
   });
+  // Investments totals warmed from the Capitalization view too, so switching
+  // views draws at once instead of a skeleton (same key as mainQ once shown).
+  useOverviewWealth(budgetId, {
+    from: range.from,
+    to: range.to,
+    view: "investments",
+    enabled: warm && !!investmentsEnabled,
+    net: false,
+  });
+  // The investments chart is totals + the net series, and the two land
+  // separately. A fresh totals series over a stale (or missing) net one reads
+  // as "everything is contributions" until the second arrives — the wrong chart
+  // that flashed before the real one (260802). Draw only a pair from the same
+  // range; while they disagree, keep the last pair that agreed.
+  const lastPair = useRef<{
+    data: OverviewWealthDTO;
+    excl: OverviewWealthDTO;
+  } | null>(null);
+  const investView = effectiveView === "investments";
+  const paired =
+    !!mainQ.data &&
+    !!exclQ.data &&
+    mainQ.isPlaceholderData === exclQ.isPlaceholderData;
+  if (investView && paired)
+    lastPair.current = { data: mainQ.data!, excl: exclQ.data! };
+  const held = investView && !paired ? lastPair.current : null;
+  const data = held ? held.data : mainQ.data;
+  const exclData = investView ? (held?.excl ?? exclQ.data) : exclQ.data;
+  // A failed net fetch must not hold the skeleton forever: draw totals alone.
+  const isPending =
+    mainQ.isPending || (investView && !paired && !held && !exclQ.isError);
+  const isError = mainQ.isError;
   const exclByLabel = new Map<string, number>();
-  for (const p of exclQ.data?.series ?? [])
+  for (const p of exclData?.series ?? [])
     exclByLabel.set(p.label, Number(p.value_cents));
 
   const ccy = data?.currency ?? "USD";
@@ -285,7 +319,7 @@ export function WealthSection({
                   // Capitalization has no P/L split → single grow/loss metric.
                   const invMetrics =
                     effectiveView === "investments" &&
-                    exclQ.data &&
+                    exclData &&
                     seriesPoints.length > 0
                       ? (() => {
                           const n = seriesPoints.length;
@@ -469,63 +503,20 @@ export function WealthSection({
                     // TOTAL value change (grey, = contributions + profit) and P/L
                     // change (yellow, excl. contributions) — so deposits don't
                     // masquerade as performance. P/L dynamics come from the net
-                    // (excl) query already fetched above, aligned by label.
-                    const plByLabel = new Map<
-                      string,
-                      { pct: number | null; delta: string }
-                    >();
-                    for (const d of exclQ.data?.dynamics ?? [])
-                      plByLabel.set(d.label, {
-                        pct: d.pct,
-                        delta: d.delta_cents,
-                      });
-                    // Contribution dynamics = total − P/L per bucket. Delta is exact
-                    // (totalDelta − plDelta); the % is derived from each series' own
-                    // base (base = delta ÷ pct), so contrib% = contribΔ ÷ contribBase.
-                    const contribPctList: (number | null)[] = [];
-                    const combined = data.dynamics.map((d) => {
-                      const pl = plByLabel.get(d.label);
-                      const totalDelta = Number(d.delta_cents);
-                      const plDelta = Number(pl?.delta ?? "0");
-                      const contribDelta = totalDelta - plDelta;
-                      const totalBase =
-                        d.pct != null && d.pct !== 0
-                          ? (totalDelta * 100) / d.pct
-                          : null;
-                      const plBase =
-                        pl?.pct != null && pl.pct !== 0
-                          ? (plDelta * 100) / pl.pct
-                          : null;
-                      const contribBase =
-                        totalBase != null && plBase != null
-                          ? totalBase - plBase
-                          : null;
-                      const contribPct =
-                        contribBase != null && contribBase !== 0
-                          ? (contribDelta * 100) / contribBase
-                          : null;
-                      contribPctList.push(contribPct);
-                      return {
+                    // (excl) query already fetched above, aligned by label. P/L is
+                    // a return on the period's starting value (lib/change-bars).
+                    const { rows: combined, avg } = combineChangeBars(
+                      data.dynamics.map((d) => ({
                         label: d.label,
-                        total: d.pct ?? 0,
-                        totalDelta: d.delta_cents,
-                        pl: pl?.pct ?? 0,
-                        plDelta: pl?.delta ?? "0",
-                        contrib: contribPct ?? 0,
-                        contribDelta: String(Math.round(contribDelta)),
-                      };
-                    });
-                    // Avg contribution change — geometric mean of the per-period
-                    // contribution %s (matches the server's total/profit averages).
-                    const contribAvg = ((): number | null => {
-                      const nn = contribPctList.filter(
-                        (p): p is number => p !== null,
-                      );
-                      if (nn.length === 0) return null;
-                      const product = nn.reduce((a, p) => a * (1 + p / 100), 1);
-                      if (product < 0) return null;
-                      return (Math.pow(product, 1 / nn.length) - 1) * 100;
-                    })();
+                        pct: d.pct,
+                        delta: Number(d.delta_cents),
+                      })),
+                      (exclData?.dynamics ?? []).map((d) => ({
+                        label: d.label,
+                        pct: d.pct,
+                        delta: Number(d.delta_cents),
+                      })),
+                    );
                     const mask = amountPrivacyEnabled && !revealed;
                     // Amount companion to each avg-change %: the AVERAGE per-period
                     // money change (mean of the bucket deltas).
@@ -549,13 +540,13 @@ export function WealthSection({
                         <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-2">
                           <CombinedStat
                             label={t("wealth.contributions")}
-                            pct={contribAvg}
+                            pct={avg.contrib}
                             amount={fmtSigned(String(meanAmt("contribDelta")))}
                             mask={amountPrivacyEnabled}
                           />
                           <CombinedStat
                             label={t("wealth.pl")}
-                            pct={exclQ.data?.monthly_avg_grow_pct ?? null}
+                            pct={avg.pl}
                             amount={fmtSigned(String(meanAmt("plDelta")))}
                             mask={amountPrivacyEnabled}
                           />

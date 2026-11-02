@@ -31,6 +31,7 @@ import type { OverviewRange } from "@/lib/overview-range";
 import { formatChartDate } from "@/lib/chart-date-format";
 import { chartCompactCents, pctAxisTick } from "@/lib/chart-format";
 import { centsToRounded } from "@/lib/cents-format";
+import { combineChangeBars, geoMean } from "@/lib/change-bars";
 import { UI_TYPE_COLOR } from "@/lib/investment-icons";
 import { deriveUiType } from "@/lib/investment-types";
 
@@ -109,15 +110,6 @@ function CombinedStat({
       </span>
     </div>
   );
-}
-
-/** Geometric mean of the per-period %s — matches BDP's monthly_avg_grow_pct. */
-function geoMean(pcts: (number | null)[]): number | null {
-  const nn = pcts.filter((p): p is number => p !== null);
-  if (nn.length === 0) return null;
-  const product = nn.reduce((a, p) => a * (1 + p / 100), 1);
-  if (product < 0) return null;
-  return (Math.pow(product, 1 / nn.length) - 1) * 100;
 }
 
 export function AggregateTrend({
@@ -255,7 +247,6 @@ export function AggregateTrend({
   const dynamics = hasSeries && data ? intraDynamics(data.series) : [];
   const dynamicsPL = isInvest ? intraDynamics(exclQ.data?.series) : [];
   const avgTotalPct = geoMean(dynamics.map((d) => d.pct));
-  const avgPlPct = geoMean(dynamicsPL.map((d) => d.pct));
   const up = hasSeries ? Number(data.grow.delta_cents) >= 0 : true;
 
   const capBuckets = [
@@ -440,46 +431,10 @@ export function AggregateTrend({
           {dynamics.length > 0 &&
             (isInvest ? (
               (() => {
-                const plByLabel = new Map<
-                  string,
-                  { pct: number | null; delta: number }
-                >();
-                for (const d of dynamicsPL)
-                  plByLabel.set(d.label, { pct: d.pct, delta: d.delta_cents });
-                const contribPctList: (number | null)[] = [];
-                const combined = dynamics.map((d) => {
-                  const pl = plByLabel.get(d.label);
-                  const totalDelta = d.delta_cents;
-                  const plDelta = pl?.delta ?? 0;
-                  const contribDelta = totalDelta - plDelta;
-                  const totalBase =
-                    d.pct != null && d.pct !== 0
-                      ? (totalDelta * 100) / d.pct
-                      : null;
-                  const plBase =
-                    pl?.pct != null && pl.pct !== 0
-                      ? (plDelta * 100) / pl.pct
-                      : null;
-                  const contribBase =
-                    totalBase != null && plBase != null
-                      ? totalBase - plBase
-                      : null;
-                  const contribPct =
-                    contribBase != null && contribBase !== 0
-                      ? (contribDelta * 100) / contribBase
-                      : null;
-                  contribPctList.push(contribPct);
-                  return {
-                    label: d.label,
-                    total: d.pct ?? 0,
-                    totalDelta,
-                    pl: pl?.pct ?? 0,
-                    plDelta,
-                    contrib: contribPct ?? 0,
-                    contribDelta,
-                  };
-                });
-                const avgContribPct = geoMean(contribPctList);
+                const { rows: combined, avg } = combineChangeBars(
+                  dynamics.map((d) => ({ ...d, delta: d.delta_cents })),
+                  dynamicsPL.map((d) => ({ ...d, delta: d.delta_cents })),
+                );
                 const meanAmt = (
                   key: "totalDelta" | "plDelta" | "contribDelta",
                 ) =>
@@ -500,12 +455,12 @@ export function AggregateTrend({
                     <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-2">
                       <CombinedStat
                         label={t("contributions")}
-                        pct={avgContribPct}
+                        pct={avg.contrib}
                         amount={fmtSigned(String(meanAmt("contribDelta")))}
                       />
                       <CombinedStat
                         label={t("pl")}
-                        pct={avgPlPct}
+                        pct={avg.pl}
                         amount={fmtSigned(String(meanAmt("plDelta")))}
                       />
                       <CombinedStat
