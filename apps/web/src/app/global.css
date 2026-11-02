@@ -1135,3 +1135,8 @@ main[data-shell-scroll]:has([data-lock-page-scroll]) {
 .editable-dots [data-dots-overlay] {
   display: flex;
 }
+/* 261102 (user): the desktop currency dropdown is already a bordered field —
+   no dotted line under its code / name / symbol. */
+.editable-dots button[role="combobox"] {
+  text-decoration-line: none;
+}

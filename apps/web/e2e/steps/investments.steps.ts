@@ -987,8 +987,11 @@ Then(
     const seen: string[] = [];
     for (const ccy of [a, b, c]) {
       await pick(ccy);
-      // Shown at once — no wait on a fresh network round trip per pick.
+      // Shown at once — no wait on a fresh network round trip per pick. The
+      // first pick of a currency does fetch its rate: the field is empty
+      // (a loader) until then, and "" is not the price either.
       await expect(locked).not.toHaveValue(start, { timeout: 1500 });
+      await expect(locked).not.toHaveValue("", { timeout: 10000 });
       if (seen.length) await expect(locked).not.toHaveValue(seen.at(-1)!);
       seen.push(await locked.inputValue());
     }
@@ -2416,9 +2419,11 @@ Then(
   "the asset row {string} shows a flat P\\/L",
   async ({ page }, name: string) => {
     const po = new InvestmentsPo(page);
+    const row = po.row(name);
     if ((page.viewportSize()?.width ?? 1280) < 640)
       await page.getByTestId(`asset-row-${await po.assetId(name)}`).click();
-    const row = po.row(name);
+    // 261102: desktop shows P/L on hover (or while the asset is open).
+    else await row.hover();
     await expect(
       row.locator('[data-pl-trend="flat"]:visible').first(),
     ).toBeVisible();
@@ -3178,3 +3183,95 @@ Then("the investments total never showed another figure", async ({ page }) => {
   ]);
   expect(seen).toHaveLength(1);
 });
+
+// 261102 (user): the desktop rows' quiet layout (@r7-desktop-rows).
+const opacityOf = (loc: Locator) =>
+  loc.evaluate((el) => getComputedStyle(el).opacity);
+
+Then(
+  "every investments currency field is one width, under 224px, with no dotted line",
+  async ({ page }) => {
+    const fields = page.locator(
+      '[data-testid^="asset-currency-"], [data-testid^="investment-type-currency-"]',
+    );
+    await expect(fields.first()).toBeVisible();
+    const widths = await fields.evaluateAll((els) =>
+      els.map((e) => e.getBoundingClientRect().width),
+    );
+    expect(widths.length).toBeGreaterThan(1);
+    for (const w of widths) {
+      expect(w).toBeLessThan(224);
+      expect(Math.abs(w - widths[0]!)).toBeLessThanOrEqual(1);
+    }
+    const lines = await fields
+      .locator('button[role="combobox"]')
+      .evaluateAll((els) =>
+        els.map((e) => getComputedStyle(e).textDecorationLine),
+      );
+    expect(lines.length).toBeGreaterThan(0);
+    for (const l of lines) expect(l).toBe("none");
+  },
+);
+
+Then(
+  "the {string} amount sits level with its currency field",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const mid = async (loc: Locator) => {
+      const b = (await loc.boundingBox())!;
+      return b.y + b.height / 2;
+    };
+    const row = page.getByTestId(`holding-row-${name}`);
+    const amount = row.locator("[data-amount-cell]");
+    const ccy = page.getByTestId(`asset-currency-${id}`);
+    expect(
+      Math.abs((await mid(amount)) - (await mid(ccy))),
+    ).toBeLessThanOrEqual(2);
+  },
+);
+
+Then(
+  "the {string} asset shows its P\\/L only while hovered",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const pl = page.getByTestId(`asset-pl-desktop-${id}`);
+    await page.mouse.move(0, 0);
+    await expect(pl).toBeHidden();
+    await page.getByTestId(`holding-row-${name}`).hover();
+    await expect(pl).toBeVisible();
+  },
+);
+
+Then(
+  "the {string} asset's actions open from its {string} over a blurred backdrop",
+  async ({ page }, name: string, _dots: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const slot = page.getByTestId(`asset-actions-${id}`);
+    const toolbar = slot.getByRole("toolbar");
+    await page.mouse.move(0, 0);
+    expect(await opacityOf(toolbar)).toBe("0");
+    await page.getByTestId(`holding-row-${name}`).hover();
+    await slot.getByTestId("row-actions-more").hover();
+    await expect.poll(() => opacityOf(toolbar)).toBe("1");
+    expect(
+      await toolbar.evaluate((el) => getComputedStyle(el).backdropFilter),
+    ).toMatch(/blur/);
+    await expect(
+      page.getByTestId(`investment-edit-desktop-${id}`),
+    ).toBeVisible();
+  },
+);
+
+Then(
+  "the {string} transactions open their actions from a {string}",
+  async ({ page }, name: string, _dots: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    const row = ledger.locator("[data-ledger-row]").first();
+    const toolbar = row.getByRole("toolbar");
+    await page.mouse.move(0, 0);
+    expect(await opacityOf(toolbar)).toBe("0");
+    await row.hover();
+    await row.getByTestId("row-actions-more").hover();
+    await expect.poll(() => opacityOf(toolbar)).toBe("1");
+  },
+);

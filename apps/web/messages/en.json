@@ -701,7 +701,8 @@
         "share": "Share: {pct}",
         "amountAria": "Edit value of {name}",
         "qtyAvg": "{qty} × {avg} avg. cost",
-        "autoPricedTip": "This amount updates by itself. To change it, add a transaction: buy, sell or move."
+        "autoPricedTip": "This amount updates by itself. To change it, add a transaction: buy, sell or move.",
+        "actionsAria": "Actions for {name}"
       },
       "rowExpandAria": "Expand {name} details.",
       "plAria": "{value} profit/loss",
@@ -960,7 +961,8 @@
           "saved": "Transaction updated",
           "range": "Pick a date between {min} and {max}.",
           "dateLocked": "A deposit's dates set its interest — they can't change."
-        }
+        },
+        "actionsAria": "Actions for this entry"
       },
       "heldUnit": {
         "g": "{n, plural, one {{qty} g} other {{qty} g}}",

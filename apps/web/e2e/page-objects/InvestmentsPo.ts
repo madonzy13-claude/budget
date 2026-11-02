@@ -281,7 +281,12 @@ export class InvestmentsPo {
       return;
     }
     const id = (await wrapper.getAttribute("data-investment-row-wrapper"))!;
+    // 261102: desktop actions wait behind the row's "…".
     await this.row(name).hover();
+    await this.page
+      .getByTestId(`asset-actions-${id}`)
+      .getByTestId("row-actions-more")
+      .hover();
     await this.page.getByTestId(`investment-${action}-desktop-${id}`).click();
   }
 
@@ -743,6 +748,8 @@ export class InvestmentsPo {
       // Toasts sit at the bottom-right corner, over the row's end icons.
       await row.evaluate((el) => el.scrollIntoView({ block: "center" }));
       await row.hover();
+      // 261102: Edit / Delete wait behind the row's "…".
+      await row.getByTestId("row-actions-more").hover();
       await expect(del).toBeVisible({ timeout: 3000 });
       return;
     }

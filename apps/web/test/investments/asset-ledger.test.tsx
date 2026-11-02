@@ -248,26 +248,33 @@ describe("Asset ledger strip", () => {
     mount(ENTRIES);
     const del = await screen.findByTestId("ledger-delete-b1");
     const edit = screen.getByTestId("ledger-edit-b1");
-    expect(del.className).not.toMatch(/rounded/);
+    // Square on a phone (desktop rounds its hover chip: sm:rounded).
+    expect(del.className).not.toMatch(/(^|\s)rounded/);
     expect(edit.className).toMatch(
       /shadow-\[inset_6px_0_8px_-6px_rgba\(0,0,0,0\.7\)\]/,
     );
     expect(del.className).not.toMatch(/shadow-\[inset/);
   });
 
-  // R6 (user): desktop draws the actions like the asset row — plain icons
-  // that appear on hover, not the phone's coloured swipe squares.
-  it("on desktop the actions are hover icons like the asset row's", async () => {
+  // 261102 (user): desktop tucks Edit / Delete behind a "…" — hovering it
+  // fades them in over a blurred right end; the phone's swipe squares stay.
+  it("on desktop the actions sit behind a … that reveals them on hover", async () => {
     mount(ENTRIES);
     const edit = await screen.findByTestId("ledger-edit-b1");
     const del = screen.getByTestId("ledger-delete-b1");
+    const row = screen.getByTestId("ledger-row-b1");
+    expect(row.className).toMatch(/group\/row/);
+    const toolbar = edit.closest('[role="toolbar"]') as HTMLElement;
+    expect(toolbar).not.toBeNull();
+    expect(del.closest('[role="toolbar"]')).toBe(toolbar);
+    expect(toolbar.className).toMatch(/sm:opacity-0/);
+    expect(toolbar.className).toMatch(/sm:group-hover\/actions:opacity-100/);
+    expect(toolbar.className).toMatch(/sm:backdrop-blur/);
+    expect(row.querySelector('[data-testid="row-actions-more"]')).not.toBeNull();
     for (const b of [edit, del]) {
-      expect(b.className).toMatch(/sm:invisible/);
-      expect(b.className).toMatch(/sm:group-hover:visible/);
       expect(b.className).toMatch(/sm:bg-transparent/);
       expect(b.className).toMatch(/sm:shadow-none/);
     }
-    expect(screen.getByTestId("ledger-row-b1").className).toMatch(/\bgroup\b/);
   });
 
   // Round-4 gap 28: a leading icon says money in (green) / out (red).

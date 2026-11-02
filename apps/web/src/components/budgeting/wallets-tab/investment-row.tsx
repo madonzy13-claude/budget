@@ -43,6 +43,7 @@ import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { isAutoPriced, pricesItself } from "@/lib/investment-types";
 import { AssetClassChip } from "./asset-class-chip";
+import { REVEAL_ON_ROW, ROW_ACTION_BUTTON, RowActions } from "./row-actions";
 
 /** User (round 6): secondary lines a bit lighter so the row reads cleaner. */
 const DIM = 0.7;
@@ -344,6 +345,22 @@ export function InvestmentRow({
     </span>
   );
 
+  // 261102 (user): desktop keeps qty, P/L and the unreal./real. line out of
+  // sight until the row is opened or hovered (columns keep their place).
+  const revealOnRow = expanded ? "" : REVEAL_ON_ROW;
+  // Desktop row actions, in this order (edit first — the asset's own sheet).
+  const actions = (
+    [
+      [onEdit, Pencil, "asset.swipe.edit", "edit"],
+      [onSwap, ArrowUpDown, "asset.swipe.newTxn", "swap"],
+      [onArchive, EyeOff, "asset.archive.confirm", "hide"],
+      [onUnhide, Eye, "asset.hidden.unhide", "unhide"],
+      [onDelete, Trash2, "ledger.confirm.last.confirm", "delete"],
+    ] as const
+  ).filter(
+    (a): a is typeof a & { 0: () => void } => typeof a[0] === "function",
+  );
+
   return (
     <div
       data-testid={`holding-row-${holding.name}`}
@@ -352,7 +369,7 @@ export function InvestmentRow({
       data-nav-type="invest-row"
       data-nav-key={`invrow-${holding.id}`}
       className={[
-        "group flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] px-3 transition-colors sm:min-h-[48px]",
+        "group group/row relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] px-3 transition-colors sm:min-h-[48px]",
         // Open: the ledger strip underneath closes the card (UAT 13.1 test 4).
         expanded ? "rounded-b-none" : "",
         nested
@@ -432,50 +449,12 @@ export function InvestmentRow({
                 className="border border-[var(--hairline-dark)]"
               />
             )}
-            {/* Desktop hover actions beside the name (R6, user: the 92px column
-                pushed share out of line with the wallets). Dimmed with the content
-                when delisted; the handle (left) stays full opacity. */}
-            <div
-              className={[
-                "hidden shrink-0 items-center gap-1 sm:flex",
-                delisted ? "opacity-50" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            >
-              {(
-                [
-                  [onEdit, Pencil, "asset.swipe.edit", "edit"],
-                  [onSwap, ArrowUpDown, "asset.swipe.newTxn", "swap"],
-                  [onArchive, EyeOff, "asset.archive.confirm", "hide"],
-                  [onUnhide, Eye, "asset.hidden.unhide", "unhide"],
-                  [onDelete, Trash2, "ledger.confirm.last.confirm", "delete"],
-                ] as const
-              ).map(([fn, Icon, key, id]) =>
-                fn ? (
-                  <button
-                    key={id}
-                    type="button"
-                    data-testid={`investment-${id}-desktop-${holding.id}`}
-                    aria-label={`${t(key)} ${holding.name}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      fn();
-                    }}
-                    className="invisible flex h-7 w-7 items-center justify-center rounded group-hover:visible group-focus-within:visible group-data-[nav-highlighted=true]:visible"
-                    style={{ color: "var(--body-on-dark)" }}
-                  >
-                    <Icon className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                ) : null,
-              )}
-            </div>
           </div>
           {/* R6 (user): desktop shows unrealized · realized, closed too. */}
           {!isCash && (
             <div
               data-testid={`asset-caption-desktop-${holding.id}`}
-              className="hidden min-w-0 sm:block"
+              className={`hidden min-w-0 sm:block ${revealOnRow}`}
             >
               <PlCaption
                 unrealizedCents={assetPL.unrealizedCents}
@@ -516,16 +495,19 @@ export function InvestmentRow({
             columns aligned with rows that do have one. */}
         <span
           data-testid={`holding-qty-${holding.name}`}
-          className="hidden w-20 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block"
+          className={`hidden w-20 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block ${revealOnRow}`}
         >
           {showQty ? qtyDisplay : ""}
         </span>
         {/* P/L% then the P/L money amount (no currency symbol). */}
-        <span className="hidden w-20 shrink-0 justify-end text-right tabular-nums sm:flex">
+        <span
+          data-testid={`asset-pl-desktop-${holding.id}`}
+          className={`hidden w-20 shrink-0 justify-end text-right tabular-nums sm:flex ${revealOnRow}`}
+        >
           {plNode}
         </span>
         <span
-          className={`hidden w-24 shrink-0 justify-end text-right text-num-sm tabular-nums sm:flex ${plColor}`}
+          className={`hidden w-24 shrink-0 justify-end text-right text-num-sm tabular-nums sm:flex ${plColor} ${revealOnRow}`}
         >
           {plMoney ?? ""}
         </span>
@@ -539,7 +521,9 @@ export function InvestmentRow({
           <div
             className={[
               // R6 (user): gap-2 on a phone = the wallets' ~10px to the amount.
-              "shrink-0 items-baseline gap-2 sm:gap-1",
+              // 261102 (user): centred on desktop — on the baseline the
+              // amount rode at the top of the 40px currency field.
+              "shrink-0 items-baseline gap-2 sm:items-center sm:gap-1",
               expanded ? "hidden sm:flex" : "flex",
             ].join(" ")}
           >
@@ -547,7 +531,7 @@ export function InvestmentRow({
               // R6 (user): the spending wallets' currency cell + picker.
               <span
                 data-testid={`asset-currency-${holding.id}`}
-                className="editable-dots block w-[44px] shrink-0 self-center text-num-sm text-[var(--muted-foreground)] sm:w-[96px] md:w-[224px] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right]"
+                className="editable-dots block w-[44px] shrink-0 self-center text-num-sm text-[var(--muted-foreground)] sm:w-[96px] md:w-[var(--ccy-w,224px)] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right]"
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
@@ -652,8 +636,38 @@ export function InvestmentRow({
       </div>
 
       {/* R6 (user): the wallets' 28px trailing slot — share lines up with
-          the section's share column. */}
-      <span className="hidden w-7 shrink-0 sm:block" aria-hidden="true" />
+          the section's share column. 261102 (user): it holds the "…" that
+          reveals the actions over a blurred right end of the row. */}
+      {actions.length > 0 ? (
+        <RowActions
+          mobile="hidden"
+          label={t("row.actionsAria", { name: holding.name })}
+          tint={
+            nested ? "var(--surface-nested-dark)" : "var(--surface-card-dark)"
+          }
+          testId={`asset-actions-${holding.id}`}
+          className={delisted ? "opacity-50" : undefined}
+        >
+          {actions.map(([fn, Icon, key, id]) => (
+            <button
+              key={id}
+              type="button"
+              data-testid={`investment-${id}-desktop-${holding.id}`}
+              aria-label={`${t(key)} ${holding.name}`}
+              title={t(key)}
+              onClick={(e) => {
+                e.stopPropagation();
+                fn();
+              }}
+              className={ROW_ACTION_BUTTON}
+            >
+              <Icon className="h-4 w-4" aria-hidden="true" />
+            </button>
+          ))}
+        </RowActions>
+      ) : (
+        <span className="hidden w-7 shrink-0 sm:block" aria-hidden="true" />
+      )}
     </div>
   );
 }

@@ -570,15 +570,45 @@ describe("InvestmentRow", () => {
 
   // R6 (user): desktop columns line up with the wallets — hover actions sit
   // beside the name, and the row ends with the wallets' 28px slot.
-  it("desktop: hover actions sit beside the name; the row ends with a 28px slot", () => {
+  // 261102 (user): the actions sit behind a "…" in the row's 28px trailing
+  // slot; hovering it fades them in over a blurred right end.
+  it("desktop: the actions live behind a … in the row's trailing slot", () => {
     render(<InvestmentRow holding={holding()} onEdit={() => {}} />);
     const edit = screen.getByTestId("investment-edit-desktop-h1");
-    expect(edit.closest("[data-name-row]")).not.toBeNull();
-    const slot = screen
-      .getByTestId("holding-row-AAPL")
-      .querySelector<HTMLElement>("span.w-7[aria-hidden]")!;
+    expect(edit.closest("[data-name-row]")).toBeNull();
+    const slot = screen.getByTestId("asset-actions-h1");
+    expect(slot.contains(edit)).toBe(true);
+    expect(slot.className).toMatch(/sm:w-7/);
+    expect(slot.parentElement!.lastElementChild).toBe(slot);
+    expect(
+      slot.querySelector('[data-testid="row-actions-more"]'),
+    ).not.toBeNull();
+  });
+
+  it("desktop: no actions → the plain 28px slot keeps the columns", () => {
+    render(<InvestmentRow holding={holding()} />);
+    const row = screen.getByTestId("holding-row-AAPL");
+    const slot = row.querySelector<HTMLElement>("span.w-7[aria-hidden]")!;
     expect(slot.className).toMatch(/hidden w-7 shrink-0 sm:block/);
     expect(slot.parentElement!.lastElementChild).toBe(slot);
+  });
+
+  // 261102 (user): qty, P/L and the unreal./real. line wait for a hover or
+  // the asset being opened.
+  it("desktop: figures hide until the row is hovered or opened", () => {
+    const { unmount } = render(<InvestmentRow holding={holding()} />);
+    for (const id of ["asset-caption-desktop-h1", "asset-pl-desktop-h1"])
+      expect(screen.getByTestId(id).className).toMatch(
+        /sm:invisible sm:group-hover\/row:visible/,
+      );
+    expect(screen.getByTestId("holding-qty-AAPL").className).toMatch(
+      /sm:invisible/,
+    );
+    unmount();
+    render(<InvestmentRow holding={holding()} open />);
+    expect(screen.getByTestId("asset-pl-desktop-h1").className).not.toMatch(
+      /sm:invisible/,
+    );
   });
 
   // R6 (user): desktop shows unrealized · realized under the name.
@@ -619,7 +649,7 @@ describe("InvestmentRow", () => {
       />,
     );
     expect(screen.getByTestId("asset-currency-h1").className).toMatch(
-      /w-\[44px\].*sm:w-\[96px\].*md:w-\[224px\]/,
+      /w-\[44px\].*sm:w-\[96px\].*md:w-\[var\(--ccy-w,224px\)\]/,
     );
     expect(screen.getByLabelText(/profit\/loss/).textContent).toMatch(/40\.4/);
     expect(screen.getByTestId("holding-amount-readonly-h1")).toHaveTextContent(

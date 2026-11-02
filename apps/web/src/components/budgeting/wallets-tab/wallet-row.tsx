@@ -281,9 +281,9 @@ function DraftRow({
           gets a yellow ring while the dropdown is open (260723). */}
       <div
         // NOTE: keep a space before `${` — Tailwind's scanner does not extract a
-        // class glued to an interpolation, and md:w-[224px] silently vanished
+        // class glued to an interpolation, and md:w-[var(--ccy-w,224px)] silently vanished
         // from the CSS bundle (260812-dgf).
-        className={`w-[44px] shrink-0 rounded sm:w-[96px] md:w-[224px] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] ${
+        className={`w-[44px] shrink-0 rounded sm:w-[96px] md:w-[var(--ccy-w,224px)] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] ${
           currencyOpen ? "ring-1 ring-[var(--primary)]" : ""
         }`}
         data-nav-field="currency"
@@ -776,7 +776,7 @@ function PersistedRow({
           onSelect directly. */}
         <div
           // Space before `${` is load-bearing — see the draft row above.
-          className={`w-[44px] rounded max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[224px] ${
+          className={`w-[44px] rounded max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[var(--ccy-w,224px)] ${
             currencyOpen ? "ring-1 ring-[var(--primary)]" : ""
           }`}
           data-inline-cell

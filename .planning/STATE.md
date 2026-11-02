@@ -250,6 +250,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 | 261102-eu2 | 2026-11-02 | Investments: a group whose assets are all hidden hides behind a "N hidden groups" link, faded, assets listed inside | complete ✓ | [PLAN](quick/261102-eu2-hide-fully-hidden-investment-groups/261102-eu2-PLAN.md) | [SUMMARY](quick/261102-eu2-hide-fully-hidden-investment-groups/261102-eu2-SUMMARY.md) |
 | 261102-pf1 | 2026-11-02 | Overview/investments perf: FX pair series cache, batched ledger reads, one set_config per tx, Postgres jit=off | complete ✓ | [PLAN](quick/261102-pf1-overview-perf-n-plus-one/261102-pf1-PLAN.md) | [SUMMARY](quick/261102-pf1-overview-perf-n-plus-one/261102-pf1-SUMMARY.md) |
 | 261102-pf2 | 2026-11-02 | Overview perf round 2: shared reserve replays for GETs, deposit/reserve-fit CPU, tracing verb regex, 10 stale tests fixed | complete ✓ | [PLAN](quick/261102-pf2-reserve-read-cache-cpu/261102-pf2-PLAN.md) | [SUMMARY](quick/261102-pf2-reserve-read-cache-cpu/261102-pf2-SUMMARY.md) |
+| 261102-ui1 | 2026-11-02 | Desktop wallet rows: fitted currency column, level amounts, figures on hover/open, actions behind a "…" with blur | complete ✓ | [PLAN](quick/261102-ui1-desktop-wallet-rows/261102-ui1-PLAN.md) | [SUMMARY](quick/261102-ui1-desktop-wallet-rows/261102-ui1-SUMMARY.md) |
 
 ## Deferred Items
 

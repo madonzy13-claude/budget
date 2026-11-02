@@ -701,7 +701,8 @@
         "share": "Udział: {pct}",
         "amountAria": "Edytuj wartość {name}",
         "qtyAvg": "{qty} × {avg} śr. koszt",
-        "autoPricedTip": "Ta kwota aktualizuje się sama. Aby ją zmienić, dodaj transakcję: kupno, sprzedaż lub przeniesienie."
+        "autoPricedTip": "Ta kwota aktualizuje się sama. Aby ją zmienić, dodaj transakcję: kupno, sprzedaż lub przeniesienie.",
+        "actionsAria": "Działania: {name}"
       },
       "rowExpandAria": "Rozwiń szczegóły {name}.",
       "plAria": "{value} zysk/strata",
@@ -960,7 +961,8 @@
           "saved": "Transakcja zaktualizowana",
           "range": "Wybierz datę od {min} do {max}.",
           "dateLocked": "Daty lokaty wyznaczają jej odsetki — nie można ich zmienić."
-        }
+        },
+        "actionsAria": "Działania dla tego wpisu"
       },
       "heldUnit": {
         "g": "{n, plural, one {{qty} gram} few {{qty} gramy} many {{qty} gramów} other {{qty} grama}}",

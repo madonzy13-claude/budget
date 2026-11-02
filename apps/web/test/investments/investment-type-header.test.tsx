@@ -246,7 +246,23 @@ describe("InvestmentTypeHeader", () => {
     renderHeader({ onCurrencyChange: () => {} });
     expect(
       screen.getByTestId("investment-type-currency-stocks").className,
-    ).toMatch(/w-\[44px\].*sm:w-\[96px\].*md:w-\[224px\]/);
+    ).toMatch(/w-\[44px\].*sm:w-\[96px\].*md:w-\[var\(--ccy-w,224px\)\]/);
+  });
+
+  // 261102 (user): P/L and the unreal./real. line wait for a hover or the
+  // group being opened.
+  it("desktop figures hide until the group is hovered or opened", () => {
+    const h = renderHeader();
+    const pl = () => screen.getByTestId("investment-type-pl-desktop-stocks");
+    const cap = () =>
+      screen.getByTestId("investment-type-caption-desktop-stocks");
+    expect(pl().parentElement!.className).toMatch(
+      /sm:invisible sm:group-hover\/row:visible/,
+    );
+    expect(cap().className).toMatch(/sm:invisible/);
+    h.open();
+    expect(pl().parentElement!.className).not.toMatch(/sm:invisible/);
+    expect(cap().className).not.toMatch(/sm:invisible/);
   });
 
   it("collapsed shows name and value, no sum-up and no share", () => {

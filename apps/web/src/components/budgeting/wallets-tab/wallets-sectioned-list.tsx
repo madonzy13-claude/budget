@@ -29,6 +29,7 @@ import {
 } from "@dnd-kit/core";
 import { useState, useCallback, useRef } from "react";
 import { useAssetKeyboardNav } from "@/hooks/use-asset-keyboard-nav";
+import { useFitCurrencyColumn } from "@/hooks/use-fit-currency-column";
 import { setDndDragging } from "@/lib/dnd-dragging";
 import { navItems, highlightNavItem } from "@/lib/asset-nav-dom";
 import { nextHighlightIndex } from "@/lib/roving-index";
@@ -61,6 +62,8 @@ interface WalletsSectionedListProps {
 export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   // Desktop keyboard nav over all sections (roving highlight + Enter/←→/Del).
   const rootRef = useRef<HTMLDivElement>(null);
+  // 261102 (user): every currency column as wide as the longest pick.
+  useFitCurrencyColumn(rootRef);
   useAssetKeyboardNav(rootRef);
 
   // rAF-poll for a freshly-persisted wallet row (it mounts a frame or two after

@@ -26,6 +26,7 @@ import { UI_TYPE_COLOR, UI_TYPE_ICON } from "@/lib/investment-icons";
 import { useIsWide } from "@/hooks/use-is-wide";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import type { TypeGroupPL } from "@/lib/investment-type-groups";
+import { REVEAL_ON_ROW } from "./row-actions";
 
 interface InvestmentTypeHeaderProps {
   uiType: UiType;
@@ -151,10 +152,12 @@ export function InvestmentTypeHeader({
   // Revealed, it shrinks to the asset row's small value so the three lines fit
   // the card (it grew 56 → 69.6px).
   const value = (
-    <div className="flex shrink-0 items-baseline gap-1 tabular-nums">
+    // 261102 (user): centred on desktop — on the baseline the amount rode at
+    // the top of the 40px currency field.
+    <div className="flex shrink-0 items-baseline gap-1 tabular-nums sm:items-center">
       <span
         data-testid={`investment-type-value-${uiType}`}
-        className={`relative flex items-baseline ${showSplit ? "gap-1" : "gap-2 sm:gap-1"}`}
+        className={`relative flex items-baseline sm:items-center ${showSplit ? "gap-1" : "gap-2 sm:gap-1"}`}
       >
         {onCurrencyChange ? (
           // Picking a currency never toggles the group.
@@ -162,7 +165,7 @@ export function InvestmentTypeHeader({
             data-testid={`investment-type-currency-${uiType}`}
             // R6 (user): the spending wallets' currency cell — full label on
             // a wide screen, the code alone on a narrow one.
-            className={`editable-dots w-[44px] shrink-0 self-center text-num-sm sm:block sm:w-[96px] md:w-[224px] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] ${showSplit ? "hidden" : "block"}`}
+            className={`editable-dots w-[44px] shrink-0 self-center text-num-sm sm:block sm:w-[96px] md:w-[var(--ccy-w,224px)] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] ${showSplit ? "hidden" : "block"}`}
             style={{ color: "var(--muted-foreground)" }}
             onClick={stop}
             onKeyDown={stop}
@@ -251,6 +254,9 @@ export function InvestmentTypeHeader({
       </span>
     );
   const hasPL = uiType !== "cash";
+  // 261102 (user): desktop keeps P/L and the unreal./real. line out of sight
+  // until the group is opened or hovered (columns keep their place).
+  const revealOnRow = expanded ? "" : REVEAL_ON_ROW;
 
   return (
     <div
@@ -271,7 +277,7 @@ export function InvestmentTypeHeader({
           onToggle();
         }
       }}
-      className="flex min-h-[56px] w-full cursor-pointer items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 sm:min-h-[48px] data-[nav-highlighted=true]:bg-[var(--surface-elevated-dark)]"
+      className="group/row flex min-h-[56px] w-full cursor-pointer items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 sm:min-h-[48px] data-[nav-highlighted=true]:bg-[var(--surface-elevated-dark)]"
     >
       {dragHandle && (
         <span onClick={stop} className="contents">
@@ -311,7 +317,7 @@ export function InvestmentTypeHeader({
         {hasPL && (
           <div
             data-testid={`investment-type-caption-desktop-${uiType}`}
-            className="hidden min-w-0 sm:block"
+            className={`hidden min-w-0 sm:block ${revealOnRow}`}
           >
             <PlCaption
               data-pl-caption
@@ -349,7 +355,7 @@ export function InvestmentTypeHeader({
       <span className="hidden w-20 shrink-0 sm:block" aria-hidden="true" />
       <span
         {...(hasPL ? { "data-pl-line": true } : {})}
-        className="hidden shrink-0 gap-2 sm:flex"
+        className={`hidden shrink-0 gap-2 sm:flex ${revealOnRow}`}
       >
         <span
           data-testid={`investment-type-pl-desktop-${uiType}`}

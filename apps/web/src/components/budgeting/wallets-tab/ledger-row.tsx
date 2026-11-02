@@ -14,6 +14,7 @@
  */
 import { useRef } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { ROW_ACTION_BUTTON, RowActions } from "./row-actions";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -140,14 +141,6 @@ interface LedgerRowProps {
 const ACTION_W = 56;
 // Phone only: the leftmost revealed button looks tucked under the row.
 const LEFT_SHADE = "shadow-[inset_6px_0_8px_-6px_rgba(0,0,0,0.7)]";
-// R6 (user): desktop draws the actions like the asset row — plain 28px icons
-// in their own column, shown on row hover.
-const DESKTOP_ICON = [
-  "sm:top-1/2 sm:bottom-auto sm:h-7 sm:w-7 sm:-translate-y-1/2",
-  "sm:bg-transparent sm:shadow-none sm:opacity-100 sm:pointer-events-auto",
-  "sm:invisible sm:group-hover:visible sm:group-focus-within:visible",
-].join(" ");
-
 export function LedgerRow({
   entry,
   rowKey,
@@ -218,12 +211,12 @@ export function LedgerRow({
         onEdit();
       }}
       className={[
-        "absolute bottom-0 right-12 top-0 flex w-12 items-center justify-center sm:right-9",
+        "absolute bottom-0 right-12 top-0 flex w-12 items-center justify-center",
         "bg-[var(--surface-elevated-dark)] text-[var(--foreground)] transition-opacity",
         "pointer-events-none opacity-0 data-[open=true]:pointer-events-auto data-[open=true]:opacity-100",
         // R6 (user): the leftmost revealed button carries the under-row shade.
         LEFT_SHADE,
-        DESKTOP_ICON,
+        ROW_ACTION_BUTTON,
         "sm:text-[var(--foreground)]",
       ].join(" ")}
     >
@@ -245,15 +238,15 @@ export function LedgerRow({
         onDelete();
       }}
       className={[
-        "absolute bottom-0 right-0 top-0 flex w-12 items-center justify-center sm:right-1",
+        "absolute bottom-0 right-0 top-0 flex w-12 items-center justify-center",
         // Round 3: square, shadowed on its left as if under the sliding row.
         "text-white transition-opacity",
         "pointer-events-none opacity-0 data-[open=true]:pointer-events-auto data-[open=true]:opacity-100",
         onEdit ? "" : LEFT_SHADE,
-        DESKTOP_ICON,
+        ROW_ACTION_BUTTON,
         entry.deletable
           ? "bg-[var(--destructive)] sm:text-[var(--foreground)]"
-          : "bg-[var(--surface-elevated-dark)] text-[var(--muted-foreground)]",
+          : "bg-[var(--surface-elevated-dark)] text-[var(--muted-foreground)] sm:text-[var(--muted-foreground)]",
       ].join(" ")}
     >
       <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -272,22 +265,31 @@ export function LedgerRow({
       style={{
         borderTop: first ? undefined : "1px solid var(--hairline-dark)",
       }}
-      className="group relative"
+      className="group group/row relative"
     >
-      {editButton}
-      {reason ? (
-        <Popover>
-          <PopoverTrigger asChild>{deleteButton}</PopoverTrigger>
-          <PopoverContent
-            side="left"
-            className="w-auto max-w-[240px] p-3 text-[12px]"
-          >
-            {reason}
-          </PopoverContent>
-        </Popover>
-      ) : (
-        deleteButton
-      )}
+      {/* 261102 (user): desktop shows a "…" that reveals Edit / Delete over a
+          blurred right end; phones keep the swipe (RowActions dissolves). */}
+      <RowActions
+        mobile="contents"
+        label={t("ledger.actionsAria")}
+        tint="var(--surface-ledger-dark)"
+        className="sm:absolute sm:inset-y-0 sm:right-0"
+      >
+        {editButton}
+        {reason ? (
+          <Popover>
+            <PopoverTrigger asChild>{deleteButton}</PopoverTrigger>
+            <PopoverContent
+              side="left"
+              className="w-auto max-w-[240px] p-3 text-[12px]"
+            >
+              {reason}
+            </PopoverContent>
+          </Popover>
+        ) : (
+          deleteButton
+        )}
+      </RowActions>
       {/* Shadow on the element that paints the background: an inset shadow
           is drawn under the element's own children (round-2 gap 4). */}
       <div
@@ -303,8 +305,8 @@ export function LedgerRow({
         }}
         className={[
           "relative flex items-center gap-2 px-2 py-1",
-          // The desktop icon column (asset row: same hover actions).
-          onEdit ? "sm:mr-[68px]" : "sm:mr-9",
+          // The desktop "…" column (RowActions).
+          "sm:mr-9",
           entry.deletable ? "min-h-[44px]" : "min-h-[40px]",
         ].join(" ")}
       >

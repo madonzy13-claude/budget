@@ -529,6 +529,22 @@ Feature: Investments as assets with transactions (13.1)
     Then the holding row "Fresh" is gone
 
   # Gaps 20 + 21: hiding is explicit; buying into a hidden asset revives it.
+  # 261102 (user, desktop screenshot): currency fields only as wide as the
+  # longest pick and without a dotted line, amounts level with them, qty / P/L
+  # out of sight until a row is hovered or opened, and the actions behind a
+  # "…" that fades them in over a blurred right end — transactions too.
+  @desktop-only @r7-desktop-rows
+  Scenario: Desktop asset rows stay quiet until hovered
+    Given I am on a 1280px-wide viewport
+    And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "crypto" asset "BTC Ledger" of "1" units at 5000000 cents exists in my budget
+    When I open the investments wallets tab
+    Then every investments currency field is one width, under 224px, with no dotted line
+    And the "IBKR" amount sits level with its currency field
+    And the "IBKR" asset shows its P/L only while hovered
+    And the "IBKR" asset's actions open from its "…" over a blurred backdrop
+    And the "IBKR" transactions open their actions from a "…"
+
   @r4-archive
   Scenario: Hiding an asset removes it and buying into it brings it back
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
