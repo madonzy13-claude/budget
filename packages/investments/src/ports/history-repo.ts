@@ -218,6 +218,12 @@ export interface HistoryRepo {
     userId: string,
     holdingId: string,
   ): Promise<StoredEntry[]>;
+  /** listForHolding for many assets in ONE read; every id is a key ([] = none). */
+  listForHoldings(
+    tenantId: string,
+    userId: string,
+    holdingIds: string[],
+  ): Promise<Map<string, StoredEntry[]>>;
   /** Realized + sold cost of live withdraw/convert_out rows per CURRENT
    *  ui_type, archived holdings included (D-14). */
   realizedByType(

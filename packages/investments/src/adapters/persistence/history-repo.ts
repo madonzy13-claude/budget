@@ -384,15 +384,15 @@ export class DrizzleHistoryRepo implements HistoryRepo {
     );
     if (!holdingIds.length) return out;
     return this.read(tenantId, userId, async (dt) => {
-      // ponytail: one query per asset; callers pass 1-2 ids.
-      for (const id of holdingIds) {
-        const r = await dt.execute(sql`
+      // Newest per asset in one pass — same D-14 order as NEWEST.
+      const r = await dt.execute(sql`
+        SELECT DISTINCT ON (x.holding_id) x.* FROM (
           ${ENTRY_SELECT}
-           WHERE h.deleted_at IS NULL AND h.holding_id = ${id}::uuid
-           ${NEWEST}
-        `);
-        out.set(id, r.rows[0] ? mapEntry(r.rows[0]) : null);
-      }
+           WHERE h.deleted_at IS NULL AND h.holding_id IN (${ids(holdingIds)})
+        ) x
+        ORDER BY x.holding_id, x.effective_date DESC, x.created_at DESC, x.id DESC
+      `);
+      for (const row of r.rows) out.set(String(row.holding_id), mapEntry(row));
       return out;
     });
   }
@@ -456,6 +456,27 @@ export class DrizzleHistoryRepo implements HistoryRepo {
          ORDER BY h.effective_date, h.created_at, h.id
       `);
       return res.rows.map(mapEntry);
+    });
+  }
+
+  async listForHoldings(
+    tenantId: string,
+    userId: string,
+    holdingIds: string[],
+  ): Promise<Map<string, StoredEntry[]>> {
+    const out = new Map<string, StoredEntry[]>(
+      holdingIds.map((id) => [id, []]),
+    );
+    if (!holdingIds.length) return out;
+    return this.read(tenantId, userId, async (dt) => {
+      const res = await dt.execute(sql`
+        ${ENTRY_SELECT}
+         WHERE h.deleted_at IS NULL AND h.holding_id IN (${ids(holdingIds)})
+         ORDER BY h.effective_date, h.created_at, h.id
+      `);
+      for (const row of res.rows)
+        out.get(String(row.holding_id))?.push(mapEntry(row));
+      return out;
     });
   }
 

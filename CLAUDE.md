@@ -70,6 +70,13 @@ spends its life), `make perf-slow` (the individually expensive query),
   `infra/postgres/init/04-extensions.sql`. Preloading alone collects counters
   nobody can read — that was the state for 16 days.
 - On a dev box these counters include E2E traffic. Read totals accordingly.
+- **`jit = off` in postgresql.conf, on purpose.** A planner misestimate (e.g.
+  `generate_series` guessed at 1000 rows) pushes a 25ms query past
+  `jit_above_cost` and it spends 50-800ms compiling. Measure as `app_role` with
+  the RLS GUCs set, not as postgres. The conf is a single-file bind mount: an
+  edit only lands on db container restart (`ALTER SYSTEM` for a live change).
+- **SigNoz numbers are mostly E2E users with no data.** Filter server spans on
+  `attributes_string['url.path']` containing the real budget id before ranking.
 
 **Distributed tracing** — `make obs-up` / `obs-traces` / `obs-down`. Off unless
 `OTEL_EXPORTER_OTLP_ENDPOINT` is set, so `make dev`, CI and bun:test are

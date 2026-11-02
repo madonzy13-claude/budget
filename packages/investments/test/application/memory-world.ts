@@ -308,6 +308,15 @@ export class MemoryWorld {
             : a.effectiveDate.localeCompare(b.effectiveDate),
         )
         .map((r) => this.stored(r)),
+    listForHoldings: async (t, u, holdingIds) =>
+      new Map(
+        await Promise.all(
+          holdingIds.map(
+            async (id) =>
+              [id, await this.historyRepo.listForHolding(t, u, id)] as const,
+          ),
+        ),
+      ),
     realizedByType: async () => {
       const by = new Map<string, { r: bigint; s: bigint }>();
       for (const row of this.live()) {

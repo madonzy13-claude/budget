@@ -519,11 +519,50 @@ describe("Investments history repo — asset bookings", () => {
     await mk(a, "2026-10-02");
     await mk(a, "2026-10-01");
     await mk(a, "2026-10-02");
+    const c = await seed(fix, { name: "C" });
+    await mk(c, "2026-11-01");
+    await mk(c, "2026-09-01");
     const last = (
       await historyRepo.listForHolding(fix.tenantId, fix.userId, a)
     ).at(-1)!;
-    const m = await historyRepo.newestFor(fix.tenantId, fix.userId, [a, b]);
+    const m = await historyRepo.newestFor(fix.tenantId, fix.userId, [a, b, c]);
     expect(m.get(a)?.id).toBe(last.id);
     expect(m.get(b)).toBeNull();
+    expect(m.get(c)?.effectiveDate).toBe("2026-11-01");
+  });
+
+  it("listForHoldings reads every asset's ledger at once, oldest first", async () => {
+    const fix = await createFixture();
+    const a = await seed(fix, { name: "A" });
+    const b = await seed(fix, { name: "B" });
+    const c = await seed(fix, { name: "C" });
+    const mk = (ref: string, d: string) =>
+      historyRepo.commit(fix.tenantId, fix.userId, {
+        budgetId: fix.tenantId,
+        patches: [],
+        entries: [entry({ holdingRef: ref, kind: "add", effectiveDate: d })],
+      });
+    await mk(a, "2026-10-02");
+    await mk(b, "2026-10-03");
+    await mk(a, "2026-10-01");
+    await mk(a, "2026-10-02");
+    const m = await historyRepo.listForHoldings(fix.tenantId, fix.userId, [
+      a,
+      b,
+      c,
+    ]);
+    const one = (id: string) =>
+      historyRepo.listForHolding(fix.tenantId, fix.userId, id);
+    expect(m.get(a)).toEqual(await one(a));
+    expect(m.get(a)!.map((e) => e.effectiveDate)).toEqual([
+      "2026-10-01",
+      "2026-10-02",
+      "2026-10-02",
+    ]);
+    expect(m.get(b)).toEqual(await one(b));
+    expect(m.get(c)).toEqual([]);
+    expect(
+      (await historyRepo.listForHoldings(fix.tenantId, fix.userId, [])).size,
+    ).toBe(0);
   });
 });

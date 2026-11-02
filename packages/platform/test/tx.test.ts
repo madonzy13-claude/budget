@@ -7,6 +7,7 @@ import {
   withInfraTx,
   TenantContextError,
 } from "../src/db/tx";
+import { tenantContextSql } from "../src/db/rls";
 import { TenantId, UserId } from "@budget/shared-kernel";
 
 beforeAll(async () => {
@@ -69,4 +70,14 @@ test("withInfraTx opens raw tx WITHOUT GUCs (PC-04)", async () => {
     expect(r.value.t === null || r.value.t === "").toBe(true);
     expect(r.value.u === null || r.value.u === "").toBe(true);
   }
+});
+
+// 261102: SigNoz showed ~40 tenant transactions per Overview request, each
+// paying begin + SET LOCAL + SET LOCAL + commit. Both GUCs go in one round-trip.
+test("tenant context is ONE statement, not one per GUC", () => {
+  const stmts = tenantContextSql(
+    [TenantId("00000000-0000-0000-0000-000000000001")],
+    UserId("00000000-0000-0000-0000-000000000099"),
+  );
+  expect(stmts).toHaveLength(1);
 });

@@ -236,10 +236,16 @@ describe("listHoldings — figures in the shown currency", () => {
       counterpartyHoldingId: null,
     });
     const historyRepo = {
-      listForHolding: async () => [
-        buy("2024-06-01", 500_000n), // 5,000 PLN = 1,000 EUR then
-        buy("2025-06-01", 700_000n), // 7,000 PLN = 1,750 EUR then
-      ],
+      listForHoldings: async (_t: string, _u: string, ids: string[]) =>
+        new Map(
+          ids.map((id) => [
+            id,
+            [
+              buy("2024-06-01", 500_000n), // 5,000 PLN = 1,000 EUR then
+              buy("2025-06-01", 700_000n), // 7,000 PLN = 1,750 EUR then
+            ],
+          ]),
+        ),
     } as never;
     const dto = (
       await listHoldings({
@@ -292,18 +298,24 @@ describe("listHoldings — figures in the shown currency", () => {
       }),
     } as unknown as Parameters<typeof listHoldings>[0]["fxProvider"];
     const historyRepo = {
-      listForHolding: async () => [
-        {
-          id: "x",
-          kind: "buy",
-          effectiveDate: "2024-06-01",
-          amountCents: 100_000n,
-          amountCurrency: "PLN",
-          costDeltaCents: 100_000n,
-          costCurrency: "PLN",
-          counterpartyHoldingId: null,
-        },
-      ],
+      listForHoldings: async (_t: string, _u: string, ids: string[]) =>
+        new Map(
+          ids.map((id) => [
+            id,
+            [
+              {
+                id: "x",
+                kind: "buy",
+                effectiveDate: "2024-06-01",
+                amountCents: 100_000n,
+                amountCurrency: "PLN",
+                costDeltaCents: 100_000n,
+                costCurrency: "PLN",
+                counterpartyHoldingId: null,
+              },
+            ],
+          ]),
+        ),
     } as never;
     const dto = (
       await listHoldings({

@@ -118,21 +118,13 @@ export function listHoldings(deps: {
       // paid — never today's. Each asset's ledger replays into the target
       // currency (domain/currency-pl); null = no ledger / a rate missing, and
       // the caller falls back to today's rate.
-      // ponytail: one ledger read per asset; a budget-wide read if it shows.
-      const ledgers = new Map<string, StoredEntry[]>();
-      if (deps.historyRepo)
-        await Promise.all(
-          holdings.map(async (h) =>
-            ledgers.set(
-              h.id,
-              await deps.historyRepo!.listForHolding(
-                input.tenantId,
-                input.actorUserId,
-                h.id,
-              ),
-            ),
-          ),
-        );
+      const ledgers = deps.historyRepo
+        ? await deps.historyRepo.listForHoldings(
+            input.tenantId,
+            input.actorUserId,
+            holdings.map((h) => h.id),
+          )
+        : new Map<string, StoredEntry[]>();
       const dayRates = new Map<string, Promise<number>>();
       const dayRate = (from: string, to: string, date: string) => {
         const k = `${from}>${to}@${date}`;
