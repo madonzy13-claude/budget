@@ -258,16 +258,20 @@ describe("getOverviewPlanned", () => {
         budgetId: "b1",
         from: "2026-01-01",
         to: "2026-03-31",
+        // The series starts at TODAY, so the expectations below need one.
+        now: () => new Date("2026-08-07T12:00:00Z"),
       })
     )._unsafeUnwrap();
-    // 260807: the series is no longer a calendar year of rates. It runs from
-    // THIS month to the furthest next-due — here the June 2027 renewal — and a
-    // payment sits in the month it really falls in.
+    // 260807: the series is no longer a calendar year of rates — a payment
+    // sits in the month it really falls in. 261016: it runs twelve months from
+    // THIS month (August 2026 → July 2027), further only if something is due
+    // beyond that.
     const m = new Map(
       dto.scheduledPerMonth.map((x) => [x.month, x.planned_cents]),
     );
     const months = dto.scheduledPerMonth.map((x) => x.month);
-    expect(months[months.length - 1]).toBe("2027-06");
+    expect(months[0]).toBe("2026-08");
+    expect(months[months.length - 1]).toBe("2027-07");
     // Netflix from its own next due onwards, never before it.
     expect(m.get("2026-09")).toBe("10000");
     expect(m.get("2027-05")).toBe("10000");
@@ -275,7 +279,9 @@ describe("getOverviewPlanned", () => {
     // NOT divided by twelve across the year.
     expect(m.get("2027-06")).toBe("130000");
     // Each month names what is behind it, for the tooltip.
-    expect(dto.scheduledPerMonth.at(-1)!.items).toEqual([
+    expect(
+      dto.scheduledPerMonth.find((x) => x.month === "2027-06")!.items,
+    ).toEqual([
       { name: "Netflix", amount_cents: "10000" },
       { name: "Insurance", amount_cents: "120000" },
     ]);

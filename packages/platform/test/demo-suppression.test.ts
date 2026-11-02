@@ -24,15 +24,20 @@ let pool: Pool;
 /** The outbox is worker territory: app_role has INSERT and nothing else. */
 let workerPoolConn: Pool;
 
+// The host env may carry a full multi-locale demo config (Infisical dev does:
+// DEMO_LOCALES + DEMO_TENANT_IDS_EN …), and the per-locale keys WIN over the
+// bare ones this file sets. Start every test from a DEMO_*-free env.
+const hostDemoEnv = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => k.startsWith("DEMO_")),
+);
+
 function setDemoEnv(on: boolean) {
+  for (const k of Object.keys(process.env))
+    if (k.startsWith("DEMO_")) delete process.env[k];
   if (on) {
     process.env.DEMO_SOURCE_TENANT_IDS = "src";
     process.env.DEMO_TENANT_IDS = DEMO_TENANT;
     process.env.DEMO_USER_ID = USER;
-  } else {
-    delete process.env.DEMO_SOURCE_TENANT_IDS;
-    delete process.env.DEMO_TENANT_IDS;
-    delete process.env.DEMO_USER_ID;
   }
 }
 
@@ -69,6 +74,7 @@ beforeAll(async () => {
 afterEach(() => setDemoEnv(false));
 
 afterAll(async () => {
+  Object.assign(process.env, hostDemoEnv);
   await pool?.end();
   await workerPoolConn?.end();
 });

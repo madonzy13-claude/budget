@@ -47,6 +47,7 @@ import { onboardingRoutesFactory } from "./routes/onboarding";
 import { createTestClockRoute } from "./routes/test-clock";
 import { testClockEnabled } from "@budget/shared-kernel";
 import { tracingMiddleware } from "./middleware/tracing";
+import { reserveReadCacheMiddleware } from "./middleware/reserve-read-cache";
 import type { BootedDeps } from "./boot";
 
 export function createApp(deps: BootedDeps) {
@@ -60,6 +61,9 @@ export function createApp(deps: BootedDeps) {
 
   // 1. Error handler — wraps everything
   app.use(errorMiddleware);
+
+  // 1b. GETs share reserve replays; writes invalidate them (261102).
+  app.use(reserveReadCacheMiddleware(deps.budgeting.reserveReadCache));
 
   // 2. Health probe — public, no session resolution needed
   app.get("/health", (c) => c.json({ ok: true, region: deps.env.REGION }));

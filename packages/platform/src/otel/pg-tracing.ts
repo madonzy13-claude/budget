@@ -23,8 +23,10 @@ const TRACER_NAME = "budget-pg";
  * statement its own operation in the dashboard.
  */
 function operationOf(sql: string): string {
-  const verb = sql.trim().split(/\s+/, 1)[0]?.toUpperCase() ?? "QUERY";
-  return /^[A-Z]+$/.test(verb) ? verb : "QUERY";
+  // Anchored match, not trim+split: those walk the whole statement (several KB
+  // for the reserve queries), on every query, ~6ms per /budgets/aggregate.
+  const verb = /^\s*([A-Za-z]+)(?:\s|$)/.exec(sql)?.[1];
+  return verb ? verb.toUpperCase() : "QUERY";
 }
 
 function statementOf(query: unknown): string {

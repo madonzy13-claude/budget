@@ -82,6 +82,9 @@ export const demoManifest: TableManifest[] = [
       // is dead weight rather than a broken feature. Optional until someone
       // writes the migration that drops it.
       overview_enabled: { ...nul, optional: true },
+      // 0103: better-auth 1.7's organization.logo. Never read by the app; an
+      // image URL would be owner-supplied, so it does not travel.
+      logo: nul,
     },
   },
   {
@@ -217,6 +220,8 @@ export const demoManifest: TableManifest[] = [
       name: fake("wallet"),
       currency: ccy,
       current_balance: money4,
+      // 0101: trigger-stamped "updated … ago"; a timestamp, no PII.
+      balance_updated_at: ts,
       archived_at: ts,
       created_at: ts,
       actor_user_id: owner,
@@ -250,6 +255,8 @@ export const demoManifest: TableManifest[] = [
       updated_at: ts,
       deleted_at: ts,
       dismissed_at: ts,
+      // 0099: a postponed unconfirmed scheduled payment.
+      deferred_at: ts,
       transfer_group_id: id,
       wallet_id: ref("budgeting.wallets"),
       note_tsv: { kind: "GENERATED" },
@@ -340,6 +347,8 @@ export const demoManifest: TableManifest[] = [
       deposit_cap_frequency: ts,
       icon: ts,
       color: ts,
+      // 0101: trigger-stamped "updated … ago"; a timestamp, no PII.
+      value_updated_at: ts,
     },
   },
   {
@@ -380,6 +389,10 @@ export const demoManifest: TableManifest[] = [
       prior_price_cents: ts,
       prior_price_currency: ccy,
       backfilled: ts,
+      // 0094: the deal's amount in the asset's own currency — scales like amount_cents.
+      asset_amount_cents: money0,
+      // 0098: the user's own note on a sale. Free text, so it does not travel.
+      note: nul,
     },
   },
   {

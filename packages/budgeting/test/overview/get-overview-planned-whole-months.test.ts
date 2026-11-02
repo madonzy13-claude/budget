@@ -66,8 +66,6 @@ function build(seen: { from?: string }) {
       getBudgetMeta: async () => ({ default_currency: "PLN" }),
     },
     fxProvider: { rateAsOf: async () => ({ rate: "1" }) },
-    // 5 September: September cannot be a rate.
-    now: () => new Date("2026-09-05T00:00:00Z"),
   } as unknown as GetOverviewPlannedDeps;
 }
 
@@ -79,6 +77,8 @@ async function run(from: string, to: string) {
     from,
     to,
     excludeCurrentMonth: true,
+    // 5 September: September cannot be a rate. `now` is an INPUT, not a dep.
+    now: () => new Date("2026-09-05T00:00:00Z"),
   });
   if (res.isErr()) throw res.error;
   const v = res.value as {

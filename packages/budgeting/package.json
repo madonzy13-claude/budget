@@ -102,6 +102,7 @@
     "./src/application/compute-scheduled-monthly": "./src/application/compute-scheduled-monthly.ts",
     "./src/application/recompute-reserve-topup-task": "./src/application/recompute-reserve-topup-task.ts",
     "./src/application/get-reserve-positions": "./src/application/get-reserve-positions.ts",
+    "./src/application/reserve-positions-cache": "./src/application/reserve-positions-cache.ts",
     "./src/adapters/persistence/reserve-event-loader-repo": "./src/adapters/persistence/reserve-event-loader-repo.ts",
     "./src/application/reorder-categories": "./src/application/reorder-categories.ts",
     "./src/application/dismiss-draft": "./src/application/dismiss-draft.ts",

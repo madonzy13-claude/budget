@@ -413,41 +413,69 @@ export function getReserveFit(deps: GetReserveFitDeps) {
        * Future chart asks every category, not just the buffered ones (user,
        * 260812).
        */
+      // Everything but the reserve is fixed per category, and the limit search
+      // below asks ~30 times per row (CPU profile, 261102) — so the window, its
+      // spend and the rules are built once, and each answer is kept per reserve.
+      const projectionCache = new Map<
+        string,
+        {
+          input: Omit<
+            Parameters<typeof projectedMonthly>[0],
+            "reserveHeldCents"
+          >;
+          byHeld: Map<bigint, bigint>;
+        }
+      >();
       const projectedFor = (
         w: (typeof windows)[number],
         reserveHeldCents: bigint,
       ): bigint => {
-        const scope: string[] = [];
-        for (
-          let m = from.slice(0, 7);
-          m <= to.slice(0, 7);
-          m = addMonths(m, 1)
-        ) {
-          if (m === nowMonth) continue;
-          if (w.created_month !== null && m < w.created_month) continue;
-          if (w.archived_month !== null && m > w.archived_month) continue;
-          scope.push(m);
+        let cached = projectionCache.get(w.category_id);
+        if (!cached) {
+          const scope: string[] = [];
+          for (
+            let m = from.slice(0, 7);
+            m <= to.slice(0, 7);
+            m = addMonths(m, 1)
+          ) {
+            if (m === nowMonth) continue;
+            if (w.created_month !== null && m < w.created_month) continue;
+            if (w.archived_month !== null && m > w.archived_month) continue;
+            scope.push(m);
+          }
+          cached = {
+            input: {
+              windowMonths: scope,
+              spentByMonth: new Map(
+                scope.map((m) => {
+                  const key = `${w.category_id}|${m}`;
+                  const ordinary =
+                    (spendByCell.get(key) ?? 0n) -
+                    (excludedByCell.get(key) ?? 0n) -
+                    (scheduledByCell.get(key) ?? 0n);
+                  return [m, ordinary > 0n ? ordinary : 0n];
+                }),
+              ),
+              rules: rules.filter((r) => r.category_id === w.category_id),
+              fromMonth: nowMonth,
+            },
+            byHeld: new Map(),
+          };
+          projectionCache.set(w.category_id, cached);
         }
-        return projectedMonthly({
-          windowMonths: scope,
-          spentByMonth: new Map(
-            scope.map((m) => {
-              const key = `${w.category_id}|${m}`;
-              const ordinary =
-                (spendByCell.get(key) ?? 0n) -
-                (excludedByCell.get(key) ?? 0n) -
-                (scheduledByCell.get(key) ?? 0n);
-              return [m, ordinary > 0n ? ordinary : 0n];
-            }),
-          ),
-          rules: rules.filter((r) => r.category_id === w.category_id),
-          fromMonth: nowMonth,
-          // An excluded or untracked category holds nothing against its
-          // one-offs, so there is nothing to credit. The caller passes the
-          // reserve to credit against, because during the search below that is
-          // the reserve the CANDIDATE limit would leave (see `heldAt`).
-          reserveHeldCents,
-        });
+        let projected = cached.byHeld.get(reserveHeldCents);
+        if (projected === undefined) {
+          projected = projectedMonthly({
+            ...cached.input,
+            // An excluded or untracked category holds nothing against its
+            // one-offs, so there is nothing to credit. The caller passes the
+            // reserve to credit against, because during the search below that
+            // is the reserve the CANDIDATE limit would leave (see `heldAt`).
+            reserveHeldCents,
+          });
+          cached.byHeld.set(reserveHeldCents, projected);
+        }
+        return projected;
       };
 
       /**
@@ -700,8 +728,34 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // for the same reason. It can never exceed what is held ("never more
         // than is held", projected-monthly.ts), which is what keeps the search
         // below monotone: the binding term is always the walk.
-        const earmarkedAt = (limitCents: bigint): bigint =>
-          earmarkedForOneOffs(categoryRules, nowMonth, heldAt(limitCents));
+        // Kept per reserve: the search below asks again for every candidate,
+        // and above `openSpend` every candidate leaves the same reserve.
+        const earmarkedByHeld = new Map<bigint, bigint>();
+        const earmarkedAt = (limitCents: bigint): bigint => {
+          const held = heldAt(limitCents);
+          let earmarked = earmarkedByHeld.get(held);
+          if (earmarked === undefined) {
+            earmarked = earmarkedForOneOffs(categoryRules, nowMonth, held);
+            earmarkedByHeld.set(held, earmarked);
+          }
+          return earmarked;
+        };
+        // reserveFit(months at a flat limit L).neededCents without rebuilding
+        // and re-sorting the months per candidate: at a flat limit every
+        // month nets `L − spent` (left − overage), so the trough is the
+        // deepest prefix of that walk. Same integers, same order.
+        const spentInOrder = [...months]
+          .sort((a, b) => (a.month < b.month ? -1 : 1))
+          .map((m) => m.spentCents);
+        const historicalNeedAt = (limitCents: bigint): bigint => {
+          let running = 0n;
+          let trough = 0n;
+          for (const spent of spentInOrder) {
+            running += limitCents - spent;
+            if (running < trough) trough = running;
+          }
+          return -trough;
+        };
         //
         // `needed` stays the requirement at the limit in FORCE — that is what
         // this figure has always meant and what the sizing tests pin. The chart
@@ -717,8 +771,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
             historicalNeedCents:
               limitCents === currentLimit
                 ? past.neededCents
-                : reserveFit(months.map((m) => ({ ...m, limitCents })))
-                    .neededCents,
+                : historicalNeedAt(limitCents),
             limitCents,
           });
           const earmarked = earmarkedAt(limitCents);
