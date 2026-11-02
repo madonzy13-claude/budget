@@ -52,6 +52,21 @@ Feature: Budget Overview tab
     Then the wealth view "Investments" is active
     And the wealth pie region is visible
 
+  # 261102 (user: "p/l isn't calculated correctly in financial wealth"). P/L %
+  # divided by what was contributed at the range START, so a range that began
+  # small and grew by deposits read absurd (+625% on a real budget's "All").
+  # It is a return on the money at work: 500 profit on 1000 held + 1500 added.
+  @wealth-pl-pct
+  Scenario: Investments P/L % is a return on the money at work over the range
+    Given the budget held investments worth 100000 cents costing 100000 cents 90 days ago
+    And a "broker" holding "Fund" deposited 250000 cents worth 300000 cents exists in my budget
+    When I open the BDP for "My E2E Budget"
+    And I click the "Overview" tab pill
+    And I select the "All" overview range
+    And I expand the "wealth" overview section
+    And I switch the wealth view to "Investments"
+    Then the wealth "pl" metric reads "+20.0%"
+
   # The grid sized its two rows independently, so the Cushion note wrapping to a
   # second line left the row above it visibly shorter (user screenshot, 260825).
   # The cushion surplus is what makes that note two lines on a phone — without it

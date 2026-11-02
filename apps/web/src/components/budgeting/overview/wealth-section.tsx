@@ -38,7 +38,7 @@ import {
 } from "@/hooks/use-overview-wealth";
 import { useOverviewCards } from "@/hooks/use-overview-cards";
 import { centsToRounded } from "@/lib/cents-format";
-import { selectRangeGrowth } from "@/lib/wealth-growth";
+import { rangeInvestMetrics, selectRangeGrowth } from "@/lib/wealth-growth";
 import { chartCompactCents, pctAxisTick } from "@/lib/chart-format";
 import { UI_TYPE_COLOR } from "@/lib/investment-icons";
 import { deriveUiType } from "@/lib/investment-types";
@@ -317,55 +317,33 @@ export function WealthSection({
                   //                   contributions per point)
                   //   Contributions = contributions(last) − contributions(first).
                   // Capitalization has no P/L split → single grow/loss metric.
+                  // Investments view → Contributions · P/L · Total over the
+                  // RENDERED chart's first → last tick (lib/wealth-growth).
+                  // Capitalization has no P/L split → single grow/loss metric.
                   const invMetrics =
-                    effectiveView === "investments" &&
-                    exclData &&
-                    seriesPoints.length > 0
-                      ? (() => {
-                          const n = seriesPoints.length;
-                          const vFirst = Number(seriesPoints[0].value_cents);
-                          const vLast = Number(seriesPoints[n - 1].value_cents);
-                          const pFirst =
-                            exclByLabel.get(seriesPoints[0].label) ?? 0;
-                          const pLast =
-                            exclByLabel.get(seriesPoints[n - 1].label) ?? 0;
-                          const cFirst = vFirst - pFirst; // contributions @ start
-                          const cLast = vLast - pLast; //    contributions @ end
-                          const plDelta = pLast - pFirst; // P/L gained over the range
-                          const contribDelta = cLast - cFirst;
-                          // P/L = the REAL P/L for the selected range: profit gained
-                          // over the range (last − first), as a % of the contributed
-                          // value at the range start. Range-aware (1M shows just that
-                          // month), and based on contributed value — not the first P/L.
-                          return {
-                            plAmount: Math.round(plDelta),
-                            plPct:
-                              cFirst !== 0 ? (100 * plDelta) / cFirst : null,
-                            contribDelta: Math.round(contribDelta),
-                            contribPct:
-                              cFirst !== 0
-                                ? (100 * contribDelta) / cFirst
-                                : null,
-                          };
-                        })()
+                    effectiveView === "investments" && exclData
+                      ? rangeInvestMetrics(seriesPoints, exclByLabel)
                       : null;
                   return (
                     <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-2">
                       {invMetrics ? (
                         <>
                           <CombinedStat
+                            testId="wealth-metric-contributions"
                             label={t("wealth.contributions")}
                             pct={invMetrics.contribPct}
                             amount={fmtSigned(String(invMetrics.contribDelta))}
                             mask={amountPrivacyEnabled}
                           />
                           <CombinedStat
+                            testId="wealth-metric-pl"
                             label={t("wealth.pl")}
                             pct={invMetrics.plPct}
-                            amount={fmtSigned(String(invMetrics.plAmount))}
+                            amount={fmtSigned(String(invMetrics.plDelta))}
                             mask={amountPrivacyEnabled}
                           />
                           <CombinedStat
+                            testId="wealth-metric-total"
                             label={t("wealth.total")}
                             pct={growth.delta_pct}
                             amount={fmtSigned(growth.delta_cents)}

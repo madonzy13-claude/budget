@@ -126,6 +126,11 @@ export class OverviewPo {
     });
   }
 
+  /** A range metric's percent in the investments view (contributions / pl / total). */
+  wealthMetricPct(metric: string) {
+    return this.section("wealth").getByTestId(`wealth-metric-${metric}-pct`);
+  }
+
   /** The investments-view pie region (renders the pie or the calm empty-pie copy). */
   pieRegion() {
     return this.page.getByTestId("overview-wealth-pie");

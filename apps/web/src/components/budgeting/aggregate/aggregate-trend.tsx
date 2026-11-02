@@ -34,6 +34,7 @@ import { centsToRounded } from "@/lib/cents-format";
 import { combineChangeBars, geoMean } from "@/lib/change-bars";
 import { UI_TYPE_COLOR } from "@/lib/investment-icons";
 import { deriveUiType } from "@/lib/investment-types";
+import { rangeInvestMetrics } from "@/lib/wealth-growth";
 
 const CARD =
   "rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-[var(--hairline-dark)] p-4 min-w-0";
@@ -188,30 +189,10 @@ export function AggregateTrend({
         })
       : [];
 
-  // Three metrics, first tick → last tick (BDP parity):
-  //   Total         = value(last) − value(first).
-  //   P/L           = profit(last) − profit(first) ÷ contributions@start (the
-  //                   real P/L for the range).
-  //   Contributions = contributions(last) − contributions(first).
+  // Contributions · P/L · Total, first tick → last (BDP parity, lib/wealth-growth).
   const invMetrics =
-    isInvest && exclQ.data && seriesPoints.length > 0
-      ? (() => {
-          const n = seriesPoints.length;
-          const vFirst = Number(seriesPoints[0].value_cents);
-          const vLast = Number(seriesPoints[n - 1].value_cents);
-          const pFirst = exclByLabel.get(seriesPoints[0].label) ?? 0;
-          const pLast = exclByLabel.get(seriesPoints[n - 1].label) ?? 0;
-          const cFirst = vFirst - pFirst;
-          const cLast = vLast - pLast;
-          return {
-            totalDelta: Math.round(vLast - vFirst),
-            totalPct: vFirst !== 0 ? (100 * (vLast - vFirst)) / vFirst : null,
-            plDelta: Math.round(pLast - pFirst),
-            plPct: cFirst !== 0 ? (100 * (pLast - pFirst)) / cFirst : null,
-            contribDelta: Math.round(cLast - cFirst),
-            contribPct: cFirst !== 0 ? (100 * (cLast - cFirst)) / cFirst : null,
-          };
-        })()
+    isInvest && exclQ.data
+      ? rangeInvestMetrics(seriesPoints, exclByLabel)
       : null;
 
   // Change-chart bucket by the range SPAN (BDP parity): day ≤1mo, month ≤1y, YEAR

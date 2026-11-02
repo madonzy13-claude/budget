@@ -77,6 +77,51 @@ Given(
   },
 );
 
+// One wealth snapshot carrying an investment value AND its cost basis, so the
+// investments view has a P/L (value − cost) at that point. No investment
+// ledger on a fresh budget, so the chart reads the snapshot's stored cost.
+async function seedInvestmentSnapshot(
+  budgetId: string,
+  value: number,
+  cost: number,
+  daysAgo: number,
+) {
+  await withTenantClient(budgetId, async (client) => {
+    const ccy = await client
+      .query<{
+        default_currency: string;
+      }>(`SELECT default_currency FROM tenancy.budgets WHERE id = $1::uuid`, [
+        budgetId,
+      ])
+      .then((r) => (r.rows[0]?.default_currency ?? "USD").trim());
+    await client.query(
+      `UPDATE tenancy.budgets SET investments_enabled = true WHERE id = $1::uuid`,
+      [budgetId],
+    );
+    await client.query(
+      `INSERT INTO budgeting.budget_wealth_snapshots
+         (tenant_id, budget_id, captured_at, capitalization_cents,
+          investment_value_cents, currency, investment_cost_basis_cents)
+       VALUES ($1::uuid, $1::uuid, now() - make_interval(days => $4::int),
+               $2::bigint, $2::bigint, $3, $5::bigint)`,
+      [budgetId, value, ccy, daysAgo, cost],
+    );
+  });
+}
+
+Given(
+  "the budget held investments worth {int} cents costing {int} cents {int} days ago",
+  async ({ freshUser }, value: number, cost: number, daysAgo: number) =>
+    seedInvestmentSnapshot(freshUser.budgetId, value, cost, daysAgo),
+);
+
+Then(
+  "the wealth {string} metric reads {string}",
+  async ({ page }, metric: string, pct: string) => {
+    await expect(new OverviewPo(page).wealthMetricPct(metric)).toHaveText(pct);
+  },
+);
+
 const OVERVIEW_CARDS = [
   "capitalization",
   "available-to-spend",
@@ -311,8 +356,12 @@ Then(
   /^the "(.+?)" chart does not wait for a finished month$/,
   async ({ page }, testId: string) => {
     // Both bodies open first, so absence is measured on a rendered section.
-    await expect(page.getByTestId("overview-section-planned-body")).toBeVisible();
-    await expect(page.getByTestId("overview-section-reserves-body")).toBeVisible();
+    await expect(
+      page.getByTestId("overview-section-planned-body"),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("overview-section-reserves-body"),
+    ).toBeVisible();
     await expect(page.getByTestId(testId)).toHaveCount(0);
   },
 );
