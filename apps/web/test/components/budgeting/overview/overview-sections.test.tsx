@@ -102,7 +102,9 @@ vi.mock("@/components/budgeting/charts/bar-chart", () => ({
   OverviewBarChart: () => <div data-testid="bar-chart" />,
 }));
 vi.mock("@/components/budgeting/charts/area-chart", () => ({
-  OverviewAreaChart: () => <div data-testid="area-chart" />,
+  OverviewAreaChart: ({ data }: { data?: unknown[] }) => (
+    <div data-testid="area-chart" data-rows={JSON.stringify(data ?? [])} />
+  ),
 }));
 vi.mock("@/components/budgeting/charts/pie-chart", () => ({
   OverviewPieChart: ({
@@ -488,5 +490,60 @@ describe("Overview sections — warmed while still collapsed", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// Opening Investments flashed another chart first (260802): the totals and the
+// net (P/L) series land separately, and a fresh totals series drawn over a
+// stale net one reads as "all contributions, no profit".
+describe("Wealth — investments chart draws only a matching pair", () => {
+  const inv = (label: string, value: string) => ({
+    ...WEALTH,
+    view: "investments",
+    series: [{ label, value_cents: value }],
+  });
+  const stackRows = () =>
+    screen
+      .getAllByTestId("area-chart")
+      .flatMap((el) => JSON.parse(el.getAttribute("data-rows") ?? "[]"))
+      .filter((r: { profit?: number }) => r.profit !== undefined);
+
+  it("keeps the last matching pair while the P/L series is still the old range's", async () => {
+    const user = userEvent.setup();
+    wealthMock.mockImplementation((_id: string, o: { net?: boolean }) => ({
+      data: o.net ? inv("2024-01", "300") : inv("2024-01", "1000"),
+      isPending: false,
+      isError: false,
+      isPlaceholderData: false,
+    }));
+    const { rerender } = renderSections();
+    await user.click(screen.getByRole("button", { name: "sections.wealth" }));
+    await user.click(
+      screen.getByRole("button", { name: "wealth.investments" }),
+    );
+    expect(stackRows()).toEqual([
+      { label: "2024-01", contributions: 700, profit: 300 },
+    ]);
+
+    // New range: totals arrived, P/L is still the previous range's placeholder.
+    wealthMock.mockImplementation((_id: string, o: { net?: boolean }) =>
+      o.net
+        ? {
+            data: inv("2024-01", "300"),
+            isPending: false,
+            isError: false,
+            isPlaceholderData: true,
+          }
+        : {
+            data: inv("2024-02", "2000"),
+            isPending: false,
+            isError: false,
+            isPlaceholderData: false,
+          },
+    );
+    rerender(<OverviewSections budgetId="b1" />);
+    expect(stackRows()).toEqual([
+      { label: "2024-01", contributions: 700, profit: 300 },
+    ]);
   });
 });
