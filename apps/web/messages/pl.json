@@ -592,10 +592,10 @@
         "title": "INWESTYCJE"
       },
       "add": {
-        "cta": "Nowa transakcja"
+        "cta": "Dodaj transakcję"
       },
       "newTx": {
-        "title": "Nowa transakcja",
+        "title": "Dodaj transakcję",
         "pickAsset": "Aktywo"
       },
       "sheet": {
@@ -774,7 +774,7 @@
       "asset": {
         "swipe": {
           "edit": "Edytuj",
-          "newTxn": "Nowa transakcja"
+          "newTxn": "Dodaj transakcję"
         },
         "name": {
           "label": "Nazwa",
@@ -801,7 +801,7 @@
         "currencyAria": "Pokaż {name} w innej walucie"
       },
       "swap": {
-        "title": "Nowa transakcja: {name}",
+        "title": "Dodaj transakcję: {name}",
         "tab": {
           "buy": "Kup",
           "sell": "Sprzedaj",
@@ -2060,7 +2060,7 @@
         "save": "Zapisz zmiany"
       },
       "header": {
-        "create": "Nowa transakcja",
+        "create": "Dodaj transakcję",
         "edit": "Edytuj transakcję"
       },
       "field": {

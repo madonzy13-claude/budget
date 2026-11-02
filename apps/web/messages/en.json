@@ -592,10 +592,10 @@
         "title": "INVESTMENTS"
       },
       "add": {
-        "cta": "New transaction"
+        "cta": "Add transaction"
       },
       "newTx": {
-        "title": "New transaction",
+        "title": "Add transaction",
         "pickAsset": "Asset"
       },
       "sheet": {
@@ -774,7 +774,7 @@
       "asset": {
         "swipe": {
           "edit": "Edit",
-          "newTxn": "New transaction"
+          "newTxn": "Add transaction"
         },
         "name": {
           "label": "Name",
@@ -801,7 +801,7 @@
         "currencyAria": "Show {name} in another currency"
       },
       "swap": {
-        "title": "New transaction: {name}",
+        "title": "Add transaction: {name}",
         "tab": {
           "buy": "Buy",
           "sell": "Sell",
@@ -2037,7 +2037,7 @@
         "save": "Save changes"
       },
       "header": {
-        "create": "New transaction",
+        "create": "Add transaction",
         "edit": "Edit transaction"
       },
       "field": {
