@@ -69,6 +69,25 @@ Feature: Budget Overview tab
     And I switch the wealth view to "Investments"
     Then the wealth "pl" metric reads "+21.0%"
 
+  # 261102 (user): the cursor survives a slide over the tooltip or past the
+  # chart, the tooltip rides under the line, and a drag (mouse) or two fingers
+  # (touch) select a range whose change the tooltip shows.
+  @r8-chart-scrub
+  Scenario: The wealth chart follows the pointer and measures a selected range
+    Given the budget held investments worth 100000 cents costing 100000 cents 90 days ago
+    And the budget held investments worth 110000 cents costing 100000 cents 60 days ago
+    And the budget held investments worth 1110000 cents costing 1100000 cents 40 days ago
+    And a "broker" holding "Fund" deposited 1100000 cents worth 1221000 cents exists in my budget
+    When I open the BDP for "My E2E Budget"
+    And I click the "Overview" tab pill
+    And I select the "All" overview range
+    And I expand the "wealth" overview section
+    And I switch the wealth view to "Investments"
+    Then the wealth tooltip rides just under the line as the pointer slides
+    And the wealth tooltip stays while the pointer slides over it or past the chart
+    And dragging across the wealth chart shows the change across the range
+    And two fingers on the wealth chart show the change between them
+
   # The grid sized its two rows independently, so the Cushion note wrapping to a
   # second line left the row above it visibly shorter (user screenshot, 260825).
   # The cushion surplus is what makes that note two lines on a phone — without it

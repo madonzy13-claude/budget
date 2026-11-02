@@ -13,6 +13,7 @@
  * The aggregate DTO has no dynamics/grow_from_open, so the change buckets are
  * computed client-side here (intraDynamics) — same intra-period logic as BDP.
  */
+import { returnBetween } from "@/lib/chart-scrub";
 import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { ArrowDown, ArrowUp } from "lucide-react";
@@ -322,6 +323,7 @@ export function AggregateTrend({
             {isInvest && investStack.length > 0 ? (
               // Stacked: contributions (grey) + profit (yellow) sum to the total.
               <OverviewAreaChart
+                scrub
                 data={investStack}
                 xKey="label"
                 series={[
@@ -347,8 +349,8 @@ export function AggregateTrend({
                 // Each row = absolute · change % · change amount (from range
                 // start to the hovered tick); P/L % = the investment return.
                 // % + amount both mask under privacy.
-                rowSuffix={(row, key) => {
-                  const f = investStack[0];
+                rowSuffix={(row, key, base) => {
+                  const f = base ?? investStack[0];
                   if (!f) return undefined;
                   if (key === "contributions") {
                     const cBase = Number(f.contributions);
@@ -359,8 +361,12 @@ export function AggregateTrend({
                       revealed ? fmtSigned(String(Math.round(delta))) : "•••",
                     ];
                   }
-                  const pct = returnByLabel.get(String(row.label));
-                  if (pct === undefined) return undefined;
+                  const end = returnByLabel.get(String(row.label));
+                  const start = returnByLabel.get(String(f.label));
+                  if (end === undefined || start === undefined)
+                    return undefined;
+                  // From the range start: the two returns since the first point, chained.
+                  const pct = returnBetween(start, end);
                   const delta = Number(row.profit) - Number(f.profit);
                   return [
                     revealed ? fmtSignedPct(pct) : "•••",
@@ -368,10 +374,10 @@ export function AggregateTrend({
                   ];
                 }}
                 // Total = contributions + profit, aligned in the same columns.
-                summary={(row) => {
+                summary={(row, base) => {
                   const total =
                     Number(row.contributions ?? 0) + Number(row.profit ?? 0);
-                  const f = investStack[0];
+                  const f = base ?? investStack[0];
                   const vBase = f
                     ? Number(f.contributions) + Number(f.profit)
                     : 0;
@@ -395,6 +401,7 @@ export function AggregateTrend({
               />
             ) : (
               <OverviewAreaChart
+                scrub
                 data={data.series.map((p) => ({
                   label: p.label,
                   value: Number(p.value_cents),
@@ -407,9 +414,11 @@ export function AggregateTrend({
                 maskAmounts
                 // Same three columns the investments view has: the value, then
                 // how far it has moved since the range started (user, 260804).
-                rowSuffix={(row) => {
+                rowSuffix={(row, _key, base) => {
                   const g = seriesGrowth(
-                    Number(data.series[0]?.value_cents ?? 0),
+                    Number(
+                      base?.value ?? Number(data.series[0]?.value_cents ?? 0),
+                    ),
                     Number(row.value),
                   );
                   if (!g) return undefined;

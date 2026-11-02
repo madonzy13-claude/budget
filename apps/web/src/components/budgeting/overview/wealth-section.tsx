@@ -10,6 +10,7 @@
  * UI_TYPE_COLOR map. null % → "—"; empty history → calm copy. Charts via the 11-02
  * wrappers; string cents → Number here.
  */
+import { returnBetween } from "@/lib/chart-scrub";
 import { useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { ArrowDown, ArrowUp } from "lucide-react";
@@ -382,6 +383,7 @@ export function WealthSection({
                   // Stacked like the planned needs/wants chart: contributions
                   // (grey) + profit (yellow) sum to the total investment value.
                   <OverviewAreaChart
+                    scrub
                     data={investStack}
                     xKey="label"
                     series={[
@@ -409,8 +411,8 @@ export function WealthSection({
                     // hovered tick (so they match the headline at the last tick).
                     // Contributions % ÷ contributions@start; P/L % = the
                     // investment return. % and amount both mask under privacy.
-                    rowSuffix={(row, key) => {
-                      const f = investStack[0];
+                    rowSuffix={(row, key, base) => {
+                      const f = base ?? investStack[0];
                       if (!f) return undefined;
                       const hidden = amountPrivacyEnabled && !revealed;
                       if (key === "contributions") {
@@ -422,8 +424,12 @@ export function WealthSection({
                           hidden ? "•••" : fmtSigned(String(Math.round(delta))),
                         ];
                       }
-                      const pct = returnByLabel.get(String(row.label));
-                      if (pct === undefined) return undefined;
+                      const end = returnByLabel.get(String(row.label));
+                      const start = returnByLabel.get(String(f.label));
+                      if (end === undefined || start === undefined)
+                        return undefined;
+                      // From the range start: the two returns since the first point, chained.
+                      const pct = returnBetween(start, end);
                       const delta = Number(row.profit) - Number(f.profit);
                       return [
                         hidden ? "•••" : fmtSignedPct(pct),
@@ -432,11 +438,11 @@ export function WealthSection({
                     }}
                     // Total = contributions + profit, aligned in the same columns:
                     // absolute + growth % + growth amount (÷ value@start).
-                    summary={(row) => {
+                    summary={(row, base) => {
                       const total =
                         Number(row.contributions ?? 0) +
                         Number(row.profit ?? 0);
-                      const f = investStack[0];
+                      const f = base ?? investStack[0];
                       const vBase = f
                         ? Number(f.contributions) + Number(f.profit)
                         : 0;
@@ -461,6 +467,7 @@ export function WealthSection({
                   />
                 ) : (
                   <OverviewAreaChart
+                    scrub
                     data={seriesPoints.map((p) => ({
                       label: p.label,
                       value: Number(p.value_cents),
@@ -476,9 +483,12 @@ export function WealthSection({
                     // Same three columns the investments view has always had:
                     // the value, then how far it has moved since the range
                     // started — in percent and in money (user, 260804).
-                    rowSuffix={(row) => {
+                    rowSuffix={(row, _key, base) => {
                       const g = seriesGrowth(
-                        Number(seriesPoints[0]?.value_cents ?? 0),
+                        Number(
+                          base?.value ??
+                            Number(seriesPoints[0]?.value_cents ?? 0),
+                        ),
                         Number(row.value),
                       );
                       if (!g) return undefined;

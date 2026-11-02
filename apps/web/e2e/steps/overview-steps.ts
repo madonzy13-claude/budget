@@ -365,3 +365,111 @@ Then(
     await expect(page.getByTestId(testId)).toHaveCount(0);
   },
 );
+
+// 261102 (user): the wealth chart owns the pointer (@r8-chart-scrub).
+async function chartBox(po: OverviewPo) {
+  await po.wealthChart().scrollIntoViewIfNeeded();
+  // A scroll closes the tooltip (on purpose), and a smooth scroll lands its
+  // last events after the pointer has moved — wait until the chart is still.
+  let last = "";
+  await expect
+    .poll(async () => {
+      const now = JSON.stringify(await po.wealthChart().boundingBox());
+      const still = now === last;
+      last = now;
+      return still;
+    })
+    .toBe(true);
+  const b = await po.wealthChart().boundingBox();
+  if (!b) throw new Error("wealth chart not laid out");
+  return b;
+}
+
+Then(
+  "the wealth tooltip rides just under the line as the pointer slides",
+  async ({ page }) => {
+    const po = new OverviewPo(page);
+    const b = await chartBox(po);
+    const tops = new Set<number>();
+    for (const f of [0.05, 0.5, 0.95]) {
+      await page.mouse.move(b.x + b.width * f, b.y + b.height / 2);
+      await expect(po.wealthTooltip()).toBeVisible();
+      const dot = await po.wealthTopDotY();
+      const tip = (await po.wealthTooltip().boundingBox())!;
+      // Just under the line — or just over it where there is no room below.
+      const gap = tip.y >= dot ? tip.y - dot : dot - (tip.y + tip.height);
+      expect(gap, `gap at ${f}`).toBeGreaterThanOrEqual(4);
+      expect(gap, `gap at ${f}`).toBeLessThanOrEqual(16);
+      tops.add(Math.round(tip.y));
+    }
+    expect(tops.size, "the tooltip follows the value").toBeGreaterThan(1);
+  },
+);
+
+Then(
+  "the wealth tooltip stays while the pointer slides over it or past the chart",
+  async ({ page }) => {
+    const po = new OverviewPo(page);
+    const b = await chartBox(po);
+    await page.mouse.move(b.x + b.width * 0.3, b.y + b.height / 2);
+    const tip = (await po.wealthTooltip().boundingBox())!;
+    await page.mouse.move(tip.x + tip.width / 2, tip.y + tip.height / 2, {
+      steps: 4,
+    });
+    await expect(po.wealthTooltip()).toBeVisible();
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width * 0.6, b.y + b.height + 80, {
+      steps: 4,
+    });
+    await expect(po.wealthTooltip().or(po.wealthRangeTooltip())).toBeVisible();
+    await page.mouse.up();
+    await page.mouse.move(0, 0);
+    await expect(po.wealthTooltip()).toBeHidden();
+  },
+);
+
+Then(
+  "dragging across the wealth chart shows the change across the range",
+  async ({ page }) => {
+    const po = new OverviewPo(page);
+    const b = await chartBox(po);
+    const y = b.y + b.height / 2;
+    await page.mouse.move(b.x + b.width * 0.1, y);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width * 0.9, y, { steps: 6 });
+    await expect(po.wealthRangeTooltip()).toBeVisible();
+    await expect(
+      po.wealthRangeTooltip().getByTestId("tooltip-title"),
+    ).toContainText("–");
+    await page.mouse.up();
+    await expect(po.wealthRangeTooltip()).toBeHidden();
+  },
+);
+
+Then(
+  "two fingers on the wealth chart show the change between them",
+  async ({ page }) => {
+    const po = new OverviewPo(page);
+    const b = await chartBox(po);
+    const y = b.y + b.height / 2;
+    const cdp = await page.context().newCDPSession(page);
+    const at = (fa: number, fb: number) => [
+      { x: b.x + b.width * fa, y, id: 1 },
+      { x: b.x + b.width * fb, y, id: 2 },
+    ];
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: at(0.2, 0.8),
+    });
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: at(0.15, 0.85),
+    });
+    await expect(po.wealthRangeTooltip()).toBeVisible();
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+    await expect(po.wealthRangeTooltip()).toBeHidden();
+  },
+);
