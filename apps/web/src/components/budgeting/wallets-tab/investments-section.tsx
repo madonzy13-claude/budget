@@ -720,7 +720,7 @@ export function InvestmentsSection({
                 data-testid={`hidden-toggle-${block.uiType}`}
                 data-count={hiddenOf(block.uiType).length}
                 onClick={() => toggleHidden(block.uiType)}
-                className="self-start pl-7 text-left text-[12px] text-[var(--muted-foreground)] underline decoration-dotted underline-offset-2"
+                className="self-center text-center text-[12px] lowercase text-[var(--muted-foreground)] underline decoration-dotted underline-offset-2"
               >
                 {showHidden.has(block.uiType)
                   ? t("asset.hidden.close")
@@ -846,7 +846,7 @@ export function InvestmentsSection({
                 data-testid="hidden-groups-toggle"
                 data-count={hiddenBlocks.length}
                 onClick={() => toggleHidden(HIDDEN_GROUPS)}
-                className="self-start text-left text-[12px] text-[var(--muted-foreground)] underline decoration-dotted underline-offset-2"
+                className="self-center text-center text-[12px] lowercase text-[var(--muted-foreground)] underline decoration-dotted underline-offset-2"
               >
                 {showHidden.has(HIDDEN_GROUPS)
                   ? t("asset.hidden.groupsClose")

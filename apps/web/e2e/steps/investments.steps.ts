@@ -2835,6 +2835,29 @@ Then(
   },
 );
 
+/** 261102 (user): the hidden links sit centred under their list, lowercase. */
+async function expectCentredLowercase(link: Locator, list: Locator) {
+  await expect(link).toBeVisible({ timeout: 15000 });
+  await expect(link).toHaveCSS("text-transform", "lowercase");
+  const [l, c] = await Promise.all([link.boundingBox(), list.boundingBox()]);
+  expect(Math.abs(l!.x + l!.width / 2 - (c!.x + c!.width / 2))).toBeLessThan(3);
+}
+
+Then(
+  "the hidden-assets link of {string} is centred and lowercase",
+  async ({ page }, type: string) => {
+    await expectCentredLowercase(
+      new InvestmentsPo(page).hiddenLink(type),
+      page.getByTestId(`investment-group-guide-${type}`),
+    );
+  },
+);
+
+Then("the hidden-groups link is centred and lowercase", async ({ page }) => {
+  const link = new InvestmentsPo(page).hiddenGroupsLink();
+  await expectCentredLowercase(link, link.locator(".."));
+});
+
 When("I open the hidden groups", async ({ page }) => {
   await new InvestmentsPo(page).hiddenGroupsLink().click();
 });

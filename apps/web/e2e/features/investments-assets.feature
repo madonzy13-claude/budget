@@ -555,6 +555,7 @@ Feature: Investments as assets with transactions (13.1)
     And I buy into broker "IBKR" adding "1000" with the account now at "97000"
     And I hide the asset "IBKR"
     Then the holding row "IBKR" is gone
+    And the hidden-assets link of "broker" is centred and lowercase
     When I open the hidden assets of "broker"
     Then the hidden asset "IBKR" is listed fainter
     When I unhide the asset "IBKR"
@@ -570,6 +571,7 @@ Feature: Investments as assets with transactions (13.1)
     And I buy into broker "IBKR" adding "1000" with the account now at "97000"
     And I hide the asset "IBKR"
     Then the "broker" group is gone from the list
+    And the hidden-groups link is centred and lowercase
     When I open the hidden groups
     Then the hidden group "broker" is listed fainter with "IBKR" in it
     When I unhide the asset "IBKR"
