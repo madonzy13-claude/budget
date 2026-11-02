@@ -639,7 +639,7 @@
       },
       "uitype": {
         "crypto": "Crypto",
-        "treasury_bond": "Retail treasury bonds",
+        "treasury_bond": "Government bonds",
         "collectibles": "Collectibles",
         "real_estate": "Real estate",
         "other": "Other",

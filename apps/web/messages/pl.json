@@ -639,7 +639,7 @@
       },
       "uitype": {
         "crypto": "Krypto",
-        "treasury_bond": "Detaliczne obligacje skarbowe",
+        "treasury_bond": "Obligacje skarbowe",
         "collectibles": "Kolekcje",
         "real_estate": "Nieruchomości",
         "other": "Inne",

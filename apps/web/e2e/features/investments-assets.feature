@@ -561,6 +561,20 @@ Feature: Investments as assets with transactions (13.1)
     When I unhide the asset "IBKR"
     Then the "broker" group has no hidden assets
 
+  # 261102 (user): government bonds and real estate showed no total after
+  # their entries; every hand-valued type does now.
+  @r6-ledger-total
+  Scenario Outline: A <type> ledger shows the total after each entry
+    Given a "<type>" holding "Holding A" deposited 1000000 cents worth 1200000 cents exists in my budget
+    When I open the investments wallets tab
+    Then every entry in the ledger of "Holding A" shows the total after it
+
+    Examples:
+      | type          |
+      | treasury_bond |
+      | real_estate   |
+      | broker        |
+
   # 261102 (user): a group whose assets are ALL hidden hides the same way —
   # behind a link under the list, fainter, its assets listed inside.
   @r6-hidden

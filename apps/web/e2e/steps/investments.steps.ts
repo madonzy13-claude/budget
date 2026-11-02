@@ -482,7 +482,9 @@ Given(
             buy_price_cents, buy_currency, current_price_cents, current_price_currency,
             sort_order, created_at)
          SELECT gen_random_uuid(), $1::uuid, $1::uuid, $2,
-                CASE $3::text WHEN 'cash' THEN 'cash_fx' WHEN 'savings' THEN 'savings' ELSE 'other' END,
+                CASE $3::text WHEN 'cash' THEN 'cash_fx' WHEN 'savings' THEN 'savings'
+                  WHEN 'treasury_bond' THEN 'bond' WHEN 'real_estate' THEN 'real_estate'
+                  ELSE 'other' END,
                 $3::text, '1', $4::bigint, b.default_currency, $5::numeric, b.default_currency,
                 0, now()
            FROM tenancy.budgets b WHERE b.id = $1::uuid`,
@@ -1210,6 +1212,18 @@ Then(
   async ({ page }, name: string, n: number) => {
     const ledger = await new InvestmentsPo(page).openLedger(name);
     await expect(ledger.getByRole("row")).toHaveCount(n);
+  },
+);
+
+// 261102 (user): every entry shows what the asset held right after it.
+Then(
+  "every entry in the ledger of {string} shows the total after it",
+  async ({ page }, name: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    const rows = ledger.getByRole("row");
+    await expect(rows.first()).toBeVisible({ timeout: 15000 });
+    const n = await rows.count();
+    await expect(ledger.locator("[data-after]")).toHaveCount(n);
   },
 );
 

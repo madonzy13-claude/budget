@@ -334,6 +334,97 @@ describe("List an asset's entries", () => {
     expect(rows[4]).toMatchObject({ deletable: true, isLastEntry: true });
   });
 
+  // 261102 (user): every hand-valued type shows what it held after each
+  // entry — government bonds and real estate had none.
+  for (const [holdingType, uiType] of [
+    ["bond", "treasury_bond"],
+    ["real_estate", "real_estate"],
+    ["other", "broker"],
+    ["cash_fx", "cash"],
+    ["savings", "savings"],
+  ] as const)
+    test(`a ${uiType} shows its total after each entry`, async () => {
+      const { list, start, w } = world({
+        id: "a",
+        holdingType,
+        uiType,
+        buy: 150_000n,
+        current: 170_000n,
+      });
+      await start("a", "2026-07-01", {
+        amountCents: 100_000n,
+        amountCurrency: "PLN",
+      });
+      await w.historyRepo.commit(T, U, {
+        budgetId: T,
+        patches: [],
+        entries: [
+          entry({
+            holdingRef: "a",
+            kind: "add",
+            effectiveDate: "2026-08-01",
+            amountCents: 50_000n,
+            amountCurrency: "PLN",
+            valueDeltaCents: 50_000n,
+          }),
+          entry({
+            holdingRef: "a",
+            kind: "value_change",
+            effectiveDate: "2026-09-01",
+            amountCents: 170_000n,
+            amountCurrency: "PLN",
+            valueDeltaCents: 20_000n,
+          }),
+        ],
+      });
+      const rows = (
+        await list({ ...who, holdingId: "a", today: "2026-10-15" })
+      )._unsafeUnwrap();
+      expect(rows.map((r) => [r.afterCents, r.afterCurrency])).toEqual([
+        ["170000", "PLN"],
+        ["150000", "PLN"],
+        ["100000", "PLN"],
+      ]);
+    });
+
+  test("a deposit shows principal plus the interest so far after each row", async () => {
+    const dep = {
+      id: "d",
+      name: "Bank 5%",
+      holdingType: "deposit",
+      uiType: "deposit",
+      buy: 1_000_000n,
+      current: null,
+      rateBps: 500,
+      start: "2026-07-01",
+      cap: "monthly",
+    };
+    const { list, start } = world(dep);
+    await start("d", "2026-07-01", {
+      amountCents: 1_000_000n,
+      amountCurrency: "PLN",
+    });
+    const rows = (
+      await list({ ...who, holdingId: "d", today: "2026-10-15" })
+    )._unsafeUnwrap();
+    expect(rows.at(-1)!.afterCents).toBe("1000000");
+    for (let i = 0; i < rows.length - 1; i++)
+      expect(BigInt(rows[i]!.afterCents!)).toBe(
+        BigInt(rows[i + 1]!.afterCents!) + BigInt(rows[i]!.amountCents!),
+      );
+    expect(rows[0]!.afterCents).toBe(
+      computeDepositValueCents({
+        principalCents: 1_000_000n,
+        rateBps: 500,
+        startDate: "2026-07-01",
+        capFrequency: "monthly",
+        endDate: null,
+        asOf: "2026-10-15",
+      }).toString(),
+    );
+    expect(rows.every((r) => r.afterCurrency === "PLN")).toBe(true);
+  });
+
   test("a yearly deposit younger than a year shows its accrued interest dated today", async () => {
     const dep = {
       id: "d",

@@ -639,7 +639,7 @@
       },
       "uitype": {
         "crypto": "Криптовалюти",
-        "treasury_bond": "Роздрібні казначейські облігації",
+        "treasury_bond": "Державні облігації",
         "collectibles": "Цінності",
         "real_estate": "Нерухомість",
         "other": "Інше",
