@@ -191,6 +191,31 @@ describe("Asset row actions", () => {
     );
   });
 
+  // 261102 (user): a group whose assets are ALL hidden hides too, the same
+  // way — behind a link at the bottom, listed dimmed with its assets open.
+  it("a group with only hidden assets leaves the list and opens from its own link", async () => {
+    mount({}, [h("g1", "precious_metals", "commodity")]);
+    expect(
+      screen.queryByTestId("investment-type-value-precious_metals"),
+    ).toBeNull();
+    expect(screen.queryByTestId("hidden-toggle-precious_metals")).toBeNull();
+    const link = screen.getByTestId("hidden-groups-toggle");
+    expect(link.dataset.count).toBe("1");
+    fireEvent.click(link);
+    const group = await screen.findByTestId("hidden-group-precious_metals");
+    expect(Number(group.style.opacity)).toBeLessThan(1);
+    expect(
+      screen.getByTestId("investment-type-value-precious_metals"),
+    ).toBeInTheDocument();
+    // its assets are listed straight away — no second "N hidden" click
+    expect(screen.getByTestId("hidden-asset-g1")).toBeInTheDocument();
+  });
+
+  it("no hidden-groups link while every group still has a visible asset", () => {
+    mount({}, [h("x1", "crypto", "crypto")]);
+    expect(screen.queryByTestId("hidden-groups-toggle")).toBeNull();
+  });
+
   // Round-4 gap 27: every visible asset's ledger is preloaded.
   it("prefetches each asset's entries without opening a ledger", async () => {
     vi.mocked(clientApiFetch).mockClear();

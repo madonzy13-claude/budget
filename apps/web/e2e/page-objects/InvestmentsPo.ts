@@ -493,6 +493,21 @@ export class InvestmentsPo {
     return this.page.getByTestId(`hidden-toggle-${type}`);
   }
 
+  /** 261102: the link under the list that opens the fully hidden groups. */
+  hiddenGroupsLink() {
+    return this.page.getByTestId("hidden-groups-toggle");
+  }
+
+  /** A fully hidden group, once its link is open. */
+  hiddenGroup(type: string) {
+    return this.page.getByTestId(`hidden-group-${type}`);
+  }
+
+  /** A type group's header total — present while the group is listed. */
+  groupTotal(type: string) {
+    return this.page.getByTestId(`investment-type-value-${type}`);
+  }
+
   /** R6 (user): unhide a listed hidden asset through its row action. */
   async unhide(name: string): Promise<void> {
     const res = this.page.waitForResponse(

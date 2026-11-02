@@ -794,7 +794,9 @@
           "show": "Pokaż ukryte aktywa ({count})",
           "close": "Zwiń ukryte aktywa",
           "unhide": "Pokaż",
-          "unhideAria": "Pokaż {name}"
+          "unhideAria": "Pokaż {name}",
+          "groupsShow": "Pokaż {count, plural, one {# ukrytą grupę} few {# ukryte grupy} many {# ukrytych grup} other {# ukrytych grup}}",
+          "groupsClose": "Zwiń ukryte grupy"
         },
         "currencyAria": "Pokaż {name} w innej walucie"
       },

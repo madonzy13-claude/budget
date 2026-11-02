@@ -2827,6 +2827,41 @@ When("I unhide the asset {string}", async ({ page }, name: string) => {
 });
 
 Then(
+  "the {string} group is gone from the list",
+  async ({ page }, type: string) => {
+    const po = new InvestmentsPo(page);
+    await expect(po.groupTotal(type)).toHaveCount(0, { timeout: 15000 });
+    await expect(po.hiddenGroupsLink()).toHaveAttribute("data-count", "1");
+  },
+);
+
+When("I open the hidden groups", async ({ page }) => {
+  await new InvestmentsPo(page).hiddenGroupsLink().click();
+});
+
+Then(
+  "the hidden group {string} is listed fainter with {string} in it",
+  async ({ page }, type: string, name: string) => {
+    const group = new InvestmentsPo(page).hiddenGroup(type);
+    await expect(group).toBeVisible({ timeout: 15000 });
+    await expect(group).toHaveCSS("opacity", "0.5");
+    await expect(
+      group.locator(`[data-testid="holding-row-${name}"]`),
+    ).toBeVisible();
+  },
+);
+
+Then(
+  "the {string} group is back in the list",
+  async ({ page }, type: string) => {
+    const po = new InvestmentsPo(page);
+    await expect(po.groupTotal(type)).toBeVisible({ timeout: 15000 });
+    await expect(po.hiddenGroup(type)).toHaveCount(0);
+    await expect(po.hiddenGroupsLink()).toHaveCount(0);
+  },
+);
+
+Then(
   "the {string} group has no hidden assets",
   async ({ page }, type: string) => {
     await expect(new InvestmentsPo(page).hiddenLink(type)).toHaveCount(0, {

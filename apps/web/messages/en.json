@@ -794,7 +794,9 @@
           "show": "Show {count, plural, one {# hidden asset} other {# hidden assets}}",
           "close": "Collapse hidden assets",
           "unhide": "Unhide",
-          "unhideAria": "Unhide {name}"
+          "unhideAria": "Unhide {name}",
+          "groupsShow": "Show {count, plural, one {# hidden group} other {# hidden groups}}",
+          "groupsClose": "Collapse hidden groups"
         },
         "currencyAria": "Show {name} in another currency"
       },

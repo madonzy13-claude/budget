@@ -532,6 +532,8 @@ Feature: Investments as assets with transactions (13.1)
   @r4-archive
   Scenario: Hiding an asset removes it and buying into it brings it back
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    # A second broker keeps the group on screen (a fully hidden group hides too).
+    And a "broker" holding "Exante" deposited 100000 cents worth 100000 cents exists in my budget
     When I open the investments wallets tab
     # A transaction beyond the opening entry, so Hide (not Delete) is offered.
     And I buy into broker "IBKR" adding "1000" with the account now at "97000"
@@ -557,6 +559,21 @@ Feature: Investments as assets with transactions (13.1)
     Then the hidden asset "IBKR" is listed fainter
     When I unhide the asset "IBKR"
     Then the "broker" group has no hidden assets
+
+  # 261102 (user): a group whose assets are ALL hidden hides the same way —
+  # behind a link under the list, fainter, its assets listed inside.
+  @r6-hidden
+  Scenario: A group whose every asset is hidden hides too and comes back from its link
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a crypto holding "Bitcoin binance" of "2.1" bought at 6099162 cents now 7600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I buy into broker "IBKR" adding "1000" with the account now at "97000"
+    And I hide the asset "IBKR"
+    Then the "broker" group is gone from the list
+    When I open the hidden groups
+    Then the hidden group "broker" is listed fainter with "IBKR" in it
+    When I unhide the asset "IBKR"
+    Then the "broker" group is back in the list
 
   # Gap 22: tapped crypto / metal rows stay inside their card.
   @r4-wide
