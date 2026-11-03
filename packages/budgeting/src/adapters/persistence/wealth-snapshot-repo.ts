@@ -4,15 +4,24 @@
  * Reads budgeting.budget_wealth_snapshots rows for a budget in a date range,
  * ordered by captured_at (uses budget_wealth_snapshots_series_idx). Opens its own
  * withTenantTx scoped to budgetId (v1.1: budget_id === tenant_id) so the RLS GUC
- * app.tenant_ids is set. Returns raw aggregate cents (bigint) — bucket aggregation
+ * app.tenant_ids is set. Returns aggregate cents (bigint) — bucket aggregation
  * + the live point live in the service.
+ *
+ * Phase 14 (D-02): a snapshot is stored in the currency of its capture and is
+ * never rewritten. It is re-expressed on read in the budget's CURRENT currency
+ * at its own capture date, so a currency change (and back) is lossless.
  */
 import { sql } from "drizzle-orm";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
+import { budgetCurrency, fxConvert } from "./fx-sql";
 import type { WealthSnapshotRow } from "../../application/get-overview-wealth";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
+
+/** One amount column in the budget's current currency at its capture date (NULL stays NULL). */
+const snap = (column: string, budgetId: string) =>
+  fxConvert(sql`${sql.identifier(column)}`, sql`currency`, budgetCurrency(budgetId), sql`captured_at::date`);
 
 type DrizzleTx = {
   execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
@@ -42,9 +51,9 @@ export function createWealthSnapshotRepo(): WealthSnapshotRepo {
         async (tx) => {
           const res = await (tx as DrizzleTx).execute(sql`
             SELECT captured_at,
-                   capitalization_cents::text AS capitalization_cents,
-                   investment_value_cents::text AS investment_value_cents,
-                   investment_cost_basis_cents::text AS investment_cost_basis_cents
+                   COALESCE(${snap("capitalization_cents", budgetId)}, 0)::text AS capitalization_cents,
+                   COALESCE(${snap("investment_value_cents", budgetId)}, 0)::text AS investment_value_cents,
+                   ${snap("investment_cost_basis_cents", budgetId)}::text AS investment_cost_basis_cents
               FROM budgeting.budget_wealth_snapshots
              WHERE budget_id = ${budgetId}::uuid
                AND tenant_id = ${budgetId}::uuid
@@ -76,9 +85,9 @@ export function createWealthSnapshotRepo(): WealthSnapshotRepo {
         async (tx) => {
           const res = await (tx as DrizzleTx).execute(sql`
             SELECT captured_at,
-                   capitalization_cents::text AS capitalization_cents,
-                   investment_value_cents::text AS investment_value_cents,
-                   investment_cost_basis_cents::text AS investment_cost_basis_cents
+                   COALESCE(${snap("capitalization_cents", budgetId)}, 0)::text AS capitalization_cents,
+                   COALESCE(${snap("investment_value_cents", budgetId)}, 0)::text AS investment_value_cents,
+                   ${snap("investment_cost_basis_cents", budgetId)}::text AS investment_cost_basis_cents
               FROM budgeting.budget_wealth_snapshots
              WHERE budget_id = ${budgetId}::uuid
                AND tenant_id = ${budgetId}::uuid

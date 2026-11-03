@@ -17,8 +17,8 @@
  * Reserves-by-category mirrors get-reserves-summary rows[].reserveCents (already
  * default_ccy) — the raw reserve-balance DB view is NEVER queried directly.
  *
- * No FX: every term is already in the budget currency (ledger amount_converted,
- * limits in budget ccy, engine cents in budget ccy). Cents are bigint internally;
+ * No FX in this service: the repos re-express spend and limits in the budget's
+ * CURRENT currency (Phase 14) and the engine cells arrive in it too. Cents are bigint internally;
  * the DTO stringifies at the boundary (matches get-overview-planned).
  */
 import { ok, err, type Result } from "@budget/shared-kernel";

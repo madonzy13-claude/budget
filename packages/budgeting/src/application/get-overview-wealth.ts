@@ -14,9 +14,9 @@
  *   - investments view: per-holding-type pie (Σ value per type, default_ccy) (D-18).
  *
  * Value-only series — no purchase-price / contributions metric anywhere (D-17).
- * No FX in this service: snapshots
- * are stored in the budget currency, the live point + the pie are already
- * default_ccy. Cents are bigint internally; the DTO stringifies at the boundary.
+ * Snapshots arrive already re-expressed in the budget's CURRENT currency at
+ * their capture date (wealth-snapshot-repo, Phase 14); the live point + the
+ * pie are computed in default_ccy. Cents are bigint internally; the DTO stringifies at the boundary.
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
 

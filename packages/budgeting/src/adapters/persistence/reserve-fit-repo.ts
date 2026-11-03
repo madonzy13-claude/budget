@@ -13,13 +13,15 @@
  * big enough to bother a human with is policy, and lives in get-reserve-fit.ts
  * where it is unit-testable.
  *
- * Same conventions as overview-repo: own withTenantTx per call (RLS GUC), the
- * ledger's amount_converted_cents is already the budget currency, spend is
+ * Same conventions as overview-repo: own withTenantTx per call (RLS GUC), every
+ * amount is the ledger row re-expressed in the budget's CURRENT currency at its
+ * own date (Phase 14, D-02) — ranked and summed on that value — spend is
  * bucketed by transaction_date, confirmed_at IS NOT NULL is the confirmed filter.
  */
 import { sql } from "drizzle-orm";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
+import { budgetCurrency, ledgerAmountIn } from "./fx-sql";
 import type {
   ReserveFitExclusionsRepo,
   LargeTransactionRow,
@@ -126,10 +128,11 @@ export function createReserveFitRepo(): ReserveFitRepo {
                  l.category_id::text AS category_id,
                  to_char(l.transaction_date, 'YYYY-MM-DD') AS transaction_date,
                  l.note,
-                 l.amount_converted_cents::text AS amount_cents,
+                 a.cents::text AS amount_cents,
                  r.cadence AS scheduled_cadence,
                  (x.ledger_id IS NOT NULL) AS excluded
             FROM budgeting.expense_ledger l
+            CROSS JOIN LATERAL (SELECT COALESCE(${ledgerAmountIn(budgetCurrency(budgetId), "l")}, 0) AS cents) a
             LEFT JOIN budgeting.scheduled_payments r ON r.id = l.scheduled_payment_id
             LEFT JOIN budgeting.reserve_fit_exclusions x
                    ON x.ledger_id = l.id AND x.tenant_id = ${budgetId}::uuid
@@ -149,13 +152,13 @@ export function createReserveFitRepo(): ReserveFitRepo {
                curAmount && curId
                  ? sql`AND (((x.ledger_id IS NOT NULL) < ${curExcluded === "1"}::boolean)
                         OR ((x.ledger_id IS NOT NULL) = ${curExcluded === "1"}::boolean
-                            AND (l.amount_converted_cents < ${curAmount}::bigint
-                                 OR (l.amount_converted_cents = ${curAmount}::bigint
+                            AND (a.cents < ${curAmount}::bigint
+                                 OR (a.cents = ${curAmount}::bigint
                                      AND l.id > ${curId}::uuid))))`
                  : sql``
              }
            ORDER BY (x.ledger_id IS NOT NULL) DESC,
-                    l.amount_converted_cents DESC, l.id ASC
+                    a.cents DESC, l.id ASC
            LIMIT ${limit + 1}`);
 
         // The badge counts what is set aside in the RANGE, not on the page —
@@ -213,13 +216,14 @@ export function createReserveFitRepo(): ReserveFitRepo {
                    l.category_id,
                    l.transaction_date,
                    l.note,
-                   l.amount_converted_cents,
+                   a.cents,
                    r.cadence AS scheduled_cadence,
                    ROW_NUMBER() OVER (
                      PARTITION BY l.category_id
-                     ORDER BY l.amount_converted_cents DESC
+                     ORDER BY a.cents DESC
                    ) AS rn
               FROM budgeting.expense_ledger l
+              CROSS JOIN LATERAL (SELECT COALESCE(${ledgerAmountIn(budgetCurrency(budgetId), "l")}, 0) AS cents) a
               LEFT JOIN budgeting.scheduled_payments r ON r.id = l.scheduled_payment_id
              WHERE l.tenant_id = ${budgetId}::uuid
                AND l.budget_id = ${budgetId}::uuid
@@ -240,7 +244,7 @@ export function createReserveFitRepo(): ReserveFitRepo {
                  ranked.category_id::text AS category_id,
                  to_char(ranked.transaction_date, 'YYYY-MM-DD') AS transaction_date,
                  ranked.note,
-                 ranked.amount_converted_cents::text AS amount_cents,
+                 ranked.cents::text AS amount_cents,
                  ranked.scheduled_cadence,
                  (x.ledger_id IS NOT NULL) AS excluded
             FROM ranked
@@ -248,7 +252,7 @@ export function createReserveFitRepo(): ReserveFitRepo {
                    ON x.ledger_id = ranked.id
                   AND x.tenant_id = ${budgetId}::uuid
            WHERE ranked.rn <= ${SHORTLIST_PER_CATEGORY}
-           ORDER BY ranked.amount_converted_cents DESC
+           ORDER BY ranked.cents DESC
         `);
         return res.rows.map((r): LargeTransactionRow => ({
           ledger_id: r.ledger_id as string,
@@ -267,7 +271,7 @@ export function createReserveFitRepo(): ReserveFitRepo {
         const res = await t.execute(sql`
           SELECT l.category_id::text AS category_id,
                  to_char(l.transaction_date, 'YYYY-MM') AS month,
-                 COALESCE(SUM(l.amount_converted_cents), 0)::text AS cents
+                 COALESCE(SUM(${ledgerAmountIn(budgetCurrency(budgetId), "l")}), 0)::text AS cents
             FROM budgeting.reserve_fit_exclusions x
             JOIN budgeting.expense_ledger l ON l.id = x.ledger_id
            WHERE x.tenant_id = ${budgetId}::uuid

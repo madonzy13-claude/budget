@@ -5,9 +5,9 @@
  * (D-20), planned-avg-vs-real-avg over ONLY the months a category was active
  * (D-13), and the two current-config scheduled charts (D-14).
  *
- * Timeline planned/real are already in default_currency (limits are stored in the
- * budget currency; the ledger stores amount_converted_cents) — no FX on that path,
- * matching get-spendings-summary. Scheduled amounts ARE FX-converted (rules carry
+ * Timeline planned/real arrive in the budget's CURRENT currency — the repo
+ * converts each ledger row at its date and each limit at LEAST(month end, today)
+ * (Phase 14, D-02/D-08), matching get-spendings-summary. Scheduled amounts ARE FX-converted (rules carry
  * their own currency). Cents are bigint internally; the DTO stringifies at the
  * service boundary (matching get-spendings-summary / get-cushion-summary).
  */
