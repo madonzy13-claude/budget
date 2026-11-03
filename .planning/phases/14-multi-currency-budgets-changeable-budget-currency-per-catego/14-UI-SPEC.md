@@ -37,14 +37,16 @@ No new roles. Reuse the host component's own: category-slider field label/value,
 
 ## Color
 
-| Role            | Value                       | Usage                                                                           |
-| --------------- | --------------------------- | ------------------------------------------------------------------------------- |
-| Dominant (60%)  | canvas-dark `#0b0e11`       | unchanged                                                                       |
-| Secondary (30%) | surface-card-dark `#1e2329` | unchanged; confirm dialog uses existing Dialog surface                          |
-| Accent (10%)    | primary `#fcd535`           | ONLY: confirm-dialog primary button "Change currency" (existing primary Button) |
-| Destructive     | trading-down `#f6465d`      | not used (change is reversible)                                                 |
+| Role            | Value                       | Usage                                                                                                                      |
+| --------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Dominant (60%)  | canvas-dark `#0b0e11`       | unchanged                                                                                                                  |
+| Secondary (30%) | surface-card-dark `#1e2329` | unchanged; confirm dialog uses existing Dialog surface                                                                     |
+| Accent (10%)    | primary `#fcd535`           | ONLY: confirm-dialog primary button "Change currency" (existing primary Button)                                            |
+| Destructive     | trading-down `#f6465d`      | ONLY the rate-unavailable inline error text (category slider). No destructive actions in this phase (change is reversible) |
 
 Accent reserved for: the single primary button of the budget-currency confirm dialog. Category currency, FX suffix, "≈" text use muted / body tokens only, never accent.
+
+Focal points: (1) budget-currency confirm dialog — the primary "Change currency" button is the focal anchor; (2) category slider — the limit field with its live "≈" preview is the focal anchor; the currency picker and helper line stay secondary.
 
 ---
 
@@ -57,7 +59,7 @@ Accent reserved for: the single primary button of the budget-currency confirm di
 - Limit input suffix/prefix shows the category currency (not the budget's).
 - On edit when the currency changes: helper line under the field (muted 14/400): "Limit converts at today's rate: {old} → {new}. Past transactions keep their currency." Show the converted limit preview ("≈ 233 EUR") live in the limit field; user may overwrite before saving. No blocking dialog.
 - States: default, open (picker), saved (existing slider save flow), rate-unavailable (below).
-- Rate unavailable: inline error muted-red text "No exchange rate for {pair} yet. Try again later." Save disabled only on currency change.
+- Rate unavailable: inline error in the existing error/destructive token (trading-down `#f6465d`, same as other inline form errors) "No exchange rate for {pair} yet. Try again later." Save disabled only on currency change.
 
 ### 2. Spendings grid + category rows — limit in own currency
 
@@ -68,15 +70,16 @@ Accent reserved for: the single primary button of the budget-currency confirm di
 ### 3. Transactions in a non-budget currency
 
 - Render with `FxAmount` exactly as today's foreign-currency transactions (D-03). After a budget currency change, old-currency transactions show their suffix automatically; no migration notice, no new badge.
-- `transaction-slider.tsx` / `quick-entry-input.tsx`: currency defaults to the selected category's currency (D-05); changing category re-defaults the currency only if the user has not manually changed it. User can still override via existing picker.
+- `transaction-slider.tsx` / `apps/web/src/components/budgeting/spendings-grid/quick-entry-input.tsx`: currency defaults to the selected category's currency (D-05); changing category re-defaults the currency only if the user has not manually changed it. User can still override via existing picker.
 
 ### 4. Budget currency — `settings/budget-identity-section.tsx`
 
 - Owner: picker always enabled (`.editable-dots`), lock icon/tooltip and `currency_locked` branch removed. Members: read-only display as today.
-- Selecting a different currency opens a confirm Dialog (a change re-expresses every total). Cancel = revert picker to current value, no request. Confirm = PATCH, then toast `identity.currency_saved` (existing).
-- Dialog title: "Change budget currency to {currency}?"
+- Selecting a different currency opens a confirm Dialog (a change re-expresses every total). Cancel ("Keep {currentCurrency}") = revert picker to current value, no request. Confirm = PATCH, then toast `identity.currency_saved` (existing).
+- Dialog title: "Change budget currency to {currency}?" — `{currency}` is the ISO code of the newly selected currency (e.g. EUR). Cancel label `{currentCurrency}` is the ISO code of the current budget currency.
 - Dialog states: idle, submitting (button disabled + existing spinner), error (existing toast.error "Failed to update currency").
 - Update `identity.currency_hint` (below).
+- i18n: DELETE `identity.currency_locked_tooltip` from `apps/web/messages/{en,pl,uk}.json` (read today by `budget-identity-section.tsx`; the reader is removed with the lock branch).
 
 ### 5. Reserve wallets — `wallets-tab/wallet-row.tsx`
 
@@ -85,8 +88,9 @@ Accent reserved for: the single primary button of the budget-currency confirm di
 ### 6. Reserve message (Reserves tab) + RESERVE_TOPUP task
 
 - Existing templates keep their shape; `{amount}` becomes a locale-formatted list built with `Intl.ListFormat(locale, {type:"conjunction"})` over per-currency parts (gives "and" / "i" / "і" free, no new copy key for the conjunction). Order: wallet currencies first, then the others, each alphabetical.
-- Part format: `120 PLN` (money formatted by existing formatter, currency code suffix). A currency with no reserve wallet of its own: `15 EUR (≈ 64 PLN)` — equivalent in the BUDGET currency (D-16). If the budget currency is that same currency, no "≈".
-- Net result (D-15): when nets cancel to one currency, show a single amount; no task when |net| is within tolerance (Claude's discretion: reuse existing threshold; if none, 1% of total need or the smallest unit).
+- Part format: `120 PLN` (money formatted by existing formatter, currency code suffix). A currency with no reserve wallet of its own: `15 EUR (≈ 64 PLN)` — equivalent in the BUDGET currency (D-16). If the budget currency is that same currency, no "≈". This string is produced in code (Intl money formatting + `Intl.ListFormat`), NOT by a new i18n key; the only i18n strings involved are the existing task-title templates with `{amount}`.
+- Net result (D-15): when nets cancel to one currency, show a single amount.
+- Tolerance (D-13) [ASSUMED — needs user sign-off]: no threshold exists today (`recompute-reserve-topup-task.ts` does an exact `surplus === 0n`). One rule: dead-band of max(1 whole unit of the budget currency, 0.5% of total need), applied only to the cross-currency (converted) remainder; same-currency lines stay exact (no tolerance).
 - Single-currency reserves render exactly as today (list of one).
 - No new colors: surplus/shortfall keep today's treatment.
 
@@ -101,21 +105,21 @@ Never say "draft"; use "unconfirmed payment". Currency display uses ISO codes in
 | Primary CTA (confirm dialog)                           | Change currency                                                                                                                   | Zmień walutę                                                                                                                           | Змінити валюту                                                                                                                      |
 | Dialog title                                           | Change budget currency to {currency}?                                                                                             | Zmienić walutę budżetu na {currency}?                                                                                                  | Змінити валюту бюджету на {currency}?                                                                                               |
 | Dialog body                                            | Every total will be shown in {currency}, converted at the rate of each date. Transactions keep the currency they were entered in. | Wszystkie sumy będą pokazane w {currency}, przeliczone po kursie z danego dnia. Transakcje zachowują walutę, w której zostały wpisane. | Усі суми буде показано в {currency}, перераховані за курсом відповідного дня. Транзакції зберігають валюту, у якій їх було введено. |
-| Dialog cancel                                          | Cancel                                                                                                                            | Anuluj                                                                                                                                 | Скасувати                                                                                                                           |
+| Dialog cancel                                          | Keep {currentCurrency}                                                                                                            | Zostaw {currentCurrency}                                                                                                               | Залишити {currentCurrency}                                                                                                          |
 | `identity.currency_hint` (replaces "Used to convert…") | Totals are shown in this currency. Transactions keep their own.                                                                   | Sumy są pokazywane w tej walucie. Transakcje zachowują własną.                                                                         | Підсумки показуються в цій валюті. Транзакції зберігають власну.                                                                    |
 | Category currency label                                | Currency                                                                                                                          | Waluta                                                                                                                                 | Валюта                                                                                                                              |
 | Category currency change hint                          | Limit converts at today's rate: {old} → {new}. Past transactions keep their currency.                                             | Limit przeliczy się po dzisiejszym kursie: {old} → {new}. Dotychczasowe transakcje zachowują walutę.                                   | Ліміт перерахується за сьогоднішнім курсом: {old} → {new}. Попередні транзакції зберігають валюту.                                  |
 | Category rate error                                    | No exchange rate for {pair} yet. Try again later.                                                                                 | Brak kursu dla {pair}. Spróbuj później.                                                                                                | Немає курсу для {pair}. Спробуйте пізніше.                                                                                          |
 | Limit equivalent (grid/tooltip)                        | ≈ {amount}                                                                                                                        | ≈ {amount}                                                                                                                             | ≈ {amount}                                                                                                                          |
 | `tasks.title.RESERVE_TOPUP`                            | Top up reserve by {amount}                                                                                                        | Uzupełnij rezerwę o {amount}                                                                                                           | Поповніть резерв на {amount}                                                                                                        |
-| `tasks.title.RESERVE_TOPUP_withdraw`                   | Reserve has {amount} extra                                                                                                        | W rezerwie jest {amount} za dużo                                                                                                       | У резерві зайвих {amount}                                                                                                           |
+| `tasks.title.RESERVE_TOPUP_withdraw`                   | Reserve has {amount} extra                                                                                                        | W rezerwie jest {amount} za dużo (replaces "Rezerwa ma {amount} nadwyżki")                                                             | У резерві зайвих {amount} (replaces "Резерв має {amount} надлишку")                                                                 |
 | Example {amount} (en)                                  | 120 PLN and 15 EUR (≈ 64 PLN)                                                                                                     | 120 PLN i 15 EUR (≈ 64 PLN)                                                                                                            | 120 PLN і 15 EUR (≈ 64 PLN)                                                                                                         |
 | Reserve tab shortfall/surplus messages                 | existing keys; `{amount}` = same per-currency list                                                                                | same                                                                                                                                   | same                                                                                                                                |
 | Empty state                                            | n/a — no new empty state                                                                                                          |                                                                                                                                        |                                                                                                                                     |
 | Error state                                            | existing toast "Failed to update currency" + retry by re-selecting                                                                |                                                                                                                                        |                                                                                                                                     |
 | Destructive actions                                    | none (currency changes are reversible)                                                                                            |                                                                                                                                        |                                                                                                                                     |
 
-Implementation note: pl/uk existing task title strings are kept as-is except `RESERVE_TOPUP_withdraw`, which is re-checked against the plural/gender of a list (hence the neutral "za dużo" / "зайвих").
+Implementation note: existing task title strings are kept as-is EXCEPT `tasks.title.RESERVE_TOPUP_withdraw` in pl and uk, which are deliberate replacements (per-currency list, plural/gender-neutral): pl "Rezerwa ma {amount} nadwyżki" → "W rezerwie jest {amount} za dużo"; uk "Резерв має {amount} надлишку" → "У резерві зайвих {amount}". en "Reserve has {amount} extra" is unchanged. All other task strings stay as-is. The "15 EUR (≈ 64 PLN)" amount format is produced in code (Intl formatting), not by a new i18n key.
 
 ---
 
