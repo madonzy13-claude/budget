@@ -452,7 +452,7 @@ Plans:
 
 **Requirements**: CONTEXT decisions (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 7/21 plans executed
+**Plans:** 8/21 plans executed
 
 Plans:
 **Wave 1**
@@ -467,7 +467,7 @@ Plans:
 - [x] 14-05-PLAN.md — category currency backend (create default, DTO, tx default, limit currency)
 - [x] 14-06-PLAN.md — ledger read-time conversion (transaction-repo, list/search) + architecture guard
 - [x] 14-07-PLAN.md — D-08 limit conversion (limit repo currency, spendings summary)
-- [ ] 14-08-PLAN.md — overview + home summary read-time conversion
+- [x] 14-08-PLAN.md — overview + home summary read-time conversion
 - [ ] 14-09-PLAN.md — cash flow, scheduled monthly, cushion, income task conversion
 
 **Wave 3** *(blocked on Wave 2 completion)*
