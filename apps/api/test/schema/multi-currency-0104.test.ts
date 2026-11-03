@@ -51,7 +51,8 @@ describe.skipIf(!RAW)("Migration 0104 multi-currency", () => {
       `SELECT to_regprocedure($1)::text AS p`,
       [FN],
     );
-    expect(r?.p).toBe(FN);
+    // regprocedure prints without the schema when it is on the search_path.
+    expect(r?.p).toContain("fx_convert(bigint,text,text,date)");
   });
 
   test.each(["app_role", "worker_role"])(
