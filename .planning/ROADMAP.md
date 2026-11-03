@@ -452,7 +452,7 @@ Plans:
 
 **Requirements**: CONTEXT decisions (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 10/21 plans executed
+**Plans:** 11/21 plans executed
 
 Plans:
 **Wave 1**
@@ -473,7 +473,7 @@ Plans:
 **Wave 3** *(blocked on Wave 2 completion)*
 
 - [x] 14-10-PLAN.md — reserve fit + wealth re-expression; guard green
-- [ ] 14-11-PLAN.md — per-currency reserve replay (D-10, D-17)
+- [x] 14-11-PLAN.md — per-currency reserve replay (D-10, D-17)
 - [ ] 14-18-PLAN.md — entry defaults to category currency + foreign limit display (web)
 
 **Wave 4** *(blocked on Wave 3 completion)*
