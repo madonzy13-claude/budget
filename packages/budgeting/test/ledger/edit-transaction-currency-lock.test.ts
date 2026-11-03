@@ -1,17 +1,8 @@
 /**
- * edit-transaction-currency-lock.test.ts — UAT-Phase6-Test7 retest #5.
- *
- * After a user changes a transaction's currency to a value that differs
- * from the budget's default, the persisted row should LOCK to the
- * budget currency: `currencyOriginal` becomes the budget currency and
- * `amountOriginalCents` becomes the converted value. The row reads as
- * "this is a budget-currency transaction" — the original-currency
- * detail isn't preserved (intentional UX trade-off the user asked for).
- *
- * Prior behavior left `currencyOriginal` set to the user's new (non-
- * budget) selection and only converted `amountConvertedCents` — the
- * grid then showed the converted amount alongside the foreign code,
- * which the user found confusing.
+ * edit-transaction-currency-lock.test.ts — R6 / Phase 14 (D-03): editing a
+ * transaction's currency keeps the currency and amount it was paid in; only
+ * the write-time converted figure is recomputed. (The old "lock the row to the
+ * budget currency" behaviour this file once described was superseded by R6.)
  */
 import { describe, test, expect } from "bun:test";
 import {
