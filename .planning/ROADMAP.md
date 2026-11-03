@@ -452,7 +452,7 @@ Plans:
 
 **Requirements**: CONTEXT decisions (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 12/21 plans executed
+**Plans:** 13/21 plans executed
 
 Plans:
 **Wave 1**
@@ -478,7 +478,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 14-12-PLAN.md — settlement wiring, D-14 fix, multi-line RESERVE_TOPUP payload
+- [x] 14-12-PLAN.md — settlement wiring, D-14 fix, multi-line RESERVE_TOPUP payload
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
