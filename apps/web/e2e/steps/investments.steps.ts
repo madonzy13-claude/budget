@@ -3331,3 +3331,99 @@ Then(
     await expect(page.getByTestId(`holding-qty-${name}`)).toHaveText(text);
   },
 );
+
+Then(
+  "the {string} group goes quiet once opened, closed and left",
+  async ({ page }, group: string) => {
+    const row = page.getByTestId(`investment-group-${group}`);
+    const name = page.getByTestId(`investment-type-name-desktop-${group}`);
+    if ((await row.getAttribute("aria-expanded")) !== "true")
+      await name.click();
+    await expect(row).toHaveAttribute("aria-expanded", "true");
+    await name.click();
+    await expect(row).toHaveAttribute("aria-expanded", "false");
+    await page.mouse.move(0, 0);
+    await expect(
+      page.getByTestId(`investment-type-caption-desktop-${group}`),
+    ).toBeHidden();
+    await expect(
+      page.getByTestId(`investment-type-pl-desktop-${group}`),
+    ).toBeHidden();
+  },
+);
+
+Then(
+  "the {string} asset goes quiet once opened, closed and left",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const row = page.getByTestId(`asset-row-${id}`);
+    const label = page.getByTestId(`asset-name-desktop-${id}`);
+    if ((await row.getAttribute("aria-expanded")) !== "true")
+      await label.click();
+    await expect(row).toHaveAttribute("aria-expanded", "true");
+    await label.click();
+    await expect(row).toHaveAttribute("aria-expanded", "false");
+    await page.mouse.move(0, 0);
+    await expect(page.getByTestId(`asset-caption-desktop-${id}`)).toBeHidden();
+    await expect(page.getByTestId(`asset-pl-desktop-${id}`)).toBeHidden();
+  },
+);
+
+Then(
+  "the {string} actions stay shut while the figures under them are hovered",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const toolbar = page
+      .getByTestId(`asset-actions-${id}`)
+      .getByRole("toolbar");
+    await page.mouse.move(0, 0);
+    await page.getByTestId(`holding-row-${name}`).hover();
+    const b = (await toolbar.boundingBox())!;
+    // Left of the "…" (the backdrop runs on under it, and the "…" opens it).
+    const dots = (await page
+      .getByTestId(`asset-actions-${id}`)
+      .getByTestId("row-actions-more")
+      .boundingBox())!;
+    for (const f of [0.3, 0.6, 0.9]) {
+      await page.mouse.move(b.x + (dots.x - 2 - b.x) * f, b.y + b.height / 2);
+      // Past the CSS transition, so a wrongly opened panel would show.
+      await page.waitForTimeout(250);
+      expect(await opacityOf(toolbar), `hovering ${f} of the way`).toBe("0");
+    }
+  },
+);
+
+Then(
+  "the {string} actions backdrop runs on under the {string}",
+  async ({ page }, name: string, _dots: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const slot = page.getByTestId(`asset-actions-${id}`);
+    const toolbar = slot.getByRole("toolbar");
+    const dots = slot.getByTestId("row-actions-more");
+    await page.getByTestId(`holding-row-${name}`).hover();
+    await dots.hover();
+    await expect.poll(() => opacityOf(toolbar)).toBe("1");
+    const t = (await toolbar.boundingBox())!;
+    const d = (await dots.boundingBox())!;
+    expect(t.x + t.width).toBeGreaterThanOrEqual(d.x + d.width - 1);
+  },
+);
+
+// 261103 (user): the P/L hugged the currency field — moved further left.
+Then(
+  "the {string} P\\/L sits at least {int}px clear of its currency",
+  async ({ page }, name: string, px: number) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    await page.getByTestId(`holding-row-${name}`).hover();
+    const amount = page
+      .getByTestId(`asset-pl-desktop-${id}`)
+      .locator("xpath=following-sibling::span[1]");
+    const textRight = await amount.evaluate((el) => {
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      return r.getBoundingClientRect().right;
+    });
+    const ccy = (await page.getByTestId(`asset-currency-${id}`).boundingBox())!;
+    expect(ccy.x - textRight).toBeGreaterThanOrEqual(px);
+  },
+);

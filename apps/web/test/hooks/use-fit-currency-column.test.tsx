@@ -73,3 +73,37 @@ describe("useFitCurrencyColumn", () => {
 
 // Trigger padding 24 + gap 8 + chevron 16 + border 2.
 const CHROME = 50;
+
+// 261103 (user): the amount column was sized by a character-count estimate,
+// so a row whose figure drew wider than its count pushed its currency off the
+// group's. The widest figure actually drawn sets one width for every row.
+function Amounts({ widths }: { widths: number[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useFitCurrencyColumn(ref);
+  return (
+    <div ref={ref} data-testid="list">
+      {widths.map((w, i) => (
+        <span
+          key={i}
+          data-amt-text
+          ref={(el) => {
+            if (el)
+              el.getBoundingClientRect = () =>
+                ({ width: w }) as unknown as DOMRect;
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+describe("useFitCurrencyColumn — amounts", () => {
+  it("sizes the amount column to the widest figure drawn", async () => {
+    const { getByTestId } = render(<Amounts widths={[61.2, 74.6, 40]} />);
+    await waitFor(() =>
+      expect(getByTestId("list").style.getPropertyValue("--amt-w")).toBe(
+        "75px",
+      ),
+    );
+  });
+});

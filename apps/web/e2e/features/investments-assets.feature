@@ -546,11 +546,19 @@ Feature: Investments as assets with transactions (13.1)
     And the "IBKR" amount sits level with its currency field
     And the "IBKR" asset shows its P/L only while hovered
     And the "IBKR" asset's actions open from its "…" over a blurred backdrop
+    # 261103 (user): hovering the figures under the hidden toolbar opened it,
+    # and its backdrop stopped in a hard edge at the "…".
+    And the "IBKR" actions stay shut while the figures under them are hovered
+    And the "IBKR" actions backdrop runs on under the "…"
     And the "IBKR" transactions open their actions from a "…"
     And the "BTC Ledger" name sits centred in its row until hovered
     And the "broker" group's columns line up with the "IBKR" asset's
     And the "crypto" group's columns line up with the "ETH Ledger" asset's
     And the "BTC Ledger" quantity reads "qty: 1"
+    And the "IBKR" P/L sits at least 24px clear of its currency
+    # 261103 (user): a click left focus on the row, and focus kept it "shown".
+    And the "BTC Ledger" asset goes quiet once opened, closed and left
+    And the "crypto" group goes quiet once opened, closed and left
 
   @r4-archive
   Scenario: Hiding an asset removes it and buying into it brings it back

@@ -15,6 +15,10 @@ const LABEL_GAP_PX = 8;
  * guessed: each `[data-ccy-label]` part's natural width (`scrollWidth` — the
  * name truncates, so the label's own box would only report what is shown).
  * Re-measures when rows or picks change and once web fonts have loaded.
+ *
+ * Also the amount column, as `--amt-w`: the widest `[data-amt-text]` as drawn.
+ * A character-count estimate (`ch`) let a figure that drew wider than its
+ * count push its row's currency off the group's (261103, user).
  */
 export function useFitCurrencyColumn(ref: RefObject<HTMLElement | null>) {
   // No deps: the list mounts after its data loads, so re-attach each render.
@@ -34,6 +38,10 @@ export function useFitCurrencyColumn(ref: RefObject<HTMLElement | null>) {
       }
       if (max > 0)
         el.style.setProperty("--ccy-w", `${Math.ceil(max) + CHROME_PX}px`);
+      let amt = 0;
+      for (const a of el.querySelectorAll<HTMLElement>("[data-amt-text]"))
+        amt = Math.max(amt, a.getBoundingClientRect().width);
+      if (amt > 0) el.style.setProperty("--amt-w", `${Math.ceil(amt)}px`);
     };
     fit();
     // Attributes are not observed: setting --ccy-w must not re-trigger this.

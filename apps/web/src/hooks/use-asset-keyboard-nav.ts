@@ -309,7 +309,7 @@ export function useAssetKeyboardNav(rootRef: RefObject<HTMLElement | null>) {
         lastPt === null || lastPt.x !== e.clientX || lastPt.y !== e.clientY;
       lastPt = { x: e.clientX, y: e.clientY };
       if (!moved) return;
-      highlightNavItem(root, item);
+      highlightNavItem(root, item, "pointer");
       fieldIdx.current = null;
     };
     document.addEventListener("pointerover", onPointerOver, true);

@@ -512,7 +512,8 @@ export function InvestmentRow({
           {plNode}
         </span>
         <span
-          className={`hidden w-24 shrink-0 justify-end text-right text-num-sm tabular-nums sm:flex ${plColor} ${revealOnRow}`}
+          // 261103 (user): P/L further left — 24px clear of the currency.
+          className={`hidden w-[7.5rem] shrink-0 justify-end pr-6 text-right text-num-sm tabular-nums sm:flex ${plColor} ${revealOnRow}`}
         >
           {plMoney ?? ""}
         </span>
@@ -556,7 +557,7 @@ export function InvestmentRow({
             )}
             <div
               data-amount-cell
-              className="relative text-right tabular-nums min-w-[var(--amt)] sm:min-w-[calc(var(--amt)_+_1ch)]"
+              className="relative text-right tabular-nums min-w-[var(--amt)] sm:w-[var(--amt-w,calc(var(--amt)_+_1ch))] sm:min-w-0"
               style={
                 { "--amt": `${maxAmountChars ?? 4}ch` } as React.CSSProperties
               }
@@ -574,7 +575,9 @@ export function InvestmentRow({
                   testId={`holding-amount-${holding.id}`}
                   // I1 (user): a dotted line marks what can be tapped and typed.
                   render={() => (
-                    <span className="editable-dots text-num-md">{value}</span>
+                    <span data-amt-text className="editable-dots text-num-md">
+                      {value}
+                    </span>
                   )}
                   renderEditor={(draft, onChange) => (
                     <Input
@@ -596,6 +599,7 @@ export function InvestmentRow({
                 // lock — an automatic amount is a shade dimmer and its title
                 // says how it changes; the ↻ line below says "automatic".
                 <span
+                  data-amt-text
                   data-testid={`holding-amount-readonly-${holding.id}`}
                   data-auto={autoPriced || undefined}
                   title={autoPriced ? t("row.autoPricedTip") : undefined}

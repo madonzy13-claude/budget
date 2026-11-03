@@ -191,13 +191,15 @@ export function InvestmentTypeHeader({
             with no sm: variant) — its own span at the asset row's size. */}
         <span
           data-testid={`investment-type-amount-desktop-${uiType}`}
-          className="num hidden text-right text-num-md sm:inline"
+          className="num hidden text-right text-num-md sm:inline-block"
           style={{
             color: "var(--body-on-dark)",
-            minWidth: `${(maxAmountChars ?? 4) + 1}ch`,
+            // The list's measured widest figure (--amt-w); the estimate
+            // only until it is measured.
+            width: `var(--amt-w, ${(maxAmountChars ?? 4) + 1}ch)`,
           }}
         >
-          {money(pl.valueBudgetCents)}
+          <span data-amt-text>{money(pl.valueBudgetCents)}</span>
         </span>
         {onCurrencyChange && showSplit && (
           // R6 (user): open on a phone = the asset row's open value line —
@@ -369,7 +371,8 @@ export function InvestmentTypeHeader({
         </span>
         <span
           data-testid={`investment-type-plamt-desktop-${uiType}`}
-          className="flex w-24 shrink-0 justify-end text-right text-num-sm tabular-nums"
+          // 261103 (user): P/L further left — 24px clear of the currency.
+          className="flex w-[7.5rem] shrink-0 justify-end pr-6 text-right text-num-sm tabular-nums"
           style={{ color: signColor(pl.totalPLCents) }}
         >
           {hasPL ? signed(pl.totalPLCents) : ""}

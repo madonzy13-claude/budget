@@ -195,7 +195,7 @@ describe("InvestmentTypeHeader", () => {
     expect(
       screen.getByTestId("investment-type-pl-desktop-stocks"),
     ).toHaveTextContent("53.7%");
-    expect(cls("investment-type-plamt-desktop-stocks")).toMatch(/w-24/);
+    expect(cls("investment-type-plamt-desktop-stocks")).toMatch(/w-\[7\.5rem\].*pr-6/);
     expect(cls("investment-type-share-desktop-stocks")).toMatch(
       /hidden .*w-16.*sm:block/,
     );
