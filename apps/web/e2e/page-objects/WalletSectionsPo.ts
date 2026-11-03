@@ -35,6 +35,45 @@ export class WalletSectionsPo {
       .filter({ hasText: name });
   }
 
+  /** Phase 14 (D-09): pick a wallet's currency — native select on a phone,
+   *  the dropdown on desktop — and wait for the PATCH to land. */
+  async setRowCurrency(section: string, name: string, currency: string): Promise<void> {
+    const cell = this.row(section, name).locator('[data-nav-field="currency"]');
+    await cell.waitFor({ state: "visible", timeout: 15000 });
+    const saved = this.page.waitForResponse(
+      (r) => r.request().method() === "PATCH" && /\/wallets\//.test(r.url()),
+      { timeout: 15000 },
+    );
+    const native = cell.getByTestId("currency-picker-native");
+    if (await native.isVisible().catch(() => false)) {
+      await native.selectOption(currency);
+    } else {
+      await cell.getByRole("combobox").click();
+      await this.page.getByRole("option").filter({ hasText: currency }).first().click();
+    }
+    if (!(await saved).ok()) throw new Error("currency change failed");
+  }
+
+  async assertRowCurrency(section: string, name: string, currency: string): Promise<void> {
+    const cell = this.row(section, name).locator('[data-nav-field="currency"]');
+    const native = cell.getByTestId("currency-picker-native");
+    if (await native.isVisible({ timeout: 15000 }).catch(() => false)) {
+      await expect(native).toHaveValue(currency);
+    } else {
+      await expect(cell).toContainText(currency, { timeout: 15000 });
+    }
+  }
+
+  /** D-14: the section total is in the budget currency, never a raw sum. */
+  async assertSectionTotalAbove(section: string, floor: number): Promise<void> {
+    await expect
+      .poll(
+        async () => Number(((await this.sectionTotal(section).textContent()) ?? "").replace(/[^\d.]/g, "")),
+        { timeout: 15000 },
+      )
+      .toBeGreaterThan(floor);
+  }
+
   /** Reveal the section's inline draft row, name it, and commit (Enter → POST). */
   async addWallet(section: string, name: string): Promise<void> {
     await this.section(section)
