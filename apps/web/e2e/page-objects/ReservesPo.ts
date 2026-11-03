@@ -118,4 +118,9 @@ export class ReservesPo {
     // Editor closes once the optimistic write lands; the resting cell shows it.
     await expect(editor).toBeHidden({ timeout: 5000 });
   }
+
+  /** Phase 14: one footer line per currency ("needed / in wallets CCY"). */
+  async assertFooterLine(currency: string, text: string): Promise<void> {
+    await expect(this.page.getByTestId(`reserves-footer-line-${currency}`)).toHaveText(text, { timeout: 15000 });
+  }
 }

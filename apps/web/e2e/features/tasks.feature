@@ -62,6 +62,16 @@ Feature: Tasks redesign — home badge + per-pill badge + per-pill slider
     When I click the reserves pill slider header
     Then the reserves pill slider shows 1 row
 
+  # Phase 14 (D-12/D-16): the reserve task names every currency, with the
+  # budget-currency equivalent for one that has no reserve wallet.
+  Scenario: A reserve task in two currencies names both
+    Given a "RESERVE_TOPUP" task is seeded for "My E2E Budget" with these lines:
+      | currency | cents | direction | equiv_currency | equiv_cents |
+      | PLN      | 12000 | TOPUP     |                |             |
+      | EUR      | 1500  | TOPUP     | PLN            | 6400        |
+    When I open the reserves tab for "My E2E Budget"
+    Then the reserves pill slider row reads "Top up reserve by 120 PLN and 15 EUR (≈ 64 PLN)"
+
   # NOTE: "≥2 tasks collapsed" hybrid-expand path is unit-tested in
   # apps/web/test/components/budgeting/tasks/pill-task-slider.test.tsx —
   # E2E coverage is structurally impossible because each pill maps 1:1 to
