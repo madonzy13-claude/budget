@@ -22,9 +22,10 @@ Given(
   },
 );
 
-Then(
-  "the reserves footer line for {string} reads {string}",
-  async ({ page }, currency: string, text: string) => {
-    await new ReservesPo(page).assertFooterLine(currency, text);
-  },
-);
+Then("the reserves total needed reads {string}", async ({ page }, text: string) => {
+  await new ReservesPo(page).assertTotal("needed", text);
+});
+
+Then("the reserves total held reads {string}", async ({ page }, text: string) => {
+  await new ReservesPo(page).assertTotal("held", text);
+});

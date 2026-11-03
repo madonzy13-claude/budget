@@ -148,9 +148,10 @@ describe("ReservesTotalsFooter (05-19 — 3 totals, no banner)", () => {
   });
 });
 
-// Phase 14 (D-10/D-14): reserves in several currencies get one line each.
+// Phase 14 (user, 261103): reserves in several currencies read as their
+// per-currency parts inside the two totals — no separate "x / y CCY" lines.
 describe("ReservesTotalsFooter — per currency", () => {
-  it("lists need and wallets per currency when more than one is involved", () => {
+  it("shows needed and held as per-currency parts", () => {
     render(
       <ReservesTotalsFooter
         internalCents="49455"
@@ -163,12 +164,12 @@ describe("ReservesTotalsFooter — per currency", () => {
         walletsByCurrency={[{ currency: "PLN", cents: "20000" }]}
       />,
     );
-    expect(screen.getByTestId("reserves-footer-line-EUR").textContent).toContain("68.50");
-    expect(screen.getByTestId("reserves-footer-line-EUR").textContent).toContain("EUR");
-    expect(screen.getByTestId("reserves-footer-line-PLN").textContent).toContain("200");
+    expect(screen.getByTestId("reserves-total-available").textContent).toBe("68.50 EUR + 200 PLN");
+    expect(screen.getByTestId("reserves-total-wallets").textContent).toBe("200 PLN");
+    expect(screen.queryByTestId("reserves-footer-line-EUR")).toBeNull();
   });
 
-  it("a single-currency budget shows no per-currency lines", () => {
+  it("a single-currency budget reads exactly as before", () => {
     render(
       <ReservesTotalsFooter
         internalCents="20000"
@@ -178,6 +179,6 @@ describe("ReservesTotalsFooter — per currency", () => {
         walletsByCurrency={[{ currency: "PLN", cents: "20000" }]}
       />,
     );
-    expect(screen.queryByTestId("reserves-footer-line-PLN")).toBeNull();
+    expect(screen.getByTestId("reserves-total-available").textContent).toBe("200 PLN");
   });
 });

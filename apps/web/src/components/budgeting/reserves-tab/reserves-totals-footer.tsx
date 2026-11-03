@@ -60,15 +60,20 @@ export function ReservesTotalsFooter({
   const walletDir: "up" | "down" | "level" =
     wallet > need ? "up" : wallet < need ? "down" : "level";
 
-  // Phase 14: when reserves or wallets span currencies, one line per currency
-  // ("needed / in wallets CCY") under the budget-currency totals above.
-  const currencies = [
-    ...new Set([...needByCurrency, ...walletsByCurrency].map((x) => x.currency)),
-  ].sort();
-  const perCurrency =
-    currencies.length > 1 || (currencies.length === 1 && currencies[0] !== currency);
-  const centsIn = (list: typeof needByCurrency, c: string) =>
-    list.find((x) => x.currency === c)?.cents ?? "0";
+  // Phase 14 (user, 261103): when reserves or wallets span currencies, each
+  // total reads as its per-currency parts — "50 EUR + 120 PLN" — instead of a
+  // budget-currency sum. The arrow still compares the two in the budget
+  // currency (the server's settlement).
+  const currencies = new Set([...needByCurrency, ...walletsByCurrency].map((x) => x.currency));
+  const perCurrency = currencies.size > 1 || (currencies.size === 1 && !currencies.has(currency));
+  const parts = (list: typeof needByCurrency, fallback: string) => {
+    const nonZero = list.filter((x) => x.cents !== "0");
+    return nonZero.length === 0
+      ? `${fmt("0")} ${currency}`
+      : perCurrency
+        ? nonZero.map((x) => `${fmt(x.cents)} ${x.currency}`).join(" + ")
+        : `${fmt(fallback)} ${currency}`;
+  };
 
   const label =
     "text-caption uppercase tracking-wider text-[var(--muted-foreground)] whitespace-nowrap";
@@ -89,7 +94,7 @@ export function ReservesTotalsFooter({
       <div className="flex items-center justify-between gap-4">
         <span className={label}>{t("totals.internalLabel")}</span>
         <span data-testid="reserves-total-available" className={value}>
-          {fmt(internalCents)} {currency}
+          {perCurrency ? parts(needByCurrency, internalCents) : `${fmt(internalCents)} ${currency}`}
         </span>
       </div>
 
@@ -118,20 +123,10 @@ export function ReservesTotalsFooter({
               aria-hidden="true"
             />
           )}
-          {fmt(userDefinedCents)} {currency}
+          {perCurrency ? parts(walletsByCurrency, userDefinedCents) : `${fmt(userDefinedCents)} ${currency}`}
         </span>
       </div>
 
-      {perCurrency &&
-        currencies.map((c) => (
-          <div
-            key={c}
-            data-testid={`reserves-footer-line-${c}`}
-            className="flex items-center justify-end gap-1 whitespace-nowrap text-num-sm tabular-nums text-[var(--muted-foreground)]"
-          >
-            {fmt(centsIn(needByCurrency, c))} / {fmt(centsIn(walletsByCurrency, c))} {c}
-          </div>
-        ))}
     </div>
   );
 }

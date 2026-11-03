@@ -119,8 +119,9 @@ export class ReservesPo {
     await expect(editor).toBeHidden({ timeout: 5000 });
   }
 
-  /** Phase 14: one footer line per currency ("needed / in wallets CCY"). */
-  async assertFooterLine(currency: string, text: string): Promise<void> {
-    await expect(this.page.getByTestId(`reserves-footer-line-${currency}`)).toHaveText(text, { timeout: 15000 });
+  /** Phase 14: a footer total, read as its per-currency parts. */
+  async assertTotal(which: "needed" | "held", text: string): Promise<void> {
+    const id = which === "needed" ? "reserves-total-available" : "reserves-total-wallets";
+    await expect(this.page.getByTestId(id)).toHaveText(text, { timeout: 15000 });
   }
 }
