@@ -5,7 +5,6 @@
  * - Calls PATCH /wallets/:id with Idempotency-Key header + Content-Type json
  * - On 200: replaces cached wallet row in ['budget', id, 'wallets']
  * - On error: rolls back optimistic update + calls toast.error(saveFailed)
- * - On reserve_currency_mismatch error: calls toast.error(reserveCurrencyOnEdit)
  * - Cross-invalidation of ['budget', id, 'reserves'] for 3-scenario matrix (D-PH5-E1):
  *   - Wallet is currently RESERVE → invalidates reserves
  *   - Wallet is SPENDINGS but walletType changes to RESERVE → invalidates reserves
@@ -176,13 +175,15 @@ describe.skip("useUpdateWallet", () => {
     expect(nameAtRollback).toBe("Cash");
   });
 
-  it("on reserve_currency_mismatch error: hook suppresses toast (component owns translated toast with budget-currency context — D-PH5-W8)", async () => {
+  // Phase 14 (D-09): the server no longer rejects a reserve wallet's
+  // currency, so any 422 is a plain save failure with the generic toast.
+  it("on a 422 error: shows the generic save-failed toast", async () => {
     const qc = makeClient([SPENDINGS_WALLET]);
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 422,
-      json: async () => ({ error: "reserve_currency_mismatch" }),
-      text: async () => JSON.stringify({ error: "reserve_currency_mismatch" }),
+      json: async () => ({ error: "validation" }),
+      text: async () => JSON.stringify({ error: "validation" }),
     });
 
     const { result } = renderHook(() => useUpdateWallet(BUDGET), {
@@ -190,16 +191,7 @@ describe.skip("useUpdateWallet", () => {
     });
     result.current.mutate({ walletId: "wallet-1", currency: "USD" });
     await waitFor(() => expect(result.current.isError).toBe(true));
-
-    // Hook must NOT fire the generic save-failed toast — the drag handler in
-    // wallets-sectioned-list.tsx fires a translated toast that includes the
-    // budget currency, wallet name, and original section label.
-    expect(mockToastError).not.toHaveBeenCalledWith(
-      "bdp.tab.wallets.toast.saveFailed",
-    );
-    expect(mockToastError).not.toHaveBeenCalledWith(
-      "bdp.tab.wallets.toast.reserveCurrencyOnEdit",
-    );
+    expect(mockToastError).toHaveBeenCalledWith("bdp.tab.wallets.toast.saveFailed");
   });
 
   // ── Cross-invalidation matrix (D-PH5-E1) ──────────────────────────────────
