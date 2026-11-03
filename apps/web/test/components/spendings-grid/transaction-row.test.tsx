@@ -205,32 +205,32 @@ describe("TransactionRow", () => {
 
   it("hover-capable: clicking the amount enters inline edit", () => {
     renderRow();
-    fireEvent.click(screen.getByText("15"));
+    fireEvent.click(screen.getByText("$15"));
     expect(document.querySelector('input[inputmode="decimal"]')).toBeTruthy();
   });
 
   it("touch: a single tap on the amount toggles reveal and does NOT enter inline edit", () => {
     setHoverCapable(false);
     renderRow();
-    fireEvent.click(screen.getByText("15"));
+    fireEvent.click(screen.getByText("$15"));
     // First tap reveals chips, does not start editing
     expect(screen.getByTestId("txn-action-edit")).toBeTruthy();
     expect(document.querySelector('input[inputmode="decimal"]')).toBeNull();
     // Second tap on the amount toggles the reveal back off — still no edit
-    fireEvent.click(screen.getByText("15"));
+    fireEvent.click(screen.getByText("$15"));
     expect(document.querySelector('input[inputmode="decimal"]')).toBeNull();
   });
 
   it("touch: a double-tap on the amount enters inline edit", () => {
     setHoverCapable(false);
     renderRow();
-    fireEvent.doubleClick(screen.getByText("15"));
+    fireEvent.doubleClick(screen.getByText("$15"));
     expect(document.querySelector('input[inputmode="decimal"]')).toBeTruthy();
   });
 
   it("inline edit: committing the SAME value does not call update", () => {
     renderRow();
-    fireEvent.click(screen.getByText("15"));
+    fireEvent.click(screen.getByText("$15"));
     const input = document.querySelector(
       'input[inputmode="decimal"]',
     ) as HTMLInputElement;
@@ -241,7 +241,7 @@ describe("TransactionRow", () => {
 
   it("inline edit: committing a CHANGED value calls update with new cents", () => {
     renderRow();
-    fireEvent.click(screen.getByText("15"));
+    fireEvent.click(screen.getByText("$15"));
     const input = document.querySelector(
       'input[inputmode="decimal"]',
     ) as HTMLInputElement;
@@ -256,7 +256,7 @@ describe("TransactionRow", () => {
 
   it("inline edit: a space after the amount sets the note (260722)", () => {
     renderRow();
-    fireEvent.click(screen.getByText("15"));
+    fireEvent.click(screen.getByText("$15"));
     const input = document.querySelector(
       'input[inputmode="decimal"]',
     ) as HTMLInputElement;
@@ -271,7 +271,7 @@ describe("TransactionRow", () => {
 
   it("inline edit: clearing the value deletes the row", () => {
     renderRow();
-    fireEvent.click(screen.getByText("15"));
+    fireEvent.click(screen.getByText("$15"));
     const input = document.querySelector(
       'input[inputmode="decimal"]',
     ) as HTMLInputElement;
@@ -283,7 +283,7 @@ describe("TransactionRow", () => {
 
   it("inline edit: setting the value to 0 deletes the row", () => {
     renderRow();
-    fireEvent.click(screen.getByText("15"));
+    fireEvent.click(screen.getByText("$15"));
     const input = document.querySelector(
       'input[inputmode="decimal"]',
     ) as HTMLInputElement;
@@ -655,7 +655,7 @@ describe("TransactionRow — refund", () => {
     // R6 (user): the number keeps the text baseline (the note beside it lines
     // up) — the amount is inline text, not a flex box led by the icon.
     expect(icon.parentElement!.className).not.toMatch(/flex/);
-    expect(screen.getByText("25")).toBeInTheDocument();
+    expect(screen.getByText("$25")).toBeInTheDocument();
     expect(screen.queryByText("-25")).toBeNull();
   });
 
@@ -673,7 +673,7 @@ describe("TransactionRow — refund", () => {
         amountOriginalCents: "-2500",
       },
     });
-    fireEvent.click(screen.getByText("25"));
+    fireEvent.click(screen.getByText("$25"));
     const input = document.querySelector(
       'input[inputmode="decimal"], input[type="text"]',
     ) as HTMLInputElement;

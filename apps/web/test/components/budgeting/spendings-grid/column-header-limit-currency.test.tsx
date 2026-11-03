@@ -1,7 +1,8 @@
 /**
- * column-header-limit-currency.test.tsx — UI-SPEC §2: a category whose currency
- * differs from the budget's shows its limit in its own currency plus a muted
- * "≈" line in the budget currency; a same-currency category is unchanged.
+ * column-header-limit-currency.test.tsx — a category whose currency differs
+ * from the budget's reads its WHOLE column in its own currency (user,
+ * 261103): spent, limit, reserve and overspent; no "≈" line. Every figure
+ * carries its currency sign.
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -26,18 +27,35 @@ const base = {
 };
 
 describe("ColumnHeader — limit in the category's currency", () => {
-  it("shows the EUR limit with its sign and the ≈ budget-currency line", () => {
+  it("reads the whole column in the category's own currency, with no ≈ line", () => {
     render(
       <ColumnHeader
         category={category}
-        summary={{ ...base, limitOriginalCents: "50000", limitCurrency: "EUR" }}
+        summary={{
+          ...base,
+          limitOriginalCents: "50000",
+          limitCurrency: "EUR",
+          own: {
+            currency: "EUR",
+            plannedCents: "50000",
+            cushionCents: "50000",
+            activeBudgetCents: "50000",
+            spentCents: "2000",
+            reserveUsedCents: "0",
+            reserveAvailableCents: "0",
+            overspentCents: "0",
+            balanceCents: "48000",
+          },
+        }}
         budgetCurrency="PLN"
         cushionModeEnabled={false}
         onEdit={() => {}}
       />,
     );
-    expect(screen.getByTestId("column-header-travel-planned").textContent).toContain("€");
-    expect(screen.getByTestId("column-limit-equivalent").textContent).toBe("limitEquivalent:2,150");
+    const planned = screen.getByTestId("column-header-travel-planned").textContent ?? "";
+    expect(planned).toContain("20 / €500");
+    expect(planned).not.toContain("zł");
+    expect(screen.queryByTestId("column-limit-equivalent")).toBeNull();
   });
 
   it("a same-currency category has no ≈ line", () => {

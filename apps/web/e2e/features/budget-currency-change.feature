@@ -17,7 +17,7 @@ Feature: Changing the budget currency
     And I change the budget currency to "EUR"
     And I open the spendings tab for the budget
     Then the newest "Food" spending reads in "$"
-    And the "Food" limit reads in "$" with an equivalent line beneath it
+    And the "Food" limit reads in "$"
     When I reload the spendings page
     Then the newest "Food" spending reads in "$"
 

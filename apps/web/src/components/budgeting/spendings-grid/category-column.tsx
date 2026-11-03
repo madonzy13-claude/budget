@@ -38,6 +38,18 @@ export interface SpendingsSummaryCategoryDTO {
   /** Phase 14 (D-08): the limit as typed, in its own currency. */
   limitOriginalCents?: string;
   limitCurrency?: string;
+  /** Phase 14: the column's figures in a foreign category's own currency. */
+  own?: {
+    currency: string;
+    plannedCents: string;
+    cushionCents: string;
+    activeBudgetCents: string;
+    spentCents: string;
+    reserveUsedCents: string;
+    reserveAvailableCents: string;
+    overspentCents: string;
+    balanceCents: string;
+  };
 }
 
 export interface CategoryColumnProps {

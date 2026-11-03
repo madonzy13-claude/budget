@@ -21,10 +21,11 @@ describe("FxAmount", () => {
     expect(container.textContent).toContain("zł");
   });
 
-  it("a budget-currency row shows the bare amount", () => {
+  // Phase 14 (user, 261103): every row carries its currency sign.
+  it("a budget-currency row shows its sign too", () => {
     const { container } = render(
       <FxAmount row={{ amountConvertedCents: "2500", currencyConverted: "EUR", amountOriginalCents: "2500", currencyOriginal: "EUR" }} locale="en" />,
     );
-    expect(container.textContent).toBe("25");
+    expect(container.textContent).toBe("€25");
   });
 });

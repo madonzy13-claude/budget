@@ -61,12 +61,12 @@ export class SpendingsPo {
     ).toContainText(sign, { timeout: 10000 });
   }
 
-  /** Phase 14 (UI-SPEC §2): a foreign limit reads in its sign, with the "≈" line. */
+  /** Phase 14: a foreign category's limit reads in its own sign, no "≈" line. */
   async assertForeignLimit(categoryName: string, sign: string): Promise<void> {
     await expect(
       this.page.getByTestId(`column-header-${categoryName.toLowerCase()}-planned`),
     ).toContainText(sign, { timeout: 10000 });
-    await expect(this.columnFor(categoryName).getByTestId("column-limit-equivalent")).toContainText("≈");
+    await expect(this.columnFor(categoryName).getByTestId("column-limit-equivalent")).toHaveCount(0);
   }
 
   /**

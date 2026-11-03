@@ -11,8 +11,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { Pencil, Trash2, Undo2 } from "lucide-react";
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { useRevealActions } from "./reveal-actions";
-import { centsToBare } from "@/lib/cents-format";
-import { FxAmount } from "./foreign-amount";
+import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
 import { cn } from "@/lib/utils";
 import { categoryUsage } from "@/lib/category-usage";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
@@ -43,6 +42,18 @@ export interface ColumnHeaderProps {
      *  is the same limit in the budget currency (the viewed month's rate). */
     limitOriginalCents?: string;
     limitCurrency?: string;
+    /** Phase 14: the column's figures in a foreign category's own currency. */
+    own?: {
+      currency: string;
+      plannedCents: string;
+      cushionCents: string;
+      activeBudgetCents: string;
+      spentCents: string;
+      reserveUsedCents: string;
+      reserveAvailableCents: string;
+      overspentCents: string;
+      balanceCents: string;
+    };
   };
   /** The budget currency — a limit in another one shows in its own + "≈". */
   budgetCurrency?: string;
@@ -69,7 +80,7 @@ const canHover = () =>
 
 export function ColumnHeader({
   category,
-  summary,
+  summary: summaryIn,
   cushionModeEnabled,
   budgetCurrency,
   dragGripProps = undefined,
@@ -80,14 +91,22 @@ export function ColumnHeader({
   onUnarchive,
 }: ColumnHeaderProps) {
   const t = useTranslations("grid.header");
-  const tGrid = useTranslations("grid");
   const locale = useLocale();
+  // Phase 14 (user, 261103): a category in another currency reads its whole
+  // column in ITS currency, and every figure carries its currency sign so the
+  // currency in use is never a guess.
+  const summary = summaryIn.own ? { ...summaryIn, ...summaryIn.own } : summaryIn;
+  const columnCurrency = summaryIn.own?.currency ?? budgetCurrency;
+  const money = (cents: string | bigint) =>
+    columnCurrency
+      ? centsToDisplayCompact(cents, columnCurrency, locale, true)
+      : centsToBare(cents, locale);
   const { revealed, setRevealed, ref } = useRevealActions();
   // R6 (user): the usage chip swaps to the spent total — tap toggles, a mouse
   // shows it while over the chip. Local state, so a reload is back to %.
   const [showSpent, setShowSpent] = useState(false);
   const spent = BigInt(summary.spentCents);
-  const spentWhole = centsToBare(((spent + 50n) / 100n) * 100n, locale);
+  const spentWhole = money(((spent + 50n) / 100n) * 100n);
   // With a mouse the pen shows on hover LEFT of the chip, which stays put and
   // hoverable (a reserved slot truncated names; sliding the chip aside moved
   // it out from under the pointer).
@@ -121,16 +140,6 @@ export function ColumnHeader({
     (showCushionValue ? summary.cushionCents : summary.plannedCents) || "0",
   );
   const spentSoFar = BigInt(summary.spentCents || "0");
-  // UI-SPEC §2: a limit typed in another currency than the budget's reads in
-  // its own currency, with the budget-currency figure on a muted "≈" line.
-  // Only for the normal limit — the DTO carries no original cushion amount.
-  const foreignLimit =
-    !noLimit &&
-    !showCushionValue &&
-    !!budgetCurrency &&
-    !!summary.limitCurrency &&
-    !!summary.limitOriginalCents &&
-    summary.limitCurrency !== budgetCurrency;
   // How much of the category's pool — plan plus the reserve still available —
   // has gone (user, 261016). Measured against the limit in force, so a cushion
   // month is judged by its cushion figure.
@@ -405,38 +414,15 @@ export function ColumnHeader({
                   exactly reached — "4,062.71 / 4,062.71" (user, 260819). The
                   scheduled figure still drives the Planned charts, where it is
                   a plan rather than a ceiling. */}
-              {noLimit ? (
-                "\u221E"
-              ) : foreignLimit ? (
-                <FxAmount
-                  row={{
-                    amountConvertedCents: summary.plannedCents,
-                    currencyConverted: budgetCurrency!,
-                    amountOriginalCents: summary.limitOriginalCents,
-                    currencyOriginal: summary.limitCurrency,
-                  }}
-                  locale={locale}
-                />
-              ) : (
-                centsToBare(
-                  showCushionValue
-                    ? summary.cushionCents
-                    : summary.plannedCents,
-                  locale,
-                )
-              )}
+              {noLimit
+                ? "\u221E"
+                : money(
+                    showCushionValue
+                      ? summary.cushionCents
+                      : summary.plannedCents,
+                  )}
             </span>
           </span>
-          {foreignLimit && (
-            <span
-              data-testid="column-limit-equivalent"
-              className="text-[10px] tabular-nums whitespace-nowrap text-[var(--muted-foreground)]"
-            >
-              {tGrid("limitEquivalent", {
-                amount: centsToBare(summary.plannedCents, locale),
-              })}
-            </span>
-          )}
         </div>
 
         {/* Row 4: Reserves used — hidden when reservesEnabled=false (D-PH5-R11 surface 2) */}
@@ -485,10 +471,7 @@ export function ColumnHeader({
                     {" / "}
                     {reserveExcluded
                       ? "—"
-                      : centsToBare(
-                          summary.reserveAvailableCents ?? "0",
-                          locale,
-                        )}
+                      : money(summary.reserveAvailableCents ?? "0")}
                   </span>
                 </>
               )}
@@ -521,7 +504,7 @@ export function ColumnHeader({
                   : "text-[var(--muted-foreground)]",
             )}
           >
-            {noLimit ? "—" : centsToBare(summary.overspentCents, locale)}
+            {noLimit ? "—" : money(summary.overspentCents)}
           </span>
         </div>
       </div>

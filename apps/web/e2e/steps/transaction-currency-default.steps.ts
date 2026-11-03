@@ -42,7 +42,7 @@ Then(/^the newest "(.+?)" spending reads in "(.+?)"$/, async ({ page }, category
 });
 
 Then(
-  /^the "(.+?)" limit reads in "(.+?)" with an equivalent line beneath it$/,
+  /^the "(.+?)" limit reads in "(.+?)"$/,
   async ({ page }, category: string, sign: string) => {
     await new SpendingsPo(page).assertForeignLimit(category, sign);
   },

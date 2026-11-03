@@ -1,8 +1,8 @@
 @transaction-currency-default
 Feature: Spending in a category that has its own currency
   # Phase 14 (D-05, D-08): a category carries a currency. Quick entry in it is
-  # in that currency, and its limit reads in that currency with the budget
-  # currency equivalent beside it.
+  # in that currency, and its whole column reads in that currency (user,
+  # 261103: no budget-currency equivalent beside it).
 
   Background:
     Given I am signed in as a fresh user
@@ -14,6 +14,6 @@ Feature: Spending in a category that has its own currency
     And I quick-enter "20" in the "Travel" column
     Then the newest "Travel" spending reads in "€"
 
-  Scenario: A EUR limit reads in euros with the budget-currency equivalent
+  Scenario: A EUR category reads its column in euros
     When I open the spendings tab for the budget
-    Then the "Travel" limit reads in "€" with an equivalent line beneath it
+    Then the "Travel" limit reads in "€"
