@@ -87,5 +87,17 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Reserve DTOs per currency", () =
     // 10 EUR at the last rate within April (4.20).
     expect(row.reserveUsedCents).toBe("4200");
     expect(row.spentCents).toBe(convertCents(11000n, "4.20").toString());
+    // The column reads in the category's own currency (user, 261103).
+    expect(row.own).toEqual({
+      currency: "EUR",
+      plannedCents: "10000",
+      cushionCents: "10000",
+      activeBudgetCents: "10000",
+      spentCents: "11000",
+      reserveUsedCents: "1000",
+      reserveAvailableCents: "5000",
+      overspentCents: "0",
+      balanceCents: "0",
+    });
   });
 });
