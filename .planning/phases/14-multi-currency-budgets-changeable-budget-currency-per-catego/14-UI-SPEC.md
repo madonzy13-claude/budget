@@ -39,10 +39,10 @@ No new roles. Reuse the host component's own: category-slider field label/value,
 
 | Role            | Value                       | Usage                                                                                                                      |
 | --------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Dominant (60%)  | canvas-dark `#0b0e11`       | unchanged                                                                                                                  |
-| Secondary (30%) | surface-card-dark `#1e2329` | unchanged; confirm dialog uses existing Dialog surface                                                                     |
-| Accent (10%)    | primary `#fcd535`           | ONLY: confirm-dialog primary button "Change currency" (existing primary Button)                                            |
-| Destructive     | trading-down `#f6465d`      | ONLY the rate-unavailable inline error text (category slider). No destructive actions in this phase (change is reversible) |
+| Dominant (60%)  | `--canvas-dark` token       | unchanged                                                                                                                  |
+| Secondary (30%) | `--surface-card-dark` token | unchanged; confirm dialog uses existing Dialog surface                                                                     |
+| Accent (10%)    | `--primary` token           | ONLY: confirm-dialog primary button "Change currency" (existing primary Button)                                            |
+| Destructive     | `--destructive` token       | ONLY the rate-unavailable inline error text (category slider). No destructive actions in this phase (change is reversible) |
 
 Accent reserved for: the single primary button of the budget-currency confirm dialog. Category currency, FX suffix, "≈" text use muted / body tokens only, never accent.
 
@@ -59,7 +59,7 @@ Focal points: (1) budget-currency confirm dialog — the primary "Change currenc
 - Limit input suffix/prefix shows the category currency (not the budget's).
 - On edit when the currency changes: helper line under the field (muted 14/400): "Limit converts at today's rate: {old} → {new}. Past transactions keep their currency." Show the converted limit preview ("≈ 233 EUR") live in the limit field; user may overwrite before saving. No blocking dialog.
 - States: default, open (picker), saved (existing slider save flow), rate-unavailable (below).
-- Rate unavailable: inline error in the existing error/destructive token (trading-down `#f6465d`, same as other inline form errors) "No exchange rate for {pair} yet. Try again later." Save disabled only on currency change.
+- Rate unavailable: inline error coloured through the `--destructive` token (Tailwind `text-destructive`; it resolves to `--trading-down`), same as other inline form errors — never a literal hex or an arbitrary `text-[#…]` class (a hard-coded hex broke the light theme before) "No exchange rate for {pair} yet. Try again later." Save disabled only on currency change.
 
 ### 2. Spendings grid + category rows — limit in own currency
 
