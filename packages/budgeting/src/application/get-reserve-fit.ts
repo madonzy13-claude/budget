@@ -31,7 +31,7 @@ import {
 import type { FxProvider } from "@budget/shared-kernel";
 import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
 import { projectScheduledPayments } from "../domain/scheduled-payment-projection";
-import type { ReservePositionsResult } from "./get-reserve-positions";
+import { positionsInBudget, type ReservePositionsResult } from "./get-reserve-positions";
 import type { OverviewPlannedRepo } from "./get-overview-planned";
 
 /** A transaction big enough to be worth a member's judgement. */
@@ -278,7 +278,9 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         }),
       ]);
       if (positionsResult.isErr()) return err(positionsResult.error);
-      const positions = positionsResult.value.positions;
+      // Phase 14: engine values are in each category's currency; this chart
+      // works in the budget currency.
+      const positions = positionsInBudget(positionsResult.value, meta?.default_currency ?? "EUR");
       // The month the engine is treating as OPEN — the one that draws on a
       // reserve without accruing into it yet.
       const openMonth = positionsResult.value.openMonth;

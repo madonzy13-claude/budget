@@ -103,13 +103,16 @@ export function OverspentReservesSection({
   // dialog's own rows report each move.
   const adjustReserve = useUpdateReserveAdjustment(budgetId, { silent: true });
   const onRebalance = async (categoryId: string, targetCents: number) => {
-    const res = await adjustReserve.mutateAsync({
+    // Phase 14: the target is in the budget currency; the server converts it
+    // into the category's and answers in both.
+    const res = (await adjustReserve.mutateAsync({
       categoryId,
       expectedCents: targetCents,
-    });
+      currency: ccy,
+    })) as { reserveCents?: string; reserveCentsIn?: { cents: string } } | undefined;
     // What the engine SETTLED on, which is below the target when the raise
     // covered this month's overspend.
-    return Number(res?.reserveCents ?? targetCents);
+    return Number(res?.reserveCentsIn?.cents ?? res?.reserveCents ?? targetCents);
   };
   // Always money (user, 260805): the action here is "move 2,900 zł", and a
   // percentage of a buffer is a step away from that. The percent view went with

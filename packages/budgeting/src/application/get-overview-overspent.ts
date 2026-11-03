@@ -22,7 +22,7 @@
  * the DTO stringifies at the boundary (matches get-overview-planned).
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
-import type { ReservePositionsResult } from "./get-reserve-positions";
+import { positionsInBudget, type ReservePositionsResult } from "./get-reserve-positions";
 import type { ReservesSummaryDto } from "./get-reserves-summary";
 import type { OverviewPlannedRepo } from "./get-overview-planned";
 
@@ -126,7 +126,8 @@ export function getOverviewOverspent(deps: GetOverviewOverspentDeps) {
       if (reservesResult.isErr()) return err(reservesResult.error);
 
       const rangeMonths = monthsInRange(input.from, input.to);
-      const positions = posResult.value.positions;
+      // Phase 14: engine values → budget currency (they are per category currency).
+      const positions = positionsInBudget(posResult.value, ccy);
 
       // category|month → cents lookups.
       const spentKey = new Map<string, bigint>();
@@ -181,7 +182,11 @@ export function getOverviewOverspent(deps: GetOverviewOverspentDeps) {
       const reserves_by_category = reservesResult.value.rows.map((r) => ({
         category_id: r.categoryId,
         name: r.name,
-        reserve_cents: r.reserveCents,
+        // Phase 14: a row's reserve is in its own currency; the pie is in ccy.
+        reserve_cents:
+          r.currency && r.currency !== ccy
+            ? (positions.get(r.categoryId)?.reserveCents.toString() ?? "0")
+            : r.reserveCents,
       }));
 
       return ok({

@@ -38,6 +38,7 @@
     "./src/application/find-category-by-id": "./src/application/find-category-by-id.ts",
     "./src/application/rename-category": "./src/application/rename-category.ts",
     "./src/application/change-category-currency": "./src/application/change-category-currency.ts",
+    "./src/domain/fx-round": "./src/domain/fx-round.ts",
     "./src/application/set-category-limit": "./src/application/set-category-limit.ts",
     "./src/application/get-effective-limit": "./src/application/get-effective-limit.ts",
     "./src/application/apply-budget-template": "./src/application/apply-budget-template.ts",

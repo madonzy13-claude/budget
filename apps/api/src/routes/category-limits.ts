@@ -5,6 +5,7 @@
 import { Hono } from "hono";
 import type { BootedDeps } from "../boot";
 import { serverError } from "../middleware/server-error";
+import { categoryCurrencyConverter } from "./convert-to-category-currency";
 
 export function createCategoryLimitsRoute(deps: BootedDeps) {
   const app = new Hono<{ Variables: Record<string, any> }>();
@@ -46,8 +47,33 @@ export function createCategoryLimitsRoute(deps: BootedDeps) {
       cushionCurrency = cushionCurrency ?? cat.value.currency;
     }
 
+    // Phase 14: amounts sent in another currency (the Overview rebalance works
+    // in the budget's) convert into the category's at today's rate.
+    let amounts: Partial<typeof parsed.data> = {};
+    if ((body as { amountsCurrency?: unknown }).amountsCurrency !== undefined) {
+      const conv = await categoryCurrencyConverter(
+        deps.budgeting as never,
+        tenantId,
+        categoryId,
+        (body as { amountsCurrency?: unknown }).amountsCurrency,
+      );
+      if (!conv.ok) {
+        return c.json({ error: conv.error }, conv.error === "not_found" ? 404 : 422);
+      }
+      const cv = (v: string | undefined) => (v === undefined ? undefined : conv.convert(v));
+      amounts = {
+        normalAmount: cv(parsed.data.normalAmount)!,
+        cushionAmount: cv(parsed.data.cushionAmount)!,
+        ...(parsed.data.needsAmount !== undefined ? { needsAmount: cv(parsed.data.needsAmount) } : {}),
+        ...(parsed.data.wantsAmount !== undefined ? { wantsAmount: cv(parsed.data.wantsAmount) } : {}),
+      };
+      normalCurrency = conv.currency ?? normalCurrency;
+      cushionCurrency = conv.currency ?? cushionCurrency;
+    }
+
     const r = await deps.budgeting.setCategoryLimit({
       ...parsed.data,
+      ...amounts,
       normalCurrency,
       cushionCurrency,
       tenantId,

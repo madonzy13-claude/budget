@@ -877,6 +877,8 @@ export function PlannedSection({
                             ...split,
                             cushionCents:
                               splitById.get(categoryId)?.cushionCents ?? 0,
+                            // Phase 14: these amounts are in the budget currency.
+                            amountsCurrency: ccy,
                           })
                         }
                         format={fmtExact}

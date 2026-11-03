@@ -5,6 +5,7 @@
  * T-01-07-06: zValidator on every state-changing endpoint.
  * T-01-07-05: roles enforced server-side in application services; RLS provides second layer.
  */
+import { categoryCurrencyConverter } from "./convert-to-category-currency";
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
@@ -521,7 +522,20 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     const body = await c.req.json().catch(() => null);
     if (!body) return c.json({ error: "Invalid JSON" }, 422);
 
-    const parsed = reserveAdjustmentSchema.safeParse(body);
+    // Phase 14: the Overview rebalance sends its target in the budget
+    // currency; the category's reserve is in its own — convert it here.
+    const { currency: amountCurrency, ...adjustBody } = body as { currency?: unknown; expectedCents?: unknown };
+    const conv = await categoryCurrencyConverter(
+      deps.budgeting as never,
+      budgetId,
+      categoryId,
+      amountCurrency,
+    );
+    if (!conv.ok) return c.json({ error: conv.error }, conv.error === "not_found" ? 404 : 422);
+    if (typeof adjustBody.expectedCents === "number" && conv.currency) {
+      adjustBody.expectedCents = Number(conv.convert(String(adjustBody.expectedCents)));
+    }
+    const parsed = reserveAdjustmentSchema.safeParse(adjustBody);
     if (!parsed.success)
       return c.json(
         {
@@ -542,6 +556,11 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       const m = result.error.message;
       if (m === "not_found") return c.json({ error: "not_found" }, 404);
       return c.json({ error: m }, 422);
+    }
+    // The settled reserve, also in the currency the caller asked in.
+    const settled = (result.value as { reserveCents?: string }).reserveCents;
+    if (conv.currency && typeof amountCurrency === "string" && amountCurrency !== conv.currency && settled !== undefined) {
+      return c.json({ ...result.value, reserveCentsIn: { currency: amountCurrency, cents: conv.back(String(settled)) } }, 200);
     }
     return c.json(result.value, 200);
   });

@@ -387,3 +387,43 @@ export function getReservePositions(deps: GetReservePositionsDeps) {
     }
   };
 }
+
+/**
+ * Phase 14: every engine value is in its category's own currency (D-10).
+ * Budget-level readers — reserve fit, overview charts, cash flow — want the
+ * budget currency: convert each at today's rate (no pair → 0, never par).
+ * A result from a loader without currencies passes through unchanged.
+ */
+export function positionsInBudget<P extends object>(
+  r: {
+    positions?: Map<string, P>;
+    categoryCurrency?: Map<string, string>;
+    rateToBudget?: Map<string, string | null>;
+  },
+  budgetCurrency: string,
+): Map<string, P> {
+  const positions = r.positions ?? new Map<string, P>();
+  if (!r.categoryCurrency) return positions;
+  // Every bigint on a position and its month cells is money in the category's currency.
+  const convertAll = <T extends object>(o: T, cv: (v: bigint) => bigint): T =>
+    Object.fromEntries(
+      Object.entries(o).map(([k, v]) => [k, typeof v === "bigint" ? cv(v) : v]),
+    ) as T;
+  const out = new Map<string, P>();
+  for (const [id, p] of positions) {
+    const ccy = r.categoryCurrency.get(id) ?? budgetCurrency;
+    if (ccy === budgetCurrency) {
+      out.set(id, p);
+      continue;
+    }
+    const rate = r.rateToBudget?.get(ccy) ?? null;
+    const cv = (v: bigint) => (rate === null ? 0n : convertCents(v, rate));
+    const converted = convertAll(p, cv) as P & { byMonth?: Map<string, object> };
+    const months = (p as { byMonth?: Map<string, object> }).byMonth;
+    if (months) {
+      converted.byMonth = new Map([...months].map(([m, c]) => [m, convertAll(c, cv)]));
+    }
+    out.set(id, converted);
+  }
+  return out;
+}

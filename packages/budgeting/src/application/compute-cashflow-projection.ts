@@ -7,6 +7,7 @@
  * CashflowSimInput to the pure simulateCashflow. Mirrors the raw-SQL style of
  * compute-upcoming-by-category.ts and recompute-income-under-planned-task.ts.
  */
+import { positionsInBudget } from "./get-reserve-positions";
 import { Temporal } from "temporal-polyfill";
 import { sql } from "drizzle-orm";
 import { nextOccurrence, type CadenceSpec } from "../domain/cadence";
@@ -388,7 +389,8 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
     // does not carry a buffer").
     const reserveByCategory: Record<string, bigint> = {};
     if (rp.isOk() && rp.value.positions) {
-      for (const [categoryId, pos] of rp.value.positions) {
+      // Phase 14: per-category reserves are in each category's currency.
+      for (const [categoryId, pos] of positionsInBudget(rp.value, currency)) {
         if (pos.reserveExcluded) continue;
         reserveByCategory[categoryId] =
           pos.reserveCents > 0n ? pos.reserveCents : 0n;

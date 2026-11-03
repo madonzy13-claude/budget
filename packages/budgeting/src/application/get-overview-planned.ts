@@ -11,6 +11,7 @@
  * their own currency). Cents are bigint internally; the DTO stringifies at the
  * service boundary (matching get-spendings-summary / get-cushion-summary).
  */
+import { positionsInBudget } from "./get-reserve-positions";
 import { ok, err, type Result } from "@budget/shared-kernel";
 import { completedMonthsForRange } from "../domain/completed-months";
 import type { FxProvider } from "@budget/shared-kernel";
@@ -412,7 +413,8 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         | undefined;
       if (posResult) {
         if (posResult.isErr()) return err(posResult.error);
-        reservePositions = posResult.value.positions;
+        // Phase 14: engine values → budget currency (they are per category currency).
+        reservePositions = positionsInBudget(posResult.value, ccy);
       }
 
       // When a category STARTED, for averaging and for the plan band. Its record

@@ -26,6 +26,9 @@ export interface SetCategoryLimitInput {
   /** 0083: unbounded. Amounts go out as 0 — the flag, not a number, is what
    *  says "no limit", so nothing downstream has to read 0 as meaningful. */
   noLimit?: boolean;
+  /** Phase 14: the currency the amounts are in (the Overview works in the
+   *  budget's); the server converts into the category's own. */
+  amountsCurrency?: string;
 }
 
 export function useSetCategoryLimit(budgetId: string, month: string) {
@@ -57,6 +60,7 @@ export function useSetCategoryLimit(budgetId: string, month: string) {
                   wantsAmount: String(Math.round(input.wantsCents)),
                   noLimit: false,
                   effectiveFrom: `${month}-01`,
+                  ...(input.amountsCurrency ? { amountsCurrency: input.amountsCurrency } : {}),
                 },
           ),
         },

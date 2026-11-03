@@ -485,7 +485,10 @@ export function ReservesTableClient({ budgetId }: ReservesTableClientProps) {
                     reveal.availableAfterCents.toString(),
                     locale,
                   ),
-                  currency: budgetCurrency,
+                  // Phase 14: the row's own currency — its reserve is held in it.
+                  currency:
+                    activeRows.find((r) => r.categoryId === reveal.categoryId)?.currency ??
+                    budgetCurrency,
                 })}
               </AlertDialogDescription>
             </AlertDialogHeader>
