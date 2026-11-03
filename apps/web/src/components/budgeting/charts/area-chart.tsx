@@ -15,9 +15,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ReferenceArea,
-  ReferenceDot,
-  ReferenceLine,
+  usePlotArea,
   useXAxisScale,
   useYAxisScale,
 } from "recharts";
@@ -181,7 +179,9 @@ export function OverviewAreaChart({
   // K/M suffix are gone.
   const tooltipFmt = hidden ? () => AMOUNT_MASK : (formatTooltip ?? formatY);
   const yFmt = hidden ? () => AMOUNT_MASK : formatY;
-  const scrubber = useScrub({ data, xKey, wrapRef });
+  // Scrub state lives in <Scrub>, beside the chart — not here, where every
+  // pointer move re-rendered the whole recharts tree (261103, user: slow).
+  const geo = useRef<ScrubGeo | null>(null);
   const chart = (
     <div ref={wrapRef} className={cn("w-full", scrub && "relative")}>
       <ResponsiveContainer width="100%" height={height}>
@@ -337,21 +337,13 @@ export function OverviewAreaChart({
             );
           })}
           {overlay}
-          {scrub && (
-            <ScrubMarks
-              data={data}
-              xKey={xKey}
-              series={series}
-              active={scrubber.active}
-              range={scrubber.range}
-              geo={scrubber.geo}
-            />
-          )}
+          {scrub && <ScrubScales data={data} xKey={xKey} geo={geo} />}
         </AreaChart>
       </ResponsiveContainer>
       {scrub && (
-        <ScrubTooltip
-          scrubber={scrubber}
+        <Scrub
+          geo={geo}
+          wrapRef={wrapRef}
           data={data}
           xKey={xKey}
           series={series}
@@ -403,6 +395,8 @@ interface ScrubGeo {
   xs: number[];
   /** Value → pixel y on the chart's Y axis. */
   y: (v: number) => number | undefined;
+  /** The plot area inside the axes. */
+  plot: { y: number; height: number };
 }
 
 /**
@@ -416,14 +410,15 @@ function useScrub({
   data,
   xKey,
   wrapRef,
+  geo,
 }: {
   data: Row[];
   xKey: string;
   wrapRef: React.RefObject<HTMLDivElement | null>;
+  geo: React.RefObject<ScrubGeo | null>;
 }) {
   const [active, setActive] = useState<number | null>(null);
   const [range, setRange] = useState<[number, number] | null>(null);
-  const geo = useRef<ScrubGeo | null>(null);
   const pointers = useRef(new Map<number, number>());
   const press = useRef<{
     start: number;
@@ -538,87 +533,104 @@ function useScrub({
     if (pointers.current.size > 0) return;
     close();
   };
-  return { active, range, geo, handlers, pointers, tapTooltip };
+  return { active, range, handlers, pointers, tapTooltip };
 }
 
-/** Cursor line, dots and the range shade — drawn in chart space. Also hands
- *  the axis scales to the pointer layer. */
-function ScrubMarks({
+/** Hands the axis scales and plot area to <Scrub>; draws nothing, so the
+ *  chart never re-renders for a pointer move. */
+function ScrubScales({
   data,
   xKey,
+  geo,
+}: {
+  data: Row[];
+  xKey: string;
+  geo: React.RefObject<ScrubGeo | null>;
+}) {
+  const xScale = useXAxisScale();
+  const yScale = useYAxisScale();
+  const plot = usePlotArea();
+  if (xScale && yScale && plot)
+    geo.current = {
+      xs: data.map((r) => xScale(r[xKey]) ?? Number.NaN),
+      y: (v) => yScale(v),
+      plot: { y: plot.y, height: plot.height },
+    };
+  return null;
+}
+
+/** Cursor line, dots and the range shade, in the chart's pixel space. */
+function ScrubMarks({
+  data,
   series,
   active,
   range,
   geo,
 }: {
   data: Row[];
-  xKey: string;
   series: ChartSeries[];
   active: number | null;
   range: [number, number] | null;
-  geo: React.RefObject<ScrubGeo | null>;
+  geo: ScrubGeo;
 }) {
-  const xScale = useXAxisScale();
-  const yScale = useYAxisScale();
-  if (xScale && yScale)
-    geo.current = {
-      xs: data.map((r) => xScale(r[xKey]) ?? Number.NaN),
-      y: (v) => yScale(v),
-    };
-  const marks = (i: number, key: string) => {
+  const { plot } = geo;
+  const marks = (i: number) => {
     const row = data[i];
-    if (!row) return null;
+    const x = geo.xs[i];
+    if (!row || x == null || Number.isNaN(x)) return null;
     const tops = seriesTops(row, series);
     return (
-      <g key={key}>
-        <ReferenceLine
-          x={row[xKey] as string | number}
+      <g key={i}>
+        <line
+          x1={x}
+          x2={x}
+          y1={plot.y}
+          y2={plot.y + plot.height}
           stroke={chartTooltip.cursor.stroke}
           strokeWidth={chartTooltip.cursor.strokeWidth}
         />
-        {series.map((s) =>
-          tops[s.key] == null || s.noActiveDot ? null : (
-            <ReferenceDot
-              key={s.key}
-              x={row[xKey] as string | number}
-              y={tops[s.key]}
-              shape={(p: { cx?: number; cy?: number }) => (
-                <g data-scrub-dot>
-                  <DefaultActiveDot
-                    cx={p.cx}
-                    cy={p.cy}
-                    fill={s.color ?? CHART_THEME.accent}
-                  />
-                </g>
-              )}
-            />
-          ),
-        )}
+        {series.map((s) => {
+          const cy = tops[s.key] == null ? undefined : geo.y(tops[s.key]!);
+          return cy == null || s.noActiveDot ? null : (
+            <g key={s.key} data-scrub-dot>
+              <DefaultActiveDot
+                cx={x}
+                cy={cy}
+                fill={s.color ?? CHART_THEME.accent}
+              />
+            </g>
+          );
+        })}
       </g>
     );
   };
   if (range) {
     const [a, b] = range;
+    const x1 = geo.xs[a] ?? 0;
+    const x2 = geo.xs[b] ?? 0;
     return (
       <g data-testid="chart-range">
-        <ReferenceArea
-          x1={data[a]?.[xKey] as string | number}
-          x2={data[b]?.[xKey] as string | number}
+        <rect
+          x={x1}
+          y={plot.y}
+          width={Math.max(0, x2 - x1)}
+          height={plot.height}
           fill={CHART_THEME.accent}
           fillOpacity={0.12}
         />
-        {marks(a, "a")}
-        {marks(b, "b")}
+        {marks(a)}
+        {marks(b)}
       </g>
     );
   }
-  return active == null ? null : marks(active, "active");
+  return active == null ? null : marks(active);
 }
 
 /** The pointer layer plus the tooltip: under the hovered point, or — for a
  *  range — the change from its start to its end. */
-function ScrubTooltip({
-  scrubber,
+function Scrub({
+  geo,
+  wrapRef,
   data,
   xKey,
   series,
@@ -630,7 +642,8 @@ function ScrubTooltip({
   rowSuffix,
   summary,
 }: {
-  scrubber: ReturnType<typeof useScrub>;
+  geo: React.RefObject<ScrubGeo | null>;
+  wrapRef: React.RefObject<HTMLDivElement | null>;
   data: Row[];
   xKey: string;
   series: ChartSeries[];
@@ -649,7 +662,12 @@ function ScrubTooltip({
     base?: Row,
   ) => { label: string; value: string; suffix?: string[] } | null;
 }) {
-  const { active, range, geo, handlers, pointers, tapTooltip } = scrubber;
+  const { active, range, handlers, pointers, tapTooltip } = useScrub({
+    data,
+    xKey,
+    wrapRef,
+    geo,
+  });
   const tipRef = useRef<HTMLDivElement | null>(null);
   const layerRef = useRef<HTMLDivElement | null>(null);
   const [tip, setTip] = useState({ w: 0, h: 0 });
@@ -725,6 +743,20 @@ function ScrubTooltip({
     labelFormat ? labelFormat(l) : String(l);
   return (
     <>
+      {geo.current && (
+        <svg
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+        >
+          <ScrubMarks
+            data={data}
+            series={series}
+            active={active}
+            range={range}
+            geo={geo.current}
+          />
+        </svg>
+      )}
       <div
         ref={layerRef}
         data-testid="chart-scrub-layer"
