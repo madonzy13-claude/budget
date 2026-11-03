@@ -83,6 +83,13 @@ export interface SpendingsSummaryCategoryDTO {
    *  is the same limit in the budget currency. */
   limitOriginalCents: string;
   limitCurrency: string;
+  /** The limit's amounts as typed, in limitCurrency — what the editor prefills. */
+  limitOriginal?: {
+    plannedCents: string;
+    cushionCents: string;
+    needsCents: string | null;
+    wantsCents: string | null;
+  };
   /** No FX rate for the limit's currency — it counts as 0 here. */
   fxUnavailable?: boolean;
   /** 0061: persisted needs/wants split of plannedCents (null = never set, the
@@ -217,7 +224,7 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
       };
       const effectiveLimits = new Map<
         string,
-        EffectiveLimit & { originalPlanned: bigint; fxUnavailable: boolean }
+        EffectiveLimit & { originalPlanned: bigint; original?: EffectiveLimit; fxUnavailable: boolean }
       >();
       for (const [catId, l] of rawLimits) {
         const normalCcy = l.normalCurrency ?? meta.currency;
@@ -232,6 +239,7 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           wants: l.wants == null ? null : conv(l.wants, nRate),
           normalCurrency: normalCcy,
           originalPlanned: l.planned,
+          original: l,
           fxUnavailable: nRate === null || cRate === null,
         });
       }
@@ -412,6 +420,16 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
             cushionCents: cushion.toString(),
             limitOriginalCents: limits.originalPlanned.toString(),
             limitCurrency: limits.normalCurrency ?? meta.currency,
+            ...(limits.original
+              ? {
+                  limitOriginal: {
+                    plannedCents: limits.original.planned.toString(),
+                    cushionCents: limits.original.cushion.toString(),
+                    needsCents: limits.original.needs == null ? null : limits.original.needs.toString(),
+                    wantsCents: limits.original.wants == null ? null : limits.original.wants.toString(),
+                  },
+                }
+              : {}),
             ...(limits.fxUnavailable ? { fxUnavailable: true } : {}),
             // 0061: the persisted needs/wants split (null when never set → the
             // editor falls back to needs = planned, wants = 0).
