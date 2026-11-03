@@ -290,6 +290,20 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
         }
       }
 
+      // Phase 14: reserve cells are in each category's own currency (D-10);
+      // the grid reads them in the budget currency at the same rate date as
+      // the limits (D-08).
+      const reserveRate = new Map<string, string | null>();
+      for (const ccy of new Set(posResult.value.categoryCurrency?.values() ?? [])) {
+        reserveRate.set(ccy, await rateTo(ccy));
+      }
+      const reserveIn = (catId: string, cents: bigint) => {
+        const ccy = posResult.value.categoryCurrency?.get(catId) ?? meta.currency;
+        if (ccy === meta.currency) return cents;
+        const r = reserveRate.get(ccy);
+        return r == null ? 0n : convertCents(cents, r);
+      };
+
       const dtoCategories: SpendingsSummaryCategoryDTO[] = categories
         .sort((a, b) => (a as any).sortIndex - (b as any).sortIndex)
         .map((c) => {
@@ -368,13 +382,17 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
               ? spent > active
                 ? spent - active
                 : 0n
-              : (cell?.overageCents ?? (spent > active ? spent - active : 0n));
-          const rawUsed = cell?.usedCents ?? 0n;
+              : cell
+                ? reserveIn(c.id, cell.overageCents)
+                : spent > active
+                  ? spent - active
+                  : 0n;
+          const rawUsed = reserveIn(c.id, cell?.usedCents ?? 0n);
           // "Reserve available to this month" = used + free reserve at month's end
           // (clamped ≥ 0). Used is then clamped ≤ available so we never display
           // spending more reserve than was available — e.g. if the reserve was later
           // reduced below what this month had used, the shown used drops to match.
-          const endReserve = cell?.endReserveCents ?? 0n;
+          const endReserve = reserveIn(c.id, cell?.endReserveCents ?? 0n);
           const reserveAvailable =
             rawUsed + endReserve > 0n ? rawUsed + endReserve : 0n;
           const reserveUsed =

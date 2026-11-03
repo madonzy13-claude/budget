@@ -21,6 +21,12 @@ import type {
   ReservesSummaryRow,
 } from "./get-reserves-summary";
 import type { ReservePositionsResult } from "./get-reserve-positions";
+import { convertCents } from "../domain/fx-round";
+
+const byCurrency = (m: Map<string, bigint> | undefined) =>
+  [...(m ?? new Map<string, bigint>())]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([currency, cents]) => ({ currency, cents: cents.toString() }));
 
 export interface ReservesSummaryCategory {
   id: string;
@@ -53,6 +59,7 @@ export function buildReservesSummaryDto(args: {
       categoryId: c.id,
       name: c.name,
       colorKey: c.colorKey ?? null,
+      currency: positions.categoryCurrency?.get(c.id) ?? budgetCurrency,
       reserveCents: (p?.reserveCents ?? 0n).toString(),
       // usedCents is cumulative across all months (ALL TIME); usedThisMonthCents
       // is just the open month's draw (THIS MONTH).
@@ -88,12 +95,20 @@ export function buildReservesSummaryDto(args: {
   const excludedIds = new Set(
     categories.filter((c) => c.reserveExcluded).map((c) => c.id),
   );
+  // Phase 14 (D-02): each category's used reserve is in its own currency, so
+  // the cross-category totals convert at today's rate (no pair → left out).
+  const toBudget = (id: string, cents: bigint) => {
+    const ccy = positions.categoryCurrency?.get(id) ?? budgetCurrency;
+    if (ccy === budgetCurrency) return cents;
+    const r = positions.rateToBudget?.get(ccy);
+    return r == null ? 0n : convertCents(cents, r);
+  };
   let usedAllTime = 0n;
   let usedThisMonth = 0n;
   for (const [id, p] of positions.positions) {
     if (excludedIds.has(id) || investmentIds.has(id)) continue;
-    usedAllTime += p.usedCents;
-    usedThisMonth += p.byMonth.get(positions.openMonth)?.usedCents ?? 0n;
+    usedAllTime += toBudget(id, p.usedCents);
+    usedThisMonth += toBudget(id, p.byMonth.get(positions.openMonth)?.usedCents ?? 0n);
   }
 
   return {
@@ -108,6 +123,14 @@ export function buildReservesSummaryDto(args: {
       usedThisMonthCents: usedThisMonth.toString(),
       disabled,
       budgetCurrency,
+      needByCurrency: byCurrency(positions.internalByCurrency),
+      walletsByCurrency: byCurrency(positions.walletsByCurrency),
+      lines: (positions.settlement?.lines ?? []).map((l) => ({
+        currency: l.currency,
+        cents: l.cents.toString(),
+        direction: l.direction,
+        ...(l.equiv ? { equiv: { currency: l.equiv.currency, cents: l.equiv.cents.toString() } } : {}),
+      })),
     },
   };
 }

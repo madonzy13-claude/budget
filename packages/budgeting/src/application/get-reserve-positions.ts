@@ -85,6 +85,9 @@ export interface ReservePositionsResult {
   /** D-11..D-16: the need settled against the wallets, per currency, exact.
    *  surplusCents / direction above come from it. */
   settlement?: ReserveSettlement;
+  /** Today's rate from each reserve/wallet currency to the budget currency
+   *  (null = no pair) — for any total that crosses categories. */
+  rateToBudget?: Map<string, string | null>;
   /** Σ RESERVE-wallet balances. */
   userDefinedCents: bigint;
   /** userDefined − internal. */
@@ -361,6 +364,14 @@ export function getReservePositions(deps: GetReservePositionsDeps) {
         internalByCurrency: engine.internalByCurrency,
         walletsByCurrency: inputs.walletsByCurrency,
         settlement,
+        rateToBudget: new Map(
+          [...new Set([...(inputs.categoryCurrency?.values() ?? []), ...(inputs.walletsByCurrency?.keys() ?? [])])].map(
+            (c) => [
+              c,
+              c === inputs.budgetCurrency ? "1" : (inputs.todayRates?.get(`${c}|${inputs.budgetCurrency}`) ?? null),
+            ],
+          ),
+        ),
         categoryCurrency: inputs.categoryCurrency,
         ...(inputs.fxUnavailable ? { fxUnavailable: true } : {}),
         userDefinedCents: engine.userDefinedCents,
