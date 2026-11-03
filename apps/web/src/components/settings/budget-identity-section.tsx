@@ -187,7 +187,7 @@ export function BudgetIdentitySection({
             // the value sits at the right edge of the row. The wrapper
             // itself uses inline-flex justify-end so it shrinks to the
             // intrinsic size of the trigger.
-            <div className="editable-dots inline-flex justify-end [&_button]:!w-auto [&_button]:justify-end [&_select]:!w-auto [&_select]:text-right">
+            <div data-testid="budget-currency-picker" className="editable-dots inline-flex justify-end [&_button]:!w-auto [&_button]:justify-end [&_select]:!w-auto [&_select]:text-right">
               <CurrencyPicker
                 value={pending ?? current}
                 onSelect={(v: string) => {

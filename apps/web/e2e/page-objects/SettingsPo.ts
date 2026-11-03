@@ -111,4 +111,44 @@ export class SettingsPo {
   async clickGenerateInviteLink(): Promise<void> {
     await this.page.getByTestId("generate-share-link").click();
   }
+
+  // ─── Phase 14: budget currency (D-01) ────────────────────────────────────
+  private budgetCurrencyPicker() {
+    return this.page.getByTestId("budget-currency-picker");
+  }
+
+  async pickCurrency(ccy: string): Promise<void> {
+    const picker = this.budgetCurrencyPicker();
+    await picker.waitFor({ state: "visible", timeout: 15000 });
+    const native = picker.getByTestId("currency-picker-native");
+    if (await native.isVisible().catch(() => false)) {
+      await native.selectOption(ccy);
+    } else {
+      await picker.getByRole("combobox").click();
+      await this.page.getByRole("option").filter({ hasText: ccy }).first().click();
+    }
+    await expect(this.page.getByTestId("budget-currency-dialog")).toBeVisible({ timeout: 10000 });
+  }
+
+  async confirmCurrencyDialog(): Promise<void> {
+    const saved = this.page.waitForResponse(
+      (r) => r.request().method() === "PATCH" && /\/budgets\/[^/]+$/.test(new URL(r.url()).pathname),
+      { timeout: 15000 },
+    );
+    await this.page.getByTestId("budget-currency-confirm").click();
+    if (!(await saved).ok()) throw new Error("currency change failed");
+    await expect(this.page.getByTestId("budget-currency-dialog")).toBeHidden({ timeout: 10000 });
+  }
+
+  async cancelCurrencyDialog(): Promise<void> {
+    await this.page.getByTestId("budget-currency-cancel").click();
+    await expect(this.page.getByTestId("budget-currency-dialog")).toBeHidden({ timeout: 10000 });
+  }
+
+  async assertCurrency(ccy: string): Promise<void> {
+    const picker = this.budgetCurrencyPicker();
+    const native = picker.getByTestId("currency-picker-native");
+    if (await native.isVisible({ timeout: 10000 }).catch(() => false)) await expect(native).toHaveValue(ccy);
+    else await expect(picker).toContainText(ccy);
+  }
 }
