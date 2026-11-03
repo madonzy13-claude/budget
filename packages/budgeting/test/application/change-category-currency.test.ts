@@ -66,6 +66,35 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Change a category's currency", (
     expect(await ledger()).toEqual(before);
   });
 
+  test("changing back restores the limits exactly, and another switch starts from them (user, 261103)", async () => {
+    // Make the reverse rate deliberately inconsistent: 100000 × 0.2333 = 23330,
+    // and 23330 × 4.2863 = 99999.88 — a conversion of a conversion drifts.
+    await b.rates([{ base: "EUR", quote: "PLN", date: "1998-05-01", rate: "4.2863" }]);
+    await b.rates([{ base: "PLN", quote: "USD", date: "1998-05-01", rate: "0.25" }]);
+    expect((await change({ tenantId: b.tenant, userId: b.user, categoryId: food, currency: "PLN" })).isOk()).toBe(true);
+    expect((await segments()).slice(1).map((x) => [x.n, x.nc])).toEqual([
+      ["100000", "PLN"],
+      ["120000", "PLN"],
+    ]);
+    // EUR again, then USD: USD comes from the PLN amounts, not from EUR.
+    await change({ tenantId: b.tenant, userId: b.user, categoryId: food, currency: "EUR" });
+    await change({ tenantId: b.tenant, userId: b.user, categoryId: food, currency: "USD" });
+    expect((await segments()).slice(1).map((x) => [x.n, x.nc])).toEqual([
+      ["25000", "USD"],
+      ["30000", "USD"],
+    ]);
+    // A limit typed by the user is the new basis.
+    await new DrizzleCategoryLimitRepo().setLimitForMonth({
+      tenantId: b.tenant, categoryId: food, monthStart: "1998-05-01", normalAmount: "26000",
+      normalCurrency: "USD", cushionAmount: "26000", cushionCurrency: "USD", actorUserId: b.user,
+      carryForward: false,
+    });
+    await change({ tenantId: b.tenant, userId: b.user, categoryId: food, currency: "EUR" });
+    await change({ tenantId: b.tenant, userId: b.user, categoryId: food, currency: "USD" });
+    expect((await segments()).find((x) => x.f === "1998-05-01")?.n).toBe("26000");
+    await change({ tenantId: b.tenant, userId: b.user, categoryId: food, currency: "EUR" });
+  });
+
   test("the reserve is rebuilt in the new currency (D-17)", async () => {
     const r = await b.positions();
     expect(r.categoryCurrency?.get(food)).toBe("EUR");
