@@ -168,14 +168,15 @@ describe("Budget identity routes (SETT-02)", () => {
     expect(captured).toMatchObject({ defaultCurrency: "EUR" });
   });
 
-  it("PATCH /budgets/:id with a currency without FX history → 422", async () => {
+  // zValidator's default validation status on this route is 400.
+  it("PATCH /budgets/:id with a currency without FX history → 400", async () => {
     const app = buildApp({ user: { id: "user-001" } }, "budget-001", { hasTransactions: false });
     const res = await app.request("/budgets/budget-001", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ default_currency: "JPY" }),
     });
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
   });
 
   // quick-260613-nkb: the bug — a ZERO-transaction budget MUST be able to change

@@ -11,15 +11,13 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
+import { FIAT_CURRENCIES } from "@budget/shared-kernel";
 import type { BootedDeps } from "../boot";
 
 const patchBudgetSchema = z.object({
   name: z.string().min(1).max(80).optional(),
-  default_currency: z
-    .string()
-    .length(3)
-    .regex(/^[A-Z]{3}$/)
-    .optional(),
+  // Phase 14: only the currencies with FX history — totals re-express in it.
+  default_currency: z.enum(FIAT_CURRENCIES).optional(),
   cushion_mode_enabled: z.boolean().optional(),
   // ONBD: Reserves toggle. Plain boolean — no SCD-2 history (unlike cushion mode).
   // Server still owner-gates the write via the same path as name/currency.
@@ -46,7 +44,8 @@ const patchBudgetSchema = z.object({
 
 export function budgetIdentityRoutesFactory(
   deps: Pick<BootedDeps, "tenancy" | "identity"> & {
-    budgeting?: Pick<BootedDeps["budgeting"], "toggleBudgetMode"> & {
+    budgeting?: Pick<BootedDeps["budgeting"], "toggleBudgetMode"> &
+      Partial<Pick<BootedDeps["budgeting"], "recomputeReserveTopup">> & {
       // Phase 7 Plan 07-07: optional runner — if absent the PATCH still works
       // (recompute is best-effort; hourly sweep is the backstop).
       recomputeCushionTaskRunner?: (input: {
@@ -143,9 +142,8 @@ export function budgetIdentityRoutesFactory(
     });
   });
 
-  // PATCH /budgets/:id — rename, currency change (first-tx lock), cushion toggle
+  // PATCH /budgets/:id — rename, currency change (any time, Phase 14), cushion toggle
   // T-06-02-02: tenantIds gate → 404 (no existence leak)
-  // T-06-02-01: server-side hasTransactions check → 409 for currency change
   r.patch("/:id", zValidator("json", patchBudgetSchema), async (c) => {
     const session = c.get("session");
     if (!session) return c.json({ error: "unauthorized" }, 401);
@@ -203,13 +201,8 @@ export function budgetIdentityRoutesFactory(
     if (touchesIdentity && callerEntry.role !== "owner")
       return c.json({ error: "forbidden" }, 403);
 
-    // T-06-02-01: currency lock — reject if budget already has transactions
-    if (body.default_currency !== undefined) {
-      const hasTx = await deps.tenancy.workspaceRepo.hasTransactions(budgetId);
-      if (hasTx) {
-        return c.json({ error: "currency_locked" }, 409);
-      }
-    }
+    // Phase 14 (D-01): the currency can change at any time — every total is
+    // re-expressed at read time from each row's own amount, currency and date.
 
     // Apply name / currency / reserves / cushion-feature / cushion_target_months identity patch
     if (
@@ -243,10 +236,6 @@ export function budgetIdentityRoutesFactory(
         );
       } catch (e: unknown) {
         const msg = (e as Error).message ?? "unknown";
-        // Surface DB constraint / trigger errors (e.g. immutability trigger) as 409
-        if (/immutable|locked|constraint/i.test(msg)) {
-          return c.json({ error: "currency_locked" }, 409);
-        }
         console.error("[budget-identity] updateIdentity failed:", msg);
         return c.json({ error: "update_failed" }, 422);
       }
@@ -280,9 +269,12 @@ export function budgetIdentityRoutesFactory(
     //   - cushion_target_months ↓ → shortfall may close → resolve.
     //
     // Best-effort: failure does not fail the PATCH (hourly sweep is backstop).
+    // Phase 14: a currency change re-expresses the cushion target and the
+    // reserve settlement in the new currency too.
     const isCushionAffecting =
       body.cushion_enabled !== undefined ||
-      body.cushion_target_months !== undefined;
+      body.cushion_target_months !== undefined ||
+      body.default_currency !== undefined;
     if (isCushionAffecting && deps.budgeting?.recomputeCushionTaskRunner) {
       try {
         await deps.budgeting.recomputeCushionTaskRunner({
@@ -312,6 +304,20 @@ export function budgetIdentityRoutesFactory(
         });
       } catch (e) {
         console.error("[budget-identity] income recompute failed:", e);
+      }
+    }
+
+    // Phase 14: the reserve task states its amounts in the budget currency
+    // (legacy trio) and nets cross-currency remainders at today's rate into it.
+    if (body.default_currency !== undefined && deps.budgeting?.recomputeReserveTopup) {
+      try {
+        await deps.budgeting.recomputeReserveTopup({
+          tenantId: budgetId,
+          budgetId,
+          actorUserId,
+        });
+      } catch (e) {
+        console.error("[budget-identity] reserve recompute failed:", e);
       }
     }
 

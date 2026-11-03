@@ -10,7 +10,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { sql } from "drizzle-orm";
 import type { BootedDeps } from "../boot";
-import { UserId } from "@budget/shared-kernel";
+import { UserId, FIAT_CURRENCIES } from "@budget/shared-kernel";
 import { DrizzleBudgetShareLinkRepo } from "@budget/tenancy/src/adapters/persistence/budget-share-link-repo";
 import { createShareLink } from "@budget/tenancy/src/application/create-share-link";
 import { revokeShareLink } from "@budget/tenancy/src/application/revoke-share-link";
@@ -43,7 +43,7 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
   // stripped by zod's default object parsing, so old callers don't break.
   const createSchema = z.object({
     name: z.string().min(1).max(100),
-    default_currency: z.string().regex(/^[A-Z]{3}$/),
+    default_currency: z.enum(FIAT_CURRENCIES),
   });
 
   const inviteSchema = z.object({
