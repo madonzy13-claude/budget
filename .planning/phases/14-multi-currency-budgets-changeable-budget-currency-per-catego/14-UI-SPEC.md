@@ -1,7 +1,8 @@
 ---
 phase: 14
 slug: multi-currency-budgets
-status: draft
+status: approved
+reviewed_at: 2026-11-03
 shadcn_initialized: false
 preset: none
 created: 2026-11-03

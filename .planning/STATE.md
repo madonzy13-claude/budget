@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: track)_
 status: executing
-stopped_at: Phase 13.1 UI-SPEC approved
-last_updated: "2026-10-30T11:30:18.196Z"
+stopped_at: Phase 14 UI-SPEC approved
+last_updated: "2026-11-03T13:15:14.406Z"
 last_activity: 2026-10-30
 progress:
-  total_phases: 14
-  completed_phases: 11
+  total_phases: 15
+  completed_phases: 12
   total_plans: 165
-  completed_plans: 164
-  percent: 79
+  completed_plans: 165
+  percent: 80
 ---
 
 # Project State
@@ -269,9 +269,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-10-27T12:23:21.130Z
-Stopped at: Phase 13.1 UI-SPEC approved
-Resume file: .planning/phases/13.1-investments-assets-with-transactions-type-asset-transaction-/13.1-UI-SPEC.md
+Last session: 2026-11-03T13:15:14.365Z
+Stopped at: Phase 14 UI-SPEC approved
+Resume file: .planning/phases/14-multi-currency-budgets-changeable-budget-currency-per-catego/14-UI-SPEC.md
 
 ## v1.0 History (archived)
 
