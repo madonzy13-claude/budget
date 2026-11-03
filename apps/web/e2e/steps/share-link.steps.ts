@@ -137,3 +137,18 @@ Then("the join error heading is visible", async ({ page }) => {
   const shareLink = new ShareLinkPo(page);
   await expect(shareLink.errorHeading()).toBeVisible({ timeout: 8000 });
 });
+
+When(
+  "they rename the budget to {string} in Settings",
+  async ({ page, sharedUser }, name: string) => {
+    await page.goto(`/en/budgets/${sharedUser.budgetId}/settings`);
+    await new SettingsPo(page).renameBudget(name);
+  },
+);
+
+Then("the header switcher lists {string}", async ({ page }, name: string) => {
+  await new TopNavPo(page).switcherTrigger().click();
+  await expect(new SwitcherPo(page).budgetRow(name)).toBeVisible({
+    timeout: 10000,
+  });
+});

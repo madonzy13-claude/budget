@@ -27,3 +27,16 @@ Feature: Share link — generate in Settings and recipient join flow
     And a second fresh user visits the join page with the copied token
     And they accept the invite
     Then the header switcher lists the shared budget
+
+  # 261103 (user): the name is each member's own label for the budget (260808)
+  # and the API let members rename it — the Settings cell sat behind the owner
+  # gate, so a member could not.
+  @member-rename
+  Scenario: A member renames the shared budget for themselves
+    When I navigate to the shared budget settings page
+    And I generate an invite link
+    And I copy the invite token from the share URL field
+    And a second fresh user visits the join page with the copied token
+    And they accept the invite
+    And they rename the budget to "Our flat" in Settings
+    Then the header switcher lists "Our flat"

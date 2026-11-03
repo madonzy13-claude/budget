@@ -55,6 +55,27 @@ describe("General card rows", () => {
   });
 });
 
+// 261103 (user): an editable value carries the same dotted line as the
+// amounts on the Assets tab.
+describe("General card editable values", () => {
+  it("dots the name", () => {
+    renderIt();
+    const cell = screen.getByTestId("budget-name-input");
+    expect(cell.querySelector(".editable-dots")).not.toBeNull();
+  });
+
+  it("dots the currency while it can still change", () => {
+    renderIt(false);
+    const picker = screen.getByLabelText("identity.currency_label");
+    expect(picker.closest(".editable-dots")).not.toBeNull();
+  });
+
+  it("does not dot a locked currency", () => {
+    renderIt(true);
+    expect(screen.getByText("PLN").closest(".editable-dots")).toBeNull();
+  });
+});
+
 describe("Privacy mode row", () => {
   it("sits the switch against its title, like every other toggle", () => {
     const { container } = render(<PrivacySection budgetId="b1" />);

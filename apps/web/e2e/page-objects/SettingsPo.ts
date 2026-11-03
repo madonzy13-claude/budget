@@ -62,6 +62,20 @@ export class SettingsPo {
     await expect(this.cushionPreview()).toContainText(text);
   }
 
+  /** The budget name on the General card (an inline-edit cell at rest). */
+  budgetNameCell() {
+    return this.page.getByTestId("budget-name-input").first();
+  }
+
+  /** Rename the budget through the General card's inline cell. */
+  async renameBudget(name: string): Promise<void> {
+    await this.budgetNameCell().click();
+    const input = this.page.locator("input[data-testid=budget-name-input]");
+    await input.fill(name);
+    await input.press("Enter");
+    await expect(this.budgetNameCell()).toHaveText(name);
+  }
+
   /**
    * The share URL field that appears in the Members section after
    * generating an invite link. testid = "share-url-field" (share-url-field.tsx).

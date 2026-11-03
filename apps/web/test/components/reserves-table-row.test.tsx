@@ -98,6 +98,8 @@ describe("ReservesTableRow", () => {
         `reserves-balance-${noUsedRow.categoryId}`,
       );
       expect(availableCell.textContent).toMatch(/300/);
+      // 261103 (user): dotted like the Assets amounts — it can be edited.
+      expect(availableCell.querySelector(".editable-dots")).not.toBeNull();
     });
 
     it("renders NO per-row used cell (column removed in 05-19)", () => {

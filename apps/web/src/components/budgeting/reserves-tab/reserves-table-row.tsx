@@ -369,7 +369,7 @@ export function ReservesTableRow({
               disabled={false}
               testId={`reserves-balance-${row.categoryId}`}
               render={() => (
-                <span className="text-num-md text-[var(--foreground)]">
+                <span className="editable-dots text-num-md text-[var(--foreground)]">
                   {centsToBare(shownReserveCents, locale)}
                 </span>
               )}

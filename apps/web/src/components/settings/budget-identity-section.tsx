@@ -22,6 +22,9 @@ export interface BudgetIdentitySectionProps {
   name: string;
   defaultCurrency: string;
   hasTransactions: boolean;
+  /** The currency is the household's — the owner's to change. The name is
+   *  each member's own label (260808), so anyone may rename (261103, user). */
+  isOwner?: boolean;
 }
 
 export function BudgetIdentitySection({
@@ -29,6 +32,7 @@ export function BudgetIdentitySection({
   name,
   defaultCurrency,
   hasTransactions,
+  isOwner = true,
 }: BudgetIdentitySectionProps) {
   const t = useTranslations("settings");
   const router = useRouter();
@@ -98,7 +102,8 @@ export function BudgetIdentitySection({
             // currency stopping short of it (user, 260810). The hover tint
             // hugs the text instead, which still reads as "this is editable".
             render={(v) => (
-              <span className="block rounded-md py-1.5 text-sm text-[var(--body)] hover:bg-[var(--surface-elevated-dark)]">
+              // 261103 (user): dotted like the Assets amounts — editable.
+              <span className="editable-dots block rounded-md py-1.5 text-sm text-[var(--body)] hover:bg-[var(--surface-elevated-dark)]">
                 {v}
               </span>
             )}
@@ -137,7 +142,7 @@ export function BudgetIdentitySection({
           </p>
         </div>
         <div className="flex justify-end">
-          {hasTransactions ? (
+          {hasTransactions || !isOwner ? (
             // Locked (post-first-transaction): plain grey code, no lock chrome —
             // matches the investments-row currency styling (r31 item 4).
             <span
@@ -156,7 +161,7 @@ export function BudgetIdentitySection({
             // the value sits at the right edge of the row. The wrapper
             // itself uses inline-flex justify-end so it shrinks to the
             // intrinsic size of the trigger.
-            <div className="inline-flex justify-end [&_button]:!w-auto [&_button]:justify-end [&_select]:!w-auto [&_select]:text-right">
+            <div className="editable-dots inline-flex justify-end [&_button]:!w-auto [&_button]:justify-end [&_select]:!w-auto [&_select]:text-right">
               <CurrencyPicker
                 value={defaultCurrency}
                 onSelect={saveCurrency}

@@ -166,6 +166,7 @@ describe("SettingsAccordion — member read-only gating (bug #1)", () => {
 
   it("wraps owner-only sections in a disabled fieldset for members", () => {
     const { container } = render(<SettingsAccordion budget={memberBudget} />);
+    fireEvent.click(screen.getByText("sections.cushion"));
     expect(container.querySelector("fieldset[disabled]")).not.toBeNull();
   });
 
@@ -175,6 +176,16 @@ describe("SettingsAccordion — member read-only gating (bug #1)", () => {
     render(<SettingsAccordion budget={memberBudget} />);
     const sw = screen.getByTestId("amount-privacy-switch");
     expect(sw.closest("fieldset[disabled]")).toBeNull();
+  });
+
+  // The name is the reader's own label for the budget (260808) — the API has
+  // let members rename since; the gate left them a dead cell (261103, user).
+  it("lets a member rename the budget but not change its currency", () => {
+    render(<SettingsAccordion budget={memberBudget} />);
+    const name = screen.getByTestId("budget-name-input");
+    expect(name.closest("fieldset[disabled]")).toBeNull();
+    expect(name.querySelector(".editable-dots")).not.toBeNull();
+    expect(screen.queryByLabelText("identity.currency_label")).toBeNull();
   });
 
   it("leaves owner-only sections enabled for owners", () => {
