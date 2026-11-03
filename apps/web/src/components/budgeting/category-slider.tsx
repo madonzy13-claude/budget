@@ -82,6 +82,15 @@ export interface CategorySliderProps {
     noLimit?: boolean | null;
     /** Phase 14 (D-04): the category's own currency; amounts above are in it. */
     currency?: string;
+    /** 0105: the amounts the server converted this limit FROM — the basis a
+     *  currency change converts from, restored exactly on switching back. */
+    convertedFrom?: {
+      currency: string;
+      plannedCents: string;
+      cushionCents: string;
+      needsCents: string | null;
+      wantsCents: string | null;
+    };
   };
   txnsCount?: number;
   /**
@@ -298,8 +307,13 @@ export function CategorySlider({
     if (open) {
       setCurrency(initial?.currency ?? budgetCurrency);
       setRateError(null);
-      basis.current = null;
-      lastSet.current = {};
+      const cf = initial?.convertedFrom;
+      const pick = (v: Record<string, unknown>) =>
+        Object.fromEntries(AMOUNT_FIELDS.map((f) => [f, String(v[f] ?? "")]));
+      basis.current = cf
+        ? { currency: cf.currency, values: pick(prefillFromInitial({ ...initial, ...cf })) }
+        : null;
+      lastSet.current = cf ? pick(prefillFromInitial(initial)) : {};
     }
   }, [open, initial?.categoryId]);
 
@@ -507,6 +521,16 @@ export function CategorySlider({
             return;
           }
         }
+        // A currency change with the converted amounts left as shown: the
+        // server's conversion is the limit (and keeps its exact source, 0105).
+        // Re-posting the preview would overwrite that source with a rounded copy.
+        const shown = prefillFromInitial(initial);
+        const previewOnly =
+          currencyChanged &&
+          !singleMonth &&
+          AMOUNT_FIELDS.every((f) => values[f] === lastSet.current[f]) &&
+          values.cushionMode === shown.cushionMode &&
+          (values.noLimit === true) === shown.noLimit;
         // Edit flow: PATCH + POST limits (SCD-2)
         const [patchRes, limitsRes] = await Promise.all([
           clientApiWrite(
@@ -523,23 +547,25 @@ export function CategorySlider({
               }),
             },
           ),
-          clientApiWrite(
-            `/budgets/${budgetId}/categories/${initial!.categoryId}/limits`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                normalAmount,
-                normalCurrency: currency,
-                cushionAmount,
-                cushionCurrency: currency,
-                ...(noLimit ? {} : { needsAmount, wantsAmount }),
-                noLimit,
-                effectiveFrom,
-                singleMonth,
-              }),
-            },
-          ),
+          previewOnly
+            ? Promise.resolve({ ok: true })
+            : clientApiWrite(
+                `/budgets/${budgetId}/categories/${initial!.categoryId}/limits`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    normalAmount,
+                    normalCurrency: currency,
+                    cushionAmount,
+                    cushionCurrency: currency,
+                    ...(noLimit ? {} : { needsAmount, wantsAmount }),
+                    noLimit,
+                    effectiveFrom,
+                    singleMonth,
+                  }),
+                },
+              ),
         ]);
 
         if (!patchRes.ok || !limitsRes.ok) {

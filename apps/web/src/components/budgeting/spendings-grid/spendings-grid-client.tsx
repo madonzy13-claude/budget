@@ -950,7 +950,7 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     const s = summaryByCatId.get(cat.id);
     // Phase 14: the editor works in the category's OWN currency, so it prefills
     // from the limit as typed (limitOriginal), not the budget-currency figures.
-    const own = (s as { limitOriginal?: { plannedCents: string; cushionCents: string; needsCents: string | null; wantsCents: string | null } } | undefined)?.limitOriginal;
+    const own = (s as { limitOriginal?: { plannedCents: string; cushionCents: string; needsCents: string | null; wantsCents: string | null; convertedFrom?: { currency: string; plannedCents: string; cushionCents: string; needsCents: string | null; wantsCents: string | null } } } | undefined)?.limitOriginal;
     return {
       categoryId: cat.id,
       name: cat.name,
@@ -960,6 +960,7 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       // mig 0061: persisted needs/wants split prefills the slider's split exactly.
       needsCents: own ? own.needsCents : (s?.needsCents ?? null),
       wantsCents: own ? own.wantsCents : (s?.wantsCents ?? null),
+      ...(own?.convertedFrom ? { convertedFrom: own.convertedFrom } : {}),
       // 0083: so reopening the editor shows the category as it stands rather
       // than defaulting the toggle off and inviting a silent re-limiting.
       noLimit: s?.noLimit ?? false,
