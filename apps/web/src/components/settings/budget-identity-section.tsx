@@ -166,9 +166,6 @@ export function BudgetIdentitySection({
           <p className="text-sm font-semibold text-[var(--body)]">
             {t("identity.currency_label")}
           </p>
-          <p className="text-xs text-[var(--muted-foreground)]">
-            {t("identity.currency_hint")}
-          </p>
         </div>
         <div className="flex justify-end">
           {!isOwner ? (
