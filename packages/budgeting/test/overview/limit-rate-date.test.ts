@@ -128,6 +128,8 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Limits in another currency", () 
     expect(row.plannedCents).toBe(convertCents(50000n, "4.40").toString());
     expect(row.limitOriginalCents).toBe("50000");
     expect(row.limitCurrency).toBe("EUR");
+    // The editor prefills from the amounts as typed, in the category's currency.
+    expect(row.limitOriginal).toEqual({ plannedCents: "50000", cushionCents: "50000", needsCents: null, wantsCents: null });
   });
 
   test("the current month counts at the latest rate", async () => {
