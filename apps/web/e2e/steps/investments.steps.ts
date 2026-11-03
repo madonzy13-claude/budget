@@ -3427,3 +3427,31 @@ Then(
     expect(ccy.x - textRight).toBeGreaterThanOrEqual(px);
   },
 );
+
+Then(
+  "every investments amount sits at least {int}px clear of its currency",
+  async ({ page }, px: number) => {
+    const gaps = await page.evaluate(() =>
+      [
+        ...document.querySelectorAll<HTMLElement>(
+          '[data-testid^="asset-currency-"], [data-testid^="investment-type-currency-"]',
+        ),
+      ]
+        .filter((c) => c.offsetParent !== null)
+        .map((c) => {
+          const row = c.closest(".group\\/row")!;
+          const text = row.querySelector("[data-amt-text]")!;
+          const r = document.createRange();
+          r.selectNodeContents(text);
+          return {
+            id: c.getAttribute("data-testid"),
+            gap:
+              r.getBoundingClientRect().left - c.getBoundingClientRect().right,
+          };
+        }),
+    );
+    expect(gaps.length).toBeGreaterThan(0);
+    for (const g of gaps)
+      expect(g.gap, String(g.id)).toBeGreaterThanOrEqual(px);
+  },
+);

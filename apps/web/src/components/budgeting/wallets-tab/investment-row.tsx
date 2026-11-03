@@ -529,7 +529,8 @@ export function InvestmentRow({
               // R6 (user): gap-2 on a phone = the wallets' ~10px to the amount.
               // 261102 (user): centred on desktop — on the baseline the
               // amount rode at the top of the 40px currency field.
-              "shrink-0 items-baseline gap-2 sm:items-center sm:gap-1",
+              // 261103 (user): 16px on desktop, as the group header.
+              "shrink-0 items-baseline gap-2 sm:items-center sm:gap-4",
               expanded ? "hidden sm:flex" : "flex",
             ].join(" ")}
           >

@@ -157,7 +157,9 @@ export function InvestmentTypeHeader({
     <div className="flex shrink-0 items-baseline gap-1 tabular-nums sm:items-center">
       <span
         data-testid={`investment-type-value-${uiType}`}
-        className={`relative flex items-baseline sm:items-center ${showSplit ? "gap-1" : "gap-2 sm:gap-1"}`}
+        // 261103 (user): 16px on desktop — the measured amount column has no
+        // slack, and 4px left the figure touching the field.
+        className={`relative flex items-baseline sm:items-center sm:gap-4 ${showSplit ? "gap-1" : "gap-2"}`}
       >
         {onCurrencyChange ? (
           // Picking a currency never toggles the group.
