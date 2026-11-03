@@ -42,6 +42,13 @@ Out of scope: new FX providers, currencies beyond the 8 with history (USD EUR PL
 - D-11: Reserve wallets in a currency cover that currency's need first (so FX moves do not touch it). Only the remainder is converted at today's rate and covered by / counted against wallets in other currencies.
 - D-12: The reserve message and the RESERVE_TOPUP / withdraw task state the shortfall or surplus per currency, e.g. "Top up 120 PLN and 15 EUR". Where a currency has no wallet of its own, show the equivalent in the covering wallet's currency: "15 EUR (≈ 64 PLN)".
 - D-13: Single-currency reserves stay allowed; FX moves will raise top-up/withdraw tasks more often, which the user accepts. If a tolerance already exists before a task fires, reuse it; otherwise propose one (Claude's discretion, see below).
+- D-15 (user, 2026-11-03): Reserves NET across currencies. A surplus in one currency covers a shortfall in another at today's rate; only the net remainder can raise a top-up/withdraw task (e.g. PLN +200 surplus, EUR −30 short ≈ −130 PLN → no top-up; net +70 PLN surplus).
+- D-16 (user, 2026-11-03): The "≈" equivalent for a currency with no reserve wallet of its own is shown in the BUDGET currency.
+- D-17 (user, 2026-11-03): After a category's currency changes, its reserve is in the NEW currency, rebuilt by the per-month replay:
+  - each past month is computed in the currency the category had IN THAT MONTH (limit in that currency; spending converted to it at each transaction's date — exactly as the month read at the time);
+  - only the month's RESULT converts to the category's current currency: a LEFTOVER at that month's closing rate (last rate within the month); an OVERSPEND at the rate on the date(s) of the transaction(s) that pushed spending past the limit (a transaction straddling the limit: only the part above it uses its date);
+  - manual reserve adjustments convert at their own date's rate;
+  - months after the change are native, no conversion. Closed months never move (past rates only).
 - D-14: Existing bug fixed in this phase: the reserve-wallet total (`reserves-summary-repo.ts`) sums RESERVE wallets across currencies with no FX.
 
 ### Claude's Discretion
