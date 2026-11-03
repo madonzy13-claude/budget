@@ -131,7 +131,9 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
           wants: x.wants_amount,
           cushionCents: x.cushion_amount_cents,
         };
-      for (const c of new Set([from, ...segs.map((x) => sourceOf(x).currency)])) {
+      // Only the currencies something converts FROM need a rate — the category's
+      // current one may be a conversion with no pair of its own to `to`.
+      for (const c of new Set(segs.map((x) => sourceOf(x).currency))) {
         if (c === to) continue;
         const rr = await q<{ rate: string | null }>(sql`
           SELECT COALESCE(

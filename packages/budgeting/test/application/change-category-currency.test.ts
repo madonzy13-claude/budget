@@ -71,6 +71,8 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Change a category's currency", (
     // and 23330 × 4.2863 = 99999.88 — a conversion of a conversion drifts.
     await b.rates([{ base: "EUR", quote: "PLN", date: "1998-05-01", rate: "4.2863" }]);
     await b.rates([{ base: "PLN", quote: "USD", date: "1998-05-01", rate: "0.25" }]);
+    // Seeded, never borrowed from real history: a testcontainer has none.
+    await b.rates([{ base: "USD", quote: "EUR", date: "1998-05-01", rate: "0.9" }]);
     expect((await change({ tenantId: b.tenant, userId: b.user, categoryId: food, currency: "PLN" })).isOk()).toBe(true);
     expect((await segments()).slice(1).map((x) => [x.n, x.nc])).toEqual([
       ["100000", "PLN"],
@@ -89,10 +91,12 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Change a category's currency", (
       normalCurrency: "USD", cushionAmount: "26000", cushionCurrency: "USD", actorUserId: b.user,
       carryForward: false,
     });
-    await change({ tenantId: b.tenant, userId: b.user, categoryId: food, currency: "EUR" });
-    await change({ tenantId: b.tenant, userId: b.user, categoryId: food, currency: "USD" });
+    const ok = async (currency: string) =>
+      expect((await change({ tenantId: b.tenant, userId: b.user, categoryId: food, currency })).isOk()).toBe(true);
+    await ok("EUR");
+    await ok("USD");
     expect((await segments()).find((x) => x.f === "1998-05-01")?.n).toBe("26000");
-    await change({ tenantId: b.tenant, userId: b.user, categoryId: food, currency: "EUR" });
+    await ok("EUR");
     // The editor reads the source too, so its own preview round-trips exactly.
     const eff = await new DrizzleCategoryLimitRepo().effectiveForMonths(b.tenant, b.tenant, ["1998-05-01"]);
     expect(eff.get("1998-05-01")?.get(food)?.convertedFrom).toMatchObject({ currency: "USD", normal: "26000" });

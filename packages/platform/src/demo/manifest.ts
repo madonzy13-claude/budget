@@ -185,6 +185,8 @@ export const demoManifest: TableManifest[] = [
       needs_amount: limit0,
       wants_amount: limit0,
       no_limit: ts,
+      // 0105: real typed amounts + currency — dropped; a demo limit converts from itself.
+      converted_from: nul,
     },
   },
   {
