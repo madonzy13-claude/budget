@@ -47,6 +47,19 @@ import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { cn } from "@/lib/utils";
 // 260613-v1p: single source of truth for the 8 category palette colors.
 import { CATEGORY_COLORS } from "@/lib/category-colors";
+import { CurrencyPicker } from "@/components/common/currency-picker";
+import { clientApiFetch } from "@/lib/budget-fetch";
+
+/** cents × decimal rate, half away from zero, in integer math (no float money). */
+function convertCentsStr(cents: string, rate: string): string {
+  const [w, f = ""] = rate.split(".");
+  const num = BigInt(`${w}${f}`);
+  const den = 10n ** BigInt(f.length);
+  const c = BigInt(cents);
+  const neg = c < 0n;
+  const q = ((neg ? -c : c) * num * 2n + den) / (2n * den);
+  return (neg ? -q : q).toString();
+}
 
 export interface CategorySliderProps {
   open: boolean;
@@ -67,6 +80,8 @@ export interface CategorySliderProps {
     cushionMode?: string | null;
     /** 0083: unbounded — prefills the No-limit toggle on reopen. */
     noLimit?: boolean | null;
+    /** Phase 14 (D-04): the category's own currency; amounts above are in it. */
+    currency?: string;
   };
   txnsCount?: number;
   /**
@@ -273,6 +288,40 @@ export function CategorySlider({
 
   const locale = useLocale();
 
+  // Phase 14 (UI-SPEC §1): the category's currency. Add → the budget's (D-04);
+  // edit → the stored one, changeable even with transactions (D-07).
+  const storedCurrency = initial?.currency ?? budgetCurrency;
+  const [currency, setCurrency] = useState(storedCurrency);
+  const [rateError, setRateError] = useState<string | null>(null);
+  const currencyChanged = mode === "edit" && currency !== storedCurrency;
+  useEffect(() => {
+    if (open) {
+      setCurrency(initial?.currency ?? budgetCurrency);
+      setRateError(null);
+    }
+  }, [open, initial?.categoryId]);
+
+  /** Edit: preview the limit at today's rate in the new currency (the server
+   *  converts authoritatively on save). No rate → inline error, Save off. */
+  async function changeCurrency(next: string) {
+    const prev = currency;
+    setCurrency(next);
+    setRateError(null);
+    if (mode !== "edit" || next === prev) return;
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      const res = await clientApiFetch(`/fx/rate?from=${prev}&to=${next}&date=${today}`);
+      if (!res.ok) throw new Error("no_rate");
+      const { rate } = (await res.json()) as { rate: string };
+      for (const f of ["needs", "wants", "customCushion"] as const) {
+        const v = form.getValues(f);
+        if (v) form.setValue(f, centsToDecimal(convertCentsStr(String(amountToCents(v)), rate)), { shouldValidate: true });
+      }
+    } catch {
+      setRateError(`${storedCurrency}/${next}`);
+    }
+  }
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -306,13 +355,13 @@ export function CategorySlider({
   });
   const plannedPreview = centsToDisplayCompact(
     preview.normalAmount,
-    budgetCurrency,
+    currency,
     locale,
     true,
   );
   const cushionPreview = centsToDisplayCompact(
     preview.cushionAmount,
-    budgetCurrency,
+    currency,
     locale,
     true,
   );
@@ -378,6 +427,7 @@ export function CategorySlider({
               // Persist the chosen mode so "Needs only" (cushion == planned)
               // isn't misread as "Needs + wants" when the editor reopens.
               cushionMode: values.cushionMode,
+              currency,
             }),
           },
         );
@@ -399,7 +449,9 @@ export function CategorySlider({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               normalAmount,
+              normalCurrency: currency,
               cushionAmount,
+              cushionCurrency: currency,
               ...(noLimit ? {} : { needsAmount, wantsAmount }),
               noLimit,
               effectiveFrom,
@@ -412,6 +464,24 @@ export function CategorySlider({
           return;
         }
       } else {
+        // D-07: the currency first — the server converts the current and
+        // future limits at today's rate; the limit below is then written in it.
+        if (currencyChanged) {
+          const ccyRes = await clientApiWrite(
+            `/budgets/${budgetId}/categories/${initial!.categoryId}/currency`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ currency }),
+            },
+          );
+          if (!ccyRes.ok) {
+            const e = (await ccyRes.json().catch(() => ({}))) as { error?: string; pair?: string };
+            if (e.error === "fx_rate_unavailable") setRateError(e.pair ?? `${storedCurrency}/${currency}`);
+            else toast.error(t("error.sliderSave"));
+            return;
+          }
+        }
         // Edit flow: PATCH + POST limits (SCD-2)
         const [patchRes, limitsRes] = await Promise.all([
           clientApiWrite(
@@ -435,7 +505,9 @@ export function CategorySlider({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 normalAmount,
+                normalCurrency: currency,
                 cushionAmount,
+                cushionCurrency: currency,
                 ...(noLimit ? {} : { needsAmount, wantsAmount }),
                 noLimit,
                 effectiveFrom,
@@ -663,6 +735,34 @@ export function CategorySlider({
                 </FormItem>
               )}
 
+              {/* Phase 14 (UI-SPEC §1): the category's currency, right under
+                  the limit. Editing it converts the limit at today's rate. */}
+              <FormItem>
+                <FormLabel className="text-sm text-[var(--muted-foreground)]">
+                  {t("categoryCurrency.label")}
+                </FormLabel>
+                <div data-testid="category-currency-picker">
+                  <span className="editable-dots contents">
+                    <CurrencyPicker
+                      value={currency}
+                      aria-label={t("categoryCurrency.label")}
+                      onSelect={(v: string) => void changeCurrency(v)}
+                      variant="field"
+                    />
+                  </span>
+                </div>
+                {currencyChanged && !rateError && (
+                  <p data-testid="category-currency-hint" className="text-sm text-[var(--muted-foreground)]">
+                    {t("categoryCurrency.changeHint", { old: storedCurrency, new: currency })}
+                  </p>
+                )}
+                {rateError && (
+                  <p data-testid="category-currency-error" className="text-sm text-destructive">
+                    {t("categoryCurrency.rateError", { pair: rateError })}
+                  </p>
+                )}
+              </FormItem>
+
               {/* Cushion — chosen by mode, with a prominent resulting amount. */}
               {cushionEnabled && (
                 <div className="flex flex-col gap-2">
@@ -785,7 +885,7 @@ export function CategorySlider({
 
                 <Button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || (currencyChanged && !!rateError)}
                   className="h-12 w-full sm:flex-1 bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-active)]"
                 >
                   {isSubmitting ? (

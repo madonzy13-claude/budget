@@ -948,14 +948,18 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     const cat = localCategoryOrder.find((c) => c.id === catSlider.categoryId);
     if (!cat) return undefined;
     const s = summaryByCatId.get(cat.id);
+    // Phase 14: the editor works in the category's OWN currency, so it prefills
+    // from the limit as typed (limitOriginal), not the budget-currency figures.
+    const own = (s as { limitOriginal?: { plannedCents: string; cushionCents: string; needsCents: string | null; wantsCents: string | null } } | undefined)?.limitOriginal;
     return {
       categoryId: cat.id,
       name: cat.name,
-      plannedCents: s?.plannedCents ?? "0",
-      cushionCents: s?.cushionCents ?? "0",
+      currency: cat.currency ?? budgetCurrency,
+      plannedCents: own?.plannedCents ?? s?.plannedCents ?? "0",
+      cushionCents: own?.cushionCents ?? s?.cushionCents ?? "0",
       // mig 0061: persisted needs/wants split prefills the slider's split exactly.
-      needsCents: s?.needsCents ?? null,
-      wantsCents: s?.wantsCents ?? null,
+      needsCents: own ? own.needsCents : (s?.needsCents ?? null),
+      wantsCents: own ? own.wantsCents : (s?.wantsCents ?? null),
       // 0083: so reopening the editor shows the category as it stands rather
       // than defaulting the toggle off and inviting a silent re-limiting.
       noLimit: s?.noLimit ?? false,
@@ -967,7 +971,7 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       isInvestment: s?.isInvestment ?? false,
       investmentLimitMode: s?.investmentLimitMode ?? null,
     };
-  }, [catSlider.categoryId, localCategoryOrder, summaryByCatId]);
+  }, [catSlider.categoryId, localCategoryOrder, summaryByCatId, budgetCurrency]);
 
   // An archived ("keep history") category is shown ONLY in months where it has
   // at least one transaction; otherwise it's dropped from the grid (this month).
