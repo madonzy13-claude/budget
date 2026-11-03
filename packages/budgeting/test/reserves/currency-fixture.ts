@@ -11,6 +11,10 @@ import { DrizzleTransactionRepo } from "../../src/adapters/persistence/transacti
 import { DrizzleCategoryLimitRepo } from "../../src/adapters/persistence/category-limit-repo";
 import { DrizzleReservesSummaryRepo } from "../../src/adapters/persistence/reserves-summary-repo";
 import { seedFxRates, deleteFxRates } from "../fx-seed";
+import { withTenantTx } from "@budget/platform";
+import { TenantId, UserId } from "@budget/shared-kernel";
+import { recomputeReserveTopupTask } from "../../src/application/recompute-reserve-topup-task";
+import { createTaskRepo } from "../../src/adapters/persistence/task-repo";
 
 for (const k of ["DATABASE_URL_APP", "DATABASE_URL_WORKER", "DATABASE_URL_MIGRATOR"] as const) {
   if (process.env[k]) process.env[k] = process.env[k]!.replace("@db:", "@localhost:");
@@ -97,6 +101,47 @@ export class ReserveBudget {
     return seedFxRates(rows, this.provider);
   }
 
+  wallet(ccy: string, balance: string, type = "RESERVE") {
+    return this.sql(
+      `INSERT INTO budgeting.wallets (id, tenant_id, name, currency, current_balance, wallet_type, created_at, actor_user_id)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4::numeric, $5, now(), $6)`,
+      [this.tenant, `w-${crypto.randomUUID().slice(0, 6)}`, ccy, balance, type, this.user],
+    );
+  }
+
+  /** Recompute the RESERVE_TOPUP task, then return its open payload (null when resolved). */
+  async task(): Promise<Record<string, unknown> | null> {
+    const ccy = (await this.sql(`SELECT default_currency FROM tenancy.budgets WHERE id = $1`, [this.tenant])).rows[0]
+      .default_currency as string;
+    const r = await withTenantTx(TenantId(this.tenant), UserId(this.user), (tx) =>
+      recomputeReserveTopupTask(tx as never, { tenantId: this.tenant, budgetId: this.tenant }, {
+        taskRepo: createTaskRepo(),
+        reservePositions: (i) => this.positionsResult(i.tenantId),
+        budgetCurrencyOf: async () => ccy,
+        isReservesEnabled: async () => true,
+      }),
+    );
+    if (r.isErr()) throw r.error;
+    const row = (
+      await this.sql(
+        `SELECT payload_json FROM budgeting.tasks
+          WHERE budget_id = $1 AND kind = 'RESERVE_TOPUP' AND resolved_at IS NULL`,
+        [this.tenant],
+      )
+    ).rows[0];
+    return row ? (row.payload_json as Record<string, unknown>) : null;
+  }
+
+  positionsResult(tenantId = this.tenant) {
+    return getReservePositions({
+      eventLoader: createReserveEventLoaderRepo({
+        transactionRepo: new DrizzleTransactionRepo(),
+        categoryLimitRepo: new DrizzleCategoryLimitRepo(),
+        reservesSummaryRepo: new DrizzleReservesSummaryRepo(),
+      }),
+    })({ tenantId, budgetId: tenantId });
+  }
+
   async positions() {
     const r = await getReservePositions({
       eventLoader: createReserveEventLoaderRepo({
@@ -111,7 +156,8 @@ export class ReserveBudget {
 
   async drop() {
     setServerTestNow(null);
-    for (const t of ["category_reserve_adjustments", "expense_ledger", "category_limits", "categories"])
+    await this.sql(`DELETE FROM budgeting.tasks WHERE budget_id = $1`, [this.tenant]);
+    for (const t of ["category_reserve_adjustments", "expense_ledger", "category_limits", "wallets", "categories"])
       await this.sql(`DELETE FROM budgeting.${t} WHERE tenant_id = $1`, [this.tenant]);
     await this.sql(`DELETE FROM tenancy.budgets WHERE id = $1`, [this.tenant]);
     await deleteFxRates(this.provider);
