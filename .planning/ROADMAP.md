@@ -452,7 +452,7 @@ Plans:
 
 **Requirements**: CONTEXT decisions (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 19/21 plans executed
+**Plans:** 20/21 plans executed
 
 Plans:
 **Wave 1**
@@ -494,7 +494,7 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 14-20-PLAN.md — settings confirm dialog, cache invalidation, full E2E (web, LAST)
+- [x] 14-20-PLAN.md — settings confirm dialog, cache invalidation, full E2E (web, LAST)
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
