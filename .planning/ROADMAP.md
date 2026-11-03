@@ -452,7 +452,7 @@ Plans:
 
 **Requirements**: CONTEXT decisions (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 14/21 plans executed
+**Plans:** 15/21 plans executed
 
 Plans:
 **Wave 1**
@@ -484,7 +484,7 @@ Plans:
 
 - [x] 14-13-PLAN.md — per-currency reserve DTOs + spendings reserve conversion
 - [ ] 14-15-PLAN.md — reserve wallet currency unlock (D-09)
-- [ ] 14-16-PLAN.md — change category currency with limit conversion (D-07)
+- [x] 14-16-PLAN.md — change category currency with limit conversion (D-07)
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
