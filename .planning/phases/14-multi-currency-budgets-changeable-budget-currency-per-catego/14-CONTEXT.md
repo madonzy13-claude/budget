@@ -41,7 +41,7 @@ Out of scope: new FX providers, currencies beyond the 8 with history (USD EUR PL
 - D-10: The reserve need is per currency: each category's reserve is held in that category's currency, so the total need is one amount per currency.
 - D-11: Reserve wallets in a currency cover that currency's need first (so FX moves do not touch it). Only the remainder is converted at today's rate and covered by / counted against wallets in other currencies.
 - D-12: The reserve message and the RESERVE_TOPUP / withdraw task state the shortfall or surplus per currency, e.g. "Top up 120 PLN and 15 EUR". Where a currency has no wallet of its own, show the equivalent in the covering wallet's currency: "15 EUR (≈ 64 PLN)".
-- D-13: Single-currency reserves stay allowed; FX moves will raise top-up/withdraw tasks more often, which the user accepts. If a tolerance already exists before a task fires, reuse it; otherwise propose one (Claude's discretion, see below).
+- D-13 (user, 2026-11-03): Single-currency reserves stay allowed; FX moves will raise top-up/withdraw tasks more often, which the user accepts — a user who wants fewer tasks keeps reserve wallets in several currencies. NO tolerance / dead-band anywhere: every shortfall or surplus, including the converted cross-currency remainder, is exact (today's `surplus === 0n` behaviour), and the calculation must be exact.
 - D-15 (user, 2026-11-03): Reserves NET across currencies. A surplus in one currency covers a shortfall in another at today's rate; only the net remainder can raise a top-up/withdraw task (e.g. PLN +200 surplus, EUR −30 short ≈ −130 PLN → no top-up; net +70 PLN surplus).
 - D-16 (user, 2026-11-03): The "≈" equivalent for a currency with no reserve wallet of its own is shown in the BUDGET currency.
 - D-17 (user, 2026-11-03): After a category's currency changes, its reserve is in the NEW currency, rebuilt by the per-month replay:
@@ -57,7 +57,6 @@ Out of scope: new FX providers, currencies beyond the 8 with history (USD EUR PL
 - Whether category limits get a real per-category currency column or reuse `category_limits.normal_currency` / `cushion_currency` (stored today but ignored on read).
 - How wealth snapshots and investment history (stored in the budget currency at capture time, with a `currency` / `budget_currency` column) are re-expressed.
 - Behaviour when an FX rate is missing: never fail a whole summary; fall back to the most recent prior rate and mark it stale, as the cache adapter already does.
-- A tolerance for reserve tasks driven by FX noise (D-13).
 - Migration of existing data: every existing category gets the budget's current currency.
 
 </decisions>

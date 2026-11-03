@@ -91,7 +91,7 @@ Focal points: (1) budget-currency confirm dialog — the primary "Change currenc
 - Existing templates keep their shape; `{amount}` becomes a locale-formatted list built with `Intl.ListFormat(locale, {type:"conjunction"})` over per-currency parts (gives "and" / "i" / "і" free, no new copy key for the conjunction). Order: wallet currencies first, then the others, each alphabetical.
 - Part format: `120 PLN` (money formatted by existing formatter, currency code suffix). A currency with no reserve wallet of its own: `15 EUR (≈ 64 PLN)` — equivalent in the BUDGET currency (D-16). If the budget currency is that same currency, no "≈". This string is produced in code (Intl money formatting + `Intl.ListFormat`), NOT by a new i18n key; the only i18n strings involved are the existing task-title templates with `{amount}`.
 - Net result (D-15): when nets cancel to one currency, show a single amount.
-- Tolerance (D-13) [ASSUMED — needs user sign-off]: no threshold exists today (`recompute-reserve-topup-task.ts` does an exact `surplus === 0n`). One rule: dead-band of max(1 whole unit of the budget currency, 0.5% of total need), applied only to the cross-currency (converted) remainder; same-currency lines stay exact (no tolerance).
+- Tolerance (D-13, user 2026-11-03): NONE. Every shortfall/surplus raises the task exactly, including the converted cross-currency remainder (as today's exact `surplus === 0n`). Users who want fewer tasks hold reserve wallets in several currencies.
 - Single-currency reserves render exactly as today (list of one).
 - No new colors: surplus/shortfall keep today's treatment.
 
