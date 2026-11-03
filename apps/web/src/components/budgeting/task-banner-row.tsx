@@ -1,5 +1,6 @@
 "use client";
 
+import { formatReserveLines } from "@/lib/reserve-lines-format";
 import * as React from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { centsToDisplayCompact } from "@/lib/cents-format";
@@ -89,8 +90,21 @@ function buildTitleParams(
   }
 
   switch (task.kind) {
-    case "RESERVE_TOPUP":
+    case "RESERVE_TOPUP": {
+      // Phase 14 (D-12): one part per currency when the server sent lines.
+      const lines = payload.lines as
+        | Array<{ currency: string; shortfall_cents: string; equiv?: { currency: string; cents: string } }>
+        | undefined;
+      if (lines?.length) {
+        return {
+          amount: formatReserveLines(
+            lines.map((l) => ({ currency: l.currency, cents: l.shortfall_cents, equiv: l.equiv })),
+            locale,
+          ),
+        };
+      }
       return { amount: fmt(payload.shortfall_cents) };
+    }
     case "CONFIRM_DRAFT": {
       // Title: `Confirm {amount} ({ruleName})` — amount first, then the
       // scheduled payment that produced the draft, which is how the row is
