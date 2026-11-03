@@ -162,6 +162,8 @@ export const demoManifest: TableManifest[] = [
       is_investment: ts,
       investment_limit_mode: ts,
       cushion_mode: ts,
+      // Phase 14 (mig 0104): the category's own currency.
+      currency: ccy,
     },
   },
   {
@@ -193,6 +195,8 @@ export const demoManifest: TableManifest[] = [
       tenant_id: tenant,
       category_id: ref("budgeting.categories"),
       delta_cents: money0,
+      // Phase 14 (mig 0104): the adjustment's currency (its category's).
+      currency: ccy,
       note: merchantOfCategory,
       created_by: owner,
       occurred_at: ts,

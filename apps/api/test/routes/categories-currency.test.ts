@@ -2,7 +2,7 @@
  * categories-currency.test.ts — PATCH /categories/:id/currency (D-07).
  * Real Postgres; the dev DB's real FX history supplies today's rates.
  */
-import { describe, it, expect, beforeAll } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import { Hono } from "hono";
 import { Pool } from "pg";
 
@@ -66,10 +66,33 @@ const patch = (app: Hono, id: string, body: unknown) =>
     body: JSON.stringify(body),
   });
 
+/** Today's PLN→EUR rate, in case this DB has no history (a throwaway
+ *  testcontainer). Never overwrites a real rate; removes only its own row. */
+let seededRate = false;
+async function ensureTodayRate() {
+  const worker = process.env.DATABASE_URL_WORKER?.replace("@db:", "@localhost:");
+  if (!worker) return;
+  const pool = new Pool({ connectionString: worker });
+  const r = await pool.query(
+    `INSERT INTO budgeting.fx_rates (base, quote, date, rate, provider)
+     VALUES ('PLN', 'EUR', CURRENT_DATE, 0.23, 'test-14-16-route') ON CONFLICT DO NOTHING RETURNING 1`,
+  );
+  seededRate = (r.rowCount ?? 0) > 0;
+  await pool.end();
+}
+afterAll(async () => {
+  const migrator = process.env.DATABASE_URL_MIGRATOR?.replace("@db:", "@localhost:");
+  if (!seededRate || !migrator) return;
+  const pool = new Pool({ connectionString: migrator });
+  await pool.query(`DELETE FROM budgeting.fx_rates WHERE provider = 'test-14-16-route'`);
+  await pool.end();
+});
+
 describe("PATCH /categories/:id/currency", () => {
   let app: Hono;
   let id: string;
   beforeAll(async () => {
+    await ensureTodayRate();
     await createBudget();
     app = await buildApp();
     const res = await app.request("/categories", {
