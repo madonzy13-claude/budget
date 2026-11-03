@@ -729,6 +729,13 @@
       "when": 1783740000000,
       "tag": "0104_multi_currency",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1783750000000,
+      "tag": "0105_limit_converted_from",
+      "breakpoints": true
     }
   ]
 }

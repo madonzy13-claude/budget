@@ -93,6 +93,9 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Change a category's currency", (
     await change({ tenantId: b.tenant, userId: b.user, categoryId: food, currency: "USD" });
     expect((await segments()).find((x) => x.f === "1998-05-01")?.n).toBe("26000");
     await change({ tenantId: b.tenant, userId: b.user, categoryId: food, currency: "EUR" });
+    // The editor reads the source too, so its own preview round-trips exactly.
+    const eff = await new DrizzleCategoryLimitRepo().effectiveForMonths(b.tenant, b.tenant, ["1998-05-01"]);
+    expect(eff.get("1998-05-01")?.get(food)?.convertedFrom).toMatchObject({ currency: "USD", normal: "26000" });
   });
 
   test("the reserve is rebuilt in the new currency (D-17)", async () => {

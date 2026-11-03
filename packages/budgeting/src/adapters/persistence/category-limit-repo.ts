@@ -55,6 +55,16 @@ function rowToDto(row: {
   };
 }
 
+/** 0105: what a currency-converted limit segment was made from. */
+type Source = {
+  currency: string;
+  normal: string;
+  cushion: string;
+  needs: string | null;
+  wants: string | null;
+  cushionCents: string | null;
+};
+
 export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
   async changeCategoryCurrency(input: {
     tenantId: string;
@@ -97,10 +107,11 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
           needs_amount: string | null;
           wants_amount: string | null;
           cushion_amount_cents: string | null;
+          converted_from: Source | null;
         }>(sql`
           SELECT id::text, effective_from::text, normal_currency::text,
                  normal_amount::text, cushion_amount::text, needs_amount::text,
-                 wants_amount::text, cushion_amount_cents::text
+                 wants_amount::text, cushion_amount_cents::text, converted_from
             FROM budgeting.category_limits
            WHERE category_id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid
              AND (effective_to IS NULL OR effective_to >= ${cat.month_start}::date)
@@ -109,7 +120,18 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
 
       // Today's rate per segment currency (same fallback as fx_convert).
       const rates = new Map<string, string | null>();
-      for (const c of new Set([from, ...segs.map((x) => x.normal_currency.trim())])) {
+      // Each segment converts from its SOURCE: the amounts it was converted from,
+      // if it was, else itself. Never a conversion of a conversion (0105).
+      const sourceOf = (x: (typeof segs)[number]): Source =>
+        x.converted_from ?? {
+          currency: x.normal_currency.trim(),
+          normal: x.normal_amount,
+          cushion: x.cushion_amount,
+          needs: x.needs_amount,
+          wants: x.wants_amount,
+          cushionCents: x.cushion_amount_cents,
+        };
+      for (const c of new Set([from, ...segs.map((x) => sourceOf(x).currency)])) {
         if (c === to) continue;
         const rr = await q<{ rate: string | null }>(sql`
           SELECT COALESCE(
@@ -126,25 +148,29 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
 
       await q(sql`UPDATE budgeting.categories SET currency = ${to} WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid`);
       for (const seg of segs) {
-        const segCcy = seg.normal_currency.trim();
-        const rate = segCcy === to ? "1" : rates.get(segCcy)!;
+        const src = sourceOf(seg);
+        const back = src.currency === to;
+        const rate = back ? "1" : rates.get(src.currency)!;
         const cv = (v: string | null) => (v === null ? null : convertCents(BigInt(v), rate).toString());
-        const amounts = sql`normal_amount = ${cv(seg.normal_amount)}::bigint,
-                            cushion_amount = ${cv(seg.cushion_amount)}::bigint,
-                            needs_amount = ${cv(seg.needs_amount)}::bigint,
-                            wants_amount = ${cv(seg.wants_amount)}::bigint,
-                            cushion_amount_cents = ${cv(seg.cushion_amount_cents)}::bigint,
-                            normal_currency = ${to}, cushion_currency = ${to}`;
+        const keep = back ? null : JSON.stringify(src);
+        const amounts = sql`normal_amount = ${cv(src.normal)}::bigint,
+                            cushion_amount = ${cv(src.cushion)}::bigint,
+                            needs_amount = ${cv(src.needs)}::bigint,
+                            wants_amount = ${cv(src.wants)}::bigint,
+                            cushion_amount_cents = ${cv(src.cushionCents)}::bigint,
+                            normal_currency = ${to}, cushion_currency = ${to},
+                            converted_from = ${keep}::jsonb`;
         if (seg.effective_from < cat.month_start) {
           // Started before this month: close it the day before (setLimit's
           // convention) and continue it from the 1st in the new currency.
           await q(sql`
             INSERT INTO budgeting.category_limits
               (tenant_id, category_id, normal_amount, normal_currency, cushion_amount, cushion_currency,
-               needs_amount, wants_amount, cushion_amount_cents, no_limit, effective_from, effective_to, actor_user_id)
-            SELECT tenant_id, category_id, ${cv(seg.normal_amount)}::bigint, ${to}, ${cv(seg.cushion_amount)}::bigint, ${to},
-                   ${cv(seg.needs_amount)}::bigint, ${cv(seg.wants_amount)}::bigint, ${cv(seg.cushion_amount_cents)}::bigint,
-                   no_limit, ${cat.month_start}::date, effective_to, ${input.actorUserId}::uuid
+               needs_amount, wants_amount, cushion_amount_cents, no_limit, effective_from, effective_to, actor_user_id,
+               converted_from)
+            SELECT tenant_id, category_id, ${cv(src.normal)}::bigint, ${to}, ${cv(src.cushion)}::bigint, ${to},
+                   ${cv(src.needs)}::bigint, ${cv(src.wants)}::bigint, ${cv(src.cushionCents)}::bigint,
+                   no_limit, ${cat.month_start}::date, effective_to, ${input.actorUserId}::uuid, ${keep}::jsonb
               FROM budgeting.category_limits WHERE id = ${seg.id}::uuid`);
           await q(sql`
             UPDATE budgeting.category_limits
@@ -205,6 +231,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
                 needs_amount = ${input.needsAmount ?? null}::bigint,
                 wants_amount = ${input.wantsAmount ?? null}::bigint,
                 no_limit = ${input.noLimit ?? false}::boolean,
+                converted_from = NULL,
                 actor_user_id = ${input.actorUserId}::uuid
             WHERE category_id = ${input.categoryId}::uuid AND effective_to IS NULL
           `);
@@ -388,6 +415,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
               needs_amount = ${input.needsAmount ?? null}::bigint,
               wants_amount = ${input.wantsAmount ?? null}::bigint,
               no_limit = ${input.noLimit ?? false}::boolean,
+              converted_from = NULL,
               actor_user_id = ${input.actorUserId}::uuid
           WHERE id = ${S.id}::uuid
         `);
@@ -566,12 +594,13 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         no_limit: boolean;
         normal_currency: string;
         cushion_currency: string;
+        converted_from: EffectiveLimit["convertedFrom"];
       }>(sql`
         SELECT m.month_start::text AS month_start,
                cl.category_id::text, cl.normal_amount::text,
                cl.cushion_amount::text, cl.needs_amount::text,
                cl.wants_amount::text, cl.no_limit,
-               cl.normal_currency::text, cl.cushion_currency::text
+               cl.normal_currency::text, cl.cushion_currency::text, cl.converted_from
           FROM unnest(${monthsLiteral}::date[]) AS m(month_start)
           JOIN budgeting.category_limits cl
             ON cl.tenant_id = ${tenantId}::uuid
@@ -592,6 +621,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         noLimit: row.no_limit,
         normalCurrency: row.normal_currency,
         cushionCurrency: row.cushion_currency,
+        convertedFrom: row.converted_from ?? null,
       });
     }
     return out;
@@ -624,7 +654,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
       }>(sql`
         SELECT category_id::text, normal_amount::text, cushion_amount::text,
                needs_amount::text, wants_amount::text, no_limit,
-               normal_currency::text, cushion_currency::text
+               normal_currency::text, cushion_currency::text, converted_from
           FROM budgeting.category_limits
          WHERE tenant_id = ${tenantId}::uuid
            AND effective_from <= ${monthStart}::date
@@ -647,6 +677,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         noLimit: row.no_limit === true,
         normalCurrency: row.normal_currency,
         cushionCurrency: row.cushion_currency,
+        convertedFrom: (row as { converted_from?: EffectiveLimit["convertedFrom"] }).converted_from ?? null,
       });
     }
     return m;

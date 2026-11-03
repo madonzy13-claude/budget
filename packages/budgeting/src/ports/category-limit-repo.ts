@@ -73,6 +73,14 @@ export interface EffectiveLimit {
   /** Always set by the Drizzle repo; absent (in-memory fakes) = the budget currency. */
   normalCurrency?: string;
   cushionCurrency?: string;
+  /** 0105: what a currency-converted segment was made from (exact round trip). */
+  convertedFrom?: {
+    currency: string;
+    normal: string;
+    cushion: string;
+    needs: string | null;
+    wants: string | null;
+  } | null;
 }
 
 /** Phase 14 (D-07) — outcome of a category currency change. */

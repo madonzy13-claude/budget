@@ -220,6 +220,7 @@ export class DrizzleBudgetTemplateRepo implements BudgetTemplateRepo {
                   normal_currency = (SELECT currency FROM budgeting.categories WHERE id = ${item.categoryId}::uuid),
                   cushion_amount = ${item.cushionAmount}::bigint,
                   cushion_currency = (SELECT currency FROM budgeting.categories WHERE id = ${item.categoryId}::uuid),
+                  converted_from = NULL,
                   actor_user_id = ${input.actorUserId}::uuid
               WHERE category_id = ${item.categoryId}::uuid AND effective_to IS NULL
             `);

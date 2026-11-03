@@ -89,6 +89,15 @@ export interface SpendingsSummaryCategoryDTO {
     cushionCents: string;
     needsCents: string | null;
     wantsCents: string | null;
+    /** 0105: the amounts this limit was converted from — the editor restores
+     *  them exactly when the category's currency goes back. */
+    convertedFrom?: {
+      currency: string;
+      plannedCents: string;
+      cushionCents: string;
+      needsCents: string | null;
+      wantsCents: string | null;
+    };
   };
   /** No FX rate for the limit's currency — it counts as 0 here. */
   fxUnavailable?: boolean;
@@ -477,6 +486,17 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
                     cushionCents: limits.original.cushion.toString(),
                     needsCents: limits.original.needs == null ? null : limits.original.needs.toString(),
                     wantsCents: limits.original.wants == null ? null : limits.original.wants.toString(),
+                    ...(limits.original.convertedFrom
+                      ? {
+                          convertedFrom: {
+                            currency: limits.original.convertedFrom.currency,
+                            plannedCents: limits.original.convertedFrom.normal,
+                            cushionCents: limits.original.convertedFrom.cushion,
+                            needsCents: limits.original.convertedFrom.needs,
+                            wantsCents: limits.original.convertedFrom.wants,
+                          },
+                        }
+                      : {}),
                   },
                 }
               : {}),
