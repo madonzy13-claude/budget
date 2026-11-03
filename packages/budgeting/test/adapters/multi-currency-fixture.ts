@@ -20,7 +20,7 @@ for (const k of ["DATABASE_URL_APP", "DATABASE_URL_WORKER", "DATABASE_URL_MIGRAT
 
 export type Fixture = { tenant: string; user: string; A: string; B: string; T: string };
 
-async function asApp(f: Fixture, fn: (db: Pool) => Promise<void>) {
+export async function asApp(f: Fixture, fn: (db: Pool) => Promise<void>) {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP! });
   const c = await pool.connect();
   try {
@@ -113,9 +113,25 @@ export async function createFixture(provider: string): Promise<Fixture> {
 export async function dropFixture(f: Fixture, provider: string) {
   setServerTestNow(null);
   await asApp(f, async (db) => {
-    for (const t of ["expense_ledger", "category_limits", "categories"])
+    for (const t of ["reserve_fit_exclusions", "budget_wealth_snapshots", "expense_ledger", "category_limits", "categories"])
       await db.query(`DELETE FROM budgeting.${t} WHERE tenant_id = $1`, [f.tenant]);
     await db.query(`DELETE FROM tenancy.budgets WHERE id = $1`, [f.tenant]);
   });
   await deleteFxRates(provider);
+}
+
+/** One more confirmed spending (stored converted cents deliberately wrong). Returns its id. */
+export async function addTx(f: Fixture, cat: string, date: string, cents: number, ccy: string) {
+  let id = "";
+  await asApp(f, async (db) => {
+    const r = await db.query(
+      `INSERT INTO budgeting.expense_ledger
+         (tenant_id, budget_id, category_id, transaction_date, amount_original_cents,
+          currency_original, amount_converted_cents, fx_rate, fx_as_of, kind, confirmed_at)
+       VALUES ($1, $1, $2, $3::date, $4, $5, 1, 1, $3::date, 'SPENDING', now()) RETURNING id`,
+      [f.tenant, cat, date, cents, ccy],
+    );
+    id = r.rows[0].id;
+  });
+  return id;
 }
