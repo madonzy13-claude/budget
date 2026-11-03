@@ -17,6 +17,7 @@ export interface ReserveEventInputs {
   /**
    * categoryId → (month 'YYYY-MM' → spent cents). Confirmed SPENDING net of
    * INCOME, for every month ≤ the open month. Absent month/category = 0n.
+   * In the category's current currency (Phase 14).
    */
   spendByCategoryByMonth: Map<string, Map<string, bigint>>;
   /**
@@ -68,6 +69,11 @@ export interface ReserveEventInputs {
   openMonth: string;
   /** Budget default currency (ISO 4217). */
   budgetCurrency: string;
+  /** Phase 14 (D-10): each category's CURRENT currency. Every amount above
+   *  (spend, limits, adjustments) is already expressed in it. */
+  categoryCurrency?: Map<string, string>;
+  /** Some row could not be converted (no FX pair) and was left out. */
+  fxUnavailable?: boolean;
 }
 
 export interface ReserveEventLoaderRepo {

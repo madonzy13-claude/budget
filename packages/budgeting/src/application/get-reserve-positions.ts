@@ -69,6 +69,12 @@ export interface ReservePositionsResult {
   openMonth: string;
   /** Σ R over active (non-excluded, non-archived) categories. 0 when disabled. */
   internalCents: bigint;
+  /** D-10: the same, one amount per category currency. Optional for older mocks. */
+  internalByCurrency?: Map<string, bigint>;
+  /** Phase 14: some row had no FX pair and was left out of the replay. */
+  fxUnavailable?: boolean;
+  /** Each category's current currency (its reserve is held in it). */
+  categoryCurrency?: Map<string, string>;
   /** Σ RESERVE-wallet balances. */
   userDefinedCents: bigint;
   /** userDefined − internal. */
@@ -246,6 +252,8 @@ export function getReservePositions(deps: GetReservePositionsDeps) {
         events,
         openMonth: inputs.openMonth,
         reservesEnabled: inputs.reservesEnabled,
+        categoryCurrency: inputs.categoryCurrency,
+        defaultCurrency: inputs.budgetCurrency,
       });
 
       // Group engine cells per category → byMonth maps + Σ overspent.
@@ -316,6 +324,9 @@ export function getReservePositions(deps: GetReservePositionsDeps) {
         positions,
         openMonth: inputs.openMonth,
         internalCents: engine.internalCents,
+        internalByCurrency: engine.internalByCurrency,
+        categoryCurrency: inputs.categoryCurrency,
+        ...(inputs.fxUnavailable ? { fxUnavailable: true } : {}),
         userDefinedCents: engine.userDefinedCents,
         surplusCents,
         direction,

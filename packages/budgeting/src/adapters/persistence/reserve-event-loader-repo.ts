@@ -5,9 +5,7 @@
  * for one budget so the orchestrator (05-12) can replay them through
  * reserve-engine.ts. Replaces the VIEW-based reserve-balance-repo reads.
  *
- * Composition (do NOT re-implement spend/limit/wallet SQL — reuse the ports):
- *   - spendByCategoryByMonth  → transactionRepo.spendByCategoryByMonth (exclusive
- *                               upper bound = first day of the month AFTER open)
+ * Composition (do NOT re-implement limit/wallet SQL — reuse the ports):
  *   - limitsByMonth           → categoryLimitRepo.effectiveForMonths (one query)
  *   - userDefinedCents        → reservesSummaryRepo.sumReserveWalletAmounts
  *
@@ -16,6 +14,16 @@
  *   - cushionHistory          → budgeting.budget_mode_history (ASC)
  *   - adjustmentsByCategory   → budgeting.category_reserve_adjustments (ASC)
  *   - categoryFlags           → budgeting.categories
+ *   - spend rows              → budgeting.expense_ledger, one row per payment
+ *
+ * Phase 14 (D-10 / D-17): every amount the engine sees is in the category's
+ * CURRENT currency. A payment converts at its own date; an adjustment at its
+ * own date; a CLOSED month whose limit was in another currency (the category's
+ * currency changed since) is computed in that month's currency and only its
+ * RESULT converts — a leftover at the month's closing rate, an overspend at the
+ * date(s) that pushed it past the limit (reserve-month-conversion.ts). Only past
+ * rates are ever read for a closed month, so closed months never move. A row
+ * with no FX pair is left out and `fxUnavailable` is set — never booked at par.
  *
  * Security (threat T-0511-01/02): every SELECT runs inside withTenantTx with the
  * tenant GUC (RLS), and all identifiers are bound as ${value}::uuid parameters —
@@ -36,6 +44,11 @@ import type {
 import type { TransactionRepo } from "../../ports/transaction-repo";
 import type { CategoryLimitRepo } from "../../ports/category-limit-repo";
 import type { ReservesSummaryRepo } from "../../ports/reserves-summary-repo";
+import { convertCents } from "../../domain/fx-round";
+import {
+  convertClosedMonthResult,
+  toEngineMonthEvents,
+} from "../../domain/reserve-month-conversion";
 
 export interface ReserveEventLoaderRepoDeps {
   transactionRepo: TransactionRepo;
@@ -62,7 +75,9 @@ function toMonthKey(v: unknown): string {
 export function createReserveEventLoaderRepo(
   deps: ReserveEventLoaderRepoDeps,
 ): ReserveEventLoaderRepo {
-  const { transactionRepo, categoryLimitRepo, reservesSummaryRepo } = deps;
+  // transactionRepo stays in the deps for wiring compatibility; spend is read
+  // per row here (Phase 14) because each payment converts at its own date.
+  const { categoryLimitRepo, reservesSummaryRepo } = deps;
 
   return {
     async load(
@@ -122,13 +137,8 @@ export function createReserveEventLoaderRepo(
         .toString(); // 'YYYY-MM-01' (exclusive upper bound — covers the open month)
 
       // ── Compose existing repos (no re-implemented SQL) + in-adapter raw SQL.
-      const [spendByCategoryByMonth, userDefinedCents, rawEvents] =
+      const [userDefinedCents, rawEvents] =
         await Promise.all([
-          transactionRepo.spendByCategoryByMonth(
-            tenantId,
-            budgetId,
-            nextMonthStart,
-          ),
           reservesSummaryRepo.sumReserveWalletAmounts(tenantId),
           // cushion history + adjustments + category flags, all tenant-scoped.
           // UserId(tenantId): read-only placeholder actor (valid UUID for the GUC).
@@ -152,6 +162,8 @@ export function createReserveEventLoaderRepo(
               await drizzleTx.execute(
                 sql`SELECT category_id::text AS category_id,
                              delta_cents::text AS delta_cents,
+                             currency::text AS currency,
+                             to_char(occurred_at, 'YYYY-MM-DD') AS occurred_date,
                              to_char(date_trunc('month', occurred_at), 'YYYY-MM') AS occurred_month
                         FROM budgeting.category_reserve_adjustments
                        WHERE tenant_id = ${tenantId}::uuid
@@ -165,16 +177,96 @@ export function createReserveEventLoaderRepo(
                              reserve_excluded,
                              archived_at,
                              archived_from,
-                             sort_index
+                             sort_index,
+                             currency::text AS currency
                         FROM budgeting.categories
                        WHERE tenant_id = ${tenantId}::uuid`,
               )
             ).rows;
-            return { cushionRows, adjustmentRows, categoryRows };
+            // One row per confirmed payment, in fold order; `native` is the
+            // amount in the category's current currency at the payment's date
+            // (NULL: no FX pair).
+            const txRows = (
+              await drizzleTx.execute(
+                sql`SELECT l.category_id::text AS category_id,
+                             l.transaction_date::text AS d,
+                             to_char(l.transaction_date, 'YYYY-MM') AS month,
+                             l.amount_original_cents::text AS cents,
+                             l.currency_original AS ccy,
+                             budgeting.fx_convert(l.amount_original_cents, l.currency_original,
+                                                  c.currency::text, l.transaction_date)::text AS native
+                        FROM budgeting.expense_ledger l
+                        JOIN budgeting.categories c ON c.id = l.category_id
+                       WHERE l.tenant_id = ${tenantId}::uuid
+                         AND l.budget_id = ${budgetId}::uuid
+                         AND l.kind = 'SPENDING'
+                         AND l.transaction_date < ${nextMonthStart}::date
+                         AND l.confirmed_at IS NOT NULL
+                         AND l.deleted_at IS NULL
+                       ORDER BY l.category_id, l.transaction_date, l.created_at, l.id`,
+              )
+            ).rows;
+            return { cushionRows, adjustmentRows, categoryRows, txRows };
           }),
         ]);
       if (rawEvents.isErr()) throw rawEvents.error;
-      const { cushionRows, adjustmentRows, categoryRows } = rawEvents.value;
+      const { cushionRows, adjustmentRows, categoryRows, txRows } =
+        rawEvents.value;
+
+      // ── Currencies + rates (Phase 14).
+      const categoryCurrency = new Map<string, string>();
+      for (const r of categoryRows) {
+        categoryCurrency.set(r.id as string, ((r.currency as string) ?? budgetCurrency).trim());
+      }
+      const ccyOf = (catId: string) => categoryCurrency.get(catId) ?? budgetCurrency;
+      let fxUnavailable = false;
+      const rates = new Map<string, Promise<string | null>>();
+      /** Rate on `date`, else the most recent prior, else the earliest — the
+       *  same semantics as budgeting.fx_convert. null = no pair at all. */
+      const rate = (from: string, to: string, date: string): Promise<string | null> => {
+        if (from === to) return Promise.resolve("1");
+        const key = `${from}|${to}|${date}`;
+        let hit = rates.get(key);
+        if (!hit) {
+          hit = withTenantTx(TenantId(tenantId), UserId(tenantId), async (tx) => {
+            const rs = await (
+              tx as { execute: (q: unknown) => Promise<{ rows: Array<{ rate: string | null }> }> }
+            ).execute(sql`
+              SELECT COALESCE(
+                (SELECT rate::text FROM budgeting.fx_rates
+                  WHERE base = ${from}::bpchar AND quote = ${to}::bpchar AND date <= ${date}::date
+                  ORDER BY date DESC LIMIT 1),
+                (SELECT rate::text FROM budgeting.fx_rates
+                  WHERE base = ${from}::bpchar AND quote = ${to}::bpchar
+                  ORDER BY date ASC LIMIT 1)) AS rate`);
+            return rs.rows[0]?.rate ?? null;
+          }).then((r) => {
+            if (r.isErr()) throw r.error;
+            return r.value;
+          });
+          rates.set(key, hit);
+        }
+        return hit;
+      };
+
+      // ── Payments grouped per category + month; native spend summed.
+      type TxRow = { d: string; cents: bigint; ccy: string };
+      const txByCatMonth = new Map<string, Map<string, TxRow[]>>();
+      const spendByCategoryByMonth = new Map<string, Map<string, bigint>>();
+      const nativeGap = new Set<string>(); // `${cat}|${month}` with an unconvertible row
+      for (const r of txRows) {
+        const cat = r.category_id as string;
+        const month = r.month as string;
+        let byMonth = txByCatMonth.get(cat);
+        if (!byMonth) txByCatMonth.set(cat, (byMonth = new Map()));
+        const arr = byMonth.get(month) ?? [];
+        arr.push({ d: r.d as string, cents: BigInt(r.cents as string), ccy: (r.ccy as string).trim() });
+        byMonth.set(month, arr);
+        let spend = spendByCategoryByMonth.get(cat);
+        if (!spend) spendByCategoryByMonth.set(cat, (spend = new Map()));
+        if (r.native == null) nativeGap.add(`${cat}|${month}`);
+        spend.set(month, (spend.get(month) ?? 0n) + (r.native == null ? 0n : BigInt(r.native as string)));
+      }
 
       // ── limitsByMonth: every month present in spend ∪ {openMonth}.
       const monthKeys = new Set<string>([openMonth]);
@@ -200,6 +292,21 @@ export function createReserveEventLoaderRepo(
           { plannedCents: bigint; cushionCents: bigint; noLimit: boolean }
         >
       >();
+      // ── cushionHistory: ordered { fromMonth, on } segments (ascending).
+      const cushionHistory = cushionRows.map((r) => ({
+        fromMonth: toMonthKey(r.from_month),
+        on: (r.mode as string) === "CUSHION",
+      }));
+      const cushionOn = (m: string) => {
+        let on = false;
+        for (const seg of cushionHistory) if (seg.fromMonth <= m) on = seg.on;
+        return on;
+      };
+      const today = Temporal.Instant.fromEpochMilliseconds(serverNow().getTime())
+        .toZonedDateTimeISO(tz)
+        .toPlainDate()
+        .toString();
+
       for (const m of months) {
         const limits = limitsForMonths.get(`${m}-01`) ?? new Map();
         const mapped = new Map<
@@ -207,20 +314,67 @@ export function createReserveEventLoaderRepo(
           { plannedCents: bigint; cushionCents: bigint; noLimit: boolean }
         >();
         for (const [catId, v] of limits) {
-          mapped.set(catId, {
-            plannedCents: v.planned,
-            cushionCents: v.cushion,
-            noLimit: v.noLimit,
-          });
+          const catCcy = ccyOf(catId);
+          const segN = (v.normalCurrency ?? catCcy).trim();
+          const segC = (v.cushionCurrency ?? catCcy).trim();
+          if (segN === catCcy && segC === catCcy) {
+            mapped.set(catId, { plannedCents: v.planned, cushionCents: v.cushion, noLimit: v.noLimit });
+            continue;
+          }
+          if (m >= openMonth) {
+            // Open month: the limit at today's rate (D-08).
+            const rN = await rate(segN, catCcy, today);
+            const rC = await rate(segC, catCcy, today);
+            if (rN === null || rC === null) fxUnavailable = true;
+            mapped.set(catId, {
+              plannedCents: rN === null ? 0n : convertCents(v.planned, rN),
+              cushionCents: rC === null ? 0n : convertCents(v.cushion, rC),
+              noLimit: v.noLimit,
+            });
+            continue;
+          }
+          // D-17: a closed month in the currency the category had then.
+          const lastDay = Temporal.PlainYearMonth.from(m).toPlainDate({ day: 1 }).add({ months: 1 }).subtract({ days: 1 }).toString();
+          const closeRate = await rate(segN, catCcy, lastDay);
+          const cushionRate = await rate(segC, segN, lastDay);
+          const txs: { date: string; cents: bigint }[] = [];
+          const rateOnDate = new Map<string, string>();
+          let gap = closeRate === null || cushionRate === null;
+          for (const t of txByCatMonth.get(catId)?.get(m) ?? []) {
+            const toMonth = await rate(t.ccy, segN, t.d);
+            const toCurrent = await rate(segN, catCcy, t.d);
+            if (toMonth === null || toCurrent === null) {
+              gap = true;
+              continue;
+            }
+            txs.push({ date: t.d, cents: convertCents(t.cents, toMonth) });
+            rateOnDate.set(t.d, toCurrent);
+          }
+          if (gap) fxUnavailable = true;
+          if (closeRate === null || cushionRate === null) {
+            mapped.set(catId, { plannedCents: 0n, cushionCents: 0n, noLimit: v.noLimit });
+            continue;
+          }
+          const eff = cushionOn(m) ? convertCents(v.cushion, cushionRate) : v.planned;
+          const ev = toEngineMonthEvents(
+            convertClosedMonthResult({
+              effLimitCents: eff,
+              noLimit: v.noLimit,
+              txs,
+              closeRate,
+              rateOn: (d) => rateOnDate.get(d) ?? closeRate,
+            }),
+            v.noLimit,
+          );
+          mapped.set(catId, { plannedCents: ev.normalCents, cushionCents: ev.cushionCents, noLimit: ev.noLimit });
+          let spend = spendByCategoryByMonth.get(catId);
+          if (!spend) spendByCategoryByMonth.set(catId, (spend = new Map()));
+          spend.set(m, ev.spendCents);
+          nativeGap.delete(`${catId}|${m}`);
         }
         limitsByMonth.set(m, mapped);
       }
-
-      // ── cushionHistory: ordered { fromMonth, on } segments (ascending).
-      const cushionHistory = cushionRows.map((r) => ({
-        fromMonth: toMonthKey(r.from_month),
-        on: (r.mode as string) === "CUSHION",
-      }));
+      if (nativeGap.size > 0) fxUnavailable = true;
 
       // ── adjustmentsByCategory: grouped ordered {delta, month} (occurred_at asc).
       // `month` (the adjustment's open month) scopes its overspent coverage to that
@@ -231,8 +385,18 @@ export function createReserveEventLoaderRepo(
       >();
       for (const r of adjustmentRows) {
         const catId = r.category_id as string;
+        // An adjustment converts at its own date (D-17).
+        const adjRate = await rate(
+          ((r.currency as string) ?? ccyOf(catId)).trim(),
+          ccyOf(catId),
+          (r.occurred_date as string) ?? today,
+        );
+        if (adjRate === null) {
+          fxUnavailable = true;
+          continue;
+        }
         const entry = {
-          deltaCents: BigInt(String(r.delta_cents ?? "0")),
+          deltaCents: convertCents(BigInt(String(r.delta_cents ?? "0")), adjRate),
           month: toMonthKey(r.occurred_month ?? openMonth),
         };
         const arr = adjustmentsByCategory.get(catId);
@@ -273,6 +437,8 @@ export function createReserveEventLoaderRepo(
         reservesEnabled,
         openMonth,
         budgetCurrency,
+        categoryCurrency,
+        ...(fxUnavailable ? { fxUnavailable: true } : {}),
       };
     },
   };
