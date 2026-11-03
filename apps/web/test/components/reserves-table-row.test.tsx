@@ -102,12 +102,16 @@ describe("ReservesTableRow", () => {
       expect(availableCell.querySelector(".editable-dots")).not.toBeNull();
     });
 
-    it("names the reserve's currency in a fixed-width column after the amount (user, 261103)", () => {
+    it("names the reserve's currency in a fixed-width column before the amount (user, 261103)", () => {
       renderRow(noUsedRow);
       const code = screen.getByTestId(`reserves-currency-${noUsedRow.categoryId}`);
       expect(code.textContent).toBe("EUR");
       // Fixed width so every row's amount ends on the same edge.
       expect(code.className).toMatch(/\bw-\[/);
+      // Left of the amount, as on wallet rows; not editable, so no dotted underline.
+      const amount = screen.getByTestId(`reserves-balance-${noUsedRow.categoryId}`);
+      expect(code.compareDocumentPosition(amount) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(code.className).not.toContain("editable-dots");
       // Outside the editable cell, so the editor and its value stay a bare number.
       expect(screen.getByTestId(`reserves-balance-${noUsedRow.categoryId}`).textContent).not.toContain("EUR");
     });

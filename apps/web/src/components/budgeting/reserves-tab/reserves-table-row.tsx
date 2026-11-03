@@ -361,10 +361,17 @@ export function ReservesTableRow({
           // leading digits vanished off the left, so the member was typing
           // against a number they could not see (user screenshot, 260806).
           // Phase 14: each reserve is held in its category's currency, so the
-          // code rides after the amount in a fixed-width column — every amount
-          // ends on the same edge whatever the code (user, 261103). It sits
-          // OUTSIDE the editable cell so the editor stays a bare number.
+          // code sits LEFT of the amount as on wallet rows, in a fixed-width
+          // column so every row lines up (user, 261103). Plain text, no
+          // dotted underline: the code is not editable here. It sits OUTSIDE
+          // the editable cell so the editor stays a bare number.
           <div className="flex items-center gap-1.5">
+            <span
+              data-testid={`reserves-currency-${row.categoryId}`}
+              className="w-[2.25rem] text-left text-sm text-[var(--foreground)]"
+            >
+              {currency}
+            </span>
             <div className="w-[124px] text-right tabular-nums sm:w-[140px]">
               <InlineEditCell
                 // value is the editor source — keep it a clean separator-free
@@ -406,12 +413,6 @@ export function ReservesTableRow({
                 }}
               />
             </div>
-            <span
-              data-testid={`reserves-currency-${row.categoryId}`}
-              className="w-[2.25rem] text-left text-xs text-[var(--muted-foreground)]"
-            >
-              {currency}
-            </span>
           </div>
         )}
       </div>

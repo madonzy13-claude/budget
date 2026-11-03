@@ -21,6 +21,10 @@ import { ReservesPage } from "./ReservesPage.js";
 import { WalletsPage } from "./WalletsPage.js";
 import { fmtMajor, type GoldenRow } from "../fixtures/reserves-golden-data.js";
 
+/** A column-header figure carries its currency sign either side (Phase 14). */
+const signed = (bare: string) =>
+  new RegExp(`^[^\\d\\s-]*\\s?${bare.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s?[^\\d\\s]*$`);
+
 export type ActionTab = "spendings" | "reserves" | "other";
 
 const RESERVE_WALLET = "Vault";
@@ -464,11 +468,11 @@ export class ReservesGoldenPage {
       await expect(
         this.spendings.columnHeaderRow(name, "overspent"),
         `${where} overspent`,
-      ).toHaveText(fmtMajor(cells.overspent), { timeout: 10000 });
+      ).toHaveText(signed(fmtMajor(cells.overspent)), { timeout: 10000 });
       await expect(
         this.spendings.columnHeaderRow(name, "reserves-used"),
         `${where} reserves-used`,
-      ).toHaveText(fmtMajor(cells.used), { timeout: 10000 });
+      ).toHaveText(signed(fmtMajor(cells.used)), { timeout: 10000 });
       // The "left" row is gone from the grid (260806): it repeated the figure
       // already above it, so the row now reads `spent / limit` instead. There
       // is no longer a cell showing what remains, so there is nothing to

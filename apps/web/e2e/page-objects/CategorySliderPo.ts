@@ -55,8 +55,10 @@ export class CategorySliderPo {
   }
 
   async save(): Promise<void> {
+    // The category PATCH runs on every edit save; the limits POST is skipped
+    // when only the currency changed (the server's conversion is the limit).
     const done = this.page.waitForResponse(
-      (r) => r.request().method() === "POST" && /\/limits$/.test(new URL(r.url()).pathname),
+      (r) => r.request().method() === "PATCH" && /\/categories\/[^/]+$/.test(new URL(r.url()).pathname),
       { timeout: 15000 },
     );
     await this.sheet().locator('button[type="submit"]').click();
