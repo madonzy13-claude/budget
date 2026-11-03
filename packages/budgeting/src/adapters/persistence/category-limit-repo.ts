@@ -10,6 +10,7 @@ import type {
   CategoryLimitRepo,
   CategoryLimitRow,
   SetLimitInput,
+  EffectiveLimit,
 } from "../../ports/category-limit-repo";
 
 function rowToDto(row: {
@@ -415,13 +416,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
       string,
       Map<
         string,
-        {
-          planned: bigint;
-          cushion: bigint;
-          needs: bigint | null;
-          wants: bigint | null;
-          noLimit: boolean;
-        }
+        EffectiveLimit
       >
     >
   > {
@@ -429,13 +424,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
       string,
       Map<
         string,
-        {
-          planned: bigint;
-          cushion: bigint;
-          needs: bigint | null;
-          wants: bigint | null;
-          noLimit: boolean;
-        }
+        EffectiveLimit
       >
     >();
     // Every requested month gets an entry, so a caller cannot tell a month with
@@ -460,11 +449,14 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         needs_amount: string | null;
         wants_amount: string | null;
         no_limit: boolean;
+        normal_currency: string;
+        cushion_currency: string;
       }>(sql`
         SELECT m.month_start::text AS month_start,
                cl.category_id::text, cl.normal_amount::text,
                cl.cushion_amount::text, cl.needs_amount::text,
-               cl.wants_amount::text, cl.no_limit
+               cl.wants_amount::text, cl.no_limit,
+               cl.normal_currency::text, cl.cushion_currency::text
           FROM unnest(${monthsLiteral}::date[]) AS m(month_start)
           JOIN budgeting.category_limits cl
             ON cl.tenant_id = ${tenantId}::uuid
@@ -483,6 +475,8 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         needs: row.needs_amount === null ? null : BigInt(row.needs_amount),
         wants: row.wants_amount === null ? null : BigInt(row.wants_amount),
         noLimit: row.no_limit,
+        normalCurrency: row.normal_currency,
+        cushionCurrency: row.cushion_currency,
       });
     }
     return out;
@@ -495,13 +489,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
   ): Promise<
     Map<
       string,
-      {
-        planned: bigint;
-        cushion: bigint;
-        needs: bigint | null;
-        wants: bigint | null;
-        noLimit: boolean;
-      }
+      EffectiveLimit
     >
   > {
     // v1.1 invariant: budget_id === tenant_id; category_limits are tenant-scoped
@@ -516,9 +504,12 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         needs_amount: string | null;
         wants_amount: string | null;
         no_limit: boolean;
+        normal_currency: string;
+        cushion_currency: string;
       }>(sql`
         SELECT category_id::text, normal_amount::text, cushion_amount::text,
-               needs_amount::text, wants_amount::text, no_limit
+               needs_amount::text, wants_amount::text, no_limit,
+               normal_currency::text, cushion_currency::text
           FROM budgeting.category_limits
          WHERE tenant_id = ${tenantId}::uuid
            AND effective_from <= ${monthStart}::date
@@ -530,13 +521,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
     if (r.isErr()) throw r.error;
     const m = new Map<
       string,
-      {
-        planned: bigint;
-        cushion: bigint;
-        needs: bigint | null;
-        wants: bigint | null;
-        noLimit: boolean;
-      }
+      EffectiveLimit
     >();
     for (const row of r.value) {
       m.set(row.category_id, {
@@ -545,6 +530,8 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         needs: row.needs_amount == null ? null : BigInt(row.needs_amount),
         wants: row.wants_amount == null ? null : BigInt(row.wants_amount),
         noLimit: row.no_limit === true,
+        normalCurrency: row.normal_currency,
+        cushionCurrency: row.cushion_currency,
       });
     }
     return m;

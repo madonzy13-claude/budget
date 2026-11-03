@@ -59,6 +59,22 @@ export interface SetLimitForMonthInput {
   carryForward: boolean;
 }
 
+/**
+ * A category's limit in force for one month. Amounts are in the limit row's own
+ * currency (Phase 14, D-08): needs/wants/planned in normalCurrency, cushion in
+ * cushionCurrency — converting to the budget currency is the reader's job.
+ */
+export interface EffectiveLimit {
+  planned: bigint;
+  cushion: bigint;
+  needs: bigint | null;
+  wants: bigint | null;
+  noLimit: boolean;
+  /** Always set by the Drizzle repo; absent (in-memory fakes) = the budget currency. */
+  normalCurrency?: string;
+  cushionCurrency?: string;
+}
+
 export interface CategoryLimitRepo {
   setLimit(input: SetLimitInput): Promise<void>;
   /**
@@ -79,24 +95,15 @@ export interface CategoryLimitRepo {
   /**
    * Returns effective planned + cushion amounts for all categories in a budget
    * for a given month start date (SCD-2 predicate).
-   * Keys: categoryId → { planned: bigint, cushion: bigint } in cents.
+   * Keys: categoryId → EffectiveLimit, amounts in cents of the limit's own currency.
    */
   effectiveForMonth(
     tenantId: string,
     budgetId: string,
     monthStart: string, // YYYY-MM-DD
   ): Promise<
-    Map<
-      string,
-      {
-        planned: bigint;
-        cushion: bigint;
-        needs: bigint | null;
-        wants: bigint | null;
-        /** 0083: unbounded this month — planned/cushion are 0 and meaningless. */
-        noLimit: boolean;
-      }
-    >
+    // EffectiveLimit.noLimit (0083): unbounded this month — planned/cushion are 0 and meaningless.
+    Map<string, EffectiveLimit>
   >;
 
   /**
@@ -123,13 +130,7 @@ export interface CategoryLimitRepo {
       string,
       Map<
         string,
-        {
-          planned: bigint;
-          cushion: bigint;
-          needs: bigint | null;
-          wants: bigint | null;
-          noLimit: boolean;
-        }
+        EffectiveLimit
       >
     >
   >;

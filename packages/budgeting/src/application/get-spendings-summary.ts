@@ -10,13 +10,21 @@
  * /budgets/:id fetch (resolves D-PH4-Q5 timezone correctness gap).
  *
  * GRID-02, GRID-15, RSCM-03, RSCM-04
+ *
+ * Phase 14 (D-08): a limit in a currency other than the budget's counts at
+ * LEAST(last day of the viewed month, today) — the current month at the latest
+ * rate, a past month at the last rate within it (frozen; later rates never move
+ * it). "Today" is serverNow() in the budget timezone (test-clock aware). A limit
+ * whose pair has no rate counts as 0 and is flagged — the summary never fails
+ * on FX.
  */
-import { ok, err, type Result } from "@budget/shared-kernel";
-import type { FxProvider } from "@budget/shared-kernel";
+import { ok, err, serverNow, type Result } from "@budget/shared-kernel";
+import type { Currency, FxProvider } from "@budget/shared-kernel";
 // (Result re-exported from the import above; do not re-import it.)
 import { Temporal } from "temporal-polyfill";
 import type { CategoryRepo } from "../ports/category-repo";
-import type { CategoryLimitRepo } from "../ports/category-limit-repo";
+import type { CategoryLimitRepo, EffectiveLimit } from "../ports/category-limit-repo";
+import { convertCents } from "../domain/fx-round";
 import type { TransactionRepo } from "../ports/transaction-repo";
 import type { SpendingsSummaryRepo } from "../ports/spendings-summary-repo";
 import type { ReservePositionsResult } from "./get-reserve-positions";
@@ -53,7 +61,7 @@ export interface GetSpendingsSummaryDeps {
     listActive(tenantId: string): Promise<IncomeForNormalize[]>;
   };
   fxProvider?: FxProvider;
-  /** Clock for the current-month boundary; defaults to `new Date()`. */
+  /** Clock for the current-month boundary and the D-08 rate date; defaults to serverNow(). */
   now?: () => Date;
 }
 
@@ -71,6 +79,12 @@ export interface SpendingsSummaryCategoryDTO {
   sortIndex: number;
   plannedCents: string;
   cushionCents: string;
+  /** Phase 14 (D-08): the limit as typed, in its own currency. plannedCents above
+   *  is the same limit in the budget currency. */
+  limitOriginalCents: string;
+  limitCurrency: string;
+  /** No FX rate for the limit's currency — it counts as 0 here. */
+  fxUnavailable?: boolean;
   /** 0061: persisted needs/wants split of plannedCents (null = never set, the
    *  editor then falls back to needs = planned, wants = 0). */
   needsCents: string | null;
@@ -145,7 +159,7 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
       );
       if (!meta) return err(new Error("budget_not_found"));
 
-      const [categories, perCatSpend, effectiveLimits, posResult] =
+      const [categories, perCatSpend, rawLimits, posResult] =
         await Promise.all([
           deps.categoryRepo.listForBudget(
             input.tenantId,
@@ -179,6 +193,48 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
             budgetId: input.budgetId,
           }),
         ]);
+
+      // D-08: limits into the budget currency at LEAST(month's last day, today).
+      const now = (deps.now ?? serverNow)();
+      const today = Temporal.Instant.fromEpochMilliseconds(now.getTime())
+        .toZonedDateTimeISO(meta.timezone || "UTC")
+        .toPlainDate()
+        .toString();
+      const lastDay = ym.toPlainDate({ day: ym.daysInMonth }).toString();
+      const rateDate = new Date(`${lastDay < today ? lastDay : today}T00:00:00Z`);
+      const rates = new Map<string, Promise<string | null>>();
+      const rateTo = (ccy: string): Promise<string | null> => {
+        if (ccy === meta.currency) return Promise.resolve("1");
+        let r = rates.get(ccy);
+        if (!r) {
+          const fx = deps.fxProvider;
+          r = fx
+            ? fx.rateAsOf(ccy as Currency, meta.currency as Currency, rateDate).then((x) => x.rate, () => null)
+            : Promise.resolve(null);
+          rates.set(ccy, r);
+        }
+        return r;
+      };
+      const effectiveLimits = new Map<
+        string,
+        EffectiveLimit & { originalPlanned: bigint; fxUnavailable: boolean }
+      >();
+      for (const [catId, l] of rawLimits) {
+        const normalCcy = l.normalCurrency ?? meta.currency;
+        const nRate = await rateTo(normalCcy);
+        const cRate = await rateTo(l.cushionCurrency ?? meta.currency);
+        const conv = (v: bigint, rate: string | null) => (rate === null ? 0n : convertCents(v, rate));
+        effectiveLimits.set(catId, {
+          ...l,
+          planned: conv(l.planned, nRate),
+          cushion: conv(l.cushion, cRate),
+          needs: l.needs == null ? null : conv(l.needs, nRate),
+          wants: l.wants == null ? null : conv(l.wants, nRate),
+          normalCurrency: normalCcy,
+          originalPlanned: l.planned,
+          fxUnavailable: nRate === null || cRate === null,
+        });
+      }
 
       // 05-12: reserveUsed + overspent for the viewed month come STRAIGHT from
       // the engine cells (one reserve per category, shared with the reserves
@@ -215,7 +271,7 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
               incomes,
               ym.toString(),
             );
-            const asOf = (deps.now ?? (() => new Date()))();
+            const asOf = now;
             monthlyIncome = await sumWalletsToCurrency(
               items,
               meta.currency,
@@ -243,6 +299,10 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
             needs: null,
             wants: null,
             noLimit: false,
+            normalCurrency: c.currency ?? meta.currency,
+            cushionCurrency: c.currency ?? meta.currency,
+            originalPlanned: 0n,
+            fxUnavailable: false,
           };
           const isInvestment = Boolean((c as any).isInvestment);
           const spent = perCatSpend.get(c.id) ?? 0n;
@@ -332,6 +392,9 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
             sortIndex: (c as any).sortIndex ?? 0,
             plannedCents: planned.toString(),
             cushionCents: cushion.toString(),
+            limitOriginalCents: limits.originalPlanned.toString(),
+            limitCurrency: limits.normalCurrency ?? meta.currency,
+            ...(limits.fxUnavailable ? { fxUnavailable: true } : {}),
             // 0061: the persisted needs/wants split (null when never set → the
             // editor falls back to needs = planned, wants = 0).
             needsCents: noLimit
