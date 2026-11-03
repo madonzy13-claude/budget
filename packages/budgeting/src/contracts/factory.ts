@@ -33,6 +33,7 @@ import { unarchiveCategory } from "../application/unarchive-category";
 import { listCategories } from "../application/list-categories";
 import { findCategoryById } from "../application/find-category-by-id";
 import { renameCategory } from "../application/rename-category";
+import { changeCategoryCurrency } from "../application/change-category-currency";
 import { permanentlyDeleteCategory } from "../application/permanently-delete-category";
 import { setCategoryLimit } from "../application/set-category-limit";
 import { computeCashflowProjection } from "../application/compute-cashflow-projection";
@@ -111,6 +112,7 @@ export interface BudgetingModule {
   listCategories: ReturnType<typeof listCategories>;
   findCategoryById: ReturnType<typeof findCategoryById>;
   renameCategory: ReturnType<typeof renameCategory>;
+  changeCategoryCurrency: ReturnType<typeof changeCategoryCurrency>;
   permanentlyDeleteCategory: ReturnType<typeof permanentlyDeleteCategory>;
   setCategoryLimit: ReturnType<typeof setCategoryLimit>;
   getEffectiveLimit: ReturnType<typeof getEffectiveLimit>;
@@ -321,6 +323,20 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     listCategories: listCategories({ repo: categoryRepo }),
     findCategoryById: findCategoryById({ repo: categoryRepo }),
     renameCategory: renameCategory({ repo: categoryRepo }),
+    changeCategoryCurrency: changeCategoryCurrency({
+      limitRepo,
+      reserveTask: {
+        taskRepo: createTaskRepo(),
+        reservePositions,
+        budgetCurrencyOf: getWorkspaceDefaultCurrency,
+        isReservesEnabled,
+      },
+      incomeTask: {
+        taskRepo: createTaskRepo(),
+        fxProvider,
+        getProjection: computeCashflowProjection({ fxProvider, reservePositions }),
+      },
+    }),
     permanentlyDeleteCategory: permanentlyDeleteCategory({
       repo: categoryRepo,
     }),

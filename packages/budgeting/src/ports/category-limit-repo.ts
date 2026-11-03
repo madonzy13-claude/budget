@@ -75,7 +75,26 @@ export interface EffectiveLimit {
   cushionCurrency?: string;
 }
 
+/** Phase 14 (D-07) — outcome of a category currency change. */
+export type ChangeCurrencyResult =
+  | { status: "not_found" }
+  | { status: "same"; currency: string }
+  | { status: "no_rate"; fromCurrency: string; toCurrency: string }
+  | { status: "changed"; fromCurrency: string; toCurrency: string; limitsConverted: number };
+
 export interface CategoryLimitRepo {
+  /**
+   * D-07: set a category's currency and convert its current and future limit
+   * segments at today's rate, atomically (category row + SCD-2 split under the
+   * category's limit lock). Past segments keep their currency (D-17 / D-08).
+   */
+  changeCategoryCurrency?(input: {
+    tenantId: string;
+    actorUserId: string;
+    categoryId: string;
+    currency: string;
+    now: Date;
+  }): Promise<ChangeCurrencyResult>;
   setLimit(input: SetLimitInput): Promise<void>;
   /**
    * Set a category's limit for a specific month. Past-month edits (carryForward

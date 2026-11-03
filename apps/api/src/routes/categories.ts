@@ -103,6 +103,34 @@ export function createCategoriesRoute(deps: BootedDeps) {
     return c.json(r.value);
   });
 
+  // PATCH /categories/:id/currency — Phase 14 (D-07): change the category's
+  // currency; its current and future limit convert at today's rate.
+  app.patch("/:id/currency", async (c) => {
+    const { changeCategoryCurrencySchema } = await import("@budget/budgeting/src/contracts/api");
+    const session = c.get("session");
+    const tenantId = pickTenant(c);
+    const userId = (c.get("userId") as string) ?? session?.user?.id;
+    const { id: categoryId } = c.req.param();
+    const parsed = changeCategoryCurrencySchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json({ error: "Validation error", issues: parsed.error.issues }, 422);
+    }
+    const r = await deps.budgeting.changeCategoryCurrency({
+      tenantId,
+      userId,
+      categoryId,
+      currency: parsed.data.currency,
+    });
+    if (r.isErr()) {
+      if (r.error.message === "not_found") return c.json({ error: "Not found" }, 404);
+      if (r.error.message === "fx_rate_unavailable") {
+        return c.json({ error: "fx_rate_unavailable", pair: (r.error as Error & { pair?: string }).pair }, 422);
+      }
+      return serverError(c, "change_category_currency_failed", r.error);
+    }
+    return c.json(r.value, 200);
+  });
+
   // POST /categories/:id/archive — archive (mode: "all" hides everywhere;
   // "current_future" keeps history — visible in past months it had activity).
   app.post("/:id/archive", async (c) => {

@@ -161,6 +161,11 @@ export const updateCategorySchema = z.object({
 
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 
+// Phase 14 (D-07): PATCH /categories/:id/currency.
+export const changeCategoryCurrencySchema = z.object({
+  currency: z.enum(FIAT_CURRENCIES),
+});
+
 export interface CategoryDto {
   id: string;
   name: string;

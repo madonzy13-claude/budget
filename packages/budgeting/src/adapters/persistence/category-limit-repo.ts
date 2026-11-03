@@ -6,7 +6,9 @@
 import { sql } from "drizzle-orm";
 import { withTenantTx, writeAudit, writeOutbox } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
+import { convertCents } from "../../domain/fx-round";
 import type {
+  ChangeCurrencyResult,
   CategoryLimitRepo,
   CategoryLimitRow,
   SetLimitInput,
@@ -54,6 +56,119 @@ function rowToDto(row: {
 }
 
 export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
+  async changeCategoryCurrency(input: {
+    tenantId: string;
+    actorUserId: string;
+    categoryId: string;
+    currency: string;
+    now: Date;
+  }): Promise<ChangeCurrencyResult> {
+    const { tenantId, categoryId, currency: to } = input;
+    const r = await withTenantTx(TenantId(tenantId), UserId(input.actorUserId), async (tx) => {
+      type Rows<T> = { rows: T[] };
+      const q = <T>(query: unknown) => (tx as { execute: (q: unknown) => Promise<Rows<T>> }).execute(query);
+      // Same lock setLimit takes: no concurrent limit write sees half a split.
+      await q(sql`SELECT pg_advisory_xact_lock(hashtext(${tenantId} || '::' || ${categoryId} || '::category_limits'))`);
+      const cat = (
+        await q<{ currency: string; today: string; month_start: string }>(sql`
+          SELECT c.currency::text AS currency,
+                 d.today::text AS today,
+                 date_trunc('month', d.today)::date::text AS month_start
+            FROM budgeting.categories c
+            JOIN tenancy.budgets b ON b.id = c.tenant_id
+            CROSS JOIN LATERAL (
+              SELECT (${input.now.toISOString()}::timestamptz AT TIME ZONE COALESCE(b.timezone, 'UTC'))::date AS today
+            ) d
+           WHERE c.id = ${categoryId}::uuid AND c.tenant_id = ${tenantId}::uuid
+           FOR UPDATE OF c`)
+      ).rows[0];
+      if (!cat) return { status: "not_found" } as const;
+      const from = cat.currency.trim();
+      if (from === to) return { status: "same", currency: to } as const;
+
+      // Current + future segments: the one covering this month, and later ones.
+      const segs = (
+        await q<{
+          id: string;
+          effective_from: string;
+          normal_currency: string;
+          normal_amount: string;
+          cushion_amount: string;
+          needs_amount: string | null;
+          wants_amount: string | null;
+          cushion_amount_cents: string | null;
+        }>(sql`
+          SELECT id::text, effective_from::text, normal_currency::text,
+                 normal_amount::text, cushion_amount::text, needs_amount::text,
+                 wants_amount::text, cushion_amount_cents::text
+            FROM budgeting.category_limits
+           WHERE category_id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid
+             AND (effective_to IS NULL OR effective_to >= ${cat.month_start}::date)
+           ORDER BY effective_from`)
+      ).rows;
+
+      // Today's rate per segment currency (same fallback as fx_convert).
+      const rates = new Map<string, string | null>();
+      for (const c of new Set([from, ...segs.map((x) => x.normal_currency.trim())])) {
+        if (c === to) continue;
+        const rr = await q<{ rate: string | null }>(sql`
+          SELECT COALESCE(
+            (SELECT rate::text FROM budgeting.fx_rates
+              WHERE base = ${c}::bpchar AND quote = ${to}::bpchar AND date <= ${cat.today}::date
+              ORDER BY date DESC LIMIT 1),
+            (SELECT rate::text FROM budgeting.fx_rates
+              WHERE base = ${c}::bpchar AND quote = ${to}::bpchar ORDER BY date ASC LIMIT 1)) AS rate`);
+        rates.set(c, rr.rows[0]?.rate ?? null);
+      }
+      if ([...rates.values()].some((v) => v === null)) {
+        return { status: "no_rate", fromCurrency: from, toCurrency: to } as const;
+      }
+
+      await q(sql`UPDATE budgeting.categories SET currency = ${to} WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid`);
+      for (const seg of segs) {
+        const segCcy = seg.normal_currency.trim();
+        const rate = segCcy === to ? "1" : rates.get(segCcy)!;
+        const cv = (v: string | null) => (v === null ? null : convertCents(BigInt(v), rate).toString());
+        const amounts = sql`normal_amount = ${cv(seg.normal_amount)}::bigint,
+                            cushion_amount = ${cv(seg.cushion_amount)}::bigint,
+                            needs_amount = ${cv(seg.needs_amount)}::bigint,
+                            wants_amount = ${cv(seg.wants_amount)}::bigint,
+                            cushion_amount_cents = ${cv(seg.cushion_amount_cents)}::bigint,
+                            normal_currency = ${to}, cushion_currency = ${to}`;
+        if (seg.effective_from < cat.month_start) {
+          // Started before this month: close it the day before (setLimit's
+          // convention) and continue it from the 1st in the new currency.
+          await q(sql`
+            INSERT INTO budgeting.category_limits
+              (tenant_id, category_id, normal_amount, normal_currency, cushion_amount, cushion_currency,
+               needs_amount, wants_amount, cushion_amount_cents, no_limit, effective_from, effective_to, actor_user_id)
+            SELECT tenant_id, category_id, ${cv(seg.normal_amount)}::bigint, ${to}, ${cv(seg.cushion_amount)}::bigint, ${to},
+                   ${cv(seg.needs_amount)}::bigint, ${cv(seg.wants_amount)}::bigint, ${cv(seg.cushion_amount_cents)}::bigint,
+                   no_limit, ${cat.month_start}::date, effective_to, ${input.actorUserId}::uuid
+              FROM budgeting.category_limits WHERE id = ${seg.id}::uuid`);
+          await q(sql`
+            UPDATE budgeting.category_limits
+               SET effective_to = ${cat.month_start}::date - INTERVAL '1 day'
+             WHERE id = ${seg.id}::uuid`);
+        } else {
+          await q(sql`UPDATE budgeting.category_limits SET ${amounts} WHERE id = ${seg.id}::uuid`);
+        }
+      }
+      await writeAudit(tx, {
+        tenantId: TenantId(tenantId),
+        entityType: "category",
+        entityId: categoryId,
+        action: "update",
+        actorUserId: UserId(input.actorUserId),
+        before: { currency: from },
+        after: { currency: to },
+      });
+      return { status: "changed", fromCurrency: from, toCurrency: to, limitsConverted: segs.length } as const;
+    });
+    if (r.isErr()) throw r.error;
+    return r.value;
+  }
+
   async setLimit(input: SetLimitInput): Promise<void> {
     const tid = TenantId(input.tenantId);
     const uid = UserId(input.actorUserId);
