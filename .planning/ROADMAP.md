@@ -452,7 +452,7 @@ Plans:
 
 **Requirements**: CONTEXT decisions (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 16/21 plans executed
+**Plans:** 17/21 plans executed
 
 Plans:
 **Wave 1**
@@ -488,7 +488,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 14-14-PLAN.md — web per-currency reserve task copy + reserves tab
+- [x] 14-14-PLAN.md — web per-currency reserve task copy + reserves tab
 - [ ] 14-17-PLAN.md — category slider currency field (web)
 - [ ] 14-19-PLAN.md — remove budget currency locks (backend, LAST)
 
