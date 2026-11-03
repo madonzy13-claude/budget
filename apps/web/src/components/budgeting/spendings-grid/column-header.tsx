@@ -12,6 +12,7 @@ import { Pencil, Trash2, Undo2 } from "lucide-react";
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { useRevealActions } from "./reveal-actions";
 import { centsToBare } from "@/lib/cents-format";
+import { FxAmount } from "./foreign-amount";
 import { cn } from "@/lib/utils";
 import { categoryUsage } from "@/lib/category-usage";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
@@ -38,7 +39,13 @@ export interface ColumnHeaderProps {
     balanceCents: string;
     /** r33: THE Investments category — greens the "overinvested" row + dashes reserve. */
     isInvestment?: boolean;
+    /** Phase 14 (D-08): the limit as typed, in its own currency. plannedCents
+     *  is the same limit in the budget currency (the viewed month's rate). */
+    limitOriginalCents?: string;
+    limitCurrency?: string;
   };
+  /** The budget currency — a limit in another one shows in its own + "≈". */
+  budgetCurrency?: string;
   cushionModeEnabled: boolean;
   dragGripProps?: DraggableSyntheticListeners;
   onEdit: (categoryId: string) => void;
@@ -64,6 +71,7 @@ export function ColumnHeader({
   category,
   summary,
   cushionModeEnabled,
+  budgetCurrency,
   dragGripProps = undefined,
   onEdit,
   reservesEnabled = true,
@@ -72,6 +80,7 @@ export function ColumnHeader({
   onUnarchive,
 }: ColumnHeaderProps) {
   const t = useTranslations("grid.header");
+  const tGrid = useTranslations("grid");
   const locale = useLocale();
   const { revealed, setRevealed, ref } = useRevealActions();
   // R6 (user): the usage chip swaps to the spent total — tap toggles, a mouse
@@ -112,6 +121,16 @@ export function ColumnHeader({
     (showCushionValue ? summary.cushionCents : summary.plannedCents) || "0",
   );
   const spentSoFar = BigInt(summary.spentCents || "0");
+  // UI-SPEC §2: a limit typed in another currency than the budget's reads in
+  // its own currency, with the budget-currency figure on a muted "≈" line.
+  // Only for the normal limit — the DTO carries no original cushion amount.
+  const foreignLimit =
+    !noLimit &&
+    !showCushionValue &&
+    !!budgetCurrency &&
+    !!summary.limitCurrency &&
+    !!summary.limitOriginalCents &&
+    summary.limitCurrency !== budgetCurrency;
   // How much of the category's pool — plan plus the reserve still available —
   // has gone (user, 261016). Measured against the limit in force, so a cushion
   // month is judged by its cushion figure.
@@ -386,16 +405,38 @@ export function ColumnHeader({
                   exactly reached — "4,062.71 / 4,062.71" (user, 260819). The
                   scheduled figure still drives the Planned charts, where it is
                   a plan rather than a ceiling. */}
-              {noLimit
-                ? "\u221E"
-                : centsToBare(
-                    showCushionValue
-                      ? summary.cushionCents
-                      : summary.plannedCents,
-                    locale,
-                  )}
+              {noLimit ? (
+                "\u221E"
+              ) : foreignLimit ? (
+                <FxAmount
+                  row={{
+                    amountConvertedCents: summary.plannedCents,
+                    currencyConverted: budgetCurrency!,
+                    amountOriginalCents: summary.limitOriginalCents,
+                    currencyOriginal: summary.limitCurrency,
+                  }}
+                  locale={locale}
+                />
+              ) : (
+                centsToBare(
+                  showCushionValue
+                    ? summary.cushionCents
+                    : summary.plannedCents,
+                  locale,
+                )
+              )}
             </span>
           </span>
+          {foreignLimit && (
+            <span
+              data-testid="column-limit-equivalent"
+              className="text-[10px] tabular-nums whitespace-nowrap text-[var(--muted-foreground)]"
+            >
+              {tGrid("limitEquivalent", {
+                amount: centsToBare(summary.plannedCents, locale),
+              })}
+            </span>
+          )}
         </div>
 
         {/* Row 4: Reserves used — hidden when reservesEnabled=false (D-PH5-R11 surface 2) */}

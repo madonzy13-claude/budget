@@ -86,6 +86,8 @@ export interface CategoryDTO {
   sortIndex: number;
   /** persisted cushion config (mig 0059); null = inferred. */
   cushionMode?: string | null;
+  /** Phase 14 (D-04/D-05): the category's own currency. */
+  currency?: string;
 }
 
 export interface SpendingsGridClientProps {
@@ -155,6 +157,7 @@ function seedCategoryOrder(data: unknown): CategoryDTO[] {
       colorKey: (c.colorKey as string | null) ?? null,
       sortIndex: (c.sortIndex as number | undefined) ?? 0,
       cushionMode: (c.cushionMode as string | null | undefined) ?? null,
+      currency: (c.currency as string | undefined) ?? undefined,
     }))
     .sort((a, b) => a.sortIndex - b.sortIndex);
 }

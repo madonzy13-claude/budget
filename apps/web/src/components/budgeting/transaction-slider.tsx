@@ -75,7 +75,8 @@ export interface TransactionSliderProps {
   budgetId: string;
   month: string;
   budgetCurrency: string;
-  categories: Array<{ id: string; name: string; sortIndex: number }>;
+  /** `currency` (Phase 14, D-05): a new transaction defaults to it. */
+  categories: Array<{ id: string; name: string; sortIndex: number; currency?: string }>;
   initial?: {
     txId: string;
     date: string;
@@ -194,6 +195,12 @@ export function TransactionSlider({
     [userTz],
   );
 
+  // D-05: a new transaction is in its category's currency unless picked.
+  const currencyFor = (categoryId: string) =>
+    categories.find((c) => c.id === categoryId)?.currency ?? budgetCurrency;
+  const initialCategoryId =
+    initial?.categoryId ?? prefillCategoryId ?? categories[0]?.id ?? "";
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -206,7 +213,7 @@ export function TransactionSlider({
       kind: initial?.amountOriginalCents?.startsWith("-")
         ? "refund"
         : "spending",
-      currencyOrig: initial?.currencyOriginal ?? budgetCurrency,
+      currencyOrig: initial?.currencyOriginal ?? currencyFor(initialCategoryId),
       note: initial?.note ?? "",
     },
   });
@@ -249,11 +256,19 @@ export function TransactionSlider({
         kind: initial?.amountOriginalCents?.startsWith("-")
           ? "refund"
           : "spending",
-        currencyOrig: initial?.currencyOriginal ?? budgetCurrency,
+        currencyOrig: initial?.currencyOriginal ?? currencyFor(initialCategoryId),
         note: initial?.note ?? "",
       });
     }
   }, [open, initial?.txId, userTz]);
+
+  // Switching category re-defaults the currency — on a NEW transaction only,
+  // and only while the member has not picked one themselves (UI-SPEC §3).
+  const watchedCategoryId = form.watch("categoryId");
+  useEffect(() => {
+    if (mode !== "create" || form.getFieldState("currencyOrig").isDirty) return;
+    form.setValue("currencyOrig", currencyFor(watchedCategoryId));
+  }, [watchedCategoryId, mode]);
 
   const fetchFxPreview = useCallback(async () => {
     if (!currencyOrig || currencyOrig === budgetCurrency) {

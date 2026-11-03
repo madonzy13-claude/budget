@@ -24,6 +24,8 @@ export interface QuickEntryInputProps {
   budgetId: string;
   month: string; // YYYY-MM viewed
   budgetCurrency: string;
+  /** The column category's own currency (D-05); defaults to the budget's. */
+  currency?: string;
   resolvedDate: string; // ISO YYYY-MM-DD — passed in, computed by parent
 }
 
@@ -33,6 +35,7 @@ export function QuickEntryInput({
   budgetId,
   month,
   budgetCurrency,
+  currency = budgetCurrency,
   resolvedDate,
 }: QuickEntryInputProps) {
   const t = useTranslations("grid.quickEntry");
@@ -84,7 +87,7 @@ export function QuickEntryInput({
       // label the queued row.
       categoryName,
       amountCents,
-      currency: budgetCurrency,
+      currency,
       date,
       note,
     });
@@ -124,7 +127,7 @@ export function QuickEntryInput({
       categoryId,
       amountCents: parsed.cents,
       date: resolvedDate,
-      currency: budgetCurrency,
+      currency,
       note: parsed.note,
     });
     // r40b (item 10): a new row inserts at the TOP of its column, which is

@@ -35,6 +35,9 @@ export interface SpendingsSummaryCategoryDTO {
   archived?: boolean;
   overspentCents: string;
   balanceCents: string;
+  /** Phase 14 (D-08): the limit as typed, in its own currency. */
+  limitOriginalCents?: string;
+  limitCurrency?: string;
 }
 
 export interface CategoryColumnProps {
@@ -44,6 +47,8 @@ export interface CategoryColumnProps {
     iconKey: string | null;
     colorKey: string | null;
     sortIndex: number;
+    /** Phase 14 (D-05): the category's own currency. */
+    currency?: string;
   };
   summary: SpendingsSummaryCategoryDTO;
   cushionModeEnabled: boolean;
@@ -215,6 +220,7 @@ export function CategoryColumn({
           category={category}
           summary={summary}
           cushionModeEnabled={cushionModeEnabled}
+          budgetCurrency={budgetCurrency}
           dragGripProps={listeners ?? {}}
           onEdit={onEditCategory}
           reservesEnabled={reservesEnabled}
@@ -234,6 +240,7 @@ export function CategoryColumn({
               budgetId={budgetId}
               month={month}
               budgetCurrency={budgetCurrency}
+              currency={category.currency ?? budgetCurrency}
               resolvedDate={resolvedQuickEntryDate}
             />
           </div>
