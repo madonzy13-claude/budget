@@ -61,7 +61,7 @@ export interface ReserveEventInputs {
       name: string;
     }
   >;
-  /** Σ RESERVE-wallet balances (userDefined input only). cents. */
+  /** Σ RESERVE-wallet balances in the budget currency at today's rate (userDefined input only). cents. */
   userDefinedCents: bigint;
   /** budgets.reserves_enabled. */
   reservesEnabled: boolean;
@@ -74,6 +74,13 @@ export interface ReserveEventInputs {
   categoryCurrency?: Map<string, string>;
   /** Some row could not be converted (no FX pair) and was left out. */
   fxUnavailable?: boolean;
+  /** D-14: RESERVE wallet balances per wallet currency (never summed raw). */
+  walletsByCurrency?: Map<string, bigint>;
+  /** Currencies that HAVE a RESERVE wallet, even at 0. */
+  reserveWalletCurrencies?: Set<string>;
+  /** Today's rates, keyed "FROM|TO", for every reserve/wallet currency to and
+   *  from the budget currency (null = no pair). */
+  todayRates?: Map<string, string | null>;
 }
 
 export interface ReserveEventLoaderRepo {

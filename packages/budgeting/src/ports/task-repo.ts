@@ -65,6 +65,14 @@ export interface ReserveTopupPayload {
   direction: "TOPUP" | "WITHDRAW";
   /** ISO 4217 currency code (e.g., "EUR"). */
   currency: string;
+  /** Phase 14 (D-12): one line per currency. The trio above stays the net in
+   *  the budget currency so older clients and push keep working. */
+  lines?: Array<{
+    currency: string;
+    shortfall_cents: string;
+    direction: "TOPUP" | "WITHDRAW";
+    equiv?: { currency: string; cents: string };
+  }>;
 }
 
 /**

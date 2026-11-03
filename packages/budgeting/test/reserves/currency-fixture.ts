@@ -23,7 +23,7 @@ for (const k of ["DATABASE_URL_APP", "DATABASE_URL_WORKER", "DATABASE_URL_MIGRAT
 export const NOW = new Date("1998-05-15T12:00:00Z");
 
 export class ReserveBudget {
-  readonly tenant = crypto.randomUUID();
+  readonly tenant: string = crypto.randomUUID();
   readonly user = crypto.randomUUID();
   readonly provider = `test-14-11-${crypto.randomUUID()}`;
 

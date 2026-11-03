@@ -7,7 +7,7 @@
  *
  * Composition (do NOT re-implement limit/wallet SQL — reuse the ports):
  *   - limitsByMonth           → categoryLimitRepo.effectiveForMonths (one query)
- *   - userDefinedCents        → reservesSummaryRepo.sumReserveWalletAmounts
+ *   - wallets per currency    → reservesSummaryRepo.reserveWalletsByCurrency
  *
  * In-adapter raw SQL (Drizzle/SQL stays ONLY here, per CLAUDE.md hex rule):
  *   - budget meta (timezone, default_currency, reserves_enabled) from tenancy.budgets
@@ -137,9 +137,9 @@ export function createReserveEventLoaderRepo(
         .toString(); // 'YYYY-MM-01' (exclusive upper bound — covers the open month)
 
       // ── Compose existing repos (no re-implemented SQL) + in-adapter raw SQL.
-      const [userDefinedCents, rawEvents] =
+      const [reserveWallets, rawEvents] =
         await Promise.all([
-          reservesSummaryRepo.sumReserveWalletAmounts(tenantId),
+          reservesSummaryRepo.reserveWalletsByCurrency(tenantId),
           // cushion history + adjustments + category flags, all tenant-scoped.
           // UserId(tenantId): read-only placeholder actor (valid UUID for the GUC).
           withTenantTx(TenantId(tenantId), UserId(tenantId), async (tx) => {
@@ -376,6 +376,25 @@ export function createReserveEventLoaderRepo(
       }
       if (nativeGap.size > 0) fxUnavailable = true;
 
+      // ── D-11..D-16 inputs: today's rates between the budget currency and
+      // every currency a reserve is held in or a RESERVE wallet holds.
+      const todayRates = new Map<string, string | null>();
+      const reserveCurrencies = new Set<string>([
+        ...categoryCurrency.values(),
+        ...reserveWallets.byCurrency.keys(),
+      ]);
+      for (const c of reserveCurrencies) {
+        if (c === budgetCurrency) continue;
+        todayRates.set(`${c}|${budgetCurrency}`, await rate(c, budgetCurrency, today));
+        todayRates.set(`${budgetCurrency}|${c}`, await rate(budgetCurrency, c, today));
+      }
+      let userDefinedCents = 0n;
+      for (const [c, cents] of reserveWallets.byCurrency) {
+        const r = c === budgetCurrency ? "1" : todayRates.get(`${c}|${budgetCurrency}`);
+        if (r == null) fxUnavailable = true;
+        else userDefinedCents += convertCents(cents, r);
+      }
+
       // ── adjustmentsByCategory: grouped ordered {delta, month} (occurred_at asc).
       // `month` (the adjustment's open month) scopes its overspent coverage to that
       // month — a closed month is never retroactively covered by an adjust.
@@ -438,6 +457,9 @@ export function createReserveEventLoaderRepo(
         openMonth,
         budgetCurrency,
         categoryCurrency,
+        walletsByCurrency: reserveWallets.byCurrency,
+        reserveWalletCurrencies: reserveWallets.currencies,
+        todayRates,
         ...(fxUnavailable ? { fxUnavailable: true } : {}),
       };
     },

@@ -29,6 +29,11 @@
  * Pure: no Drizzle, no Temporal here — the loader owns IO + the TZ-correct open
  * month. Money stays in cents (bigint); display wrapping is the route's job (05-14).
  */
+import {
+  settleReserveByCurrency,
+  type ReserveSettlement,
+} from "../domain/reserve-settle";
+import { convertCents } from "../domain/fx-round";
 import { ok, err, type Result } from "@budget/shared-kernel";
 import type { ReserveEventLoaderRepo } from "../ports/reserve-event-loader-repo";
 import type { ReserveEventInputs } from "../ports/reserve-event-loader-repo";
@@ -75,6 +80,11 @@ export interface ReservePositionsResult {
   fxUnavailable?: boolean;
   /** Each category's current currency (its reserve is held in it). */
   categoryCurrency?: Map<string, string>;
+  /** D-14: RESERVE wallet balances per wallet currency. */
+  walletsByCurrency?: Map<string, bigint>;
+  /** D-11..D-16: the need settled against the wallets, per currency, exact.
+   *  surplusCents / direction above come from it. */
+  settlement?: ReserveSettlement;
   /** Σ RESERVE-wallet balances. */
   userDefinedCents: bigint;
   /** userDefined − internal. */
@@ -316,15 +326,41 @@ export function getReservePositions(deps: GetReservePositionsDeps) {
         });
       }
 
-      const surplusCents = engine.surplusCents;
+      // D-11..D-16: settle the per-currency need against the per-currency
+      // wallets at today's rates. Loaders that predate Phase 14 (in-memory
+      // fakes) carry no wallet breakdown and keep the engine's single-currency
+      // surplus.
+      let surplusCents = engine.surplusCents;
+      let internalCents = engine.internalCents;
+      let settlement: ReserveSettlement | undefined;
+      if (inputs.walletsByCurrency) {
+        const ccy = inputs.budgetCurrency;
+        const rate = (from: string, to: string) =>
+          from === to ? "1" : (inputs.todayRates?.get(`${from}|${to}`) ?? null);
+        settlement = settleReserveByCurrency({
+          needByCurrency: engine.internalByCurrency,
+          walletsByCurrency: inputs.walletsByCurrency,
+          reserveWalletCurrencies: inputs.reserveWalletCurrencies ?? new Set(inputs.walletsByCurrency.keys()),
+          budgetCurrency: ccy,
+          rate,
+        });
+        surplusCents = settlement.netBudgetCents;
+        internalCents = 0n;
+        for (const [c, cents] of engine.internalByCurrency) {
+          const r = rate(c, ccy);
+          if (r !== null) internalCents += convertCents(cents, r);
+        }
+      }
       const direction: "TOPUP" | "WITHDRAW" | "NONE" =
         surplusCents < 0n ? "TOPUP" : surplusCents > 0n ? "WITHDRAW" : "NONE";
 
       return ok({
         positions,
         openMonth: inputs.openMonth,
-        internalCents: engine.internalCents,
+        internalCents,
         internalByCurrency: engine.internalByCurrency,
+        walletsByCurrency: inputs.walletsByCurrency,
+        settlement,
         categoryCurrency: inputs.categoryCurrency,
         ...(inputs.fxUnavailable ? { fxUnavailable: true } : {}),
         userDefinedCents: engine.userDefinedCents,

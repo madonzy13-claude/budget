@@ -113,8 +113,10 @@ export async function recomputeReserveTopupTask(
   }
 
   const surplus = posResult.value.surplusCents;
+  const settlement = posResult.value.settlement;
 
-  if (surplus === 0n) {
+  // D-13: exact — resolve only when nothing at all is out of balance.
+  if (settlement ? settlement.direction === null && settlement.lines.length === 0 : surplus === 0n) {
     await deps.taskRepo.resolveByKindAndBudget(
       input.tenantId,
       input.budgetId,
@@ -128,13 +130,24 @@ export async function recomputeReserveTopupTask(
   // orchestrator's `direction`):
   //   surplus > 0 → wallets > reserves → WITHDRAW excess
   //   surplus < 0 → wallets < reserves → TOPUP wallets
-  const direction: "TOPUP" | "WITHDRAW" = surplus < 0n ? "TOPUP" : "WITHDRAW";
+  const direction: "TOPUP" | "WITHDRAW" =
+    settlement?.direction ?? settlement?.lines[0]?.direction ?? (surplus < 0n ? "TOPUP" : "WITHDRAW");
   const shortfall = surplus < 0n ? -surplus : surplus;
 
   const payload: ReserveTopupPayload = {
     shortfall_cents: shortfall.toString(),
     direction,
     currency: await deps.budgetCurrencyOf(input.tenantId),
+    ...(settlement
+      ? {
+          lines: settlement.lines.map((l) => ({
+            currency: l.currency,
+            shortfall_cents: l.cents.toString(),
+            direction: l.direction,
+            ...(l.equiv ? { equiv: { currency: l.equiv.currency, cents: l.equiv.cents.toString() } } : {}),
+          })),
+        }
+      : {}),
   };
   await deps.taskRepo.emitReserveTopup(
     input.tenantId,

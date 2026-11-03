@@ -5,10 +5,11 @@
 
 export interface ReservesSummaryRepo {
   /**
-   * Sum of `current_balance` (in cents, as bigint) across non-archived RESERVE-type
-   * wallets for the tenant. All RESERVE wallets are guaranteed in budget currency per
-   * Plan 03 invariant.
-   * Returns 0n when no rows match.
+   * Phase 14 (D-14): balances (cents) of non-archived RESERVE wallets per wallet
+   * currency — never summed across currencies. `currencies` lists every
+   * currency that HAS a RESERVE wallet, even one at 0.
    */
-  sumReserveWalletAmounts(tenantId: string): Promise<bigint>;
+  reserveWalletsByCurrency(
+    tenantId: string,
+  ): Promise<{ byCurrency: Map<string, bigint>; currencies: Set<string> }>;
 }
