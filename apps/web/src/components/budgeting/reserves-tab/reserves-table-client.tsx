@@ -385,7 +385,7 @@ export function ReservesTableClient({ budgetId }: ReservesTableClientProps) {
             <ReservesTableRow
               key={r.categoryId}
               row={r}
-              currency={budgetCurrency}
+              currency={r.currency ?? budgetCurrency}
               isExcluded={false}
               displayReserveCentsOverride={
                 anim !== null && reveal?.categoryId === r.categoryId
@@ -429,6 +429,8 @@ export function ReservesTableClient({ budgetId }: ReservesTableClientProps) {
           internalCents={footerInternalCents}
           userDefinedCents={summary.data.totals.userDefinedCents}
           currency={budgetCurrency}
+          needByCurrency={summary.data.totals.needByCurrency}
+          walletsByCurrency={summary.data.totals.walletsByCurrency}
         />
 
         {/* Excluded section — name-only rows (UAT-PH5-T3-55: dashes

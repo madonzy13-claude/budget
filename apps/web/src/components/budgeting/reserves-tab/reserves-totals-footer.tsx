@@ -28,12 +28,18 @@ export interface ReservesTotalsFooterProps {
   /** Σ active rows' THIS-MONTH used reserve (serialized cents). */
   /** Σ active rows' ALL-TIME used reserve (cumulative, serialized cents). */
   currency: string;
+  /** Phase 14 (D-10): reserve needed per category currency. */
+  needByCurrency?: Array<{ currency: string; cents: string }>;
+  /** Phase 14 (D-14): RESERVE wallets per wallet currency. */
+  walletsByCurrency?: Array<{ currency: string; cents: string }>;
 }
 
 export function ReservesTotalsFooter({
   internalCents,
   userDefinedCents,
   currency,
+  needByCurrency = [],
+  walletsByCurrency = [],
 }: ReservesTotalsFooterProps) {
   const t = useTranslations("bdp.tab.reserves");
   const locale = useLocale();
@@ -53,6 +59,16 @@ export function ReservesTotalsFooter({
   const wallet = BigInt(userDefinedCents);
   const walletDir: "up" | "down" | "level" =
     wallet > need ? "up" : wallet < need ? "down" : "level";
+
+  // Phase 14: when reserves or wallets span currencies, one line per currency
+  // ("needed / in wallets CCY") under the budget-currency totals above.
+  const currencies = [
+    ...new Set([...needByCurrency, ...walletsByCurrency].map((x) => x.currency)),
+  ].sort();
+  const perCurrency =
+    currencies.length > 1 || (currencies.length === 1 && currencies[0] !== currency);
+  const centsIn = (list: typeof needByCurrency, c: string) =>
+    list.find((x) => x.currency === c)?.cents ?? "0";
 
   const label =
     "text-caption uppercase tracking-wider text-[var(--muted-foreground)] whitespace-nowrap";
@@ -105,6 +121,17 @@ export function ReservesTotalsFooter({
           {fmt(userDefinedCents)} {currency}
         </span>
       </div>
+
+      {perCurrency &&
+        currencies.map((c) => (
+          <div
+            key={c}
+            data-testid={`reserves-footer-line-${c}`}
+            className="flex items-center justify-end gap-1 whitespace-nowrap text-num-sm tabular-nums text-[var(--muted-foreground)]"
+          >
+            {fmt(centsIn(needByCurrency, c))} / {fmt(centsIn(walletsByCurrency, c))} {c}
+          </div>
+        ))}
     </div>
   );
 }
