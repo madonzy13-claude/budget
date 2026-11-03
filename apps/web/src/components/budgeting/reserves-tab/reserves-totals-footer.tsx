@@ -1,4 +1,5 @@
 "use client";
+import { Fragment } from "react";
 /**
  * reserves-totals-footer.tsx — reserve totals block.
  *
@@ -64,21 +65,35 @@ export function ReservesTotalsFooter({
   // total reads as its per-currency parts — "50 EUR + 120 PLN" — instead of a
   // budget-currency sum. The arrow still compares the two in the budget
   // currency (the server's settlement).
-  const currencies = new Set([...needByCurrency, ...walletsByCurrency].map((x) => x.currency));
-  const perCurrency = currencies.size > 1 || (currencies.size === 1 && !currencies.has(currency));
+  const currencies = new Set(
+    [...needByCurrency, ...walletsByCurrency].map((x) => x.currency),
+  );
+  const perCurrency =
+    currencies.size > 1 || (currencies.size === 1 && !currencies.has(currency));
   const parts = (list: typeof needByCurrency, fallback: string) => {
     const nonZero = list.filter((x) => x.cents !== "0");
     return nonZero.length === 0
       ? `${fmt("0")} ${currency}`
       : perCurrency
-        ? nonZero.map((x) => `${fmt(x.cents)} ${x.currency}`).join(" + ")
+        ? nonZero.map((x, i) => (
+            // Each part keeps together; three currencies wrap onto a second
+            // line on a phone instead of running off the card.
+            // The bare space keeps textContent "50 EUR + 120 PLN"; flex drops it.
+            <Fragment key={x.currency}>
+              {i > 0 && " "}
+              <span className="whitespace-nowrap">
+                {i > 0 && "+ "}
+                {fmt(x.cents)} {x.currency}
+              </span>
+            </Fragment>
+          ))
         : `${fmt(fallback)} ${currency}`;
   };
 
   const label =
     "text-caption uppercase tracking-wider text-[var(--muted-foreground)] whitespace-nowrap";
   const value =
-    "flex items-center gap-1 whitespace-nowrap text-num-md tabular-nums text-[var(--foreground)]";
+    "flex min-w-0 flex-wrap items-center justify-end gap-x-1 text-right text-num-md tabular-nums text-[var(--foreground)]";
 
   return (
     <div
@@ -94,7 +109,9 @@ export function ReservesTotalsFooter({
       <div className="flex items-center justify-between gap-4">
         <span className={label}>{t("totals.internalLabel")}</span>
         <span data-testid="reserves-total-available" className={value}>
-          {perCurrency ? parts(needByCurrency, internalCents) : `${fmt(internalCents)} ${currency}`}
+          {perCurrency
+            ? parts(needByCurrency, internalCents)
+            : `${fmt(internalCents)} ${currency}`}
         </span>
       </div>
 
@@ -123,10 +140,11 @@ export function ReservesTotalsFooter({
               aria-hidden="true"
             />
           )}
-          {perCurrency ? parts(walletsByCurrency, userDefinedCents) : `${fmt(userDefinedCents)} ${currency}`}
+          {perCurrency
+            ? parts(walletsByCurrency, userDefinedCents)
+            : `${fmt(userDefinedCents)} ${currency}`}
         </span>
       </div>
-
     </div>
   );
 }

@@ -61,6 +61,7 @@ export interface ReservesTableRowProps {
 
 export function ReservesTableRow({
   row,
+  currency,
   isExcluded,
   onUpdate,
   onSwipeAction,
@@ -359,46 +360,58 @@ export function ReservesTableRow({
           // 88px could not hold "1,483.11" — the editor scrolled and the
           // leading digits vanished off the left, so the member was typing
           // against a number they could not see (user screenshot, 260806).
-          <div className="w-[124px] text-right tabular-nums sm:w-[140px]">
-            <InlineEditCell
-              // value is the editor source — keep it a clean separator-free
-              // decimal so the edit round-trip + no-op compare stay locale-
-              // agnostic; the resting display below is locale-grouped.
-              value={centsToBare(row.reserveCents).replace(/[^0-9.-]/g, "")}
-              ariaLabel={t("reserveAria", { name: row.name })}
-              disabled={false}
-              testId={`reserves-balance-${row.categoryId}`}
-              render={() => (
-                <span className="editable-dots text-num-md text-[var(--foreground)]">
-                  {centsToBare(shownReserveCents, locale)}
-                </span>
-              )}
-              renderEditor={(draft, onChange, _onCommit, onCancel) => (
-                <Input
-                  autoFocus
-                  type="text"
-                  inputMode="decimal"
-                  defaultValue={String(draft).replace(/[^0-9.-]/g, "")}
-                  onChange={(e) => onChange(e.target.value.replace(",", "."))}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") onCancel();
-                    if (e.key === "Enter")
-                      (e.target as HTMLInputElement).blur();
-                  }}
-                  // No pl-7: that inset was reserved for a currency symbol this
-                  // editor does not render, and it was costing a digit.
-                  className="h-9 px-2 text-right"
-                />
-              )}
-              onSave={async (v) => {
-                const cleaned = String(v).replace(",", ".");
-                const n = Number(cleaned || "0");
-                const cents = BigInt(
-                  Math.round((Number.isFinite(n) ? n : 0) * 100),
-                );
-                await onUpdate(cents);
-              }}
-            />
+          // Phase 14: each reserve is held in its category's currency, so the
+          // code rides after the amount in a fixed-width column — every amount
+          // ends on the same edge whatever the code (user, 261103). It sits
+          // OUTSIDE the editable cell so the editor stays a bare number.
+          <div className="flex items-center gap-1.5">
+            <div className="w-[124px] text-right tabular-nums sm:w-[140px]">
+              <InlineEditCell
+                // value is the editor source — keep it a clean separator-free
+                // decimal so the edit round-trip + no-op compare stay locale-
+                // agnostic; the resting display below is locale-grouped.
+                value={centsToBare(row.reserveCents).replace(/[^0-9.-]/g, "")}
+                ariaLabel={t("reserveAria", { name: row.name })}
+                disabled={false}
+                testId={`reserves-balance-${row.categoryId}`}
+                render={() => (
+                  <span className="editable-dots text-num-md text-[var(--foreground)]">
+                    {centsToBare(shownReserveCents, locale)}
+                  </span>
+                )}
+                renderEditor={(draft, onChange, _onCommit, onCancel) => (
+                  <Input
+                    autoFocus
+                    type="text"
+                    inputMode="decimal"
+                    defaultValue={String(draft).replace(/[^0-9.-]/g, "")}
+                    onChange={(e) => onChange(e.target.value.replace(",", "."))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") onCancel();
+                      if (e.key === "Enter")
+                        (e.target as HTMLInputElement).blur();
+                    }}
+                    // No pl-7: that inset was reserved for a currency symbol this
+                    // editor does not render, and it was costing a digit.
+                    className="h-9 px-2 text-right"
+                  />
+                )}
+                onSave={async (v) => {
+                  const cleaned = String(v).replace(",", ".");
+                  const n = Number(cleaned || "0");
+                  const cents = BigInt(
+                    Math.round((Number.isFinite(n) ? n : 0) * 100),
+                  );
+                  await onUpdate(cents);
+                }}
+              />
+            </div>
+            <span
+              data-testid={`reserves-currency-${row.categoryId}`}
+              className="w-[2.25rem] text-left text-xs text-[var(--muted-foreground)]"
+            >
+              {currency}
+            </span>
           </div>
         )}
       </div>

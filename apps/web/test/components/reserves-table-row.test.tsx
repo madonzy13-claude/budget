@@ -102,6 +102,21 @@ describe("ReservesTableRow", () => {
       expect(availableCell.querySelector(".editable-dots")).not.toBeNull();
     });
 
+    it("names the reserve's currency in a fixed-width column after the amount (user, 261103)", () => {
+      renderRow(noUsedRow);
+      const code = screen.getByTestId(`reserves-currency-${noUsedRow.categoryId}`);
+      expect(code.textContent).toBe("EUR");
+      // Fixed width so every row's amount ends on the same edge.
+      expect(code.className).toMatch(/\bw-\[/);
+      // Outside the editable cell, so the editor and its value stay a bare number.
+      expect(screen.getByTestId(`reserves-balance-${noUsedRow.categoryId}`).textContent).not.toContain("EUR");
+    });
+
+    it("an excluded row shows no currency", () => {
+      renderRow(excludedRow, true);
+      expect(screen.queryByTestId(`reserves-currency-${excludedRow.categoryId}`)).toBeNull();
+    });
+
     it("renders NO per-row used cell (column removed in 05-19)", () => {
       renderRow(usedRow);
       expect(
