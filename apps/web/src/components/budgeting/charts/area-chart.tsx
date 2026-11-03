@@ -530,8 +530,10 @@ function useScrub({
         setActive(null);
     },
   };
-  /** A tap on the tooltip puts it away — not a stray touch mid-gesture. */
-  const tapTooltip = (e: React.PointerEvent) => {
+  /** A tap on the tooltip puts it away — not a stray touch mid-gesture. On
+   *  click, not pointerdown: gone by pointerup, the tooltip let the tap's click
+   *  land on what was behind it — flipping hidden amounts (261103, user). */
+  const tapTooltip = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (pointers.current.size > 0) return;
     close();
@@ -658,17 +660,44 @@ function ScrubTooltip({
   });
   // Two fingers on the chart are a range, never a scroll: the browser would
   // take a two-finger drift as a pan and cancel the gesture (261103, user: the
-  // range vanished mid-drag). Native + non-passive, as React's touch
-  // listeners are passive and cannot preventDefault.
+  // range vanished mid-drag). Nor is one finger that set off sideways: iOS
+  // does not lock `pan-y` to an axis, so a thumb's slight wobble scrolled the
+  // page under the slide — jitter, then a cancel that dropped the tooltip
+  // (261103, user). A finger that sets off vertically still scrolls the page.
+  // Native + non-passive, as React's touch listeners cannot preventDefault.
   useEffect(() => {
     const el = layerRef.current;
     if (!el) return;
-    const hold = (e: TouchEvent) => {
-      if (e.touches.length >= 2 || pointers.current.size >= 2)
-        e.preventDefault();
+    let start: { x: number; y: number } | null = null;
+    let scrub = false;
+    const down = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      start = { x: e.touches[0]!.clientX, y: e.touches[0]!.clientY };
+      scrub = false;
     };
+    const hold = (e: TouchEvent) => {
+      if (e.touches.length >= 2 || pointers.current.size >= 2) {
+        e.preventDefault();
+        return;
+      }
+      const t = e.touches[0];
+      if (!scrub && start && t) {
+        const dx = Math.abs(t.clientX - start.x);
+        const dy = Math.abs(t.clientY - start.y);
+        // Decided once, past a few px: sideways → the chart keeps it.
+        if (dx + dy > 6) {
+          scrub = dx > dy;
+          start = null;
+        }
+      }
+      if (scrub) e.preventDefault();
+    };
+    el.addEventListener("touchstart", down, { passive: true });
     el.addEventListener("touchmove", hold, { passive: false });
-    return () => el.removeEventListener("touchmove", hold);
+    return () => {
+      el.removeEventListener("touchstart", down);
+      el.removeEventListener("touchmove", hold);
+    };
   }, [pointers]);
 
   const [from, to] = range ?? [0, active ?? -1];
@@ -708,7 +737,7 @@ function ScrubTooltip({
           data-testid={range ? "chart-range-tooltip" : "chart-scrub-tooltip"}
           className="absolute z-20"
           style={{ left: box.left, top: box.top }}
-          onPointerDown={tapTooltip}
+          onClick={tapTooltip}
         >
           <ChartTooltipContent
             active

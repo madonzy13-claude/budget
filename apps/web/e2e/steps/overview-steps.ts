@@ -530,3 +530,56 @@ Then(
     await expect(po.wealthTooltip()).toBeHidden();
   },
 );
+
+Then(
+  "one finger sliding across the chart with a slight wobble keeps the tooltip",
+  async ({ page }) => {
+    const { po, b, y, send } = await fingers(page);
+    await page.evaluate(() => {
+      const w = window as unknown as { __scrolls: number };
+      w.__scrolls = 0;
+      window.addEventListener("scroll", () => w.__scrolls++, true);
+    });
+    // A thumb never moves dead level: a little vertical drift on the way.
+    await send("touchStart", [{ x: b.x + b.width * 0.1, y, id: 1 }]);
+    for (let i = 1; i <= 16; i++)
+      await send("touchMove", [
+        { x: b.x + b.width * (0.1 + i * 0.05), y: y + i * 2, id: 1 },
+      ]);
+    await expect(po.wealthTooltip()).toBeVisible();
+    const scrolls = await page.evaluate(
+      () => (window as unknown as { __scrolls: number }).__scrolls,
+    );
+    expect(scrolls, "the page stays put while the finger scrubs").toBe(0);
+    await send("touchEnd", []);
+  },
+);
+
+Then(
+  "a tap on the tooltip does not reach what is behind it",
+  async ({ page }) => {
+    const { po, tap, pinch } = await fingers(page);
+    await pinch();
+    const tip = (await po.wealthRangeTooltip().boundingBox())!;
+    await page.evaluate(() => {
+      const w = window as unknown as { __clicks: string[] };
+      w.__clicks = [];
+      window.addEventListener(
+        "click",
+        (e) =>
+          w.__clicks.push(
+            (e.target as Element).closest('[data-testid$="tooltip"]')
+              ? "tooltip"
+              : (e.target as Element).outerHTML.slice(0, 80),
+          ),
+        true,
+      );
+    });
+    await tap({ x: tip.x + tip.width / 2, y: tip.y + tip.height / 2 });
+    await expect(po.wealthRangeTooltip()).toBeHidden();
+    const clicks = await page.evaluate(
+      () => (window as unknown as { __clicks: string[] }).__clicks,
+    );
+    expect(clicks.filter((c) => c !== "tooltip")).toEqual([]);
+  },
+);
