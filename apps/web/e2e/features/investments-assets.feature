@@ -541,6 +541,7 @@ Feature: Investments as assets with transactions (13.1)
     And a "crypto" asset "ETH Ledger" of "1" units at 1000 cents exists in my budget
     # A far bigger broker: the widest total sits in another group (user, 261102).
     And a "broker" holding "Big Broker" deposited 100000000 cents worth 100000000 cents exists in my budget
+    And the budget has a CUSHION wallet holding 101165 cents
     When I open the investments wallets tab
     Then every investments currency field is one width, under 224px, with no dotted line
     And the "IBKR" amount sits level with its currency field
@@ -558,6 +559,9 @@ Feature: Investments as assets with transactions (13.1)
     And the "IBKR" P/L sits at least 24px clear of its currency
     # 261103 (user): the measured amount column left the figure touching the field.
     And every investments amount sits at least 12px clear of its currency
+    # 261103 (user): currency, amount and share spaced exactly as the wallets'.
+    And the "IBKR" asset spaces its currency, amount and share like the wallets
+    And the investments section total and share sit over the "IBKR" amount and share
     # 261103 (user): a click left focus on the row, and focus kept it "shown".
     And the "BTC Ledger" asset goes quiet once opened, closed and left
     And the "crypto" group goes quiet once opened, closed and left

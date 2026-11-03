@@ -157,9 +157,9 @@ export function InvestmentTypeHeader({
     <div className="flex shrink-0 items-baseline gap-1 tabular-nums sm:items-center">
       <span
         data-testid={`investment-type-value-${uiType}`}
-        // 261103 (user): 16px on desktop — the measured amount column has no
-        // slack, and 4px left the figure touching the field.
-        className={`relative flex items-baseline sm:items-center sm:gap-4 ${showSplit ? "gap-1" : "gap-2"}`}
+        // 261103 (user): spaced exactly as the wallet rows — gap-2 to an
+        // amount column one character wider than its widest figure.
+        className={`relative flex items-baseline sm:items-center sm:gap-2 ${showSplit ? "gap-1" : "gap-2"}`}
       >
         {onCurrencyChange ? (
           // Picking a currency never toggles the group.
@@ -196,9 +196,9 @@ export function InvestmentTypeHeader({
           className="num hidden text-right text-num-md sm:inline-block"
           style={{
             color: "var(--body-on-dark)",
-            // The list's measured widest figure (--amt-w); the estimate
-            // only until it is measured.
-            width: `var(--amt-w, ${(maxAmountChars ?? 4) + 1}ch)`,
+            // The wallets' sizing — widest figure + 1ch — but never under
+            // the measured widest figure (--amt-w), so rows stay straight.
+            width: `max(var(--amt-w, 0px), ${(maxAmountChars ?? 4) + 1}ch)`,
           }}
         >
           <span data-amt-text>{money(pl.valueBudgetCents)}</span>
@@ -403,7 +403,7 @@ export function InvestmentTypeHeader({
       </div>
       <span
         data-testid={`investment-type-share-desktop-${uiType}`}
-        className="hidden w-16 shrink-0 text-right text-num-sm tabular-nums sm:block"
+        className="hidden w-[80px] shrink-0 text-right text-num-sm tabular-nums sm:block"
         style={{ color: "var(--muted-foreground)" }}
       >
         {`${Number(portfolioPct.toFixed(1))}%`}

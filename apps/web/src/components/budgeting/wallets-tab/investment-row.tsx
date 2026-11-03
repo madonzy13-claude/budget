@@ -529,8 +529,8 @@ export function InvestmentRow({
               // R6 (user): gap-2 on a phone = the wallets' ~10px to the amount.
               // 261102 (user): centred on desktop — on the baseline the
               // amount rode at the top of the 40px currency field.
-              // 261103 (user): 16px on desktop, as the group header.
-              "shrink-0 items-baseline gap-2 sm:items-center sm:gap-4",
+              // 261103 (user): gap-2, exactly as the wallet rows.
+              "shrink-0 items-baseline gap-2 sm:items-center",
               expanded ? "hidden sm:flex" : "flex",
             ].join(" ")}
           >
@@ -558,7 +558,7 @@ export function InvestmentRow({
             )}
             <div
               data-amount-cell
-              className="relative text-right tabular-nums min-w-[var(--amt)] sm:w-[var(--amt-w,calc(var(--amt)_+_1ch))] sm:min-w-0"
+              className="relative text-right tabular-nums min-w-[var(--amt)] sm:w-[max(var(--amt-w,0px),calc(var(--amt)_+_1ch))] sm:min-w-0"
               style={
                 { "--amt": `${maxAmountChars ?? 4}ch` } as React.CSSProperties
               }
@@ -640,7 +640,7 @@ export function InvestmentRow({
           )}
         </div>
         {/* Desktop: weight% last. */}
-        <span className="hidden w-16 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block">
+        <span className="hidden w-[80px] shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block">
           {weight}
         </span>
       </div>

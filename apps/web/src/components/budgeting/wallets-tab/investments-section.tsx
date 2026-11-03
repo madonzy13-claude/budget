@@ -822,7 +822,9 @@ export function InvestmentsSection({
         </span>
         <span
           data-testid="section-share-INVESTMENTS"
-          className="hidden w-16 shrink-0 text-right text-num-sm tabular-nums tracking-normal sm:block"
+          // 80px: the rows' share column (and every wallet section's), so the
+          // total and share sit over the columns under them (261103, user).
+          className="hidden w-[80px] shrink-0 text-right text-num-sm tabular-nums tracking-normal sm:block"
         >
           {investmentsShare ?? ""}
         </span>

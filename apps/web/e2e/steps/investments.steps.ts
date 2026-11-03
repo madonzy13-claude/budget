@@ -3455,3 +3455,73 @@ Then(
       expect(g.gap, String(g.id)).toBeGreaterThanOrEqual(px);
   },
 );
+
+Then(
+  "the {string} asset spaces its currency, amount and share like the wallets",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const geo = (row: Locator, ccy: Locator, share: Locator) =>
+      Promise.all(
+        [row, ccy, share, row.locator("[data-amount-cell]")].map(
+          async (l) => (await l.boundingBox())!,
+        ),
+      ).then(([r, c, s, a]) => ({
+        ccyToAmount: a!.x - (c!.x + c!.width),
+        amountToShare: s!.x + s!.width - (a!.x + a!.width),
+        shareW: s!.width,
+        shareToEnd: r!.x + r!.width - (s!.x + s!.width),
+        slack: a!.width,
+      }));
+    const wallet = page.locator('[data-nav-type="wallet"]').first();
+    const w = await geo(
+      wallet,
+      wallet.locator("[data-inline-cell][data-nav-field=currency]"),
+      wallet.locator('[data-testid^="wallet-share-"]'),
+    );
+    const row = page.getByTestId(`holding-row-${name}`);
+    const inv = await geo(
+      row,
+      page.getByTestId(`asset-currency-${id}`),
+      row.locator("span.sm\\:block").filter({ hasText: "%" }).last(),
+    );
+    for (const k of [
+      "ccyToAmount",
+      "amountToShare",
+      "shareW",
+      "shareToEnd",
+    ] as const)
+      expect(
+        Math.abs(inv[k] - w[k]),
+        `${k}: ${inv[k]} vs ${w[k]}`,
+      ).toBeLessThanOrEqual(1);
+  },
+);
+
+// 261103 (user): "$180,301 53.7%" sat off the columns under it.
+Then(
+  "the investments section total and share sit over the {string} amount and share",
+  async ({ page }, name: string) => {
+    const right = async (l: Locator) => {
+      const b = (await l.boundingBox())!;
+      return b.x + b.width;
+    };
+    const row = page.getByTestId(`holding-row-${name}`);
+    const amount = row.locator("[data-amount-cell]");
+    const share = row
+      .locator("span.sm\\:block")
+      .filter({ hasText: "%" })
+      .last();
+    expect(
+      Math.abs(
+        (await right(page.getByTestId("section-total-INVESTMENTS"))) -
+          (await right(amount)),
+      ),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(
+        (await right(page.getByTestId("section-share-INVESTMENTS"))) -
+          (await right(share)),
+      ),
+    ).toBeLessThanOrEqual(1);
+  },
+);
