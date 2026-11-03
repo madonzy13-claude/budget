@@ -190,7 +190,7 @@ describe("PATCH /wallets/:id", () => {
     expect(body.wallet.walletType).toBe("RESERVE");
   });
 
-  it("422 reserve_currency_mismatch: PATCH walletType=RESERVE on non-budget-currency wallet", async () => {
+  it("200 (Phase 14, D-09): PATCH walletType=RESERVE on a non-budget-currency wallet", async () => {
     const wallet = await createWalletHelper(
       app,
       "USD Wallet",
@@ -202,12 +202,10 @@ describe("PATCH /wallets/:id", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ walletType: "RESERVE" }),
     });
-    expect(res.status).toBe(422);
-    const body = (await res.json()) as any;
-    expect(body.error).toBe("reserve_currency_mismatch");
+    expect(res.status).toBe(200);
   });
 
-  it("422 reserve_currency_mismatch: existing RESERVE wallet, PATCH currency to non-budget-currency", async () => {
+  it("200 (Phase 14, D-09): existing RESERVE wallet, PATCH currency to a non-budget currency", async () => {
     // First create as SPENDINGS EUR (budget currency), PATCH to RESERVE
     const wallet = await createWalletHelper(
       app,
@@ -228,12 +226,10 @@ describe("PATCH /wallets/:id", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ currency: "USD" }),
     });
-    expect(res.status).toBe(422);
-    const body = (await res.json()) as any;
-    expect(body.error).toBe("reserve_currency_mismatch");
+    expect(res.status).toBe(200);
   });
 
-  it("422 reserve_currency_mismatch: compound update walletType=RESERVE + currency=USD on EUR budget", async () => {
+  it("200 (Phase 14, D-09): compound update walletType=RESERVE + currency=USD on EUR budget", async () => {
     const wallet = await createWalletHelper(
       app,
       "EUR Compound",
@@ -245,9 +241,7 @@ describe("PATCH /wallets/:id", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ walletType: "RESERVE", currency: "USD" }),
     });
-    expect(res.status).toBe(422);
-    const body = (await res.json()) as any;
-    expect(body.error).toBe("reserve_currency_mismatch");
+    expect(res.status).toBe(200);
   });
 
   it("422 empty_body: PATCH {} → 422 with empty_body", async () => {

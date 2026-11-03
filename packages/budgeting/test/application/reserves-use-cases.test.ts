@@ -119,7 +119,8 @@ describe("updateWallet use case", () => {
     expect(r.isErr() && r.error.message).toBe("not_found");
   });
 
-  it("returns reserve_currency_mismatch when RESERVE wallet patches non-budget currency", async () => {
+  // Phase 14 (D-09): a RESERVE wallet may hold any currency.
+  it("lets a RESERVE wallet switch to a non-budget currency", async () => {
     const { updateWallet } =
       await import("../../src/application/update-wallet");
     const { Wallet } = await import("../../src/domain/wallet");
@@ -143,7 +144,7 @@ describe("updateWallet use case", () => {
       actorUserId: "u1",
       currency: "USD",
     });
-    expect(r.isErr() && r.error.message).toBe("reserve_currency_mismatch");
+    expect(r.isOk()).toBe(true);
   });
 });
 
