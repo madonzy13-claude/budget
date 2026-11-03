@@ -250,12 +250,12 @@
       "currency_confirm_cta": "Zmień walutę",
       "currency_confirm_cancel": "Zostaw {currentCurrency}",
       "currency_saved": "Waluta zaktualizowana",
+      "currency_save_failed": "Nie udało się zmienić waluty",
       "privacy_label": "Tryb prywatny",
       "privacy_hint": "Ukrywaj kwoty domyślnie. Dotknij kwoty, aby ją odsłonić.",
       "privacy_on_toast": "Kwoty domyślnie ukryte",
       "privacy_off_toast": "Kwoty zawsze widoczne",
-      "privacy_error": "Nie udało się zaktualizować ustawienia prywatności",
-      "currency_locked_tooltip": "Waluta zablokowana po pierwszej transakcji"
+      "privacy_error": "Nie udało się zaktualizować ustawienia prywatności"
     },
     "cushion": {
       "label": "Tryb poduszki",
@@ -1943,7 +1943,6 @@
           "nameAria": "Nazwa portfela. Kliknij, aby edytować.",
           "nameRequired": "Nazwa nie może być pusta",
           "currencyAria": "Waluta. Kliknij, aby edytować.",
-          "currencyReadOnlyAria": "Waluta {ccy}. Portfele rezerw muszą używać waluty budżetu.",
           "amountAria": "Kwota. Kliknij, aby edytować.",
           "shareAria": "Udział {name} w sumie sekcji.",
           "dragHandleAria": "Przeciągnij, aby przenieść {name} do innej sekcji.",

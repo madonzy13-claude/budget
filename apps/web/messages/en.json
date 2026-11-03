@@ -250,12 +250,12 @@
       "currency_confirm_cta": "Change currency",
       "currency_confirm_cancel": "Keep {currentCurrency}",
       "currency_saved": "Currency updated",
+      "currency_save_failed": "Couldn't change the currency",
       "privacy_label": "Privacy mode",
       "privacy_hint": "Hide amounts by default. Tap any amount to reveal it.",
       "privacy_on_toast": "Amounts hidden by default",
       "privacy_off_toast": "Amounts always shown",
-      "privacy_error": "Couldn't update the privacy setting",
-      "currency_locked_tooltip": "Currency locked after first transaction"
+      "privacy_error": "Couldn't update the privacy setting"
     },
     "cushion": {
       "label": "Cushion mode",
@@ -1920,7 +1920,6 @@
           "nameAria": "Wallet name. Click to edit.",
           "nameRequired": "Name can't be empty",
           "currencyAria": "Currency. Click to edit.",
-          "currencyReadOnlyAria": "Currency {ccy}. Reserve wallets must match budget currency.",
           "amountAria": "Amount. Click to edit.",
           "shareAria": "{name} share of section total.",
           "dragHandleAria": "Drag to move {name} to another section.",
