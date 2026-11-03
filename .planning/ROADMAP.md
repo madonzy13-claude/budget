@@ -452,14 +452,14 @@ Plans:
 
 **Requirements**: CONTEXT decisions (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 2/21 plans executed
+**Plans:** 3/21 plans executed
 
 Plans:
 **Wave 1**
 
 - [x] 14-01-PLAN.md — migration 0104: fx_convert(), categories.currency, adjustments.currency, fx-sql helpers [BLOCKING apply]
 - [x] 14-02-PLAN.md — pure settleReserveByCurrency (own ccy first, net, exact, ≈ budget ccy)
-- [ ] 14-04-PLAN.md — all Phase 14 i18n keys + shared E2E FX seed step
+- [x] 14-04-PLAN.md — all Phase 14 i18n keys + shared E2E FX seed step
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
