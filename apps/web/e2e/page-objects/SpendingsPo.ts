@@ -37,6 +37,38 @@ export class SpendingsPo {
     await input.press("Enter");
   }
 
+  /** Quick-enter and wait for the server to accept it. */
+  async quickEnterAndWait(categoryName: string, amount: string): Promise<void> {
+    const saved = this.page.waitForResponse(
+      (r) => r.request().method() === "POST" && /\/transactions$/.test(new URL(r.url()).pathname),
+      { timeout: 15000 },
+    );
+    await this.typeQuickEntry(categoryName, amount);
+    if (!(await saved).ok()) throw new Error("quick entry failed");
+  }
+
+  /** The column of a category (testid category-column-{id} is keyed by id, so find it by its quick input). */
+  columnFor(categoryName: string): Locator {
+    return this.page
+      .locator('[data-testid^="category-column-"]')
+      .filter({ has: this.quickEntryInputFor(categoryName) });
+  }
+
+  /** Phase 14 (D-05): the top spending in a column reads in a currency sign. */
+  async assertNewestRowCurrency(categoryName: string, sign: string): Promise<void> {
+    await expect(
+      this.columnFor(categoryName).locator('[data-testid^="txn-row-"]').first(),
+    ).toContainText(sign, { timeout: 10000 });
+  }
+
+  /** Phase 14 (UI-SPEC §2): a foreign limit reads in its sign, with the "≈" line. */
+  async assertForeignLimit(categoryName: string, sign: string): Promise<void> {
+    await expect(
+      this.page.getByTestId(`column-header-${categoryName.toLowerCase()}-planned`),
+    ).toContainText(sign, { timeout: 10000 });
+    await expect(this.columnFor(categoryName).getByTestId("column-limit-equivalent")).toContainText("≈");
+  }
+
   /**
    * A confirmed transaction row. The component keys the testid off
    * `amountConvertedCents`, e.g. `txn-row-500` for a 5.00 spend.
