@@ -18,6 +18,7 @@ import { createSpendingsSummaryRepo } from "../../src/adapters/persistence/spend
 import { DrizzleFxRateCacheRepo } from "../../src/adapters/persistence/fx-rate-cache-repo";
 import { CacheOnlyFxProvider } from "../../src/adapters/fx/cache-only";
 import { convertCents } from "../../src/domain/fx-round";
+import { createOverviewRepo } from "../../src/adapters/persistence/overview-repo";
 import { seedFxRates, deleteFxRates } from "../fx-seed";
 
 for (const k of ["DATABASE_URL_APP", "DATABASE_URL_WORKER", "DATABASE_URL_MIGRATOR"] as const) {
@@ -145,6 +146,13 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Limits in another currency", () 
     expect((await rowOf("1998-02", RENT)).plannedCents).toBe(
       convertCents(50000n, "5.00").toString(),
     );
+  });
+
+  test("the planned pie sizes a foreign limit in the budget currency, as the column reads it (user, 261103)", async () => {
+    const rows = await createOverviewRepo().monthlyPlannedByCategory(TENANT, "1998-01-01", "1998-01-31");
+    const rent = rows.find((r) => r.category_id === RENT && r.month === "1998-01");
+    expect(rent?.planned_cents).toBe(convertCents(50000n, "4.40"));
+    expect(rent?.planned_cents.toString()).toBe((await rowOf("1998-01", RENT)).plannedCents);
   });
 
   test("a limit with no FX pair counts as 0 and is flagged, the summary still answers", async () => {

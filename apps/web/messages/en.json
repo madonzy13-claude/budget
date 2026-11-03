@@ -244,6 +244,7 @@
       "name_label": "Name",
       "name_saved": "Budget name saved",
       "currency_label": "Currency",
+      "currency_hint": "Totals are shown in this currency.",
       "currency_confirm_title": "Change budget currency to {currency}?",
       "currency_confirm_body": "Every total will be shown in {currency}, converted at the rate of each date. Transactions keep the currency they were entered in.",
       "currency_confirm_cta": "Change currency",

@@ -244,6 +244,7 @@
       "name_label": "Nazwa",
       "name_saved": "Nazwa budżetu zapisana",
       "currency_label": "Waluta",
+      "currency_hint": "Sumy są pokazywane w tej walucie.",
       "currency_confirm_title": "Zmienić walutę budżetu na {currency}?",
       "currency_confirm_body": "Wszystkie sumy będą pokazane w {currency}, przeliczone po kursie z danego dnia. Transakcje zachowują walutę, w której zostały wpisane.",
       "currency_confirm_cta": "Zmień walutę",

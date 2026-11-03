@@ -27,6 +27,12 @@ const COPY: Record<string, [string, string, string]> = {
     "Zostaw {currentCurrency}",
     "Залишити {currentCurrency}",
   ],
+  // Shortened: the "Transactions keep their own" half went (user, 261103).
+  "settings.identity.currency_hint": [
+    "Totals are shown in this currency.",
+    "Sumy są pokazywane w tej walucie.",
+    "Підсумки показуються в цій валюті.",
+  ],
   "grid.categoryCurrency.label": ["Currency", "Waluta", "Валюта"],
   "grid.categoryCurrency.changeHint": [
     "Limit converts at today's rate: {old} → {new}. Past transactions keep their currency.",
@@ -67,8 +73,6 @@ describe("Multi-currency copy", () => {
     for (const locale of [en, pl, uk]) {
       expect(at(locale, "settings.identity.currency_locked_tooltip")).toBeUndefined();
       expect(at(locale, "bdp.tab.wallets.row.currencyReadOnlyAria")).toBeUndefined();
-      // The settings hint went too (user, 261103).
-      expect(at(locale, "settings.identity.currency_hint")).toBeUndefined();
     }
   });
 });
