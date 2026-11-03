@@ -242,7 +242,8 @@ export class SpendingsPo {
   columnPlannedAmount(categoryName: string, bareAmount: string): Locator {
     return this.columnHeader(categoryName)
       .getByTestId(`column-header-${categoryName.toLowerCase()}-planned`)
-      .filter({ hasText: `/ ${bareAmount}` });
+      // Phase 14: the limit carries its currency sign ("/ $500", "/ 500 zł").
+      .filter({ hasText: new RegExp(`/ \\D{0,3}${bareAmount.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\D|$)`) });
   }
 
   /** The category edit slider sheet. */

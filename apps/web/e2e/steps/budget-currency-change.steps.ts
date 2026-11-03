@@ -1,8 +1,6 @@
-import { expect } from "@playwright/test";
 import { createBdd } from "playwright-bdd";
 import { test } from "../fixtures/fresh-user-per-scenario";
 import { SettingsPo } from "../page-objects/SettingsPo";
-import { SpendingsPo } from "../page-objects/SpendingsPo";
 
 const { When, Then } = createBdd(test);
 
@@ -26,10 +24,4 @@ Then("the budget currency reads {string}", async ({ page }, ccy: string) => {
 When("I reload the spendings page", async ({ page }) => {
   await page.reload();
   await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
-});
-
-Then("the newest {string} spending has no currency sign", async ({ page }, category: string) => {
-  const row = new SpendingsPo(page).columnFor(category).locator('[data-testid^="txn-row-"]').first();
-  await expect(row).toBeVisible({ timeout: 10000 });
-  await expect(row).not.toContainText(/[$€]/);
 });

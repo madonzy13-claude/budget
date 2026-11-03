@@ -22,4 +22,4 @@ requirements-completed: [D-02, D-03, D-07, D-10, D-12]
 ## Verification
 - Backend: budgeting + api routes 1487 pass; only the baseline `/scheduled-payments` failure remains (route-coverage + overspent pie fixed). New tests: own-currency column (reserve-dtos-by-currency), positions-in-budget, convert-to-category-currency.
 - Web Vitest 3065 pass / 0 fail (txn-row + header tests updated for always-signed figures).
-- E2E + rebuilt images: see the gate run below.
+- api + worker + web rebuilt. E2E chromium + mobile over the phase tags + @overview-rebalance + @phase8: failures were only assertions expecting bare numbers (reserves-golden, category-archive limit "/ 500", the round-trip "no sign" step) — helpers made sign-tolerant / scenario updated; rerun of `@budget-currency-change|@reserves-golden|Category archive` → 18 passed.

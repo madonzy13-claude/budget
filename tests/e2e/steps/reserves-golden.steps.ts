@@ -25,6 +25,17 @@ import {
 
 // The golden CSV's first month (2026-06) maps to real May (2026-05); seed the
 // initial limits effective from there so they apply across the whole walk.
+/** "used / available": the sign rides on the second figure (Phase 14). */
+const signedPair = (text: string) => {
+  const [a, b] = text.split(" / ");
+  if (b === undefined) return signed(text);
+  const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^${esc(a!)} / [^\\d\\s-]*\\s?${esc(b)}\\s?[^\\d\\s]*$`);
+};
+/** A column figure with its currency sign either side (Phase 14). */
+const signed = (bare: string) =>
+  new RegExp(`^[^\\d\\s-]*\\s?${bare.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s?[^\\d\\s]*$`);
+
 const FIRST_MONTH = realMonth("2026-06"); // "2026-05"
 
 const { Given, When, Then, After } = createBdd(test);
@@ -386,13 +397,14 @@ Then(
       timeout: 20000,
     });
     const c = name.toLowerCase();
+    // Phase 14: every column figure carries its currency sign.
     await expect(page.getByTestId(`column-header-${c}-overspent`)).toHaveText(
-      overspent,
+      signed(overspent),
       { timeout: 10000 },
     );
     await expect(
       page.getByTestId(`column-header-${c}-reserves-used`),
-    ).toHaveText(used, { timeout: 10000 });
+    ).toHaveText(signedPair(used), { timeout: 10000 });
   },
 );
 
@@ -476,12 +488,13 @@ Then(
       timeout: 20000,
     });
     const c = name.toLowerCase();
+    // Phase 14: every column figure carries its currency sign.
     await expect(page.getByTestId(`column-header-${c}-overspent`)).toHaveText(
-      overspent,
+      signed(overspent),
       { timeout: 10000 },
     );
     await expect(
       page.getByTestId(`column-header-${c}-reserves-used`),
-    ).toHaveText(used, { timeout: 10000 });
+    ).toHaveText(signedPair(used), { timeout: 10000 });
   },
 );

@@ -36,8 +36,10 @@ Feature: Changing the budget currency
     When I open the settings tab for "My E2E Budget"
     And I change the budget currency to "EUR"
     And I change the budget currency to "USD"
-    And I open the spendings tab for the budget
-    Then the newest "Food" spending has no currency sign
+    Then the budget currency reads "USD"
+    When I open the spendings tab for the budget
+    Then the newest "Food" spending reads in "$"
+    And the "Food" limit reads in "$"
 
   Scenario: Cancelling the dialog changes nothing
     When I open the settings tab for "My E2E Budget"
