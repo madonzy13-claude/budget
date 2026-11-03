@@ -92,6 +92,21 @@ export interface SpendingsSummaryCategoryDTO {
   };
   /** No FX rate for the limit's currency — it counts as 0 here. */
   fxUnavailable?: boolean;
+  /** A category in another currency than the budget's: the same column
+   *  figures in the CATEGORY's own currency (spent at each row's date, limit
+   *  as typed, reserve native). The grid column reads these; totals and
+   *  charts keep the budget-currency fields. Absent for a same-currency one. */
+  own?: {
+    currency: string;
+    plannedCents: string;
+    cushionCents: string;
+    activeBudgetCents: string;
+    spentCents: string;
+    reserveUsedCents: string;
+    reserveAvailableCents: string;
+    overspentCents: string;
+    balanceCents: string;
+  };
   /** 0061: persisted needs/wants split of plannedCents (null = never set, the
    *  editor then falls back to needs = planned, wants = 0). */
   needsCents: string | null;
@@ -312,6 +327,15 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
         return r == null ? 0n : convertCents(cents, r);
       };
 
+      const ownSpend = deps.transactionRepo.spendByCategoryForMonthInCategoryCurrency
+        ? await deps.transactionRepo.spendByCategoryForMonthInCategoryCurrency(
+            input.tenantId,
+            input.budgetId,
+            monthStart,
+            monthEnd,
+          )
+        : new Map<string, bigint>();
+
       const dtoCategories: SpendingsSummaryCategoryDTO[] = categories
         .sort((a, b) => (a as any).sortIndex - (b as any).sortIndex)
         .map((c) => {
@@ -408,6 +432,31 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           const overspent = overage - reserveUsed;
           const balance = active - spent + reserveUsed;
 
+          // The column in the category's own currency (user, 261103).
+          const catCcy = posResult.value.categoryCurrency?.get(c.id) ?? c.currency ?? meta.currency;
+          let own: SpendingsSummaryCategoryDTO["own"];
+          if (catCcy !== meta.currency && !isInvestment && limits.original) {
+            const o = limits.original;
+            const oSpent = ownSpend.get(c.id) ?? 0n;
+            const oActive = noLimit ? oSpent : monthCushionMode ? o.cushion : o.planned;
+            const oOver = noLimit ? 0n : (cell?.overageCents ?? (oSpent > oActive ? oSpent - oActive : 0n));
+            const oUsedRaw = cell?.usedCents ?? 0n;
+            const oEnd = cell?.endReserveCents ?? 0n;
+            const oAvail = oUsedRaw + oEnd > 0n ? oUsedRaw + oEnd : 0n;
+            const oUsed = oUsedRaw < oAvail ? oUsedRaw : oAvail;
+            own = {
+              currency: catCcy,
+              plannedCents: (noLimit ? oSpent : o.planned).toString(),
+              cushionCents: o.cushion.toString(),
+              activeBudgetCents: oActive.toString(),
+              spentCents: oSpent.toString(),
+              reserveUsedCents: oUsed.toString(),
+              reserveAvailableCents: oAvail.toString(),
+              overspentCents: (oOver - oUsed).toString(),
+              balanceCents: (oActive - oSpent + oUsed).toString(),
+            };
+          }
+
           return {
             categoryId: c.id,
             name: c.name,
@@ -431,6 +480,7 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
                 }
               : {}),
             ...(limits.fxUnavailable ? { fxUnavailable: true } : {}),
+            ...(own ? { own } : {}),
             // 0061: the persisted needs/wants split (null when never set → the
             // editor falls back to needs = planned, wants = 0).
             needsCents: noLimit

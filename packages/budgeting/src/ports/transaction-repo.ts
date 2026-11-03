@@ -37,6 +37,15 @@ export interface TransactionRepo {
 
   findById(tenantId: string, id: string): Promise<TransactionRow | null>;
 
+  /** Phase 14: confirmed spending per category in EACH CATEGORY's own currency,
+   *  every row at its own date — what a foreign category's column reads in. */
+  spendByCategoryForMonthInCategoryCurrency?(
+    tenantId: string,
+    budgetId: string,
+    monthStart: string,
+    monthEnd: string,
+  ): Promise<Map<string, bigint>>;
+
   /** Phase 14 (D-05): a category's own currency (null when not in the tenant). */
   categoryCurrency?(tenantId: string, categoryId: string): Promise<string | null>;
 

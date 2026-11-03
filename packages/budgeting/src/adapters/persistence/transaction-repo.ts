@@ -506,6 +506,32 @@ export class DrizzleTransactionRepo implements TransactionRepo {
     return r.value;
   }
 
+  async spendByCategoryForMonthInCategoryCurrency(
+    tenantId: string,
+    budgetId: string,
+    monthStart: string,
+    monthEnd: string,
+  ): Promise<Map<string, bigint>> {
+    const r = await withTenantTx(TenantId(tenantId), UserId(tenantId), async (tx) => {
+      const res = await (tx as { execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }> }).execute(sql`
+        SELECT l.category_id::text AS category_id,
+               COALESCE(SUM(${fxConvert(sql`l.amount_original_cents`, sql`l.currency_original`, sql`c.currency`, sql`l.transaction_date`)}), 0)::text AS cents
+          FROM budgeting.expense_ledger l
+          JOIN budgeting.categories c ON c.id = l.category_id
+         WHERE l.tenant_id = ${tenantId}::uuid
+           AND l.budget_id = ${budgetId}::uuid
+           AND l.kind = 'SPENDING'
+           AND l.transaction_date >= ${monthStart}::date
+           AND l.transaction_date < ${monthEnd}::date
+           AND l.confirmed_at IS NOT NULL
+           AND l.deleted_at IS NULL
+         GROUP BY l.category_id`);
+      return new Map(res.rows.map((row) => [row.category_id as string, BigInt(row.cents as string)]));
+    });
+    if (r.isErr()) throw r.error;
+    return r.value;
+  }
+
   async spendByCategoryByMonth(
     tenantId: string,
     budgetId: string,
