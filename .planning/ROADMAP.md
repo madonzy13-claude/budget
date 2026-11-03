@@ -452,7 +452,7 @@ Plans:
 
 **Requirements**: CONTEXT decisions (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 3/21 plans executed
+**Plans:** 4/21 plans executed
 
 Plans:
 **Wave 1**
@@ -463,7 +463,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 14-03-PLAN.md — pure D-17 closed-month result conversion
+- [x] 14-03-PLAN.md — pure D-17 closed-month result conversion
 - [ ] 14-05-PLAN.md — category currency backend (create default, DTO, tx default, limit currency)
 - [ ] 14-06-PLAN.md — ledger read-time conversion (transaction-repo, list/search) + architecture guard
 - [ ] 14-07-PLAN.md — D-08 limit conversion (limit repo currency, spendings summary)
