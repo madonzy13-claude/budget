@@ -147,3 +147,37 @@ describe("ReservesTotalsFooter (05-19 — 3 totals, no banner)", () => {
     expect(footer.className).toContain("max-w-full");
   });
 });
+
+// Phase 14 (D-10/D-14): reserves in several currencies get one line each.
+describe("ReservesTotalsFooter — per currency", () => {
+  it("lists need and wallets per currency when more than one is involved", () => {
+    render(
+      <ReservesTotalsFooter
+        internalCents="49455"
+        userDefinedCents="20000"
+        currency="PLN"
+        needByCurrency={[
+          { currency: "EUR", cents: "6850" },
+          { currency: "PLN", cents: "20000" },
+        ]}
+        walletsByCurrency={[{ currency: "PLN", cents: "20000" }]}
+      />,
+    );
+    expect(screen.getByTestId("reserves-footer-line-EUR").textContent).toContain("68.50");
+    expect(screen.getByTestId("reserves-footer-line-EUR").textContent).toContain("EUR");
+    expect(screen.getByTestId("reserves-footer-line-PLN").textContent).toContain("200");
+  });
+
+  it("a single-currency budget shows no per-currency lines", () => {
+    render(
+      <ReservesTotalsFooter
+        internalCents="20000"
+        userDefinedCents="20000"
+        currency="PLN"
+        needByCurrency={[{ currency: "PLN", cents: "20000" }]}
+        walletsByCurrency={[{ currency: "PLN", cents: "20000" }]}
+      />,
+    );
+    expect(screen.queryByTestId("reserves-footer-line-PLN")).toBeNull();
+  });
+});
