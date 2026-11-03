@@ -184,10 +184,12 @@ export function BudgetIdentitySection({
             // width wrapper. Browsers also tend to ignore text-align on
             // <select>. Force intrinsic width on both trigger variants
             // with !w-auto and override Radix's justify-between → end so
-            // the value sits at the right edge of the row. The wrapper
+            // the value sits at the right edge of the row. iOS ignores
+            // text-align on a <select> — text-align-last does the job there,
+            // so the code sits over its dotted line (user, 261103). The wrapper
             // itself uses inline-flex justify-end so it shrinks to the
             // intrinsic size of the trigger.
-            <div data-testid="budget-currency-picker" className="editable-dots inline-flex justify-end [&_button]:!w-auto [&_button]:justify-end [&_select]:!w-auto [&_select]:text-right">
+            <div data-testid="budget-currency-picker" className="editable-dots inline-flex justify-end [&_button]:!w-auto [&_button]:justify-end [&_select]:!w-auto [&_select]:text-right [&_select]:[text-align-last:right]">
               <CurrencyPicker
                 value={pending ?? current}
                 onSelect={(v: string) => {
