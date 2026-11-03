@@ -6,6 +6,8 @@
  *
  * Throwaway testcontainer, so real-dated rates are safe to seed:
  * EUR→PLN 4.0 before today, 4.5 from today (TS conversions get 4.5 via the stub).
+ * Stored converted cents = the original amount (what a same-currency write
+ * stores), so a read of them differs between the twins.
  *
  *   SPENDINGS wallet  500.00 EUR   | 2,250.00 PLN
  *   CUSHION wallet    100.00 EUR   |   450.00 PLN
@@ -91,7 +93,7 @@ async function seedBudget(t: Twin, ccy: "EUR" | "PLN") {
         `INSERT INTO budgeting.expense_ledger
            (tenant_id, budget_id, category_id, transaction_date, amount_original_cents, currency_original,
             amount_converted_cents, fx_rate, fx_as_of, kind, confirmed_at)
-         VALUES ($1, $1, $2, $3::date, $4, $5, 999999, 1, $3::date, 'SPENDING', ${confirmed ? "now()" : "NULL"})`,
+         VALUES ($1, $1, $2, $3::date, $4, $5, $4, 1, $3::date, 'SPENDING', ${confirmed ? "now()" : "NULL"})`,
         [t.tenant, t.food, d.toString(), amt(eur, d), ccy],
       );
     }
