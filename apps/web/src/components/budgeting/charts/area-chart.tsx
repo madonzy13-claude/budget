@@ -381,6 +381,23 @@ export function OverviewAreaChart({
 }
 
 type Row = Record<string, unknown>;
+/** Space between the scrub tooltip and the plot it sits outside of. */
+const TIP_GAP = 8;
+
+/**
+ * Whether `need` px above the chart are on screen and not under anything
+ * outside the chart's own section — a sticky bar (the range pills) would
+ * otherwise cover the tooltip's top.
+ */
+function roomAbove(layer: HTMLElement | null, x: number, need: number) {
+  if (!layer) return true;
+  const r = layer.getBoundingClientRect();
+  const y = r.top - need;
+  if (y < 0) return false;
+  const hit = document.elementFromPoint(r.left + x, y);
+  const own = layer.closest("section") ?? layer.parentElement;
+  return !hit || !!own?.contains(hit);
+}
 interface ScrubGeo {
   /** Pixel x of every data point, left to right. */
   xs: number[];
@@ -414,17 +431,22 @@ function useScrub({
     moved: boolean;
     wasOpen: boolean;
   } | null>(null);
-  const announce = useTooltipExclusivity(() => setActive(null));
+  // This gesture had two fingers down: its range outlives the fingers, and a
+  // finger left behind no longer moves anything (261103, user).
+  const pinned = useRef(false);
+  const close = () => {
+    pinned.current = false;
+    setActive(null);
+    setRange(null);
+  };
+  const announce = useTooltipExclusivity(close);
   useCloseOnScroll(() => {
     if (pointers.current.size === 0) setActive(null);
   });
   // A new series (range pill, view toggle) starts with nothing selected —
   // keyed by its extent, as a refetch hands over a new but equal array.
   const extent = `${data.length}|${String(data[0]?.[xKey])}|${String(data.at(-1)?.[xKey])}`;
-  useEffect(() => {
-    setActive(null);
-    setRange(null);
-  }, [extent]);
+  useEffect(close, [extent]);
 
   const relX = (e: React.PointerEvent) =>
     e.clientX - (wrapRef.current?.getBoundingClientRect().left ?? 0);
@@ -443,12 +465,19 @@ function useScrub({
     onPointerDown: (e: React.PointerEvent) => {
       if (e.pointerType === "mouse" && e.button !== 0) return;
       const x = relX(e);
+      const first = pointers.current.size === 0;
       pointers.current.set(e.pointerId, x);
       if (e.pointerType === "mouse")
         e.currentTarget.setPointerCapture(e.pointerId);
       if (pointers.current.size >= 2) {
         press.current = null;
+        pinned.current = true;
         setRange(spread());
+        return;
+      }
+      // A tap on the chart puts away a range left up by two fingers.
+      if (first && pinned.current) {
+        close();
         return;
       }
       const i = indexAt(x);
@@ -468,6 +497,7 @@ function useScrub({
         setRange(spread());
         return;
       }
+      if (pinned.current || (pressed && !press.current)) return;
       const i = indexAt(x);
       const p = press.current;
       if (p && pressed) {
@@ -481,7 +511,7 @@ function useScrub({
     onPointerUp: (e: React.PointerEvent) => {
       pointers.current.delete(e.pointerId);
       const p = press.current;
-      if (pointers.current.size < 2) setRange(null);
+      if (pointers.current.size < 2 && !pinned.current) setRange(null);
       if (pointers.current.size > 0) return;
       press.current = null;
       // A tap on the point already open closes it — the old tap-to-dismiss.
@@ -489,18 +519,24 @@ function useScrub({
         setActive(null);
     },
     onPointerCancel: (e: React.PointerEvent) => {
-      // The page took the gesture (a vertical scroll): let go of everything.
+      // The page took the gesture (a vertical scroll): let go of everything —
+      // but a two-finger range stays, as it would on lifting the fingers.
       pointers.current.delete(e.pointerId);
       press.current = null;
-      setRange(null);
-      setActive(null);
+      if (!pinned.current) close();
     },
     onPointerLeave: (e: React.PointerEvent) => {
       if (e.pointerType === "mouse" && pointers.current.size === 0)
         setActive(null);
     },
   };
-  return { active, range, geo, handlers };
+  /** A tap on the tooltip puts it away — not a stray touch mid-gesture. */
+  const tapTooltip = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    if (pointers.current.size > 0) return;
+    close();
+  };
+  return { active, range, geo, handlers, pointers, tapTooltip };
 }
 
 /** Cursor line, dots and the range shade — drawn in chart space. Also hands
@@ -611,35 +647,49 @@ function ScrubTooltip({
     base?: Row,
   ) => { label: string; value: string; suffix?: string[] } | null;
 }) {
-  const { active, range, geo, handlers } = scrubber;
+  const { active, range, geo, handlers, pointers, tapTooltip } = scrubber;
   const tipRef = useRef<HTMLDivElement | null>(null);
-  const [tipH, setTipH] = useState(0);
+  const layerRef = useRef<HTMLDivElement | null>(null);
+  const [tip, setTip] = useState({ w: 0, h: 0 });
   useLayoutEffect(() => {
+    const w = tipRef.current?.offsetWidth ?? 0;
     const h = tipRef.current?.offsetHeight ?? 0;
-    if (h !== tipH) setTipH(h);
+    if (w !== tip.w || h !== tip.h) setTip({ w, h });
   });
+  // Two fingers on the chart are a range, never a scroll: the browser would
+  // take a two-finger drift as a pan and cancel the gesture (261103, user: the
+  // range vanished mid-drag). Native + non-passive, as React's touch
+  // listeners are passive and cannot preventDefault.
+  useEffect(() => {
+    const el = layerRef.current;
+    if (!el) return;
+    const hold = (e: TouchEvent) => {
+      if (e.touches.length >= 2 || pointers.current.size >= 2)
+        e.preventDefault();
+    };
+    el.addEventListener("touchmove", hold, { passive: false });
+    return () => el.removeEventListener("touchmove", hold);
+  }, [pointers]);
 
   const [from, to] = range ?? [0, active ?? -1];
   const row = data[to];
   let box: { left: number; top: number } | null = null;
   if (row && geo.current) {
-    if (range) {
-      // Over the top of the range, centred on it.
-      const mid = ((geo.current.xs[from] ?? 0) + (geo.current.xs[to] ?? 0)) / 2;
-      box = { left: clampAnchorX(mid - tipW / 2, plotW, tipW), top: 0 };
-    } else {
-      // Just under the highest line at this point, so it follows the value;
-      // above it when there is no room below.
-      const tops = Object.values(seriesTops(row, series));
-      const y = tops.length ? geo.current.y(Math.max(...tops)) : undefined;
-      if (y != null) {
-        const below = y + 10;
-        box = {
-          left: clampAnchorX(geo.current.xs[to] ?? 0, plotW, tipW),
-          top: below + tipH <= height ? below : Math.max(0, y - 10 - tipH),
-        };
-      }
-    }
+    // OUTSIDE the plot (261103, user: over it, the tooltip hid the very line
+    // it described) — above it, over the figures the chart sits under, centred
+    // on the point or the range. Below it only when the page's top would cut
+    // it off; a finger comes from below, so below is the second choice.
+    const x = range
+      ? ((geo.current.xs[from] ?? 0) + (geo.current.xs[to] ?? 0)) / 2
+      : (geo.current.xs[to] ?? 0);
+    const w = Math.min(tip.w || tipW, plotW);
+    const left = Math.min(Math.max(0, x - w / 2), Math.max(0, plotW - w));
+    box = {
+      left,
+      top: roomAbove(layerRef.current, left + w / 2, tip.h + TIP_GAP)
+        ? -tip.h - TIP_GAP
+        : height + TIP_GAP,
+    };
   }
   const base = data[from];
   const fmtLabel = (l: string | number) =>
@@ -647,6 +697,7 @@ function ScrubTooltip({
   return (
     <>
       <div
+        ref={layerRef}
         data-testid="chart-scrub-layer"
         className="absolute inset-0 z-10 touch-pan-y select-none"
         {...handlers}
@@ -655,8 +706,9 @@ function ScrubTooltip({
         <div
           ref={tipRef}
           data-testid={range ? "chart-range-tooltip" : "chart-scrub-tooltip"}
-          className="pointer-events-none absolute z-20"
+          className="absolute z-20"
           style={{ left: box.left, top: box.top }}
+          onPointerDown={tapTooltip}
         >
           <ChartTooltipContent
             active

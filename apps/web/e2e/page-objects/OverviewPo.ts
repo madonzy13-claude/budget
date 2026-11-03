@@ -146,18 +146,9 @@ export class OverviewPo {
     return this.section("wealth").getByTestId("chart-range-tooltip");
   }
 
-  /** The highest marker dot on the wealth chart, as a page y. */
-  async wealthTopDotY(): Promise<number> {
-    const ys = await this.section("wealth")
-      .locator("[data-scrub-dot]")
-      .evaluateAll((els) =>
-        els.map((e) => {
-          const b = e.getBoundingClientRect();
-          return b.top + b.height / 2;
-        }),
-      );
-    if (ys.length === 0) throw new Error("no chart dots drawn");
-    return Math.min(...ys);
+  /** The shaded range on the wealth chart. */
+  wealthRange() {
+    return this.section("wealth").getByTestId("chart-range");
   }
 
   /** The investments-view pie region (renders the pie or the calm empty-pie copy). */

@@ -69,9 +69,11 @@ Feature: Budget Overview tab
     And I switch the wealth view to "Investments"
     Then the wealth "pl" metric reads "+21.0%"
 
-  # 261102 (user): the cursor survives a slide over the tooltip or past the
-  # chart, the tooltip rides under the line, and a drag (mouse) or two fingers
-  # (touch) select a range whose change the tooltip shows.
+  # 261102 (user): the cursor survives a pressed slide past the chart, and a
+  # drag (mouse) or two fingers (touch) select a range whose change the tooltip
+  # shows. 261103 (user): the tooltip covered the chart — it now sits outside
+  # it; a two-finger range stays after the fingers lift until a tap on the
+  # chart or the tooltip, and a stray touch mid-gesture does not drop it.
   @r8-chart-scrub
   Scenario: The wealth chart follows the pointer and measures a selected range
     Given the budget held investments worth 100000 cents costing 100000 cents 90 days ago
@@ -83,10 +85,13 @@ Feature: Budget Overview tab
     And I select the "All" overview range
     And I expand the "wealth" overview section
     And I switch the wealth view to "Investments"
-    Then the wealth tooltip rides just under the line as the pointer slides
-    And the wealth tooltip stays while the pointer slides over it or past the chart
+    Then the wealth tooltip sits outside the chart and follows the pointer
+    And the wealth tooltip stays while a pressed pointer slides past the chart
     And dragging across the wealth chart shows the change across the range
     And two fingers on the wealth chart show the change between them
+    And a touch on the tooltip mid-gesture keeps the range
+    And the range stays after the fingers lift until the tooltip is tapped
+    And the range stays after the fingers lift until the chart is tapped
 
   # The grid sized its two rows independently, so the Cushion note wrapping to a
   # second line left the row above it visibly shorter (user screenshot, 260825).
