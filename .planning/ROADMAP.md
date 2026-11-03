@@ -450,10 +450,30 @@ Plans:
 
 **Requirements**: CONTEXT decisions (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 0 plans
+**Plans:** 21 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 14 to break down)
+- [ ] 14-01-PLAN.md — migration 0104: fx_convert(), categories.currency, adjustments.currency, fx-sql helpers [BLOCKING apply]
+- [ ] 14-02-PLAN.md — pure settleReserveByCurrency (own ccy first, net, exact, ≈ budget ccy)
+- [ ] 14-03-PLAN.md — pure D-17 closed-month result conversion
+- [ ] 14-04-PLAN.md — all Phase 14 i18n keys + shared E2E FX seed step
+- [ ] 14-05-PLAN.md — category currency backend (create default, DTO, tx default, limit currency)
+- [ ] 14-06-PLAN.md — ledger read-time conversion (transaction-repo, list/search) + architecture guard
+- [ ] 14-07-PLAN.md — D-08 limit conversion (limit repo currency, spendings summary)
+- [ ] 14-08-PLAN.md — overview + home summary read-time conversion
+- [ ] 14-09-PLAN.md — cash flow, scheduled monthly, cushion, income task conversion
+- [ ] 14-10-PLAN.md — reserve fit + wealth re-expression; guard green
+- [ ] 14-11-PLAN.md — per-currency reserve replay (D-10, D-17)
+- [ ] 14-12-PLAN.md — settlement wiring, D-14 fix, multi-line RESERVE_TOPUP payload
+- [ ] 14-13-PLAN.md — per-currency reserve DTOs + spendings reserve conversion
+- [ ] 14-14-PLAN.md — web per-currency reserve task copy + reserves tab
+- [ ] 14-15-PLAN.md — reserve wallet currency unlock (D-09)
+- [ ] 14-16-PLAN.md — change category currency with limit conversion (D-07)
+- [ ] 14-17-PLAN.md — category slider currency field (web)
+- [ ] 14-18-PLAN.md — entry defaults to category currency + foreign limit display (web)
+- [ ] 14-19-PLAN.md — remove budget currency locks (backend, LAST)
+- [ ] 14-20-PLAN.md — settings confirm dialog, cache invalidation, full E2E (web, LAST)
+- [ ] 14-21-PLAN.md — phase gate + owner verification checkpoint
 
 ---
 
