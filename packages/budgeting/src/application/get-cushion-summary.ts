@@ -122,10 +122,12 @@ export async function computeCushionSummary(
   //    Active row = effective_from <= today AND (effective_to IS NULL OR
   //    effective_to > today). v1.1: tenant_id === budget_id; filter on
   //    tenant_id (category_limits has no budget_id column).
+  //    Phase 14 (D-08): each limit from its own currency at today's rate.
   const todayPlainDate = Temporal.Now.plainDateISO();
   const todayStr = todayPlainDate.toString();
   const cushionAmounts = await tx.execute(sql`
-    SELECT COALESCE(SUM(cushion_amount), 0)::text AS total
+    SELECT COALESCE(SUM(budgeting.fx_convert(cushion_amount, cushion_currency,
+                                             ${budget.default_currency}::text, ${todayStr}::date)), 0)::text AS total
       FROM budgeting.category_limits
      WHERE tenant_id = ${input.tenantId}::uuid
        AND effective_from <= ${todayStr}::date

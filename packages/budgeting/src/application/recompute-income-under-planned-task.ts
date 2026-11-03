@@ -260,11 +260,12 @@ export async function computeIncomeVsPlanned(
   // Total planned = Σ normal_amount over effective (today) category_limits for
   // NON-archived categories, INCLUDING a manual Investments amount, EXCLUDING only
   // a SMART Investments category (its normal_amount isn't its real limit and it
-  // nets to income anyway). normal_amount is budget-ccy cents (raw, no FX — parity
-  // with get-cushion-summary + effectiveForMonth).
+  // nets to income anyway). Phase 14 (D-08): each limit converts from its own
+  // currency at today's rate.
   const todayStr = Temporal.Now.plainDateISO().toString();
   const plannedRow = await tx.execute(sql`
-    SELECT COALESCE(SUM(cl.normal_amount), 0)::text AS total
+    SELECT COALESCE(SUM(budgeting.fx_convert(cl.normal_amount, cl.normal_currency,
+                                             ${currency}::text, ${todayStr}::date)), 0)::text AS total
       FROM budgeting.category_limits cl
       JOIN budgeting.categories c ON c.id = cl.category_id
      WHERE cl.tenant_id = ${input.tenantId}::uuid

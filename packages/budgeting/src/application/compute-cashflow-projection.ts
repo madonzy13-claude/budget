@@ -281,6 +281,8 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
           SELECT cl.category_id::text AS category_id,
                  cl.normal_amount::text AS normal_amount,
                  cl.cushion_amount::text AS cushion_amount,
+                 cl.normal_currency::text AS normal_currency,
+                 cl.cushion_currency::text AS cushion_currency,
                  cl.no_limit AS no_limit,
                  cl.effective_from::text AS effective_from,
                  cl.effective_to::text AS effective_to
@@ -291,7 +293,10 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
              AND (cl.effective_to IS NULL OR cl.effective_to > ${firstProbe}::date)`);
 
         const spend = await tx.execute(sql`
-          SELECT category_id::text AS id, SUM(amount_converted_cents)::text AS spent
+          -- Phase 14 (D-02): each row in the budget's current currency at its own date.
+          SELECT category_id::text AS id,
+                 COALESCE(SUM(budgeting.fx_convert(amount_original_cents, currency_original,
+                                                   ${currency}::text, transaction_date)), 0)::text AS spent
             FROM budgeting.expense_ledger
            WHERE tenant_id = ${input.tenantId}::uuid
              AND kind = 'SPENDING'
@@ -320,7 +325,8 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
           SELECT e.transaction_date::text AS date,
                  COALESCE(NULLIF(e.note, ''), sp.note, '') AS name,
                  e.category_id::text AS category_id,
-                 e.amount_converted_cents::text AS amount_cents
+                 COALESCE(budgeting.fx_convert(e.amount_original_cents, e.currency_original,
+                                               ${currency}::text, e.transaction_date), 0)::text AS amount_cents
             FROM budgeting.expense_ledger e
             LEFT JOIN budgeting.scheduled_payments sp ON sp.id = e.scheduled_payment_id
            WHERE e.tenant_id = ${input.tenantId}::uuid
@@ -427,14 +433,26 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       category_id: string;
       normal_amount: string;
       cushion_amount: string;
+      normal_currency?: string;
+      cushion_currency?: string;
       no_limit?: boolean;
       effective_from: string;
       effective_to: string | null;
     };
+    // D-08: every month this window reads is the current one or later, so a
+    // limit in another currency converts at today's rate.
     const limitsByCat = new Map<string, LimitRow[]>();
     for (const raw of L.limitRows as LimitRow[]) {
       const arr = limitsByCat.get(raw.category_id) ?? [];
-      arr.push(raw);
+      arr.push({
+        ...raw,
+        normal_amount: (
+          await fxOne(BigInt(raw.normal_amount), raw.normal_currency ?? currency)
+        ).toString(),
+        cushion_amount: (
+          await fxOne(BigInt(raw.cushion_amount), raw.cushion_currency ?? currency)
+        ).toString(),
+      });
       limitsByCat.set(raw.category_id, arr);
     }
     const budgetAt = (categoryId: string, onDate: string): bigint => {
@@ -580,7 +598,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       }
     }
 
-    // Already stored in the budget currency (amount_converted_cents), so no FX.
+    // Converted in SQL to the budget's current currency at each row's own date.
     const unanswered: CashflowEvent[] = (
       L.pendingRows as Record<string, string | null>[]
     ).map((r) => ({

@@ -55,12 +55,13 @@ export function computeScheduledMonthly(deps: ComputeScheduledMonthlyDeps) {
       UserId(SYSTEM_USER_ID),
       async (tx) => {
         const dz = tx as TxLike;
-        // Spend already converted to the budget currency, by month, so the
-        // average needs no FX of its own.
+        // Spend by month in the budget's current currency, each row at its own
+        // date (Phase 14, D-02), so the average needs no FX of its own.
         const spend = await dz.execute(sql`
           SELECT category_id,
                  to_char(transaction_date, 'YYYY-MM') AS month,
-                 COALESCE(SUM(amount_converted_cents), 0)::text AS cents
+                 COALESCE(SUM(budgeting.fx_convert(amount_original_cents, currency_original,
+                                                   ${input.currency}::text, transaction_date)), 0)::text AS cents
             FROM budgeting.expense_ledger
            WHERE tenant_id = ${input.tenantId}::uuid
              AND kind = 'SPENDING'
