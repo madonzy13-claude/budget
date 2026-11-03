@@ -115,6 +115,20 @@ export class DrizzleTransactionRepo implements TransactionRepo {
     if (r.isErr()) throw r.error;
   }
 
+  async categoryCurrency(tenantId: string, categoryId: string): Promise<string | null> {
+    const r = await withTenantTx(TenantId(tenantId), UserId(tenantId), async (tx) => {
+      const rs = await (
+        tx as { execute: (q: unknown) => Promise<{ rows: { currency: string }[] }> }
+      ).execute(
+        sql`SELECT currency FROM budgeting.categories
+             WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid`,
+      );
+      return rs.rows[0]?.currency ?? null;
+    });
+    if (r.isErr()) throw r.error;
+    return r.value;
+  }
+
   async findById(tenantId: string, id: string): Promise<TransactionRow | null> {
     const r = await withTenantTx(
       TenantId(tenantId),

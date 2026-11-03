@@ -32,6 +32,9 @@ export interface TransactionRepo {
 
   findById(tenantId: string, id: string): Promise<TransactionRow | null>;
 
+  /** Phase 14 (D-05): a category's own currency (null when not in the tenant). */
+  categoryCurrency?(tenantId: string, categoryId: string): Promise<string | null>;
+
   /**
    * In-place UPDATE of editable fields (PATCH /transactions/:id).
    * Caller is responsible for FX re-computation before calling this method.

@@ -34,28 +34,16 @@ export function createCategoryLimitsRoute(deps: BootedDeps) {
     const userId = (c.get("userId") as string) ?? session?.user?.id;
     const { id: categoryId } = c.req.param();
 
-    // Currencies inherit from the active workspace's default_currency so the
-    // user never has to pick — the workspace already declared the currency at
-    // creation time and that's immutable per workspace. We resolve via
-    // listForUser (app-context, RLS-aware) instead of findById (which uses the
-    // worker pool and doesn't see workspace rows that aren't in its scope).
+    // Phase 14: a limit is in its CATEGORY's currency unless the caller names
+    // one (the category itself defaults to the budget's currency at creation).
     let normalCurrency = parsed.data.normalCurrency;
     let cushionCurrency = parsed.data.cushionCurrency;
     if (!normalCurrency || !cushionCurrency) {
-      let fallback = "USD";
-      try {
-        const userIdForLookup = session?.user?.id;
-        if (userIdForLookup) {
-          const memberships =
-            await deps.tenancy.workspaceRepo.listForUser(userIdForLookup);
-          const ws = memberships.find((m) => m.id === tenantId);
-          if (ws?.default_currency) fallback = ws.default_currency;
-        }
-      } catch {
-        // best-effort; keep USD fallback
-      }
-      normalCurrency = normalCurrency ?? fallback;
-      cushionCurrency = cushionCurrency ?? fallback;
+      const cat = await deps.budgeting.findCategoryById({ tenantId, categoryId });
+      if (cat.isErr()) return serverError(c, "set_category_limit_failed", cat.error);
+      if (!cat.value) return c.json({ error: "Not found" }, 404);
+      normalCurrency = normalCurrency ?? cat.value.currency;
+      cushionCurrency = cushionCurrency ?? cat.value.currency;
     }
 
     const r = await deps.budgeting.setCategoryLimit({

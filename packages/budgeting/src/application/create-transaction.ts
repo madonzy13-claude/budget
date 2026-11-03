@@ -41,7 +41,7 @@ export interface CreateTransactionInput {
   categoryId: string;
   /** Signed: negative = a refund (money back into the category). */
   amountOriginalCents: number;
-  /** ISO-4217 3-char code; defaults to budget.currency when omitted */
+  /** ISO-4217 3-char code; defaults to the category's currency when omitted */
   currencyOriginal?: string | null;
   note?: string | null;
   budgetId: string;
@@ -97,9 +97,11 @@ export function createTransaction(deps: CreateTransactionDeps) {
     const kind = "SPENDING";
     const amountOriginalCents = String(Math.trunc(input.amountOriginalCents));
 
-    // Resolve currency (default to budget currency)
+    // Resolve currency: given → the category's own (D-05) → the budget's.
     const currencyOriginal = (
-      input.currencyOriginal ?? budgetCurrency
+      input.currencyOriginal ??
+      (await deps.transactionRepo.categoryCurrency?.(input.tenantId, input.categoryId)) ??
+      budgetCurrency
     ).toUpperCase();
 
     // T-02-01: validate 3-char ISO
