@@ -298,25 +298,50 @@ export function CategorySlider({
     if (open) {
       setCurrency(initial?.currency ?? budgetCurrency);
       setRateError(null);
+      basis.current = null;
+      lastSet.current = {};
     }
   }, [open, initial?.categoryId]);
 
   /** Edit: preview the limit at today's rate in the new currency (the server
-   *  converts authoritatively on save). No rate → inline error, Save off. */
+   *  converts authoritatively on save). No rate → inline error, Save off.
+   *  Always converts FROM the amounts as typed in the stored currency, and
+   *  switching back restores them — never a conversion of a conversion, which
+   *  drifted by a grosz or two (user, 261103). An amount the user edits after
+   *  a switch becomes the new basis. */
+  const AMOUNT_FIELDS = ["needs", "wants", "customCushion"] as const;
+  const basis = useRef<{ currency: string; values: Record<string, string> } | null>(null);
+  const lastSet = useRef<Record<string, string>>({});
   async function changeCurrency(next: string) {
     const prev = currency;
     setCurrency(next);
     setRateError(null);
     if (mode !== "edit" || next === prev) return;
+    const now = Object.fromEntries(AMOUNT_FIELDS.map((f) => [f, form.getValues(f)]));
+    const untouched = AMOUNT_FIELDS.every((f) => now[f] === (lastSet.current[f] ?? now[f]));
+    if (!basis.current || !untouched) basis.current = { currency: prev, values: now };
+    const from = basis.current;
+    const apply = (vals: Record<string, string>) => {
+      for (const f of AMOUNT_FIELDS) form.setValue(f, vals[f] ?? "", { shouldValidate: true });
+      lastSet.current = vals;
+    };
+    if (next === from.currency) {
+      apply(from.values);
+      return;
+    }
     const today = new Date().toISOString().slice(0, 10);
     try {
-      const res = await clientApiFetch(`/fx/rate?from=${prev}&to=${next}&date=${today}`);
+      const res = await clientApiFetch(`/fx/rate?from=${from.currency}&to=${next}&date=${today}`);
       if (!res.ok) throw new Error("no_rate");
       const { rate } = (await res.json()) as { rate: string };
-      for (const f of ["needs", "wants", "customCushion"] as const) {
-        const v = form.getValues(f);
-        if (v) form.setValue(f, centsToDecimal(convertCentsStr(String(amountToCents(v)), rate)), { shouldValidate: true });
-      }
+      apply(
+        Object.fromEntries(
+          AMOUNT_FIELDS.map((f) => {
+            const v = from.values[f];
+            return [f, v ? centsToDecimal(convertCentsStr(String(amountToCents(v)), rate)) : v ?? ""];
+          }),
+        ),
+      );
     } catch {
       setRateError(`${storedCurrency}/${next}`);
     }
