@@ -436,12 +436,14 @@ Plans:
 **Goal:** The budget currency can change at any time and every total re-expresses itself at historical rates, while each transaction keeps the currency it was entered in. Each spending category carries its own currency, and reserve wallets may be in any currency, with the reserve need and its top-up/withdraw tasks split per currency.
 
 **Decided with the user (2026-11-03):**
+
 - Transactions never change currency on their own; after a budget or category currency change they show their own currency as a suffix. The user edits a transaction to change it.
 - A category's currency defaults to the budget currency when it is created; a plain transaction in it takes that currency. Changing a category's currency converts its limit at today's rate.
 - Limits in another currency count at the latest rate in the current month, and at the last rate available within the month for past months (frozen).
 - Reserve wallets: currency unlocked. Same-currency wallets cover a currency's need first; the remainder is converted at today's rate. Single-currency reserves stay allowed (more frequent tasks accepted).
 
 **Success criteria:**
+
 1. Changing the budget currency (any time, owner) re-expresses spendings, limits, reserves, cushion, cash flow, overview cards, wealth history and investment P/L in the new currency; no total mixes currencies.
 2. Old-currency transactions render with their currency suffix and keep their stored original amount.
 3. A category's currency is set on create/edit; quick entry and the transaction slider default to it.
@@ -453,26 +455,49 @@ Plans:
 **Plans:** 21 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 14-01-PLAN.md — migration 0104: fx_convert(), categories.currency, adjustments.currency, fx-sql helpers [BLOCKING apply]
 - [ ] 14-02-PLAN.md — pure settleReserveByCurrency (own ccy first, net, exact, ≈ budget ccy)
-- [ ] 14-03-PLAN.md — pure D-17 closed-month result conversion
 - [ ] 14-04-PLAN.md — all Phase 14 i18n keys + shared E2E FX seed step
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 14-03-PLAN.md — pure D-17 closed-month result conversion
 - [ ] 14-05-PLAN.md — category currency backend (create default, DTO, tx default, limit currency)
 - [ ] 14-06-PLAN.md — ledger read-time conversion (transaction-repo, list/search) + architecture guard
 - [ ] 14-07-PLAN.md — D-08 limit conversion (limit repo currency, spendings summary)
 - [ ] 14-08-PLAN.md — overview + home summary read-time conversion
 - [ ] 14-09-PLAN.md — cash flow, scheduled monthly, cushion, income task conversion
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 14-10-PLAN.md — reserve fit + wealth re-expression; guard green
 - [ ] 14-11-PLAN.md — per-currency reserve replay (D-10, D-17)
+- [ ] 14-18-PLAN.md — entry defaults to category currency + foreign limit display (web)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 14-12-PLAN.md — settlement wiring, D-14 fix, multi-line RESERVE_TOPUP payload
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 14-13-PLAN.md — per-currency reserve DTOs + spendings reserve conversion
-- [ ] 14-14-PLAN.md — web per-currency reserve task copy + reserves tab
 - [ ] 14-15-PLAN.md — reserve wallet currency unlock (D-09)
 - [ ] 14-16-PLAN.md — change category currency with limit conversion (D-07)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 14-14-PLAN.md — web per-currency reserve task copy + reserves tab
 - [ ] 14-17-PLAN.md — category slider currency field (web)
-- [ ] 14-18-PLAN.md — entry defaults to category currency + foreign limit display (web)
 - [ ] 14-19-PLAN.md — remove budget currency locks (backend, LAST)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
 - [ ] 14-20-PLAN.md — settings confirm dialog, cache invalidation, full E2E (web, LAST)
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
 - [ ] 14-21-PLAN.md — phase gate + owner verification checkpoint
 
 ---
