@@ -20,12 +20,6 @@ for (const k of ["DATABASE_URL_APP", "DATABASE_URL_WORKER", "DATABASE_URL_MIGRAT
 
 export type Fixture = { tenant: string; user: string; A: string; B: string; T: string };
 
-const superUrl = () =>
-  process.env.DATABASE_URL_MIGRATOR!.replace(
-    /\/\/[^:]+:[^@]+@/,
-    `//postgres:${process.env.POSTGRES_PASSWORD}@`,
-  );
-
 async function asApp(f: Fixture, fn: (db: Pool) => Promise<void>) {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP! });
   const c = await pool.connect();
@@ -41,10 +35,11 @@ async function asApp(f: Fixture, fn: (db: Pool) => Promise<void>) {
   }
 }
 
+/** Until plan 19 removes the lock, the budget currency changes straight in the DB. */
 export async function setBudgetCurrency(f: Fixture, ccy: string) {
-  const pool = new Pool({ connectionString: superUrl() });
-  await pool.query(`UPDATE tenancy.budgets SET default_currency = $1 WHERE id = $2`, [ccy, f.tenant]);
-  await pool.end();
+  await asApp(f, async (db) => {
+    await db.query(`UPDATE tenancy.budgets SET default_currency = $1 WHERE id = $2`, [ccy, f.tenant]);
+  });
 }
 
 export async function createFixture(provider: string): Promise<Fixture> {
@@ -117,10 +112,10 @@ export async function createFixture(provider: string): Promise<Fixture> {
 
 export async function dropFixture(f: Fixture, provider: string) {
   setServerTestNow(null);
-  const pool = new Pool({ connectionString: superUrl() });
-  for (const t of ["expense_ledger", "category_limits", "categories"])
-    await pool.query(`DELETE FROM budgeting.${t} WHERE tenant_id = $1`, [f.tenant]);
-  await pool.query(`DELETE FROM tenancy.budgets WHERE id = $1`, [f.tenant]);
-  await pool.end();
+  await asApp(f, async (db) => {
+    for (const t of ["expense_ledger", "category_limits", "categories"])
+      await db.query(`DELETE FROM budgeting.${t} WHERE tenant_id = $1`, [f.tenant]);
+    await db.query(`DELETE FROM tenancy.budgets WHERE id = $1`, [f.tenant]);
+  });
   await deleteFxRates(provider);
 }

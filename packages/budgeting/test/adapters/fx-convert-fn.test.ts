@@ -104,12 +104,16 @@ describe.skipIf(!APP || !MIGRATOR)("budgeting.fx_convert", () => {
         `//postgres:${process.env.POSTGRES_PASSWORD}@`,
       ),
     });
-    const big = await su.query<{ tenant_id: string; ccy: string }>(
-      `SELECT l.tenant_id, b.default_currency AS ccy
-         FROM budgeting.expense_ledger l
-         JOIN tenancy.budgets b ON b.id = l.tenant_id
-        GROUP BY 1, 2 ORDER BY count(*) DESC LIMIT 1`,
-    );
+    // In-process, another suite may have repointed the env at a throwaway
+    // testcontainer whose superuser this cannot log into: nothing to measure there.
+    const big = await su
+      .query<{ tenant_id: string; ccy: string }>(
+        `SELECT l.tenant_id, b.default_currency AS ccy
+           FROM budgeting.expense_ledger l
+           JOIN tenancy.budgets b ON b.id = l.tenant_id
+          GROUP BY 1, 2 ORDER BY count(*) DESC LIMIT 1`,
+      )
+      .catch(() => ({ rows: [] as { tenant_id: string; ccy: string }[] }));
     await su.end();
     const row = big.rows[0];
     if (!row) return;

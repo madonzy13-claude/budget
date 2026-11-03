@@ -694,17 +694,15 @@ describe("Category currency", () => {
   /** Budget currency is changed straight in the DB until the lock goes (plan 19). */
   async function setBudgetCurrency(ccy: string) {
     const { Pool } = await import("pg");
-    const pool = new Pool({
-      connectionString: DB_URL!.replace(
-        /\/\/[^:]+:[^@]+@/,
-        `//postgres:${process.env.POSTGRES_PASSWORD}@`,
-      ),
-    });
-    await pool.query(`UPDATE tenancy.budgets SET default_currency = $1 WHERE id = $2`, [
-      ccy,
-      tenantId,
-    ]);
-    await pool.end();
+    const pool = new Pool({ connectionString: DB_URL });
+    const c = await pool.connect();
+    try {
+      await c.query(`SELECT set_config('app.tenant_ids', $1, false)`, [`{${tenantId}}`]);
+      await c.query(`UPDATE tenancy.budgets SET default_currency = $1 WHERE id = $2`, [ccy, tenantId]);
+    } finally {
+      c.release();
+      await pool.end();
+    }
   }
 
   beforeAll(async () => {

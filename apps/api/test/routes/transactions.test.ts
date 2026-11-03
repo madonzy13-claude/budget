@@ -611,15 +611,16 @@ describe("PATCH an unconfirmed scheduled payment's date", () => {
 describe("GET transactions after a budget currency change", () => {
   const PROVIDER = `test-14-06-route-${crypto.randomUUID()}`;
   let f: { userId: string; budgetId: string; categoryId: string };
-  const superUrl = () =>
-    process.env.DATABASE_URL_APP!.replace(
-      /\/\/[^:]+:[^@]+@/,
-      `//postgres:${process.env.POSTGRES_PASSWORD}@`,
-    );
   const setCcy = async (ccy: string) => {
-    const pool = new Pool({ connectionString: superUrl() });
-    await pool.query(`UPDATE tenancy.budgets SET default_currency = $1 WHERE id = $2`, [ccy, f.budgetId]);
-    await pool.end();
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
+    const c = await pool.connect();
+    try {
+      await c.query(`SELECT set_config('app.tenant_ids', $1, false)`, [`{${f.budgetId}}`]);
+      await c.query(`UPDATE tenancy.budgets SET default_currency = $1 WHERE id = $2`, [ccy, f.budgetId]);
+    } finally {
+      c.release();
+      await pool.end();
+    }
   };
 
   beforeAll(async () => {

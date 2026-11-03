@@ -28,12 +28,6 @@ const LATER = "1999-03-20";
 const MONTH_START = "1999-03-01";
 const MONTH_END = "1999-04-01";
 
-const superUrl = () =>
-  process.env.DATABASE_URL_MIGRATOR!.replace(
-    /\/\/[^:]+:[^@]+@/,
-    `//postgres:${process.env.POSTGRES_PASSWORD}@`,
-  );
-
 async function asApp<T>(fn: (p: Pool) => Promise<T>): Promise<T> {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP! });
   const c = await pool.connect();
@@ -51,9 +45,9 @@ async function asApp<T>(fn: (p: Pool) => Promise<T>): Promise<T> {
 
 /** Until plan 19 removes the lock, the budget currency changes straight in the DB. */
 async function setBudgetCurrency(ccy: string) {
-  const pool = new Pool({ connectionString: superUrl() });
-  await pool.query(`UPDATE tenancy.budgets SET default_currency = $1 WHERE id = $2`, [ccy, TENANT]);
-  await pool.end();
+  await asApp((db) =>
+    db.query(`UPDATE tenancy.budgets SET default_currency = $1 WHERE id = $2`, [ccy, TENANT]),
+  );
 }
 
 const ledgerSnapshot = () =>
@@ -120,11 +114,11 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Read-time conversion of the ledg
 
   afterAll(async () => {
     await setBudgetCurrency("PLN");
-    const pool = new Pool({ connectionString: superUrl() });
-    await pool.query(`DELETE FROM budgeting.expense_ledger WHERE tenant_id = $1`, [TENANT]);
-    await pool.query(`DELETE FROM budgeting.categories WHERE tenant_id = $1`, [TENANT]);
-    await pool.query(`DELETE FROM tenancy.budgets WHERE id = $1`, [TENANT]);
-    await pool.end();
+    await asApp(async (db) => {
+      await db.query(`DELETE FROM budgeting.expense_ledger WHERE tenant_id = $1`, [TENANT]);
+      await db.query(`DELETE FROM budgeting.categories WHERE tenant_id = $1`, [TENANT]);
+      await db.query(`DELETE FROM tenancy.budgets WHERE id = $1`, [TENANT]);
+    });
     await deleteFxRates(PROVIDER);
   });
 
