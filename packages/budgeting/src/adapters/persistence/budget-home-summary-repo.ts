@@ -8,8 +8,10 @@
  * Schema invariants honored (per 03-02-PLAN.md <schema_canon>):
  *   - tenancy.budgets   keyed by id (no tenant_id col, no deleted_at col)
  *   - budgeting.expense_ledger (NOT transactions); date col transaction_date;
- *     sum amount_converted_cents where kind='SPENDING' AND confirmed_at IS
- *     NOT NULL AND deleted_at IS NULL
+ *     spend summed where kind='SPENDING' AND confirmed_at IS NOT NULL AND
+ *     deleted_at IS NULL, each row converted at read time to the budget's
+ *     CURRENT currency at its own date (Phase 14, D-02); limits convert from
+ *     their own currency at LEAST(month end, today) (D-08)
  *   - budgeting.wallets keyed by tenant_id; balance is current_balance
  *     numeric(19,4) — converted to cents at the boundary via (current_balance *
  *     100)::bigint
@@ -21,7 +23,8 @@
  */
 import { sql } from "drizzle-orm";
 import { withTenantTx } from "@budget/platform";
-import { TenantId, UserId } from "@budget/shared-kernel";
+import { TenantId, UserId, serverNow } from "@budget/shared-kernel";
+import { budgetCurrency, budgetToday, fxConvert, ledgerAmountIn, limitRateDate } from "./fx-sql";
 import type {
   BudgetHomeSummaryRepo,
   BudgetHomeSummaryMeta,
@@ -94,7 +97,7 @@ export function createBudgetHomeSummaryRepo(): BudgetHomeSummaryRepo {
         async (tx) => {
           const drizzleTx = tx as DrizzleTx;
           const res = await drizzleTx.execute(sql`
-            SELECT COALESCE(SUM(amount_converted_cents), 0)::text AS total
+            SELECT COALESCE(SUM(${ledgerAmountIn(budgetCurrency(budgetId))}), 0)::text AS total
               FROM budgeting.expense_ledger
              WHERE budget_id = ${budgetId}::uuid
                AND tenant_id = ${budgetId}::uuid
@@ -149,6 +152,11 @@ export function createBudgetHomeSummaryRepo(): BudgetHomeSummaryRepo {
       //   effective_from <= monthStart < (effective_to OR +infinity).
       const startDate = toDate(monthStart);
       const endDate = toDate(monthEnd);
+      const ccy = budgetCurrency(budgetId);
+      const rateOn = limitRateDate(
+        sql`(${endDate}::date - 1)`,
+        budgetToday(budgetId, serverNow()),
+      );
       const r = await withTenantTx(
         TenantId(budgetId),
         UserId(SYSTEM_USER_ID),
@@ -157,7 +165,7 @@ export function createBudgetHomeSummaryRepo(): BudgetHomeSummaryRepo {
           const res = await drizzleTx.execute(sql`
             WITH spent AS (
               SELECT category_id,
-                     COALESCE(SUM(amount_converted_cents), 0)::bigint AS spent_cents
+                     COALESCE(SUM(${ledgerAmountIn(ccy)}), 0)::bigint AS spent_cents
                 FROM budgeting.expense_ledger
                WHERE budget_id = ${budgetId}::uuid
                  AND tenant_id = ${budgetId}::uuid
@@ -170,10 +178,10 @@ export function createBudgetHomeSummaryRepo(): BudgetHomeSummaryRepo {
             ),
             limits AS (
               SELECT cl.category_id,
-                     CASE WHEN ${useCushion}::boolean
-                          THEN cl.cushion_amount
-                          ELSE cl.normal_amount
-                     END AS active_budget_cents
+                     COALESCE(CASE WHEN ${useCushion}::boolean
+                          THEN ${fxConvert(sql`cl.cushion_amount`, sql`cl.cushion_currency`, ccy, rateOn)}
+                          ELSE ${fxConvert(sql`cl.normal_amount`, sql`cl.normal_currency`, ccy, rateOn)}
+                     END, 0) AS active_budget_cents
                 FROM budgeting.category_limits cl
                WHERE cl.tenant_id = ${budgetId}::uuid
                  AND cl.effective_from <= ${startDate}::date

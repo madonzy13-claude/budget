@@ -4,9 +4,10 @@
  * Implements OverviewPlannedRepo. Every method opens its own withTenantTx scoped
  * to budgetId (v1.1: budget_id === tenant_id) so RLS GUC app.tenant_ids is set.
  *
- * Money convention (matches get-spendings-summary): the ledger stores
- * amount_converted_cents already in the budget currency, and category_limits are
- * in the budget currency — so spend + planned are default_ccy with NO FX here.
+ * Money convention (Phase 14): everything comes back in the budget's CURRENT
+ * currency, converted at read time — spend at each transaction's date (D-02),
+ * a limit from its own currency at LEAST(month end, today) (D-08: past months
+ * frozen at their last rate). `today` is serverNow() in the budget timezone.
  * Spend is bucketed by transaction_date (NOT confirmed_at) so the monthly real
  * figures match the spendings grid (D-12); confirmed_at IS NOT NULL is the
  * confirmed filter. Per-month planned uses the SCD-2 category_limits row active at
@@ -14,7 +15,14 @@
  */
 import { sql } from "drizzle-orm";
 import { withTenantTx } from "@budget/platform";
-import { TenantId, UserId } from "@budget/shared-kernel";
+import { TenantId, UserId, serverNow } from "@budget/shared-kernel";
+import {
+  budgetCurrency,
+  budgetToday,
+  fxConvert,
+  ledgerAmountIn,
+  limitRateDate,
+} from "./fx-sql";
 import type {
   OverviewPlannedRepo,
   MonthlyPlannedRow,
@@ -51,16 +59,17 @@ export function createOverviewRepo(): OverviewPlannedRepo {
       from,
       to,
     ): Promise<MonthlySpendRow[]> {
+      const spend = ledgerAmountIn(budgetCurrency(budgetId));
       return read(budgetId, async (tx) => {
         const res = await tx.execute(sql`
           SELECT category_id::text AS category_id,
                  to_char(transaction_date, 'YYYY-MM') AS month,
-                 COALESCE(SUM(amount_converted_cents), 0)::text AS spent_cents,
+                 COALESCE(SUM(${spend}), 0)::text AS spent_cents,
                  -- The half that came from a SCHEDULED payment. The schedule
                  -- already projects these forward on their own, so sizing must
                  -- be able to leave them out of "what habit costs" rather than
                  -- charge the same camping trip twice (260807).
-                 COALESCE(SUM(amount_converted_cents)
+                 COALESCE(SUM(${spend})
                             FILTER (WHERE scheduled_payment_id IS NOT NULL), 0)::text
                    AS scheduled_cents
             FROM budgeting.expense_ledger
@@ -88,6 +97,8 @@ export function createOverviewRepo(): OverviewPlannedRepo {
       from,
       to,
     ): Promise<MonthlyPlannedRow[]> {
+      const ccy = budgetCurrency(budgetId);
+      const rateOn = limitRateDate(sql`cm.month_end`, budgetToday(budgetId, serverNow()));
       return read(budgetId, async (tx) => {
         const res = await tx.execute(sql`
           WITH months AS (
@@ -163,7 +174,10 @@ export function createOverviewRepo(): OverviewPlannedRepo {
             FROM cat_month cm
             JOIN mode_at ma ON ma.month_start = cm.month_start
             JOIN LATERAL (
-              SELECT cl.normal_amount, cl.cushion_amount, cl.needs_amount,
+              -- D-08: each amount from its own currency at LEAST(month end, today).
+              SELECT COALESCE(${fxConvert(sql`cl.normal_amount`, sql`cl.normal_currency`, ccy, rateOn)}, 0) AS normal_amount,
+                     COALESCE(${fxConvert(sql`cl.cushion_amount`, sql`cl.cushion_currency`, ccy, rateOn)}, 0) AS cushion_amount,
+                     ${fxConvert(sql`cl.needs_amount`, sql`cl.normal_currency`, ccy, rateOn)} AS needs_amount,
                      cl.no_limit
                 FROM budgeting.category_limits cl
                WHERE cl.tenant_id = ${budgetId}::uuid
@@ -235,14 +249,15 @@ export function createOverviewRepo(): OverviewPlannedRepo {
               sql`, `,
             )})`
           : sql``;
+        const spend = ledgerAmountIn(budgetCurrency(budgetId));
         const res = await tx.execute(sql`
           SELECT to_char(transaction_date, 'YYYY-MM-DD') AS day,
-                 COALESCE(SUM(amount_converted_cents), 0)::text AS spent_cents,
+                 COALESCE(SUM(${spend}), 0)::text AS spent_cents,
                  -- The half that came from a SCHEDULED payment. The schedule
                  -- already projects these forward on their own, so sizing must
                  -- be able to leave them out of "what habit costs" rather than
                  -- charge the same camping trip twice (260807).
-                 COALESCE(SUM(amount_converted_cents)
+                 COALESCE(SUM(${spend})
                             FILTER (WHERE scheduled_payment_id IS NOT NULL), 0)::text
                    AS scheduled_cents
             FROM budgeting.expense_ledger
