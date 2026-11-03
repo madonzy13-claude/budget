@@ -431,6 +431,30 @@ Plans:
 - [x] 13-13-PLAN.md — Web Edit "What happened?", History with full undo, Add date (wave 9)
 - [ ] 13-14-PLAN.md — E2E Gherkin (sell + history), full gate, user real-data acceptance (wave 10)
 
+### Phase 14: Multi-currency budgets: changeable budget currency, per-category currency, multi-currency reserves
+
+**Goal:** The budget currency can change at any time and every total re-expresses itself at historical rates, while each transaction keeps the currency it was entered in. Each spending category carries its own currency, and reserve wallets may be in any currency, with the reserve need and its top-up/withdraw tasks split per currency.
+
+**Decided with the user (2026-11-03):**
+- Transactions never change currency on their own; after a budget or category currency change they show their own currency as a suffix. The user edits a transaction to change it.
+- A category's currency defaults to the budget currency when it is created; a plain transaction in it takes that currency. Changing a category's currency converts its limit at today's rate.
+- Limits in another currency count at the latest rate in the current month, and at the last rate available within the month for past months (frozen).
+- Reserve wallets: currency unlocked. Same-currency wallets cover a currency's need first; the remainder is converted at today's rate. Single-currency reserves stay allowed (more frequent tasks accepted).
+
+**Success criteria:**
+1. Changing the budget currency (any time, owner) re-expresses spendings, limits, reserves, cushion, cash flow, overview cards, wealth history and investment P/L in the new currency; no total mixes currencies.
+2. Old-currency transactions render with their currency suffix and keep their stored original amount.
+3. A category's currency is set on create/edit; quick entry and the transaction slider default to it.
+4. Reserve wallets can be in any currency; the reserve message and RESERVE_TOPUP task state the shortfall/surplus per currency.
+5. The reserve-wallet total converts wallets in other currencies (today it sums them raw).
+
+**Requirements**: CONTEXT decisions (no REQ ids mapped)
+**Depends on:** Phase 13
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 14 to break down)
+
 ---
 
 _Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.1 requirements mapped. Phase 7 rescoped 2026-05-30: 3-kind set (RESERVE_TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET); TASK-05 dropped from v1.1; TASK-04 reassigned semantic to CUSHION_BELOW_TARGET. Phase 11 added 2026-06-28 (v1.2 Overview tab — single phase; budget-side compute-on-read + per-budget 3h wealth aggregate snapshot)._
