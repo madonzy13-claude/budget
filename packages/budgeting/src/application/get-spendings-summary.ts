@@ -435,8 +435,9 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           // The column in the category's own currency (user, 261103).
           const catCcy = posResult.value.categoryCurrency?.get(c.id) ?? c.currency ?? meta.currency;
           let own: SpendingsSummaryCategoryDTO["own"];
-          if (catCcy !== meta.currency && !isInvestment && limits.original) {
-            const o = limits.original;
+          if (catCcy !== meta.currency && !isInvestment) {
+            // No limit row yet → a zero limit, still in the category's currency.
+            const o = limits.original ?? { planned: 0n, cushion: 0n };
             const oSpent = ownSpend.get(c.id) ?? 0n;
             const oActive = noLimit ? oSpent : monthCushionMode ? o.cushion : o.planned;
             const oOver = noLimit ? 0n : (cell?.overageCents ?? (oSpent > oActive ? oSpent - oActive : 0n));

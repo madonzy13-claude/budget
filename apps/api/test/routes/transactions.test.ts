@@ -662,3 +662,24 @@ describe("GET transactions after a budget currency change", () => {
     }
   });
 });
+
+describe("POST transactions — the reply names its converted currency", () => {
+  it("a foreign spending's converted figure is labelled with the budget currency", async () => {
+    const f = await createTestFixture("PLN");
+    const app = await buildApp(f.userId, f.budgetId);
+    const res = await app.request(`/budgets/${f.budgetId}/transactions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: new Date().toISOString().slice(0, 10),
+        category_id: f.categoryId,
+        amount_original_cents: 2000,
+        currency_original: "EUR",
+      }),
+    });
+    expect(res.status).toBe(201);
+    const { transaction } = await res.json();
+    expect(transaction.currency_original).toBe("EUR");
+    expect(transaction.currency_converted).toBe("PLN");
+  });
+});

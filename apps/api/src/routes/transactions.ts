@@ -252,7 +252,11 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
     }
 
     await syncReserveTopup(tenantId, budgetId, userId);
-    return c.json({ transaction: serializeRow(r.value.transaction) }, 201);
+    return c.json({ transaction: serializeRow({
+      ...r.value.transaction,
+      // Written in the budget's currency at write time (Phase 14).
+      currencyConverted: await getBudgetCurrency(r.value.transaction.budgetId),
+    }) }, 201);
   });
 
   // ── PATCH /:txId — edit transaction (FX re-compute on currency/date change) ──
@@ -289,7 +293,11 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
       c.req.param("budgetId") ?? tenantId,
       userId,
     );
-    return c.json({ transaction: serializeRow(r.value.transaction) }, 200);
+    return c.json({ transaction: serializeRow({
+      ...r.value.transaction,
+      // Written in the budget's currency at write time (Phase 14).
+      currencyConverted: await getBudgetCurrency(r.value.transaction.budgetId),
+    }) }, 200);
   });
 
   // ── POST /:txId/confirm — flip draft → confirmed ──────────────────────
