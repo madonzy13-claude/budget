@@ -67,4 +67,11 @@ describe("Multi-currency copy", () => {
       }
     }
   });
+
+  it("the lock-era copy is gone (Phase 14 removed its readers)", () => {
+    for (const locale of [en, pl, uk]) {
+      expect(at(locale, "settings.identity.currency_locked_tooltip")).toBeUndefined();
+      expect(at(locale, "bdp.tab.wallets.row.currencyReadOnlyAria")).toBeUndefined();
+    }
+  });
 });
