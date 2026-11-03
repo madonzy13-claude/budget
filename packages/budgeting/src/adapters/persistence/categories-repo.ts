@@ -91,11 +91,12 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
         sort_index: number;
         color_key: string | null;
         is_investment: boolean;
+        currency: string;
       }>(
         // 05-12: the stored-actual column was dropped in
         // 0030_phase05_reserve_model_reset — reserve is engine-derived now.
         // 260613-v1p: color_key added so the reserves row can render the accent bar.
-        sql`SELECT id, name, reserve_excluded, archived_at, sort_index, color_key, is_investment
+        sql`SELECT id, name, reserve_excluded, archived_at, sort_index, color_key, is_investment, currency
             FROM budgeting.categories
             WHERE id = ${categoryId}::uuid
               AND tenant_id = ${tenantId}::uuid
@@ -115,6 +116,7 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
       sortIndex: Number(row.sort_index ?? 0),
       colorKey: row.color_key ?? null,
       isInvestment: row.is_investment ?? false,
+      currency: row.currency,
     };
   }
 
@@ -136,13 +138,14 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
         color_key: string | null;
         is_investment: boolean;
         cushion_mode: string | null;
+        currency: string;
       }>(
         // Current-state read (reserves): hide fully-removed (archived_at) and
         // month-removed-as-of-this-month (archived_from <= current month).
         // Archived categories never appear on the Reserves tab.
         // 05-12: the stored-actual column was dropped (0030 reset) — engine-derived.
         // 260613-v1p: color_key added so the reserves row can render the accent bar.
-        sql`SELECT id, name, reserve_excluded, archived_at, sort_index, color_key, is_investment, cushion_mode
+        sql`SELECT id, name, reserve_excluded, archived_at, sort_index, color_key, is_investment, cushion_mode, currency
             FROM budgeting.categories
             WHERE tenant_id = ${tenantId}::uuid
               AND archived_at IS NULL
@@ -163,6 +166,7 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
         color_key: string | null;
         is_investment: boolean;
         cushion_mode: string | null;
+        currency: string;
       }) => ({
         id: row.id,
         name: row.name,
@@ -172,6 +176,7 @@ export class DrizzleCategoriesRepo implements CategoriesRepo {
         colorKey: row.color_key ?? null,
         isInvestment: row.is_investment ?? false,
         cushionMode: row.cushion_mode ?? null,
+        currency: row.currency,
       }),
     );
   }

@@ -24,6 +24,7 @@ function rowToCategory(row: {
   is_investment?: boolean | null;
   investment_limit_mode?: string | null;
   cushion_mode?: string | null;
+  currency?: string | null;
 }): Category {
   const { Category: CategoryClass } = require("../../domain/category");
   const cat = new CategoryClass(
@@ -38,6 +39,7 @@ function rowToCategory(row: {
     row.is_investment ?? false,
     row.investment_limit_mode ?? null,
     row.cushion_mode ?? null,
+    row.currency ?? null,
   );
   // Attach sort_index + archived_from as plain properties (domain class doesn't
   // track them — adapter concern). archivedFrom drives the grid's greyed,
@@ -55,20 +57,25 @@ export class DrizzleCategoryRepo implements CategoryRepo {
     const r = await withTenantTx(tid, uid, async (tx) => {
       // sort_index = max existing + 1 so a freshly created category lands
       // last (rightmost) in the grid instead of defaulting to 0.
-      await tx.execute(
+      // currency NULL → the BEFORE INSERT trigger (0104) fills the budget's
+      // currency of this moment (D-04); RETURNING hands it back to the entity.
+      const ins = await tx.execute<{ currency: string }>(
         sql`INSERT INTO budgeting.categories
-              (id, tenant_id, name, parent_id, color_key, cushion_mode, archived_at, created_at, actor_user_id, sort_index)
+              (id, tenant_id, name, parent_id, color_key, cushion_mode, currency, archived_at, created_at, actor_user_id, sort_index)
             VALUES
               (${category.id}::uuid, ${category.tenantId}::uuid, ${category.name},
                ${category.parentId ? sql`${category.parentId}::uuid` : sql`NULL`},
                ${category.colorKey ?? null},
                ${category.cushionMode ?? null},
+               ${category.currency ?? null},
                ${category.archivedAt?.toISOString() ?? null},
                ${category.createdAt.toISOString()}, ${category.actorUserId}::uuid,
                (SELECT COALESCE(MAX(sort_index), -1) + 1
                   FROM budgeting.categories
-                 WHERE tenant_id = ${category.tenantId}::uuid))`,
+                 WHERE tenant_id = ${category.tenantId}::uuid))
+            RETURNING currency`,
       );
+      category.currency = ins.rows[0]!.currency;
 
       await writeAudit(tx, {
         tenantId: tid,
@@ -115,7 +122,7 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         sort_index: number;
         color_key: string | null;
       }>(
-        sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from::text, created_at, actor_user_id, sort_index, is_investment, investment_limit_mode, cushion_mode
+        sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from::text, created_at, actor_user_id, sort_index, is_investment, investment_limit_mode, cushion_mode, currency
             FROM budgeting.categories
             WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid`,
       );
@@ -151,7 +158,7 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         color_key: string | null;
       }>(
         includeArchived
-          ? sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from, created_at, actor_user_id, sort_index, is_investment, investment_limit_mode, cushion_mode
+          ? sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from, created_at, actor_user_id, sort_index, is_investment, investment_limit_mode, cushion_mode, currency
                 FROM budgeting.categories
                 WHERE tenant_id = ${tenantId}::uuid
                 ORDER BY sort_index ASC, created_at ASC`
@@ -159,7 +166,7 @@ export class DrizzleCategoryRepo implements CategoryRepo {
             // visible THROUGH its archived_from month (>= M) so the current month
             // still shows it (greyed, read-only); only FUTURE months (M after
             // archived_from) drop it. Fully-removed (archived_at) is always hidden.
-            sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from, created_at, actor_user_id, sort_index, is_investment, investment_limit_mode, cushion_mode
+            sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from, created_at, actor_user_id, sort_index, is_investment, investment_limit_mode, cushion_mode, currency
                 FROM budgeting.categories
                 WHERE tenant_id = ${tenantId}::uuid
                   AND archived_at IS NULL
@@ -381,7 +388,7 @@ export class DrizzleCategoryRepo implements CategoryRepo {
     const uid = UserId(tenantId);
     const r = await withTenantTx(tid, uid, async (tx) => {
       const result = await tx.execute(
-        sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from::text, created_at, actor_user_id, sort_index, is_investment, investment_limit_mode, cushion_mode
+        sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from::text, created_at, actor_user_id, sort_index, is_investment, investment_limit_mode, cushion_mode, currency
             FROM budgeting.categories
             WHERE tenant_id = ${tenantId}::uuid AND is_investment
               AND archived_at IS NULL AND archived_from IS NULL

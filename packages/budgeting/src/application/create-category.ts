@@ -52,6 +52,7 @@ export function createCategory(deps: CreateCategoryDeps) {
       false,
       null,
       input.cushionMode ?? null,
+      input.currency ?? null,
     );
 
     try {
@@ -68,6 +69,7 @@ export function createCategory(deps: CreateCategoryDeps) {
       createdAt: now.toISOString(),
       colorKey: category.colorKey,
       cushionMode: category.cushionMode,
+      currency: category.currency!,
     });
   };
 }

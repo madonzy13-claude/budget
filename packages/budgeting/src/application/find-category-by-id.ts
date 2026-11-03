@@ -25,6 +25,7 @@ export function findCategoryById(deps: FindCategoryByIdDeps) {
         createdAt: cat.createdAt.toISOString(),
         colorKey: cat.colorKey ?? null,
         cushionMode: cat.cushionMode ?? null,
+        currency: cat.currency!,
       });
     } catch (e) {
       return err(e as Error);

@@ -26,6 +26,9 @@ export class Category {
     public investmentLimitMode: string | null = null,
     // Persisted cushion configuration (mig 0059); null = inferred.
     public cushionMode: string | null = null,
+    // Phase 14 (D-04): the category's own currency. null on a not-yet-saved
+    // category = "take the budget's currency of this moment" (filled at INSERT).
+    public currency: string | null = null,
   ) {}
 
   /** Set or clear the category color (260613-v1p). null clears it (→ no bar). */

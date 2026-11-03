@@ -23,6 +23,8 @@ export interface CategoryRow {
   isInvestment?: boolean;
   /** Persisted cushion configuration (mig 0059); null = inferred. */
   cushionMode?: string | null;
+  /** Phase 14 (D-04): the category's own currency (its reserve is held in it, D-10). */
+  currency?: string;
 }
 
 export interface CategoriesRepo {
