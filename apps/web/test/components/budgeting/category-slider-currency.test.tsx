@@ -81,6 +81,26 @@ describe("Category slider — currency", () => {
     await waitFor(() => expect(bodyOf(/\/categories\/cat-1\/currency$/, "PATCH")).toEqual({ currency: "EUR" }));
   });
 
+  it("switching back to the stored currency restores the amounts exactly", async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (String(url).includes("from=PLN&to=EUR")) return { ok: true, json: async () => ({ rate: "0.2333" }) };
+      if (String(url).includes("from=EUR&to=PLN")) return { ok: true, json: async () => ({ rate: "4.2863" }) };
+      if (String(url).includes("from=PLN&to=USD")) return { ok: true, json: async () => ({ rate: "0.25" }) };
+      return { ok: true, json: async () => ({}) };
+    });
+    render(<TestQueryProvider><CategorySlider {...base} mode="edit" initial={{ ...editInitial, needsCents: "100000", wantsCents: "0" }} /></TestQueryProvider>);
+    const needs = () => (document.getElementById("cat-slider-needs") as HTMLInputElement).value;
+    pickCurrency("EUR");
+    await waitFor(() => expect(needs()).toBe("233.30"));
+    pickCurrency("PLN");
+    await waitFor(() => expect(needs()).toBe("1000"));
+    // Another currency converts from the amount as typed, not from the last conversion.
+    pickCurrency("EUR");
+    await waitFor(() => expect(needs()).toBe("233.30"));
+    pickCurrency("USD");
+    await waitFor(() => expect(needs()).toBe("250"));
+  });
+
   it("no rate: an inline error and Save is disabled", async () => {
     fetchMock.mockImplementation(async (url: string) =>
       String(url).startsWith("/fx/rate") ? { ok: false, status: 503, json: async () => ({}) } : { ok: true, json: async () => ({}) },
