@@ -1,6 +1,8 @@
 import Big from 'big.js';
 
 export type FiatCurrency = 'USD' | 'EUR' | 'PLN' | 'GBP' | 'UAH' | 'CHF' | 'NOK' | 'SEK';
+/** The fiat currencies with FX history (2000-01-01 on) — the only ones a budget or category may use. */
+export const FIAT_CURRENCIES = ['USD', 'EUR', 'PLN', 'GBP', 'UAH', 'CHF', 'NOK', 'SEK'] as const satisfies readonly FiatCurrency[];
 export type CryptoCurrency = 'BTC' | 'ETH';
 export type Currency = FiatCurrency | CryptoCurrency;
 

@@ -16,6 +16,7 @@ import {
   integer,
   timestamp,
   date,
+  char,
 } from "drizzle-orm/pg-core";
 import { budgeting, appRole, workerRole } from "@budget/platform";
 
@@ -54,6 +55,9 @@ export const categories = budgeting.table(
     // 'needs_only' | 'custom'. NULL = infer from the stored amounts (legacy). Lets
     // the slider show "Needs only" even when cushion == planned (no wants yet).
     cushionMode: text("cushion_mode"),
+    // Phase 14 (migration 0104, D-04): the category's own currency. Defaults to
+    // the budget's currency at creation (BEFORE INSERT trigger when omitted).
+    currency: char("currency", { length: 3 }).notNull(),
     // Phase 05 reserve rewrite (decision B, migration 0030): the stored
     // reserve_actual_cents column was DROPPED. The new replay-on-read engine
     // (reserve-engine.ts) derives R/U fresh from category_reserve_adjustments +

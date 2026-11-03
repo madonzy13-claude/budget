@@ -734,6 +734,9 @@ GRANT DELETE ON budgeting.category_reserve_adjustments TO app_role;
 -- household's data. Column-scoped UPDATE on ONLY created_by — every other column
 -- stays append-only.
 GRANT UPDATE (created_by) ON budgeting.category_reserve_adjustments TO app_role;
+-- Phase 14 (migration 0104): read-time FX conversion, callable from every
+-- tenant query (SECURITY INVOKER; reads only the RLS-free fx_rates table).
+GRANT EXECUTE ON FUNCTION budgeting.fx_convert(bigint, text, text, date) TO app_role, worker_role;
 
 -- Phase 2 plan 02-04: budget_share_links GRANTs + RLS
 GRANT SELECT, INSERT, UPDATE ON tenancy.budget_share_links TO app_role;
