@@ -15,7 +15,12 @@ export interface TransactionRow {
   date: string; // 'YYYY-MM-DD'
   amountOriginalCents: string; // bigint-as-string per CLAUDE.md "Money at adapter boundary"
   currencyOriginal: string; // CHAR(3) ISO
+  /** Phase 14 (D-02): re-expressed at read time in the budget's CURRENT currency at this row's date. */
   amountConvertedCents: string;
+  /** Currency of amountConvertedCents (the budget's current one; the original's when no FX pair exists). */
+  currencyConverted?: string;
+  /** No FX history for this row's pair — amountConvertedCents is the original amount. */
+  fxUnavailable?: boolean;
   fxRate: string; // decimal string
   fxAsOf: string; // 'YYYY-MM-DD'
   note: string | null;
@@ -96,7 +101,7 @@ export interface TransactionRepo {
 
   /**
    * Returns confirmed SPENDING totals per category for a given month range.
-   * Keys: categoryId → bigint cents (amount_converted_cents sum).
+   * Keys: categoryId → bigint cents (sum in the budget's current currency, each row at its own date).
    * Categories with no spend are absent from the map (treat as 0n at call site).
    */
   /** R6 (user): confirmed spending per day (budget currency) in the range. */

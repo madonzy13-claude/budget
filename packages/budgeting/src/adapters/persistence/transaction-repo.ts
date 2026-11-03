@@ -3,15 +3,20 @@
  *
  * v1.1 (Phase 2, Plan 02-01): categorical-only, FX-on-PATCH, confirmed_at draft flag.
  * All SQL uses new column names from migration 0013:
- *   amount_original_cents (bigint), amount_converted_cents (bigint),
+ *   amount_original_cents (bigint), the write-time converted amount (bigint),
  *   currency_original, fx_as_of, budget_id, kind SPENDING|INCOME,
  *   scheduled_payment_id, confirmed_at, updated_at, deleted_at.
+ *
+ * Phase 14 (D-02): every READ re-expresses the amount in the budget's CURRENT
+ * currency at the row's own date via budgeting.fx_convert — the stored
+ * write-time conversion is only written, never read (the currency may change).
  *
  * Removed: wallet balance delta, spending_by_category_month upsert, correction chain.
  * Added: updateInPlace, confirm, softDelete, listForMonth.
  */
 import { sql } from "drizzle-orm";
 import { withTenantTx, writeOutbox } from "@budget/platform";
+import { fxConvert } from "./fx-sql";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import type {
   TransactionRepo,
@@ -35,7 +40,9 @@ function dbRowToTransactionRow(row: Record<string, unknown>): TransactionRow {
     date: (row.date as string) ?? (row.transaction_date as string),
     amountOriginalCents: String(row.amount_original_cents),
     currencyOriginal: row.currency_original as string,
-    amountConvertedCents: String(row.amount_converted_cents),
+    amountConvertedCents: String(row.converted_cents),
+    currencyConverted: row.currency_converted as string,
+    fxUnavailable: row.fx_unavailable === true,
     fxRate: String(row.fx_rate),
     fxAsOf: (row.fx_as_of ?? row.fx_as_of_text) as string,
     note: (row.note as string | null) ?? null,
@@ -49,6 +56,34 @@ function dbRowToTransactionRow(row: Record<string, unknown>): TransactionRow {
     deletedAt: row.deleted_at ? new Date(row.deleted_at as string) : null,
   };
 }
+
+/**
+ * Ledger row columns, the amount re-expressed in the budget's CURRENT currency
+ * at the row's own date (D-02). A pair with no FX history keeps the original
+ * amount in its own currency and is flagged — never booked at par.
+ */
+const LEDGER_SELECT = sql`SELECT l.id, l.tenant_id, l.budget_id, l.category_id,
+         l.transaction_date::text AS date,
+         l.amount_original_cents, l.currency_original,
+         COALESCE(x.cv, l.amount_original_cents) AS converted_cents,
+         CASE WHEN x.cv IS NULL THEN l.currency_original ELSE b.default_currency::text END AS currency_converted,
+         (x.cv IS NULL) AS fx_unavailable,
+         l.fx_rate::text, l.fx_as_of::text AS fx_as_of,
+         l.note, l.kind, l.scheduled_payment_id, l.confirmed_at, l.created_at, l.updated_at, l.deleted_at
+    FROM budgeting.expense_ledger l
+    JOIN tenancy.budgets b ON b.id = l.budget_id
+    CROSS JOIN LATERAL (
+      SELECT ${fxConvert(sql`l.amount_original_cents`, sql`l.currency_original`, sql`b.default_currency`, sql`l.transaction_date`)} AS cv
+    ) x`;
+
+/** SUM of spending in the budget's current currency, each row at its own date. */
+const spendSum = (budgetId: string) =>
+  sql`COALESCE(SUM(${fxConvert(
+    sql`amount_original_cents`,
+    sql`currency_original`,
+    sql`(SELECT default_currency FROM tenancy.budgets WHERE id = ${budgetId}::uuid)`,
+    sql`transaction_date`,
+  )}), 0)`;
 
 export class DrizzleTransactionRepo implements TransactionRepo {
   // Constructor accepts repo handles for cross-aggregate side-effects
@@ -138,16 +173,10 @@ export class DrizzleTransactionRepo implements TransactionRepo {
           execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
         };
         const result = await drizzleTx.execute(
-          sql`SELECT id, tenant_id, budget_id, category_id,
-                   transaction_date::text AS date,
-                   amount_original_cents, currency_original,
-                   amount_converted_cents, fx_rate::text,
-                   fx_as_of::text AS fx_as_of,
-                   note, kind, scheduled_payment_id, confirmed_at, created_at, updated_at, deleted_at
-            FROM budgeting.expense_ledger
-            WHERE id = ${id}::uuid
-              AND tenant_id = ${tenantId}::uuid
-              AND deleted_at IS NULL
+          sql`${LEDGER_SELECT}
+            WHERE l.id = ${id}::uuid
+              AND l.tenant_id = ${tenantId}::uuid
+              AND l.deleted_at IS NULL
             LIMIT 1`,
         );
         return result.rows[0] ?? null;
@@ -334,27 +363,21 @@ export class DrizzleTransactionRepo implements TransactionRepo {
           confirmed === "any"
             ? sql`TRUE`
             : confirmed === true
-              ? sql`confirmed_at IS NOT NULL`
-              : sql`confirmed_at IS NULL`;
+              ? sql`l.confirmed_at IS NOT NULL`
+              : sql`l.confirmed_at IS NULL`;
 
         const result = await drizzleTx.execute(
-          sql`SELECT id, tenant_id, budget_id, category_id,
-                   transaction_date::text AS date,
-                   amount_original_cents, currency_original,
-                   amount_converted_cents, fx_rate::text,
-                   fx_as_of::text AS fx_as_of,
-                   note, kind, scheduled_payment_id, confirmed_at, created_at, updated_at, deleted_at
-            FROM budgeting.expense_ledger
-            WHERE tenant_id = ${tenantId}::uuid
-              AND budget_id = ${budgetId}::uuid
-              AND transaction_date >= ${firstDay}::date
-              AND transaction_date < ${nextMonth}::date
-              AND deleted_at IS NULL
-              AND dismissed_at IS NULL
+          sql`${LEDGER_SELECT}
+            WHERE l.tenant_id = ${tenantId}::uuid
+              AND l.budget_id = ${budgetId}::uuid
+              AND l.transaction_date >= ${firstDay}::date
+              AND l.transaction_date < ${nextMonth}::date
+              AND l.deleted_at IS NULL
+              AND l.dismissed_at IS NULL
               -- User (R6): set aside to a future date — back on that date.
-              AND deferred_at IS NULL
+              AND l.deferred_at IS NULL
               AND ${confirmedFilter}
-            ORDER BY transaction_date DESC, created_at DESC`,
+            ORDER BY l.transaction_date DESC, l.created_at DESC`,
         );
         return result.rows;
       },
@@ -419,7 +442,7 @@ export class DrizzleTransactionRepo implements TransactionRepo {
           }
         ).execute(sql`
           SELECT transaction_date::text AS d,
-                 SUM(amount_converted_cents)::text AS cents
+                 ${spendSum(budgetId)}::text AS cents
             FROM budgeting.expense_ledger
            WHERE tenant_id = ${tenantId}::uuid
              AND budget_id = ${budgetId}::uuid
@@ -456,7 +479,7 @@ export class DrizzleTransactionRepo implements TransactionRepo {
           execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
         };
         const res = await drizzleTx.execute(sql`
-          SELECT category_id::text, SUM(amount_converted_cents)::text AS spent_cents
+          SELECT category_id::text, ${spendSum(budgetId)}::text AS spent_cents
             FROM budgeting.expense_ledger
            WHERE tenant_id = ${tenantId}::uuid
              AND budget_id = ${budgetId}::uuid
@@ -499,7 +522,7 @@ export class DrizzleTransactionRepo implements TransactionRepo {
         const res = await drizzleTx.execute(sql`
           SELECT category_id::text,
                  to_char(transaction_date, 'YYYY-MM') AS month,
-                 SUM(amount_converted_cents)::text AS spent_cents
+                 ${spendSum(budgetId)}::text AS spent_cents
             FROM budgeting.expense_ledger
            WHERE tenant_id = ${tenantId}::uuid
              AND budget_id = ${budgetId}::uuid

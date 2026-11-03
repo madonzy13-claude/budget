@@ -15,7 +15,7 @@
  * Removed (TXN-08): /income, /transfer, /:id/history, /:id/correct
  *
  * T-02-01: currency_original validated as 3-char ISO.
- * T-02-02: amount_converted_cents NEVER read from client body — computed server-side.
+ * T-02-02: the converted amount is NEVER read from client body — computed server-side.
  * T-02-09: column-level GRANT enforced at DB layer; no trust boundary breach.
  */
 import { Hono } from "hono";
@@ -102,6 +102,7 @@ function serializeRow(row: {
   amountOriginalCents: string;
   currencyOriginal: string;
   amountConvertedCents: string;
+  currencyConverted?: string;
   fxRate: string;
   fxAsOf: string;
   note: string | null;
@@ -121,6 +122,9 @@ function serializeRow(row: {
     amount_original_cents: row.amountOriginalCents,
     currency_original: row.currencyOriginal,
     amount_converted_cents: row.amountConvertedCents,
+    // Phase 14: the converted figure is re-expressed at read time; this names
+    // its currency (the budget's current one).
+    currency_converted: row.currencyConverted ?? null,
     fx_rate: row.fxRate,
     fx_as_of: row.fxAsOf,
     note: row.note ?? null,
@@ -361,17 +365,7 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
       confirmed ?? "any",
     );
 
-    // R6 (user): the converted figure names its currency (the budget's).
-    const currencyConverted = await getBudgetCurrency(budgetId);
-    return c.json(
-      {
-        transactions: rows.map((r) => ({
-          ...serializeRow(r),
-          currency_converted: currencyConverted,
-        })),
-      },
-      200,
-    );
+    return c.json({ transactions: rows.map(serializeRow) }, 200);
   });
 
   // ── GET /:txId — single transaction ──────────────────────────────────
