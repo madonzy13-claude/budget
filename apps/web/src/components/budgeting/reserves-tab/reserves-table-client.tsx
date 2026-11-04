@@ -338,6 +338,10 @@ export function ReservesTableClient({ budgetId }: ReservesTableClientProps) {
   }
 
   const activeRows = summary.data.rows;
+  const maxAmountChars = Math.max(
+    4,
+    ...activeRows.map((r) => centsToBare(r.reserveCents, locale).length),
+  );
   // W-3: Excluded rows come directly from API — frozen REAL balances, NOT synthesized
   const excludedRows = summary.data.excludedRows;
   const { budgetCurrency } = summary.data.totals;
@@ -387,6 +391,7 @@ export function ReservesTableClient({ budgetId }: ReservesTableClientProps) {
               row={r}
               currency={r.currency ?? budgetCurrency}
               isExcluded={false}
+              maxAmountChars={maxAmountChars}
               displayReserveCentsOverride={
                 anim !== null && reveal?.categoryId === r.categoryId
                   ? BigInt(anim.available)
