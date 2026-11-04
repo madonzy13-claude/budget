@@ -150,13 +150,23 @@ export class DrizzleTransactionRepo implements TransactionRepo {
     if (r.isErr()) throw r.error;
   }
 
-  async categoryCurrency(tenantId: string, categoryId: string): Promise<string | null> {
+  async categoryCurrency(tenantId: string, categoryId: string, date?: string): Promise<string | null> {
     const r = await withTenantTx(TenantId(tenantId), UserId(tenantId), async (tx) => {
+      // On `date`, the currency the category had THAT month (owner, 261104):
+      // its limit segment's, else its current one.
+      const on = date ? sql`date_trunc('month', ${date}::date)::date` : sql`NULL::date`;
       const rs = await (
         tx as { execute: (q: unknown) => Promise<{ rows: { currency: string }[] }> }
       ).execute(
-        sql`SELECT currency FROM budgeting.categories
-             WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid`,
+        sql`SELECT COALESCE(
+                 (SELECT cl.normal_currency::text FROM budgeting.category_limits cl
+                   WHERE cl.tenant_id = c.tenant_id AND cl.category_id = c.id
+                     AND cl.effective_from <= ${on}
+                     AND (cl.effective_to IS NULL OR cl.effective_to >= ${on})
+                   ORDER BY cl.effective_from DESC LIMIT 1),
+                 c.currency::text) AS currency
+              FROM budgeting.categories c
+             WHERE c.id = ${categoryId}::uuid AND c.tenant_id = ${tenantId}::uuid`,
       );
       return rs.rows[0]?.currency ?? null;
     });
@@ -514,10 +524,22 @@ export class DrizzleTransactionRepo implements TransactionRepo {
   ): Promise<Map<string, bigint>> {
     const r = await withTenantTx(TenantId(tenantId), UserId(tenantId), async (tx) => {
       const res = await (tx as { execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }> }).execute(sql`
+        -- In the currency the category had IN THIS MONTH (owner, 261104): its
+        -- limit segment's, else its current one. A later change never moves it.
+        WITH mc AS (
+          SELECT c.id,
+                 COALESCE((SELECT cl.normal_currency FROM budgeting.category_limits cl
+                            WHERE cl.tenant_id = c.tenant_id AND cl.category_id = c.id
+                              AND cl.effective_from <= ${monthStart}::date
+                              AND (cl.effective_to IS NULL OR cl.effective_to > ${monthStart}::date)
+                            ORDER BY cl.effective_from DESC LIMIT 1), c.currency) AS ccy
+            FROM budgeting.categories c
+           WHERE c.tenant_id = ${tenantId}::uuid
+        )
         SELECT l.category_id::text AS category_id,
-               COALESCE(SUM(${fxConvert(sql`l.amount_original_cents`, sql`l.currency_original`, sql`c.currency`, sql`l.transaction_date`)}), 0)::text AS cents
+               COALESCE(SUM(${fxConvert(sql`l.amount_original_cents`, sql`l.currency_original`, sql`mc.ccy`, sql`l.transaction_date`)}), 0)::text AS cents
           FROM budgeting.expense_ledger l
-          JOIN budgeting.categories c ON c.id = l.category_id
+          JOIN mc ON mc.id = l.category_id
          WHERE l.tenant_id = ${tenantId}::uuid
            AND l.budget_id = ${budgetId}::uuid
            AND l.kind = 'SPENDING'

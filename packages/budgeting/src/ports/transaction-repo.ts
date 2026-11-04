@@ -47,7 +47,7 @@ export interface TransactionRepo {
   ): Promise<Map<string, bigint>>;
 
   /** Phase 14 (D-05): a category's own currency (null when not in the tenant). */
-  categoryCurrency?(tenantId: string, categoryId: string): Promise<string | null>;
+  categoryCurrency?(tenantId: string, categoryId: string, date?: string): Promise<string | null>;
 
   /**
    * In-place UPDATE of editable fields (PATCH /transactions/:id).

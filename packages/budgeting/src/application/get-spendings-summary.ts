@@ -106,7 +106,11 @@ export interface SpendingsSummaryCategoryDTO {
    *  as typed, reserve native). The grid column reads these; totals and
    *  charts keep the budget-currency fields. Absent for a same-currency one. */
   own?: {
+    /** The currency the category had in this month (limit, spent, balance). */
     currency: string;
+    /** Reserves are calculated in the category's LATEST currency (owner,
+     *  261104): reserveUsed, reserveAvailable and overspent are in this one. */
+    reserveCurrency: string;
     plannedCents: string;
     cushionCents: string;
     activeBudgetCents: string;
@@ -250,35 +254,6 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
         string,
         EffectiveLimit & { originalPlanned: bigint; original?: EffectiveLimit; fxUnavailable: boolean }
       >();
-      // Review CR-01: a segment from before a currency change is still in the
-      // old currency. The editor and the own-currency column work in the
-      // category's CURRENT one, so that segment converts into it first (same
-      // D-08 rate date) — showing PLN 200 as "€200" and saving it as EUR was a
-      // silent relabel.
-      const catCcyOf = new Map(categories.map((c) => [c.id, c.currency ?? meta.currency]));
-      const toCategory = async (l: EffectiveLimit, catCcy: string): Promise<EffectiveLimit | undefined> => {
-        const from = l.normalCurrency ?? meta.currency;
-        if (from === catCcy) return l;
-        const rate = deps.fxProvider
-          ? await deps.fxProvider
-              .rateAsOf(from as Currency, catCcy as Currency, rateDate)
-              .then((x) => x.rate, () => null)
-          : null;
-        if (rate === null) return undefined;
-        const planned = convertCents(l.planned, rate);
-        const needs = l.needs == null ? null : convertCents(l.needs, rate);
-        return {
-          ...l,
-          planned,
-          cushion: convertCents(l.cushion, rate),
-          needs,
-          // Derived, so needs + wants stays the limit to the cent (0061).
-          wants: l.wants == null ? null : needs == null ? convertCents(l.wants, rate) : planned - needs,
-          normalCurrency: catCcy,
-          cushionCurrency: catCcy,
-          convertedFrom: null,
-        };
-      };
       for (const [catId, l] of rawLimits) {
         const normalCcy = l.normalCurrency ?? meta.currency;
         const nRate = await rateTo(normalCcy);
@@ -291,10 +266,10 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           needs: l.needs == null ? null : conv(l.needs, nRate),
           wants: l.wants == null ? null : conv(l.wants, nRate),
           normalCurrency: normalCcy,
-          ...(await (async () => {
-            const o = await toCategory(l, catCcyOf.get(catId) ?? meta.currency);
-            return o ? { originalPlanned: o.planned, original: o } : { originalPlanned: l.planned, original: l };
-          })()),
+          // Owner, 261104: the month keeps the currency it had — the limit
+          // as typed, in the segment's currency, is what the editor shows.
+          originalPlanned: l.planned,
+          original: l,
           fxUnavailable: nRate === null || cRate === null,
         });
       }
@@ -472,21 +447,32 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           const overspent = overage - reserveUsed;
           const balance = active - spent + reserveUsed;
 
-          // The column in the category's own currency (user, 261103).
+          // The column in the category's own currency (user, 261103) — the
+          // currency it had IN THIS MONTH (owner, 261104: history stays as it
+          // was): the limit segment's, else the category's current one.
+          // Reserves are calculated in the LATEST currency, so the reserve
+          // figures (used, available, overspent) carry that one instead.
           const catCcy = posResult.value.categoryCurrency?.get(c.id) ?? c.currency ?? meta.currency;
+          const monthCcy = limits.original?.normalCurrency ?? catCcy;
           let own: SpendingsSummaryCategoryDTO["own"];
-          if (catCcy !== meta.currency && !isInvestment) {
-            // No limit row yet → a zero limit, still in the category's currency.
+          if ((monthCcy !== meta.currency || catCcy !== meta.currency) && !isInvestment) {
+            // No limit row yet → a zero limit, still in the month's currency.
             const o = limits.original ?? { planned: 0n, cushion: 0n };
             const oSpent = ownSpend.get(c.id) ?? 0n;
             const oActive = noLimit ? oSpent : monthCushionMode ? o.cushion : o.planned;
-            const oOver = noLimit ? 0n : (cell?.overageCents ?? (oSpent > oActive ? oSpent - oActive : 0n));
+            const sameCcy = monthCcy === catCcy;
+            // The overage the reserve covers, in the reserve's currency: the
+            // engine's cell, or (same currency, no cell) spent past the limit.
+            const oOver = noLimit
+              ? 0n
+              : (cell?.overageCents ?? (sameCcy && oSpent > oActive ? oSpent - oActive : 0n));
             const oUsedRaw = cell?.usedCents ?? 0n;
             const oEnd = cell?.endReserveCents ?? 0n;
             const oAvail = oUsedRaw + oEnd > 0n ? oUsedRaw + oEnd : 0n;
             const oUsed = oUsedRaw < oAvail ? oUsedRaw : oAvail;
             own = {
-              currency: catCcy,
+              currency: monthCcy,
+              reserveCurrency: catCcy,
               plannedCents: (noLimit ? oSpent : o.planned).toString(),
               cushionCents: o.cushion.toString(),
               activeBudgetCents: oActive.toString(),
@@ -494,7 +480,8 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
               reserveUsedCents: oUsed.toString(),
               reserveAvailableCents: oAvail.toString(),
               overspentCents: (oOver - oUsed).toString(),
-              balanceCents: (oActive - oSpent + oUsed).toString(),
+              // Limit − spent (+ reserve used, when that is the same currency).
+              balanceCents: (oActive - oSpent + (sameCcy ? oUsed : 0n)).toString(),
             };
           }
 

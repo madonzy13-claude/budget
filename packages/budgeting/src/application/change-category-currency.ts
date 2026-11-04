@@ -31,7 +31,11 @@ export function changeCategoryCurrency(deps: ChangeCategoryCurrencyDeps) {
     userId: string;
     categoryId: string;
     currency: string;
-  }): Promise<Result<{ category: { id: string; currency: string }; limitsConverted: number }, Error>> => {
+    /** 'YYYY-MM-01' — the month being viewed (see the port). */
+    month?: string;
+  }): Promise<
+    Result<{ category: { id: string; currency: string }; limitsConverted: number; month?: string }, Error>
+  > => {
     if (!deps.limitRepo.changeCategoryCurrency) return err(new Error("not_supported"));
     try {
       const r = await deps.limitRepo.changeCategoryCurrency({
@@ -40,6 +44,7 @@ export function changeCategoryCurrency(deps: ChangeCategoryCurrencyDeps) {
         categoryId: input.categoryId,
         currency: input.currency,
         now: serverNow(),
+        ...(input.month ? { month: input.month } : {}),
       });
       if (r.status === "not_found") return err(new Error("not_found"));
       if (r.status === "no_rate") {
@@ -56,9 +61,15 @@ export function changeCategoryCurrency(deps: ChangeCategoryCurrencyDeps) {
           if (t.isErr()) console.error(`[change-category-currency] ${name} recompute failed:`, t.error);
         }
       }
+      const month = r.status === "changed" ? r.month : undefined;
       return ok({
-        category: { id: input.categoryId, currency: input.currency },
+        // One past month changed: the category itself kept its currency.
+        category: {
+          id: input.categoryId,
+          currency: (r.status === "changed" && r.categoryCurrency) || input.currency,
+        },
         limitsConverted: r.status === "changed" ? r.limitsConverted : 0,
+        ...(month ? { month } : {}),
       });
     } catch (e) {
       return err(e as Error);

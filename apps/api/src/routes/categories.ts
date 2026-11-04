@@ -120,6 +120,7 @@ export function createCategoriesRoute(deps: BootedDeps) {
       userId,
       categoryId,
       currency: parsed.data.currency,
+      ...(parsed.data.month ? { month: parsed.data.month } : {}),
     });
     if (r.isErr()) {
       if (r.error.message === "not_found") return c.json({ error: "Not found" }, 404);

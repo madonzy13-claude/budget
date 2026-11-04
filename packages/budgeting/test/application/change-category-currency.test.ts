@@ -118,6 +118,41 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Change a category's currency", (
     expect(BigInt(r.nd) + BigInt(r.w)).toBe(BigInt(r.n));
   });
 
+  // Owner, 261104: changing the currency while viewing a PAST month changes
+  // only that month; the months around it, and the category's current
+  // currency, stay exactly as they were.
+  test("a change in a past month converts only that month", async () => {
+    const cat = await b.category("PLN");
+    await b.limit(cat, 40000, "PLN", "1998-01-01");
+    const r = await change({ tenantId: b.tenant, userId: b.user, categoryId: cat, currency: "EUR", month: "1998-03-01" });
+    expect(r.isOk()).toBe(true);
+    const segs = (
+      await b.sql(
+        `SELECT effective_from::text f, effective_to::text t, normal_amount::text n, normal_currency::text c
+           FROM budgeting.category_limits WHERE category_id = $1 ORDER BY effective_from`,
+        [cat],
+      )
+    ).rows;
+    // 400 PLN at 0.2333 (earliest seeded PLN→EUR, before any rate in March) = 93.32 EUR.
+    expect(segs).toEqual([
+      { f: "1998-01-01", t: "1998-02-28", n: "40000", c: "PLN" },
+      { f: "1998-03-01", t: "1998-03-31", n: "9332", c: "EUR" },
+      { f: "1998-04-01", t: null, n: "40000", c: "PLN" },
+    ]);
+    const now = (await b.sql(`SELECT currency::text c FROM budgeting.categories WHERE id = $1`, [cat])).rows[0];
+    expect(now).toEqual({ c: "PLN" });
+    // …and back again restores the typed amount exactly.
+    await change({ tenantId: b.tenant, userId: b.user, categoryId: cat, currency: "PLN", month: "1998-03-01" });
+    const march = (
+      await b.sql(
+        `SELECT normal_amount::text n, normal_currency::text c FROM budgeting.category_limits
+          WHERE category_id = $1 AND effective_from = '1998-03-01'`,
+        [cat],
+      )
+    ).rows[0];
+    expect(march).toEqual({ n: "40000", c: "PLN" });
+  });
+
   test("the reserve is rebuilt in the new currency (D-17)", async () => {
     const r = await b.positions();
     expect(r.categoryCurrency?.get(food)).toBe("EUR");

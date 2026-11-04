@@ -56,6 +56,7 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Transaction currency default", (
   afterAll(async () => {
     await asApp(async (db) => {
       await db.query(`DELETE FROM budgeting.expense_ledger WHERE tenant_id = $1`, [TENANT]).catch(() => {});
+      await db.query(`DELETE FROM budgeting.category_limits WHERE tenant_id = $1`, [TENANT]).catch(() => {});
       await db.query(`DELETE FROM budgeting.categories WHERE tenant_id = $1`, [TENANT]).catch(() => {});
       await db.query(`DELETE FROM tenancy.budgets WHERE id = $1`, [TENANT]).catch(() => {});
     });
@@ -76,6 +77,21 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Transaction currency default", (
     expect(row.amountOriginalCents).toBe("1234");
     const stored = await repo.findById(TENANT, row.id);
     expect(stored?.currencyOriginal).toBe("EUR");
+  });
+
+  // Owner, 261104: a month keeps the currency it had. Trips is EUR today but
+  // its September segment is PLN, so a September spend defaults to PLN.
+  test("a date in a month with another currency takes that month's", async () => {
+    await asApp(async (db) => {
+      await db.query(
+        `INSERT INTO budgeting.category_limits (id, tenant_id, category_id, normal_amount, normal_currency,
+           cushion_amount, cushion_currency, effective_from, effective_to, actor_user_id, created_at)
+         VALUES (gen_random_uuid(), $1, $2, 40000, 'PLN', 0, 'PLN', '2026-09-01', '2026-09-30', $3, now())`,
+        [TENANT, EUR_CAT, USER],
+      );
+    });
+    const r = await create({ ...base, date: "2026-09-15", amountOriginalCents: 700 });
+    expect(r._unsafeUnwrap().transaction.currencyOriginal).toBe("PLN");
   });
 
   test("an explicit currency wins over the category's", async () => {

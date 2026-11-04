@@ -164,6 +164,11 @@ export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 // Phase 14 (D-07): PATCH /categories/:id/currency.
 export const changeCategoryCurrencySchema = z.object({
   currency: z.enum(FIAT_CURRENCIES),
+  /** The month being viewed, 'YYYY-MM-01'. A past one changes only itself. */
+  month: z
+    .string()
+    .regex(/^\d{4}-\d{2}-01$/)
+    .optional(),
 });
 
 export interface CategoryDto {

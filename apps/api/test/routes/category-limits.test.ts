@@ -505,4 +505,35 @@ describe("Limit currency follows the category", () => {
     expect((await post("BTC", "BTC")).status).toBe(422);
     expect((await post("EUR", "EUR")).status).toBe(201);
   });
+
+  // Owner, 261104: a past month keeps the currency it had, so editing it
+  // alone is checked against THAT month's currency.
+  it("a single past month is edited in the currency it had", async () => {
+    const t = await createTestUser();
+    const app = await buildApp(t.userId, t.tenantId);
+    const cat = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Moved" }),
+      })
+    ).json();
+    const { DrizzleCategoryLimitRepo } = await import("@budget/budgeting/src/adapters/persistence/category-limit-repo");
+    // January still in PLN, the category EUR today (a change made in February).
+    await new DrizzleCategoryLimitRepo().setLimitForMonth({
+      tenantId: t.tenantId, categoryId: cat.category.id, monthStart: "2026-01-01", normalAmount: "40000",
+      normalCurrency: "PLN", cushionAmount: "0", cushionCurrency: "PLN", actorUserId: t.userId, carryForward: false,
+    });
+    const post = (ccy: string) =>
+      app.request(`/categories/${cat.category.id}/limits`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          normalAmount: "45000", cushionAmount: "0", normalCurrency: ccy, cushionCurrency: ccy,
+          effectiveFrom: "2026-01-01", singleMonth: true,
+        }),
+      });
+    expect((await post("EUR")).status).toBe(422);
+    expect((await post("PLN")).status).toBe(201);
+  });
 });

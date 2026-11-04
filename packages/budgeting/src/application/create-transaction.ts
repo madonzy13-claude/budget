@@ -100,7 +100,7 @@ export function createTransaction(deps: CreateTransactionDeps) {
     // Resolve currency: given → the category's own (D-05) → the budget's.
     const currencyOriginal = (
       input.currencyOriginal ??
-      (await deps.transactionRepo.categoryCurrency?.(input.tenantId, input.categoryId)) ??
+      (await deps.transactionRepo.categoryCurrency?.(input.tenantId, input.categoryId, input.date)) ??
       budgetCurrency
     ).toUpperCase();
 

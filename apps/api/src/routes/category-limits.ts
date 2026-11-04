@@ -42,7 +42,17 @@ export function createCategoryLimitsRoute(deps: BootedDeps) {
     const cat = await deps.budgeting.findCategoryById({ tenantId, categoryId });
     if (cat.isErr()) return serverError(c, "set_category_limit_failed", cat.error);
     if (!cat.value) return c.json({ error: "Not found" }, 404);
-    const catCcy = cat.value.currency;
+    let catCcy = cat.value.currency;
+    // Owner, 261104: a past month edited alone keeps the currency it had —
+    // the segment in force then (a later change never moved it).
+    if (parsed.data.singleMonth && parsed.data.effectiveFrom) {
+      const eff = await deps.budgeting.getEffectiveLimit({
+        tenantId,
+        categoryId,
+        reportDate: parsed.data.effectiveFrom,
+      });
+      if (eff.isOk() && eff.value?.normalCurrency) catCcy = eff.value.normalCurrency.trim();
+    }
     if (
       (parsed.data.normalCurrency && parsed.data.normalCurrency !== catCcy) ||
       (parsed.data.cushionCurrency && parsed.data.cushionCurrency !== catCcy)

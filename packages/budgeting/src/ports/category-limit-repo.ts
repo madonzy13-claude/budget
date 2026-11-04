@@ -88,7 +88,16 @@ export type ChangeCurrencyResult =
   | { status: "not_found" }
   | { status: "same"; currency: string }
   | { status: "no_rate"; fromCurrency: string; toCurrency: string }
-  | { status: "changed"; fromCurrency: string; toCurrency: string; limitsConverted: number };
+  | {
+      status: "changed";
+      fromCurrency: string;
+      toCurrency: string;
+      limitsConverted: number;
+      /** Set when only one past month changed; the category kept its currency, */
+      month?: string;
+      /** …which is this one. */
+      categoryCurrency?: string;
+    };
 
 export interface CategoryLimitRepo {
   /**
@@ -102,6 +111,9 @@ export interface CategoryLimitRepo {
     categoryId: string;
     currency: string;
     now: Date;
+    /** 'YYYY-MM-01'. A month before the current one changes ONLY that month
+     *  (owner, 261104); absent or current → this month and the ones after. */
+    month?: string;
   }): Promise<ChangeCurrencyResult>;
   setLimit(input: SetLimitInput): Promise<void>;
   /**

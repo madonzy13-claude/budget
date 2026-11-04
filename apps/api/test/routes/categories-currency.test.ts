@@ -117,6 +117,27 @@ describe("PATCH /categories/:id/currency", () => {
     expect((await res.json()).category.currency).toBe("PLN");
   });
 
+  // Owner, 261104: viewed from a past month, only that month changes — the
+  // category itself keeps its current currency.
+  it("a past month → 200, that month only; the category keeps its currency", async () => {
+    const res0 = await app.request("/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Rent" }),
+    });
+    const rent = (await res0.json()).category.id;
+    const { DrizzleCategoryLimitRepo } = await import("@budget/budgeting/src/adapters/persistence/category-limit-repo");
+    await new DrizzleCategoryLimitRepo().setLimitForMonth({
+      tenantId, categoryId: rent, monthStart: "2026-01-01", normalAmount: "40000", normalCurrency: "PLN",
+      cushionAmount: "0", cushionCurrency: "PLN", actorUserId: userId, carryForward: true,
+    });
+    const res = await patch(app, rent, { currency: "EUR", month: "2026-03-01" });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.category.currency).toBe("PLN");
+    expect(body.month).toBe("2026-03-01");
+  });
+
   it("changes the currency → 200 with the new currency", async () => {
     const res = await patch(app, id, { currency: "EUR" });
     expect(res.status).toBe(200);
