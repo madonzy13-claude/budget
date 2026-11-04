@@ -87,14 +87,20 @@ export function unarchiveCategory(deps: UnarchiveCategoryDeps) {
           archiveMonthStart,
         );
 
-        // Fall back to zero if no limit was set
-        const budgetCurrency = deps.budgetCurrencyOf
-          ? await deps.budgetCurrencyOf(input.tenantId)
-          : "EUR";
-        const normalAmount = archiveLimit?.normalAmount ?? "0";
-        const normalCurrency = archiveLimit?.normalCurrency ?? budgetCurrency;
-        const cushionAmount = archiveLimit?.cushionAmount ?? "0";
-        const cushionCurrency = archiveLimit?.cushionCurrency ?? budgetCurrency;
+        // Phase 14 (review WR-07): every segment is in the CATEGORY's
+        // currency. Zero when no limit was set — and when the archive-month
+        // limit is in an old currency, which cannot be restored unconverted.
+        // ponytail: a restored 0 there, not an FX conversion; a category whose
+        // currency changed while archived is rare, and the member re-types it.
+        const catCcy =
+          category.currency ??
+          (deps.budgetCurrencyOf ? await deps.budgetCurrencyOf(input.tenantId) : null);
+        if (!catCcy) return err(new Error("category_currency_unknown"));
+        const restore = archiveLimit && archiveLimit.normalCurrency === catCcy ? archiveLimit : null;
+        const normalAmount = restore?.normalAmount ?? "0";
+        const normalCurrency = catCcy;
+        const cushionAmount = restore?.cushionAmount ?? "0";
+        const cushionCurrency = catCcy;
 
         // Zero every month strictly between archiveMonth and currentMonth
         let cursor = addOneMonth(archiveMonthStart);
