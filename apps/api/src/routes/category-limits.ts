@@ -66,11 +66,22 @@ export function createCategoryLimitsRoute(deps: BootedDeps) {
         return c.json({ error: conv.error }, conv.error === "not_found" ? 404 : 422);
       }
       const cv = (v: string | undefined) => (v === undefined ? undefined : conv.convert(v));
+      const normalAmount = cv(parsed.data.normalAmount)!;
+      const needsAmount = cv(parsed.data.needsAmount);
       amounts = {
-        normalAmount: cv(parsed.data.normalAmount)!,
+        normalAmount,
         cushionAmount: cv(parsed.data.cushionAmount)!,
-        ...(parsed.data.needsAmount !== undefined ? { needsAmount: cv(parsed.data.needsAmount) } : {}),
-        ...(parsed.data.wantsAmount !== undefined ? { wantsAmount: cv(parsed.data.wantsAmount) } : {}),
+        ...(needsAmount !== undefined ? { needsAmount } : {}),
+        // Derived, not converted on its own (review WR-06): two roundings
+        // could leave needs + wants a cent off the limit (0061 invariant).
+        ...(parsed.data.wantsAmount !== undefined
+          ? {
+              wantsAmount:
+                needsAmount !== undefined
+                  ? String(BigInt(normalAmount) - BigInt(needsAmount))
+                  : cv(parsed.data.wantsAmount),
+            }
+          : {}),
       };
       normalCurrency = conv.currency ?? normalCurrency;
       cushionCurrency = conv.currency ?? cushionCurrency;

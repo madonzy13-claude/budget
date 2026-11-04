@@ -102,6 +102,22 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Change a category's currency", (
     expect(eff.get("1998-05-01")?.get(food)?.convertedFrom).toMatchObject({ currency: "USD", normal: "26000" });
   });
 
+  test("a converted split still adds up to the limit (review WR-06)", async () => {
+    const split = await b.category("PLN");
+    await b.limit(split, 4, "PLN", "1998-05-01");
+    await b.sql(`UPDATE budgeting.category_limits SET needs_amount = 2, wants_amount = 2 WHERE category_id = $1`, [split]);
+    // At 0.2333: 4 → 1, but 2 → 0 and 2 → 0 if each part converted alone.
+    expect((await change({ tenantId: b.tenant, userId: b.user, categoryId: split, currency: "EUR" })).isOk()).toBe(true);
+    const r = (
+      await b.sql(
+        `SELECT normal_amount::text n, needs_amount::text nd, wants_amount::text w FROM budgeting.category_limits
+          WHERE category_id = $1 AND effective_to IS NULL`,
+        [split],
+      )
+    ).rows[0] as { n: string; nd: string; w: string };
+    expect(BigInt(r.nd) + BigInt(r.w)).toBe(BigInt(r.n));
+  });
+
   test("the reserve is rebuilt in the new currency (D-17)", async () => {
     const r = await b.positions();
     expect(r.categoryCurrency?.get(food)).toBe("EUR");

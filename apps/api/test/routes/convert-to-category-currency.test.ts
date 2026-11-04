@@ -71,6 +71,29 @@ describe("Amounts sent in another currency than the category's", () => {
   });
 });
 
+describe("A converted split still adds up (review WR-06)", () => {
+  it("wants is the converted limit minus the converted needs", async () => {
+    const { a } = await app();
+    // At 0.25: needs 2 → 1 and wants 2 → 1 (each rounds 0.5 up), but the
+    // limit 4 → 1. Converted on their own, the split no longer sums to it.
+    const res = await a.request("/categories/cat-1/limits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        normalAmount: "4",
+        cushionAmount: "0",
+        needsAmount: "2",
+        wantsAmount: "2",
+        effectiveFrom: "2026-11-01",
+        amountsCurrency: "PLN",
+      }),
+    });
+    expect(res.status).toBe(201);
+    const last = calls.at(-1) as { normalAmount: string; needsAmount: string; wantsAmount: string };
+    expect(BigInt(last.needsAmount) + BigInt(last.wantsAmount)).toBe(BigInt(last.normalAmount));
+  });
+});
+
 describe("A reserve target sent in another currency", () => {
   it("converts into the category's currency at today's rate (shared by the adjust route)", async () => {
     const { categoryCurrencyConverter } = await import("../../src/routes/convert-to-category-currency");

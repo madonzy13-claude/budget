@@ -155,10 +155,16 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         const rate = back ? "1" : rates.get(src.currency)!;
         const cv = (v: string | null) => (v === null ? null : convertCents(BigInt(v), rate).toString());
         const keep = back ? null : JSON.stringify(src);
-        const amounts = sql`normal_amount = ${cv(src.normal)}::bigint,
+        // wants is derived (review WR-06): converted on its own, two roundings
+        // could leave needs + wants a cent off the limit (0061 invariant).
+        const normal = cv(src.normal);
+        const needs = cv(src.needs);
+        const wants =
+          src.wants === null ? null : needs === null ? cv(src.wants) : String(BigInt(normal!) - BigInt(needs));
+        const amounts = sql`normal_amount = ${normal}::bigint,
                             cushion_amount = ${cv(src.cushion)}::bigint,
-                            needs_amount = ${cv(src.needs)}::bigint,
-                            wants_amount = ${cv(src.wants)}::bigint,
+                            needs_amount = ${needs}::bigint,
+                            wants_amount = ${wants}::bigint,
                             cushion_amount_cents = ${cv(src.cushionCents)}::bigint,
                             normal_currency = ${to}, cushion_currency = ${to},
                             converted_from = ${keep}::jsonb`;
@@ -170,8 +176,8 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
               (tenant_id, category_id, normal_amount, normal_currency, cushion_amount, cushion_currency,
                needs_amount, wants_amount, cushion_amount_cents, no_limit, effective_from, effective_to, actor_user_id,
                converted_from)
-            SELECT tenant_id, category_id, ${cv(src.normal)}::bigint, ${to}, ${cv(src.cushion)}::bigint, ${to},
-                   ${cv(src.needs)}::bigint, ${cv(src.wants)}::bigint, ${cv(src.cushionCents)}::bigint,
+            SELECT tenant_id, category_id, ${normal}::bigint, ${to}, ${cv(src.cushion)}::bigint, ${to},
+                   ${needs}::bigint, ${wants}::bigint, ${cv(src.cushionCents)}::bigint,
                    no_limit, ${cat.month_start}::date, effective_to, ${input.actorUserId}::uuid, ${keep}::jsonb
               FROM budgeting.category_limits WHERE id = ${seg.id}::uuid`);
           await q(sql`
