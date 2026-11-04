@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { TestQueryProvider } from "../../setup/query-client";
+import { TestQueryProvider, makeTestQueryClient } from "../../setup/query-client";
 
 const fetchMock = vi.fn();
 vi.mock("@/lib/budget-fetch", () => ({ clientApiFetch: (...a: unknown[]) => fetchMock(...a) }));
@@ -142,6 +142,29 @@ describe("Category slider — currency", () => {
     fireEvent.change(input, { target: { value: "240" } });
     await user.click(screen.getAllByRole("button").find((b) => b.getAttribute("type") === "submit")!);
     await waitFor(() => expect(bodyOf(/\/limits$/, "POST")).toMatchObject({ normalAmount: "24000", normalCurrency: "EUR" }));
+  });
+
+  // Review WR-02: the currency change commits before the limit write. When the
+  // limit write then fails, the screen must refetch — the category IS in the
+  // new currency now — rather than keep showing the state from before.
+  it("a limit write failing after the currency change refreshes the grid", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation(async (url: string, init?: { method?: string }) => {
+      if (String(url).startsWith("/fx/rate")) return { ok: true, json: async () => ({ rate: "0.2333" }) };
+      if (/\/limits$/.test(String(url)) && init?.method === "POST") return { ok: false, status: 500, json: async () => ({}) };
+      return { ok: true, json: async () => ({}) };
+    });
+    const qc = makeTestQueryClient();
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    render(<TestQueryProvider client={qc}><CategorySlider {...base} mode="edit" initial={editInitial} /></TestQueryProvider>);
+    pickCurrency("EUR");
+    const input = document.getElementById("cat-slider-needs") as HTMLInputElement;
+    await waitFor(() => expect(input.value).toBe("233.30"));
+    fireEvent.change(input, { target: { value: "240" } });
+    await user.click(screen.getAllByRole("button").find((b) => b.getAttribute("type") === "submit")!);
+    await waitFor(() =>
+      expect(spy.mock.calls.some((c) => JSON.stringify(c[0]).includes("spendings-summary"))).toBe(true),
+    );
   });
 
   it("no rate: an inline error and Save is disabled", async () => {

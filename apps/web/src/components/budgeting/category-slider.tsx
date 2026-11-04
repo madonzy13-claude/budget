@@ -570,11 +570,18 @@ export function CategorySlider({
         ]);
 
         if (!patchRes.ok || !limitsRes.ok) {
+          // The currency change above is already committed (review WR-02):
+          // refetch so the grid shows the category as it now stands.
+          // ponytail: two calls, not one transaction; a single PATCH carrying
+          // the limit too would make it atomic if partial saves start to bite.
+          if (currencyChanged) invalidateGrid(false);
           toast.error(t("error.sliderSave"));
           return;
         }
       }
     } catch (err) {
+      // A 5xx after a committed currency change lands here too (review WR-02).
+      if (currencyChanged) invalidateGrid(false);
       // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
       // RHF resets isSubmitting when onSubmit settles, so no manual reset needed.
       if (isOfflineWriteError(err)) {
