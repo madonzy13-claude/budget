@@ -256,3 +256,7 @@ if ((normalCurrency && normalCurrency !== cat.currency) || (cushionCurrency && c
 _Reviewed: 2026-11-04T10:15:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+
+## Fix status (14-24, 2026-11-04)
+
+CR-01, CR-02, CR-03 and WR-01 to WR-09 are fixed with tests; see 14-24-SUMMARY.md. WR-02 got the minimum fix (refetch after a partial failure); a single atomic call is deferred. IN-01 to IN-04 are open.
