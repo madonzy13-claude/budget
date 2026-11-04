@@ -532,9 +532,8 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       amountCurrency,
     );
     if (!conv.ok) return c.json({ error: conv.error }, conv.error === "not_found" ? 404 : 422);
-    if (typeof adjustBody.expectedCents === "number" && conv.currency) {
-      adjustBody.expectedCents = Number(conv.convert(String(adjustBody.expectedCents)));
-    }
+    // Validated BEFORE converting (review WR-01): a fractional target reached
+    // BigInt("1.5") and threw, a 500 instead of a 422.
     const parsed = reserveAdjustmentSchema.safeParse(adjustBody);
     if (!parsed.success)
       return c.json(
@@ -544,6 +543,9 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
         },
         422,
       );
+    if (conv.currency) {
+      parsed.data.expectedCents = Number(conv.convert(String(parsed.data.expectedCents)));
+    }
 
     const result = await deps.budgeting.adjustCategoryReserve({
       ...parsed.data,
