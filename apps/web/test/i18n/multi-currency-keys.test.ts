@@ -34,10 +34,11 @@ const COPY: Record<string, [string, string, string]> = {
     "Підсумки показуються в цій валюті.",
   ],
   "grid.categoryCurrency.label": ["Currency", "Waluta", "Валюта"],
-  "grid.categoryCurrency.changeHint": [
-    "Limit converts at today's rate: {old} → {new}. Past transactions keep their currency.",
-    "Limit przeliczy się po dzisiejszym kursie: {old} → {new}. Dotychczasowe transakcje zachowują walutę.",
-    "Ліміт перерахується за сьогоднішнім курсом: {old} → {new}. Попередні транзакції зберігають валюту.",
+  // A refused save says what happened (owner, 261104).
+  "grid.error.saveFailed": [
+    "Couldn't save the category: {reason}. Please try again later, or report it if it keeps happening.",
+    "Nie udało się zapisać kategorii: {reason}. Spróbuj ponownie później lub zgłoś to, jeśli będzie się powtarzać.",
+    "Не вдалося зберегти категорію: {reason}. Спробуйте пізніше або повідомте про це, якщо повторюється.",
   ],
   "grid.categoryCurrency.rateError": [
     "No exchange rate for {pair} yet. Try again later.",
@@ -72,6 +73,8 @@ describe("Multi-currency copy", () => {
   it("the lock-era copy is gone (Phase 14 removed its readers)", () => {
     for (const locale of [en, pl, uk]) {
       expect(at(locale, "settings.identity.currency_locked_tooltip")).toBeUndefined();
+      // No "Limit converts at today's rate…" line (owner, 261104).
+      expect(at(locale, "grid.categoryCurrency.changeHint")).toBeUndefined();
       expect(at(locale, "bdp.tab.wallets.row.currencyReadOnlyAria")).toBeUndefined();
     }
   });

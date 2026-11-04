@@ -2061,7 +2061,6 @@
   "grid": {
     "categoryCurrency": {
       "label": "Waluta",
-      "changeHint": "Limit przeliczy się po dzisiejszym kursie: {old} → {new}. Dotychczasowe transakcje zachowują walutę.",
       "rateError": "Brak kursu dla {pair}. Spróbuj później."
     },
     "limitEquivalent": "≈ {amount}",
@@ -2194,7 +2193,14 @@
       "sliderSave": "Nie udało się zapisać zmian. Sprawdź połączenie i spróbuj ponownie.",
       "reorderSave": "Nie udało się zapisać nowej kolejności. Kolumny zostały przywrócone.",
       "invalidAmount": "Wpisz liczbę dodatnią",
-      "fxStale": "Kurs wymiany się zmienił. Sprawdź nową kwotę i zapisz ponownie."
+      "fxStale": "Kurs wymiany się zmienił. Sprawdź nową kwotę i zapisz ponownie.",
+      "saveFailed": "Nie udało się zapisać kategorii: {reason}. Spróbuj ponownie później lub zgłoś to, jeśli będzie się powtarzać.",
+      "reason": {
+        "currency_mismatch": "limit jest w innej walucie niż w tym miesiącu",
+        "not_found": "kategoria już nie istnieje",
+        "validation": "niektóre wartości nie zostały przyjęte",
+        "unknown": "serwer odpowiedział błędem ({status})"
+      }
     },
     "confirm": {
       "discardChanges": "Masz niezapisane zmiany. Odrzucić je?",

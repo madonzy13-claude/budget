@@ -2038,7 +2038,6 @@
   "grid": {
     "categoryCurrency": {
       "label": "Currency",
-      "changeHint": "Limit converts at today's rate: {old} → {new}. Past transactions keep their currency.",
       "rateError": "No exchange rate for {pair} yet. Try again later."
     },
     "limitEquivalent": "≈ {amount}",
@@ -2171,7 +2170,14 @@
       "sliderSave": "Couldn't save changes. Check your connection and try again.",
       "reorderSave": "Couldn't save new order. The columns have been restored.",
       "invalidAmount": "Enter a positive number",
-      "fxStale": "Exchange rate has updated. Review the new amount and save again."
+      "fxStale": "Exchange rate has updated. Review the new amount and save again.",
+      "saveFailed": "Couldn't save the category: {reason}. Please try again later, or report it if it keeps happening.",
+      "reason": {
+        "currency_mismatch": "the limit is in a different currency than this month's",
+        "not_found": "the category no longer exists",
+        "validation": "some values weren't accepted",
+        "unknown": "the server answered with an error ({status})"
+      }
     },
     "confirm": {
       "discardChanges": "You have unsaved changes. Discard them?",

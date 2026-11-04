@@ -253,6 +253,14 @@ function centsToDecimalSafe(cents: string): string {
   return cents ? centsToDecimal(cents) : "0";
 }
 
+/** Server error code → its explanation (grid.error.reason.*). */
+const SAVE_ERROR_REASON: Record<string, string> = {
+  currency_mismatch: "currency_mismatch",
+  not_found: "not_found",
+  "Not found": "not_found",
+  "Validation error": "validation",
+};
+
 export function CategorySlider({
   open,
   onOpenChange,
@@ -314,6 +322,7 @@ export function CategorySlider({
         ? { currency: cf.currency, values: pick(prefillFromInitial({ ...initial, ...cf })) }
         : null;
       lastSet.current = cf ? pick(prefillFromInitial(initial)) : {};
+      opened.current = pick(prefillFromInitial(initial));
     }
   }, [open, initial?.categoryId]);
 
@@ -326,12 +335,20 @@ export function CategorySlider({
   const AMOUNT_FIELDS = ["needs", "wants", "customCushion"] as const;
   const basis = useRef<{ currency: string; values: Record<string, string> } | null>(null);
   const lastSet = useRef<Record<string, string>>({});
+  /** The amounts as the form opened — anything else was typed here. */
+  const opened = useRef<Record<string, string>>({});
   async function changeCurrency(next: string) {
     const prev = currency;
     setCurrency(next);
     setRateError(null);
     if (mode !== "edit" || next === prev) return;
     const now = Object.fromEntries(AMOUNT_FIELDS.map((f) => [f, form.getValues(f)]));
+    // An amount typed in this form is what the member means (owner, 261104):
+    // the currency changes, the amount stays exactly as typed.
+    const typed = AMOUNT_FIELDS.some(
+      (f) => String(now[f] ?? "") !== String(lastSet.current[f] ?? opened.current[f] ?? ""),
+    );
+    if (typed) return;
     const untouched = AMOUNT_FIELDS.every((f) => now[f] === (lastSet.current[f] ?? now[f]));
     if (!basis.current || !untouched) basis.current = { currency: prev, values: now };
     const from = basis.current;
@@ -418,6 +435,18 @@ export function CategorySlider({
     }
   }, [open, initial?.categoryId]);
 
+  /** A refused save says what happened (owner, 261104) — not "check your
+   *  connection", which is only true offline (that has its own toast). */
+  async function saveFailed(res?: { status?: number; json?: () => Promise<unknown> }) {
+    const body = (await res?.json?.().catch(() => ({}))) as { error?: string } | undefined;
+    const code = body?.error;
+    const known = code ? SAVE_ERROR_REASON[code] : undefined;
+    const reason = known
+      ? t(`error.reason.${known}`)
+      : t("error.reason.unknown", { status: String(res?.status ?? "—") });
+    toast.error(t("error.saveFailed", { reason }));
+  }
+
   async function onSubmit(values: FormValues) {
     // SCD-2 limits are evaluated as-of the month start. EDITING writes the limit
     // for the month the grid is viewing (not always "today") so a past month can
@@ -473,7 +502,7 @@ export function CategorySlider({
         );
 
         if (!createRes.ok) {
-          toast.error(t("error.sliderSave"));
+          await saveFailed(createRes);
           return;
         }
 
@@ -500,7 +529,7 @@ export function CategorySlider({
         );
 
         if (!limitsRes.ok) {
-          toast.error(t("error.sliderSave"));
+          await saveFailed(limitsRes);
           return;
         }
       } else {
@@ -519,7 +548,7 @@ export function CategorySlider({
           if (!ccyRes.ok) {
             const e = (await ccyRes.json().catch(() => ({}))) as { error?: string; pair?: string };
             if (e.error === "fx_rate_unavailable") setRateError(e.pair ?? `${storedCurrency}/${currency}`);
-            else toast.error(t("error.sliderSave"));
+            else await saveFailed({ status: ccyRes.status, json: async () => e });
             return;
           }
         }
@@ -576,7 +605,7 @@ export function CategorySlider({
           // ponytail: two calls, not one transaction; a single PATCH carrying
           // the limit too would make it atomic if partial saves start to bite.
           if (currencyChanged) invalidateGrid(false);
-          toast.error(t("error.sliderSave"));
+          await saveFailed(!limitsRes.ok ? (limitsRes as Response) : (patchRes as Response));
           return;
         }
       }
@@ -589,8 +618,8 @@ export function CategorySlider({
         offlineToast();
         return;
       }
-      // Non-offline throw → keep the existing generic save error.
-      toast.error(t("error.sliderSave"));
+      // Non-offline throw: no answer to read a reason from.
+      await saveFailed();
       return;
     }
 
@@ -620,7 +649,7 @@ export function CategorySlider({
         // Archive changes column + its txn/draft visibility in the grid.
         invalidateGrid(true);
       } else {
-        toast.error(t("error.sliderSave"));
+        await saveFailed(res);
       }
     } catch (err) {
       // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
@@ -629,7 +658,7 @@ export function CategorySlider({
         offlineToast();
         return;
       }
-      toast.error(t("error.sliderSave"));
+      await saveFailed();
     } finally {
       setIsDeleting(false);
     }
@@ -811,11 +840,6 @@ export function CategorySlider({
                     />
                   </span>
                 </div>
-                {currencyChanged && !rateError && (
-                  <p data-testid="category-currency-hint" className="text-sm text-[var(--muted-foreground)]">
-                    {t("categoryCurrency.changeHint", { old: storedCurrency, new: currency })}
-                  </p>
-                )}
                 {rateError && (
                   <p data-testid="category-currency-error" className="text-sm text-destructive">
                     {t("categoryCurrency.rateError", { pair: rateError })}

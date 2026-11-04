@@ -16,7 +16,8 @@ vi.mock("next-intl", () => ({
     v ? `${key}:${Object.values(v).join("|")}` : key,
   useLocale: () => "en",
 }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const toastError = vi.fn();
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: (...a: unknown[]) => toastError(...a) } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@radix-ui/react-dialog", async (orig) => {
   const actual = await orig<typeof import("@radix-ui/react-dialog")>();
@@ -75,7 +76,6 @@ describe("Category slider — currency", () => {
     const user = userEvent.setup();
     render(<TestQueryProvider><CategorySlider {...base} mode="edit" initial={editInitial} /></TestQueryProvider>);
     pickCurrency("EUR");
-    await waitFor(() => expect(screen.getByTestId("category-currency-hint").textContent).toContain("PLN|EUR"));
     await waitFor(() => expect((document.getElementById("cat-slider-needs") as HTMLInputElement).value).toBe("233.30"));
     // The server's today, not the browser's UTC day (review WR-08).
     expect(fetchMock.mock.calls.some((c) => String(c[0]).startsWith("/fx/rate") && String(c[0]).includes("date="))).toBe(false);
@@ -181,6 +181,43 @@ describe("Category slider — currency", () => {
     // That month's conversion is the limit; the rounded preview is not re-posted.
     await waitFor(() => expect(bodyOf(/\/categories\/cat-1$/, "PATCH")).toBeDefined());
     expect(bodyOf(/\/limits$/, "POST")).toBeUndefined();
+  });
+
+  // Owner, 261104: an amount the member typed in this form is what they mean —
+  // changing the currency afterwards keeps it, unconverted.
+  it("an amount typed before the currency change is kept as typed", async () => {
+    render(<TestQueryProvider><CategorySlider {...base} mode="edit" initial={editInitial} /></TestQueryProvider>);
+    const input = document.getElementById("cat-slider-needs") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "240" } });
+    pickCurrency("EUR");
+    await new Promise((r) => setTimeout(r, 50));
+    expect(input.value).toBe("240");
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).startsWith("/fx/rate"))).toBe(false);
+  });
+
+  // Owner, 261104: no "Limit converts at today's rate…" line.
+  it("shows no conversion hint", async () => {
+    render(<TestQueryProvider><CategorySlider {...base} mode="edit" initial={editInitial} /></TestQueryProvider>);
+    pickCurrency("EUR");
+    await waitFor(() => expect((document.getElementById("cat-slider-needs") as HTMLInputElement).value).toBe("233.30"));
+    expect(screen.queryByTestId("category-currency-hint")).toBeNull();
+  });
+
+  // Owner, 261104: a refused save says what happened and asks to try again
+  // later or report it — not "check your connection".
+  it("a refused save names the reason", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation(async (url: string, init?: { method?: string }) => {
+      if (/\/limits$/.test(String(url)) && init?.method === "POST")
+        return { ok: false, status: 422, json: async () => ({ error: "currency_mismatch" }) };
+      return { ok: true, json: async () => ({}) };
+    });
+    toastError.mockClear();
+    render(<TestQueryProvider><CategorySlider {...base} mode="edit" initial={editInitial} /></TestQueryProvider>);
+    fireEvent.change(document.getElementById("cat-slider-needs") as HTMLInputElement, { target: { value: "1200" } });
+    await user.click(screen.getAllByRole("button").find((b) => b.getAttribute("type") === "submit")!);
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    expect(String(toastError.mock.calls.at(-1)![0])).toBe("error.saveFailed:error.reason.currency_mismatch");
   });
 
   it("no rate: an inline error and Save is disabled", async () => {
