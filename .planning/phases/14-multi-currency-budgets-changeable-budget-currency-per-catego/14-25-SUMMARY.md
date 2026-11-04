@@ -45,3 +45,11 @@ A past month in another currency now reads its reserve used and overspent in THA
 A past month's whole column now reads in its own currency, the reserve cap ("available") included. The cap is used (in the month's currency) plus the balance left at the month's end, converted at the month's rate (D-08 date). `own.reserveCurrency` and the header's second-currency formatting are removed.
 - TDD: `past-month-reserve-currency` was red (cap 5000, the 50 € unconverted) and is green at 21115 (211.15 zł). The header change is a deletion: same output once the server stopped sending a second currency (refactor, green → green).
 - Regression: Vitest 3077/0; backend 2381 + 2 baseline; currency E2E 16 passed, 1 flaky (closed-month adjust, passed on retry).
+
+## Follow-up 3 (owner)
+- **A past month with no limit can change currency** ("my category", September). Before, the change did nothing, and the EUR limit saved next was refused (`currency_mismatch`), which the slider showed as "check your connection". The month now gets its own zero segment in the new currency; switching it to the category's own currency is a no-op. Live: PATCH 200 then POST 201; Sep EUR €150, Oct USD $300 untouched.
+- **Typed amounts stay as typed:** an amount typed in the open form is kept when the currency changes after it. Untouched amounts still convert.
+- **No "Limit converts at today's rate…" hint** (key removed in en/pl/uk).
+- **Errors say why:** a refused save toasts "Couldn't save the category: {reason}. Please try again later, or report it if it keeps happening." Reasons are mapped from the server code (currency_mismatch / not_found / validation / unknown with the HTTP status). Offline keeps its own toast.
+- **TDD, each test seen red first:** the repo no-segment test (+ the same-currency no-op), the 3 slider tests (typed kept, no hint, reason toast), and the i18n wording.
+- Regression: Vitest 3080/0; backend 2382 + 2 baseline; currency E2E 14 passed + 1 flaky (golden timeline). The @category-currency scenario still asserted the removed hint and was updated (now asserts no hint + the converted limit shown): 4/4 pass.

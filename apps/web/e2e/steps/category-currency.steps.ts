@@ -32,8 +32,9 @@ Then("the category currency reads {string}", async ({ page }, ccy: string) => {
   await new CategorySliderPo(page).assertCurrency(ccy);
 });
 
-Then("the currency change hint is shown with the limit in {string}", async ({ page }, sign: string) => {
+// No hint line any more (owner, 261104) — the converted limit shows itself.
+Then("the converted limit is shown in {string}", async ({ page }, sign: string) => {
   const slider = new CategorySliderPo(page);
-  await slider.assertHint();
+  await slider.assertNoHint();
   await slider.assertPreview(sign);
 });

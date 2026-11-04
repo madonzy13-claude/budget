@@ -45,8 +45,8 @@ export class CategorySliderPo {
     else await expect(this.picker()).toContainText(ccy);
   }
 
-  async assertHint(): Promise<void> {
-    await expect(this.sheet().getByTestId("category-currency-hint")).toBeVisible({ timeout: 10000 });
+  async assertNoHint(): Promise<void> {
+    await expect(this.sheet().getByTestId("category-currency-hint")).toHaveCount(0);
   }
 
   /** The converted limit shows in the planned readout, in the new currency. */

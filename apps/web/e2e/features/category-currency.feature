@@ -18,7 +18,7 @@ Feature: A category has its own currency
     When I open the spendings tab for the budget
     And I open the edit slider for "Food"
     And I change the category currency to "EUR"
-    Then the currency change hint is shown with the limit in "€"
+    Then the converted limit is shown in "€"
     When I save the category
     And I open the edit slider for "Food"
     Then the category currency reads "EUR"
