@@ -107,3 +107,16 @@ _Verifier: Claude (gsd-verifier)_
 ## E2E (after 14-24, 2026-11-04)
 
 Chromium + mobile over `@budget-currency-change|@category-currency|@reserves-multi-currency|@reserve-wallet-currency|@transaction-currency-default|@overview|@phase8|@reserves-golden`: **113 passed, 0 failed, 0 flaky** (21.0 min). The remaining human item is closed, so the status is now passed. The four stale "locked" comments were fixed in 8e7f3f97.
+
+## 14-25 follow-ups — owner approved (2026-11-04)
+
+After completion, the owner raised and approved these follow-ups (gap plan 14-25, see 14-25-SUMMARY.md):
+- a month keeps the currency it had, and a past-month change touches only that month;
+- the whole past-month column reads in its own currency, reserve used, overspent and cap included;
+- a past month with no limit can change currency;
+- typed amounts are kept when the currency changes after them;
+- no conversion hint;
+- save errors name their reason;
+- a month with a limit and no spending leaves its whole limit as reserve.
+
+Last regression: Vitest 3080/0; backend 2383 + 2 pre-phase baseline; reserve/currency/rebalance/tasks E2E 66 passed, 1 flaky. Status stays **passed**.
