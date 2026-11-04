@@ -58,6 +58,39 @@ describe("ColumnHeader — limit in the category's currency", () => {
     expect(screen.queryByTestId("column-limit-equivalent")).toBeNull();
   });
 
+  // Owner, 261104: a past month keeps its currency (zł here), while reserves
+  // are calculated in the category's latest one (€).
+  it("a past month reads in its own currency, its reserve figures in the latest", () => {
+    render(
+      <ColumnHeader
+        category={category}
+        summary={{
+          ...base,
+          limitOriginalCents: "40000",
+          limitCurrency: "PLN",
+          own: {
+            currency: "PLN",
+            reserveCurrency: "EUR",
+            plannedCents: "40000",
+            cushionCents: "40000",
+            activeBudgetCents: "40000",
+            spentCents: "45000",
+            reserveUsedCents: "500",
+            reserveAvailableCents: "1000",
+            overspentCents: "300",
+            balanceCents: "-5000",
+          },
+        }}
+        budgetCurrency="USD"
+        cushionModeEnabled={false}
+        onEdit={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("column-header-travel-planned").textContent).toContain("zł");
+    expect(screen.getByTestId("column-header-travel-reserves-available").textContent).toContain("€10");
+    expect(screen.getByTestId("column-header-travel-overspent").textContent).toContain("€3");
+  });
+
   it("a same-currency category has no ≈ line", () => {
     render(
       <ColumnHeader

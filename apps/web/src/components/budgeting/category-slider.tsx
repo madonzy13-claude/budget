@@ -512,7 +512,8 @@ export function CategorySlider({
             {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ currency }),
+              // A past month changes only itself (owner, 261104).
+              body: JSON.stringify(singleMonth ? { currency, month: effectiveFrom } : { currency }),
             },
           );
           if (!ccyRes.ok) {
@@ -525,10 +526,10 @@ export function CategorySlider({
         // A currency change with the converted amounts left as shown: the
         // server's conversion is the limit (and keeps its exact source, 0105).
         // Re-posting the preview would overwrite that source with a rounded copy.
+        // A past month too: the change converted exactly that month (261104).
         const shown = prefillFromInitial(initial);
         const previewOnly =
           currencyChanged &&
-          !singleMonth &&
           AMOUNT_FIELDS.every((f) => values[f] === lastSet.current[f]) &&
           values.cushionMode === shown.cushionMode &&
           (values.noLimit === true) === shown.noLimit;

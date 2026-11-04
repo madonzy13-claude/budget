@@ -41,6 +41,8 @@ export interface SpendingsSummaryCategoryDTO {
   /** Phase 14: the column's figures in a foreign category's own currency. */
   own?: {
     currency: string;
+    /** Reserves are calculated in the latest currency (owner, 261104). */
+    reserveCurrency?: string;
     plannedCents: string;
     cushionCents: string;
     activeBudgetCents: string;
@@ -252,7 +254,9 @@ export function CategoryColumn({
               budgetId={budgetId}
               month={month}
               budgetCurrency={budgetCurrency}
-              currency={category.currency ?? budgetCurrency}
+              // The viewed month's currency (owner, 261104): a past month keeps
+              // the one it had, which the summary's own column carries.
+              currency={summary?.own?.currency ?? category.currency ?? budgetCurrency}
               resolvedDate={resolvedQuickEntryDate}
             />
           </div>

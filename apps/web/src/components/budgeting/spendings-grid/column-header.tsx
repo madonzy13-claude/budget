@@ -45,6 +45,8 @@ export interface ColumnHeaderProps {
     /** Phase 14: the column's figures in a foreign category's own currency. */
     own?: {
       currency: string;
+      /** Reserves are calculated in the latest currency (owner, 261104). */
+      reserveCurrency?: string;
       plannedCents: string;
       cushionCents: string;
       activeBudgetCents: string;
@@ -100,6 +102,13 @@ export function ColumnHeader({
   const money = (cents: string | bigint) =>
     columnCurrency
       ? centsToDisplayCompact(cents, columnCurrency, locale, true)
+      : centsToBare(cents, locale);
+  // A past month keeps the currency it had, but reserves are calculated in
+  // the category's LATEST one (owner, 261104): reserve and overspent read it.
+  const reserveCurrency = summaryIn.own?.reserveCurrency ?? columnCurrency;
+  const reserveMoney = (cents: string | bigint) =>
+    reserveCurrency
+      ? centsToDisplayCompact(cents, reserveCurrency, locale, true)
       : centsToBare(cents, locale);
   const { revealed, setRevealed, ref } = useRevealActions();
   // R6 (user): the usage chip swaps to the spent total — tap toggles, a mouse
@@ -471,7 +480,7 @@ export function ColumnHeader({
                     {" / "}
                     {reserveExcluded
                       ? "—"
-                      : money(summary.reserveAvailableCents ?? "0")}
+                      : reserveMoney(summary.reserveAvailableCents ?? "0")}
                   </span>
                 </>
               )}
@@ -504,7 +513,7 @@ export function ColumnHeader({
                   : "text-[var(--muted-foreground)]",
             )}
           >
-            {noLimit ? "—" : money(summary.overspentCents)}
+            {noLimit ? "—" : reserveMoney(summary.overspentCents)}
           </span>
         </div>
       </div>

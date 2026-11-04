@@ -167,6 +167,22 @@ describe("Category slider — currency", () => {
     );
   });
 
+  // Owner, 261104: changing the currency while viewing a PAST month changes
+  // only that month — the request says which month.
+  it("a currency change in a past month names that month", async () => {
+    const user = userEvent.setup();
+    render(<TestQueryProvider><CategorySlider {...base} mode="edit" initial={editInitial} month="2020-03" /></TestQueryProvider>);
+    pickCurrency("EUR");
+    await waitFor(() => expect((document.getElementById("cat-slider-needs") as HTMLInputElement).value).toBe("233.30"));
+    await user.click(screen.getAllByRole("button").find((b) => b.getAttribute("type") === "submit")!);
+    await waitFor(() =>
+      expect(bodyOf(/\/categories\/cat-1\/currency$/, "PATCH")).toEqual({ currency: "EUR", month: "2020-03-01" }),
+    );
+    // That month's conversion is the limit; the rounded preview is not re-posted.
+    await waitFor(() => expect(bodyOf(/\/categories\/cat-1$/, "PATCH")).toBeDefined());
+    expect(bodyOf(/\/limits$/, "POST")).toBeUndefined();
+  });
+
   it("no rate: an inline error and Save is disabled", async () => {
     fetchMock.mockImplementation(async (url: string) =>
       String(url).startsWith("/fx/rate") ? { ok: false, status: 503, json: async () => ({}) } : { ok: true, json: async () => ({}) },

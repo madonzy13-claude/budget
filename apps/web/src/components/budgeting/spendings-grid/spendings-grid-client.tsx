@@ -954,7 +954,9 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     return {
       categoryId: cat.id,
       name: cat.name,
-      currency: cat.currency ?? budgetCurrency,
+      // The viewed month's currency (owner, 261104): a past month keeps the
+      // one it had — the limit's, which limitOriginal is typed in.
+      currency: (s as { limitCurrency?: string } | undefined)?.limitCurrency ?? cat.currency ?? budgetCurrency,
       plannedCents: own?.plannedCents ?? s?.plannedCents ?? "0",
       cushionCents: own?.cushionCents ?? s?.cushionCents ?? "0",
       // mig 0061: persisted needs/wants split prefills the slider's split exactly.
