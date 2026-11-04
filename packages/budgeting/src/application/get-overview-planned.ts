@@ -61,6 +61,8 @@ export interface CategoryWindow {
    *  everything else planned, resolved here so the Overview reads the same plan
    *  the Spendings grid shows. */
   investment_limit_mode?: string | null;
+  /** The category's own currency (14-23). */
+  currency?: string;
 }
 export interface DailySpendRow {
   day: string; // YYYY-MM-DD
@@ -106,6 +108,12 @@ export interface OverviewPlannedRepo {
 
 export interface GetOverviewPlannedDeps {
   repo: OverviewPlannedRepo;
+  /** 14-23: the same readers in each category's OWN currency. When set and a
+   *  category is in another currency, a second pass labels its rows. */
+  inCategoryCurrency?: {
+    repo: OverviewPlannedRepo;
+    excludedSpend?: GetOverviewPlannedDeps["excludedSpend"];
+  };
   /** 260804: monthly sums of the spend this budget has marked as one-offs (the
    *  reserve chart's list — one decision, used in both places). Subtracted from
    *  each category's AVERAGE only: a parachute jump should not argue for a
@@ -174,7 +182,21 @@ export interface GetOverviewPlannedInput {
    */
   excludeCurrentMonth?: boolean;
   now?: () => Date;
+  /** 14-23: the second, per-category pass — every money input in each
+   *  category's OWN currency. Only its per-category rows are read. */
+  inCategoryCurrency?: boolean;
 }
+
+/** A category's per-category figures in its OWN currency (14-23). */
+export type OwnPlannedFigures = Pick<
+  OverviewPlannedDTO["plannedAvgVsReal"][number],
+  | "planned_avg_cents"
+  | "real_avg_cents"
+  | "needs_avg_cents"
+  | "planned_total_cents"
+  | "real_total_cents"
+  | "planned_current_cents"
+>;
 
 export interface OverviewPlannedDTO {
   currency: string;
@@ -239,6 +261,12 @@ export interface OverviewPlannedDTO {
      *  only when the limit moved, which is exactly when the caller offers the
      *  choice between them (260805). */
     planned_current_cents: string;
+    /** 14-23: the category's own currency. The figures above stay in the
+     *  budget currency — they SIZE the slices and bars, which have to be
+     *  comparable — and a category in another currency adds `own`: the same
+     *  figures in its own currency, which is what its labels read. */
+    currency?: string;
+    own?: OwnPlannedFigures;
   }[];
   /** True when ANY category's limit moved inside the range. The caller offers
    *  the average-vs-current choice only then — with a steady limit the two
@@ -413,8 +441,11 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         | undefined;
       if (posResult) {
         if (posResult.isErr()) return err(posResult.error);
-        // Phase 14: engine values → budget currency (they are per category currency).
-        reservePositions = positionsInBudget(posResult.value, ccy);
+        // Phase 14: engine values → budget currency (they are per category
+        // currency) — except in the per-category pass, which wants them native.
+        reservePositions = input.inCategoryCurrency
+          ? posResult.value.positions
+          : positionsInBudget(posResult.value, ccy);
       }
 
       // When a category STARTED, for averaging and for the plan band. Its record
@@ -929,9 +960,37 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
             planned_total_cents: ps.toString(),
             real_total_cents: rs.toString(),
             planned_current_cents: current.toString(),
+            currency: w.currency ?? ccy,
           };
         })
         .filter((x): x is NonNullable<typeof x> => x !== null);
+
+      // 14-23: a category in another currency reads its labels in that
+      // currency. Same computation, every input in each category's own
+      // currency; only the rows of the foreign categories are taken from it.
+      const own = deps.inCategoryCurrency;
+      if (own && !input.inCategoryCurrency && plannedAvgVsReal.some((x) => x.currency !== ccy)) {
+        const r = await getOverviewPlanned({
+          ...deps,
+          repo: own.repo,
+          excludedSpend: own.excludedSpend ?? deps.excludedSpend,
+          inCategoryCurrency: undefined,
+        })({ ...input, inCategoryCurrency: true });
+        if (r.isErr()) return err(r.error);
+        const byId = new Map(r.value.plannedAvgVsReal.map((x) => [x.category_id, x]));
+        for (const row of plannedAvgVsReal) {
+          const o = row.currency !== ccy ? byId.get(row.category_id) : undefined;
+          if (o)
+            (row as typeof row & { own?: OwnPlannedFigures }).own = {
+              planned_avg_cents: o.planned_avg_cents,
+              real_avg_cents: o.real_avg_cents,
+              needs_avg_cents: o.needs_avg_cents,
+              planned_total_cents: o.planned_total_cents,
+              real_total_cents: o.real_total_cents,
+              planned_current_cents: o.planned_current_cents,
+            };
+        }
+      }
 
       // ---- scheduled charts (current config, FX→default_ccy) ----
       // Convert each rule's amount to default_ccy once.

@@ -22,6 +22,7 @@ import {
   fxConvert,
   ledgerAmountIn,
   limitRateDate,
+  categoryCurrencyOf,
 } from "./fx-sql";
 import type {
   OverviewPlannedRepo,
@@ -52,14 +53,25 @@ async function read<T>(
   return r.value;
 }
 
-export function createOverviewRepo(): OverviewPlannedRepo {
+/**
+ * `inCategoryCurrency` (14-23): spend + limits per category come out in that
+ * category's OWN currency instead of the budget's — the per-category charts
+ * label each row in it. Totals across categories are meaningless in this mode.
+ */
+export function createOverviewRepo(
+  opts: { inCategoryCurrency?: boolean } = {},
+): OverviewPlannedRepo {
   return {
     async monthlySpendByCategory(
       budgetId,
       from,
       to,
     ): Promise<MonthlySpendRow[]> {
-      const spend = ledgerAmountIn(budgetCurrency(budgetId));
+      const spend = ledgerAmountIn(
+        opts.inCategoryCurrency
+          ? categoryCurrencyOf(sql`expense_ledger.category_id`)
+          : budgetCurrency(budgetId),
+      );
       return read(budgetId, async (tx) => {
         const res = await tx.execute(sql`
           SELECT category_id::text AS category_id,
@@ -97,7 +109,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
       from,
       to,
     ): Promise<MonthlyPlannedRow[]> {
-      const ccy = budgetCurrency(budgetId);
+      const ccy = opts.inCategoryCurrency ? sql`cm.category_currency` : budgetCurrency(budgetId);
       const rateOn = limitRateDate(sql`cm.month_end`, budgetToday(budgetId, serverNow()));
       return read(budgetId, async (tx) => {
         const res = await tx.execute(sql`
@@ -135,7 +147,8 @@ export function createOverviewRepo(): OverviewPlannedRepo {
           -- a planned row when a limit was actually effective then. Archived gate
           -- stays (drop the category for months at/after it's archived).
           cat_month AS (
-            SELECT c.id AS category_id, c.cushion_mode, m.month, m.month_start, m.month_end
+            SELECT c.id AS category_id, c.cushion_mode, c.currency AS category_currency,
+                   m.month, m.month_start, m.month_end
               FROM budgeting.categories c
               CROSS JOIN months m
              WHERE c.tenant_id = ${budgetId}::uuid
@@ -214,7 +227,8 @@ export function createOverviewRepo(): OverviewPlannedRepo {
                  CASE WHEN archived_from IS NOT NULL
                       THEN to_char(archived_from, 'YYYY-MM') ELSE NULL END AS archived_month,
                  COALESCE(is_investment, false) AS is_investment,
-                 investment_limit_mode
+                 investment_limit_mode,
+                 currency::text AS currency
             FROM budgeting.categories
            WHERE tenant_id = ${budgetId}::uuid
         `);
@@ -226,6 +240,7 @@ export function createOverviewRepo(): OverviewPlannedRepo {
           is_investment: (r.is_investment as boolean | null) ?? false,
           investment_limit_mode:
             (r.investment_limit_mode as string | null) ?? null,
+          currency: (r.currency as string).trim(),
         }));
       });
     },

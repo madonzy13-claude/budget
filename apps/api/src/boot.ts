@@ -503,6 +503,11 @@ export async function boot(): Promise<BootedDeps> {
       // AVERAGES here, exactly as it comes off the reserve walk.
       excludedSpend: reserveFitRepo.excludedSpendByCategory,
       repo: createOverviewRepo(),
+      // 14-23: a category in another currency labels its rows in it.
+      inCategoryCurrency: {
+        repo: createOverviewRepo({ inCategoryCurrency: true }),
+        excludedSpend: createReserveFitRepo({ inCategoryCurrency: true }).excludedSpendByCategory,
+      },
       metaReader: summaryRepo,
       fxProvider: baseBudgeting.fxProvider,
       // r33: smart Investments limit (income − Σ other planned) as its planned.
@@ -527,6 +532,11 @@ export async function boot(): Promise<BootedDeps> {
     getReserveFit: getReserveFit({
       overviewRepo: createOverviewRepo(),
       exclusionsRepo: reserveFitRepo,
+      // 14-23: a category in another currency reads its sizing in it.
+      inCategoryCurrency: {
+        overviewRepo: createOverviewRepo({ inCategoryCurrency: true }),
+        exclusionsRepo: createReserveFitRepo({ inCategoryCurrency: true }),
+      },
       // Known commitments carry the walk forward: an annual renewal has to be
       // reserved for before it lands, not after (260804).
       activeScheduledPayments: (budgetId) =>

@@ -21,7 +21,7 @@
 import { sql } from "drizzle-orm";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
-import { budgetCurrency, ledgerAmountIn } from "./fx-sql";
+import { budgetCurrency, categoryCurrencyOf, ledgerAmountIn } from "./fx-sql";
 import type {
   ReserveFitExclusionsRepo,
   LargeTransactionRow,
@@ -108,7 +108,10 @@ export interface ReserveFitRepo extends ReserveFitExclusionsRepo {
   }): Promise<void>;
 }
 
-export function createReserveFitRepo(): ReserveFitRepo {
+/** `inCategoryCurrency` (14-23): the one-off sums per category in its OWN currency. */
+export function createReserveFitRepo(
+  opts: { inCategoryCurrency?: boolean } = {},
+): ReserveFitRepo {
   return {
     async oneOffPage({ budgetId, from, to, categoryId, cursor, limit }) {
       // (set-aside first, then amount DESC, id ASC): a total order, so the
@@ -271,7 +274,10 @@ export function createReserveFitRepo(): ReserveFitRepo {
         const res = await t.execute(sql`
           SELECT l.category_id::text AS category_id,
                  to_char(l.transaction_date, 'YYYY-MM') AS month,
-                 COALESCE(SUM(${ledgerAmountIn(budgetCurrency(budgetId), "l")}), 0)::text AS cents
+                 COALESCE(SUM(${ledgerAmountIn(
+                   opts.inCategoryCurrency ? categoryCurrencyOf(sql`l.category_id`) : budgetCurrency(budgetId),
+                   "l",
+                 )}), 0)::text AS cents
             FROM budgeting.reserve_fit_exclusions x
             JOIN budgeting.expense_ledger l ON l.id = x.ledger_id
            WHERE x.tenant_id = ${budgetId}::uuid

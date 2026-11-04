@@ -32,6 +32,10 @@ export const limitRateDate = (monthEnd: SQL | string, today: SQL | string): SQL 
 export const budgetCurrency = (budgetId: string): SQL =>
   sql`(SELECT default_currency FROM tenancy.budgets WHERE id = ${budgetId}::uuid)`;
 
+/** A category's OWN currency (14-23: per-category figures read in it). */
+export const categoryCurrencyOf = (categoryId: SQL): SQL =>
+  sql`(SELECT c.currency FROM budgeting.categories c WHERE c.id = ${categoryId})`;
+
 /** A ledger row's amount in `target`, at the row's own date (D-02). */
 export const ledgerAmountIn = (target: SQL, alias?: string): SQL => {
   const col = (c: string) => (alias ? sql`${sql.identifier(alias)}.${sql.identifier(c)}` : sql`${sql.identifier(c)}`);

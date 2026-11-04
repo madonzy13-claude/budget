@@ -19,6 +19,7 @@ import { DrizzleFxRateCacheRepo } from "../../src/adapters/persistence/fx-rate-c
 import { CacheOnlyFxProvider } from "../../src/adapters/fx/cache-only";
 import { convertCents } from "../../src/domain/fx-round";
 import { createOverviewRepo } from "../../src/adapters/persistence/overview-repo";
+import { getOverviewPlanned } from "../../src/application/get-overview-planned";
 import { seedFxRates, deleteFxRates } from "../fx-seed";
 
 for (const k of ["DATABASE_URL_APP", "DATABASE_URL_WORKER", "DATABASE_URL_MIGRATOR"] as const) {
@@ -153,6 +154,21 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Limits in another currency", () 
     const rent = rows.find((r) => r.category_id === RENT && r.month === "1998-01");
     expect(rent?.planned_cents).toBe(convertCents(50000n, "4.40"));
     expect(rent?.planned_cents.toString()).toBe((await rowOf("1998-01", RENT)).plannedCents);
+  });
+
+  test("the per-category charts carry a foreign category's figures in its own currency (user, 261104)", async () => {
+    const r = await getOverviewPlanned({
+      repo: createOverviewRepo(),
+      inCategoryCurrency: { repo: createOverviewRepo({ inCategoryCurrency: true }) },
+      metaReader: { getBudgetMeta: async () => ({ default_currency: "PLN" }) },
+      fxProvider: new CacheOnlyFxProvider(new DrizzleFxRateCacheRepo(workerPool as never)),
+    })({ tenantId: TENANT, budgetId: TENANT, from: "1998-01-01", to: "1998-01-31", now: () => new Date("1998-02-05T12:00:00Z") });
+    const rent = r._unsafeUnwrap().plannedAvgVsReal.find((x) => x.category_id === RENT)!;
+    // Sized in the budget currency (slices stay comparable)…
+    expect(rent.planned_avg_cents).toBe(convertCents(50000n, "4.40").toString());
+    // …labelled in the category's: the limit as typed.
+    expect(rent.currency).toBe("EUR");
+    expect(rent.own?.planned_avg_cents).toBe("50000");
   });
 
   test("a limit with no FX pair counts as 0 and is flagged, the summary still answers", async () => {

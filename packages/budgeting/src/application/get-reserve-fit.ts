@@ -86,6 +86,11 @@ function monthsBetween(from: string, to: string): number {
 }
 
 export interface GetReserveFitDeps {
+  /** 14-23: the same readers in each category's OWN currency (second pass). */
+  inCategoryCurrency?: {
+    overviewRepo: GetReserveFitDeps["overviewRepo"];
+    exclusionsRepo: GetReserveFitDeps["exclusionsRepo"];
+  };
   overviewRepo: Pick<
     OverviewPlannedRepo,
     "categoryWindows" | "monthlyPlannedByCategory" | "monthlySpendByCategory"
@@ -133,7 +138,22 @@ export interface GetReserveFitInput {
   budgetId: string;
   from: string; // YYYY-MM-DD
   to: string; // YYYY-MM-DD
+  /** 14-23: the per-category pass — every input in each category's OWN currency. */
+  inCategoryCurrency?: boolean;
 }
+
+/** A row's money in its category's OWN currency (14-23). */
+export type OwnReserveFitFigures = Pick<
+  ReserveFitRowDTO,
+  | "held_cents"
+  | "needed_cents"
+  | "gap_cents"
+  | "worst_overage_cents"
+  | "projected_monthly_cents"
+  | "suggested_limit_cents"
+  | "suggested_needed_cents"
+  | "suggested_delta_cents"
+>;
 
 export interface ReserveFitRowDTO {
   category_id: string;
@@ -172,6 +192,12 @@ export interface ReserveFitRowDTO {
     scheduled_cadence: string | null;
     excluded: boolean;
   }[];
+  /** 14-23: the category's own currency. The figures above stay in the budget
+   *  currency (they size the chart); a category in another currency adds `own`
+   *  — the same figures in its currency, which its labels and the rebalance
+   *  dialog read and save. */
+  currency?: string;
+  own?: OwnReserveFitFigures;
 }
 
 export interface ReserveFitDTO {
@@ -189,6 +215,9 @@ export interface ReserveFitDTO {
   projected_by_category: {
     category_id: string;
     projected_monthly_cents: string;
+    /** 14-23: as on the rows — currency, and the figure in it when foreign. */
+    currency?: string;
+    own_projected_monthly_cents?: string;
   }[];
   /**
    * Every large spend the household could set aside, from EVERY category —
@@ -280,7 +309,10 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       if (positionsResult.isErr()) return err(positionsResult.error);
       // Phase 14: engine values are in each category's currency; this chart
       // works in the budget currency.
-      const positions = positionsInBudget(positionsResult.value, meta?.default_currency ?? "EUR");
+      // The per-category pass keeps them native.
+      const positions = input.inCategoryCurrency
+        ? positionsResult.value.positions
+        : positionsInBudget(positionsResult.value, meta?.default_currency ?? "EUR");
       // The month the engine is treating as OPEN — the one that draws on a
       // reserve without accruing into it yet.
       const openMonth = positionsResult.value.openMonth;
@@ -365,21 +397,26 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       // so the projection and the reserve walk cannot disagree about a rule.
       const budgetCcy = meta?.default_currency ?? "EUR";
       const asOfDate = new Date(`${nowMonth}-01T00:00:00Z`);
+      // 14-23: the per-category pass counts a rule in its CATEGORY's currency.
+      const catCcy = new Map(windows.map((w) => [w.category_id, w.currency ?? budgetCcy]));
       const rules = await Promise.all(
-        rawRules.map(async (r) =>
-          !r.currency || r.currency === budgetCcy
+        rawRules.map(async (r) => {
+          const target = input.inCategoryCurrency
+            ? (r.category_id && catCcy.get(r.category_id)) || budgetCcy
+            : budgetCcy;
+          return !r.currency || r.currency === target
             ? r
             : {
                 ...r,
                 amount_cents: await sumWalletsToCurrency(
                   [{ amount_cents: r.amount_cents, currency: r.currency }],
-                  budgetCcy,
+                  target,
                   deps.fxProvider,
                   asOfDate,
                 ),
-                currency: budgetCcy,
-              },
-        ),
+                currency: target,
+              };
+        }),
       );
 
       const lastMonth = to.slice(0, 7) > nowMonth ? to.slice(0, 7) : nowMonth;
@@ -942,18 +979,55 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       // Worst fit first: the rows that need money, then the ones holding it idle.
       rows.sort((a, b) => Number(BigInt(a.gap_cents) - BigInt(b.gap_cents)));
 
+      for (const row of rows) row.currency = catCcy.get(row.category_id) ?? budgetCcy;
+      const projectedByCategory: ReserveFitDTO["projected_by_category"] = windows.map((w) => ({
+        category_id: w.category_id,
+        projected_monthly_cents: (
+          projectedByCat.get(w.category_id) ??
+          projectedFor(w, positions.get(w.category_id)?.reserveCents ?? 0n)
+        ).toString(),
+        currency: catCcy.get(w.category_id) ?? budgetCcy,
+      }));
+
+      // 14-23: a category in another currency reads its labels — and the
+      // rebalance dialog its suggestions — in that currency. Same walk, every
+      // input in each category's own currency; only foreign rows are taken.
+      const own = deps.inCategoryCurrency;
+      if (own && !input.inCategoryCurrency && windows.some((w) => (w.currency ?? budgetCcy) !== budgetCcy)) {
+        const r = await getReserveFit({
+          ...deps,
+          overviewRepo: own.overviewRepo,
+          exclusionsRepo: own.exclusionsRepo,
+          inCategoryCurrency: undefined,
+        })({ ...input, inCategoryCurrency: true });
+        if (r.isErr()) return err(r.error);
+        const rowById = new Map(r.value.rows.map((x) => [x.category_id, x]));
+        for (const row of rows) {
+          const o = row.currency !== budgetCcy ? rowById.get(row.category_id) : undefined;
+          if (o)
+            row.own = {
+              held_cents: o.held_cents,
+              needed_cents: o.needed_cents,
+              gap_cents: o.gap_cents,
+              worst_overage_cents: o.worst_overage_cents,
+              projected_monthly_cents: o.projected_monthly_cents,
+              suggested_limit_cents: o.suggested_limit_cents,
+              suggested_needed_cents: o.suggested_needed_cents,
+              suggested_delta_cents: o.suggested_delta_cents,
+            };
+        }
+        const projById = new Map(r.value.projected_by_category.map((x) => [x.category_id, x]));
+        for (const p of projectedByCategory)
+          if (p.currency !== budgetCcy)
+            p.own_projected_monthly_cents = projById.get(p.category_id)?.projected_monthly_cents;
+      }
+
       return ok({
         currency: meta?.default_currency ?? "EUR",
         rows,
         // …and what every category costs in an average month, whether or not it
         // earned a reserve row (see the DTO).
-        projected_by_category: windows.map((w) => ({
-          category_id: w.category_id,
-          projected_monthly_cents: (
-            projectedByCat.get(w.category_id) ??
-            projectedFor(w, positions.get(w.category_id)?.reserveCents ?? 0n)
-          ).toString(),
-        })),
+        projected_by_category: projectedByCategory,
         // …and every large spend that could be set aside, from every category
         // (see the DTO). Biggest first, as the dialog lists them.
         one_off_candidates: (() => {

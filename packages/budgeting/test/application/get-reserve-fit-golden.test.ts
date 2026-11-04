@@ -162,9 +162,16 @@ export const runGolden = async (deps: GetReserveFitDeps) => {
   return res.value;
 };
 
+// 14-23 added a per-row `currency` label; the hash pins the numbers, so the
+// label is stripped before hashing.
+const unlabel = (v: unknown) => {
+  const d = v as { rows?: object[]; projected_by_category?: object[] };
+  const strip = (xs?: object[]) => xs?.map(({ currency: _c, ...rest }: { currency?: unknown }) => rest);
+  return { ...d, rows: strip(d.rows), projected_by_category: strip(d.projected_by_category) };
+};
 const sha = (v: unknown) =>
   createHash("sha256")
-    .update(JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? `${x}n` : x)))
+    .update(JSON.stringify(unlabel(v), (_k, x) => (typeof x === "bigint" ? `${x}n` : x)))
     .digest("hex");
 
 describe("Reserve fit golden output", () => {
