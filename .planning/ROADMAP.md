@@ -452,7 +452,7 @@ Plans:
 
 **Requirements**: CONTEXT decisions (no REQ ids mapped)
 **Depends on:** Phase 13
-**Plans:** 20/21 plans executed
+**Plans:** 24/24 plans complete
 
 Plans:
 **Wave 1**
@@ -461,7 +461,7 @@ Plans:
 - [x] 14-02-PLAN.md — pure settleReserveByCurrency (own ccy first, net, exact, ≈ budget ccy)
 - [x] 14-04-PLAN.md — all Phase 14 i18n keys + shared E2E FX seed step
 
-**Wave 2** *(blocked on Wave 1 completion)*
+**Wave 2** _(blocked on Wave 1 completion)_
 
 - [x] 14-03-PLAN.md — pure D-17 closed-month result conversion
 - [x] 14-05-PLAN.md — category currency backend (create default, DTO, tx default, limit currency)
@@ -470,35 +470,35 @@ Plans:
 - [x] 14-08-PLAN.md — overview + home summary read-time conversion
 - [x] 14-09-PLAN.md — cash flow, scheduled monthly, cushion, income task conversion
 
-**Wave 3** *(blocked on Wave 2 completion)*
+**Wave 3** _(blocked on Wave 2 completion)_
 
 - [x] 14-10-PLAN.md — reserve fit + wealth re-expression; guard green
 - [x] 14-11-PLAN.md — per-currency reserve replay (D-10, D-17)
 - [x] 14-18-PLAN.md — entry defaults to category currency + foreign limit display (web)
 
-**Wave 4** *(blocked on Wave 3 completion)*
+**Wave 4** _(blocked on Wave 3 completion)_
 
 - [x] 14-12-PLAN.md — settlement wiring, D-14 fix, multi-line RESERVE_TOPUP payload
 
-**Wave 5** *(blocked on Wave 4 completion)*
+**Wave 5** _(blocked on Wave 4 completion)_
 
 - [x] 14-13-PLAN.md — per-currency reserve DTOs + spendings reserve conversion
 - [x] 14-15-PLAN.md — reserve wallet currency unlock (D-09)
 - [x] 14-16-PLAN.md — change category currency with limit conversion (D-07)
 
-**Wave 6** *(blocked on Wave 5 completion)*
+**Wave 6** _(blocked on Wave 5 completion)_
 
 - [x] 14-14-PLAN.md — web per-currency reserve task copy + reserves tab
 - [x] 14-17-PLAN.md — category slider currency field (web)
 - [x] 14-19-PLAN.md — remove budget currency locks (backend, LAST)
 
-**Wave 7** *(blocked on Wave 6 completion)*
+**Wave 7** _(blocked on Wave 6 completion)_
 
 - [x] 14-20-PLAN.md — settings confirm dialog, cache invalidation, full E2E (web, LAST)
 
-**Wave 8** *(blocked on Wave 7 completion)*
+**Wave 8** _(blocked on Wave 7 completion)_
 
-- [ ] 14-21-PLAN.md — phase gate + owner verification checkpoint
+- [x] 14-21-PLAN.md — phase gate + owner verification checkpoint
 
 ---
 

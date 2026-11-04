@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: track)_
-status: executing
-stopped_at: Phase 14 UI-SPEC approved
-last_updated: "2026-11-03T16:16:12.350Z"
+status: milestone_complete
+stopped_at: Milestone complete (Phase 14 was final phase)
+last_updated: 2026-11-04T11:13:51.891Z
 last_activity: 2026-11-03
 progress:
   total_phases: 15
   completed_phases: 12
   total_plans: 186
-  completed_plans: 185
+  completed_plans: 189
   percent: 80
 ---
 
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 **Core value:** A family can replace a complex personal-budget spreadsheet with a multi-user, multi-currency tool that tells them — through a single Tasks queue — exactly what to do this week to keep budget, reserve, and cushion healthy.
-**Current focus:** Phase 14 — multi-currency-budgets
+**Current focus:** Milestone complete
 
 ## Current Position
 
-Phase: 14 (multi-currency-budgets) — EXECUTING
-Plan: 21 of 21
+Phase: 14
+Plan: Not started
 Next: Phase 13.1 inserted — /gsd:discuss-phase 13.1 (assets with transactions redesign); Phase 13 UAT paused at test 7
-Status: Ready to execute
-Last activity: 2026-11-03
+Status: Milestone complete
+Last activity: 2026-11-04
 
 ### Known test-debt (non-CI, non-blocking)
 
@@ -65,7 +65,7 @@ Phase-02 dead-table gap (`account_balance_adjustments`) is RESOLVED — only doc
 
 **Velocity:**
 
-- Total plans completed: 7 (v1.1 — v1.0 history archived)
+- Total plans completed: 31 (v1.1 — v1.0 history archived)
 - Average duration: —
 - Total execution time: 0 hours
 
@@ -82,6 +82,7 @@ Phase-02 dead-table gap (`account_balance_adjustments`) is RESOLVED — only doc
 | 7. Tasks Queue                              | 0/TBD | —     | —        |
 | 8. PWA, Offline, Push, i18n & E2E Hardening | 0/TBD | —     | —        |
 | 09                                          | 7     | -     | -        |
+| 14                                          | 24    | -     | -        |
 
 **Recent Trend:**
 
