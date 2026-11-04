@@ -204,17 +204,11 @@ export const setLimitSchema = z.object({
     .string()
     .regex(/^\d{1,15}$/)
     .optional(),
-  // Currencies optional — when omitted the API derives both from the active
-  // workspace's default_currency. The form does not ask the user to pick.
-  normalCurrency: z
-    .string()
-    .regex(/^[A-Z0-9]{3,5}$/)
-    .optional(),
+  // Currencies optional — when omitted the API takes the CATEGORY's. Named,
+  // they must be it (review CR-03), and one the FX table knows.
+  normalCurrency: z.enum(FIAT_CURRENCIES).optional(),
   cushionAmount: z.string().regex(/^\d{1,15}$/),
-  cushionCurrency: z
-    .string()
-    .regex(/^[A-Z0-9]{3,5}$/)
-    .optional(),
+  cushionCurrency: z.enum(FIAT_CURRENCIES).optional(),
   effectiveFrom: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)

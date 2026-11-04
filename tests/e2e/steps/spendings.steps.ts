@@ -850,7 +850,7 @@ When(
           data: {
             normalAmount: String(Math.round(parseFloat(plannedStr) * 100)),
             cushionAmount: "0",
-            normalCurrency: "EUR",
+            // The route takes the category's own currency (review CR-03).
             effectiveFrom: monthStart,
           },
         },

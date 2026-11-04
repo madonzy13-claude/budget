@@ -250,6 +250,35 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
         string,
         EffectiveLimit & { originalPlanned: bigint; original?: EffectiveLimit; fxUnavailable: boolean }
       >();
+      // Review CR-01: a segment from before a currency change is still in the
+      // old currency. The editor and the own-currency column work in the
+      // category's CURRENT one, so that segment converts into it first (same
+      // D-08 rate date) — showing PLN 200 as "€200" and saving it as EUR was a
+      // silent relabel.
+      const catCcyOf = new Map(categories.map((c) => [c.id, c.currency ?? meta.currency]));
+      const toCategory = async (l: EffectiveLimit, catCcy: string): Promise<EffectiveLimit | undefined> => {
+        const from = l.normalCurrency ?? meta.currency;
+        if (from === catCcy) return l;
+        const rate = deps.fxProvider
+          ? await deps.fxProvider
+              .rateAsOf(from as Currency, catCcy as Currency, rateDate)
+              .then((x) => x.rate, () => null)
+          : null;
+        if (rate === null) return undefined;
+        const planned = convertCents(l.planned, rate);
+        const needs = l.needs == null ? null : convertCents(l.needs, rate);
+        return {
+          ...l,
+          planned,
+          cushion: convertCents(l.cushion, rate),
+          needs,
+          // Derived, so needs + wants stays the limit to the cent (0061).
+          wants: l.wants == null ? null : needs == null ? convertCents(l.wants, rate) : planned - needs,
+          normalCurrency: catCcy,
+          cushionCurrency: catCcy,
+          convertedFrom: null,
+        };
+      };
       for (const [catId, l] of rawLimits) {
         const normalCcy = l.normalCurrency ?? meta.currency;
         const nRate = await rateTo(normalCcy);
@@ -262,8 +291,10 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           needs: l.needs == null ? null : conv(l.needs, nRate),
           wants: l.wants == null ? null : conv(l.wants, nRate),
           normalCurrency: normalCcy,
-          originalPlanned: l.planned,
-          original: l,
+          ...(await (async () => {
+            const o = await toCategory(l, catCcyOf.get(catId) ?? meta.currency);
+            return o ? { originalPlanned: o.planned, original: o } : { originalPlanned: l.planned, original: l };
+          })()),
           fxUnavailable: nRate === null || cRate === null,
         });
       }
@@ -478,7 +509,7 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
             plannedCents: planned.toString(),
             cushionCents: cushion.toString(),
             limitOriginalCents: limits.originalPlanned.toString(),
-            limitCurrency: limits.normalCurrency ?? meta.currency,
+            limitCurrency: limits.original?.normalCurrency ?? limits.normalCurrency ?? meta.currency,
             ...(limits.original
               ? {
                   limitOriginal: {

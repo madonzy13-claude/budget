@@ -470,3 +470,39 @@ describe("No limit (mig 0083)", () => {
     expect(eff.noLimit).toBe(false);
   });
 });
+
+// Review CR-03: a limit is in its category's currency. A body naming another
+// one (or anything the FX table can never convert) is refused, not stored —
+// such a limit silently read as 0 everywhere and locked the category's
+// currency for good.
+describe("Limit currency follows the category", () => {
+  it("refuses a limit in a currency other than the category's", async () => {
+    const t = await createTestUser();
+    const app = await buildApp(t.userId, t.tenantId);
+    const cat = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Trips" }),
+      })
+    ).json();
+    const post = (normalCurrency: string, cushionCurrency: string) =>
+      app.request(`/categories/${cat.category.id}/limits`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          normalAmount: "10000",
+          cushionAmount: "0",
+          normalCurrency,
+          cushionCurrency,
+          effectiveFrom: "2026-07-01",
+        }),
+      });
+    const mismatch = await post("PLN", "PLN");
+    expect(mismatch.status).toBe(422);
+    expect((await mismatch.json()).error).toBe("currency_mismatch");
+    expect((await post("EUR", "PLN")).status).toBe(422);
+    expect((await post("BTC", "BTC")).status).toBe(422);
+    expect((await post("EUR", "EUR")).status).toBe(201);
+  });
+});

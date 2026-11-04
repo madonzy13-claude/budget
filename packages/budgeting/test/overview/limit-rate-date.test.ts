@@ -30,6 +30,7 @@ const TENANT = crypto.randomUUID();
 const USER = crypto.randomUUID();
 const RENT = crypto.randomUUID();
 const ODD = crypto.randomUUID();
+const MOVED = crypto.randomUUID();
 const PROVIDER = `test-14-07-${crypto.randomUUID()}`;
 
 async function asApp<T>(fn: (p: Pool) => Promise<T>): Promise<T> {
@@ -76,6 +77,7 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Limits in another currency", () 
         { base: "EUR", quote: "PLN", date: "1998-01-10", rate: "4.30" },
         { base: "EUR", quote: "PLN", date: "1998-01-28", rate: "4.40" },
         { base: "EUR", quote: "PLN", date: "1998-02-03", rate: "4.50" },
+        { base: "PLN", quote: "EUR", date: "1998-01-10", rate: "0.25" },
       ],
       PROVIDER,
     );
@@ -90,9 +92,12 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Limits in another currency", () 
          VALUES ($1, $2, 'Limit Rate', 'PRIVATE', 'PLN', $3, 1, now())`,
         [TENANT, `limit-rate-${TENANT.slice(0, 8)}`, USER],
       );
-      for (const [id, name, ccy] of [
-        [RENT, "Rent", "EUR"],
-        [ODD, "Odd", "ZZQ"],
+      // MOVED is a EUR category whose January segment is still in PLN — what a
+      // currency change leaves behind for the months before it (D-07).
+      for (const [id, name, ccy, limitCcy] of [
+        [RENT, "Rent", "EUR", "EUR"],
+        [ODD, "Odd", "ZZQ", "ZZQ"],
+        [MOVED, "Moved", "EUR", "PLN"],
       ] as const) {
         await db.query(
           `INSERT INTO budgeting.categories (id, tenant_id, name, currency, created_at, actor_user_id)
@@ -104,7 +109,7 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Limits in another currency", () 
              (id, tenant_id, category_id, normal_amount, normal_currency, cushion_amount,
               cushion_currency, effective_from, actor_user_id, created_at)
            VALUES (gen_random_uuid(), $1, $2, 50000, $3, 50000, $3, '1998-01-01', $4, now())`,
-          [TENANT, id, ccy, USER],
+          [TENANT, id, limitCcy, USER],
         );
       }
     });
@@ -169,6 +174,15 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Limits in another currency", () 
     // …labelled in the category's: the limit as typed.
     expect(rent.currency).toBe("EUR");
     expect(rent.own?.planned_avg_cents).toBe("50000");
+  });
+
+  test("a segment still in an old currency is edited in the category's currency (review CR-01)", async () => {
+    const row = await rowOf("1998-01", MOVED);
+    // 500.00 PLN at January's last rate 0.25 → 125.00 EUR, labelled EUR.
+    expect(row.limitCurrency).toBe("EUR");
+    expect(row.limitOriginal?.plannedCents).toBe("12500");
+    expect(row.own?.currency).toBe("EUR");
+    expect(row.own?.plannedCents).toBe("12500");
   });
 
   test("a limit with no FX pair counts as 0 and is flagged, the summary still answers", async () => {

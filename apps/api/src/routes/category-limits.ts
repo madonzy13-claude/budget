@@ -35,17 +35,22 @@ export function createCategoryLimitsRoute(deps: BootedDeps) {
     const userId = (c.get("userId") as string) ?? session?.user?.id;
     const { id: categoryId } = c.req.param();
 
-    // Phase 14: a limit is in its CATEGORY's currency unless the caller names
-    // one (the category itself defaults to the budget's currency at creation).
-    let normalCurrency = parsed.data.normalCurrency;
-    let cushionCurrency = parsed.data.cushionCurrency;
-    if (!normalCurrency || !cushionCurrency) {
-      const cat = await deps.budgeting.findCategoryById({ tenantId, categoryId });
-      if (cat.isErr()) return serverError(c, "set_category_limit_failed", cat.error);
-      if (!cat.value) return c.json({ error: "Not found" }, 404);
-      normalCurrency = normalCurrency ?? cat.value.currency;
-      cushionCurrency = cushionCurrency ?? cat.value.currency;
+    // Phase 14: a limit is in its CATEGORY's currency. A body naming another
+    // one is refused (review CR-03): stored, it read as 0 everywhere and no
+    // currency change could convert it again. Amounts in another currency say
+    // so with `amountsCurrency` instead, and convert below.
+    const cat = await deps.budgeting.findCategoryById({ tenantId, categoryId });
+    if (cat.isErr()) return serverError(c, "set_category_limit_failed", cat.error);
+    if (!cat.value) return c.json({ error: "Not found" }, 404);
+    const catCcy = cat.value.currency;
+    if (
+      (parsed.data.normalCurrency && parsed.data.normalCurrency !== catCcy) ||
+      (parsed.data.cushionCurrency && parsed.data.cushionCurrency !== catCcy)
+    ) {
+      return c.json({ error: "currency_mismatch", currency: catCcy }, 422);
     }
+    let normalCurrency: string = catCcy;
+    let cushionCurrency: string = catCcy;
 
     // Phase 14: amounts sent in another currency (the Overview rebalance works
     // in the budget's) convert into the category's at today's rate.
