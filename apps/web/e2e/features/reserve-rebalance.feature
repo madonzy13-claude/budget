@@ -6,22 +6,25 @@ Feature: Rebalancing reserves from the Overview
   # posts, so a press here has to reach the reserve ledger for real.
   #
   # The seed makes a buffer that is genuinely SHORT with nothing left overspent:
-  # one big overspend early, then quiet months whose unspent limit pays it off.
-  # (A category still carrying an overspend never lands on its target, because
-  # a positive adjust settles the debt before it builds the buffer.)
-  #   −6: +500 → 500 · −5: −2,500 → owes 2,000 · −4…−1: +500 each → owes 0
-  #   held 0, and the trough the walk found is 2,000.
+  # one big overspend early, then months that spend their whole limit, so
+  # nothing rebuilds it. Every month a limit covers counts, spending or not
+  # (owner, 261104) — so the later months spend to the limit on purpose.
+  #   −6: +500 → 500 · −5: spends 3,000 of 500 → the reserve's 500 covers part
+  #   · −4…−1: spend exactly 500 → +0 each → held 0, the trough is 2,000.
 
   # Travel spends UNDER its limit instead, so what it did not spend accrues and
   # it comes out FAT — a buffer holding more than its history ever asked for.
-  # (The engine only walks months that had activity, so a category with no
-  # transactions at all accrues nothing.) That gives the dialog one short row and
-  # one fat one, with current amounts of very different widths — which is what
-  # the alignment and sign scenarios both need.
+  # That gives the dialog one short row and one fat one, with current amounts
+  # of very different widths — which is what the alignment and sign scenarios
+  # both need.
   Background:
     Given I am signed in as a fresh user
     And the budget has a category "Presents" with a monthly limit of 50000 cents from 6 months ago
     And the budget has a confirmed spend of 300000 cents in "Presents" 5 months ago
+    And the budget has a confirmed spend of 50000 cents in "Presents" 4 months ago
+    And the budget has a confirmed spend of 50000 cents in "Presents" 3 months ago
+    And the budget has a confirmed spend of 50000 cents in "Presents" 2 months ago
+    And the budget has a confirmed spend of 50000 cents in "Presents" 1 months ago
     And the budget has a category "Travel" with a monthly limit of 500000 cents from 6 months ago
     And the budget has a confirmed spend of 10000 cents in "Travel" 5 months ago
     And I open the reserve rebalance dialog for "My E2E Budget"

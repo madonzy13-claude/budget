@@ -53,3 +53,14 @@ A past month's whole column now reads in its own currency, the reserve cap ("ava
 - **Errors say why:** a refused save toasts "Couldn't save the category: {reason}. Please try again later, or report it if it keeps happening." Reasons are mapped from the server code (currency_mismatch / not_found / validation / unknown with the HTTP status). Offline keeps its own toast.
 - **TDD, each test seen red first:** the repo no-segment test (+ the same-currency no-op), the 3 slider tests (typed kept, no hint, reason toast), and the i18n wording.
 - Regression: Vitest 3080/0; backend 2382 + 2 baseline; currency E2E 14 passed + 1 flaky (golden timeline). The @category-currency scenario still asserted the removed hint and was updated (now asserts no hint + the converted limit shown): 4/4 pass.
+
+## Follow-up 4 (owner): a limit-only month leaves its leftover
+"I added a 500 zł limit to September, but next month's reserve didn't update until I added a transaction to September."
+- Cause: the reserve replay read limits only for months that had spending, so a closed month with a limit and no spending never ran. This was not specific to currency changes.
+- Fix: the loader replays every month a limit covers, up to the open month.
+- TDD: `limit-only-month-accrues` was red (no reserve), now green (50000).
+- Impact on real data, measured read-only before/after:
+  - the owner's main budget is unchanged (every month there has spending);
+  - in the Test budget, "My category" goes 338.61 → 468.52 USD.
+- Tests that seeded a past limit and asserted "no reserve" now start their limit in the viewed month. The reserves route, the spendings-summary route (whose sibling test already expected empty months to accrue), reserve-need-by-currency and the D-17 expectation were updated with their arithmetic. The `@overview-rebalance` seed now spends the full limit in the later months, so "Presents" is still genuinely short.
+- Regression: backend 2383 + 2 baseline; E2E (reserves, currency, rebalance, tasks; chromium + mobile) 66 passed, 1 flaky (golden timeline).
