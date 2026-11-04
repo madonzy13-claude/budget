@@ -373,7 +373,11 @@ export function getReservePositions(deps: GetReservePositionsDeps) {
           ),
         ),
         categoryCurrency: inputs.categoryCurrency,
-        ...(inputs.fxUnavailable ? { fxUnavailable: true } : {}),
+        // …or a currency the settlement could not convert (review WR-05):
+        // it is out of internalCents, so the total is not the whole story.
+        ...(inputs.fxUnavailable || (settlement?.unconvertible.length ?? 0) > 0
+          ? { fxUnavailable: true }
+          : {}),
         userDefinedCents: engine.userDefinedCents,
         surplusCents,
         direction,

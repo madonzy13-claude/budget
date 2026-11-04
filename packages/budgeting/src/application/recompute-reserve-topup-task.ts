@@ -132,15 +132,21 @@ export async function recomputeReserveTopupTask(
   //   surplus < 0 → wallets < reserves → TOPUP wallets
   const direction: "TOPUP" | "WITHDRAW" =
     settlement?.direction ?? settlement?.lines[0]?.direction ?? (surplus < 0n ? "TOPUP" : "WITHDRAW");
-  const shortfall = surplus < 0n ? -surplus : surplus;
+  // Review WR-05: the title reads ONE verb over all lines. A currency with no
+  // rate sits outside the net and can point the other way — it stays off this
+  // task rather than being told to go the wrong way.
+  const lines = settlement?.lines.filter((l) => l.direction === direction);
+  // No net (every line unconvertible): the amount is the line's, never a 0.
+  const shortfall =
+    surplus !== 0n ? (surplus < 0n ? -surplus : surplus) : (lines?.[0]?.cents ?? 0n);
 
   const payload: ReserveTopupPayload = {
     shortfall_cents: shortfall.toString(),
     direction,
     currency: await deps.budgetCurrencyOf(input.tenantId),
-    ...(settlement
+    ...(lines
       ? {
-          lines: settlement.lines.map((l) => ({
+          lines: lines.map((l) => ({
             currency: l.currency,
             shortfall_cents: l.cents.toString(),
             direction: l.direction,
