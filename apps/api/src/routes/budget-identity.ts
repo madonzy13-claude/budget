@@ -1,7 +1,7 @@
 /**
  * budget-identity.ts — PATCH /budgets/:id (identity + cushion) route factory
  *
- * SETT-02: name rename + currency change (locked after first transaction)
+ * SETT-02: name rename + currency change (any time since Phase 14; totals re-express at read)
  * SETT-03: cushion_mode_enabled toggle (single write path via toggleBudgetMode,
  *           which syncs both the boolean and SCD-2 history in one tx — T-06-02-03)
  *
@@ -63,7 +63,7 @@ export function budgetIdentityRoutesFactory(
 ) {
   const r = new Hono();
 
-  // GET /budgets/:id — extended to include hasTransactions signal (SETT-02 currency lock)
+  // GET /budgets/:id — extended to include the hasTransactions signal
   // NOTE: This handler is mounted as a sub-router into budgets.ts via r.route("/", ...)
   // The parent GET /:id in budgets.ts is registered FIRST and takes precedence for
   // production traffic. This handler exists so the identity test suite can test the

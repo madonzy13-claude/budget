@@ -12,7 +12,7 @@
  *   data-testid="wallet-row-draft"
  *
  * T-05-10: All text via JSX — React auto-escapes (no raw innerHTML).
- * D-PH5-R3: Currency cell is read-only plain text on Reserve-section rows.
+ * Phase 14 (D-09): the currency cell is editable on every row, Reserve included.
  * D-PH5-W5: Hover reveals trash on desktop (group-hover:flex).
  * D-PH5-W6: Mobile first-tap sets data-selected → trash appears.
  */
@@ -764,7 +764,7 @@ function PersistedRow({
           />
         </div>
 
-        {/* Currency — read-only for Reserve section per D-PH5-R3; editable otherwise.
+        {/* Currency — editable on every row (Phase 14, D-09).
           UAT-PH5-T3-24: narrower on mobile so name + amount have room.
           UAT-PH5-T3-42: render the CurrencyPicker directly (no
           InlineEditCell wrapper). On touch devices the picker emits a
