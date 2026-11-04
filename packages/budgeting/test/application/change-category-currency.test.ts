@@ -153,6 +153,31 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Change a category's currency", (
     expect(march).toEqual({ n: "40000", c: "PLN" });
   });
 
+  // Owner, 261104 ("my category", September): a past month with NO limit yet
+  // still takes the new currency — it gets its own zero segment, so the limit
+  // the slider writes next is in that month's currency.
+  test("a past month with no limit gets a segment in the new currency", async () => {
+    const cat = await b.category("PLN");
+    await b.limit(cat, 30000, "PLN", "1998-04-01");
+    const r = await change({ tenantId: b.tenant, userId: b.user, categoryId: cat, currency: "EUR", month: "1998-02-01" });
+    expect(r.isOk()).toBe(true);
+    const segs = (
+      await b.sql(
+        `SELECT effective_from::text f, effective_to::text t, normal_amount::text n, normal_currency::text c
+           FROM budgeting.category_limits WHERE category_id = $1 ORDER BY effective_from`,
+        [cat],
+      )
+    ).rows;
+    expect(segs).toEqual([
+      { f: "1998-02-01", t: "1998-02-28", n: "0", c: "EUR" },
+      { f: "1998-04-01", t: null, n: "30000", c: "PLN" },
+    ]);
+    // Its own currency already: nothing to record.
+    await change({ tenantId: b.tenant, userId: b.user, categoryId: cat, currency: "PLN", month: "1998-03-01" });
+    const after = (await b.sql(`SELECT count(*)::int n FROM budgeting.category_limits WHERE category_id = $1`, [cat])).rows[0];
+    expect(after).toEqual({ n: 2 });
+  });
+
   test("the reserve is rebuilt in the new currency (D-17)", async () => {
     const r = await b.positions();
     expect(r.categoryCurrency?.get(food)).toBe("EUR");

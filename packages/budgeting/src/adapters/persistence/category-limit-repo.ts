@@ -75,7 +75,16 @@ type Query = <T>(query: unknown) => Promise<{ rows: T[] }>;
  */
 async function changeOneMonth(
   q: Query,
-  a: { tenantId: string; categoryId: string; to: string; month: string; today: string; actor: string },
+  a: {
+    tenantId: string;
+    categoryId: string;
+    to: string;
+    month: string;
+    today: string;
+    actor: string;
+    /** The category's current currency — a month with no limit reads in it. */
+    catCurrency: string;
+  },
 ): Promise<ChangeCurrencyResult> {
   const end = (
     await q<{ end: string; next: string }>(sql`
@@ -104,9 +113,19 @@ async function changeOneMonth(
          AND (effective_to IS NULL OR effective_to >= ${a.month}::date)
        ORDER BY effective_from DESC LIMIT 1`)
   ).rows[0];
-  // ponytail: no limit that month = nothing that carries its currency; the
-  // member sets a limit first (the editor offers it in the same slider).
-  if (!seg) return { status: "changed", fromCurrency: a.to, toCurrency: a.to, limitsConverted: 0, month: a.month };
+  // No limit that month: give it its own zero segment in the new currency —
+  // that segment IS the month's currency, and the limit the slider writes
+  // next must land in it (owner, 261104: "my category", September).
+  if (!seg) {
+    if (a.to === a.catCurrency) return { status: "same", currency: a.to };
+    await q(sql`
+      INSERT INTO budgeting.category_limits
+        (tenant_id, category_id, normal_amount, normal_currency, cushion_amount, cushion_currency,
+         effective_from, effective_to, actor_user_id)
+      VALUES (${a.tenantId}::uuid, ${a.categoryId}::uuid, 0, ${a.to}, 0, ${a.to},
+              ${a.month}::date, ${end.end}::date, ${a.actor}::uuid)`);
+    return { status: "changed", fromCurrency: a.to, toCurrency: a.to, limitsConverted: 0, month: a.month };
+  }
   const from = seg.normal_currency.trim();
   if (from === a.to) return { status: "same", currency: a.to };
   const src: Source = seg.converted_from ?? {
@@ -221,7 +240,15 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
       // Owner, 261104: a past month changes ONLY itself — the months around
       // it and the category's current currency stay as they were.
       if (input.month && input.month < cat.month_start) {
-        const one = await changeOneMonth(q, { tenantId, categoryId, to, month: input.month, today: cat.today, actor: input.actorUserId });
+        const one = await changeOneMonth(q, {
+          tenantId,
+          categoryId,
+          to,
+          month: input.month,
+          today: cat.today,
+          actor: input.actorUserId,
+          catCurrency: cat.currency.trim(),
+        });
         return one.status === "changed" ? { ...one, categoryCurrency: cat.currency.trim() } : one;
       }
       const from = cat.currency.trim();
