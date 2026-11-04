@@ -38,7 +38,7 @@
 import { sql } from "drizzle-orm";
 import { Temporal } from "temporal-polyfill";
 import type { FxProvider } from "@budget/shared-kernel";
-import { TenantId, UserId } from "@budget/shared-kernel";
+import { TenantId, UserId, serverNow } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
 import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
 import { scheduledMonthlyNormalize } from "./scheduled-monthly-normalize";
@@ -199,8 +199,12 @@ export async function computeIncomeVsPlanned(
       .cushion_mode_enabled,
   );
 
-  const asOf = (input.now ?? (() => new Date()))();
-  const today = Temporal.Now.plainDateISO();
+  const asOf = (input.now ?? serverNow)();
+  // From the same instant, not the host clock (review WR-08): the gated test
+  // clock and the rate date then agree.
+  const today = Temporal.Instant.fromEpochMilliseconds(asOf.getTime())
+    .toZonedDateTimeISO("UTC")
+    .toPlainDate();
 
   // Active incomes → keep only the payments still UPCOMING this month (pay-day not
   // yet passed) → FX sum. Income already received this month sits in a wallet and
@@ -262,7 +266,7 @@ export async function computeIncomeVsPlanned(
   // a SMART Investments category (its normal_amount isn't its real limit and it
   // nets to income anyway). Phase 14 (D-08): each limit converts from its own
   // currency at today's rate.
-  const todayStr = Temporal.Now.plainDateISO().toString();
+  const todayStr = today.toString();
   const plannedRow = await tx.execute(sql`
     SELECT COALESCE(SUM(budgeting.fx_convert(cl.normal_amount, cl.normal_currency,
                                              ${currency}::text, ${todayStr}::date)), 0)::text AS total

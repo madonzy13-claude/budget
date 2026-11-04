@@ -77,6 +77,8 @@ describe("Category slider — currency", () => {
     pickCurrency("EUR");
     await waitFor(() => expect(screen.getByTestId("category-currency-hint").textContent).toContain("PLN|EUR"));
     await waitFor(() => expect((document.getElementById("cat-slider-needs") as HTMLInputElement).value).toBe("233.30"));
+    // The server's today, not the browser's UTC day (review WR-08).
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).startsWith("/fx/rate") && String(c[0]).includes("date="))).toBe(false);
     await user.click(screen.getAllByRole("button").find((b) => b.getAttribute("type") === "submit")!);
     await waitFor(() => expect(bodyOf(/\/categories\/cat-1\/currency$/, "PATCH")).toEqual({ currency: "EUR" }));
   });

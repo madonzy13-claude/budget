@@ -11,7 +11,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { NoFxRateAvailable } from "@budget/budgeting/src/adapters/fx/frankfurter";
-import type { Currency } from "@budget/shared-kernel";
+import { serverNow, type Currency } from "@budget/shared-kernel";
 import type { BootedDeps } from "../boot";
 
 /**
@@ -37,9 +37,12 @@ const CURRENCIES = [
 const rateQuerySchema = z.object({
   from: z.enum(CURRENCIES),
   to: z.enum(CURRENCIES),
+  // Optional (review WR-08): without it the rate is for the SERVER's today,
+  // the same day every server-side conversion uses — not the browser's.
   date: z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD")
+    .optional(),
 });
 
 export function createFxRoute(deps: Pick<BootedDeps, "budgeting">) {
@@ -47,7 +50,9 @@ export function createFxRoute(deps: Pick<BootedDeps, "budgeting">) {
 
   // GET /rate?from=USD&to=EUR&date=2026-05-09
   app.get("/rate", zValidator("query", rateQuerySchema), async (c) => {
-    const { from, to, date } = c.req.valid("query");
+    const q = c.req.valid("query");
+    const { from, to } = q;
+    const date = q.date ?? serverNow().toISOString().slice(0, 10);
     try {
       const r = await deps.budgeting.fxProvider.rateAsOf(
         from,

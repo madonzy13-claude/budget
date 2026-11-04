@@ -81,6 +81,30 @@ describe("GET /fx/rate", () => {
     expect(body.fxRateDate).toBe("2026-05-09");
   });
 
+  // Review WR-08: the slider asked for "today" in the browser's UTC while the
+  // server converted at its own today — around midnight, two rates. Without a
+  // date the route answers for the server's today (serverNow, test clock too).
+  test("no date: the rate is the server's today", async () => {
+    const cache = new FakeCacheRepo() as any;
+    cache.setRate("EUR", "USD", "2026-05-09", "0.92");
+    const fxProvider = new FrankfurterFxProvider(cache);
+    const app = new Hono();
+    app.route("/fx", createFxRoute(buildDeps(fxProvider)));
+    const { setServerTestNow } = await import("@budget/shared-kernel");
+    process.env.ALLOW_TEST_CLOCK = "1";
+    setServerTestNow(new Date("2026-05-09T10:00:00Z"));
+    try {
+      const res = await app.request("/fx/rate?from=EUR&to=USD");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.rate).toBe("0.92");
+      expect(body.fxRateDate).toBe("2026-05-09");
+    } finally {
+      setServerTestNow(null);
+      delete process.env.ALLOW_TEST_CLOCK;
+    }
+  });
+
   test("NoFxRateAvailable → 503", async () => {
     // Cache miss + no network + no prior = NoFxRateAvailable
     const cache: any = {

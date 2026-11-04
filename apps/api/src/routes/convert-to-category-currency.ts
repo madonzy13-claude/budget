@@ -4,7 +4,7 @@
  * currency they are in; a category stores its limit and reserve in its OWN
  * currency, so the amount converts here at today's rate.
  */
-import { FIAT_CURRENCIES, type Currency } from "@budget/shared-kernel";
+import { FIAT_CURRENCIES, serverNow, type Currency } from "@budget/shared-kernel";
 import { convertCents } from "@budget/budgeting/src/domain/fx-round";
 
 type Deps = {
@@ -43,7 +43,8 @@ export async function categoryCurrencyConverter(
   const to = cat.value.currency;
   if (to === from) return { ok: true, currency: to, convert: same, back: same };
   try {
-    const now = new Date();
+    // The server clock (review WR-08) — the gated test clock lives there.
+    const now = serverNow();
     const { rate } = await deps.fxProvider.rateAsOf(from as Currency, to as Currency, now);
     const { rate: backRate } = await deps.fxProvider.rateAsOf(to as Currency, from as Currency, now);
     return {

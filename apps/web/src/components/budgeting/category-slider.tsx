@@ -343,9 +343,10 @@ export function CategorySlider({
       apply(from.values);
       return;
     }
-    const today = new Date().toISOString().slice(0, 10);
     try {
-      const res = await clientApiFetch(`/fx/rate?from=${from.currency}&to=${next}&date=${today}`);
+      // No date: the server's today, the same one its conversion on save
+      // uses (review WR-08) — the browser's UTC day differed around midnight.
+      const res = await clientApiFetch(`/fx/rate?from=${from.currency}&to=${next}`);
       if (!res.ok) throw new Error("no_rate");
       const { rate } = (await res.json()) as { rate: string };
       apply(
