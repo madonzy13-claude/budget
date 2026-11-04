@@ -15,7 +15,7 @@
  * Pitfall 7: date string converted via new Date(s + 'T00:00:00Z').
  */
 import Big from "big.js";
-import { ok, err, type Result } from "@budget/shared-kernel";
+import { ok, err, FIAT_CURRENCIES, type Result } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import type {
@@ -104,8 +104,10 @@ export function createTransaction(deps: CreateTransactionDeps) {
       budgetCurrency
     ).toUpperCase();
 
-    // T-02-01: validate 3-char ISO
-    if (!/^[A-Z]{3}$/.test(currencyOriginal)) {
+    // T-02-01 + review WR-03: only a currency the FX table can always convert
+    // — anything else silently dropped out of every total after a later
+    // currency change (same rule as budgets and categories).
+    if (!(FIAT_CURRENCIES as readonly string[]).includes(currencyOriginal)) {
       return err(new CurrencyNotSupportedError(currencyOriginal));
     }
 
