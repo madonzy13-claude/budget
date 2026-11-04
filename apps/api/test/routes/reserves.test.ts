@@ -78,14 +78,15 @@ async function createFixture(currency = "EUR"): Promise<Fixture> {
       [groceryId, budgetId, userId, housingId],
     );
     // Limits (normal 300 / 500; cushion 300 / 250) so the engine has an
-    // effective limit per category. effective_from in the past.
+    // effective limit per category. From THIS month: no closed month exists to
+    // leave a reserve (a limit-only month accrues all of it — owner, 261104).
     await client.query(
       `INSERT INTO budgeting.category_limits
          (tenant_id, category_id, normal_amount, normal_currency,
           cushion_amount, cushion_currency, effective_from, actor_user_id)
        VALUES
-         ($1, $2, 300, '${currency}', 300, '${currency}', '2024-01-01'::date, $4),
-         ($1, $3, 500, '${currency}', 250, '${currency}', '2024-01-01'::date, $4)`,
+         ($1, $2, 300, '${currency}', 300, '${currency}', date_trunc('month', now())::date, $4),
+         ($1, $3, 500, '${currency}', 250, '${currency}', date_trunc('month', now())::date, $4)`,
       [budgetId, groceryId, housingId, userId],
     );
     // RESERVE wallet → userDefined = 3000.00 → "300000" cents.

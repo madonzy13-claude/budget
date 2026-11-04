@@ -181,8 +181,11 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Change a category's currency", (
   test("the reserve is rebuilt in the new currency (D-17)", async () => {
     const r = await b.positions();
     expect(r.categoryCurrency?.get(food)).toBe("EUR");
-    // March: 500 PLN left over → EUR at the closing rate (earliest seeded 0.2333) = 116.65.
-    expect(r.positions.get(food)?.reserveCents).toBe(11665n);
+    // Each closed month's leftover → EUR at its closing rate (earliest seeded
+    // 0.2333): February 1000 PLN (nothing spent) → 233.30, March 500 → 116.65,
+    // April 1000 (nothing spent) → 233.30. A month with a limit and no spending
+    // leaves all of it (owner, 261104) — 583.25 EUR.
+    expect(r.positions.get(food)?.reserveCents).toBe(58325n);
   });
 
   test("a new transaction without a currency is in the new one (D-05)", async () => {

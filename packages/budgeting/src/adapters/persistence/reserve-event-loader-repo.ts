@@ -206,11 +206,27 @@ export function createReserveEventLoaderRepo(
                        ORDER BY l.category_id, l.transaction_date, l.created_at, l.id`,
               )
             ).rows;
-            return { cushionRows, adjustmentRows, categoryRows, txRows };
+            // Every month a limit covers, up to the open month (owner, 261104):
+            // a month with a limit and NO spending leaves all of it over, so it
+            // must replay too — reading limits only for spend months skipped it.
+            const limitMonthRows = (
+              await drizzleTx.execute(
+                sql`SELECT DISTINCT to_char(gs, 'YYYY-MM') AS month
+                      FROM budgeting.category_limits cl
+                      CROSS JOIN LATERAL generate_series(
+                        date_trunc('month', cl.effective_from),
+                        LEAST(COALESCE(cl.effective_to, ${nextMonthStart}::date - 1),
+                              ${nextMonthStart}::date - 1),
+                        interval '1 month') gs
+                     WHERE cl.tenant_id = ${tenantId}::uuid
+                       AND cl.effective_from < ${nextMonthStart}::date`,
+              )
+            ).rows;
+            return { cushionRows, adjustmentRows, categoryRows, txRows, limitMonthRows };
           }),
         ]);
       if (rawEvents.isErr()) throw rawEvents.error;
-      const { cushionRows, adjustmentRows, categoryRows, txRows } =
+      const { cushionRows, adjustmentRows, categoryRows, txRows, limitMonthRows } =
         rawEvents.value;
 
       // ── Currencies + rates (Phase 14).
@@ -270,6 +286,7 @@ export function createReserveEventLoaderRepo(
 
       // ── limitsByMonth: every month present in spend ∪ {openMonth}.
       const monthKeys = new Set<string>([openMonth]);
+      for (const r of limitMonthRows) monthKeys.add(r.month as string);
       for (const byMonth of spendByCategoryByMonth.values()) {
         for (const m of byMonth.keys()) monthKeys.add(m);
       }

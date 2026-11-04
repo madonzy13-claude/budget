@@ -15,8 +15,9 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Reserve need per currency", () =
     await b.rates([{ base: "PLN", quote: "EUR", date: "1998-03-05", rate: "0.25" }]);
     P = await b.category("PLN");
     E = await b.category("EUR");
-    await b.limit(P, 100000, "PLN", "1998-03-01");
-    await b.limit(E, 10000, "EUR", "1998-03-01");
+    // March only: an open limit would also leave April's unspent limit over.
+    await b.limit(P, 100000, "PLN", "1998-03-01", "1998-03-31");
+    await b.limit(E, 10000, "EUR", "1998-03-01", "1998-03-31");
     await b.tx(P, "1998-03-05", 80000, "PLN"); // leftover 200.00 PLN
     await b.tx(E, "1998-03-05", 8600, "PLN"); // 86.00 PLN × 0.25 = 21.50 EUR → leftover 78.50 EUR
   });
