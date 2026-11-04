@@ -448,6 +448,7 @@ export function OverviewDivergingBarChart({
   colorKey = "pct",
   onPlanBand = true,
   formatValue,
+  labelKey,
 }: {
   data: Array<Record<string, unknown>>;
   /** Category name key — the Y axis. */
@@ -484,6 +485,9 @@ export function OverviewDivergingBarChart({
   formatValue?: (n: number) => string;
   /** Per-bar colour from its percent. Defaults to the plain band. */
   colorForPct?: (pct: number) => string;
+  /** 14-23: a row field holding the bar's label ready-formatted — a category in
+   *  another currency reads in it, while the bar is DRAWN from `valueKey`. */
+  labelKey?: string;
 }) {
   const { revealed } = useSlotReveal();
   const hideAmt = maskAmounts && !revealed;
@@ -544,7 +548,13 @@ export function OverviewDivergingBarChart({
   const rows = data.map((r) => {
     const pct = Number(r[valueKey]);
     const safe = Number.isFinite(pct) ? pct : 0;
-    return { ...r, __pct: symlog(safe), __raw: safe, __label: fmtValue(safe) };
+    const own = labelKey ? r[labelKey] : undefined;
+    return {
+      ...r,
+      __pct: symlog(safe),
+      __raw: safe,
+      __label: typeof own === "string" ? own : fmtValue(safe),
+    };
   });
 
   const chartHeight = Math.max(height, rows.length * ROW_PX + 32);

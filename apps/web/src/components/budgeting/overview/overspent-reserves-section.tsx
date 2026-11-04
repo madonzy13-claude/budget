@@ -102,13 +102,14 @@ export function OverspentReservesSection({
   // refreshes the Overview itself — with its toast held back, because the
   // dialog's own rows report each move.
   const adjustReserve = useUpdateReserveAdjustment(budgetId, { silent: true });
-  const onRebalance = async (categoryId: string, targetCents: number) => {
-    // Phase 14: the target is in the budget currency; the server converts it
-    // into the category's and answers in both.
+  const onRebalance = async (categoryId: string, targetCents: number, currency?: string) => {
+    // Phase 14: the target is in the budget currency — or, for a category in
+    // another currency, in its own (14-23), which the server then takes as is.
+    // It answers in the currency asked.
     const res = (await adjustReserve.mutateAsync({
       categoryId,
       expectedCents: targetCents,
-      currency: ccy,
+      currency: currency ?? ccy,
     })) as { reserveCents?: string; reserveCentsIn?: { cents: string } } | undefined;
     // What the engine SETTLED on, which is below the target when the raise
     // covered this month's overspend.
@@ -136,6 +137,9 @@ export function OverspentReservesSection({
   // beside it invents a difference (user screenshot, 260805).
   const fmtExact = (n: number) =>
     centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en", true);
+  // 14-23: the same, in a category's own currency.
+  const fmtExactIn = (n: number, currency: string) =>
+    centsToDisplayCompact(BigInt(Math.round(n)), currency, "en", true);
   const BAR_BLUE = "var(--chart-bar-1)";
 
   const balanceSlices = reserveBalanceSlices(data?.reserves_by_category ?? []);
@@ -197,6 +201,7 @@ export function OverspentReservesSection({
                   loadingMoreOneOffs={oneOffs.isFetchingNextPage}
                   format={fmtTooltip}
                   formatExact={fmtExact}
+                  formatExactIn={fmtExactIn}
                   onSave={(delta) => saveExclusions.mutate(delta)}
                   onRebalance={onRebalance}
                   scale="amount"

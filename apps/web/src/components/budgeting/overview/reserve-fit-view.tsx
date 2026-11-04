@@ -52,6 +52,7 @@ export function ReserveFitView({
   onRebalance,
   format,
   formatExact,
+  formatExactIn,
   scale = "pct",
   scaleSwitch,
 }: {
@@ -73,8 +74,15 @@ export function ReserveFitView({
   onSave: (delta: { add: string[]; remove: string[] }) => void;
   /** Sets one category's reserve to `targetCents`; resolves with what the
    *  server settled on. Drives the rebalance dialog (260805). */
-  onRebalance: (categoryId: string, targetCents: number) => Promise<number>;
+  onRebalance: (
+    categoryId: string,
+    targetCents: number,
+    /** 14-23: the target's currency when it is the category's own. */
+    currency?: string,
+  ) => Promise<number>;
   format: (cents: number) => string;
+  /** 14-23: money to the cent in a category's own currency. */
+  formatExactIn?: (cents: number, currency: string) => string;
   /** Money to the cent. The chart rounds — on a bar that is the right call —
    *  but the rebalance dialog puts an editable "661.63" beside what the reserve
    *  holds, and a rounded "662 zł" next to it reads as a mismatch that is not
@@ -87,6 +95,7 @@ export function ReserveFitView({
 }) {
   const t = useTranslations("bdp.tab.overview");
   const { sized } = reserveFitRows(data.rows ?? [], scale);
+  const formatExactBudget = formatExact;
   const totals = reserveTotals(data.rows ?? []);
 
   if (sized.length === 0) {
@@ -145,15 +154,24 @@ export function ReserveFitView({
             rows={sized.map((r) => ({
               categoryId: r.categoryId,
               name: r.name,
-              heldCents: r.heldCents,
+              // 14-23: a category in another currency is rebalanced in it —
+              // what it holds, what it needs, and the target the member types.
+              heldCents: r.own?.heldCents ?? r.heldCents,
               // `needed` IS the target: it is the least this reserve can hold
               // and still not overspend at today's limit, so topping up to it
               // and withdrawing down to it are both legitimate moves (user,
               // 260807).
-              neededCents: r.neededCents,
+              neededCents: r.own?.neededCents ?? r.neededCents,
+              ...(r.own && r.currency ? { currency: r.currency } : {}),
             }))}
-            onRebalance={onRebalance}
+            onRebalance={(id, cents) => {
+              const row = sized.find((r) => r.categoryId === id);
+              return row?.own && row.currency
+                ? onRebalance(id, cents, row.currency)
+                : onRebalance(id, cents);
+            }}
             format={formatExact}
+            {...(formatExactIn ? { formatIn: formatExactIn } : {})}
           />
         </div>
         {scaleSwitch}
@@ -194,7 +212,23 @@ export function ReserveFitView({
             suggestedNeededCents: r.suggestedNeededCents,
             suggestedOverMonths: r.suggestedOverMonths,
             suggestedDirection: r.suggestedDirection,
+            // 14-23: a category in another currency READS in it; the bar is
+            // still drawn from the budget-currency figures above.
+            ...(r.own && r.currency && formatExactIn
+              ? {
+                  own: r.own,
+                  ccy: r.currency,
+                  ...(scale === "amount"
+                    ? {
+                        label: signedMoney((n) => formatExactIn(n, r.currency!))(
+                          r.own.gapCents,
+                        ),
+                      }
+                    : {}),
+                }
+              : {}),
           }))}
+          labelKey="label"
           categoryKey="name"
           valueKey={scale === "amount" ? "gapCents" : "pct"}
           // Signed, like the percent labels: the bar is a GAP, so "+4,600" reads
@@ -212,7 +246,11 @@ export function ReserveFitView({
           // …and always from the PERCENT, even when the axis is drawn in zł:
           // cents fed to a band function painted every row red.
           colorKey="pct"
-          tooltipExtra={(row) => {
+          tooltipExtra={(bar) => {
+            const own = bar.own as { heldCents: number; neededCents: number; gapCents: number } | undefined;
+            const row = own ?? bar;
+            const formatExact = (n: number) =>
+              own && formatExactIn ? formatExactIn(n, bar.ccy as string) : formatExactBudget(n);
             const gap = Number(row.gapCents);
             // ONE QUESTION PER CARD (user, 260809). This chart asks whether
             // the BUFFER is the right size, and everything on it is measured

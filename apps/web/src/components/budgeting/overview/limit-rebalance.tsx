@@ -44,6 +44,9 @@ export interface LimitCandidate {
   wantsCents: number;
   /** What the Future reading says the limit should total. */
   suggestedLimitCents: number;
+  /** 14-23: set for a category in another currency — every amount above, and
+   *  what is typed here, is then in it (the limit as typed, saved as is). */
+  currency?: string;
 }
 
 /** The field wants a bare decimal — a thousands separator is one more thing to
@@ -56,13 +59,21 @@ export function LimitRebalance({
   rows,
   onApply,
   format,
+  formatIn,
 }: {
   rows: LimitCandidate[];
+  /** 14-23: money in a row's own currency. */
+  formatIn?: (cents: number, currency: string) => string;
   /** Writes one category's new split. */
   onApply: (categoryId: string, split: LimitSplit) => Promise<void>;
   format: (cents: number) => string;
 }) {
   const t = useTranslations("bdp.tab.overview");
+  const ccyOf = new Map(rows.map((r) => [r.categoryId, r.currency]));
+  const fmt = (categoryId: string, cents: number) => {
+    const c = ccyOf.get(categoryId);
+    return c && formatIn ? formatIn(cents, c) : format(cents);
+  };
   const [open, setOpen] = React.useState(false);
   const [drafts, setDrafts] = React.useState<
     Record<string, { needs?: string; wants?: string }>
@@ -189,8 +200,8 @@ export function LimitRebalance({
     Math.max(
       5,
       ...shown.flatMap((r) => [
-        format(r.needsCents).length,
-        format(r.wantsCents).length,
+        fmt(r.categoryId, r.needsCents).length,
+        fmt(r.categoryId, r.wantsCents).length,
       ]),
     ) + 0.5;
 
@@ -214,7 +225,7 @@ export function LimitRebalance({
           style={{ width: `${prevCh}ch` }}
           className="num shrink-0 truncate text-num-sm text-[var(--muted-foreground)]"
         >
-          {format(prevCents)}
+          {fmt(row.categoryId, prevCents)}
         </span>
         {/* Bigger and brighter than the hairline it was: it is the one mark
             saying which figure replaces which, and it was the faintest thing
