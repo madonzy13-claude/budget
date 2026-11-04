@@ -59,6 +59,10 @@ export function createWealthSnapshotRepo(): WealthSnapshotRepo {
                AND tenant_id = ${budgetId}::uuid
                AND captured_at >= ${from}::date
                AND captured_at < (${to}::date + interval '1 day')
+               -- No pair to the budget currency = no point, never a fabricated 0
+               -- (review WR-04: the chart read it as wealth crashing to zero).
+               AND ${snap("capitalization_cents", budgetId)} IS NOT NULL
+               AND ${snap("investment_value_cents", budgetId)} IS NOT NULL
              ORDER BY captured_at
           `);
           return res.rows.map((row) => ({
@@ -92,6 +96,10 @@ export function createWealthSnapshotRepo(): WealthSnapshotRepo {
              WHERE budget_id = ${budgetId}::uuid
                AND tenant_id = ${budgetId}::uuid
                AND captured_at < ${from}::date
+               -- No pair to the budget currency = no point, never a fabricated 0
+               -- (review WR-04: the chart read it as wealth crashing to zero).
+               AND ${snap("capitalization_cents", budgetId)} IS NOT NULL
+               AND ${snap("investment_value_cents", budgetId)} IS NOT NULL
              ORDER BY captured_at DESC
              LIMIT 1
           `);

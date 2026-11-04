@@ -26,6 +26,8 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Reserve fit and wealth in mixed 
       for (const [at, cents, ccy] of [
         ["1999-05-20", 100000, "PLN"],
         ["1999-06-10", 25000, "EUR"],
+        // No pair to PLN at all — must be left out, not plotted as a 0.
+        ["1999-06-20", 99999, "ZZQ"],
       ] as const) {
         await db.query(
           `INSERT INTO budgeting.budget_wealth_snapshots
@@ -59,12 +61,15 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Reserve fit and wealth in mixed 
 
   test("wealth snapshots re-express in the current currency at their own date", async () => {
     const pln = await wealth.seriesForRange(f.tenant, "1999-05-01", "1999-06-30");
-    expect(pln.map((r) => r.capitalization_cents)).toEqual([100000n, 112500n]); // 250 EUR × 4.5 (06-10)
+    // 250 EUR × 4.5 (06-10); the ZZQ snapshot has no pair and drops out
+    // rather than reading as a crash to 0 (review WR-04).
+    expect(pln.map((r) => r.capitalization_cents)).toEqual([100000n, 112500n]);
     expect(pln[1]!.investment_cost_basis_cents).toBeNull();
     await setBudgetCurrency(f, "EUR");
     try {
       const eur = await wealth.seriesForRange(f.tenant, "1999-05-01", "1999-06-30");
       expect(eur.map((r) => r.capitalization_cents)).toEqual([25000n, 25000n]);
+      expect((await wealth.openingBefore(f.tenant, "1999-06-30"))?.capitalization_cents).toBe(25000n);
       expect((await wealth.openingBefore(f.tenant, "1999-06-01"))?.capitalization_cents).toBe(25000n);
     } finally {
       await setBudgetCurrency(f, "PLN");
