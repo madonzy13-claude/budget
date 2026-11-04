@@ -25,6 +25,7 @@ import { Temporal } from "temporal-polyfill";
 import type { CategoryRepo } from "../ports/category-repo";
 import type { CategoryLimitRepo, EffectiveLimit } from "../ports/category-limit-repo";
 import { convertCents } from "../domain/fx-round";
+import { reserveCoverInMonthCurrency } from "../domain/reserve-cover-in-month-currency";
 import type { TransactionRepo } from "../ports/transaction-repo";
 import type { SpendingsSummaryRepo } from "../ports/spendings-summary-repo";
 import type { ReservePositionsResult } from "./get-reserve-positions";
@@ -109,7 +110,8 @@ export interface SpendingsSummaryCategoryDTO {
     /** The currency the category had in this month (limit, spent, balance). */
     currency: string;
     /** Reserves are calculated in the category's LATEST currency (owner,
-     *  261104): reserveUsed, reserveAvailable and overspent are in this one. */
+     *  261104): reserveAvailable — the balance — is in this one. Reserve used
+     *  and overspent read in the month's `currency` like the rest. */
     reserveCurrency: string;
     plannedCents: string;
     cushionCents: string;
@@ -469,7 +471,18 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
             const oUsedRaw = cell?.usedCents ?? 0n;
             const oEnd = cell?.endReserveCents ?? 0n;
             const oAvail = oUsedRaw + oEnd > 0n ? oUsedRaw + oEnd : 0n;
-            const oUsed = oUsedRaw < oAvail ? oUsedRaw : oAvail;
+            const oUsedLatest = oUsedRaw < oAvail ? oUsedRaw : oAvail;
+            // Used and overspent read in the MONTH's currency (owner, 261104):
+            // its overspend is exact there; the engine's covered share carries
+            // over. Available is the reserve balance — the latest currency.
+            const cover = sameCcy
+              ? { usedCents: oUsedLatest, overspentCents: oOver - oUsedLatest }
+              : reserveCoverInMonthCurrency({
+                  overMonth: noLimit ? 0n : oSpent > oActive ? oSpent - oActive : 0n,
+                  overLatest: oOver,
+                  usedLatest: oUsedLatest,
+                });
+            const oUsed = cover.usedCents;
             own = {
               currency: monthCcy,
               reserveCurrency: catCcy,
@@ -479,9 +492,8 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
               spentCents: oSpent.toString(),
               reserveUsedCents: oUsed.toString(),
               reserveAvailableCents: oAvail.toString(),
-              overspentCents: (oOver - oUsed).toString(),
-              // Limit − spent (+ reserve used, when that is the same currency).
-              balanceCents: (oActive - oSpent + (sameCcy ? oUsed : 0n)).toString(),
+              overspentCents: cover.overspentCents.toString(),
+              balanceCents: (oActive - oSpent + oUsed).toString(),
             };
           }
 

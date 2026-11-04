@@ -58,8 +58,8 @@ describe("ColumnHeader — limit in the category's currency", () => {
     expect(screen.queryByTestId("column-limit-equivalent")).toBeNull();
   });
 
-  // Owner, 261104: a past month keeps its currency (zł here), while reserves
-  // are calculated in the category's latest one (€).
+  // Owner, 261104: a past month keeps its currency (zł here); only the reserve
+  // balance is in the category's latest one (€).
   it("a past month reads in its own currency, its reserve figures in the latest", () => {
     render(
       <ColumnHeader
@@ -87,8 +87,11 @@ describe("ColumnHeader — limit in the category's currency", () => {
       />,
     );
     expect(screen.getByTestId("column-header-travel-planned").textContent).toContain("zł");
-    expect(screen.getByTestId("column-header-travel-reserves-available").textContent).toContain("€10");
-    expect(screen.getByTestId("column-header-travel-overspent").textContent).toContain("€3");
+    // Used and overspent in the month's currency; available — the reserve
+    // balance — in the latest one, so "used" carries its own sign.
+    expect(screen.getByTestId("column-header-travel-reserves-used").textContent?.replace(/\s/g, " ")).toContain("5 zł");
+    expect(screen.getByTestId("column-header-travel-reserves-available").textContent?.replace(/\s/g, " ")).toContain("€10");
+    expect(screen.getByTestId("column-header-travel-overspent").textContent?.replace(/\s/g, " ")).toContain("3 zł");
   });
 
   it("a same-currency category has no ≈ line", () => {

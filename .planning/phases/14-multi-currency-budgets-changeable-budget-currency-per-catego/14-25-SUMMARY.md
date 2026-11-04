@@ -29,3 +29,14 @@ The owner decided (2026-11-04):
 
 ## Verification
 - Web Vitest 3077 pass / 0 fail; backend gate 2376 pass + the same 2 pre-phase baseline fails; E2E (phase tags + @overview + @phase8 + @reserves-golden, chromium + mobile) 111 passed, 2 flaky (projection slider, closed-month adjust — both passed on retry).
+
+## Follow-up (owner): reserve used + overspent in the month's currency
+A past month in another currency now reads its reserve used and overspent in THAT month's currency. Only "available" (the reserve balance) stays in the category's latest currency.
+- New pure helper `reserveCoverInMonthCurrency`. The month's overspend is exact in its own currency, and the engine's covered share carries over: full and none are exact, a partial share rounds half-up, and used + overspent = the overspend.
+- The header signs "used" whenever its currency differs from "available".
+- TDD: each test was seen red without its change, then green with it:
+  - the helper unit test;
+  - the DB test `past-month-reserve-currency` (1163 → 5000);
+  - the header test.
+- Live: Oct switched to EUR shows overspent €11.36 = spent €102.28 − limit €90.92.
+- Regression: Vitest 3077/0; backend 2380 + 2 baseline; currency E2E 16 passed, 1 flaky.

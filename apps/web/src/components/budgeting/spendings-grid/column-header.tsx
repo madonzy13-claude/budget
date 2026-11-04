@@ -103,8 +103,8 @@ export function ColumnHeader({
     columnCurrency
       ? centsToDisplayCompact(cents, columnCurrency, locale, true)
       : centsToBare(cents, locale);
-  // A past month keeps the currency it had, but reserves are calculated in
-  // the category's LATEST one (owner, 261104): reserve and overspent read it.
+  // A past month keeps the currency it had; only the reserve BALANCE
+  // (available) is in the category's latest one (owner, 261104).
   const reserveCurrency = summaryIn.own?.reserveCurrency ?? columnCurrency;
   const reserveMoney = (cents: string | bigint) =>
     reserveCurrency
@@ -469,7 +469,10 @@ export function ColumnHeader({
                         : "text-[var(--muted-foreground)]"
                     }
                   >
-                    {centsToBare(summary.reserveUsedCents, locale)}
+                    {/* Signed when it is not the currency of "available" after it. */}
+                    {reserveCurrency !== columnCurrency
+                      ? money(summary.reserveUsedCents)
+                      : centsToBare(summary.reserveUsedCents, locale)}
                   </span>
                   {/* " / available" (greyed) — always shown for included categories
                     (incl. "0 / 0"); a dash when the category is excluded now. */}
@@ -513,7 +516,7 @@ export function ColumnHeader({
                   : "text-[var(--muted-foreground)]",
             )}
           >
-            {noLimit ? "—" : reserveMoney(summary.overspentCents)}
+            {noLimit ? "—" : money(summary.overspentCents)}
           </span>
         </div>
       </div>
