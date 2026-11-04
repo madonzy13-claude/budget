@@ -45,8 +45,6 @@ export interface ColumnHeaderProps {
     /** Phase 14: the column's figures in a foreign category's own currency. */
     own?: {
       currency: string;
-      /** Reserves are calculated in the latest currency (owner, 261104). */
-      reserveCurrency?: string;
       plannedCents: string;
       cushionCents: string;
       activeBudgetCents: string;
@@ -102,13 +100,6 @@ export function ColumnHeader({
   const money = (cents: string | bigint) =>
     columnCurrency
       ? centsToDisplayCompact(cents, columnCurrency, locale, true)
-      : centsToBare(cents, locale);
-  // A past month keeps the currency it had; only the reserve BALANCE
-  // (available) is in the category's latest one (owner, 261104).
-  const reserveCurrency = summaryIn.own?.reserveCurrency ?? columnCurrency;
-  const reserveMoney = (cents: string | bigint) =>
-    reserveCurrency
-      ? centsToDisplayCompact(cents, reserveCurrency, locale, true)
       : centsToBare(cents, locale);
   const { revealed, setRevealed, ref } = useRevealActions();
   // R6 (user): the usage chip swaps to the spent total — tap toggles, a mouse
@@ -469,10 +460,7 @@ export function ColumnHeader({
                         : "text-[var(--muted-foreground)]"
                     }
                   >
-                    {/* Signed when it is not the currency of "available" after it. */}
-                    {reserveCurrency !== columnCurrency
-                      ? money(summary.reserveUsedCents)
-                      : centsToBare(summary.reserveUsedCents, locale)}
+                    {centsToBare(summary.reserveUsedCents, locale)}
                   </span>
                   {/* " / available" (greyed) — always shown for included categories
                     (incl. "0 / 0"); a dash when the category is excluded now. */}
@@ -483,7 +471,7 @@ export function ColumnHeader({
                     {" / "}
                     {reserveExcluded
                       ? "—"
-                      : reserveMoney(summary.reserveAvailableCents ?? "0")}
+                      : money(summary.reserveAvailableCents ?? "0")}
                   </span>
                 </>
               )}

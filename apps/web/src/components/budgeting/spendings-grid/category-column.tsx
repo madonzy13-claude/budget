@@ -41,8 +41,6 @@ export interface SpendingsSummaryCategoryDTO {
   /** Phase 14: the column's figures in a foreign category's own currency. */
   own?: {
     currency: string;
-    /** Reserves are calculated in the latest currency (owner, 261104). */
-    reserveCurrency?: string;
     plannedCents: string;
     cushionCents: string;
     activeBudgetCents: string;

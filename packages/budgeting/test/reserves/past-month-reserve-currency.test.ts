@@ -1,7 +1,8 @@
 /**
  * past-month-reserve-currency.test.ts — owner, 261104: a past month in another
  * currency than the category's latest one reads its reserve used and overspent
- * in THAT month's currency; only the balance (available) is in the latest one.
+ * in THAT month's currency — the cap (available) too, so the whole column
+ * reads in the currency the month had (owner, 261104).
  *
  * M is EUR today, but April ran in PLN: limit 100 PLN, spent 150 PLN, the
  * 50 PLN overspend fully covered by a 50 EUR reserve put in before it.
@@ -52,9 +53,12 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("A past month's reserve in its ow
     })({ tenantId: b.tenant, budgetId: b.tenant, month: "1998-04" });
     const own = r._unsafeUnwrap().categories.find((c) => c.categoryId === M)!.own!;
     expect(own.currency).toBe("PLN");
-    expect(own.reserveCurrency).toBe("EUR");
     expect(own.spentCents).toBe("15000");
     expect(own.reserveUsedCents).toBe("5000");
     expect(own.overspentCents).toBe("0");
+    // Available = used + what was left at the month's end. The engine drew
+    // 50 PLN × 0.2326 = 11.63 EUR of the 50 EUR, leaving 38.37 EUR, which at
+    // April's last rate (4.20) is 161.15 PLN → 50.00 + 161.15 = 211.15 PLN.
+    expect(own.reserveAvailableCents).toBe("21115");
   });
 });

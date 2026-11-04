@@ -40,3 +40,8 @@ A past month in another currency now reads its reserve used and overspent in THA
   - the header test.
 - Live: Oct switched to EUR shows overspent €11.36 = spent €102.28 − limit €90.92.
 - Regression: Vitest 3077/0; backend 2380 + 2 baseline; currency E2E 16 passed, 1 flaky.
+
+## Follow-up 2 (owner): the reserve cap in the month's currency too
+A past month's whole column now reads in its own currency, the reserve cap ("available") included. The cap is used (in the month's currency) plus the balance left at the month's end, converted at the month's rate (D-08 date). `own.reserveCurrency` and the header's second-currency formatting are removed.
+- TDD: `past-month-reserve-currency` was red (cap 5000, the 50 € unconverted) and is green at 21115 (211.15 zł). The header change is a deletion: same output once the server stopped sending a second currency (refactor, green → green).
+- Regression: Vitest 3077/0; backend 2381 + 2 baseline; currency E2E 16 passed, 1 flaky (closed-month adjust, passed on retry).

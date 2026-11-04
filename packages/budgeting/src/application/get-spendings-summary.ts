@@ -107,12 +107,9 @@ export interface SpendingsSummaryCategoryDTO {
    *  as typed, reserve native). The grid column reads these; totals and
    *  charts keep the budget-currency fields. Absent for a same-currency one. */
   own?: {
-    /** The currency the category had in this month (limit, spent, balance). */
+    /** The currency the category had in this month — every figure below is in
+     *  it, the reserve used and its cap included (owner, 261104). */
     currency: string;
-    /** Reserves are calculated in the category's LATEST currency (owner,
-     *  261104): reserveAvailable — the balance — is in this one. Reserve used
-     *  and overspent read in the month's `currency` like the rest. */
-    reserveCurrency: string;
     plannedCents: string;
     cushionCents: string;
     activeBudgetCents: string;
@@ -353,6 +350,25 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           )
         : new Map<string, bigint>();
 
+      // A past month in another currency than the category's latest reads its
+      // reserve cap in the month's currency too (owner, 261104): the balance
+      // left at the month's end converts at the month's rate (D-08 date).
+      const latestToMonth = new Map<string, string | null>();
+      for (const c of categories) {
+        const latest = posResult.value.categoryCurrency?.get(c.id) ?? c.currency ?? meta.currency;
+        const month = effectiveLimits.get(c.id)?.original?.normalCurrency ?? latest;
+        const key = `${latest}|${month}`;
+        if (month === latest || latestToMonth.has(key)) continue;
+        latestToMonth.set(
+          key,
+          deps.fxProvider
+            ? await deps.fxProvider
+                .rateAsOf(latest as Currency, month as Currency, rateDate)
+                .then((x) => x.rate, () => null)
+            : null,
+        );
+      }
+
       const dtoCategories: SpendingsSummaryCategoryDTO[] = categories
         .sort((a, b) => (a as any).sortIndex - (b as any).sortIndex)
         .map((c) => {
@@ -474,7 +490,7 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
             const oUsedLatest = oUsedRaw < oAvail ? oUsedRaw : oAvail;
             // Used and overspent read in the MONTH's currency (owner, 261104):
             // its overspend is exact there; the engine's covered share carries
-            // over. Available is the reserve balance — the latest currency.
+            // over.
             const cover = sameCcy
               ? { usedCents: oUsedLatest, overspentCents: oOver - oUsedLatest }
               : reserveCoverInMonthCurrency({
@@ -483,15 +499,19 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
                   usedLatest: oUsedLatest,
                 });
             const oUsed = cover.usedCents;
+            // The cap: used + the balance left at the month's end, in the
+            // month's currency (owner, 261104).
+            const toMonth = sameCcy ? "1" : latestToMonth.get(`${catCcy}|${monthCcy}`);
+            const endInMonth = oEnd > 0n && toMonth ? convertCents(oEnd, toMonth) : 0n;
+            const capInMonth = sameCcy ? oAvail : oUsed + endInMonth;
             own = {
               currency: monthCcy,
-              reserveCurrency: catCcy,
               plannedCents: (noLimit ? oSpent : o.planned).toString(),
               cushionCents: o.cushion.toString(),
               activeBudgetCents: oActive.toString(),
               spentCents: oSpent.toString(),
               reserveUsedCents: oUsed.toString(),
-              reserveAvailableCents: oAvail.toString(),
+              reserveAvailableCents: capInMonth.toString(),
               overspentCents: cover.overspentCents.toString(),
               balanceCents: (oActive - oSpent + oUsed).toString(),
             };

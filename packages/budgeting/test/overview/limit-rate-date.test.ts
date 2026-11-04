@@ -178,15 +178,13 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Limits in another currency", () 
 
   // Owner, 261104: a month keeps the currency it had — history stays exactly
   // as it was. MOVED is EUR today but was PLN in January, so January reads (and
-  // edits) in PLN, the limit as typed. Reserves are calculated in the LATEST
-  // currency, so the column's reserve figures say EUR.
-  test("a past month reads in the currency it had, reserves in the latest one", async () => {
+  // edits) in PLN, the limit as typed.
+  test("a past month reads in the currency it had", async () => {
     const row = await rowOf("1998-01", MOVED);
     expect(row.limitCurrency).toBe("PLN");
     expect(row.limitOriginal?.plannedCents).toBe("50000");
     expect(row.own?.currency).toBe("PLN");
     expect(row.own?.plannedCents).toBe("50000");
-    expect(row.own?.reserveCurrency).toBe("EUR");
   });
 
   test("a limit with no FX pair counts as 0 and is flagged, the summary still answers", async () => {
