@@ -287,6 +287,38 @@ describe("getOverviewPlanned", () => {
     ]);
   });
 
+  // Review CR-02: a smart limit is income minus everything else planned. In
+  // the per-category pass the other limits are each in their own currency, so
+  // that subtraction means nothing — a foreign smart Investments row never
+  // takes `own`, and keeps reading in the budget currency.
+  test("a smart Investments category in another currency gets no own figures", async () => {
+    const windows = [
+      { category_id: "N", name: "Groceries", created_month: "2026-01", archived_month: null, is_investment: false, currency: "PLN" },
+      { category_id: "I", name: "Investments", created_month: "2026-01", archived_month: null, is_investment: true, investment_limit_mode: "smart", currency: "EUR" },
+    ];
+    const mk = (planned: bigint): GetOverviewPlannedDeps["repo"] => ({
+      async monthlyPlannedByCategory() {
+        return [{ category_id: "N", month: "2026-01", planned_cents: planned }];
+      },
+      async monthlySpendByCategory() { return []; },
+      async categoryWindows() { return windows; },
+      async dailySpend() { return []; },
+      async activeScheduledPayments() { return []; },
+    });
+    const dto = (
+      await getOverviewPlanned({
+        repo: mk(30000n),
+        // Own pass: Groceries' limit in złoty — a different number entirely.
+        inCategoryCurrency: { repo: mk(120000n) },
+        metaReader: { async getBudgetMeta() { return { default_currency: "USD" }; } },
+        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
+        incomeRepo: { async listActive() { return [{ amount: "1000.00", currency: "USD", cadence: "MONTHLY" }]; } },
+      })({ tenantId: "b1", budgetId: "b1", from: "2026-01-01", to: "2026-01-31" })
+    )._unsafeUnwrap();
+    expect(dto.plannedAvgVsReal.find((c) => c.category_id === "N")?.own?.planned_avg_cents).toBe("120000");
+    expect(dto.plannedAvgVsReal.find((c) => c.category_id === "I")?.own).toBeUndefined();
+  });
+
   test("the Investments category is IN plannedAvgVsReal, at its SMART limit", async () => {
     // Minimal repo: one normal category N (planned 30000) + a smart investment
     // category I (no planned/spend). Income 100000/mo → I planned = 100000−30000.

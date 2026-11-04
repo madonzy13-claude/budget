@@ -978,8 +978,19 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         })({ ...input, inCategoryCurrency: true });
         if (r.isErr()) return err(r.error);
         const byId = new Map(r.value.plannedAvgVsReal.map((x) => [x.category_id, x]));
+        // A SMART limit is income minus everything else planned — in this pass
+        // the others are each in their own currency, so it means nothing
+        // there (review CR-02). It keeps its budget-currency figures.
+        const smart = new Set(
+          windows
+            .filter((w) => w.is_investment && w.investment_limit_mode === "smart")
+            .map((w) => w.category_id),
+        );
         for (const row of plannedAvgVsReal) {
-          const o = row.currency !== ccy ? byId.get(row.category_id) : undefined;
+          const o =
+            row.currency !== ccy && !smart.has(row.category_id)
+              ? byId.get(row.category_id)
+              : undefined;
           if (o)
             (row as typeof row & { own?: OwnPlannedFigures }).own = {
               planned_avg_cents: o.planned_avg_cents,
