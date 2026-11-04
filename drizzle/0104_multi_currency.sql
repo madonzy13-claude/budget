@@ -31,6 +31,9 @@ ALTER TABLE budgeting.category_reserve_adjustments NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenancy.budgets NO FORCE ROW LEVEL SECURITY;
 
 --> statement-breakpoint
+ALTER TABLE budgeting.category_limits NO FORCE ROW LEVEL SECURITY;
+
+--> statement-breakpoint
 ALTER TABLE budgeting.categories ADD COLUMN IF NOT EXISTS currency char(3);
 
 --> statement-breakpoint
@@ -41,6 +44,19 @@ UPDATE budgeting.categories c
 
 --> statement-breakpoint
 ALTER TABLE budgeting.categories ALTER COLUMN currency SET NOT NULL;
+
+--> statement-breakpoint
+-- Review WR-09: until now a limit row's currency was write-only metadata — the
+-- old route fell back to 'USD' and unarchive to 'EUR' — and its amounts were in
+-- the budget currency whatever the column said. Reads convert FROM it from here
+-- on, so a mislabelled row is relabelled to its category's currency (= the
+-- budget's, just backfilled). Amounts stay: they always meant that currency.
+-- Safe only HERE, before a category currency change can make a mismatch real.
+UPDATE budgeting.category_limits cl
+   SET normal_currency = c.currency, cushion_currency = c.currency
+  FROM budgeting.categories c
+ WHERE c.id = cl.category_id
+   AND (cl.normal_currency <> c.currency OR cl.cushion_currency <> c.currency);
 
 --> statement-breakpoint
 ALTER TABLE budgeting.category_reserve_adjustments ADD COLUMN IF NOT EXISTS currency char(3);
@@ -120,3 +136,6 @@ ALTER TABLE budgeting.category_reserve_adjustments FORCE ROW LEVEL SECURITY;
 
 --> statement-breakpoint
 ALTER TABLE tenancy.budgets FORCE ROW LEVEL SECURITY;
+
+--> statement-breakpoint
+ALTER TABLE budgeting.category_limits FORCE ROW LEVEL SECURITY;
