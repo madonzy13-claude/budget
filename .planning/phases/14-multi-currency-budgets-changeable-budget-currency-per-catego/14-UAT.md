@@ -91,8 +91,10 @@ skipped: 0
   reason: "User reported: June doesn't show reserve while there's leftover in May (Test budget, My category; May limit 500 UAH)"
   severity: major
   test: 12
-  artifacts: []
+  root_cause: "reserveEngine emitted per-month cells only for months a category had a limit or spending in; a gap month (June: no limit, no spend) had no cell, so the summary read reserve 0."
+  artifacts: [packages/budgeting/src/domain/reserve-engine.ts, packages/budgeting/test/reserves/limit-only-month-accrues.test.ts]
   missing: []
+  fix: "691cb970 — cells run from the category's first month to the open month; a month with no R snapshot holds the last one. Test red first (cell undefined), green after. Backend 2384 pass + 2 baseline fails. Live: Test/My category June = 0 / 500 UAH. api+worker rebuilt; reserve/currency/rebalance/tasks E2E chromium+mobile 62 passed, 0 failed. Awaiting owner re-check of June."
   diagnosis_notes: |
   Read-only replay of Test budget d894ba76 / My category (May 500 UAH only, June no limit, July 300 PLN only):
   API summary July = reserve 0 / 42.02 PLN (≈ 500 UAH) — server data correct.
