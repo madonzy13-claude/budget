@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  cleanup,
+} from "@testing-library/react";
 import { SignInForm } from "../src/components/auth/sign-in-form";
 import { signIn } from "../src/lib/auth-client";
 
@@ -130,7 +136,11 @@ describe("SignInForm", () => {
 
   describe("OAuth return hop (MCP connect)", () => {
     async function submitWithSearch(search: string) {
-      window.history.replaceState(null, "", `/en/sign-in${search}`);
+      cleanup();
+      Object.defineProperty(window.location, "search", {
+        configurable: true,
+        get: () => search,
+      });
       render(<SignInForm locale="en" />);
       fireEvent.change(screen.getByLabelText(/email address/i), {
         target: { value: "user@example.com" },
@@ -140,7 +150,6 @@ describe("SignInForm", () => {
       });
       fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
       await waitFor(() => expect(hrefSetter).toHaveBeenCalled());
-      window.history.replaceState(null, "", "/");
       return hrefSetter.mock.calls[0]![0] as string;
     }
 
