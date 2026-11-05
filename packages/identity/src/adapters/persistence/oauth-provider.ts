@@ -1,6 +1,7 @@
 import type { BetterAuthPlugin } from "better-auth";
 import { createAuthMiddleware } from "better-auth/api";
 import { jwt } from "better-auth/plugins";
+import { verifyJwsAccessToken } from "better-auth/oauth2";
 import { oauthProvider } from "@better-auth/oauth-provider";
 
 /**
@@ -75,4 +76,25 @@ export function mcpOAuthPlugins({ baseUrl }: { baseUrl: string }) {
     }),
     ensureOfflineAccess,
   ];
+}
+
+/**
+ * Verifies an MCP bearer token against THIS server's signing keys, read
+ * in-process through the auth handler — never over the public URL (the API
+ * may not be able to reach its own public host). Throws on any failure:
+ * bad signature, wrong audience/issuer, expired.
+ */
+export async function verifyMcpAccessToken(
+  auth: { handler(r: Request): Promise<Response> },
+  token: string,
+  baseUrl: string,
+): Promise<Record<string, unknown>> {
+  return verifyJwsAccessToken(token, {
+    jwksFetch: async () =>
+      (await auth.handler(new Request(`${baseUrl}/auth/jwks`))).json() as Promise<{
+        keys: Array<Record<string, string>>;
+      }>,
+    jwksCacheKey: auth,
+    verifyOptions: { audience: `${baseUrl}/mcp`, issuer: `${baseUrl}/auth` },
+  });
 }

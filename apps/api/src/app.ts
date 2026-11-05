@@ -49,6 +49,7 @@ import { testClockEnabled } from "@budget/shared-kernel";
 import { tracingMiddleware } from "./middleware/tracing";
 import { reserveReadCacheMiddleware } from "./middleware/reserve-read-cache";
 import { wellKnownRoutes } from "./mcp/well-known";
+import { mcpRoute } from "./mcp/handler";
 import type { BootedDeps } from "./boot";
 
 export function createApp(deps: BootedDeps) {
@@ -89,6 +90,9 @@ export function createApp(deps: BootedDeps) {
 
   // 3b. MCP discovery — public, before session resolution (Phase 15).
   app.route("/.well-known", wellKnownRoutes(deps));
+  // 3c. MCP endpoint — bearer-authenticated, so it sits before the cookie
+  //     session middleware; its tools re-enter the app through dispatch().
+  app.all("/mcp", mcpRoute(deps, app));
 
   // 4-5. Session resolution + tenant resolution for everything below
   app.use(authMiddleware(deps));
