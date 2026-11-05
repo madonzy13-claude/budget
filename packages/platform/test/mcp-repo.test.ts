@@ -3,6 +3,7 @@
  * as app_role under withUserContext so USER-SCOPED RLS is the real filter.
  */
 import { describe, it, expect, beforeAll } from "bun:test";
+import { sql } from "drizzle-orm";
 import { startTestcontainer } from "@budget/db/test/testcontainer";
 import { UserId } from "@budget/shared-kernel";
 import { withUserContext } from "../src/db/tx";
@@ -174,7 +175,7 @@ describe("MCP import previews", () => {
     // savePreview opportunistically removed the expired one.
     const leftovers = await as(a, (tx) =>
       tx.execute(
-        (await import("drizzle-orm")).sql`SELECT count(*)::int AS n FROM shared_kernel.mcp_import_previews WHERE id = ${expiredId}::uuid`,
+        sql`SELECT count(*)::int AS n FROM shared_kernel.mcp_import_previews WHERE id = ${expiredId}::uuid`,
       ),
     );
     expect((leftovers.rows[0] as { n: number }).n).toBe(0);
