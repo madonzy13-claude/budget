@@ -290,6 +290,8 @@ export function HoldingSheet({
   );
   /** A typed (or pegged) buy price is never overwritten by the fill below. */
   const priceTyped = useRef(!!holding?.buyPriceCents);
+  /** Same for the quantity bought: typed, the price follows it instead. */
+  const qtyTyped = useRef(!!holding);
   const [buyCurrency, setBuyCurrency] = useState(
     holding?.buyCurrency ?? budgetCurrency,
   );
@@ -677,9 +679,14 @@ export function HoldingSheet({
   // 261105 (user): from a counted asset, sold + bought quantities fill the
   // buy price until it is typed (clearing it hands it back).
   const filledPrice = qtyBuy ? source.priceFor(quantity) : null;
+  const filledQty = qtyBuy ? source.qtyFor(buyPrice) : null;
   useEffect(() => {
     if (qtyBuy && !priceTyped.current) setBuyPrice(filledPrice ?? "");
   }, [qtyBuy, filledPrice]);
+  useEffect(() => {
+    if (priceTyped.current && !qtyTyped.current && filledQty !== null)
+      setQuantity(filledQty);
+  }, [filledQty]);
   // R6 (user): the source's newest entry bounds the date (append-only).
   const srcDate = useOtherAssetDate(
     budgetId,
@@ -1348,6 +1355,7 @@ export function HoldingSheet({
                 value={quantity}
                 onChange={(v) => {
                   markDirty();
+                  qtyTyped.current = v !== "";
                   setQuantity(v);
                 }}
               />

@@ -134,16 +134,23 @@ export function useBuySource({
       ? num(taken) > 0 && !left
       : takenCents !== null && takenCents > srcValue);
 
-  /** 261105 (user): the buy price that makes the quantity bought worth what
-   *  left a counted source, in recvCcy — null while unknown. */
-  const priceFor = (qtyBought: string): string | null => {
+  /** What left a counted source, in recvCcy cents — null while unknown. */
+  const soldRecvCents = (() => {
     if (!src || !srcQty || rateToSrc === null) return null;
-    const q = num(qtyBought);
     const held = num(src.quantity);
-    if (!(num(taken) > 0) || !(q > 0) || !(held > 0)) return null;
-    const soldCents = (num(taken) * Number(src.valueCents)) / held;
-    return String(Math.round(soldCents / rateToSrc / q) / 100);
-  };
+    if (!(num(taken) > 0) || !(held > 0)) return null;
+    return (num(taken) * Number(src.valueCents)) / held / rateToSrc;
+  })();
+  /** 261105 (user): quantity bought × buy price = what left a counted source,
+   *  so either one gives the other — null while unknown. */
+  const priceFor = (qtyBought: string): string | null =>
+    soldRecvCents !== null && num(qtyBought) > 0
+      ? String(Math.round(soldRecvCents / num(qtyBought)) / 100)
+      : null;
+  const qtyFor = (price: string): string | null =>
+    soldRecvCents !== null && num(price) > 0
+      ? qtyString(soldRecvCents / (num(price) * 100))
+      : null;
 
   const money = (c: number) => centsToBare(String(Math.round(Math.abs(c))));
 
@@ -264,7 +271,8 @@ export function useBuySource({
           {src && (
             <>
               {srcQty ? (
-                <>
+                // 261105b (user): "You hold" sits right under its field.
+                <div className="space-y-2">
                   <Field label={t("sell.qtySold")}>
                     <NumericInput
                       testId="swap-buy-taken"
@@ -278,7 +286,7 @@ export function useBuySource({
                   >
                     {t("sell.qtyHelper", { qty: heldQty(t, src) })}
                   </HeldButton>
-                </>
+                </div>
               ) : (
                 takenCents !== null &&
                 takenCents > 0 && (
@@ -314,7 +322,8 @@ export function useBuySource({
           v0: srcValue,
           v1:
             "quantity" in left
-              ? (srcValue * num(left.quantity ?? "0")) / num(src.quantity ?? "0")
+              ? (srcValue * num(left.quantity ?? "0")) /
+                num(src.quantity ?? "0")
               : Number(left.valueCents),
           ccy: srcCcy,
         }
@@ -326,5 +335,6 @@ export function useBuySource({
     drain,
     node,
     priceFor,
+    qtyFor,
   };
 }

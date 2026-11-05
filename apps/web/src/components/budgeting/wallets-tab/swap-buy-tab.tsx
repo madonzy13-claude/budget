@@ -131,13 +131,19 @@ export function SwapBuyTab({
     recvCcy,
   });
   const { src, left, drain } = source;
-  // 261105 (user): from a counted asset, sold + bought quantities fill the
-  // buy price until it is typed (clearing it hands it back).
+  // 261105 (user): from a counted asset, quantity bought and buy price fill
+  // each other — the untyped one follows (clearing a field hands it back).
   const priceTyped = useRef(!!peg);
-  const filled = shape === "quantity" ? source.priceFor(qty) : null;
+  const qtyTyped = useRef(draft !== "");
+  const filledPrice = shape === "quantity" ? source.priceFor(qty) : null;
+  const filledQty = shape === "quantity" ? source.qtyFor(price) : null;
   useEffect(() => {
-    if (!priceTyped.current) setPrice(filled ?? "");
-  }, [filled]);
+    if (!priceTyped.current) setPrice(filledPrice ?? "");
+  }, [filledPrice]);
+  useEffect(() => {
+    if (priceTyped.current && !qtyTyped.current && filledQty !== null)
+      setQty(filledQty);
+  }, [filledQty]);
   const money = (c: number) => centsToBare(String(Math.round(Math.abs(c))));
   const signed = (c: number) => `${c > 0 ? "+" : c < 0 ? "−" : ""}${money(c)}`;
 
@@ -320,41 +326,47 @@ export function SwapBuyTab({
               <NumericInput
                 testId="swap-buy-qty"
                 value={qty}
-                onChange={setQty}
+                onChange={(v) => {
+                  qtyTyped.current = v !== "";
+                  setQty(v);
+                }}
               />
             </Field>
-            <div className="flex items-end gap-2">
-              <div className="min-w-0 flex-1">
-                <Field label={t("swap.buy.price")}>
-                  <NumericInput
-                    testId="swap-buy-price"
-                    value={price}
-                    onChange={(v) => {
-                      priceTyped.current = v !== "";
-                      setPrice(v);
-                    }}
+            {/* 261105b (user): Total sits right under its field. */}
+            <div className="space-y-2">
+              <div className="flex items-end gap-2">
+                <div className="min-w-0 flex-1">
+                  <Field label={t("swap.buy.price")}>
+                    <NumericInput
+                      testId="swap-buy-price"
+                      value={price}
+                      onChange={(v) => {
+                        priceTyped.current = v !== "";
+                        setPrice(v);
+                      }}
+                    />
+                  </Field>
+                </div>
+                <div className="w-24 shrink-0">
+                  <CurrencyPicker
+                    variant="field"
+                    value={ccy}
+                    onSelect={setCcy}
+                    disabled={!!peg}
+                    aria-label={t("swap.buy.price")}
                   />
-                </Field>
+                </div>
               </div>
-              <div className="w-24 shrink-0">
-                <CurrencyPicker
-                  variant="field"
-                  value={ccy}
-                  onSelect={setCcy}
-                  disabled={!!peg}
-                  aria-label={t("swap.buy.price")}
-                />
-              </div>
+              <p
+                data-testid="swap-buy-total"
+                className={caption}
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                {t("swap.buy.total", {
+                  amount: `${money(positive(qty) && positive(price) ? num(qty) * toCents(price) : 0)} ${ccy}`,
+                })}
+              </p>
             </div>
-            <p
-              data-testid="swap-buy-total"
-              className={caption}
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              {t("swap.buy.total", {
-                amount: `${money(positive(qty) && positive(price) ? num(qty) * toCents(price) : 0)} ${ccy}`,
-              })}
-            </p>
           </>
         )}
 

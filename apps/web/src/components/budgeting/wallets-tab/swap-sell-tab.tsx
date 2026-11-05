@@ -139,9 +139,8 @@ export function SwapSellTab({
   const [newHolding, setNewHolding] = useState<DestinationHolding | null>(null);
   const [destQty, setDestQty] = useState("");
   const [destPrice, setDestPrice] = useState("");
-  // R6 (user): a price typed first fills the quantity on the
-  // fly, once — leaving it or typing the other ends that ("done").
-  const [filler, setFiller] = useState<"qty" | "price" | "done" | null>(null);
+  // 261105b (user): quantity and price fill each other — the untyped one
+  // follows sold value ÷ the typed one; both typed, neither moves.
   const [existingId, setExistingId] = useState("");
   const [walletKind, setWalletKind] = useState<WalletKind>("nowhere");
   const [walletId, setWalletId] = useState("");
@@ -172,7 +171,6 @@ export function SwapSellTab({
     setExistingId(id ?? "");
     setDestQty("");
     setDestPrice("");
-    setFiller(null);
     if (!id) return;
     const h = holdings.find((x) => x.id === id);
     if (h) setChosenCcy(ccyOf(h, budgetCurrency));
@@ -191,7 +189,6 @@ export function SwapSellTab({
     if (!destPeg) return;
     setChosenCcy(destPeg);
     setDestPrice("1");
-    setFiller("price");
   }, [destPeg, existingId, newInstrumentId]);
   // R6 (user): the sale date's rate asset currency → received currency — the
   // one the server books with (preview of its price and value).
@@ -300,22 +297,15 @@ export function SwapSellTab({
         ? plain(Math.round((soldInReceived / num(destQty)) * 100) / 100)
         : "";
   const price = num(priceText);
-  const qtyText = destQty;
-  /** sold value ÷ the typed figure — the other field's fill. */
-  const counterpart = (v: string) =>
-    num(v) > 0 && soldInReceived > 0 ? plain(soldInReceived / num(v)) : "";
-  const typeDest = (field: "qty" | "price", v: string) => {
-    if (field === "qty") setDestQty(v);
-    else setDestPrice(v);
-    if (filler === null || filler === field) {
-      setFiller(field);
-      if (field === "price") setDestQty(counterpart(v));
-    } else if (filler !== "done") setFiller("done");
-  };
-  const leaveDest = (field: "qty" | "price") => {
-    if (filler === field && (field === "qty" ? destQty : destPrice) !== "")
-      setFiller("done");
-  };
+  // 261105b (user): and an untyped quantity follows a typed price.
+  const qtyText =
+    destQty !== ""
+      ? destQty
+      : destPrice !== "" && num(destPrice) > 0 && soldInReceived > 0
+        ? plain(soldInReceived / num(destPrice))
+        : "";
+  const typeDest = (field: "qty" | "price", v: string) =>
+    field === "qty" ? setDestQty(v) : setDestPrice(v);
   const qty = num(qtyText);
 
   // ponytail: display-only Number math (no-float-money keys on member names).
@@ -527,7 +517,6 @@ export function SwapSellTab({
           testId="swap-dest-qty"
           value={qtyText}
           onChange={(v) => typeDest("qty", v)}
-          onBlur={() => leaveDest("qty")}
         />
       </Field>
       <div data-testid="swap-dest-row" className="flex items-end gap-2">
@@ -537,7 +526,6 @@ export function SwapSellTab({
               testId="swap-dest-price"
               value={priceText}
               onChange={(v) => typeDest("price", v)}
-              onBlur={() => leaveDest("price")}
             />
           </Field>
         </div>
