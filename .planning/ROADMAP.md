@@ -500,6 +500,51 @@ Plans:
 
 - [x] 14-21-PLAN.md — phase gate + owner verification checkpoint
 
+### Phase 15: MCP server: manage budgets via AI agents and assistants
+
+**Goal:** Users connect AI agents/assistants (Claude.ai, ChatGPT, Claude Desktop, Cursor) to their budgets to import old data in any format, add transactions, sync wallet + investment balances, and analyze history — safely.
+
+**Shape:** MCP = new driving adapter over existing use cases inside `withTenantTx` (RLS intact, zero duplicated domain logic). Remote Streamable HTTP at `/mcp`, OAuth 2.1 (Better Auth OAuth-provider/MCP plugin — verify on 1.7.15). Consent per budget + per scope (`read` default; write scopes opt-in). Settings → Connected apps (list, last used, revoke).
+
+**Scope — read tools** (`readOnlyHint`): list_budgets, get_budget_overview(month), list_categories, search_transactions (paginated, capped), spending_summary(range, groupBy) — aggregates so agent produces insights without pulling raw ledger, get_reserves, get_projection, list_tasks, list_wallets, list_investments, list_scheduled_payments, get_fx_rate.
+
+**Scope — write tools:** add_transactions(batch, idempotencyKey), edit_transaction, void_transaction (reversal entry — ledger append-only), sync_wallet_balance (returns diff → adjustment entry), record_investment_transaction, update_holding_value, confirm_scheduled_payment, complete_task, set_category_limit, category CRUD (create/rename/archive), scheduled payments CRUD, budget create.
+
+**Scope — import:** agent normalizes ANY format (CSV/XLSX/PDF statements/other apps) to strict JSON — server writes zero format parsers. import_preview(rows) → dedupe, unmapped categories, FX gaps, previewId; import_commit(previewId) under batchId; import_undo(batchId).
+
+**Scope — prompts:** monthly review, import old spreadsheet, reconcile wallets.
+
+**Excluded (by design):** account/password/2FA/sessions/delete-account; members/invites/share links/roles; budget delete/archive; budget or category currency change; GDPR export; notifications/push/email; hard/bulk delete; ledger history rewrite; generic query/SQL; cross-tenant comparison.
+
+**Safety:** no exfiltration-channel tools (lethal-trifecta mitigation: private data + untrusted imported/member text + outbound channel — we remove the channel); user-authored text returned as labelled data fields; tool annotations readOnlyHint/destructiveHint; every MCP write audited `actor=mcp:<client>` with "via <client>" badge + undo in UI; per-token rate limits; row/payload caps; money as decimal string + currency (no floats).
+
+**Waves:** (1) OAuth + consent + Connected apps + read tools; (2) writes + import + audit badge/undo; (3) prompts + E2E against a real MCP client.
+
+**Requirements**: MCP-01..MCP-11 (from 15-RESEARCH/15-VALIDATION; CONTEXT D-01..D-25)
+**Depends on:** Phase 14
+**Plans:** 18 plans
+
+Plans:
+
+- [ ] 15-01-PLAN.md — Package legitimacy gate + exact-pin installs + decisions: investment undo scope, wallet-history import (wave 1, checkpoint)
+- [ ] 15-02-PLAN.md — Internal route dispatch (WeakMap identity) + decimal-string money boundary (wave 1)
+- [ ] 15-03-PLAN.md — Full-history paged transaction search route (wave 1)
+- [ ] 15-04-PLAN.md — [BLOCKING] Migration 0106: OAuth/JWKS tables, mcp_write_log, mcp_import_previews, RLS + apply (wave 2)
+- [ ] 15-05-PLAN.md — Better Auth OAuth AS (DCR, PKCE, rotation, read/write scopes) + lifetime spike tests (wave 3)
+- [ ] 15-06-PLAN.md — Write-log/preview repo + per-connection rate and daily limits (wave 3)
+- [ ] 15-07-PLAN.md — /mcp endpoint, bearer verify, well-known metadata, list_budgets, registry guard (wave 4)
+- [ ] 15-08-PLAN.md — Connected-apps API: list, client info, disconnect revoking live tokens (wave 5)
+- [ ] 15-09-PLAN.md — Web: rewrites, middleware matcher, sign-in return, consent page EN/PL/UK (wave 4)
+- [ ] 15-10-PLAN.md — All read tools + agent-safe presentation (money strings, untrusted text) (wave 5)
+- [ ] 15-11-PLAN.md — Web: Settings → Connected apps section (wave 6)
+- [ ] 15-12-PLAN.md — Real Claude.ai spike through the tunnel (wave 6, checkpoint)
+- [ ] 15-13-PLAN.md — writeTool wrapper + ledger/wallet/category/budget write tools (wave 7)
+- [ ] 15-14-PLAN.md — Investment, scheduled-payment and task write tools (wave 8)
+- [ ] 15-15-PLAN.md — Agent undo + list_recent_writes + transaction restore route (wave 9)
+- [ ] 15-16-PLAN.md — Import preview/commit (all-or-nothing)/undo (wave 10)
+- [ ] 15-17-PLAN.md — Prompts + GDPR cascade + MCP tenant-leak gate (wave 11)
+- [ ] 15-18-PLAN.md — @mcp E2E, full gate, real-client UAT (wave 12, checkpoint)
+
 ---
 
 _Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.1 requirements mapped. Phase 7 rescoped 2026-05-30: 3-kind set (RESERVE_TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET); TASK-05 dropped from v1.1; TASK-04 reassigned semantic to CUSHION_BELOW_TARGET. Phase 11 added 2026-06-28 (v1.2 Overview tab — single phase; budget-side compute-on-read + per-budget 3h wealth aggregate snapshot)._
