@@ -173,7 +173,7 @@ describe("MCP import previews", () => {
     ).toBeNull();
 
     // savePreview opportunistically removed the expired one.
-    const leftovers = await as(a, (tx) =>
+    const leftovers = await as<{ rows: unknown[] }>(a, (tx) =>
       tx.execute(
         sql`SELECT count(*)::int AS n FROM shared_kernel.mcp_import_previews WHERE id = ${expiredId}::uuid`,
       ),
