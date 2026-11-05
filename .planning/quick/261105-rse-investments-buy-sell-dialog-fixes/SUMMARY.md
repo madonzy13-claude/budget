@@ -19,3 +19,11 @@ status: complete
   - The hidden "Old Coin" is offered as a Buy source and as a Sell destination ("This reopens Old Coin").
   - Buy from AAA (1 of 2 units, 3,000 PLN total) with 3 bought gives a price of 500.
   - Sell 0.5 BBB into 2 units gives 25; changing the sold amount to 1 refills it to 50.
+
+## Follow-up (user, same day)
+
+- "You hold" (under Quantity sold) and "Total" (under Buy price) are now grouped with their field (`space-y-2`, as in Sell).
+- Quantity bought ↔ buy price fill each other: the field you haven't typed follows sold value ÷ the one you typed, in the Buy tab, the Add form and Sell into investments. Once both are typed, neither changes; clearing a field hands it back. Sell's one-shot filler is gone.
+- Two new tests failed on the old code and now pass; web Vitest 3107/0. Live on budget-dev:
+  - Price 750 with 1 AAA sold gives quantity 2, and selling 2 instead gives 4.
+  - "You hold" now sits about 10px under its field, the same as Sell.
