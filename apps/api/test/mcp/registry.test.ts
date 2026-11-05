@@ -15,7 +15,20 @@ import {
   createSdkClient,
 } from "./helpers";
 
-export const READ_TOOLS = ["list_budgets"];
+export const READ_TOOLS = [
+  "list_budgets",
+  "get_budget_overview",
+  "list_categories",
+  "search_transactions",
+  "spending_summary",
+  "get_reserves",
+  "get_projection",
+  "list_tasks",
+  "list_wallets",
+  "list_investments",
+  "list_scheduled_payments",
+  "get_fx_rate",
+];
 export const TOOL_ALLOWLIST = [...READ_TOOLS];
 
 const FORBIDDEN =
