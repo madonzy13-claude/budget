@@ -522,7 +522,7 @@ Plans:
 
 **Requirements**: MCP-01..MCP-11 (from 15-RESEARCH/15-VALIDATION; CONTEXT D-01..D-25)
 **Depends on:** Phase 14
-**Plans:** 18 plans
+**Plans:** 21 plans
 
 Plans:
 
@@ -533,17 +533,20 @@ Plans:
 - [ ] 15-05-PLAN.md — Better Auth OAuth AS (DCR, PKCE, rotation, read/write scopes) + lifetime spike tests (wave 3)
 - [ ] 15-06-PLAN.md — Write-log/preview repo + per-connection rate and daily limits (wave 3)
 - [ ] 15-07-PLAN.md — /mcp endpoint, bearer verify, well-known metadata, list_budgets, registry guard (wave 4)
+- [ ] 15-19-PLAN.md — Web: public-host rewrites, middleware matcher, SW consent rule (wave 4)
 - [ ] 15-08-PLAN.md — Connected-apps API: list, client info, disconnect revoking live tokens (wave 5)
-- [ ] 15-09-PLAN.md — Web: rewrites, middleware matcher, sign-in return, consent page EN/PL/UK (wave 4)
 - [ ] 15-10-PLAN.md — All read tools + agent-safe presentation (money strings, untrusted text) (wave 5)
-- [ ] 15-11-PLAN.md — Web: Settings → Connected apps section (wave 6)
-- [ ] 15-12-PLAN.md — Real Claude.ai spike through the tunnel (wave 6, checkpoint)
-- [ ] 15-13-PLAN.md — writeTool wrapper + ledger/wallet/category/budget write tools (wave 7)
-- [ ] 15-14-PLAN.md — Investment, scheduled-payment and task write tools (wave 8)
-- [ ] 15-15-PLAN.md — Agent undo + list_recent_writes + transaction restore route (wave 9)
-- [ ] 15-16-PLAN.md — Import preview/commit (all-or-nothing)/undo (wave 10)
-- [ ] 15-17-PLAN.md — Prompts + GDPR cascade + MCP tenant-leak gate (wave 11)
-- [ ] 15-18-PLAN.md — @mcp E2E, full gate, real-client UAT (wave 12, checkpoint)
+- [ ] 15-09-PLAN.md — Web: sign-in return + consent page EN/PL/UK (wave 6)
+- [ ] 15-11-PLAN.md — Web: Settings → Connected apps section (wave 7)
+- [ ] 15-12-PLAN.md — Real Claude.ai spike through the tunnel (wave 8, checkpoint)
+- [ ] 15-13-PLAN.md — writeTool wrapper (mandatory cap preflight, replay-safe log) + ledger/wallet/category/budget write tools (wave 9)
+- [ ] 15-14-PLAN.md — Investment, scheduled-payment and task write tools (wave 10)
+- [ ] 15-15-PLAN.md — Agent undo + rollback-mode inverses for every import kind + transaction restore route (wave 11)
+- [ ] 15-16-PLAN.md — Import preview (all 5 kinds) + commit/rollback/undo for transactions + categories (wave 12)
+- [ ] 15-20-PLAN.md — Import commit/rollback/undo for limits, investments, wallet balances, scheduled payments (wave 13)
+- [ ] 15-21-PLAN.md — Wallet-history import as wealth snapshots (only if 15-01 chose b2) (wave 14)
+- [ ] 15-17-PLAN.md — Prompts + GDPR cascade + MCP tenant-leak gate (wave 15)
+- [ ] 15-18-PLAN.md — @mcp E2E, full gate, real-client UAT (wave 16, checkpoint)
 
 ---
 

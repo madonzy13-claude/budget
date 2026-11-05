@@ -530,16 +530,22 @@ server.registerTool(
 | A8  | `PUT /wallets/:id/balance` response contains old to new values                                               | Tool map                 | If not, tool does a GET first                                                                                                                                |
 | A9  | Routes do not enforce a per-role check beyond membership (so D-03 is satisfied by reuse)                     | Tool map                 | Tools must replicate role checks if routes differ by role                                                                                                    |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does Claude.ai/ChatGPT DCR + `offline_access` + refresh work end to end against this AS?**
    - Known: the AS supports DCR/PKCE/rotation. Unknown: what scopes the clients request, and whether they send RFC 8707 `resource`.
    - Recommendation: **Wave 0 spike (first plan)** with the SDK client plus one real Claude.ai connection through the tunnel. Do not finalise token-TTL config until it passes.
+   - **RESOLVED:** automated half in 15-05 (`oauth-provider.test.ts`, `oauth-lifetime.test.ts`); real-client half in 15-12 (Claude.ai through the tunnel, blocking checkpoint, explicit continue/stop verdict before any write tool ships in 15-13).
 2. **Atomic import.** Compensating undo (chosen) vs. a bulk path that opens one `withTenantTx` for many rows. The latter means new bulk use cases, which breaks "zero duplicated logic". Recommendation: compensating undo, with the failure path tested.
+   - **RESOLVED:** compensating undo adopted. 15-15 provides `undoCallOrBatch(ctx, id, { mode: "rollback" })`; 15-16 (transactions + created categories) and 15-20 (category_limits, investment_entries, wallet_balances, scheduled_payments) each test a mid-batch failure leaving zero rows; 15-21 covers b2 snapshots if chosen.
 3. **CIMD.** The spec direction is CIMD-first. If A1 fails, the cheapest fix is `@better-auth/cimd` plus a deliberate bump to 1.7.17 under the CLAUDE.md gate (`bun test packages/identity packages/tenancy`, then `make build-web`). Out of scope unless the spike fails.
+   - **RESOLVED:** out of scope; 15-12 Task 3 STOPS the phase for a user decision if A1 fails (no silent bump).
 4. **Daily 5 000 cap definition.** "Written entries" counts rows created or changed per client per user over a rolling 24 h. Confirm, and decide whether undo counts. Recommendation: undo does not count.
+   - **RESOLVED:** definition adopted in 15-06 (`dailyEntryCount` = SUM(entry_count) over 24 h per user+client); undo counts 0 (15-15); replayed idempotent rows count 0 and are not re-logged (15-13); the cap is checked by a mandatory preflight before any mutating dispatch (15-13).
 5. **Investment-entry undo.** Sell/transfer move wallets and linked entries (Phase 13.1). Recommendation: mark investment mutations non-undoable in v1 except create-asset, and say so in the tool descriptions. Confirm with the user.
+   - **RESOLVED:** user decides a1/a2 at the 15-01 Task 3 checkpoint; 15-14/15-15 implement the choice. Import auto-rollback always reverts investment entries newest-first regardless (D-15), see 15-15/15-20.
 6. **Last-used source** for Connected apps (token mint time vs. write log). Recommendation: token mint time.
+   - **RESOLVED:** token mint time, implemented in 15-08 (Connected-apps API) and shown in 15-11.
 
 ## Environment Availability
 
