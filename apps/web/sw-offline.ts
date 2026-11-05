@@ -43,7 +43,9 @@ export const SUPPORTED_LOCALES = ["en", "pl", "uk"] as const;
  * budget's own /settings tab, which is a client-data pane and belongs on the
  * fast path.
  */
-const SERVER_DATA_ROUTE = /^\/[^/]+\/settings(?:\/|$)/;
+// /oauth/consent (Phase 15) names the requesting app and scopes from the
+// server — a cached copy could show the wrong client.
+const SERVER_DATA_ROUTE = /^\/[^/]+\/(?:settings|oauth\/consent)(?:\/|$)/;
 
 export function servesServerRenderedData(url: string): boolean {
   try {

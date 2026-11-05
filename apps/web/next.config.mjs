@@ -77,6 +77,16 @@ const nextConfig = {
         source: "/api/:path*",
         destination: `${apiBase}/:path*`,
       },
+      // Phase 15 MCP: remote clients discover the OAuth resource + AS and
+      // talk Streamable HTTP on the public host.
+      {
+        source: "/mcp",
+        destination: `${apiBase}/mcp`,
+      },
+      {
+        source: "/.well-known/:path*",
+        destination: `${apiBase}/.well-known/:path*`,
+      },
     ];
   },
   // SEC: baseline security headers.
