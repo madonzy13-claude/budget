@@ -93,6 +93,17 @@ describe("Connected apps", () => {
     expect((await call(null, "/settings/connected-apps")).status).toBe(401);
   });
 
+  it("last used moves on every MCP call, not only on token refresh", async () => {
+    const a = await signUpTestUser(app);
+    await seedBudget(a.userId);
+    const t = await mintMcpToken(app, a, ["read"]);
+    const before = Date.parse((await connections(a))[0]!.last_used_at);
+    await Bun.sleep(1100);
+    expect((await mcpList(t.accessToken)).status).toBe(200);
+    const after = Date.parse((await connections(a))[0]!.last_used_at);
+    expect(after).toBeGreaterThan(before);
+  });
+
   it("disconnect revokes immediately, including a live access token", async () => {
     const a = await signUpTestUser(app);
     const t = await mintMcpToken(app, a, ["read"]);
