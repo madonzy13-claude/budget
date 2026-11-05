@@ -23,6 +23,7 @@ import { authRoutes } from "./routes/auth";
 import { budgetsRoutesFactory } from "./routes/budgets";
 import { budgetsAggregateRoutesFactory } from "./routes/budgets-aggregate";
 import { settingsRoutesFactory } from "./routes/settings";
+import { connectedAppsRoutes } from "./routes/connected-apps";
 import { createFxRoute } from "./routes/fx";
 import { createWalletsRoute } from "./routes/wallets";
 import { createCategoriesRoute } from "./routes/categories";
@@ -185,6 +186,8 @@ export function createApp(deps: BootedDeps) {
   // not under /budgets/:budgetId/transactions. Phase 4 hooks call the nested path.
   app.route("/budgets/:budgetId/transactions", createTransactionsRoute(deps));
 
+  // Phase 15 (D-21): mounted before the generic /settings router.
+  app.route("/settings/connected-apps", connectedAppsRoutes(deps));
   app.route("/settings", settingsRoutesFactory(deps));
   app.route("/push", createPushRoute(deps));
   app.route("/currencies", createCurrenciesRoute(deps));
