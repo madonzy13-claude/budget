@@ -27,3 +27,8 @@ status: complete
 - Two new tests failed on the old code and now pass; web Vitest 3107/0. Live on budget-dev:
   - Price 750 with 1 AAA sold gives quantity 2, and selling 2 instead gives 4.
   - "You hold" now sits about 10px under its field, the same as Sell.
+- Follow-up 2:
+  - Quantity bought and buy price now track an explicit "edited" flag instead of treating an empty field as untyped. Before, clearing a filled Sell price re-filled it immediately.
+  - A quantity carried over from another tab, or prefilled by the Add form, does not count as an edit, so it follows a typed price.
+  - Two new tests failed on the old code and now pass; full web Vitest 3109/0.
+  - Checked live with real keyboard input: Backspace empties the Sell price and 30 can be typed in. On Buy, the carried quantity 1 fills price 1500; typing price 300 gives quantity 5, and changing the sold amount to 2 gives 10.
