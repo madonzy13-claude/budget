@@ -166,6 +166,20 @@ describe("Buy — where did the money come from?", () => {
     expect(screen.getByTestId("swap-buy-qty")).toHaveValue("5");
   });
 
+  // 261105c (user): a quantity carried over from Sell was not typed here.
+  it("a quantity carried from Sell still follows a typed price", async () => {
+    mount(sol);
+    fireEvent.click(screen.getByTestId("swap-tab-sell"));
+    type("swap-sell-sold", "3");
+    fireEvent.click(screen.getByTestId("swap-tab-buy"));
+    expect(screen.getByTestId("swap-buy-qty")).toHaveValue("3");
+    fireEvent.click(screen.getByTestId("swap-buy-from-asset"));
+    await pick("swap-buy-src", `swap-buy-src-option-${btcCold.id}`);
+    type("swap-buy-taken", "1"); // 60,000 PLN
+    type("swap-buy-price", "10000");
+    expect(screen.getByTestId("swap-buy-qty")).toHaveValue("6");
+  });
+
   // 261105b (user): helpers sit right under their field.
   it("You hold and Total sit with their field", async () => {
     mount(sol);

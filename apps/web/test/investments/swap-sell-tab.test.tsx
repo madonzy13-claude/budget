@@ -272,6 +272,20 @@ describe("Sell tab", () => {
     expect(screen.getByTestId("swap-dest-qty")).toHaveValue("15000");
   });
 
+  // 261105c (user): a filled price can be cleared and retyped.
+  it("clearing a filled price leaves it empty", () => {
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    fireEvent.click(screen.getByTestId("dest-form-live"));
+    type("swap-dest-qty", "1000");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("60");
+    type("swap-dest-price", "");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("");
+    type("swap-dest-price", "7");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("7");
+  });
+
   it("a filled buy price is rounded to 2 decimals", () => {
     mount();
     type("swap-sell-sold", "1");
