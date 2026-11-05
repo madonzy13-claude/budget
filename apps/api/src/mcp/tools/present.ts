@@ -28,7 +28,11 @@ const tokens = (key: string) =>
     .split("_")
     .filter(Boolean);
 
-/** The sibling currency key sharing the most name tokens with `key`. */
+/**
+ * The sibling currency key sharing a name token with `key`
+ * (amount_original_cents ↔ currency_original), else a plain `currency`
+ * sibling, else the budget's currency — never an unrelated one.
+ */
 function currencyFor(
   key: string,
   obj: Record<string, unknown>,
@@ -36,7 +40,7 @@ function currencyFor(
 ): string {
   const want = new Set(tokens(key.replace(CENTS_RE, "")));
   let best: string | undefined;
-  let bestScore = -1;
+  let bestScore = 0;
   for (const [k, v] of Object.entries(obj)) {
     if (!/currency/i.test(k) || typeof v !== "string") continue;
     const score = tokens(k).filter((t) => t !== "currency" && want.has(t)).length;
@@ -45,7 +49,8 @@ function currencyFor(
       bestScore = score;
     }
   }
-  return best ?? fallback;
+  const plain = obj.currency;
+  return best ?? (typeof plain === "string" ? plain : fallback);
 }
 
 const noDraft = (s: string) =>

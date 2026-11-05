@@ -38,6 +38,15 @@ describe("MCP presentation pass", () => {
     });
   });
 
+  it("does not borrow an unrelated sibling's currency", () => {
+    expect(
+      present(
+        { plannedCents: "1000", limitOriginalCents: "300", limitCurrency: "USD" },
+        opts,
+      ),
+    ).toEqual({ planned: "10.00", limitOriginal: "3.00", limitCurrency: "USD" });
+  });
+
   it("leaves decimal-string amounts alone", () => {
     expect(present({ amount: "12.50", currency: "PLN" }, opts)).toEqual({
       amount: "12.50",
