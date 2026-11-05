@@ -3,7 +3,7 @@ status: complete
 phase: 14-multi-currency-budgets-changeable-budget-currency-per-catego
 source: [14-01-SUMMARY.md … 14-25-SUMMARY.md]
 started: 2026-11-04T21:25:41Z
-updated: 2026-11-05T10:00:43Z
+updated: 2026-11-05T11:26:34Z
 ---
 
 ## Current Test
@@ -72,29 +72,31 @@ result: pass
 ### 12. Limit-only month leaves its leftover
 
 expected: Add a limit to a past month with no spending (e.g. 500 zł in September) → October's reserve immediately grows by the unused amount, without adding any transaction.
-result: issue
+result: pass
+retest: pass after fix 691cb970 (owner, 2026-11-05)
+original_result: issue
 reported: "I added in may limit 500 uah, but I don't see the reserve in july. Budget : Test, cat: My category" — corrected: "I was suppose to say that june doesn't show reserve while there's leftover in may"
 severity: major
 
 ## Summary
 
 total: 12
-passed: 11
-issues: 1
+passed: 12
+issues: 0
 pending: 0
 skipped: 0
 
 ## Gaps
 
 - truth: "A limit-only past month's leftover shows as reserve in every following month without a transaction"
-  status: failed
+  status: resolved
   reason: "User reported: June doesn't show reserve while there's leftover in May (Test budget, My category; May limit 500 UAH)"
   severity: major
   test: 12
   root_cause: "reserveEngine emitted per-month cells only for months a category had a limit or spending in; a gap month (June: no limit, no spend) had no cell, so the summary read reserve 0."
   artifacts: [packages/budgeting/src/domain/reserve-engine.ts, packages/budgeting/test/reserves/limit-only-month-accrues.test.ts]
   missing: []
-  fix: "691cb970 — cells run from the category's first month to the open month; a month with no R snapshot holds the last one. Test red first (cell undefined), green after. Backend 2384 pass + 2 baseline fails. Live: Test/My category June = 0 / 500 UAH. api+worker rebuilt; reserve/currency/rebalance/tasks E2E chromium+mobile 62 passed, 0 failed. Awaiting owner re-check of June."
+  fix: "691cb970 — cells run from the category's first month to the open month; a month with no R snapshot holds the last one. Test red first (cell undefined), green after. Backend 2384 pass + 2 baseline fails. Live: Test/My category June = 0 / 500 UAH. api+worker rebuilt; reserve/currency/rebalance/tasks E2E chromium+mobile 62 passed, 0 failed. Owner re-check: pass."
   diagnosis_notes: |
   Read-only replay of Test budget d894ba76 / My category (May 500 UAH only, June no limit, July 300 PLN only):
   API summary July = reserve 0 / 42.02 PLN (≈ 500 UAH) — server data correct.
