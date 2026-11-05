@@ -52,7 +52,7 @@ export type TransactionRouteDeps =
 // silently stores a wrong converted value. This ceiling is far above any real
 // household amount yet safely under Number.MAX_SAFE_INTEGER (~9e15), bounding
 // both problems. Applies to the FX product too (principal capped → product stays sane).
-const MAX_TXN_CENTS = 10_000_000_000_000; // 1e13 cents
+export const MAX_TXN_CENTS = 10_000_000_000_000; // 1e13 cents
 const boundedCents = z.number().int().min(-MAX_TXN_CENTS).max(MAX_TXN_CENTS);
 
 const createSchema = z.object({
