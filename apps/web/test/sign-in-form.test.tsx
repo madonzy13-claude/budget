@@ -127,4 +127,43 @@ describe("SignInForm", () => {
     expect(hrefSetter).toHaveBeenCalledWith("/uk");
     expect(document.cookie).toContain("budget-locale=uk");
   });
+
+  describe("OAuth return hop (MCP connect)", () => {
+    async function submitWithSearch(search: string) {
+      window.history.replaceState(null, "", `/en/sign-in${search}`);
+      render(<SignInForm locale="en" />);
+      fireEvent.change(screen.getByLabelText(/email address/i), {
+        target: { value: "user@example.com" },
+      });
+      fireEvent.change(screen.getByLabelText(/password/i), {
+        target: { value: "Password1!" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+      await waitFor(() => expect(hrefSetter).toHaveBeenCalled());
+      window.history.replaceState(null, "", "/");
+      return hrefSetter.mock.calls[0]![0] as string;
+    }
+
+    it("returns to the authorize endpoint with the original query, minus the signature", async () => {
+      const url = await submitWithSearch(
+        "?response_type=code&client_id=abc&redirect_uri=https%3A%2F%2Fclaude.ai%2Fcb&scope=read&state=s&exp=1&ba_iat=2&sig=xyz",
+      );
+      expect(url.startsWith("/auth/oauth2/authorize?")).toBe(true);
+      const q = new URLSearchParams(url.split("?")[1]);
+      expect(q.get("client_id")).toBe("abc");
+      expect(q.get("redirect_uri")).toBe("https://claude.ai/cb");
+      expect(q.get("scope")).toBe("read");
+      expect(q.has("sig") || q.has("exp") || q.has("ba_iat")).toBe(false);
+    });
+
+    it("ignores crafted redirect parameters", async () => {
+      expect(await submitWithSearch("?next=https://evil.example")).toBe("/en");
+      hrefSetter.mockClear();
+      expect(await submitWithSearch("?redirect=//evil")).toBe("/en");
+    });
+
+    it("keeps the locale home without OAuth params", async () => {
+      expect(await submitWithSearch("")).toBe("/en");
+    });
+  });
 });
