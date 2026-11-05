@@ -835,9 +835,10 @@ GRANT DELETE ON budgeting.budget_wealth_snapshots TO app_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON identity.oauth_client, identity.oauth_access_token,
   identity.oauth_refresh_token, identity.oauth_consent, identity.oauth_resource,
   identity.oauth_client_resource, identity.oauth_client_assertion, identity.jwks TO app_role;
-GRANT SELECT ON identity.oauth_client, identity.oauth_access_token,
+-- No worker job reads OAuth state (tokens, signing keys): worker_role gets nothing.
+REVOKE ALL ON identity.oauth_client, identity.oauth_access_token,
   identity.oauth_refresh_token, identity.oauth_consent, identity.oauth_resource,
-  identity.oauth_client_resource, identity.oauth_client_assertion, identity.jwks TO worker_role;
+  identity.oauth_client_resource, identity.oauth_client_assertion, identity.jwks FROM worker_role;
 ALTER TABLE identity.oauth_access_token FORCE ROW LEVEL SECURITY;
 ALTER TABLE identity.oauth_refresh_token FORCE ROW LEVEL SECURITY;
 ALTER TABLE identity.oauth_consent FORCE ROW LEVEL SECURITY;
