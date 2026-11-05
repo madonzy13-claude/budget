@@ -16,7 +16,7 @@ export { oauthBetterAuthSchema } from './adapters/persistence/oauth-schema';
 export {
   listConnections,
   disconnect,
-  hasActiveConsent,
+  touchConsent,
   getClientPublicInfo,
   type Connection,
 } from './adapters/persistence/oauth-connections-repo';

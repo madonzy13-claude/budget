@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 import { createMcpHandler, type AuthInfo } from "@modelcontextprotocol/server";
-import { verifyMcpAccessToken, hasActiveConsent } from "@budget/identity";
+import { verifyMcpAccessToken, touchConsent } from "@budget/identity";
 import { UserId } from "@budget/shared-kernel";
 import type { BootedDeps } from "../boot";
 import type { McpCtx } from "./tools/define";
@@ -58,7 +58,7 @@ export function mcpRoute(deps: BootedDeps, app: App) {
     const clientId = typeof claims.azp === "string" ? claims.azp : null;
     if (!userId || !clientId) return unauthorized();
     // Disconnect deletes the consent; a still-unexpired JWT must die with it.
-    if (!(await hasActiveConsent(userId, clientId))) return unauthorized();
+    if (!(await touchConsent(userId, clientId))) return unauthorized();
     const user = await deps.identity.userRepo.findById(UserId(userId));
     if (!user) return unauthorized();
 

@@ -182,6 +182,8 @@ export const oauthConsent = identity.table(
     scopes: text("scopes").array().notNull(),
     createdAt: ts("created_at"),
     updatedAt: ts("updated_at"),
+    /** Ours, not the plugin's (0107): stamped by touchConsent on each /mcp call. */
+    lastUsedAt: ts("last_used_at"),
   },
   (t) => [
     pgPolicy("oauth_consent_owner", {

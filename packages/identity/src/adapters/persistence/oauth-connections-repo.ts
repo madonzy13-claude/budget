@@ -13,9 +13,8 @@ export interface Connection {
   clientName: string | null;
   scopes: string[];
   connectedAt: Date;
-  /** Newest refresh-token issue. JWT access tokens are not stored, and an
-   *  active client refreshes every ~10 minutes, so this is "last used" to
-   *  within that. */
+  /** Stamped on every /mcp call (touchConsent); newest refresh-token issue
+   *  covers rows from before 0107. */
   lastUsedAt: Date | null;
 }
 
@@ -29,8 +28,9 @@ export async function listConnections(userId: string): Promise<Connection[]> {
     tx.execute(sql`
       SELECT c.client_id AS "clientId", oc.name AS "clientName", c.scopes,
              COALESCE(c.updated_at, c.created_at) AS "connectedAt",
-             (SELECT max(t.created_at) FROM identity.oauth_refresh_token t
-               WHERE t.user_id = c.user_id AND t.client_id = c.client_id) AS "lastUsedAt"
+             GREATEST(c.last_used_at,
+               (SELECT max(t.created_at) FROM identity.oauth_refresh_token t
+                 WHERE t.user_id = c.user_id AND t.client_id = c.client_id)) AS "lastUsedAt"
         FROM identity.oauth_consent c
         LEFT JOIN identity.oauth_client oc ON oc.client_id = c.client_id
        WHERE c.user_id = ${userId}::uuid
@@ -59,14 +59,16 @@ export async function disconnect(userId: string, clientId: string): Promise<numb
   return unwrap(r);
 }
 
-export async function hasActiveConsent(
+/** True while (user, client) still holds consent; stamps last_used_at. */
+export async function touchConsent(
   userId: string,
   clientId: string,
 ): Promise<boolean> {
   const r = await withUserContext(UserId(userId), (tx) =>
     tx.execute(sql`
-      SELECT 1 FROM identity.oauth_consent
-       WHERE user_id = ${userId}::uuid AND client_id = ${clientId} LIMIT 1
+      UPDATE identity.oauth_consent SET last_used_at = now()
+       WHERE user_id = ${userId}::uuid AND client_id = ${clientId}
+      RETURNING 1
     `),
   );
   return unwrap(r).rows.length > 0;
