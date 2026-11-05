@@ -126,6 +126,12 @@ export interface ReserveEngineInput {
 
 const max0 = (v: bigint): bigint => (v > 0n ? v : 0n);
 const min = (a: bigint, b: bigint): bigint => (a < b ? a : b);
+/** 'YYYY-MM' → the month after it. */
+const nextMonthKey = (m: string): string => {
+  const y = Number(m.slice(0, 4));
+  const mo = Number(m.slice(5, 7));
+  return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, "0")}`;
+};
 
 /** Mutable per-category accumulator used during the fold. */
 interface Cat {
@@ -385,6 +391,25 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
       ...c.normal.keys(),
       ...c.cushion.keys(),
     ]);
+    // A month with no limit and no spending still holds the reserve carried
+    // into it (UAT 14, owner 261105: "June doesn't show reserve while there's
+    // leftover in May") — fill every month from the first up to the last one
+    // folded or the open month, so each has a cell.
+    const lastMonth =
+      foldMonth !== null && foldMonth > input.openMonth ? foldMonth : input.openMonth;
+    if (months.size > 0) {
+      for (let m = [...months].sort()[0]!; m <= lastMonth; m = nextMonthKey(m)) {
+        months.add(m);
+      }
+    }
+    // No event touched R in a month with no snapshot: it still holds the last one.
+    const snapMonths = [...c.endR.keys()].sort();
+    const endRAt = (month: string): bigint => {
+      const hit = c.endR.get(month);
+      if (hit !== undefined) return hit;
+      const prior = snapMonths.filter((s) => s < month).pop();
+      return prior === undefined ? c.R : c.endR.get(prior)!;
+    };
 
     // Per-month derived values (forward).
     const derived = [...months].sort().map((month) => {
@@ -394,7 +419,7 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
       const accruedHere = c.accrued.get(month) ?? 0n;
       // Forward free reserve at this month's close, excluding its own accrual
       // (that leftover belongs to the NEXT month).
-      const forwardExcl = (c.endR.get(month) ?? c.R) - accruedHere;
+      const forwardExcl = endRAt(month) - accruedHere;
       return { month, overage, left, realUsed, accruedHere, forwardExcl };
     });
 
