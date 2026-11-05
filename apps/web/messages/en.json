@@ -153,7 +153,8 @@
         "general": "General",
         "profile": "Profile",
         "security": "Security",
-        "danger": "Danger Zone"
+        "danger": "Danger Zone",
+        "connectedApps": "Connected apps"
       }
     },
     "profile": {
@@ -403,6 +404,21 @@
       "updateNow": "Update now",
       "updated": "Updated to the newest version ({version})",
       "build": "Built {date}"
+    },
+    "connectedApps": {
+      "title": "Connected apps",
+      "empty": "No AI assistants are connected.",
+      "emptyHint": "Add {url} as a custom connector in Claude, ChatGPT or another MCP app.",
+      "connectedOn": "Connected {date}",
+      "lastUsed": "Last used {date}",
+      "neverUsed": "Not used yet",
+      "disconnect": "Disconnect",
+      "confirmTitle": "Disconnect this app?",
+      "confirmBody": "{client} will lose access to all your budgets.",
+      "confirmAction": "Disconnect",
+      "cancel": "Cancel",
+      "disconnected": "App disconnected",
+      "error": "Couldn't disconnect the app. Please try again."
     }
   },
   "budgets": {

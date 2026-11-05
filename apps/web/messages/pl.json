@@ -153,7 +153,8 @@
         "general": "Ogólne",
         "profile": "Profil",
         "security": "Bezpieczeństwo",
-        "danger": "Strefa zagrożenia"
+        "danger": "Strefa zagrożenia",
+        "connectedApps": "Połączone aplikacje"
       }
     },
     "profile": {
@@ -403,6 +404,21 @@
       "updateNow": "Zaktualizuj teraz",
       "updated": "Zainstalowano najnowszą wersję ({version})",
       "build": "Zbudowano {date}"
+    },
+    "connectedApps": {
+      "title": "Połączone aplikacje",
+      "empty": "Nie połączono żadnych asystentów AI.",
+      "emptyHint": "Dodaj {url} jako własny konektor w Claude, ChatGPT lub innej aplikacji MCP.",
+      "connectedOn": "Połączono {date}",
+      "lastUsed": "Ostatnio użyto {date}",
+      "neverUsed": "Jeszcze nieużywana",
+      "disconnect": "Rozłącz",
+      "confirmTitle": "Rozłączyć tę aplikację?",
+      "confirmBody": "{client} straci dostęp do wszystkich Twoich budżetów.",
+      "confirmAction": "Rozłącz",
+      "cancel": "Anuluj",
+      "disconnected": "Aplikacja rozłączona",
+      "error": "Nie udało się rozłączyć aplikacji. Spróbuj ponownie."
     }
   },
   "budgets": {
