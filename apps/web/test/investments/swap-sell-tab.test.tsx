@@ -260,6 +260,18 @@ describe("Sell tab", () => {
     expect(screen.getByTestId("swap-dest-price")).toHaveValue("30");
   });
 
+  it("a typed price keeps filling the quantity when the amount sold changes", () => {
+    mount();
+    type("swap-sell-sold", "1"); // 60,000 PLN
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    fireEvent.click(screen.getByTestId("dest-form-live"));
+    type("swap-dest-price", "2");
+    fireEvent.blur(screen.getByTestId("swap-dest-price"));
+    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("30000");
+    type("swap-sell-sold", "0.5");
+    expect(screen.getByTestId("swap-dest-qty")).toHaveValue("15000");
+  });
+
   it("a filled buy price is rounded to 2 decimals", () => {
     mount();
     type("swap-sell-sold", "1");
