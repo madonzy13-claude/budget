@@ -89,7 +89,8 @@ export function useBuySource({
     rate: null,
   });
   const rateKey = `${recvCcy}>${srcCcy}@${date}`;
-  const needRate = !!src && !srcQty && recvCcy !== srcCcy;
+  // A counted source needs it too: its sold value fills the buy price.
+  const needRate = !!src && recvCcy !== srcCcy;
   useEffect(() => {
     if (!needRate) return;
     let live = true;
@@ -108,7 +109,9 @@ export function useBuySource({
     : srcRate.key === rateKey && srcRate.rate
       ? Number(srcRate.rate)
       : null;
-  const rateFailed = needRate && srcRate.key === rateKey && !srcRate.rate;
+  // A counted source only loses the price fill; the price can still be typed.
+  const rateFailed =
+    needRate && !srcQty && srcRate.key === rateKey && !srcRate.rate;
   const srcValue = src ? Math.round(Number(src.valueCents)) : 0;
   const takenCents =
     rateToSrc === null ? null : Math.round(recvCents * rateToSrc);
@@ -130,6 +133,17 @@ export function useBuySource({
     (srcQty
       ? num(taken) > 0 && !left
       : takenCents !== null && takenCents > srcValue);
+
+  /** 261105 (user): the buy price that makes the quantity bought worth what
+   *  left a counted source, in recvCcy — null while unknown. */
+  const priceFor = (qtyBought: string): string | null => {
+    if (!src || !srcQty || rateToSrc === null) return null;
+    const q = num(qtyBought);
+    const held = num(src.quantity);
+    if (!(num(taken) > 0) || !(q > 0) || !(held > 0)) return null;
+    const soldCents = (num(taken) * Number(src.valueCents)) / held;
+    return String(Math.round(soldCents / rateToSrc / q) / 100);
+  };
 
   const money = (c: number) => centsToBare(String(Math.round(Math.abs(c))));
 
@@ -305,5 +319,12 @@ export function useBuySource({
           ccy: srcCcy,
         }
       : null;
-  return { fromAsset, src, left: left as SourceLeft | null, drain, node };
+  return {
+    fromAsset,
+    src,
+    left: left as SourceLeft | null,
+    drain,
+    node,
+    priceFor,
+  };
 }

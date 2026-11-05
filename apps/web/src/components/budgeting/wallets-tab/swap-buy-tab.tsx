@@ -8,7 +8,7 @@
  *                 deposit is cost + contribution, the rest is market move.
  */
 import { stablePeg } from "@/lib/stablecoins";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { CurrencyPicker } from "@/components/common/currency-picker";
@@ -131,6 +131,13 @@ export function SwapBuyTab({
     recvCcy,
   });
   const { src, left, drain } = source;
+  // 261105 (user): from a counted asset, sold + bought quantities fill the
+  // buy price until it is typed (clearing it hands it back).
+  const priceTyped = useRef(!!peg);
+  const filled = shape === "quantity" ? source.priceFor(qty) : null;
+  useEffect(() => {
+    if (!priceTyped.current) setPrice(filled ?? "");
+  }, [filled]);
   const money = (c: number) => centsToBare(String(Math.round(Math.abs(c))));
   const signed = (c: number) => `${c > 0 ? "+" : c < 0 ? "−" : ""}${money(c)}`;
 
@@ -322,7 +329,10 @@ export function SwapBuyTab({
                   <NumericInput
                     testId="swap-buy-price"
                     value={price}
-                    onChange={setPrice}
+                    onChange={(v) => {
+                      priceTyped.current = v !== "";
+                      setPrice(v);
+                    }}
                   />
                 </Field>
               </div>

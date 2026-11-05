@@ -388,7 +388,9 @@ export function InvestmentsSection({
     h.currentPriceCurrency ?? h.buyCurrency ?? budgetCurrency;
   const assetCcy = (h: HoldingDto) =>
     uiPrefs.prefs[assetKey(h.id)]?.[0] ?? ownCcy(h);
-  const convertedAssets = [...holdings, ...hidden].filter(
+  // 261105 (user): hidden assets are still yours — Buy/Sell pickers offer them.
+  const allHoldings = useMemo(() => [...holdings, ...hidden], [holdings, hidden]);
+  const convertedAssets = allHoldings.filter(
     (h) => assetCcy(h) !== ownCcy(h),
   );
   const assetPLs = useCurrencyPLs(
@@ -890,7 +892,7 @@ export function InvestmentsSection({
         onOpenChange={setChoosing}
         budgetId={budgetId}
         budgetCurrency={budgetCurrency}
-        holdings={holdings}
+        holdings={allHoldings}
       />
       {swapping && (
         <SwapSheet
@@ -903,7 +905,7 @@ export function InvestmentsSection({
           budgetId={budgetId}
           budgetCurrency={budgetCurrency}
           holding={swapping}
-          holdings={holdings}
+          holdings={allHoldings}
         />
       )}
       {editing && (
