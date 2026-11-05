@@ -37,14 +37,42 @@ export function mcpResource(): string {
 }
 
 /** The real app, booted once per test file. */
-let appPromise: Promise<App> | undefined;
-export function testApp(): Promise<App> {
-  appPromise ??= (async () => {
+type Deps = Awaited<ReturnType<typeof import("../../src/boot").boot>>;
+let booted: Promise<{ app: App; deps: Deps }> | undefined;
+function bootOnce() {
+  booted ??= (async () => {
     const { boot } = await import("../../src/boot");
     const { createApp } = await import("../../src/app");
-    return createApp(await boot());
+    const deps = await boot();
+    return { app: createApp(deps) as App, deps };
   })();
-  return appPromise;
+  return booted;
+}
+export async function testApp(): Promise<App> {
+  return (await bootOnce()).app;
+}
+export async function testDeps(): Promise<Deps> {
+  return (await bootOnce()).deps;
+}
+
+/** An MCP SDK client whose HTTP goes straight into app.fetch. */
+export async function createSdkClient(app: App, token: string | null) {
+  const { Client, StreamableHTTPClientTransport } = await import(
+    "@modelcontextprotocol/client"
+  );
+  const client = new Client({ name: "budget-test", version: "1.0.0" });
+  const transport = new StreamableHTTPClientTransport(
+    new URL(`${baseUrl()}/mcp`),
+    {
+      fetch: (url, init) =>
+        Promise.resolve(app.fetch(new Request(url, init))),
+      ...(token
+        ? { requestInit: { headers: { authorization: `Bearer ${token}` } } }
+        : {}),
+    },
+  );
+  await client.connect(transport);
+  return client;
 }
 
 async function withClient<T>(
