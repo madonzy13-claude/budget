@@ -132,9 +132,10 @@ export function SwapBuyTab({
   });
   const { src, left, drain } = source;
   // 261105 (user): from a counted asset, quantity bought and buy price fill
-  // each other — the untyped one follows (clearing a field hands it back).
+  // each other — the one never edited follows the edited one.
   const priceTyped = useRef(!!peg);
-  const qtyTyped = useRef(draft !== "");
+  // A quantity carried over from another tab was not edited here (261105c).
+  const qtyTyped = useRef(false);
   const filledPrice = shape === "quantity" ? source.priceFor(qty) : null;
   const filledQty = shape === "quantity" ? source.qtyFor(price) : null;
   useEffect(() => {
@@ -327,7 +328,7 @@ export function SwapBuyTab({
                 testId="swap-buy-qty"
                 value={qty}
                 onChange={(v) => {
-                  qtyTyped.current = v !== "";
+                  qtyTyped.current = true;
                   setQty(v);
                 }}
               />
@@ -341,7 +342,7 @@ export function SwapBuyTab({
                       testId="swap-buy-price"
                       value={price}
                       onChange={(v) => {
-                        priceTyped.current = v !== "";
+                        priceTyped.current = true;
                         setPrice(v);
                       }}
                     />

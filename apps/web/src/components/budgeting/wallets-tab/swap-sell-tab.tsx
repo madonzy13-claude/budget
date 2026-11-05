@@ -139,8 +139,11 @@ export function SwapSellTab({
   const [newHolding, setNewHolding] = useState<DestinationHolding | null>(null);
   const [destQty, setDestQty] = useState("");
   const [destPrice, setDestPrice] = useState("");
-  // 261105b (user): quantity and price fill each other — the untyped one
-  // follows sold value ÷ the typed one; both typed, neither moves.
+  // 261105b (user): quantity and price fill each other — the one never
+  // edited follows sold value ÷ the edited one; both edited, neither moves.
+  // An edit counts even when it empties the field (261105c, user).
+  const [qtyTyped, setQtyTyped] = useState(false);
+  const [priceTyped, setPriceTyped] = useState(false);
   const [existingId, setExistingId] = useState("");
   const [walletKind, setWalletKind] = useState<WalletKind>("nowhere");
   const [walletId, setWalletId] = useState("");
@@ -171,6 +174,8 @@ export function SwapSellTab({
     setExistingId(id ?? "");
     setDestQty("");
     setDestPrice("");
+    setQtyTyped(false);
+    setPriceTyped(false);
     if (!id) return;
     const h = holdings.find((x) => x.id === id);
     if (h) setChosenCcy(ccyOf(h, budgetCurrency));
@@ -189,6 +194,7 @@ export function SwapSellTab({
     if (!destPeg) return;
     setChosenCcy(destPeg);
     setDestPrice("1");
+    setPriceTyped(true);
   }, [destPeg, existingId, newInstrumentId]);
   // R6 (user): the sale date's rate asset currency → received currency — the
   // one the server books with (preview of its price and value).
@@ -290,22 +296,22 @@ export function SwapSellTab({
   const soldInReceived = soldValue * rate;
   // 261105 (user): an untyped price is always sold value ÷ quantity, in the
   // received currency — whichever was typed first, whatever changed after.
-  const priceText =
-    destPrice !== ""
-      ? destPrice
-      : num(destQty) > 0 && soldInReceived > 0
-        ? plain(Math.round((soldInReceived / num(destQty)) * 100) / 100)
-        : "";
+  const priceText = priceTyped
+    ? destPrice
+    : num(destQty) > 0 && soldInReceived > 0
+      ? plain(Math.round((soldInReceived / num(destQty)) * 100) / 100)
+      : "";
   const price = num(priceText);
-  // 261105b (user): and an untyped quantity follows a typed price.
-  const qtyText =
-    destQty !== ""
-      ? destQty
-      : destPrice !== "" && num(destPrice) > 0 && soldInReceived > 0
-        ? plain(soldInReceived / num(destPrice))
-        : "";
+  // 261105b (user): and an unedited quantity follows an edited price.
+  const qtyText = qtyTyped
+    ? destQty
+    : priceTyped && num(destPrice) > 0 && soldInReceived > 0
+      ? plain(soldInReceived / num(destPrice))
+      : "";
   const typeDest = (field: "qty" | "price", v: string) =>
-    field === "qty" ? setDestQty(v) : setDestPrice(v);
+    field === "qty"
+      ? (setDestQty(v), setQtyTyped(true))
+      : (setDestPrice(v), setPriceTyped(true));
   const qty = num(qtyText);
 
   // ponytail: display-only Number math (no-float-money keys on member names).

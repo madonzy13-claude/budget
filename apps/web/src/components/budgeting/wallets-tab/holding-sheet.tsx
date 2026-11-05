@@ -291,7 +291,7 @@ export function HoldingSheet({
   /** A typed (or pegged) buy price is never overwritten by the fill below. */
   const priceTyped = useRef(!!holding?.buyPriceCents);
   /** Same for the quantity bought: typed, the price follows it instead. */
-  const qtyTyped = useRef(!!holding);
+  const qtyTyped = useRef(false);
   const [buyCurrency, setBuyCurrency] = useState(
     holding?.buyCurrency ?? budgetCurrency,
   );
@@ -677,7 +677,7 @@ export function HoldingSheet({
   });
   const fromSource = !dest && source.fromAsset;
   // 261105 (user): from a counted asset, sold + bought quantities fill the
-  // buy price until it is typed (clearing it hands it back).
+  // buy price until it is edited; an edited price fills the quantity instead.
   const filledPrice = qtyBuy ? source.priceFor(quantity) : null;
   const filledQty = qtyBuy ? source.qtyFor(buyPrice) : null;
   useEffect(() => {
@@ -1341,7 +1341,7 @@ export function HoldingSheet({
                 value={buyPrice}
                 onChange={(v) => {
                   markDirty();
-                  priceTyped.current = v !== "";
+                  priceTyped.current = true;
                   setBuyPrice(v);
                 }}
               />
@@ -1355,7 +1355,7 @@ export function HoldingSheet({
                 value={quantity}
                 onChange={(v) => {
                   markDirty();
-                  qtyTyped.current = v !== "";
+                  qtyTyped.current = true;
                   setQuantity(v);
                 }}
               />
