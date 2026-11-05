@@ -526,26 +526,73 @@ Plans:
 
 Plans:
 
+**Wave 1**
+
 - [ ] 15-01-PLAN.md — Package legitimacy gate + exact-pin installs + decisions: investment undo scope, wallet-history import (wave 1, checkpoint)
 - [ ] 15-02-PLAN.md — Internal route dispatch (WeakMap identity) + decimal-string money boundary (wave 1)
 - [ ] 15-03-PLAN.md — Full-history paged transaction search route (wave 1)
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
 - [ ] 15-04-PLAN.md — [BLOCKING] Migration 0106: OAuth/JWKS tables, mcp_write_log, mcp_import_previews, RLS + apply (wave 2)
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
 - [ ] 15-05-PLAN.md — Better Auth OAuth AS (DCR, PKCE, rotation, read/write scopes) + lifetime spike tests (wave 3)
 - [ ] 15-06-PLAN.md — Write-log/preview repo + per-connection rate and daily limits (wave 3)
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
 - [ ] 15-07-PLAN.md — /mcp endpoint, bearer verify, well-known metadata, list_budgets, registry guard (wave 4)
 - [ ] 15-19-PLAN.md — Web: public-host rewrites, middleware matcher, SW consent rule (wave 4)
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
 - [ ] 15-08-PLAN.md — Connected-apps API: list, client info, disconnect revoking live tokens (wave 5)
 - [ ] 15-10-PLAN.md — All read tools + agent-safe presentation (money strings, untrusted text) (wave 5)
+
+**Wave 6** _(blocked on Wave 5 completion)_
+
 - [ ] 15-09-PLAN.md — Web: sign-in return + consent page EN/PL/UK (wave 6)
+
+**Wave 7** _(blocked on Wave 6 completion)_
+
 - [ ] 15-11-PLAN.md — Web: Settings → Connected apps section (wave 7)
+
+**Wave 8** _(blocked on Wave 7 completion)_
+
 - [ ] 15-12-PLAN.md — Real Claude.ai spike through the tunnel (wave 8, checkpoint)
+
+**Wave 9** _(blocked on Wave 8 completion)_
+
 - [ ] 15-13-PLAN.md — writeTool wrapper (mandatory cap preflight, replay-safe log) + ledger/wallet/category/budget write tools (wave 9)
+
+**Wave 10** _(blocked on Wave 9 completion)_
+
 - [ ] 15-14-PLAN.md — Investment, scheduled-payment and task write tools (wave 10)
+
+**Wave 11** _(blocked on Wave 10 completion)_
+
 - [ ] 15-15-PLAN.md — Agent undo + rollback-mode inverses for every import kind + transaction restore route (wave 11)
+
+**Wave 12** _(blocked on Wave 11 completion)_
+
 - [ ] 15-16-PLAN.md — Import preview (all 5 kinds) + commit/rollback/undo for transactions + categories (wave 12)
+
+**Wave 13** _(blocked on Wave 12 completion)_
+
 - [ ] 15-20-PLAN.md — Import commit/rollback/undo for limits, investments, wallet balances, scheduled payments (wave 13)
+
+**Wave 14** _(blocked on Wave 13 completion)_
+
 - [ ] 15-21-PLAN.md — Wallet-history import as wealth snapshots (only if 15-01 chose b2) (wave 14)
+
+**Wave 15** _(blocked on Wave 14 completion)_
+
 - [ ] 15-17-PLAN.md — Prompts + GDPR cascade + MCP tenant-leak gate (wave 15)
+
+**Wave 16** _(blocked on Wave 15 completion)_
+
 - [ ] 15-18-PLAN.md — @mcp E2E, full gate, real-client UAT (wave 16, checkpoint)
 
 ---
