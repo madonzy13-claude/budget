@@ -2361,5 +2361,19 @@
     "try_link": "Explore the demo →",
     "try_hint": "Sample data, no sign-up needed",
     "entering": "Opening…"
+  },
+  "oauthConsent": {
+    "title": "{client} wants to connect to your budgets",
+    "redirectsTo": "After you decide, you go back to {host}.",
+    "allBudgets": "Access covers all your budgets, including ones you create or join later.",
+    "read": "See your budgets, spendings, incomes, wallets, investments, tasks and overview numbers.",
+    "write": "Add, change and delete entries, set limits, sync wallet balances and import data. Changes look exactly like your own.",
+    "revokeHint": "You can disconnect any time in Settings → Connected apps.",
+    "allow": "Allow",
+    "deny": "Deny",
+    "unknownClient": "This app is not registered. Go back to it and try connecting again.",
+    "loading": "Loading",
+    "failed": "That didn't go through. Please try again.",
+    "pageTitle": "Connect an app"
   }
 }

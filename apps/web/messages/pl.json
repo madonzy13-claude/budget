@@ -2365,5 +2365,19 @@
     "try_link": "Zobacz demo →",
     "try_hint": "Dane przykładowe, bez zakładania konta",
     "entering": "Otwieranie…"
+  },
+  "oauthConsent": {
+    "title": "{client} chce połączyć się z Twoimi budżetami",
+    "redirectsTo": "Po decyzji wrócisz do {host}.",
+    "allBudgets": "Dostęp obejmuje wszystkie Twoje budżety, także te, które utworzysz lub do których dołączysz później.",
+    "read": "Wgląd w budżety, wydatki, przychody, portfele, inwestycje, zadania i liczby z przeglądu.",
+    "write": "Dodawanie, zmienianie i usuwanie wpisów, ustawianie limitów, synchronizacja sald portfeli i import danych. Zmiany wyglądają dokładnie tak jak Twoje.",
+    "revokeHint": "Możesz się rozłączyć w każdej chwili w Ustawienia → Połączone aplikacje.",
+    "allow": "Zezwól",
+    "deny": "Odmów",
+    "unknownClient": "Ta aplikacja nie jest zarejestrowana. Wróć do niej i spróbuj połączyć się ponownie.",
+    "loading": "Ładowanie",
+    "failed": "Nie udało się. Spróbuj ponownie.",
+    "pageTitle": "Połącz aplikację"
   }
 }
