@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: track)_
-status: milestone_complete
-stopped_at: Milestone complete (Phase 14 was final phase)
-last_updated: 2026-11-04T11:13:51.891Z
-last_activity: 2026-11-03
+status: completed
+stopped_at: Phase 15 context gathered
+last_updated: "2026-11-05T14:28:42.858Z"
+last_activity: 2026-11-04
 progress:
-  total_phases: 15
-  completed_phases: 12
-  total_plans: 186
-  completed_plans: 189
-  percent: 80
+  total_phases: 16
+  completed_phases: 13
+  total_plans: 190
+  completed_plans: 190
+  percent: 81
 ---
 
 # Project State
@@ -112,6 +112,8 @@ _Updated after each plan completion_
 ## Accumulated Context
 
 ### Roadmap Evolution
+
+- Phase 15 added (2026-11-05): MCP server — agents/assistants manage budgets via remote MCP + OAuth 2.1; read tools, bounded writes, preview/commit/undo import (agent normalizes formats); no exfiltration tools; audited MCP writes with undo.
 
 - Phase 14 added (2026-11-03): Multi-currency budgets — changeable budget currency, per-category currency, multi-currency reserves
 
@@ -270,9 +272,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-11-03T13:15:14.365Z
-Stopped at: Phase 14 UI-SPEC approved
-Resume file: .planning/phases/14-multi-currency-budgets-changeable-budget-currency-per-catego/14-UI-SPEC.md
+Last session: 2026-11-05T14:28:42.826Z
+Stopped at: Phase 15 context gathered
+Resume file: .planning/phases/15-mcp-server-manage-budgets-via-ai-agents-and-assistants/15-CONTEXT.md
 
 ## v1.0 History (archived)
 
