@@ -89,6 +89,35 @@ const listQuerySchema = z.object({
     }),
 });
 
+const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD");
+const searchQuerySchema = z.object({
+  from: ymd.optional(),
+  to: ymd.optional(),
+  category_id: z.string().uuid().optional(),
+  kind: z.enum(["SPENDING", "INCOME"]).optional(),
+  q: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(200),
+  cursor: z.string().optional(),
+});
+const searchCursorSchema = z.object({ date: ymd, id: z.string().uuid() });
+
+function encodeCursor(row: { date: string; id: string }): string {
+  return Buffer.from(JSON.stringify({ date: row.date, id: row.id })).toString(
+    "base64url",
+  );
+}
+
+function decodeCursor(raw: string): { date: string; id: string } | null {
+  try {
+    const parsed = searchCursorSchema.safeParse(
+      JSON.parse(Buffer.from(raw, "base64url").toString("utf8")),
+    );
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
 // ──────────────────────────────────────────────────────────────────────
 // Response serialiser: TransactionRow → snake_case JSON
 // ──────────────────────────────────────────────────────────────────────
@@ -374,6 +403,39 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
     );
 
     return c.json({ transactions: rows.map(serializeRow) }, 200);
+  });
+
+  // ── GET /search — full history, keyset-paged (15-03, MCP search_transactions)
+  // Registered BEFORE /:txId so "search" is not captured as a txId.
+  app.get("/search", async (c) => {
+    const tenantId = pickTenant(c);
+    const budgetId = c.req.param("budgetId") ?? tenantId;
+    const parsed = searchQuerySchema.safeParse(c.req.query());
+    if (!parsed.success) {
+      return c.json(
+        { error: "Validation error", issues: parsed.error.issues },
+        422,
+      );
+    }
+    const { cursor: rawCursor, limit, category_id, ...rest } = parsed.data;
+    const cursor = rawCursor ? decodeCursor(rawCursor) : null;
+    if (rawCursor && !cursor) return c.json({ error: "invalid_cursor" }, 422);
+
+    const rows = await transactionRepo.searchPage(
+      tenantId,
+      budgetId,
+      { ...rest, ...(category_id ? { categoryId: category_id } : {}) },
+      cursor,
+      limit,
+    );
+    const page = rows.slice(0, limit);
+    return c.json(
+      {
+        transactions: page.map(serializeRow),
+        next_cursor: rows.length > limit ? encodeCursor(page.at(-1)!) : null,
+      },
+      200,
+    );
   });
 
   // ── GET /:txId — single transaction ──────────────────────────────────

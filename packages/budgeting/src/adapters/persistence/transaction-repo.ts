@@ -396,6 +396,49 @@ export class DrizzleTransactionRepo implements TransactionRepo {
     return r.value.map(dbRowToTransactionRow);
   }
 
+  async searchPage(
+    tenantId: string,
+    budgetId: string,
+    f: {
+      from?: string;
+      to?: string;
+      categoryId?: string;
+      kind?: "SPENDING" | "INCOME";
+      q?: string;
+    },
+    cursor: { date: string; id: string } | null,
+    limit: number,
+  ): Promise<TransactionRow[]> {
+    const r = await withTenantTx(
+      TenantId(tenantId),
+      UserId(tenantId),
+      async (tx) => {
+        const drizzleTx = tx as {
+          execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+        };
+        const result = await drizzleTx.execute(
+          sql`${LEDGER_SELECT}
+            WHERE l.tenant_id = ${tenantId}::uuid
+              AND l.budget_id = ${budgetId}::uuid
+              AND l.deleted_at IS NULL
+              AND l.dismissed_at IS NULL
+              AND l.deferred_at IS NULL
+              ${f.from ? sql`AND l.transaction_date >= ${f.from}::date` : sql``}
+              ${f.to ? sql`AND l.transaction_date <= ${f.to}::date` : sql``}
+              ${f.categoryId ? sql`AND l.category_id = ${f.categoryId}::uuid` : sql``}
+              ${f.kind ? sql`AND l.kind = ${f.kind}` : sql``}
+              ${f.q ? sql`AND l.note ILIKE '%' || ${f.q} || '%'` : sql``}
+              ${cursor ? sql`AND (l.transaction_date, l.id) < (${cursor.date}::date, ${cursor.id}::uuid)` : sql``}
+            ORDER BY l.transaction_date DESC, l.id DESC
+            LIMIT ${limit + 1}`,
+        );
+        return result.rows;
+      },
+    );
+    if (r.isErr()) throw r.error;
+    return r.value.map(dbRowToTransactionRow);
+  }
+
   async latestSpendingCreatedAt(
     tenantId: string,
     budgetId: string,

@@ -94,6 +94,25 @@ export interface TransactionRepo {
   ): Promise<TransactionRow[]>;
 
   /**
+   * 15-03: full-history search, newest first (transaction_date DESC, id DESC),
+   * keyset-paged on (date, id). Returns up to `limit` + 1 rows so the caller
+   * can tell whether another page exists.
+   */
+  searchPage(
+    tenantId: string,
+    budgetId: string,
+    f: {
+      from?: string;
+      to?: string;
+      categoryId?: string;
+      kind?: "SPENDING" | "INCOME";
+      q?: string;
+    },
+    cursor: { date: string; id: string } | null,
+    limit: number,
+  ): Promise<TransactionRow[]>;
+
+  /**
    * r40: newest created_at over confirmed, NON-deleted spendings WHOSE
    * transaction_date falls in [monthStart, monthEnd) — powers the per-month
    * "last spending added" footer (viewing May keeps May's date even after a
