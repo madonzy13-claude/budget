@@ -51,9 +51,9 @@ test("oauthBetterAuthSchema covers every OAuth/JWT plugin model and field", asyn
     Object.keys(declared).sort(),
   );
   for (const [model, def] of Object.entries(declared)) {
-    const cols = getTableColumns(
-      (oauthBetterAuthSchema as Record<string, never>)[model]!,
-    );
+    const table =
+      oauthBetterAuthSchema[model as keyof typeof oauthBetterAuthSchema];
+    const cols = getTableColumns(table);
     for (const field of [
       "id",
       ...Object.keys((def as { fields: object }).fields),
