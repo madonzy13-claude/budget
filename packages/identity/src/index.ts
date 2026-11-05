@@ -6,3 +6,6 @@ export * from './contracts/factory';
 export type { UserRepo } from './ports/user-repo';
 export type { CredentialRepo } from './ports/credential-repo';
 // domain/* and adapters/* are NOT re-exported.
+// Phase 15 MCP: OAuth authorization-server plugins + their Drizzle tables, wired in apps/api boot.
+export { mcpOAuthPlugins, MCP_SCOPES } from './adapters/persistence/oauth-provider';
+export { oauthBetterAuthSchema } from './adapters/persistence/oauth-schema';

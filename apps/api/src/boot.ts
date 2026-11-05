@@ -32,7 +32,11 @@ import { FinnhubPriceProvider } from "@budget/investments/src/adapters/price/fin
 import { MetalsDevPriceProvider } from "@budget/investments/src/adapters/price/metals-dev";
 import { GoldApiPriceProvider } from "@budget/investments/src/adapters/price/gold-api";
 import { resolveApiKey } from "@budget/investments/src/ports/price-provider";
-import { createIdentityModule } from "@budget/identity"; // PC-02, PC-15
+import {
+  createIdentityModule,
+  mcpOAuthPlugins,
+  oauthBetterAuthSchema,
+} from "@budget/identity"; // PC-02, PC-15
 import { createTenancyModule } from "@budget/tenancy"; // PC-02, PC-15
 import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
 import { DrizzleFxRateCacheRepo } from "@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo";
@@ -260,8 +264,12 @@ export async function boot(): Promise<BootedDeps> {
   const identity = createIdentityModule({
     emailSender,
     keyStore,
-    additionalPlugins: [tenancy.organizationPlugin],
-    additionalSchema: tenancy.betterAuthSchema,
+    additionalPlugins: [
+      tenancy.organizationPlugin,
+      // Phase 15: OAuth 2.1 authorization server for MCP clients.
+      ...mcpOAuthPlugins({ baseUrl: env.BETTER_AUTH_URL }),
+    ],
+    additionalSchema: { ...tenancy.betterAuthSchema, ...oauthBetterAuthSchema },
   });
 
   // Budgeting module: FX adapter wired to real cache repo (worker_role pool)
