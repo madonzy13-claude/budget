@@ -13,9 +13,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@budget/shared-kernel": "workspace:*",
+    "@better-auth/oauth-provider": "1.7.18",
     "@budget/platform": "workspace:*",
-    "better-auth": "1.7.15",
+    "@budget/shared-kernel": "workspace:*",
+    "better-auth": "1.7.18",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
