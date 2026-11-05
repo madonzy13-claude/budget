@@ -237,6 +237,29 @@ describe("Sell tab", () => {
     expect(holding.livePriceCurrency).toBeUndefined();
   });
 
+  // 261105 (user): sold + quantity bought always give the buy price, in
+  // whatever order they were typed, until the price itself is typed.
+  it("quantity typed before the amount sold still fills the price", () => {
+    mount();
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    fireEvent.click(screen.getByTestId("dest-form-live"));
+    type("swap-dest-qty", "1000");
+    fireEvent.blur(screen.getByTestId("swap-dest-qty"));
+    type("swap-sell-sold", "1");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("60");
+  });
+
+  it("changing the amount sold after leaving quantity re-fills the price", () => {
+    mount();
+    type("swap-sell-sold", "1");
+    fireEvent.click(screen.getByTestId("swap-dest-invest"));
+    fireEvent.click(screen.getByTestId("dest-form-live"));
+    type("swap-dest-qty", "1000");
+    fireEvent.blur(screen.getByTestId("swap-dest-qty"));
+    type("swap-sell-sold", "0.5");
+    expect(screen.getByTestId("swap-dest-price")).toHaveValue("30");
+  });
+
   it("a filled buy price is rounded to 2 decimals", () => {
     mount();
     type("swap-sell-sold", "1");

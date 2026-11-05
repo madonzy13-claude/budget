@@ -11,6 +11,7 @@ import {
   H,
   btc,
   btcCold,
+  sol,
   broker,
   cash,
   routeFetch,
@@ -130,6 +131,37 @@ describe("Buy — where did the money come from?", () => {
     fireEvent.keyDown(screen.getByTestId("swap-buy-src"), { key: "Enter" });
     const row = await screen.findByTestId(`swap-buy-src-option-${cash.id}`);
     expect(row.className).not.toMatch(/min-h-11/);
+  });
+
+  // 261105 (user): quantity sold + quantity bought give the buy price.
+  it("from a counted asset: sold and bought quantities fill the buy price", async () => {
+    mount(sol);
+    fireEvent.click(screen.getByTestId("swap-buy-from-asset"));
+    await pick("swap-buy-src", `swap-buy-src-option-${btcCold.id}`);
+    type("swap-buy-qty", "3");
+    expect(screen.getByTestId("swap-buy-price")).toHaveValue("");
+    type("swap-buy-taken", "0.5"); // 30,000 PLN of BTC Cold
+    expect(screen.getByTestId("swap-buy-price")).toHaveValue("10000");
+    type("swap-buy-qty", "4");
+    expect(screen.getByTestId("swap-buy-price")).toHaveValue("7500");
+    type("swap-buy-price", "7000");
+    type("swap-buy-qty", "5");
+    expect(screen.getByTestId("swap-buy-price")).toHaveValue("7000");
+  });
+
+  it("the filled buy price follows the buy currency at the day's rate", async () => {
+    routeFetch({ rate: "4" }); // 1 EUR = 4 PLN
+    mount(sol);
+    fireEvent.click(screen.getByTestId("swap-buy-from-asset"));
+    await pick("swap-buy-src", `swap-buy-src-option-${btcCold.id}`);
+    fireEvent.change(screen.getByTestId("currency-picker"), {
+      target: { value: "EUR" },
+    });
+    type("swap-buy-taken", "0.5");
+    type("swap-buy-qty", "3");
+    await waitFor(() =>
+      expect(screen.getByTestId("swap-buy-price")).toHaveValue("2500"),
+    );
   });
 
   it("from an amount asset into a quantity asset: sells the source into this one", async () => {
@@ -269,5 +301,17 @@ describe("Buy — where did the money come from?", () => {
     fireEvent.click(screen.getByTestId("swap-submit"));
     await waitFor(() => expect(writeMock).toHaveBeenCalled());
     expect(lastBody().left).toEqual({ valueCents: "87500" });
+  });
+});
+
+// 261105 (user): on Buy the quantity is what was bought.
+describe("Buy — quantity label", () => {
+  it("reads Quantity bought in every locale", async () => {
+    const want = { en: "Quantity bought", pl: "Kupiona ilość", uk: "Куплена кількість" };
+    for (const [loc, label] of Object.entries(want)) {
+      const m = (await import(`../../messages/${loc}.json`)).default;
+      expect(m.budget.investments.swap.buy.quantity).toBe(label);
+      expect(m.budget.investments.field.quantity).toBe(label);
+    }
   });
 });

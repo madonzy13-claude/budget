@@ -27,9 +27,20 @@ vi.mock("../../src/hooks/use-offline-write-toast", () => ({
   useOfflineWriteToast: () => vi.fn(),
 }));
 vi.mock("../../src/components/budgeting/wallets-tab/swap-sheet", () => ({
-  SwapSheet: ({ holding, open }: { holding: HoldingDto; open: boolean }) =>
+  SwapSheet: ({
+    holding,
+    holdings,
+    open,
+  }: {
+    holding: HoldingDto;
+    holdings: HoldingDto[];
+    open: boolean;
+  }) =>
     open ? (
-      <div data-testid="swap-sheet-stub">{`${holding.id}:${holding.uiType}`}</div>
+      <div
+        data-testid="swap-sheet-stub"
+        data-holdings={holdings.map((x) => x.id).join(",")}
+      >{`${holding.id}:${holding.uiType}`}</div>
     ) : null,
 }));
 vi.mock("../../src/components/budgeting/wallets-tab/edit-asset-sheet", () => ({
@@ -113,6 +124,15 @@ function mount(
 }
 
 describe("Asset row actions", () => {
+  // 261105 (user): hidden assets are still yours — Buy/Sell pickers offer them.
+  it("the Swap sheet gets hidden assets too", () => {
+    mount({}, [h("x1", "crypto", "crypto")]);
+    fireEvent.click(screen.getByTestId("investment-swap-c1"));
+    expect(
+      screen.getByTestId("swap-sheet-stub").getAttribute("data-holdings")!.split(","),
+    ).toContain("x1");
+  });
+
   it("Swap opens the Swap sheet for that asset", () => {
     mount();
     fireEvent.click(screen.getByTestId("investment-swap-c1"));
