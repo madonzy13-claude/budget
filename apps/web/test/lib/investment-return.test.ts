@@ -78,4 +78,30 @@ describe("investChangeBars", () => {
   it("no points → no bars", () => {
     expect(investChangeBars([], month).rows).toEqual([]);
   });
+
+  // "All" (261106): the first and the running year are partial; each counts
+  // for the share of it the points cover, in both the % and the amount.
+  it("year bars: partial years count for the part the data covers", () => {
+    const pts = [
+      pt("2023-10-01", 1000, 0),
+      pt("2023-12-31", 1100, 100),
+      pt("2024-12-31", 1210, 210),
+      pt("2025-12-31", 1331, 331),
+      pt("2026-07-02", 1464.1, 464.1),
+    ];
+    const { rows, avg, avgDelta } = investChangeBars(pts, (l) => l.slice(0, 4));
+    // 2023: 1 Oct → 31 Dec; 2026: 1 Jan → 2 Jul, both days whole.
+    const years = 92 / 365 + 1 + 1 + 183 / 365;
+    expect(avg.pl).toBeCloseTo((Math.pow(1.1 ** 4, 1 / years) - 1) * 100, 6);
+    const sum = rows.reduce((s, r) => s + r.plDelta, 0);
+    expect(avgDelta.pl).toBe(Math.round(sum / years));
+  });
+
+  it("less than a year of data is not stretched into one", () => {
+    const pts = [pt("2026-05-01", 1000, 0), pt("2026-07-02", 1100, 100)];
+    const { avg, avgDelta } = investChangeBars(pts, (l) => l.slice(0, 4));
+    expect(avg.pl).toBeCloseTo(10, 9);
+    expect(avgDelta.pl).toBe(100);
+  });
 });
+
