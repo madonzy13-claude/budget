@@ -129,7 +129,7 @@ export function SwapSheet({
                 // label's width (flex-auto) so "Szczegóły" / "Перенести" fit 360px.
                 className="flex min-h-11 flex-auto items-center justify-center gap-1 whitespace-nowrap rounded-full px-2 text-[14px] sm:flex-1 sm:px-3"
                 style={{
-                  color,
+                  color: tab === k ? color : "var(--muted-foreground)",
                   background:
                     tab === k
                       ? `color-mix(in srgb, ${color} 18%, transparent)`
