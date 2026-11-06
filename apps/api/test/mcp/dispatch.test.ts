@@ -223,7 +223,10 @@ describe("MCP dispatch", () => {
     const first = await dispatch(app, who(a.userId), opts);
     const second = await dispatch(app, who(a.userId), opts);
     expect(first.status).toBe(201);
-    expect(second).toEqual(first);
+    expect(second.body).toEqual(first.body);
     expect(calls).toBe(1);
+    // Only the cached answer says so — a write tool must not log it twice.
+    expect(first.replayed).toBe(false);
+    expect(second.replayed).toBe(true);
   });
 });
