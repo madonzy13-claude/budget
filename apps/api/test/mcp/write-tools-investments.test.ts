@@ -206,6 +206,8 @@ describe("update_holding_value", () => {
     });
     expect(made.isError).toBeFalsy();
     const id = made.structuredContent!.asset_id;
+    // Worth what was put in, as when the app creates it — never 0.
+    expect((await holding(id))!.currentPriceCents).toBe("100000");
     const r = await tool("update_holding_value", {
       budget_id: budgetId,
       asset_id: id,

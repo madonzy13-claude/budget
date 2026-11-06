@@ -270,10 +270,8 @@ describe("undo — scheduled payments, investments, not undoable", () => {
       value: "1200.00",
     });
     await undo(callId(value));
-    // ponytail: the app's own Delete leaves "0" where the price was null
-    // (delete-entry, reported separately) — undo's job is the entry itself.
-    expect(await price()).not.toBe("120000");
-    void original;
+    expect(original).toBe("100000");
+    expect(await price()).toBe(original);
     // Exactly the value entry went; the buy stays.
     const left = (await getJson(`/budgets/${budgetId}/investments/${asset}/entries`)).body.entries;
     expect(left.map((e: { kind: string }) => e.kind)).toEqual(["add"]);
