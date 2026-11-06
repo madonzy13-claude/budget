@@ -49,6 +49,9 @@ export const WRITE_TOOLS = [
   "confirm_scheduled_payment",
   "complete_task",
   "undo",
+  "import_preview",
+  "import_commit",
+  "import_undo",
 ];
 const DESTRUCTIVE = [
   "delete_transaction",
@@ -58,6 +61,8 @@ const DESTRUCTIVE = [
   "delete_investment_entry",
   "delete_scheduled_payment",
   "undo",
+  "import_commit",
+  "import_undo",
 ];
 export const TOOL_ALLOWLIST = [...READ_TOOLS, ...WRITE_TOOLS];
 
