@@ -39,8 +39,17 @@ export const WRITE_TOOLS = [
   "rename_category",
   "archive_category",
   "budget_create",
+  "record_investment_transaction",
+  "update_holding_value",
+  "delete_investment_entry",
 ];
-const DESTRUCTIVE = ["delete_transaction", "sync_wallet_balance", "archive_category"];
+const DESTRUCTIVE = [
+  "delete_transaction",
+  "sync_wallet_balance",
+  "archive_category",
+  "update_holding_value",
+  "delete_investment_entry",
+];
 export const TOOL_ALLOWLIST = [...READ_TOOLS, ...WRITE_TOOLS];
 
 const FORBIDDEN =

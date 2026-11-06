@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import type { McpCtx } from "./tools/define";
 import { registerReadTools } from "./tools/read";
 import { registerWriteTools } from "./tools/write";
+import { registerInvestmentWriteTools } from "./tools/write-investments";
 
 const INSTRUCTIONS = `Budget: the user's family budgets, spending, wealth and tasks.
 Start with list_budgets; every other tool takes a budget_id.
@@ -18,5 +19,6 @@ export function buildMcpServer(ctx: McpCtx): McpServer {
   );
   registerReadTools(server, ctx);
   registerWriteTools(server, ctx);
+  registerInvestmentWriteTools(server, ctx);
   return server;
 }
