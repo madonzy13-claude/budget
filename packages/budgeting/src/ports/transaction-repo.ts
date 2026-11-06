@@ -83,6 +83,12 @@ export interface TransactionRepo {
   softDelete(id: string, userId: string, tenantId: string): Promise<void>;
 
   /**
+   * Undo a soft-delete (15-15, MCP undo). Throws TransactionNotFoundError for
+   * an unknown id, Error("not_deleted") for a row that is not deleted.
+   */
+  restore(id: string, userId: string, tenantId: string): Promise<void>;
+
+  /**
    * List transactions for a given budget + calendar month.
    * @param confirmed 'any' = all, true = confirmed only, false = drafts only
    */

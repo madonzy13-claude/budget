@@ -347,6 +347,37 @@ export class DrizzleTransactionRepo implements TransactionRepo {
     if (r.isErr()) throw r.error;
   }
 
+  async restore(id: string, userId: string, tenantId: string): Promise<void> {
+    const r = await withTenantTx(TenantId(tenantId), UserId(userId), async (tx) => {
+      const drizzleTx = tx as {
+        execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;
+      };
+      const res = await drizzleTx.execute(
+        sql`UPDATE budgeting.expense_ledger
+          SET deleted_at = NULL, updated_at = now()
+          WHERE id = ${id}::uuid
+            AND tenant_id = ${tenantId}::uuid
+            AND deleted_at IS NOT NULL
+          RETURNING id`,
+      );
+      if (res.rows.length === 0) {
+        const live = await drizzleTx.execute(
+          sql`SELECT 1 FROM budgeting.expense_ledger
+            WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid`,
+        );
+        throw live.rows.length ? new Error("not_deleted") : new TransactionNotFoundError(id);
+      }
+      await writeOutbox(tx, {
+        tenantId: TenantId(tenantId),
+        aggregateType: "transaction",
+        aggregateId: id,
+        eventType: "budgeting.transaction.restored",
+        payload: { id, tenantId },
+      });
+    });
+    if (r.isErr()) throw r.error;
+  }
+
   async listForMonth(
     tenantId: string,
     budgetId: string,

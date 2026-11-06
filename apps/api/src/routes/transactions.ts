@@ -372,6 +372,32 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
     return new Response(null, { status: 204 });
   });
 
+  // ── POST /:txId/restore — undo a soft-delete (15-15, MCP undo) ─────────
+  app.post("/:txId/restore", async (c) => {
+    const txId = c.req.param("txId");
+    const tenantId = pickTenant(c);
+    const userId = pickUser(c);
+
+    try {
+      await transactionRepo.restore(txId, userId, tenantId);
+    } catch (e) {
+      if ((e as { kind?: string }).kind === "TransactionNotFound")
+        return c.json({ error: "not_found" }, 404);
+      if ((e as Error).message === "not_deleted")
+        return c.json({ error: "not_deleted" }, 409);
+      return c.json({ error: (e as Error).message }, 422);
+    }
+
+    await syncReserveTopup(
+      tenantId,
+      c.req.param("budgetId") ?? tenantId,
+      userId,
+    );
+    const row = await transactionRepo.findById(tenantId, txId);
+    if (!row) return c.json({ error: "not_found" }, 404);
+    return c.json({ transaction: serializeRow(row) }, 200);
+  });
+
   // ── GET / — list for month ────────────────────────────────────────────
   app.get("/", async (c) => {
     const tenantId = pickTenant(c);
