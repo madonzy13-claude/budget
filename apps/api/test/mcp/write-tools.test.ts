@@ -565,9 +565,10 @@ describe("wallets, limits, categories, budgets", () => {
     const eff = async (m: string) =>
       (await (
         await cookie("GET", `/budgets/${budgetId}/categories/${cat}/limits/effective?date=${m}-01`)
-      ).json()) as { planned: string | number };
-    expect(String((await eff(month(18))).planned)).toBe("30000");
-    expect(String((await eff(month(0))).planned)).toBe("50000");
+      ).json()) as { normalAmount: string };
+    expect((await eff(month(18))).normalAmount).toBe("30000");
+    expect((await eff(month(0))).normalAmount).toBe("50000");
+    expect(past.structuredContent).toMatchObject({ amount: "300.00", currency: "PLN" });
     const [log] = await logRows("call_id = $2", [current.structuredContent!.call_id]);
     expect(log).toMatchObject({ op: "update", entity_type: "category_limit", entity_id: cat });
   });

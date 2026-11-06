@@ -1,8 +1,17 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
+import { Money, type Currency } from "@budget/shared-kernel";
 import { toMinorUnits } from "../money";
 import { MCP_LIMITS } from "../limits";
-import { writeTool, toolError, type McpCtx, type WriteEffect } from "./define";
+import type { DispatchResult } from "../dispatch";
+import {
+  writeTool,
+  toolError,
+  fromDispatch,
+  type McpCtx,
+  type WriteCtx,
+  type WriteEffect,
+} from "./define";
 
 /**
  * Write tools — each a dispatch over the route the web app uses, so the side
@@ -16,7 +25,31 @@ const amount = z
   .string()
   .describe('Decimal string, e.g. "12.50"; negative is a refund');
 
-type Txn = { id: string; currency_converted?: string };
+const month = z.string().regex(/^\d{4}-\d{2}$/, "YYYY-MM");
+const SAME_AS_APP = "The change looks exactly like one the user made in the app.";
+
+/** GET …/limits/effective — amounts are integer minor units as strings. */
+type Limit = { normalAmount: string; cushionAmount: string };
+type Txn = { id: string; currency_original: string; currency_converted?: string };
+
+async function getBody<T>(c: WriteCtx, path: string, budgetId?: string): Promise<T | null> {
+  const r = await c.dispatch({ method: "GET", path, ...(budgetId ? { budgetId } : {}) });
+  return r.ok ? (r.body as T) : null;
+}
+
+/** One entity changed by one dispatch → its write-log effect. */
+function effect(
+  r: DispatchResult,
+  e: Omit<WriteEffect, "entryCount" | "replayed">,
+): WriteEffect {
+  return { ...e, entryCount: 1, replayed: r.replayed };
+}
+
+/** Balance as a decimal string, keeping up to 4 places for crypto wallets. */
+function decimal(cents: string, currency: string): string {
+  const v = Money.of(cents, currency as Currency).amount.div(100);
+  return v.toFixed(Math.max(2, (v.toString().split(".")[1] ?? "").length));
+}
 
 export function registerWriteTools(server: McpServer, ctx: McpCtx): void {
   writeTool(
@@ -104,6 +137,382 @@ export function registerWriteTools(server: McpServer, ctx: McpCtx): void {
         });
       }
       return { result: { created }, effects, currency: created[0]!.currency_converted };
+    },
+  );
+
+  const txnPath = (b: string, id: string) => `/budgets/${b}/transactions/${id}`;
+
+  writeTool(
+    server,
+    ctx,
+    "edit_transaction",
+    {
+      description:
+        "Change a spending's date, category, amount, currency or note. Only the fields given change. " +
+        SAME_AS_APP,
+      inputSchema: z.object({
+        budget_id: budgetId,
+        transaction_id: z.uuid(),
+        changes: z.object({
+          date: date.optional(),
+          category_id: z.uuid().optional(),
+          amount: amount.optional(),
+          currency: z.string().length(3).optional(),
+          note: z.string().max(2000).nullable().optional(),
+        }),
+      }),
+      annotations: { destructiveHint: false, idempotentHint: true },
+      entryCount: () => 1,
+    },
+    async ({ budget_id, transaction_id, changes }, c) => {
+      const path = txnPath(budget_id, transaction_id);
+      const before = (await getBody<{ transaction: Txn }>(c, path, budget_id))?.transaction;
+      if (!before) return toolError("not_found");
+
+      const body: Record<string, unknown> = {};
+      if (changes.date) body.date = changes.date;
+      if (changes.category_id) body.category_id = changes.category_id;
+      if (changes.currency) body.currency_original = changes.currency.toUpperCase();
+      if (changes.amount !== undefined) {
+        const cents = toMinorUnits(changes.amount, changes.currency ?? before.currency_original);
+        if (cents.isErr()) return toolError(cents.error);
+        body.amount_original_cents = cents.value;
+      }
+      if (changes.note !== undefined) body.note = changes.note;
+      if (Object.keys(body).length === 0) return toolError("nothing_to_change");
+
+      const r = await c.dispatch({ method: "PATCH", path, budgetId: budget_id, body });
+      if (!r.ok) return fromDispatch(r);
+      const after = (r.body as { transaction: Txn }).transaction;
+      return {
+        result: { transaction: after },
+        effects: [
+          effect(r, {
+            tenantId: budget_id,
+            entityType: "transaction",
+            entityId: transaction_id,
+            op: "update",
+            before,
+            after,
+          }),
+        ],
+        currency: after.currency_converted,
+      };
+    },
+  );
+
+  writeTool(
+    server,
+    ctx,
+    "delete_transaction",
+    {
+      description: "Delete a spending, the same way the app's delete does. " + SAME_AS_APP,
+      inputSchema: z.object({ budget_id: budgetId, transaction_id: z.uuid() }),
+      annotations: { destructiveHint: true, idempotentHint: true },
+      entryCount: () => 1,
+    },
+    async ({ budget_id, transaction_id }, c) => {
+      const path = txnPath(budget_id, transaction_id);
+      const before = (await getBody<{ transaction: Txn }>(c, path, budget_id))?.transaction;
+      if (!before) return toolError("not_found");
+      const r = await c.dispatch({ method: "DELETE", path, budgetId: budget_id });
+      if (!r.ok) return fromDispatch(r);
+      return {
+        result: { deleted: transaction_id },
+        effects: [
+          effect(r, {
+            tenantId: budget_id,
+            entityType: "transaction",
+            entityId: transaction_id,
+            op: "delete",
+            before,
+            after: null,
+          }),
+        ],
+      };
+    },
+  );
+
+  writeTool(
+    server,
+    ctx,
+    "sync_wallet_balance",
+    {
+      description:
+        "Set a wallet's balance to what the bank or app shows now. Answers with the old and new " +
+        "balance and the difference. " + SAME_AS_APP,
+      inputSchema: z.object({
+        budget_id: budgetId,
+        wallet_id: z.uuid(),
+        balance: z
+          .string()
+          .regex(/^-?\d{1,13}(\.\d{1,4})?$/)
+          .describe('Decimal string, e.g. "1520.40"; negative for a credit card'),
+        currency: z.string().regex(/^[A-Z0-9]{3,5}$/),
+      }),
+      annotations: { destructiveHint: true, idempotentHint: true },
+      entryCount: () => 1,
+    },
+    async ({ budget_id, wallet_id, balance, currency }, c) => {
+      type Wallet = { id: string; currency: string; currentBalanceCents: string };
+      const path = `/wallets/${wallet_id}`;
+      const before = await getBody<Wallet>(c, path, budget_id);
+      if (!before) return toolError("not_found");
+      const r = await c.dispatch({
+        method: "PUT",
+        path: `${path}/balance`,
+        budgetId: budget_id,
+        body: { amount: balance, currency },
+      });
+      if (!r.ok) return fromDispatch(r);
+      const after = (await getBody<Wallet>(c, path, budget_id)) ?? before;
+      const ccy = after.currency;
+      const diff = String(BigInt(after.currentBalanceCents) - BigInt(before.currentBalanceCents));
+      return {
+        result: {
+          wallet_id,
+          old_balance: decimal(before.currentBalanceCents, ccy),
+          new_balance: decimal(after.currentBalanceCents, ccy),
+          difference: decimal(diff, ccy),
+          currency: ccy,
+        },
+        effects: [
+          effect(r, {
+            tenantId: budget_id,
+            entityType: "wallet",
+            entityId: wallet_id,
+            op: "update",
+            before,
+            after,
+          }),
+        ],
+        currency: ccy,
+      };
+    },
+  );
+
+  writeTool(
+    server,
+    ctx,
+    "set_category_limit",
+    {
+      description:
+        "Set a category's monthly limit. The current month carries forward to later months; " +
+        "a past month changes only that month. Amount is in the category's currency. " + SAME_AS_APP,
+      inputSchema: z.object({
+        budget_id: budgetId,
+        category_id: z.uuid(),
+        month,
+        amount: amount.describe('Decimal string, e.g. "450.00"'),
+        cushion_amount: amount
+          .optional()
+          .describe("The cushion budget limit; omitted keeps the current one"),
+      }),
+      annotations: { destructiveHint: false, idempotentHint: true },
+      entryCount: () => 1,
+    },
+    async (args, c) => {
+      const base = `/budgets/${args.budget_id}/categories/${args.category_id}`;
+      const cat = await getBody<{ currency: string }>(c, base, args.budget_id);
+      if (!cat) return toolError("not_found");
+      const from = `${args.month}-01`;
+      const effective = () =>
+        getBody<Limit>(
+          c,
+          `${base}/limits/effective?date=${from}`,
+          args.budget_id,
+        );
+      const before = await effective();
+
+      const normal = toMinorUnits(args.amount, cat.currency);
+      if (normal.isErr()) return toolError(normal.error);
+      const cushion = args.cushion_amount
+        ? toMinorUnits(args.cushion_amount, cat.currency)
+        : null;
+      if (cushion?.isErr()) return toolError(cushion.error);
+      const cushionCents = cushion?.isOk() ? cushion.value : (before?.cushionAmount ?? normal.value);
+      if (normal.value < 0 || Number(cushionCents) < 0) return toolError("invalid_amount");
+
+      const r = await c.dispatch({
+        method: "POST",
+        path: `${base}/limits`,
+        budgetId: args.budget_id,
+        body: {
+          normalAmount: String(normal.value),
+          cushionAmount: String(cushionCents),
+          effectiveFrom: from,
+          singleMonth: args.month < new Date().toISOString().slice(0, 7),
+        },
+      });
+      if (!r.ok) return fromDispatch(r);
+      const after = await effective();
+      return {
+        result: {
+          category_id: args.category_id,
+          month: args.month,
+          ...(after && {
+            amount: decimal(after.normalAmount, cat.currency),
+            cushion_amount: decimal(after.cushionAmount, cat.currency),
+          }),
+          currency: cat.currency,
+        },
+        effects: [
+          effect(r, {
+            tenantId: args.budget_id,
+            entityType: "category_limit",
+            entityId: args.category_id,
+            op: "update",
+            before: before && { month: args.month, ...before },
+            after: after && { month: args.month, ...after },
+          }),
+        ],
+        currency: cat.currency,
+      };
+    },
+  );
+
+  writeTool(
+    server,
+    ctx,
+    "create_category",
+    {
+      description:
+        "Create a spending category. Currency defaults to the budget's. " + SAME_AS_APP,
+      inputSchema: z.object({
+        budget_id: budgetId,
+        name: z.string().min(1).max(120),
+        currency: z.string().length(3).optional(),
+      }),
+      annotations: { destructiveHint: false, idempotentHint: false },
+      entryCount: () => 1,
+    },
+    async ({ budget_id, name, currency }, c) => {
+      const r = await c.dispatch({
+        method: "POST",
+        path: `/budgets/${budget_id}/categories`,
+        budgetId: budget_id,
+        body: { name, ...(currency ? { currency: currency.toUpperCase() } : {}) },
+      });
+      if (!r.ok) return fromDispatch(r);
+      const category = (r.body as { category: { id: string } }).category;
+      return {
+        result: { category },
+        effects: [
+          effect(r, {
+            tenantId: budget_id,
+            entityType: "category",
+            entityId: category.id,
+            op: "create",
+            before: null,
+            after: category,
+          }),
+        ],
+      };
+    },
+  );
+
+  /** rename / archive: GET before → mutate → the route's answer is after. */
+  const changeCategory =
+    (verb: (b: string, id: string) => { method: "PATCH" | "POST"; path: string; body: unknown }) =>
+    async (args: { budget_id: string; category_id: string; name?: string }, c: WriteCtx) => {
+      const path = `/budgets/${args.budget_id}/categories/${args.category_id}`;
+      const before = await getBody<Record<string, unknown>>(c, path, args.budget_id);
+      if (!before) return toolError("not_found");
+      const r = await c.dispatch({ ...verb(args.budget_id, args.category_id), budgetId: args.budget_id });
+      if (!r.ok) return fromDispatch(r);
+      const after = (await getBody<Record<string, unknown>>(c, path, args.budget_id)) ?? r.body;
+      return {
+        result: { category: after as Record<string, unknown> },
+        effects: [
+          effect(r, {
+            tenantId: args.budget_id,
+            entityType: "category",
+            entityId: args.category_id,
+            op: "update" as const,
+            before,
+            after,
+          }),
+        ],
+      };
+    };
+
+  writeTool(
+    server,
+    ctx,
+    "rename_category",
+    {
+      description: "Rename a category. " + SAME_AS_APP,
+      inputSchema: z.object({
+        budget_id: budgetId,
+        category_id: z.uuid(),
+        name: z.string().min(1).max(120),
+      }),
+      annotations: { destructiveHint: false, idempotentHint: true },
+      entryCount: () => 1,
+    },
+    (args, c) =>
+      changeCategory((b, id) => ({
+        method: "PATCH",
+        path: `/budgets/${b}/categories/${id}`,
+        body: { name: args.name },
+      }))(args, c),
+  );
+
+  writeTool(
+    server,
+    ctx,
+    "archive_category",
+    {
+      description:
+        "Archive a category: it stops taking new spendings, its history stays. " + SAME_AS_APP,
+      inputSchema: z.object({ budget_id: budgetId, category_id: z.uuid() }),
+      annotations: { destructiveHint: true, idempotentHint: true },
+      entryCount: () => 1,
+    },
+    changeCategory((b, id) => ({
+      method: "POST",
+      path: `/budgets/${b}/categories/${id}/archive`,
+      body: {},
+    })),
+  );
+
+  writeTool(
+    server,
+    ctx,
+    "budget_create",
+    {
+      description:
+        "Create a new budget owned by the user, in the currency given. It can be used at once. " +
+        SAME_AS_APP,
+      inputSchema: z.object({
+        name: z.string().min(1).max(100),
+        currency: z.string().length(3),
+      }),
+      annotations: { destructiveHint: false, idempotentHint: false },
+      entryCount: () => 1,
+    },
+    async ({ name, currency }, c) => {
+      const r = await c.dispatch({
+        method: "POST",
+        path: "/budgets",
+        body: { name, default_currency: currency.toUpperCase() },
+      });
+      if (!r.ok) return fromDispatch(r);
+      const made = r.body as { id: string; name: string };
+      return {
+        result: made,
+        effects: [
+          effect(r, {
+            tenantId: made.id,
+            entityType: "budget",
+            entityId: made.id,
+            op: "create",
+            before: null,
+            after: made,
+          }),
+        ],
+        currency: currency.toUpperCase(),
+      };
     },
   );
 }

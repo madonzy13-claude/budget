@@ -6,6 +6,7 @@
  * T-01-07-05: roles enforced server-side in application services; RLS provides second layer.
  */
 import { categoryCurrencyConverter } from "./convert-to-category-currency";
+import { internalRequests } from "../mcp/dispatch";
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
@@ -90,7 +91,9 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
           default_currency: body.default_currency,
           userId: session.user.id,
         },
-        headers: c.req.raw.headers,
+        // An MCP call has no cookie for Better Auth to find; without headers
+        // it creates for body.userId, the token's user (15-13, D-04).
+        headers: internalRequests.has(c.req.raw) ? undefined : c.req.raw.headers,
       });
 
       // Default the user's global display currency to their FIRST budget's
