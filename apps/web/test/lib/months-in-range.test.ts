@@ -70,3 +70,30 @@ describe("monthsInRange — the running month is a fraction of itself", () => {
     expect(monthsInRange("2026-07-01", "2026-08-31")).toBe(2);
   });
 });
+
+/**
+ * "All" reaches back five years, but the budget only lived through the months
+ * since its first one (user, 261106): dividing by the calendar's sixty months
+ * made every monthly figure under "All" far too small.
+ */
+describe("monthsInRange — months before the budget began don't count", () => {
+  it("starts counting at the budget's first month", () => {
+    // 2021-11 → 2026-10 is 60 months; the budget began 2022-10 → 49.
+    expect(
+      monthsInRange("2021-11-06", "2026-10-31", undefined, "2022-10"),
+    ).toBe(49);
+  });
+
+  it("still pro-rates the running month", () => {
+    expect(
+      monthsInRange("2021-11-06", "2026-11-06", "2026-11-06", "2022-10"),
+    ).toBeCloseTo(49 + 6 / 30, 5);
+  });
+
+  it("ignores a first month before the range, or none", () => {
+    expect(monthsInRange("2026-07-01", "2026-08-31", undefined, "2025-01")).toBe(
+      2,
+    );
+    expect(monthsInRange("2026-07-01", "2026-08-31", undefined, null)).toBe(2);
+  });
+});
