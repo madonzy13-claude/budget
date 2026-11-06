@@ -42,6 +42,11 @@ export const WRITE_TOOLS = [
   "record_investment_transaction",
   "update_holding_value",
   "delete_investment_entry",
+  "create_scheduled_payment",
+  "edit_scheduled_payment",
+  "delete_scheduled_payment",
+  "confirm_scheduled_payment",
+  "complete_task",
 ];
 const DESTRUCTIVE = [
   "delete_transaction",
@@ -49,6 +54,7 @@ const DESTRUCTIVE = [
   "archive_category",
   "update_holding_value",
   "delete_investment_entry",
+  "delete_scheduled_payment",
 ];
 export const TOOL_ALLOWLIST = [...READ_TOOLS, ...WRITE_TOOLS];
 
