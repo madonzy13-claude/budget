@@ -8,6 +8,7 @@
  */
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { ArrowLeftRight, Minus, Pencil, Plus } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -27,6 +28,13 @@ type Tab = "details" | "buy" | "sell" | "transfer";
 const ALL: Tab[] = ["details", "buy", "sell", "transfer"];
 // D-11: a deposit only sells.
 const DEPOSIT: Tab[] = ["details", "sell"];
+// 261106 (user): each tab its own colour and icon, readable at a glance.
+const LOOK = {
+  details: [Pencil, "var(--primary)"],
+  buy: [Plus, "var(--trading-up)"],
+  sell: [Minus, "var(--trading-down)"],
+  transfer: [ArrowLeftRight, "var(--info)"],
+} as const;
 
 export function SwapSheet({
   open,
@@ -49,7 +57,9 @@ export function SwapSheet({
   const isDeposit =
     holding.holdingType === "deposit" || holding.uiType === "deposit";
   const TABS = isDeposit ? DEPOSIT : ALL;
-  const [tab, setTab] = useState<Tab>(TABS.includes(initialTab) ? initialTab : "sell");
+  const [tab, setTab] = useState<Tab>(
+    TABS.includes(initialTab) ? initialTab : "sell",
+  );
   const [date, setDate] = useState(today());
   // Round 4: the main amount/quantity follows the tab switch.
   const [draft, setDraft] = useState("");
@@ -98,13 +108,15 @@ export function SwapSheet({
         </SheetHeader>
 
         <div
-            role="radiogroup"
-            aria-label={t("swap.title", { name: holding.name })}
-            onKeyDown={onKey}
-            className="mb-4 flex rounded-full p-1"
-            style={{ background: "var(--surface-sunken-dark)" }}
-          >
-            {TABS.map((k) => (
+          role="radiogroup"
+          aria-label={t("swap.title", { name: holding.name })}
+          onKeyDown={onKey}
+          className="mb-4 flex rounded-full p-1"
+          style={{ background: "var(--surface-sunken-dark)" }}
+        >
+          {TABS.map((k) => {
+            const [Icon, color] = LOOK[k];
+            return (
               <button
                 key={k}
                 type="button"
@@ -115,19 +127,25 @@ export function SwapSheet({
                 onClick={() => setTab(k)}
                 // Four tabs since Details (261106): on a phone each takes its
                 // label's width (flex-auto) so "Szczegóły" / "Перенести" fit 360px.
-                className="min-h-11 flex-auto whitespace-nowrap rounded-full px-2 text-[14px] sm:flex-1 sm:px-3"
+                className="flex min-h-11 flex-auto items-center justify-center gap-1 whitespace-nowrap rounded-full px-2 text-[14px] sm:flex-1 sm:px-3"
                 style={{
+                  color,
                   background:
-                    tab === k ? "var(--surface-elevated-dark)" : undefined,
-                  color:
                     tab === k
-                      ? "var(--body-on-dark)"
-                      : "var(--muted-foreground)",
+                      ? `color-mix(in srgb, ${color} 18%, transparent)`
+                      : undefined,
+                  fontWeight: tab === k ? 600 : undefined,
                 }}
               >
+                {/* pl/uk labels leave no room for icons on a phone. */}
+                <Icon
+                  className="hidden h-3.5 w-3.5 shrink-0 sm:block"
+                  aria-hidden="true"
+                />
                 {t(`swap.tab.${k}`)}
               </button>
-            ))}
+            );
+          })}
         </div>
 
         <div className="flex flex-1 flex-col gap-6 px-1">

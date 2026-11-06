@@ -3206,21 +3206,18 @@ Then(
   },
 );
 
+// 261106 (user): one action is left on the row, shown directly on hover.
 Then(
-  "the {string} asset's actions open from its {string} over a blurred backdrop",
+  "the {string} asset's one action shows only while hovered, with no {string}",
   async ({ page }, name: string, _dots: string) => {
     const id = await new InvestmentsPo(page).assetId(name);
     const slot = page.getByTestId(`asset-actions-${id}`);
-    const toolbar = slot.getByRole("toolbar");
+    const button = slot.getByRole("button");
     await page.mouse.move(0, 0);
-    expect(await opacityOf(toolbar)).toBe("0");
+    await expect(button).toBeHidden();
     await page.getByTestId(`holding-row-${name}`).hover();
-    await slot.getByTestId("row-actions-more").hover();
-    await expect.poll(() => opacityOf(toolbar)).toBe("1");
-    expect(
-      await toolbar.evaluate((el) => getComputedStyle(el).backdropFilter),
-    ).toMatch(/blur/);
-    await expect(toolbar.getByRole("button").first()).toBeVisible();
+    await expect(button).toBeVisible();
+    await expect(slot.getByTestId("row-actions-more")).toHaveCount(0);
   },
 );
 
@@ -3328,46 +3325,6 @@ Then(
     await page.mouse.move(0, 0);
     await expect(page.getByTestId(`asset-caption-desktop-${id}`)).toBeHidden();
     await expect(page.getByTestId(`asset-pl-desktop-${id}`)).toBeHidden();
-  },
-);
-
-Then(
-  "the {string} actions stay shut while the figures under them are hovered",
-  async ({ page }, name: string) => {
-    const id = await new InvestmentsPo(page).assetId(name);
-    const toolbar = page
-      .getByTestId(`asset-actions-${id}`)
-      .getByRole("toolbar");
-    await page.mouse.move(0, 0);
-    await page.getByTestId(`holding-row-${name}`).hover();
-    const b = (await toolbar.boundingBox())!;
-    // Left of the "…" (the backdrop runs on under it, and the "…" opens it).
-    const dots = (await page
-      .getByTestId(`asset-actions-${id}`)
-      .getByTestId("row-actions-more")
-      .boundingBox())!;
-    for (const f of [0.3, 0.6, 0.9]) {
-      await page.mouse.move(b.x + (dots.x - 2 - b.x) * f, b.y + b.height / 2);
-      // Past the CSS transition, so a wrongly opened panel would show.
-      await page.waitForTimeout(250);
-      expect(await opacityOf(toolbar), `hovering ${f} of the way`).toBe("0");
-    }
-  },
-);
-
-Then(
-  "the {string} actions backdrop runs on under the {string}",
-  async ({ page }, name: string, _dots: string) => {
-    const id = await new InvestmentsPo(page).assetId(name);
-    const slot = page.getByTestId(`asset-actions-${id}`);
-    const toolbar = slot.getByRole("toolbar");
-    const dots = slot.getByTestId("row-actions-more");
-    await page.getByTestId(`holding-row-${name}`).hover();
-    await dots.hover();
-    await expect.poll(() => opacityOf(toolbar)).toBe("1");
-    const t = (await toolbar.boundingBox())!;
-    const d = (await dots.boundingBox())!;
-    expect(t.x + t.width).toBeGreaterThanOrEqual(d.x + d.width - 1);
   },
 );
 

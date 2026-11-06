@@ -546,11 +546,8 @@ Feature: Investments as assets with transactions (13.1)
     Then every investments currency field is one width, under 224px, with no dotted line
     And the "IBKR" amount sits level with its currency field
     And the "IBKR" asset shows its P/L only while hovered
-    And the "IBKR" asset's actions open from its "…" over a blurred backdrop
-    # 261103 (user): hovering the figures under the hidden toolbar opened it,
-    # and its backdrop stopped in a hard edge at the "…".
-    And the "IBKR" actions stay shut while the figures under them are hovered
-    And the "IBKR" actions backdrop runs on under the "…"
+    # 261106 (user): one action is left, so it shows itself — no "…".
+    And the "IBKR" asset's one action shows only while hovered, with no "…"
     And the "IBKR" transactions open their actions from a "…"
     And the "BTC Ledger" name sits centred in its row until hovered
     And the "broker" group's columns line up with the "IBKR" asset's

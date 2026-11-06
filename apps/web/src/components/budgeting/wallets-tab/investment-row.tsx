@@ -25,13 +25,7 @@ import { isCashLike } from "@/lib/cash-like";
 import { typeGroupPL } from "@/lib/investment-type-groups";
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import {
-  Eye,
-  EyeOff,
-  Trash2,
-  TrendingUp,
-  TrendingDown,
-} from "lucide-react";
+import { Eye, EyeOff, Trash2, TrendingUp, TrendingDown } from "lucide-react";
 import { centsToShort } from "@/lib/cents-format";
 import { PlCaption } from "./investment-type-header";
 import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
@@ -39,12 +33,7 @@ import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { pricesItself } from "@/lib/investment-types";
 import { AssetClassChip } from "./asset-class-chip";
-import {
-  REVEAL_ON_ROW,
-  SHOW_ON_ROW,
-  ROW_ACTION_BUTTON,
-  RowActions,
-} from "./row-actions";
+import { REVEAL_ON_ROW, SHOW_ON_ROW } from "./row-actions";
 
 /** User (round 6): secondary lines a bit lighter so the row reads cleaner. */
 const DIM = 0.7;
@@ -341,16 +330,21 @@ export function InvestmentRow({
   // 261102 (user): desktop keeps qty, P/L and the unreal./real. line out of
   // sight until the row is opened or hovered (columns keep their place).
   const revealOnRow = expanded ? "" : REVEAL_ON_ROW;
-  // Desktop row actions, in this order (edit first — the asset's own sheet).
-  const actions = (
+  // Desktop row action — the sheet passes one at most (261106, user: the
+  // amount opens the asset, so only Hide / Unhide / Delete is left).
+  const action = (
     [
-      [onArchive, EyeOff, "asset.archive.confirm", "hide"],
-      [onUnhide, Eye, "asset.hidden.unhide", "unhide"],
-      [onDelete, Trash2, "ledger.confirm.last.confirm", "delete"],
+      [onArchive, EyeOff, "asset.archive.confirm", "hide", "var(--primary)"],
+      [onUnhide, Eye, "asset.hidden.unhide", "unhide", "var(--primary)"],
+      [
+        onDelete,
+        Trash2,
+        "ledger.confirm.last.confirm",
+        "delete",
+        "var(--trading-down)",
+      ],
     ] as const
-  ).filter(
-    (a): a is typeof a & { 0: () => void } => typeof a[0] === "function",
-  );
+  ).find((a): a is typeof a & { 0: () => void } => typeof a[0] === "function");
 
   return (
     <div
@@ -601,33 +595,36 @@ export function InvestmentRow({
       {/* R6 (user): the wallets' 28px trailing slot — share lines up with
           the section's share column. 261102 (user): it holds the "…" that
           reveals the actions over a blurred right end of the row. */}
-      {actions.length > 0 ? (
-        <RowActions
-          mobile="hidden"
-          label={t("row.actionsAria", { name: holding.name })}
-          tint={
-            nested ? "var(--surface-nested-dark)" : "var(--surface-card-dark)"
-          }
-          testId={`asset-actions-${holding.id}`}
-          className={delisted ? "opacity-50" : undefined}
+      {action ? (
+        <span
+          data-testid={`asset-actions-${holding.id}`}
+          className={[
+            "hidden sm:flex sm:w-7 sm:shrink-0 sm:items-center sm:justify-end",
+            delisted ? "opacity-50" : "",
+          ].join(" ")}
         >
-          {actions.map(([fn, Icon, key, id]) => (
-            <button
-              key={id}
-              type="button"
-              data-testid={`investment-${id}-desktop-${holding.id}`}
-              aria-label={`${t(key)} ${holding.name}`}
-              title={t(key)}
-              onClick={(e) => {
-                e.stopPropagation();
-                fn();
-              }}
-              className={ROW_ACTION_BUTTON}
-            >
-              <Icon className="h-4 w-4" aria-hidden="true" />
-            </button>
-          ))}
-        </RowActions>
+          {(() => {
+            const [fn, Icon, key, id, color] = action;
+            return (
+              <button
+                type="button"
+                data-testid={`investment-${id}-desktop-${holding.id}`}
+                aria-label={`${t(key)} ${holding.name}`}
+                title={t(key)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fn();
+                }}
+                // The "…"'s 28px — a bigger button spilled onto the amount
+                // at 640px and took its clicks.
+                className={`flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] hover:bg-[var(--surface-elevated-dark)] ${REVEAL_ON_ROW}`}
+                style={{ color }}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+              </button>
+            );
+          })()}
+        </span>
       ) : (
         <span className="hidden w-7 shrink-0 sm:block" aria-hidden="true" />
       )}
