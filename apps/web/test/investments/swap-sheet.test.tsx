@@ -87,12 +87,18 @@ describe("Swap sheet", () => {
   // 261106 (user): each tab has its own colour and icon, so the four choices
   // read at a glance.
   it("each tab carries its own colour and an icon", () => {
+    // Only the selected tab is coloured; the rest stay muted.
     mount(btc, undefined, null);
-    const tone = (k: string) => screen.getByTestId(`swap-tab-${k}`).style.color;
+    const tone = (k: string) => {
+      fireEvent.click(screen.getByTestId(`swap-tab-${k}`));
+      return screen.getByTestId(`swap-tab-${k}`).style.color;
+    };
+    expect(screen.getByTestId("swap-tab-buy").style.color).toBe("var(--muted-foreground)");
     expect(tone("details")).toBe("var(--primary)");
     expect(tone("buy")).toBe("var(--trading-up)");
     expect(tone("sell")).toBe("var(--trading-down)");
     expect(tone("transfer")).toBe("var(--info)");
+    expect(screen.getByTestId("swap-tab-buy").style.color).toBe("var(--muted-foreground)");
     for (const k of ["details", "buy", "sell", "transfer"])
       expect(screen.getByTestId(`swap-tab-${k}`).querySelector("svg")).not.toBeNull();
   });
