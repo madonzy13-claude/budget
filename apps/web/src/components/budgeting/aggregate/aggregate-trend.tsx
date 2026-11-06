@@ -32,7 +32,7 @@ import type { OverviewRange } from "@/lib/overview-range";
 import { formatChartDate } from "@/lib/chart-date-format";
 import { chartCompactCents, pctAxisTick } from "@/lib/chart-format";
 import { centsToRounded } from "@/lib/cents-format";
-import { geoMean } from "@/lib/change-bars";
+import { geoMean, labelEndMs, labelMs, periodShare } from "@/lib/change-bars";
 import { cumulativeReturnPct, investChangeBars } from "@/lib/investment-return";
 import { UI_TYPE_COLOR } from "@/lib/investment-icons";
 import { deriveUiType } from "@/lib/investment-types";
@@ -238,7 +238,23 @@ export function AggregateTrend({
     });
   };
   const dynamics = hasSeries && data ? intraDynamics(data.series) : [];
-  const avgTotalPct = geoMean(dynamics.map((d) => d.pct));
+  // Partial first / running years count for the part covered (261106).
+  const realPoints = (data?.series ?? [])
+    .filter((p) => Number(p.value_cents) !== 0)
+    .map((p) => p.label)
+    .sort();
+  const avgTotalPct = geoMean(
+    dynamics.map((d) => d.pct),
+    realPoints.length
+      ? dynamics.map((d) =>
+          periodShare(
+            d.label,
+            labelMs(realPoints[0]!),
+            labelEndMs(realPoints.at(-1)!),
+          ),
+        )
+      : undefined,
+  );
   const up = hasSeries ? Number(data.grow.delta_cents) >= 0 : true;
 
   const capBuckets = [
@@ -438,19 +454,14 @@ export function AggregateTrend({
           {dynamics.length > 0 &&
             (isInvest ? (
               (() => {
-                const { rows: combined, avg } = investChangeBars(
+                const {
+                  rows: combined,
+                  avg,
+                  avgDelta,
+                } = investChangeBars(
                   investPoints(seriesPoints, exclByLabel),
                   (label) => label.slice(0, dynBucketLen),
                 );
-                const meanAmt = (
-                  key: "totalDelta" | "plDelta" | "contribDelta",
-                ) =>
-                  combined.length === 0
-                    ? 0
-                    : Math.round(
-                        combined.reduce((s, c) => s + Number(c[key] || 0), 0) /
-                          combined.length,
-                      );
                 return (
                   <div
                     className="mt-3 flex flex-col gap-2"
@@ -463,17 +474,17 @@ export function AggregateTrend({
                       <CombinedStat
                         label={t("contributions")}
                         pct={avg.contrib}
-                        amount={fmtSigned(String(meanAmt("contribDelta")))}
+                        amount={fmtSigned(String(avgDelta.contrib))}
                       />
                       <CombinedStat
                         label={t("pl")}
                         pct={avg.pl}
-                        amount={fmtSigned(String(meanAmt("plDelta")))}
+                        amount={fmtSigned(String(avgDelta.pl))}
                       />
                       <CombinedStat
                         label={t("total")}
                         pct={avg.total}
-                        amount={fmtSigned(String(meanAmt("totalDelta")))}
+                        amount={fmtSigned(String(avgDelta.total))}
                       />
                     </div>
                     <OverviewBarChart

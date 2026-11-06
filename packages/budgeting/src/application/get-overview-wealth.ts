@@ -183,6 +183,15 @@ function dynamicsBucketOf(from: string, to: string): DynBucket {
   if (days <= 366) return "monthly";
   return "yearly";
 }
+/** Share of a YEAR label that [firstMs, lastMs) covers; month and day
+ *  labels count whole. Mirrors apps/web lib/change-bars periodShare. */
+function yearShare(label: string, firstMs: number, lastMs: number): number {
+  if (!/^\d{4}$/.test(label)) return 1;
+  const start = Date.UTC(Number(label), 0, 1);
+  const end = Date.UTC(Number(label) + 1, 0, 1);
+  const covered = Math.min(lastMs, end) - Math.max(firstMs, start);
+  return Math.min(1, Math.max(0, covered / (end - start)));
+}
 function dynLabelOf(d: Date, b: DynBucket): string {
   const iso = d.toISOString();
   return b === "yearly"
@@ -391,9 +400,27 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
           delta_cents: (last - first).toString(),
         };
       });
-      const nonNull = dynamics
-        .map((d) => d.pct)
-        .filter((p): p is number => p !== null);
+      // "All" groups by YEAR, and the first and the running year are partial
+      // (261106): a year counts for the share of it the snapshots cover, so
+      // two months of 2022 no longer weigh like a whole year. Data covering
+      // less than one period is never stretched into a whole one.
+      const firstReal = chronoRows.find(
+        (r) => pickAdj(r, r.captured_at) !== 0n,
+      );
+      const firstMs = firstReal?.captured_at.getTime() ?? now.getTime();
+      const lastMs = liveInRange
+        ? now.getTime()
+        : (chronoRows.at(-1)?.captured_at.getTime() ?? now.getTime());
+      const kept = dynamics.flatMap((d) =>
+        d.pct === null
+          ? []
+          : [{ pct: d.pct, share: yearShare(d.label, firstMs, lastMs) }],
+      );
+      const nonNull = kept.map((k) => k.pct);
+      const periods = Math.max(
+        1,
+        kept.reduce((a, k) => a + k.share, 0),
+      );
       // Average PERIOD growth is the GEOMETRIC mean of the per-period returns —
       // (∏(1 + rᵢ))^(1/n) − 1 — NOT the arithmetic mean, because growth compounds.
       // For contiguous periods this telescopes to (last/first)^(1/n) − 1, so e.g.
@@ -403,7 +430,7 @@ export function getOverviewWealth(deps: GetOverviewWealthDeps) {
         if (nonNull.length === 0) return null;
         const product = nonNull.reduce((acc, p) => acc * (1 + p / 100), 1);
         if (product < 0) return null; // a ≤ −100% period → geometric mean undefined
-        return (Math.pow(product, 1 / nonNull.length) - 1) * 100;
+        return (Math.pow(product, 1 / periods) - 1) * 100;
       })();
 
       // per-type pie — investments view only (D-18); null otherwise.

@@ -9,7 +9,14 @@
  * Shared by the budget Overview and the all-budgets trend: the header (whole
  * range), the tooltip (range start → hovered point) and the change bars.
  */
-import { geoMean, type ChangeBarRow } from "./change-bars";
+import {
+  geoMean,
+  labelEndMs,
+  labelMs,
+  periodShare,
+  periodsCovered,
+  type ChangeBarRow,
+} from "./change-bars";
 
 export interface InvestPoint {
   label: string;
@@ -45,11 +52,16 @@ export function investChangeBars(
 ): {
   rows: ChangeBarRow[];
   avg: { contrib: number | null; pl: number | null; total: number | null };
+  /** Average money change per period, partial years weighed like `avg`. */
+  avgDelta: { contrib: number; pl: number; total: number };
 } {
   const rows: ChangeBarRow[] = [];
   const plPcts: (number | null)[] = [];
   const totalPcts: (number | null)[] = [];
   const contribPcts: (number | null)[] = [];
+  const shares: number[] = [];
+  const firstMs = points.length ? labelMs(points[0]!.label) : 0;
+  const lastMs = points.length ? labelEndMs(points.at(-1)!.label) : 0;
   let i = 0;
   while (i < points.length) {
     const label = periodOf(points[i]!.label);
@@ -71,6 +83,7 @@ export function investChangeBars(
     totalPcts.push(total);
     plPcts.push(pl);
     contribPcts.push(contrib);
+    shares.push(periodShare(label, firstMs, lastMs));
     rows.push({
       label,
       total: total ?? 0,
@@ -81,12 +94,23 @@ export function investChangeBars(
       contribDelta: Math.round(contribDelta),
     });
   }
+  const meanDelta = (key: "contribDelta" | "plDelta" | "totalDelta") =>
+    rows.length === 0
+      ? 0
+      : Math.round(
+          rows.reduce((s, r) => s + r[key], 0) / periodsCovered(shares),
+        );
   return {
     rows,
     avg: {
-      contrib: geoMean(contribPcts),
-      pl: geoMean(plPcts),
-      total: geoMean(totalPcts),
+      contrib: geoMean(contribPcts, shares),
+      pl: geoMean(plPcts, shares),
+      total: geoMean(totalPcts, shares),
+    },
+    avgDelta: {
+      contrib: meanDelta("contribDelta"),
+      pl: meanDelta("plDelta"),
+      total: meanDelta("totalDelta"),
     },
   };
 }

@@ -513,25 +513,16 @@ export function WealthSection({
                     // Contributions · P/L · Total per period, from the chart's
                     // own points so they chain into the header: P/L % is each
                     // period's investment return (lib/investment-return).
-                    const { rows: combined, avg } = investChangeBars(
+                    const {
+                      rows: combined,
+                      avg,
+                      avgDelta,
+                    } = investChangeBars(
                       investPoints(seriesPoints, exclByLabel),
                       (label) =>
                         label.slice(0, DYN_LABEL_LEN[data.dynamicsBucket]),
                     );
                     const mask = amountPrivacyEnabled && !revealed;
-                    // Amount companion to each avg-change %: the AVERAGE per-period
-                    // money change (mean of the bucket deltas).
-                    const meanAmt = (
-                      key: "totalDelta" | "plDelta" | "contribDelta",
-                    ) =>
-                      combined.length === 0
-                        ? 0
-                        : Math.round(
-                            combined.reduce(
-                              (s, c) => s + Number(c[key] || 0),
-                              0,
-                            ) / combined.length,
-                          );
                     return (
                       <div className="flex flex-col gap-2">
                         {/* One common header (was a per-metric "Avg change ·" prefix). */}
@@ -542,19 +533,19 @@ export function WealthSection({
                           <CombinedStat
                             label={t("wealth.contributions")}
                             pct={avg.contrib}
-                            amount={fmtSigned(String(meanAmt("contribDelta")))}
+                            amount={fmtSigned(String(avgDelta.contrib))}
                             mask={amountPrivacyEnabled}
                           />
                           <CombinedStat
                             label={t("wealth.pl")}
                             pct={avg.pl}
-                            amount={fmtSigned(String(meanAmt("plDelta")))}
+                            amount={fmtSigned(String(avgDelta.pl))}
                             mask={amountPrivacyEnabled}
                           />
                           <CombinedStat
                             label={t("wealth.total")}
                             pct={avg.total}
-                            amount={fmtSigned(String(meanAmt("totalDelta")))}
+                            amount={fmtSigned(String(avgDelta.total))}
                             mask={amountPrivacyEnabled}
                           />
                         </div>
