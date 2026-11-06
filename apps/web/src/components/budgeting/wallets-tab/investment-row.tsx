@@ -28,20 +28,16 @@ import { useLocale, useTranslations } from "next-intl";
 import {
   Eye,
   EyeOff,
-  Pencil,
-  ArrowUpDown,
   Trash2,
   TrendingUp,
   TrendingDown,
 } from "lucide-react";
-import { InlineEditCell } from "@/components/common/inline-edit-cell";
-import { Input } from "@/components/ui/input";
-import { centsToBare, centsToShort } from "@/lib/cents-format";
+import { centsToShort } from "@/lib/cents-format";
 import { PlCaption } from "./investment-type-header";
 import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
-import { isAutoPriced, pricesItself } from "@/lib/investment-types";
+import { pricesItself } from "@/lib/investment-types";
 import { AssetClassChip } from "./asset-class-chip";
 import {
   REVEAL_ON_ROW,
@@ -63,9 +59,8 @@ interface InvestmentRowProps {
   /** Longest formatted amount in the section → dynamic amount-column width so
    *  the currency codes line up in a column (mirrors wallet-row). */
   maxAmountChars?: number;
-  onEdit?: () => void;
-  /** 13.1 D-05: open the transaction sheet (Buy / Sell / Transfer) — the
-   *  "+" action, second after Edit (R6-4). */
+  /** 261106 (user): open the asset's sheet (Details · Buy · Sell · Transfer)
+   *  — a tap on the amount, open row or closed. */
   onSwap?: () => void;
   /** R6-6: this asset's realized (type-summary `holdings`); the row shows
    *  the asset-currency figure. */
@@ -89,13 +84,6 @@ interface InvestmentRowProps {
   onToggle?: (id: string, open: boolean) => void;
   /** Open state owned by the section (persisted per device); seeds local state. */
   open?: boolean;
-  /**
-   * 260731: save an inline-edited VALUE (decimal string, row currency) for
-   * manual-value holdings — cash / broker / savings, where quantity is 1 so the
-   * typed number IS the stored value. Omitted (or absent for a tracked / deposit
-   * holding) → the amount stays read-only and the row opens the sheet as before.
-   */
-  onValueChange?: (amount: string) => Promise<void> | void;
 }
 
 /** Signed %, 1 decimal, with a real minus sign (U+2212); zero reads "+0.0%"
@@ -118,7 +106,6 @@ export function InvestmentRow({
   dragHandle,
   nested,
   maxAmountChars,
-  onEdit,
   onSwap,
   onArchive,
   onUnhide,
@@ -128,7 +115,6 @@ export function InvestmentRow({
   onToggle,
   open,
   realized,
-  onValueChange,
 }: InvestmentRowProps) {
   const locale = useLocale();
   const t = useTranslations("budget.investments");
@@ -195,24 +181,25 @@ export function InvestmentRow({
     : holding.quantity;
   // Savings: show the starting amount ("Started: $X") in the expanded caption
   // where qty would go — the %change already shows current-vs-starting.
-  // 260731: a value the household keeps BY HAND can be typed straight into the
-  // row. 261023: that includes a hand-priced instrument of any quantity — the
-  // typed figure is the TOTAL and the section stores total ÷ quantity as the
-  // price. What stays read-only is what something else prices: a feed
-  // (auto-priced instrument), the spot price (metals) or the rate (deposits).
-  const valueIsManual =
-    !!onValueChange &&
-    !converted &&
-    holding.holdingType !== "deposit" &&
-    holding.uiType !== "deposit" &&
-    holding.metal == null &&
-    holding.uiType !== "precious_metals" &&
-    (isCash ||
-      holding.uiType === "broker" ||
-      holding.uiType === "savings" ||
-      holding.instrumentId == null ||
-      (holding.instrumentProvider != null &&
-        !isAutoPriced(holding.instrumentProvider)));
+  // 261106 (user): the amount is the asset's door — dotted like every other
+  // editable amount, a tap opens its sheet instead of toggling the row.
+  const amountDoor = onSwap
+    ? {
+        role: "button" as const,
+        tabIndex: 0,
+        onClick: (e: React.MouseEvent) => {
+          e.stopPropagation();
+          onSwap();
+        },
+        onKeyDown: (e: React.KeyboardEvent) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault();
+          e.stopPropagation();
+          onSwap();
+        },
+      }
+    : {};
+  const dots = onSwap ? "editable-dots" : "";
   // R6 (user): an amount that prices itself (a feed, the spot price, the
   // deposit's rate) carries a lock, and its line says when the PRICE refreshed.
   const autoPriced = pricesItself(holding);
@@ -342,8 +329,9 @@ export function InvestmentRow({
       <span className="text-[var(--muted-foreground)]">{currency}</span>
       <span
         data-testid={`asset-value-amount-${holding.id}`}
-        className="text-[var(--body-on-dark)]"
+        className={`text-[var(--body-on-dark)] ${dots}`}
         title={autoPriced ? t("row.autoPricedTip") : undefined}
+        {...amountDoor}
       >
         {value}
       </span>
@@ -356,8 +344,6 @@ export function InvestmentRow({
   // Desktop row actions, in this order (edit first — the asset's own sheet).
   const actions = (
     [
-      [onEdit, Pencil, "asset.swipe.edit", "edit"],
-      [onSwap, ArrowUpDown, "asset.swipe.newTxn", "swap"],
       [onArchive, EyeOff, "asset.archive.confirm", "hide"],
       [onUnhide, Eye, "asset.hidden.unhide", "unhide"],
       [onDelete, Trash2, "ledger.confirm.last.confirm", "delete"],
@@ -562,58 +548,25 @@ export function InvestmentRow({
               style={
                 { "--amt": `${maxAmountChars ?? 4}ch` } as React.CSSProperties
               }
-              // The whole row body is a click target (expand / open sheet); a click
-              // meant for the inline editor must not also fire that.
-              onClick={valueIsManual ? (e) => e.stopPropagation() : undefined}
             >
-              {valueIsManual ? (
-                <InlineEditCell
-                  value={centsToBare(holding.valueCents).replace(
-                    /[^0-9.-]/g,
-                    "",
-                  )}
-                  ariaLabel={t("row.amountAria", { name: holding.name })}
-                  testId={`holding-amount-${holding.id}`}
-                  // I1 (user): a dotted line marks what can be tapped and typed.
-                  render={() => (
-                    <span data-amt-text className="editable-dots text-num-md">
-                      {value}
-                    </span>
-                  )}
-                  renderEditor={(draft, onChange) => (
-                    <Input
-                      autoFocus
-                      type="text"
-                      inputMode="decimal"
-                      defaultValue={draft}
-                      onChange={(e) => onChange(e.target.value)}
-                      className="ml-auto h-9 w-[10ch] max-w-full px-2 text-right"
-                    />
-                  )}
-                  onSave={async (v) => {
-                    await onValueChange?.(v);
-                  }}
-                />
-              ) : (
-                // R6 (user): can't be typed (fetched or derived) — a tap opens
-                // or closes the asset like the rest of the row. G6 (user): no
-                // lock — an automatic amount is a shade dimmer and its title
-                // says how it changes; the ↻ line below says "automatic".
-                <span
-                  data-amt-text
-                  data-testid={`holding-amount-readonly-${holding.id}`}
-                  data-auto={autoPriced || undefined}
-                  title={autoPriced ? t("row.autoPricedTip") : undefined}
-                  className={[
-                    "inline-block text-num-md",
-                    delisted
-                      ? "text-[var(--muted-strong)]"
-                      : "text-[var(--body-on-dark)]",
-                  ].join(" ")}
-                >
-                  {value}
-                </span>
-              )}
+              {/* G6 (user): an automatic amount is a shade dimmer and its
+                  title says how it changes; the ↻ line below says "automatic". */}
+              <span
+                data-amt-text
+                data-testid={`holding-amount-${holding.id}`}
+                data-auto={autoPriced || undefined}
+                title={autoPriced ? t("row.autoPricedTip") : undefined}
+                className={[
+                  "inline-block text-num-md",
+                  dots,
+                  delisted
+                    ? "text-[var(--muted-strong)]"
+                    : "text-[var(--body-on-dark)]",
+                ].join(" ")}
+                {...amountDoor}
+              >
+                {value}
+              </span>
             </div>
           </div>
           {expanded && (qtyAvg != null || startedDisplay != null) && (

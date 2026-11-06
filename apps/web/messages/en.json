@@ -824,11 +824,11 @@
       "swap": {
         "title": "Add transaction: {name}",
         "tab": {
+          "details": "Details",
           "buy": "Buy",
           "sell": "Sell",
           "transfer": "Move"
         },
-        "sellTitle": "Sell {name}",
         "cta": {
           "buy": "Add to {name}",
           "sell": "Record sale",

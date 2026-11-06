@@ -186,7 +186,7 @@ Then(
   async ({ page }, name: string) => {
     const amount = page
       .getByTestId(`holding-row-${name}`)
-      .locator('[data-testid^="holding-amount-readonly-"]')
+      .locator('[data-testid^="holding-amount-"]')
       .locator("visible=true");
     await expect(amount).toHaveAttribute("title", /add a transaction/, {
       timeout: 15000,
@@ -267,7 +267,7 @@ Then(
     ).toHaveCount(0);
     const amount = page
       .getByTestId(`holding-row-${asset}`)
-      .locator('[data-testid^="holding-amount-readonly-"]')
+      .locator('[data-testid^="holding-amount-"]')
       .locator("visible=true");
     await expect(amount).toHaveCSS("opacity", "1");
   },

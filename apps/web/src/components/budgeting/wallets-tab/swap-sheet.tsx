@@ -1,6 +1,7 @@
 "use client";
 /**
  * swap-sheet.tsx — one action surface per asset (13.1 D-08..D-11, D-31):
+ * Details (the asset's edit form, 261106 — opened by tapping its amount) ·
  * Buy · Sell · Transfer. Deposits only sell (D-11). The date is shared across
  * tabs and may not go before the asset's latest entry (D-15); everything else
  * resets on a tab switch. Each tab owns its fields and its sum-up footer.
@@ -18,11 +19,14 @@ import { useMinEntryDate } from "@/hooks/use-asset-entries";
 import { SwapBuyTab } from "./swap-buy-tab";
 import { SwapSellTab } from "./swap-sell-tab";
 import { SwapTransferTab } from "./swap-transfer-tab";
+import { EditAssetForm } from "./edit-asset-sheet";
 import { today } from "./swap-shared";
 import { keepSheetOnListEscape } from "./asset-name-combobox";
 
-type Tab = "buy" | "sell" | "transfer";
-const TABS: Tab[] = ["buy", "sell", "transfer"];
+type Tab = "details" | "buy" | "sell" | "transfer";
+const ALL: Tab[] = ["details", "buy", "sell", "transfer"];
+// D-11: a deposit only sells.
+const DEPOSIT: Tab[] = ["details", "sell"];
 
 export function SwapSheet({
   open,
@@ -31,7 +35,7 @@ export function SwapSheet({
   budgetCurrency,
   holding,
   holdings,
-  initialTab = "buy",
+  initialTab = "details",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -44,7 +48,8 @@ export function SwapSheet({
   const t = useTranslations("budget.investments");
   const isDeposit =
     holding.holdingType === "deposit" || holding.uiType === "deposit";
-  const [tab, setTab] = useState<Tab>(isDeposit ? "sell" : initialTab);
+  const TABS = isDeposit ? DEPOSIT : ALL;
+  const [tab, setTab] = useState<Tab>(TABS.includes(initialTab) ? initialTab : "sell");
   const [date, setDate] = useState(today());
   // Round 4: the main amount/quantity follows the tab switch.
   const [draft, setDraft] = useState("");
@@ -66,9 +71,9 @@ export function SwapSheet({
   const onKey = (e: React.KeyboardEvent) => {
     const i = TABS.indexOf(tab);
     if (e.key === "ArrowRight" || e.key === "ArrowDown")
-      setTab(TABS[(i + 1) % 3]!);
+      setTab(TABS[(i + 1) % TABS.length]!);
     else if (e.key === "ArrowLeft" || e.key === "ArrowUp")
-      setTab(TABS[(i + 2) % 3]!);
+      setTab(TABS[(i + TABS.length - 1) % TABS.length]!);
     else return;
     e.preventDefault();
   };
@@ -87,14 +92,12 @@ export function SwapSheet({
             className="break-words"
             style={{ color: "var(--body-on-dark)" }}
           >
-            {isDeposit
-              ? t("swap.sellTitle", { name: holding.name })
-              : t("swap.title", { name: holding.name })}
+            {/* 261106: it opens on Details now — not "Add transaction". */}
+            {holding.name}
           </SheetTitle>
         </SheetHeader>
 
-        {!isDeposit && (
-          <div
+        <div
             role="radiogroup"
             aria-label={t("swap.title", { name: holding.name })}
             onKeyDown={onKey}
@@ -123,10 +126,18 @@ export function SwapSheet({
                 {t(`swap.tab.${k}`)}
               </button>
             ))}
-          </div>
-        )}
+        </div>
 
         <div className="flex flex-1 flex-col gap-6 px-1">
+          {tab === "details" && (
+            <EditAssetForm
+              key="details"
+              budgetId={budgetId}
+              budgetCurrency={budgetCurrency}
+              holding={holding}
+              onDone={() => onOpenChange(false)}
+            />
+          )}
           {tab === "buy" && <SwapBuyTab key="buy" {...props} />}
           {tab === "sell" && <SwapSellTab key="sell" {...props} />}
           {tab === "transfer" && <SwapTransferTab key="transfer" {...props} />}

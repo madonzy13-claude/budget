@@ -58,11 +58,8 @@ import { useSetTypeOrder, useTypeSummary } from "@/hooks/use-type-summary";
 import { useReorderHoldings } from "@/hooks/use-reorder-holdings";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { setDndDragging } from "@/lib/dnd-dragging";
-import { useUpdateHolding } from "@/hooks/use-update-holding";
-import { parseDecimal } from "@/lib/decimal";
 import {
   deriveUiType,
-  unitPriceCents,
   type UiType,
 } from "@/lib/investment-types";
 import {
@@ -103,7 +100,6 @@ import { sharePercentLabel } from "@/lib/share-bar";
 import { InvestmentTypeHeader } from "./investment-type-header";
 import { NewTransactionSheet } from "./new-transaction-sheet";
 import { SwapSheet } from "./swap-sheet";
-import { EditAssetSheet } from "./edit-asset-sheet";
 
 interface InvestmentsSectionProps {
   budgetId: string;
@@ -286,14 +282,12 @@ export function InvestmentsSection({
     setFlash({ holdingId, transferId });
     window.setTimeout(() => setFlash(null), 1500);
   };
-  const updateMut = useUpdateHolding(budgetId);
   const reorderMut = useReorderHoldings(budgetId);
   const setOrderMut = useSetTypeOrder(budgetId);
-  // One Swap and one Edit sheet for the section (13.1 D-05).
+  // One asset sheet for the section (Details · Buy · Sell · Transfer).
   const [swapping, setSwapping] = useState<HoldingDto | null>(null);
   // 13.1 UAT 7: "New transaction" picks Buy / Sell / Transfer first.
   const [choosing, setChoosing] = useState(false);
-  const [editing, setEditing] = useState<HoldingDto | null>(null);
   // R6 (user): Hide / Unhide act at once (no confirm); history stays.
   const archiveMut = useArchiveHolding(budgetId);
   const restoreMut = useRestoreHolding(budgetId);
@@ -319,27 +313,6 @@ export function InvestmentsSection({
     entryId: string;
   } | null>(null);
   const deleteMut = useDeleteEntry(budgetId);
-
-  /**
-   * 260731: inline value edit on a manual-value row (cash / broker / savings —
-   * quantity is 1, so the typed number IS the current value). Only the CURRENT
-   * price moves; the buy price stays the cost basis, so savings keeps its
-   * "started at" figure and the %-change stays honest.
-   */
-  // The row edits the TOTAL; the price is per unit (user, 261023). 13.1
-  // WR-06: the server books it as a Value/Price updated ledger entry.
-  async function saveInlineValue(holding: HoldingDto, amount: string) {
-    const cents = parseDecimal(amount);
-    if (cents === null) return;
-    await updateMut.mutateAsync(
-      Number(holding.quantity) === 1
-        ? { holdingId: holding.id, currentValueCents: String(cents) }
-        : {
-            holdingId: holding.id,
-            currentPriceCents: unitPriceCents(cents, holding.quantity),
-          },
-    );
-  }
 
   // ── Type blocks (D-12..D-16) ──
   // A type with only hidden assets keeps its block, so they can come back.
@@ -608,10 +581,6 @@ export function InvestmentsSection({
     setDraggingRow(false);
   }
 
-  function openEdit(holding: HoldingDto) {
-    setEditing(holding);
-  }
-
   if (!investmentsEnabled) return null;
 
   // 261102 (user): a group whose assets are ALL hidden leaves the list and
@@ -685,7 +654,6 @@ export function InvestmentsSection({
                     {...assetView(h)}
                     onToggle={toggleAsset}
                     onSwipeOffset={(id, px, live) => setSwipe({ id, px, live })}
-                    onEdit={openEdit}
                     onSwap={setSwapping}
                     onArchive={(x) => archiveMut.mutate(x.id)}
                     onDelete={
@@ -697,7 +665,6 @@ export function InvestmentsSection({
                             })
                         : undefined
                     }
-                    onValueChange={(amount) => saveInlineValue(h, amount)}
                   />
                   {/* L3: same left edge as the asset, outside the sortable
                 row; collapsed while an asset is dragged (D-28/D-30). */}
@@ -755,7 +722,6 @@ export function InvestmentsSection({
                     {...assetView(h)}
                     onToggle={toggleAsset}
                     onSwipeOffset={(id, px, live) => setSwipe({ id, px, live })}
-                    onEdit={openEdit}
                     onSwap={setSwapping}
                     onUnhide={(x) => restoreMut.mutate(x.id)}
                   />
@@ -906,16 +872,6 @@ export function InvestmentsSection({
           budgetCurrency={budgetCurrency}
           holding={swapping}
           holdings={allHoldings}
-        />
-      )}
-      {editing && (
-        <EditAssetSheet
-          key={editing.id}
-          open
-          onOpenChange={(o) => !o && setEditing(null)}
-          budgetId={budgetId}
-          budgetCurrency={budgetCurrency}
-          holding={editing}
         />
       )}
       <AlertDialog

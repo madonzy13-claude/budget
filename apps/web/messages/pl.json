@@ -824,11 +824,11 @@
       "swap": {
         "title": "Dodaj transakcję: {name}",
         "tab": {
+          "details": "Szczegóły",
           "buy": "Kup",
           "sell": "Sprzedaj",
           "transfer": "Przenieś"
         },
-        "sellTitle": "Sprzedaj {name}",
         "cta": {
           "buy": "Dodaj do {name}",
           "sell": "Zapisz sprzedaż",

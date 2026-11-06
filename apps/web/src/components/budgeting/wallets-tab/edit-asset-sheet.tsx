@@ -21,12 +21,6 @@ import { useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Loader2, Lock } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CurrencyPicker } from "@/components/common/currency-picker";
@@ -52,15 +46,14 @@ const toCents = (v: string) =>
     Number((Number(v.replace(/\s/g, "").replace(/,/g, ".")) * 100).toFixed(6)),
   );
 
-export function EditAssetSheet({
-  open,
-  onOpenChange,
+/** 261106: the Details tab of the asset's sheet (swap-sheet.tsx). */
+export function EditAssetForm({
+  onDone,
   budgetId,
   budgetCurrency,
   holding,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onDone: () => void;
   budgetId: string;
   budgetCurrency: string;
   holding: HoldingDto;
@@ -228,7 +221,7 @@ export function EditAssetSheet({
       {
         onSuccess: () => {
           toast.success(t("edit.saved"));
-          onOpenChange(false);
+          onDone();
         },
         onError: (e) => {
           if (isOfflineWriteError(e)) return;
@@ -239,22 +232,7 @@ export function EditAssetSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        data-testid="edit-asset-sheet"
-        className="!pointer-events-auto flex w-full flex-col overflow-y-auto bg-[var(--canvas-dark)] pb-8 sm:max-w-[480px]"
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        <SheetHeader className="mb-2">
-          <SheetTitle
-            className="break-words"
-            style={{ color: "var(--body-on-dark)" }}
-          >
-            {t("sheet.title.edit")}
-          </SheetTitle>
-        </SheetHeader>
-        <div className="space-y-4 px-1">
+        <div data-testid="edit-asset-sheet" className="space-y-4 px-1">
           <Field label={t("edit.label")}>
             <Input
               data-testid="edit-asset-name"
@@ -380,14 +358,12 @@ export function EditAssetSheet({
             <Button
               type="button"
               variant="ghost"
-              onClick={() => onOpenChange(false)}
+              onClick={() => onDone()}
               className="h-auto min-h-11 w-full whitespace-normal break-words"
             >
               {t("swap.discard")}
             </Button>
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
   );
 }

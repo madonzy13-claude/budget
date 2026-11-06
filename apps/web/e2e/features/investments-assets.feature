@@ -214,15 +214,15 @@ Feature: Investments as assets with transactions (13.1)
     And moving "Vase" asks how many units
 
   # Round-6 gaps 4 + 6 (user): qty × avg. cost above the price, unrealized ·
-  # realized like the header; Edit first, then + (new transaction).
+  # realized like the header. 261106: no Edit / + — the amount opens the sheet.
   @r6-row
-  Scenario: A tapped asset shows qty × avg. cost and its P/L split; the transaction action sits second
+  Scenario: A tapped asset shows qty × avg. cost and its P/L split
     Given a "stocks" asset "ACME" of "10" units at 2500 cents exists in my budget
     When I open the investments wallets tab
     And I tap the asset row "ACME"
     Then the asset "ACME" shows "10 × 25 avg. cost" above its price
     And the asset "ACME" caption shows unrealized and realized
-    And the asset "ACME" offers Edit first and + second
+    And the asset "ACME" offers no Edit or + action
 
   # Round 6 (user): changing a metal's currency must save, not say "offline".
   @r6-metal-ccy

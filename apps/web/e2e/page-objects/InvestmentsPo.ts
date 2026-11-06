@@ -230,9 +230,21 @@ export class InvestmentsPo {
 
   /** Reveal a row action: swipe on a phone (touch pointer — the row ignores
    *  mouse pointers), hover on desktop (D-05: Swap · Edit). */
+  /** 261106 (user): the asset's amount opens its sheet (Details first). */
+  async openAsset(name: string): Promise<void> {
+    const wrapper = this.wrapper(name);
+    await wrapper.waitFor({ state: "visible" });
+    // A fresh row is re-keyed from its optimistic id — retry until it opens.
+    await expect(async () => {
+      const id = (await wrapper.getAttribute("data-investment-row-wrapper"))!;
+      await this.page.getByTestId(`holding-amount-${id}`).click({ timeout: 3000 });
+      await this.swapSheet().waitFor({ state: "visible", timeout: 3000 });
+    }).toPass({ timeout: 20_000 });
+  }
+
   private async rowAction(
     name: string,
-    action: "swap" | "edit" | "hide" | "unhide" | "delete",
+    action: "hide" | "unhide" | "delete",
   ): Promise<void> {
     const wrapper = this.wrapper(name);
     await wrapper.waitFor({ state: "visible" });
@@ -268,14 +280,7 @@ export class InvestmentsPo {
           );
         });
         await this.page.waitForTimeout(500); // ghost-click guard after pointerup
-        const tid =
-          action === "swap"
-            ? `investment-swap-${id}`
-            : action === "hide" || action === "unhide"
-              ? `investment-${action}-${id}`
-              : action === "delete"
-                ? `investment-delete-${id}`
-                : `holding-swipe-edit-${id}`;
+        const tid = `investment-${action}-${id}`;
         await this.page.getByTestId(tid).click({ timeout: 3000 });
       }).toPass({ timeout: 20_000 });
       return;
@@ -302,15 +307,13 @@ export class InvestmentsPo {
     );
   }
 
-  /** Open the Swap sheet on a tab (deposits have no tabs — Sell only). */
+  /** Open the asset's sheet on a tab (a deposit has Details · Sell). */
   async openSwap(
     name: string,
     tab: "buy" | "sell" | "transfer",
   ): Promise<void> {
-    await this.rowAction(name, "swap");
-    await this.swapSheet().waitFor({ state: "visible" });
-    const t = this.page.getByTestId(`swap-tab-${tab}`);
-    if (await t.isVisible().catch(() => false)) await t.click();
+    await this.openAsset(name);
+    await this.page.getByTestId(`swap-tab-${tab}`).click();
   }
 
   /** R6: Buy with the money taken from another asset. */
@@ -523,9 +526,9 @@ export class InvestmentsPo {
     expect((await res).ok()).toBe(true);
   }
 
-  /** Open the slim Edit sheet (D-06). */
+  /** The asset's Details tab (its edit form) — where the sheet opens. */
   async openEdit(name: string): Promise<void> {
-    await this.rowAction(name, "edit");
+    await this.openAsset(name);
     await this.page
       .getByTestId("edit-asset-sheet")
       .waitFor({ state: "visible" });

@@ -196,37 +196,6 @@ Given(
   },
 );
 
-When(
-  "I set the amount of holding {string} to {string}",
-  async ({ page }, name: string, amount: string) => {
-    const row = new InvestmentsPo(page).row(name);
-    await row.locator('[data-testid^="holding-amount-"]').click();
-    const input = row.locator("input");
-    await input.fill(amount);
-    const saved = page.waitForResponse(
-      (r) =>
-        r.request().method() === "PATCH" && r.url().includes("/investments/"),
-    );
-    await input.press("Enter");
-    expect((await saved).ok()).toBe(true);
-  },
-);
-
-Then(
-  "the holding {string} is priced at {string} cents per unit",
-  async ({ freshUser }, name: string, priceCents: string) => {
-    let stored = "";
-    await withBudgetGuc(freshUser.budgetId, async (client) => {
-      const r = await client.query<{ p: string }>(
-        `SELECT current_price_cents::text AS p FROM budgeting.investments
-          WHERE budget_id = $1::uuid AND name = $2`,
-        [freshUser.budgetId, name],
-      );
-      stored = r.rows[0]?.p ?? "";
-    });
-    expect(Number(stored)).toBe(Number(priceCents));
-  },
-);
 
 When(
   "I add a cash asset {string} of {string} with money from {string}",
@@ -328,23 +297,23 @@ Given(
 );
 
 When("I tap the amount of holding {string}", async ({ page }, name: string) => {
-  await new InvestmentsPo(page)
-    .row(name)
-    .locator('[data-testid^="holding-amount-readonly-"]')
-    .click();
+  const po = new InvestmentsPo(page);
+  const id = await po.assetId(name);
+  await page.getByTestId(`holding-amount-${id}`).click();
 });
 
-// R6 (user): a tap on an amount that can't be typed opens the asset.
+// 261106 (user): the amount opens the asset's sheet, on Details.
 Then(
-  "the asset {string} opens and nothing shakes",
+  "the sheet of {string} opens on Details",
   async ({ page }, name: string) => {
-    const amount = new InvestmentsPo(page)
-      .row(name)
-      .locator('[data-testid^="holding-amount-readonly-"]');
-    await expect(amount).not.toHaveAttribute("data-shake", /.*/);
-    await expect(
-      page.locator(`[data-testid^="asset-share-"]`).locator("visible=true"),
-    ).toBeVisible({ timeout: 10000 });
+    const sheet = page.getByTestId("swap-sheet");
+    await expect(sheet).toBeVisible({ timeout: 10000 });
+    await expect(sheet.getByRole("heading", { name })).toBeVisible();
+    await expect(page.getByTestId("swap-tab-details")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await expect(page.getByTestId("edit-asset-name")).toHaveValue(name);
   },
 );
 
@@ -910,24 +879,19 @@ Then(
 );
 
 Then(
-  "the asset {string} offers Edit first and + second",
+  "the asset {string} offers no Edit or + action",
   async ({ page }, name: string) => {
     const id = await new InvestmentsPo(page).assetId(name);
-    const order = await page.evaluate((hid) => {
-      const ids = [...document.querySelectorAll("[data-testid]")]
-        .map((el) => el.getAttribute("data-testid")!)
-        .filter(
-          (t) =>
-            t === `investment-edit-desktop-${hid}` ||
-            t === `investment-swap-desktop-${hid}` ||
-            t === `holding-swipe-edit-${hid}` ||
-            t === `investment-swap-${hid}`,
-        );
-      return ids;
-    }, id);
-    expect(order.length).toBeGreaterThanOrEqual(2);
-    expect(order[0]).toMatch(/edit/);
-    expect(order[1]).toMatch(/swap/);
+    for (const t of [
+      `investment-edit-desktop-${id}`,
+      `investment-swap-desktop-${id}`,
+      `holding-swipe-edit-${id}`,
+      `investment-swap-${id}`,
+    ])
+      await expect(page.getByTestId(t)).toHaveCount(0);
+    await expect(page.getByTestId(`holding-amount-${id}`)).toHaveClass(
+      /editable-dots/,
+    );
   },
 );
 
@@ -3256,9 +3220,7 @@ Then(
     expect(
       await toolbar.evaluate((el) => getComputedStyle(el).backdropFilter),
     ).toMatch(/blur/);
-    await expect(
-      page.getByTestId(`investment-edit-desktop-${id}`),
-    ).toBeVisible();
+    await expect(toolbar.getByRole("button").first()).toBeVisible();
   },
 );
 

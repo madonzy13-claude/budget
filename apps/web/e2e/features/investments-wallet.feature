@@ -55,27 +55,6 @@ Feature: Investments wallet — section, holdings, type groups, optimistic add
     And I add a custom holding "Cottage" worth 9000000 cents via the sheet
     Then the holding "Cottage" appears without a page reload
 
-  # user, 261023: tapping the amount of a hand-priced holding with quantity > 1
-  # did nothing. The amount is the TOTAL; it is stored as total ÷ quantity.
-  Scenario: Quick-editing a multi-unit holding's total stores the per-unit price
-    Given I am on a phone-sized viewport
-    And investments are enabled for my budget
-    And a custom holding "Land plot" of 3 units at 10000 cents each exists in my budget
-    When I open the investments wallets tab
-    And I set the amount of holding "Land plot" to "450"
-    Then the holding "Land plot" is priced at "15000" cents per unit
-    And the holding row "Land plot" shows the amount "450"
-
-  # user, 261023: 170 over 3 units showed 169,98 — the unit price was cut to whole cents.
-  Scenario: A total that does not split into whole cents per unit stays as typed
-    Given I am on a phone-sized viewport
-    And investments are enabled for my budget
-    And a custom holding "Land plot" of 3 units at 10000 cents each exists in my budget
-    When I open the investments wallets tab
-    And I set the amount of holding "Land plot" to "170"
-    Then the holding "Land plot" is priced at "5666.666667" cents per unit
-    And the holding row "Land plot" shows the amount "170"
-
   # user, 261023: a block's big total set the amount width for every row, so
   # the rows inside it lost room for their names.
   Scenario: Rows inside a type block size their amounts by the block, not its total
@@ -86,15 +65,15 @@ Feature: Investments wallet — section, holdings, type groups, optimistic add
     When I open the investments wallets tab
     Then the amounts inside the "real_estate" type block are narrower than its total
 
-  # R6 (user): tapping an amount that can't be typed opens the asset (it used
-  # to shake).
-  Scenario: Tapping an amount that can't be typed opens the asset
+  # 261106 (user): every amount is dotted and opens the asset's sheet on its
+  # Details tab — the row's Edit and ↕ actions are gone.
+  Scenario: Tapping an amount opens the asset's sheet on Details
     Given I am on a phone-sized viewport
     And investments are enabled for my budget
     And a deposit "Term deposit" of 500000 cents exists in my budget
     When I open the investments wallets tab
     And I tap the amount of holding "Term deposit"
-    Then the asset "Term deposit" opens and nothing shakes
+    Then the sheet of "Term deposit" opens on Details
 
   # Phase 13 (D-12/D-13): groups are the investment type. Every held type gets a
   # header; blocks drag by their header grip and the order is saved per budget.

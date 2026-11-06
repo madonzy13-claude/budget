@@ -16,7 +16,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowUpDown, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Trash2 } from "lucide-react";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { useSwipeReveal } from "@/hooks/use-swipe-reveal";
 import type { HoldingDto } from "@/hooks/use-investments";
@@ -31,8 +31,7 @@ interface InvestmentRowSheetProps {
   ghost?: boolean;
   /** Longest formatted amount in the section → dynamic amount-column width. */
   maxAmountChars?: number;
-  onEdit: (holding: HoldingDto) => void;
-  /** 13.1: open the Swap sheet (Buy / Sell / Transfer) for this asset. */
+  /** Open the asset's sheet (Details · Buy · Sell · Transfer) — its amount. */
   onSwap?: (holding: HoldingDto) => void;
   /** Hide the asset (R6, user: was Archive; no confirm, history stays). */
   onArchive?: (holding: HoldingDto) => void;
@@ -51,19 +50,16 @@ interface InvestmentRowSheetProps {
   realized?: { realizedBudgetCents: string; soldCostBudgetCents: string };
   /** Swipe offset (px, ≤ 0) of this row — the section moves its ledger too. */
   onSwipeOffset?: (id: string, px: number, live: boolean) => void;
-  /** Save an inline-edited value (manual-value holdings only — see InvestmentRow). */
-  onValueChange?: (amount: string) => Promise<void> | void;
 }
 
-// Three 56px buttons (Swap · Edit · Archive) + two 12px gaps + a 12px lead gap.
-const ACTION_W = 204;
+// 261106 (user): one action (Delete / Hide / Unhide) — 56px + the 12px gap.
+const ACTION_W = 68;
 
 export function InvestmentRowSheet({
   holding,
   nested,
   ghost,
   maxAmountChars,
-  onEdit,
   onSwap,
   onArchive,
   onUnhide,
@@ -74,7 +70,6 @@ export function InvestmentRowSheet({
   open,
   realized,
   onSwipeOffset,
-  onValueChange,
 }: InvestmentRowSheetProps) {
   const t = useTranslations("budget.investments");
 
@@ -143,8 +138,8 @@ export function InvestmentRowSheet({
         transition: swiping ? "none" : transition,
       }}
     >
-      {/* Mobile swipe-revealed Edit · + (new transaction) panel (sm:hidden,
-          R6-4: + second). */}
+      {/* Mobile swipe-revealed action (sm:hidden): Delete, Hide or Unhide.
+          261106 (user): Edit and ↕ went — the amount opens the asset's sheet. */}
       <div
         aria-hidden={offset === 0}
         style={{
@@ -154,37 +149,6 @@ export function InvestmentRowSheet({
         }}
         className="absolute right-0 top-0 bottom-0 flex items-stretch gap-3 sm:hidden"
       >
-        {/* Separate rounded buttons (sell + edit + delete) with empty space
-            between them — mirrors the wallets swipe button style (D-#swipe).
-            Sell is neutral (not green/red): red is reserved for destructive. */}
-        <button
-          type="button"
-          data-no-swipe
-          data-testid={`holding-swipe-edit-${holding.id}`}
-          aria-label={`${t("asset.swipe.edit")} ${holding.name}`}
-          tabIndex={offset === 0 ? -1 : 0}
-          onClick={() => {
-            closeSwipe();
-            onEdit(holding);
-          }}
-          className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--surface-elevated-dark)] text-[var(--body-on-dark)]"
-        >
-          <Pencil className="h-5 w-5" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          data-no-swipe
-          data-testid={`investment-swap-${holding.id}`}
-          aria-label={`${t("asset.swipe.newTxn")} ${holding.name}`}
-          tabIndex={offset === 0 ? -1 : 0}
-          onClick={() => {
-            closeSwipe();
-            onSwap?.(holding);
-          }}
-          className="flex w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--info)] text-white"
-        >
-          <ArrowUpDown className="h-5 w-5" aria-hidden="true" />
-        </button>
         {onUnhide ? (
           <button
             type="button"
@@ -256,7 +220,6 @@ export function InvestmentRowSheet({
               ariaLabel={t("row.dragAria", { name: holding.name })}
             />
           }
-          onEdit={() => onEdit(holding)}
           onSwap={onSwap ? () => onSwap(holding) : undefined}
           onArchive={
             onArchive && !onDelete && !onUnhide
@@ -270,7 +233,6 @@ export function InvestmentRowSheet({
           onToggle={onToggle}
           open={open}
           realized={realized}
-          onValueChange={onValueChange}
         />
       </div>
     </div>
