@@ -417,7 +417,8 @@ describe("InvestmentRow", () => {
   // beside the name, and the row ends with the wallets' 28px slot.
   // 261102 (user): the actions sit behind a "…" in the row's 28px trailing
   // slot; hovering it fades them in over a blurred right end.
-  it("desktop: the actions live behind a … in the row's trailing slot", () => {
+  // 261106 (user): one action is left, so it sits in the slot itself — no "…".
+  it("desktop: the one action sits in the row's trailing slot, no …", () => {
     render(<InvestmentRow holding={holding()} onDelete={() => {}} />);
     const del = screen.getByTestId("investment-delete-desktop-h1");
     expect(del.closest("[data-name-row]")).toBeNull();
@@ -425,9 +426,16 @@ describe("InvestmentRow", () => {
     expect(slot.contains(del)).toBe(true);
     expect(slot.className).toMatch(/sm:w-7/);
     expect(slot.parentElement!.lastElementChild).toBe(slot);
-    expect(
-      slot.querySelector('[data-testid="row-actions-more"]'),
-    ).not.toBeNull();
+    expect(screen.queryByTestId("row-actions-more")).toBeNull();
+    expect(del.style.color).toBe("var(--trading-down)");
+  });
+
+  it("desktop: Hide is a yellow eye shown on hover", () => {
+    render(<InvestmentRow holding={holding()} onArchive={() => {}} />);
+    const hide = screen.getByTestId("investment-hide-desktop-h1");
+    expect(hide.style.color).toBe("var(--primary)");
+    expect(hide.className).toMatch(/sm:group-hover\/row:visible/);
+    expect(screen.queryByTestId("row-actions-more")).toBeNull();
   });
 
   it("desktop: no actions → the plain 28px slot keeps the columns", () => {
