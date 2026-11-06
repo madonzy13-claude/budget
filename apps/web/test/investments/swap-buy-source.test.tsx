@@ -34,6 +34,7 @@ function mount(holding: HoldingDto) {
         budgetCurrency="PLN"
         holding={holding}
         holdings={[btc, btcCold, broker, cash]}
+        initialTab="buy"
       />
     </QueryClientProvider>,
   );
@@ -329,6 +330,7 @@ describe("Buy — where did the money come from?", () => {
           budgetCurrency="PLN"
           holding={btc}
           holdings={[btc, eurPot]}
+          initialTab="buy"
         />
       </QueryClientProvider>,
     );

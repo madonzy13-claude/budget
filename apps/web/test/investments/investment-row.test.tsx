@@ -10,7 +10,7 @@
  * - NO inline <input> on the row (sheet-only editing, INV-06)
  */
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { InvestmentRow } from "../../src/components/budgeting/wallets-tab/investment-row";
 import type { HoldingDto } from "../../src/hooks/use-investments";
 
@@ -203,210 +203,55 @@ describe("InvestmentRow", () => {
     expect(screen.queryByText("Bitcoin (BTC)")).toBeNull();
   });
 
-  it("auto-priced holding: amount is NOT inline-editable (the feed owns the price)", () => {
-    render(
-      <InvestmentRow
-        holding={holding({ instrumentProvider: "finnhub" })}
-        onValueChange={vi.fn()}
-      />,
-    );
-    const row = screen.getByTestId("holding-row-AAPL");
-    expect(row.querySelectorAll("input")).toHaveLength(0);
-    expect(screen.queryByTestId("holding-amount-h1")).toBeNull();
-  });
-
-  // R6 (user): tapping an amount that can't be typed simply opens / closes
-  // the asset, like the rest of the row — no shake.
-  it("auto-priced holding: tapping the amount opens the asset, no shake", () => {
-    const onToggle = vi.fn();
-    render(
-      <InvestmentRow
-        holding={holding({ instrumentProvider: "finnhub" })}
-        onValueChange={vi.fn()}
-        onToggle={onToggle}
-      />,
-    );
-    const amount = screen.getByTestId("holding-amount-readonly-h1");
-    fireEvent.click(amount);
-    expect(amount.hasAttribute("data-shake")).toBe(false);
-    expect(onToggle).toHaveBeenCalledWith("h1", true);
-  });
-
-  // G6 (user): no lock — an automatic amount is a shade dimmer and explains
-  // itself on hover (its title); the ↻ line under it says "automatic".
-  it("an automatic amount explains itself, has no lock, no dots, no dimming", () => {
-    render(
-      <InvestmentRow holding={holding({ instrumentProvider: "finnhub" })} />,
-    );
-    const amount = screen.getByTestId("holding-amount-readonly-h1");
-    expect(amount).toHaveAttribute("data-auto", "true");
-    expect(amount).toHaveAttribute("title", "row.autoPricedTip");
-    expect(amount.style.opacity).toBe("");
-    expect(amount.className).not.toContain("editable-dots");
-    expect(screen.queryByTestId("asset-auto-lock-h1")).toBeNull();
-  });
-
-  // 260731: manual-value rows (cash / broker / savings — quantity is 1) edit
-  // their value inline like every other wallet row: click → input → Enter/blur.
-  describe("inline value edit (manual-value holdings)", () => {
-    const cash = () =>
-      holding({
+  // 261106 (user): every asset's amount is dotted like the other editable
+  // amounts; tapping it opens the asset's sheet (Details · Buy · Sell ·
+  // Transfer) instead of toggling the row — open or closed.
+  describe("the amount opens the asset's sheet", () => {
+    const kinds = {
+      "auto-priced": holding({ instrumentProvider: "finnhub" }),
+      cash: holding({
         name: "Wallet",
         holdingType: "cash_fx",
         uiType: "cash",
         instrumentId: null,
         quantity: "1",
-        buyPriceCents: "50000",
-        currentPriceCents: "50000",
-        valueCents: "50000",
-        valueInBudgetCents: "50000",
         profitLossPct: null,
         profitLossCents: null,
+      }),
+      deposit: holding({ name: "Term", holdingType: "deposit", uiType: "deposit", quantity: "1" }),
+      metal: holding({ holdingType: "commodity", uiType: "precious_metals", instrumentId: null, metal: "XAU" }),
+    };
+    for (const [kind, h] of Object.entries(kinds)) {
+      it(`${kind}: dotted, and a tap opens the sheet, not the row`, () => {
+        const onSwap = vi.fn();
+        const onToggle = vi.fn();
+        render(<InvestmentRow holding={h} onSwap={onSwap} onToggle={onToggle} />);
+        const amount = screen.getByTestId("holding-amount-h1");
+        expect(amount.className).toContain("editable-dots");
+        fireEvent.click(amount);
+        expect(onSwap).toHaveBeenCalledTimes(1);
+        expect(onToggle).not.toHaveBeenCalled();
+        expect(screen.getByTestId(`holding-row-${h.name}`).querySelectorAll("input")).toHaveLength(0);
       });
+    }
 
-    it("click on the amount opens an input seeded with the current value", () => {
-      render(<InvestmentRow holding={cash()} onValueChange={vi.fn()} />);
-      fireEvent.click(screen.getByTestId("holding-amount-h1"));
-      const input = screen
-        .getByTestId("holding-row-Wallet")
-        .querySelector("input");
-      expect(input).not.toBeNull();
-      expect((input as HTMLInputElement).value).toBe("500");
+    it("an automatic amount still explains itself on hover", () => {
+      render(<InvestmentRow holding={kinds["auto-priced"]} onSwap={vi.fn()} />);
+      const amount = screen.getByTestId("holding-amount-h1");
+      expect(amount).toHaveAttribute("data-auto", "true");
+      expect(amount).toHaveAttribute("title", "row.autoPricedTip");
     });
 
-    it("Enter saves the typed value", async () => {
-      const onValueChange = vi.fn().mockResolvedValue(undefined);
-      render(<InvestmentRow holding={cash()} onValueChange={onValueChange} />);
-      fireEvent.click(screen.getByTestId("holding-amount-h1"));
-      const input = screen
-        .getByTestId("holding-row-Wallet")
-        .querySelector("input") as HTMLInputElement;
-      fireEvent.change(input, { target: { value: "725.50" } });
-      fireEvent.keyDown(input, { key: "Enter" });
-      await waitFor(() => expect(onValueChange).toHaveBeenCalledWith("725.50"));
-    });
-
-    it("blur saves the typed value too", async () => {
-      const onValueChange = vi.fn().mockResolvedValue(undefined);
-      render(<InvestmentRow holding={cash()} onValueChange={onValueChange} />);
-      fireEvent.click(screen.getByTestId("holding-amount-h1"));
-      const input = screen
-        .getByTestId("holding-row-Wallet")
-        .querySelector("input") as HTMLInputElement;
-      fireEvent.change(input, { target: { value: "610" } });
-      // Real blur: focus actually leaves the editor (the cell defers its commit
-      // a frame and re-checks document.activeElement, so a synthetic blur event
-      // with focus still inside would legitimately not commit).
-      input.blur();
-      await waitFor(() => expect(onValueChange).toHaveBeenCalledWith("610"));
-    });
-
-    it("does not open the edit sheet when the amount is clicked", () => {
-      const onEdit = vi.fn();
-      render(
-        <InvestmentRow
-          holding={cash()}
-          onEdit={onEdit}
-          onValueChange={vi.fn()}
-        />,
-      );
-      fireEvent.click(screen.getByTestId("holding-amount-h1"));
-      expect(onEdit).not.toHaveBeenCalled();
-    });
-
-    it("savings + broker rows are inline-editable as well", () => {
-      const { rerender } = render(
-        <InvestmentRow
-          holding={holding({
-            name: "Fund",
-            holdingType: "savings",
-            uiType: "savings",
-            quantity: "1",
-          })}
-          onValueChange={vi.fn()}
-        />,
-      );
-      expect(screen.getByTestId("holding-amount-h1")).toBeInTheDocument();
-      rerender(
-        <InvestmentRow
-          holding={holding({
-            name: "IBKR",
-            holdingType: "broker",
-            uiType: "broker",
-            quantity: "1",
-          })}
-          onValueChange={vi.fn()}
-        />,
-      );
-      expect(screen.getByTestId("holding-amount-h1")).toBeInTheDocument();
-    });
-
-    // user, 261023: a holding priced BY HAND (manual-priced instrument, or no
-    // instrument at all) is edited by its total like any other manual row; the
-    // section turns that total into a per-unit price.
-    it("a hand-priced holding with quantity 3 is editable, seeded with its total", () => {
-      render(
-        <InvestmentRow
-          holding={holding({
-            name: "PKN",
-            instrumentProvider: "manual:XWAR",
-            quantity: "3.00000000",
-            currentPriceCents: "10000",
-            valueCents: "30000",
-          })}
-          onValueChange={vi.fn()}
-        />,
-      );
-      fireEvent.click(screen.getByTestId("holding-amount-h1"));
-      const input = screen
-        .getByTestId("holding-row-PKN")
-        .querySelector("input") as HTMLInputElement;
-      expect(input.value).toBe("300");
-    });
-
-    it("a holding with no instrument (typed by hand) is editable too", () => {
-      render(
-        <InvestmentRow
-          holding={holding({ instrumentId: null, instrumentProvider: null })}
-          onValueChange={vi.fn()}
-        />,
-      );
-      expect(screen.getByTestId("holding-amount-h1")).toBeInTheDocument();
-    });
-
-    it("a precious-metal holding keeps its spot-derived value", () => {
-      render(
-        <InvestmentRow
-          holding={holding({
-            holdingType: "commodity",
-            uiType: "precious_metals",
-            instrumentId: null,
-            metal: "XAU",
-          })}
-          onValueChange={vi.fn()}
-        />,
-      );
-      expect(screen.queryByTestId("holding-amount-h1")).toBeNull();
-    });
-
-    it("a deposit keeps its computed value (no inline editor)", () => {
-      render(
-        <InvestmentRow
-          holding={holding({
-            name: "Term deposit",
-            holdingType: "deposit",
-            uiType: "deposit",
-            quantity: "1",
-          })}
-          onValueChange={vi.fn()}
-        />,
-      );
-      expect(screen.queryByTestId("holding-amount-h1")).toBeNull();
-    });
-
-    it("stays read-only when no onValueChange handler is wired", () => {
-      render(<InvestmentRow holding={cash()} />);
-      expect(screen.queryByTestId("holding-amount-h1")).toBeNull();
+    it("stays dotted and tappable while the asset is open (phone)", () => {
+      const onSwap = vi.fn();
+      render(<InvestmentRow holding={holding()} onSwap={onSwap} />);
+      fireEvent.click(screen.getByLabelText("Expand AAPL"));
+      const open = screen.getByTestId("asset-value-amount-h1");
+      expect(open.className).toContain("editable-dots");
+      fireEvent.click(open);
+      expect(onSwap).toHaveBeenCalledTimes(1);
+      // Still open: the tap went to the sheet, not the row.
+      expect(screen.getByTestId("asset-row-h1")).toHaveAttribute("aria-expanded", "true");
     });
   });
 
@@ -573,11 +418,11 @@ describe("InvestmentRow", () => {
   // 261102 (user): the actions sit behind a "…" in the row's 28px trailing
   // slot; hovering it fades them in over a blurred right end.
   it("desktop: the actions live behind a … in the row's trailing slot", () => {
-    render(<InvestmentRow holding={holding()} onEdit={() => {}} />);
-    const edit = screen.getByTestId("investment-edit-desktop-h1");
-    expect(edit.closest("[data-name-row]")).toBeNull();
+    render(<InvestmentRow holding={holding()} onDelete={() => {}} />);
+    const del = screen.getByTestId("investment-delete-desktop-h1");
+    expect(del.closest("[data-name-row]")).toBeNull();
     const slot = screen.getByTestId("asset-actions-h1");
-    expect(slot.contains(edit)).toBe(true);
+    expect(slot.contains(del)).toBe(true);
     expect(slot.className).toMatch(/sm:w-7/);
     expect(slot.parentElement!.lastElementChild).toBe(slot);
     expect(
@@ -658,7 +503,7 @@ describe("InvestmentRow", () => {
       /w-\[44px\].*sm:w-\[96px\].*md:w-\[var\(--ccy-w,224px\)\]/,
     );
     expect(screen.getByLabelText(/profit\/loss/).textContent).toMatch(/40\.4/);
-    expect(screen.getByTestId("holding-amount-readonly-h1")).toHaveTextContent(
+    expect(screen.getByTestId("holding-amount-h1")).toHaveTextContent(
       "3,500",
     ); // R6 (user): avg price in the picked currency too — the replay's cost
     // still held over the quantity (2,500 ÷ 10), no code beside it.
@@ -873,40 +718,27 @@ describe("InvestmentRow", () => {
     expect(screen.getByTestId("holding-qty-USD Cash")).toHaveTextContent("");
   });
 
-  // 13.1 D-27: the row toggles on every viewport; Edit is an explicit action.
-  // Round-6 gap 4: Edit first, then + (new transaction).
-  it("desktop: hover offers Edit then the new-transaction (↕) action, no delete or sell", () => {
-    const onSwap = vi.fn();
-    const onEdit = vi.fn();
-    render(
-      <InvestmentRow holding={holding()} onSwap={onSwap} onEdit={onEdit} />,
-    );
-    const edit = screen.getByRole("button", { name: "Edit AAPL" });
-    const plus = screen.getByRole("button", { name: "New transaction AAPL" });
-    expect(
-      edit.compareDocumentPosition(plus) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(plus.querySelector("svg.lucide-arrow-up-down")).not.toBeNull();
-    fireEvent.click(plus);
-    fireEvent.click(edit);
-    expect(onSwap).toHaveBeenCalledTimes(1);
-    expect(onEdit).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("button", { name: "Archive AAPL" })).toBeNull();
+  // 261106 (user): no Edit / ↕ actions — the amount opens the asset's sheet.
+  it("desktop: no Edit or new-transaction action on the row", () => {
+    render(<InvestmentRow holding={holding()} onSwap={vi.fn()} onDelete={vi.fn()} />);
+    expect(screen.queryByTestId("investment-edit-desktop-h1")).toBeNull();
+    expect(screen.queryByTestId("investment-swap-desktop-h1")).toBeNull();
+    expect(screen.getByTestId("investment-delete-desktop-h1")).toBeInTheDocument();
   });
 
   it("desktop: clicking the row toggles it open and reports the toggle", () => {
     mockMatchMedia(true);
     const onToggle = vi.fn();
-    const onEdit = vi.fn();
+    const onSwap = vi.fn();
     render(
-      <InvestmentRow holding={holding()} onToggle={onToggle} onEdit={onEdit} />,
+      <InvestmentRow holding={holding()} onToggle={onToggle} onSwap={onSwap} />,
     );
     const body = screen.getByTestId("asset-row-h1");
     expect(body).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(body);
     expect(body).toHaveAttribute("aria-expanded", "true");
     expect(onToggle).toHaveBeenCalledWith("h1", true);
-    expect(onEdit).not.toHaveBeenCalled();
+    expect(onSwap).not.toHaveBeenCalled();
   });
 
   // UAT 13.1 test 4: stats one step smaller than the P/L line.
@@ -1079,20 +911,6 @@ describe("InvestmentRow — name dimmed (H2)", () => {
   });
 });
 
-// I1 (user): a dotted line marks what can be tapped and typed — a typed
-// amount has it.
-describe("InvestmentRow — dotted line on a typed amount (I1)", () => {
-  it("a typed amount carries the dotted line", () => {
-    render(
-      <InvestmentRow
-        holding={holding({ instrumentId: null, instrumentProvider: null })}
-        onValueChange={vi.fn()}
-      />,
-    );
-    const cell = document.querySelector("[data-amount-cell]")!;
-    expect(cell.querySelector(".editable-dots")).not.toBeNull();
-  });
-});
 
 // I1 (user): the asset's currency picker can be tapped — dotted too.
 describe("InvestmentRow — dotted currency (I1)", () => {

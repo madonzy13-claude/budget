@@ -4,7 +4,7 @@
  * the ledger, and deleting the last one wipes the asset (D-17).
  */
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { DndContext } from "@dnd-kit/core";
 import { SortableContext } from "@dnd-kit/sortable";
 import type { HoldingDto } from "../../src/hooks/use-investments";
@@ -69,8 +69,8 @@ function renderRow(
       <SortableContext items={[h.id]}>
         <InvestmentRowSheet
           holding={h}
-          onEdit={vi.fn()}
           onSwap={props.onSwap ?? vi.fn()}
+          onDelete={vi.fn()}
           onSwipeOffset={props.onSwipeOffset}
         />
       </SortableContext>
@@ -79,21 +79,12 @@ function renderRow(
 }
 
 describe("Row actions", () => {
-  // Round-6 gap 4 (user): Edit first, then "+" (new transaction).
-  it("swipe panel offers Edit then the new-transaction (↕) action", () => {
-    const onSwap = vi.fn();
-    renderRow({ onSwap });
-    const swap = screen.getByTestId("investment-swap-h1");
-    const edit = screen.getByTestId("holding-swipe-edit-h1");
-    expect(
-      edit.compareDocumentPosition(swap) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(swap).toHaveAccessibleName("investments.asset.swipe.newTxn BTC");
-    expect(swap.querySelector("svg.lucide-arrow-up-down")).not.toBeNull();
-    expect(screen.queryByTestId("holding-swipe-delete-h1")).toBeNull();
-    expect(screen.queryByTestId("investment-sell-h1")).toBeNull();
-    fireEvent.click(swap);
-    expect(onSwap).toHaveBeenCalledWith(h);
+  // 261106 (user): the swipe keeps only Delete — the amount opens the sheet.
+  it("swipe panel offers only Delete", () => {
+    renderRow();
+    expect(screen.queryByTestId("holding-swipe-edit-h1")).toBeNull();
+    expect(screen.queryByTestId("investment-swap-h1")).toBeNull();
+    expect(screen.getByTestId("investment-delete-h1")).toBeInTheDocument();
   });
 
   // UAT 13.1 test 5: the open ledger slides with its asset; Swap is blue.
@@ -102,15 +93,9 @@ describe("Row actions", () => {
     const { container } = renderRow({ onSwipeOffset });
     const row = container.querySelector("[data-investment-row-wrapper]")!;
     touchSwipe(row, -200);
-    expect(onSwipeOffset).toHaveBeenLastCalledWith("h1", -204, false);
+    expect(onSwipeOffset).toHaveBeenLastCalledWith("h1", -68, false);
     touchSwipe(row, 200);
     expect(onSwipeOffset).toHaveBeenLastCalledWith("h1", 0, false);
   });
 
-  it("Swap is the blue action", () => {
-    renderRow();
-    expect(screen.getByTestId("investment-swap-h1").className).toContain(
-      "bg-[var(--info)]",
-    );
-  });
 });

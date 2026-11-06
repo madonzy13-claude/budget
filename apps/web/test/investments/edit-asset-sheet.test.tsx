@@ -19,7 +19,7 @@ import {
   fetchMock,
 } from "./_swap-fixtures";
 import type { HoldingDto } from "../../src/hooks/use-investments";
-import { EditAssetSheet } from "../../src/components/budgeting/wallets-tab/edit-asset-sheet";
+import { EditAssetForm } from "../../src/components/budgeting/wallets-tab/edit-asset-sheet";
 
 const coin = H({
   id: "77777777-7777-7777-7777-777777777777",
@@ -35,9 +35,8 @@ function mount(holding: HoldingDto) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <EditAssetSheet
-        open
-        onOpenChange={() => {}}
+      <EditAssetForm
+        onDone={() => {}}
         budgetId="b1"
         budgetCurrency="PLN"
         holding={holding}
@@ -90,9 +89,8 @@ describe("Edit asset sheet — currencies", () => {
     });
     render(
       <QueryClientProvider client={qc}>
-        <EditAssetSheet
-          open
-          onOpenChange={() => {}}
+        <EditAssetForm
+          onDone={() => {}}
           budgetId="b1"
           budgetCurrency="PLN"
           holding={ersteUsd}

@@ -1,6 +1,6 @@
 /**
  * investments-section-actions.test.tsx — the asset row actions open the 13.1
- * sheets: Swap → SwapSheet (deposit: Sell only), Edit → EditAssetSheet.
+ * sheet: the amount → SwapSheet (Details first; deposit: Details · Sell).
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
@@ -42,15 +42,6 @@ vi.mock("../../src/components/budgeting/wallets-tab/swap-sheet", () => ({
         data-holdings={holdings.map((x) => x.id).join(",")}
       >{`${holding.id}:${holding.uiType}`}</div>
     ) : null,
-}));
-vi.mock("../../src/components/budgeting/wallets-tab/edit-asset-sheet", () => ({
-  EditAssetSheet: ({
-    holding,
-    open,
-  }: {
-    holding: HoldingDto;
-    open: boolean;
-  }) => (open ? <div data-testid="edit-sheet-stub">{holding.id}</div> : null),
 }));
 vi.mock("../../src/components/budgeting/wallets-tab/holding-sheet", () => ({
   HoldingSheet: () => null,
@@ -127,32 +118,27 @@ describe("Asset row actions", () => {
   // 261105 (user): hidden assets are still yours — Buy/Sell pickers offer them.
   it("the Swap sheet gets hidden assets too", () => {
     mount({}, [h("x1", "crypto", "crypto")]);
-    fireEvent.click(screen.getByTestId("investment-swap-c1"));
+    fireEvent.click(screen.getByTestId("holding-amount-c1"));
     expect(
       screen.getByTestId("swap-sheet-stub").getAttribute("data-holdings")!.split(","),
     ).toContain("x1");
   });
 
-  it("Swap opens the Swap sheet for that asset", () => {
+  // 261106 (user): the amount is the way in — Details · Buy · Sell · Transfer.
+  it("the amount opens the asset's sheet", () => {
     mount();
-    fireEvent.click(screen.getByTestId("investment-swap-c1"));
+    fireEvent.click(screen.getByTestId("holding-amount-c1"));
     expect(screen.getByTestId("swap-sheet-stub")).toHaveTextContent(
       "c1:crypto",
     );
   });
 
-  it("Swap on a deposit opens the same sheet (it is Sell-only there)", () => {
+  it("a deposit's amount opens the same sheet (Details · Sell there)", () => {
     mount();
-    fireEvent.click(screen.getByTestId("investment-swap-d1"));
+    fireEvent.click(screen.getByTestId("holding-amount-d1"));
     expect(screen.getByTestId("swap-sheet-stub")).toHaveTextContent(
       "d1:deposit",
     );
-  });
-
-  it("Edit opens the slim Edit sheet", () => {
-    mount();
-    fireEvent.click(screen.getByTestId("holding-swipe-edit-c1"));
-    expect(screen.getByTestId("edit-sheet-stub")).toHaveTextContent("c1");
   });
 
   // R6 (user): Hide (was Archive) acts at once — no confirmation.

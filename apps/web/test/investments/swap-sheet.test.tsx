@@ -26,6 +26,7 @@ import { SwapSheet } from "../../src/components/budgeting/wallets-tab/swap-sheet
 function mount(
   holding: HoldingDto,
   holdings: HoldingDto[] = [btc, btcCold, sol, broker, cash, deposit],
+  initialTab: "details" | "buy" | "sell" | "transfer" | null = "buy",
 ) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -37,6 +38,7 @@ function mount(
         budgetCurrency="PLN"
         holding={holding}
         holdings={holdings}
+        {...(initialTab ? { initialTab } : {})}
       />
     </QueryClientProvider>,
   );
@@ -67,15 +69,26 @@ describe("Swap sheet", () => {
       "aria-checked",
       "true",
     );
-    expect(screen.getByText("swap.title(name=BTC)")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "BTC" })).toBeInTheDocument();
   });
 
-  it("a deposit only sells — no tabs, Sell title", () => {
-    mount(deposit);
-    expect(screen.queryByTestId("swap-tab-buy")).toBeNull();
-    expect(
-      screen.getByText("swap.sellTitle(name=Bank 5%)"),
-    ).toBeInTheDocument();
+  // 261106 (user): the asset's own Edit form is the sheet's first tab, and
+  // the sheet opens on it (the row's amount opens the sheet).
+  it("opens on Details, the first tab, holding the asset's edit form", () => {
+    mount(btc, undefined, null);
+    const tabs = screen.getAllByRole("radio").map((r) => r.getAttribute("data-testid"));
+    expect(tabs).toEqual(["swap-tab-details", "swap-tab-buy", "swap-tab-sell", "swap-tab-transfer"]);
+    expect(screen.getByTestId("swap-tab-details")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("edit-asset-name")).toHaveValue("BTC");
+    fireEvent.click(screen.getByTestId("swap-tab-buy"));
+    expect(screen.queryByTestId("edit-asset-name")).toBeNull();
+  });
+
+  it("a deposit has Details and Sell only", () => {
+    mount(deposit, undefined, null);
+    const tabs = screen.getAllByRole("radio").map((r) => r.getAttribute("data-testid"));
+    expect(tabs).toEqual(["swap-tab-details", "swap-tab-sell"]);
+    fireEvent.click(screen.getByTestId("swap-tab-sell"));
     expect(screen.getByTestId("swap-sell-sold")).toBeInTheDocument();
   });
 

@@ -112,7 +112,7 @@ const KEYS = [
   "swap.sell.wallet.type",
   "swap.sell.walletTitle",
   "swap.sell.where",
-  "swap.sellTitle",
+  "swap.tab.details",
   "swap.sum.created",
   "swap.sum.leaves",
   "swap.sum.line",
