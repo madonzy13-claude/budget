@@ -28,6 +28,7 @@ export const READ_TOOLS = [
   "list_investments",
   "list_scheduled_payments",
   "get_fx_rate",
+  "list_recent_writes",
 ];
 export const WRITE_TOOLS = [
   "add_transactions",
@@ -47,6 +48,7 @@ export const WRITE_TOOLS = [
   "delete_scheduled_payment",
   "confirm_scheduled_payment",
   "complete_task",
+  "undo",
 ];
 const DESTRUCTIVE = [
   "delete_transaction",
@@ -55,6 +57,7 @@ const DESTRUCTIVE = [
   "update_holding_value",
   "delete_investment_entry",
   "delete_scheduled_payment",
+  "undo",
 ];
 export const TOOL_ALLOWLIST = [...READ_TOOLS, ...WRITE_TOOLS];
 
