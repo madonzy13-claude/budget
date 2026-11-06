@@ -17,12 +17,18 @@ export function monthsInRange(
    *  down by the twenty-one days that have not happened yet (user, 260810).
    *  Omitted → every month counts whole, as it did before. */
   todayIso?: string,
+  /** The budget's first month, 'YYYY-MM'. "All" reaches back five years, and
+   *  the months before the budget began held nothing to average (user,
+   *  261106). Absent = no floor. */
+  firstMonth?: string | null,
 ): number {
   const parse = (iso: string) => {
     const [y, m] = iso.split("-").map(Number);
     return Number.isFinite(y) && Number.isFinite(m) ? y! * 12 + m! : null;
   };
-  const a = parse(from);
+  const start = parse(from);
+  const floor = firstMonth ? parse(firstMonth) : null;
+  const a = start !== null && floor !== null && floor > start ? floor : start;
   const b = parse(to);
   if (a === null || b === null) return 1;
   const whole = b - a + 1;

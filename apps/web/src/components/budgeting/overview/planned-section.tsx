@@ -675,7 +675,7 @@ export function PlannedSection({
               rangeWithinRunningMonth={rangeWithinRunningMonth}
               // Each total also says what it comes to in a month (user,
               // 260805) — one month of range has nothing to average.
-              months={monthsInRange(range.from, range.to, todayIso)}
+              months={monthsInRange(range.from, range.to, todayIso, firstMonth)}
               format={(cents) => centsToRounded(cents, ccy, "en", true)}
               // Deliberately NOT masked (user, 260803): these are the plan and
               // what it cost, not a balance — the figures the member reads while
