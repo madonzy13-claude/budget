@@ -168,7 +168,10 @@ describe("scheduled payments", () => {
 
   it("no tool description mentions drafts", async () => {
     const { tools } = await client.listTools();
-    const text = JSON.stringify(tools.filter((t) => /scheduled|task/.test(t.name)));
+    // Descriptions only: every input schema carries a json-schema "draft" URL.
+    const text = JSON.stringify(
+      tools.map((t) => [t.description, JSON.stringify(t.inputSchema).replace(/json-schema\.org\/draft/g, "")]),
+    );
     expect(text.toLowerCase()).not.toContain("draft");
   });
 });
