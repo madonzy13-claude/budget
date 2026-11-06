@@ -55,6 +55,10 @@ const ROW_COLUMNS = sql`id, tenant_id AS "tenantId", call_id AS "callId",
 const json = (v: unknown) =>
   v === null || v === undefined ? sql`NULL::jsonb` : sql`${JSON.stringify(v)}::jsonb`;
 
+/**
+ * clock_timestamp(), not now(): rows of one call then keep their write order,
+ * which undo walks newest-first (an asset's entries must go newest-first).
+ */
 export async function insertWriteLog(
   tx: Tx,
   rows: WriteLogInsert[],
@@ -64,7 +68,7 @@ export async function insertWriteLog(
     (r) => sql`(${r.tenantId}::uuid, ${r.userId}::uuid, ${r.clientId},
       ${r.callId}::uuid, ${r.batchId}::uuid, ${r.tool}, ${r.entityType},
       ${r.entityId}, ${r.op}, ${json(r.before)}, ${json(r.after)},
-      ${r.entryCount}, COALESCE(${r.createdAt?.toISOString() ?? null}::timestamptz, now()))`,
+      ${r.entryCount}, COALESCE(${r.createdAt?.toISOString() ?? null}::timestamptz, clock_timestamp()))`,
   );
   await tx.execute(sql`
     INSERT INTO shared_kernel.mcp_write_log
