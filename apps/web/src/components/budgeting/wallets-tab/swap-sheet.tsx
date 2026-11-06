@@ -113,7 +113,9 @@ export function SwapSheet({
                 tabIndex={tab === k ? 0 : -1}
                 data-testid={`swap-tab-${k}`}
                 onClick={() => setTab(k)}
-                className="min-h-11 flex-1 rounded-full px-3 text-[14px]"
+                // Four tabs since Details (261106): on a phone each takes its
+                // label's width (flex-auto) so "Szczegóły" / "Перенести" fit 360px.
+                className="min-h-11 flex-auto whitespace-nowrap rounded-full px-2 text-[14px] sm:flex-1 sm:px-3"
                 style={{
                   background:
                     tab === k ? "var(--surface-elevated-dark)" : undefined,
