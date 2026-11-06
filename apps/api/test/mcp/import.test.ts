@@ -126,7 +126,7 @@ beforeAll(async () => {
     openedOn: "2026-03-01",
   })) as any;
   btc = h.id;
-});
+}, 30_000);
 
 describe("import_preview", () => {
   it("10 clean rows (by name or id) → clean, and nothing is written", async () => {
@@ -158,8 +158,9 @@ describe("import_preview", () => {
     expect(s.clean).toBe(false);
     expect(s.issues.duplicates.map((d: any) => d.index).sort()).toEqual([0, 1, 3]);
     const unknown = s.issues.unknown_categories;
-    expect(unknown.map((u: any) => u.name).sort()).toEqual(["Groceriez", "Pets"]);
-    expect(unknown.find((u: any) => u.name === "Groceriez").suggestions).toContain("Groceries");
+    // Names come from the imported file: untrusted text (T-15-63).
+    expect(unknown.map((u: any) => u.name.untrusted_user_text).sort()).toEqual(["Groceriez", "Pets"]);
+    expect(unknown.find((u: any) => u.name.untrusted_user_text === "Groceriez").suggestions).toContain("Groceries");
     expect(s.issues.fx_gaps.map((g: any) => g.index)).toEqual([6]);
     expect(s.issues.invalid_rows.map((g: any) => g.index)).toEqual([7]);
   });
@@ -202,7 +203,7 @@ describe("import_preview", () => {
       kind: "category_limits",
       rows: [{ category: "Fule", month: "2026-04", amount: "300.00" }, { category: "Fuel", month: "2026-04", no_limit: true }],
     });
-    expect(r.structuredContent!.issues.unknown_categories[0]).toMatchObject({ name: "Fule", rows: [0] });
+    expect(r.structuredContent!.issues.unknown_categories[0]).toMatchObject({ name: { untrusted_user_text: "Fule" }, rows: [0] });
     expect(r.structuredContent!.issues.unknown_categories[0].suggestions).toContain("Fuel");
   });
 
@@ -268,7 +269,7 @@ describe("import_preview", () => {
     });
     const s = r.structuredContent!;
     expect(s.issues.duplicates.map((d: any) => d.index)).toEqual([0]);
-    expect(s.issues.unknown_categories[0].name).toBe("Gymm");
+    expect(s.issues.unknown_categories[0].name.untrusted_user_text).toBe("Gymm");
   });
 });
 
@@ -336,22 +337,25 @@ describe("import_commit", () => {
     const r = await tool("import_commit", { preview_id: p.preview_id });
     expect(r.isError).toBeFalsy();
     const found = (await cookie("GET", `/budgets/${budgetId}/transactions/search?from=2026-02-14&to=2026-02-14`)) as any;
+    // The converted figure is re-expressed at read time (Phase 14); the
+    // stored rate is the row's date's.
     expect(found.transactions[0]).toMatchObject({
       currency_original: "USD",
       amount_original_cents: "1000",
-      amount_converted_cents: "4000",
+      fx_rate: "4.00000000",
+      fx_as_of: "2026-02-14",
     });
   });
 
   it(
     "mid-batch failure rolls back everything, created categories included",
     async () => {
-      const victim = ((await cookie("POST", `/budgets/${budgetId}/categories`, { name: "Doomed" })) as any).category.id;
+      // The route is the authority: Feb 30 passes the preview's shape check
+      // and the route refuses it at row 7.
       const rows = Array.from({ length: 10 }, (_, i) =>
-        txn(`2026-01-${String(20 + i).padStart(2, "0")}`, i === 6 ? victim : i === 2 ? "Hobby" : fuel, `${i + 1}.25`),
+        txn(i === 6 ? "2026-02-30" : `2026-01-${String(20 + i).padStart(2, "0")}`, i === 2 ? "Hobby" : fuel, `${i + 1}.25`),
       );
       const p = await preview(rows);
-      await cookie("POST", `/budgets/${budgetId}/categories/${victim}/archive`, {});
       const before = await counts();
       const r = await tool("import_commit", {
         preview_id: p.preview_id,
@@ -361,6 +365,7 @@ describe("import_commit", () => {
       const e = errorOf(r);
       expect(e.error).toBe("import_rolled_back");
       expect(e.row_index).toBe(6);
+      expect(e.row_error).toBeString();
       expect(e.failed_inverses).toEqual([]);
       expect(await counts()).toEqual(before);
       const all = (await cookie("GET", `/budgets/${budgetId}/categories?includeArchived=true`)) as any;

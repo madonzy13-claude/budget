@@ -5,6 +5,7 @@ import { registerWriteTools } from "./tools/write";
 import { registerInvestmentWriteTools } from "./tools/write-investments";
 import { registerPlanningWriteTools } from "./tools/write-planning";
 import { registerUndoTools } from "./tools/undo";
+import { registerImportTools } from "./tools/import";
 
 const INSTRUCTIONS = `Budget: the user's family budgets, spending, wealth and tasks.
 Start with list_budgets; every other tool takes a budget_id.
@@ -24,5 +25,6 @@ export function buildMcpServer(ctx: McpCtx): McpServer {
   registerInvestmentWriteTools(server, ctx);
   registerPlanningWriteTools(server, ctx);
   registerUndoTools(server, ctx);
+  registerImportTools(server, ctx);
   return server;
 }

@@ -31,6 +31,36 @@ const SAME_AS_APP =
   "The change looks exactly like one the user made in the app. " +
   "Undo can revert it while it is still the asset's newest entry.";
 
+/** One buy / sell / transfer — also an import_preview row (15-16). */
+export const investmentTxnRow = z.object({
+  side: z.enum(["buy", "sell", "transfer"]),
+  asset_id: z.uuid().optional(),
+  new_asset: z
+    .object({
+      name: z.string().min(1).max(120),
+      type: z
+        .string()
+        .describe("equities, etf, bond, crypto, reit, commodity, cash_fx, real_estate, other, savings, possession"),
+    })
+    .optional(),
+  date,
+  quantity: quantity.optional(),
+  price: decimal.optional().describe("Price per unit"),
+  amount: decimal.optional().describe("Total, for amount-shaped assets"),
+  received: decimal.optional().describe("Sell: money received"),
+  currency: z.string().length(3).optional(),
+  destination: z
+    .object({
+      wallet_id: z.uuid().optional(),
+      asset_id: z.uuid().optional(),
+      quantity: quantity.optional().describe("Units bought of destination.asset_id"),
+      price: decimal.optional(),
+      new_asset_name: z.string().min(1).max(120).optional(),
+    })
+    .optional(),
+  note: z.string().max(200).optional(),
+});
+
 type Entry = { id: string };
 type Holding = { id: string; quantity: string; currentPriceCents: string | null };
 
@@ -95,35 +125,7 @@ export function registerInvestmentWriteTools(server: McpServer, ctx: McpCtx): vo
         "a wallet with `received`, destination.asset_id buys into another asset, none = money left " +
         "investments. Transfer: move quantity to destination.asset_id or a new asset of the same " +
         "type named destination.new_asset_name. " + SAME_AS_APP,
-      inputSchema: z.object({
-        budget_id: budgetId,
-        side: z.enum(["buy", "sell", "transfer"]),
-        asset_id: z.uuid().optional(),
-        new_asset: z
-          .object({
-            name: z.string().min(1).max(120),
-            type: z
-              .string()
-              .describe("equities, etf, bond, crypto, reit, commodity, cash_fx, real_estate, other, savings, possession"),
-          })
-          .optional(),
-        date,
-        quantity: quantity.optional(),
-        price: decimal.optional().describe("Price per unit"),
-        amount: decimal.optional().describe("Total, for amount-shaped assets"),
-        received: decimal.optional().describe("Sell: money received"),
-        currency: z.string().length(3).optional(),
-        destination: z
-          .object({
-            wallet_id: z.uuid().optional(),
-            asset_id: z.uuid().optional(),
-            quantity: quantity.optional().describe("Units bought of destination.asset_id"),
-            price: decimal.optional(),
-            new_asset_name: z.string().min(1).max(120).optional(),
-          })
-          .optional(),
-        note: z.string().max(200).optional(),
-      }),
+      inputSchema: investmentTxnRow.extend({ budget_id: budgetId }),
       annotations: { destructiveHint: false, idempotentHint: false },
       entryCount: () => 1,
     },

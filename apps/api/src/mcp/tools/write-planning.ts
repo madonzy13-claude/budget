@@ -44,6 +44,17 @@ const cadenceFields = {
   yearly_month: z.number().int().min(1).max(12).optional().describe("YEARLY: month"),
 };
 
+/** One scheduled payment — also an import_preview row (15-16). */
+export const scheduledPaymentRow = z.object({
+  category_id: z.uuid().nullable().optional(),
+  amount,
+  currency: z.string().regex(/^[A-Z0-9]{3,5}$/),
+  note: z.string().max(500).nullable().optional(),
+  first_due_date: date,
+  end_date: date.nullable().optional(),
+  ...cadenceFields,
+});
+
 export function registerPlanningWriteTools(server: McpServer, ctx: McpCtx): void {
   writeTool(
     server,
@@ -53,16 +64,7 @@ export function registerPlanningWriteTools(server: McpServer, ctx: McpCtx): void
       description:
         "Create a scheduled payment (a bill or subscription that repeats, or a one-time one). " +
         SAME_AS_APP,
-      inputSchema: z.object({
-        budget_id: budgetId,
-        category_id: z.uuid().nullable().optional(),
-        amount,
-        currency: z.string().regex(/^[A-Z0-9]{3,5}$/),
-        note: z.string().max(500).nullable().optional(),
-        first_due_date: date,
-        end_date: date.nullable().optional(),
-        ...cadenceFields,
-      }),
+      inputSchema: scheduledPaymentRow.extend({ budget_id: budgetId }),
       annotations: { destructiveHint: false, idempotentHint: false },
       entryCount: () => 1,
     },
