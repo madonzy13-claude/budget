@@ -29,7 +29,8 @@ export const READ_TOOLS = [
   "list_scheduled_payments",
   "get_fx_rate",
 ];
-export const TOOL_ALLOWLIST = [...READ_TOOLS];
+export const WRITE_TOOLS = ["add_transactions"];
+export const TOOL_ALLOWLIST = [...READ_TOOLS, ...WRITE_TOOLS];
 
 const FORBIDDEN =
   /email|push|notify|share|webhook|url|fetch|http|sql|query|export|invite|member|password|session|delete_account/i;

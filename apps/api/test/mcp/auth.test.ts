@@ -138,7 +138,8 @@ describe("MCP endpoint authentication", () => {
     const otherClient = await createSdkClient(app, b.accessToken);
     const fine = await otherClient.callTool({ name: "list_budgets", arguments: {} });
     expect(fine.isError).toBeFalsy();
-  });
+    // 63 full round trips: 5-15s on this box depending on load.
+  }, 30_000);
 
   it("issues tokens for the /mcp resource", async () => {
     const user = await signUpTestUser(app);

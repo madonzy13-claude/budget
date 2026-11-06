@@ -24,6 +24,8 @@ export interface DispatchResult {
   ok: boolean;
   status: number;
   body: unknown;
+  /** The idempotency middleware answered from its cache — nothing ran. */
+  replayed: boolean;
 }
 
 export interface DispatchOptions {
@@ -59,7 +61,12 @@ export async function dispatch(
     const text = await res.text();
     const isJson = res.headers.get("content-type")?.includes("json");
     const body = !text ? null : isJson ? JSON.parse(text) : text;
-    return { ok: res.ok, status: res.status, body };
+    return {
+      ok: res.ok,
+      status: res.status,
+      body,
+      replayed: res.headers.get("Idempotent-Replayed") === "true",
+    };
   } finally {
     internalRequests.delete(req);
   }

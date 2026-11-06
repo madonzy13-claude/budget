@@ -125,7 +125,7 @@ describe("MCP dispatch", () => {
       method: "GET",
       path: "/probe",
     });
-    expect(res).toEqual({ ok: true, status: 200, body: { id: "user-123" } });
+    expect(res).toEqual({ ok: true, status: 200, body: { id: "user-123" }, replayed: false });
   });
 
   it("ignores identity headers on an external request", async () => {
@@ -154,12 +154,13 @@ describe("MCP dispatch", () => {
       ok: false,
       status: 404,
       body: { error: "category_not_found" },
+      replayed: false,
     });
     const del = await dispatch(app, who("u"), {
       method: "DELETE",
       path: "/gone",
     });
-    expect(del).toEqual({ ok: true, status: 204, body: null });
+    expect(del).toEqual({ ok: true, status: 204, body: null, replayed: false });
   });
 
   it("forwards query params", async () => {
@@ -199,6 +200,7 @@ describe("MCP dispatch", () => {
       ok: true,
       status: 200,
       body: { tenantIds: [a.budgetId] },
+      replayed: false,
     });
     const foreign = await dispatch(app, who(a.userId), {
       method: "GET",

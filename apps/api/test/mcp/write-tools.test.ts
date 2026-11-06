@@ -138,7 +138,7 @@ describe("add_transactions", () => {
       (e: Error) => String(e),
     );
     // The SDK answers with a 403 write-scope challenge before the tool runs.
-    expect(await call).toMatch(/insufficient_scope|403/);
+    expect(await call).toMatch(/insufficient.?scope/i);
     expect(await ledgerCount()).toBe(before);
   });
 
@@ -256,31 +256,34 @@ describe("add_transactions", () => {
   });
 
   it("a retry after a mid-batch failure logs only the rows it wrote", async () => {
-    const later = crypto.randomUUID(); // a category that does not exist yet
-    const args = {
+    const idem = key();
+    const rows = (bad: string) => [
+      { date: today(), category_id: foodId, amount: "1.00" },
+      { date: bad, category_id: foodId, amount: "2.00" },
+      { date: today(), category_id: foodId, amount: "3.00" },
+    ];
+    // Shaped like a date, but not one: the route refuses it.
+    const first = await tool("add_transactions", {
       budget_id: budgetId,
-      idempotency_key: key(),
-      rows: [
-        { date: today(), category_id: foodId, amount: "1.00" },
-        { date: today(), category_id: later, amount: "2.00" },
-        { date: today(), category_id: foodId, amount: "3.00" },
-      ],
-    };
-    const first = await tool("add_transactions", args);
+      idempotency_key: idem,
+      rows: rows("2026-02-30"),
+    });
     expect(first.isError).toBeFalsy();
     expect(first.structuredContent!.created).toHaveLength(1);
     expect(first.structuredContent!.failed.index).toBe(1);
 
-    await q(
-      `INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id)
-       VALUES ($1, $2, 'Later', now(), $3)`,
-      [later, budgetId, a.userId],
-      { user: a.userId, budget: budgetId },
-    );
-    const retry = await tool("add_transactions", args);
+    // Same key, row 2 corrected: row 1 is a replay, rows 2-3 are new.
+    const retry = await tool("add_transactions", {
+      budget_id: budgetId,
+      idempotency_key: idem,
+      rows: rows(today()),
+    });
     expect(retry.isError).toBeFalsy();
     expect(retry.structuredContent!.created).toHaveLength(3);
     expect(retry.structuredContent!.failed).toBeUndefined();
+    expect(retry.structuredContent!.created[0].id).toBe(
+      first.structuredContent!.created[0].id,
+    );
 
     const calls = [first, retry].map((r) => r.structuredContent!.call_id);
     const log = await logRows("call_id = ANY($2::uuid[])", [calls]);

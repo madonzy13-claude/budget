@@ -133,3 +133,18 @@ export async function reserveIdempotency(
   `);
   return (res as { rowCount?: number }).rowCount !== 0;
 }
+
+/**
+ * Drop this request's claim when its response is not cached (non-2xx), so a
+ * retry with the same key runs instead of finding a status-0 claim. Only an
+ * unfinished claim goes — a stored response is never deleted here.
+ */
+export async function releaseIdempotency(
+  tx: Tx,
+  scopeHash: string,
+): Promise<void> {
+  await tx.execute(sql`
+    DELETE FROM shared_kernel.idempotency_keys
+     WHERE scope_hash = ${scopeHash} AND response_status = 0
+  `);
+}
