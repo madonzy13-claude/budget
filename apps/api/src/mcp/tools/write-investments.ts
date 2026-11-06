@@ -149,6 +149,9 @@ export function registerInvestmentWriteTools(server: McpServer, ctx: McpCtx): vo
             quantity: args.quantity ?? "1",
             buyPriceCents: price.value,
             buyCurrency: ccy,
+            // As the app's own form: a hand-tracked asset starts worth its price.
+            currentPriceCents: price.value,
+            currentPriceCurrency: ccy,
             openedOn: args.date,
             ...note,
           },
