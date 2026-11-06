@@ -423,3 +423,234 @@ describe("writeTool wrapper", () => {
     expect(reached).toBe(0);
   });
 });
+
+async function addOne(amount = "10.00", budget = budgetId, cat = foodId): Promise<string> {
+  const r = await tool("add_transactions", {
+    budget_id: budget,
+    idempotency_key: key(),
+    rows: [{ date: today(), category_id: cat, amount }],
+  });
+  expect(r.isError).toBeFalsy();
+  return r.structuredContent!.created[0].id;
+}
+
+const txnOf = async (id: string) =>
+  (await (await cookie("GET", `/budgets/${budgetId}/transactions/${id}`)).json()) as {
+    transaction?: Record<string, string>;
+  };
+
+describe("edit and delete a transaction", () => {
+  it("edit_transaction applies the change and logs before and after", async () => {
+    const id = await addOne("10.00");
+    const r = await tool("edit_transaction", {
+      budget_id: budgetId,
+      transaction_id: id,
+      changes: { amount: "20.00", note: "fixed" },
+    });
+    expect(r.isError).toBeFalsy();
+    const t = (await txnOf(id)).transaction!;
+    expect(t.amount_original_cents).toBe("2000");
+    expect(t.note).toBe("fixed");
+    const [log] = await logRows("call_id = $2", [r.structuredContent!.call_id]);
+    expect(log).toMatchObject({ op: "update", entity_id: id, entity_type: "transaction" });
+    expect(log.before_jsonb.amount_original_cents).toBe("1000");
+    expect(log.after_jsonb.amount_original_cents).toBe("2000");
+  });
+
+  it("delete_transaction soft-deletes like the app and logs the row", async () => {
+    const id = await addOne("7.00");
+    const r = await tool("delete_transaction", { budget_id: budgetId, transaction_id: id });
+    expect(r.isError).toBeFalsy();
+    const [row] = await q(
+      `SELECT deleted_at FROM budgeting.expense_ledger WHERE id = $1`,
+      [id],
+      { user: a.userId, budget: budgetId },
+    );
+    expect(row.deleted_at).not.toBeNull();
+    const [log] = await logRows("call_id = $2", [r.structuredContent!.call_id]);
+    expect(log).toMatchObject({ op: "delete", entity_id: id });
+    expect(log.before_jsonb.amount_original_cents).toBe("700");
+  });
+
+  it("cannot touch another user's budget", async () => {
+    const b = await signUpTestUser(app);
+    const theirs = await seedBudget(b.userId);
+    const cat = crypto.randomUUID();
+    await q(
+      `INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id)
+       VALUES ($1, $2, 'Theirs', now(), $3)`,
+      [cat, theirs, b.userId],
+      { user: b.userId, budget: theirs },
+    );
+    const txId = crypto.randomUUID();
+    await q(
+      `INSERT INTO budgeting.expense_ledger
+         (id, tenant_id, budget_id, category_id, transaction_date, amount_original_cents,
+          currency_original, amount_converted_cents, fx_rate, fx_as_of, kind,
+          confirmed_at, created_at, updated_at)
+       VALUES ($1, $2, $2, $3, current_date, 500, 'EUR', 500, 1, current_date,
+               'SPENDING', now(), now(), now())`,
+      [txId, theirs, cat],
+      { user: b.userId, budget: theirs },
+    );
+    for (const budget of [theirs, budgetId]) {
+      const r = await tool("edit_transaction", {
+        budget_id: budget,
+        transaction_id: txId,
+        changes: { amount: "1.00" },
+      });
+      expect(r.isError).toBe(true);
+    }
+    const [row] = await q(
+      `SELECT amount_original_cents::text AS c FROM budgeting.expense_ledger WHERE id = $1`,
+      [txId],
+      { user: b.userId, budget: theirs },
+    );
+    expect(row.c).toBe("500");
+  });
+});
+
+describe("wallets, limits, categories, budgets", () => {
+  it("sync_wallet_balance answers old → new and the difference", async () => {
+    const res = await cookie("POST", "/wallets", {
+      name: "Cash",
+      walletType: "SPENDINGS",
+      currency: "PLN",
+    });
+    expect(res.status).toBe(201);
+    const wallet = (await res.json()) as { id: string };
+    const set = await cookie("PUT", `/wallets/${wallet.id}/balance`, {
+      amount: "100.00",
+      currency: "PLN",
+    });
+    expect(set.status).toBe(200);
+    const r = await tool("sync_wallet_balance", {
+      budget_id: budgetId,
+      wallet_id: wallet.id,
+      balance: "150.25",
+      currency: "PLN",
+    });
+    expect(r.isError).toBeFalsy();
+    expect(r.structuredContent).toMatchObject({
+      old_balance: "100.00",
+      new_balance: "150.25",
+      difference: "50.25",
+      currency: "PLN",
+    });
+    const [log] = await logRows("call_id = $2", [r.structuredContent!.call_id]);
+    expect(log).toMatchObject({ op: "update", entity_type: "wallet", entity_id: wallet.id });
+  });
+
+  it("set_category_limit accepts a month 18 months ago and logs the previous limit", async () => {
+    const cat = await newCategory(budgetId, "Limits");
+    const now = new Date();
+    const month = (back: number) => {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1));
+      return d.toISOString().slice(0, 7);
+    };
+    const current = await tool("set_category_limit", {
+      budget_id: budgetId,
+      category_id: cat,
+      month: month(0),
+      amount: "500.00",
+    });
+    expect(current.isError).toBeFalsy();
+    const past = await tool("set_category_limit", {
+      budget_id: budgetId,
+      category_id: cat,
+      month: month(18),
+      amount: "300.00",
+    });
+    expect(past.isError).toBeFalsy();
+    const eff = async (m: string) =>
+      (await (
+        await cookie("GET", `/budgets/${budgetId}/categories/${cat}/limits/effective?date=${m}-01`)
+      ).json()) as { planned: string | number };
+    expect(String((await eff(month(18))).planned)).toBe("30000");
+    expect(String((await eff(month(0))).planned)).toBe("50000");
+    const [log] = await logRows("call_id = $2", [current.structuredContent!.call_id]);
+    expect(log).toMatchObject({ op: "update", entity_type: "category_limit", entity_id: cat });
+  });
+
+  it("creates, renames and archives a category", async () => {
+    const made = await tool("create_category", { budget_id: budgetId, name: "Travel" });
+    expect(made.isError).toBeFalsy();
+    const id = made.structuredContent!.category.id as string;
+    const renamed = await tool("rename_category", {
+      budget_id: budgetId,
+      category_id: id,
+      name: "Trips",
+    });
+    expect(renamed.isError).toBeFalsy();
+    const archived = await tool("archive_category", { budget_id: budgetId, category_id: id });
+    expect(archived.isError).toBeFalsy();
+    const [row] = await q(
+      `SELECT name, archived_at FROM budgeting.categories WHERE id = $1`,
+      [id],
+      { user: a.userId, budget: budgetId },
+    );
+    expect(row.name).toBe("Trips");
+    expect(row.archived_at).not.toBeNull();
+    const log = await logRows("entity_id = $2", [id]);
+    expect(log.map((l) => l.op)).toEqual(["create", "update", "update"]);
+  });
+
+  it("a budget it creates is usable by the same token at once (D-04)", async () => {
+    const made = await tool("budget_create", { name: "Agent budget", currency: "USD" });
+    expect(made.isError).toBeFalsy();
+    const id = made.structuredContent!.id as string;
+    const list = await tool("list_budgets", {});
+    expect(JSON.stringify(list.structuredContent)).toContain(id);
+    const cat = await tool("create_category", { budget_id: id, name: "Groceries" });
+    expect(cat.isError).toBeFalsy();
+    await addOne("3.00", id, cat.structuredContent!.category.id);
+  });
+});
+
+describe("daily cap on every write tool", () => {
+  it("refuses each one before it changes anything", async () => {
+    const t = await mintMcpToken(app, a, ["read", "write"]);
+    const capped = await createSdkClient(app, t.accessToken);
+    const txId = await addOne("5.00");
+    await withUserContext(UserId(a.userId), (tx) =>
+      insertWriteLog(tx, [
+        {
+          tenantId: budgetId,
+          userId: a.userId,
+          clientId: t.clientId,
+          callId: crypto.randomUUID(),
+          batchId: null,
+          tool: "add_transactions",
+          entityType: "transaction",
+          entityId: "seed",
+          op: "create",
+          before: null,
+          after: null,
+          entryCount: 5000,
+        },
+      ]),
+    );
+    const calls: Array<[string, Record<string, unknown>]> = [
+      ["add_transactions", { budget_id: budgetId, idempotency_key: key(), rows: [{ date: today(), category_id: foodId, amount: "1.00" }] }],
+      ["edit_transaction", { budget_id: budgetId, transaction_id: txId, changes: { amount: "9.00" } }],
+      ["delete_transaction", { budget_id: budgetId, transaction_id: txId }],
+      ["sync_wallet_balance", { budget_id: budgetId, wallet_id: crypto.randomUUID(), balance: "1.00", currency: "PLN" }],
+      ["set_category_limit", { budget_id: budgetId, category_id: foodId, month: today().slice(0, 7), amount: "1.00" }],
+      ["create_category", { budget_id: budgetId, name: "Never" }],
+      ["rename_category", { budget_id: budgetId, category_id: foodId, name: "Never" }],
+      ["archive_category", { budget_id: budgetId, category_id: foodId }],
+      ["budget_create", { name: "Never", currency: "EUR" }],
+    ];
+    for (const [name, args] of calls) {
+      const r = await tool(name, args, capped);
+      expect(`${name}:${r.isError ? errorOf(r) : "ok"}`).toBe(`${name}:daily_entry_limit`);
+    }
+    expect((await txnOf(txId)).transaction!.amount_original_cents).toBe("500");
+    const [food] = await q(
+      `SELECT name, archived_at FROM budgeting.categories WHERE id = $1`,
+      [foodId],
+      { user: a.userId, budget: budgetId },
+    );
+    expect(food).toMatchObject({ name: "Food", archived_at: null });
+  });
+});

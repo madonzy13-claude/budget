@@ -29,7 +29,18 @@ export const READ_TOOLS = [
   "list_scheduled_payments",
   "get_fx_rate",
 ];
-export const WRITE_TOOLS = ["add_transactions"];
+export const WRITE_TOOLS = [
+  "add_transactions",
+  "edit_transaction",
+  "delete_transaction",
+  "sync_wallet_balance",
+  "set_category_limit",
+  "create_category",
+  "rename_category",
+  "archive_category",
+  "budget_create",
+];
+const DESTRUCTIVE = ["delete_transaction", "sync_wallet_balance", "archive_category"];
 export const TOOL_ALLOWLIST = [...READ_TOOLS, ...WRITE_TOOLS];
 
 const FORBIDDEN =
@@ -38,7 +49,10 @@ const FORBIDDEN_EXCEPTIONS = new Set(["search_transactions"]);
 
 await setupMcpTestEnv();
 
-let tools: Array<{ name: string; annotations?: { readOnlyHint?: boolean } }>;
+let tools: Array<{
+  name: string;
+  annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean };
+}>;
 beforeAll(async () => {
   const app = await testApp();
   const user = await signUpTestUser(app);
@@ -64,5 +78,13 @@ describe("MCP tool registry", () => {
         `${t.name}:${READ_TOOLS.includes(t.name)}`,
       );
     }
+  });
+
+  it("marks the destructive writes destructive", () => {
+    const flagged = tools
+      .filter((t) => t.annotations?.destructiveHint === true)
+      .map((t) => t.name)
+      .sort();
+    expect(flagged).toEqual([...DESTRUCTIVE].sort());
   });
 });
