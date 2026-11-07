@@ -1,0 +1,40 @@
+@mcp
+Feature: Connect an AI assistant over MCP (Phase 15)
+  # An MCP client registers itself, the user allows it on the consent page,
+  # and the client then reads and writes the budget through /mcp with the
+  # token it got. Connected apps lists it; Disconnect cuts it off at once.
+
+  Background:
+    Given I am signed in as a fresh user
+
+  Scenario Outline: Connect an assistant and add then undo a spending (<locale>)
+    Given my budget has a category "Groceries"
+    And an MCP client registers and starts authorization in "<locale>"
+    Then the consent page names the client and says it covers all budgets in "<locale>"
+    When I allow access in "<locale>"
+    And the client exchanges the code for tokens
+    Then the client lists tools and list_budgets includes my budget
+    When the client adds a 12.34 spending to "Groceries"
+    Then the 12.34 spending is in my spendings list
+    When the client undoes that write
+    Then the 12.34 spending is gone from my spendings list
+
+    Examples:
+      | locale |
+      | en     |
+      | pl     |
+      | uk     |
+
+  Scenario: Disconnect stops the assistant
+    Given an MCP client registers and starts authorization in "en"
+    When I allow access in "en"
+    And the client exchanges the code for tokens
+    And I open Connected apps
+    Then I see the client in Connected apps
+    When I disconnect the client
+    Then the client is gone from Connected apps
+    And the next MCP call returns 401
+
+  Scenario: Discovery on the public host
+    Then the OAuth discovery documents are served
+    And an MCP call without a token returns 401 with a challenge
