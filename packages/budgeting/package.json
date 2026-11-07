@@ -93,6 +93,7 @@
     "./src/application/get-overview-overspent": "./src/application/get-overview-overspent.ts",
     "./src/application/get-reserve-fit": "./src/application/get-reserve-fit.ts",
     "./src/application/get-overview-wealth": "./src/application/get-overview-wealth.ts",
+    "./src/application/import-wealth-snapshots": "./src/application/import-wealth-snapshots.ts",
     "./src/adapters/persistence/wealth-snapshot-repo": "./src/adapters/persistence/wealth-snapshot-repo.ts",
     "./src/application/scheduled-monthly-normalize": "./src/application/scheduled-monthly-normalize.ts",
     "./src/adapters/persistence/overview-cards-repo": "./src/adapters/persistence/overview-cards-repo.ts",

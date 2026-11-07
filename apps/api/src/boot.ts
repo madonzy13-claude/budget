@@ -75,6 +75,7 @@ import { listOneOffCandidates } from "@budget/budgeting/src/application/list-one
 import { createReserveFitRepo } from "@budget/budgeting/src/adapters/persistence/reserve-fit-repo";
 import { getOverviewOverspent } from "@budget/budgeting/src/application/get-overview-overspent";
 import { getOverviewWealth } from "@budget/budgeting/src/application/get-overview-wealth";
+import { importWealthSnapshots } from "@budget/budgeting/src/application/import-wealth-snapshots";
 import { computeBudgetWealthNow } from "@budget/budgeting/src/application/compute-budget-wealth-now";
 import { createWealthSnapshotRepo } from "@budget/budgeting/src/adapters/persistence/wealth-snapshot-repo";
 import { createOverviewRepo } from "@budget/budgeting/src/adapters/persistence/overview-repo";
@@ -142,6 +143,10 @@ export interface BootedDeps {
     >["setExclusions"];
     /** Phase 11 (11-06): Financial-Wealth section (snapshot series + live point + pie). */
     getOverviewWealth: ReturnType<typeof getOverviewWealth>;
+    /** 15-21: an imported balance history as dated wealth snapshots. */
+    importWealthSnapshots: ReturnType<typeof importWealthSnapshots>;
+    /** 15-21: deletes an imported snapshot only (rollback / undo). */
+    deleteImportedWealthSnapshot: (budgetId: string, id: string) => Promise<boolean>;
     /** Overview projection timeline (today → the caller's window, default 100 days). */
     getCashflowProjection: ReturnType<typeof computeCashflowProjection>;
     /** Task 7: GET /budgets/aggregate — cross-budget "all budgets" rollup. */
@@ -486,6 +491,7 @@ export async function boot(): Promise<BootedDeps> {
         .reduce((sum, h) => sum + BigInt(h.costInBudgetCents), 0n);
     },
   };
+  const wealthSnapshotRepo = createWealthSnapshotRepo();
   const budgetingFinal = Object.assign(budgeting, {
     getOverviewCards: getOverviewCards({
       metaReader: summaryRepo,
@@ -562,8 +568,18 @@ export async function boot(): Promise<BootedDeps> {
     // Phase 11 (11-06): Financial-Wealth section. 3h snapshot series + a live
     // current point from computeBudgetWealthNow (same numbers as the cards/cron);
     // investments-view pie groups investments.listHoldings by holding_type.
+    importWealthSnapshots: importWealthSnapshots({
+      repo: wealthSnapshotRepo,
+      fx: baseBudgeting.fxProvider,
+      currencyOf: async (budgetId) => {
+        const meta = await summaryRepo.getBudgetMeta(budgetId);
+        if (!meta) throw new Error("budget_not_found");
+        return meta.default_currency;
+      },
+    }),
+    deleteImportedWealthSnapshot: wealthSnapshotRepo.deleteImported,
     getOverviewWealth: getOverviewWealth({
-      snapshotRepo: createWealthSnapshotRepo(),
+      snapshotRepo: wealthSnapshotRepo,
       computeWealthNow: computeBudgetWealthNow({
         walletRepo: overviewCardsRepo,
         holdingsValuation,
