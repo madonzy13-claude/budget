@@ -29,6 +29,7 @@ interface ActiveBudget {
   name: string;
   default_currency: string;
   ownerUserId: string;
+  investmentsEnabled?: boolean;
 }
 
 async function activeBudgets(c: McpCtx): Promise<ActiveBudget[]> {
@@ -114,6 +115,8 @@ export function registerReadTools(server: McpServer, ctx: McpCtx): void {
           name: untrusted(b.name),
           currency: b.default_currency,
           role: b.ownerUserId === c.who.userId ? "owner" : "member",
+          // Off: the app hides every investment, and investment writes are refused.
+          investments_enabled: b.investmentsEnabled ?? false,
         })),
       });
     },

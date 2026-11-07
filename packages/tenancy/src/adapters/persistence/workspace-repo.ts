@@ -119,6 +119,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         created_at: Date;
         cushion_mode_enabled: boolean;
         reserves_enabled: boolean;
+        investments_enabled: boolean;
         pending_tasks_count: number;
       }>(sql`
         -- The name is the READER's: their membership row carries the label
@@ -128,7 +129,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
         SELECT w.id, w.slug, COALESCE(m.display_name, w.name) AS name,
                w.kind, w.default_currency,
                w.owner_user_id, w.member_count, w.created_at, w.cushion_mode_enabled,
-               w.reserves_enabled,
+               w.reserves_enabled, w.investments_enabled,
                COALESCE(tk.pending, 0)::int AS pending_tasks_count
         FROM tenancy.budgets w
         INNER JOIN tenancy.budget_members m ON m.budget_id = w.id
@@ -200,6 +201,7 @@ export class DrizzleBudgetRepo implements BudgetRepo {
       createdAt: row.created_at,
       cushionModeEnabled: row.cushion_mode_enabled,
       reservesEnabled: row.reserves_enabled ?? true,
+      investmentsEnabled: row.investments_enabled ?? false,
       pendingTasksCount: Number(row.pending_tasks_count),
     }));
   }
