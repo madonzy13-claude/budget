@@ -465,6 +465,7 @@ export const demoManifest: TableManifest[] = [
       investment_value_cents: money0,
       currency: ccy,
       investment_cost_basis_cents: money0,
+      source: ts, // 'worker' | 'import' (15-21)
     },
   },
   {
@@ -585,6 +586,49 @@ export const demoManifest: TableManifest[] = [
       dispatched_at: ts,
     },
   },
+  {
+    // MCP undo journal (Phase 15): before/after jsonb of an assistant's writes.
+    // Never copied. RLS scopes it by user, and the wipe runs as the demo user,
+    // so it clears only what an assistant did in the demo itself.
+    table: "shared_kernel.mcp_write_log",
+    mode: "wipe-only",
+    columns: {
+      id,
+      tenant_id: tenant,
+      user_id: owner,
+      client_id: nul,
+      call_id: ts,
+      batch_id: ts,
+      tool: ts,
+      entity_type: ts,
+      entity_id: ts,
+      op: ts,
+      before_jsonb: nul,
+      after_jsonb: nul,
+      entry_count: ts,
+      created_at: ts,
+      reverted_at: ts,
+      reverted_by_call_id: ts,
+    },
+  },
+  {
+    // Short-lived import previews holding the rows an assistant sent. Same
+    // per-user scoping as the write log.
+    table: "shared_kernel.mcp_import_previews",
+    mode: "wipe-only",
+    columns: {
+      id,
+      tenant_id: tenant,
+      user_id: owner,
+      client_id: nul,
+      kind: ts,
+      payload_hash: ts,
+      rows_jsonb: nul,
+      issues_jsonb: nul,
+      created_at: ts,
+      expires_at: ts,
+    },
+  },
 ];
 
 /**
@@ -622,6 +666,8 @@ export const DEMO_COPY_ORDER = [
   "shared_kernel.push_subscriptions",
   "shared_kernel.idempotency_keys",
   "shared_kernel.outbox",
+  "shared_kernel.mcp_write_log",
+  "shared_kernel.mcp_import_previews",
 ] as const;
 
 /**
