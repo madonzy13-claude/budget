@@ -98,6 +98,40 @@ beforeAll(async () => {
   walletId = ((await w.json()) as { id: string }).id;
 });
 
+describe("a budget with investments switched off", () => {
+  it("list_budgets says so, and investment writes are refused instead of saved out of sight", async () => {
+    const off = await seedBudget(a.userId, { currency: "USD", investments: false });
+    const listed = (await tool("list_budgets", {})).structuredContent!.budgets as any[];
+    expect(listed.find((x) => x.budget_id === off).investments_enabled).toBe(false);
+    expect(listed.find((x) => x.budget_id === budgetId).investments_enabled).toBe(true);
+
+    const r = await tool("record_investment_transaction", {
+      budget_id: off,
+      side: "buy",
+      new_asset: { name: "Hidden coin", type: "crypto" },
+      date: today(),
+      quantity: "0.001",
+      price: "70000.00",
+      currency: "USD",
+    });
+    expect(r.isError).toBe(true);
+    expect(errorOf(r)).toBe("investments_disabled");
+    const res = await app.fetch(
+      new Request(`${baseUrl()}/budgets/${off}/investments?hidden=1`, {
+        headers: { cookie: a.cookie, "x-budget-id": off },
+      }),
+    );
+    const visible = await app.fetch(
+      new Request(`${baseUrl()}/budgets/${off}/investments`, { headers: { cookie: a.cookie, "x-budget-id": off } }),
+    );
+    const names = [
+      ...((await res.json()) as { holdings: Holding[] }).holdings,
+      ...((await visible.json()) as { holdings: Holding[] }).holdings,
+    ].map((h) => h.name);
+    expect(names).not.toContain("Hidden coin");
+  });
+});
+
 describe("record_investment_transaction", () => {
   it("buys a new asset with crypto precision and logs the asset and its entry", async () => {
     const r = await tool("record_investment_transaction", {

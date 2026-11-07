@@ -148,20 +148,21 @@ export async function signUpTestUser(
 /** A budget owned by `userId` (budget + owner membership in one tx). */
 export async function seedBudget(
   userId: string,
-  opts: { currency?: string; name?: string } = {},
+  opts: { currency?: string; name?: string; investments?: boolean } = {},
 ): Promise<string> {
   const budgetId = crypto.randomUUID();
   await withClient(async (c) => {
     await c.query(
       `INSERT INTO tenancy.budgets
-         (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at)
-       VALUES ($1, $2, $3, 'PRIVATE', $4, $5, 1, now())`,
+         (id, slug, name, kind, default_currency, owner_user_id, member_count, created_at, investments_enabled)
+       VALUES ($1, $2, $3, 'PRIVATE', $4, $5, 1, now(), $6)`,
       [
         budgetId,
         `ws-mcp-${budgetId.slice(0, 8)}`,
         opts.name ?? "MCP Budget",
         opts.currency ?? "EUR",
         userId,
+        opts.investments ?? true,
       ],
     );
     await c.query(
