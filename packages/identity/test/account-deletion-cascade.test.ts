@@ -199,3 +199,50 @@ test("member-only deletion removes the member + DEK and anonymises their authore
   ).toBe(1);
   expect(await countAnonAdjustments(owner, b)).toBe(1);
 });
+
+// Phase 15 (MCP-11): OAuth consents/tokens, the MCP write log and import
+// previews are USER-scoped (user_id, no tenant): they go with the account.
+const MCP_TABLES = [
+  "identity.oauth_consent",
+  "identity.oauth_access_token",
+  "identity.oauth_refresh_token",
+  "shared_kernel.mcp_write_log",
+  "shared_kernel.mcp_import_previews",
+];
+
+async function seedMcp(u: string, budgetId: string): Promise<void> {
+  const r = await withUserContext(UserId(u), async (tx) => {
+    const id = () => `'${crypto.randomUUID()}'`;
+    for (const q of [
+      `INSERT INTO identity.oauth_consent (id, client_id, user_id, scopes) VALUES (${id()}, 'c1', '${u}', '{read}')`,
+      `INSERT INTO identity.oauth_access_token (id, token, client_id, user_id, scopes) VALUES (${id()}, ${id()}, 'c1', '${u}', '{read}')`,
+      `INSERT INTO identity.oauth_refresh_token (id, token, client_id, user_id, scopes) VALUES (${id()}, ${id()}, 'c1', '${u}', '{read}')`,
+      `INSERT INTO shared_kernel.mcp_write_log (tenant_id, user_id, client_id, call_id, tool, entity_type, entity_id, op)
+       VALUES ('${budgetId}', '${u}', 'c1', gen_random_uuid(), 'add_transactions', 'transaction', 'x', 'create')`,
+      `INSERT INTO shared_kernel.mcp_import_previews (id, tenant_id, user_id, client_id, kind, payload_hash, rows_jsonb, issues_jsonb, expires_at)
+       VALUES (gen_random_uuid(), '${budgetId}', '${u}', 'c1', 'transactions', 'h', '[]', '{}', now() + interval '1 hour')`,
+    ])
+      await tx.execute(sql.raw(q));
+  });
+  if (r.isErr()) throw r.error;
+}
+
+const countMcp = (u: string, t: string) =>
+  scalar(u, null, `SELECT count(*)::int AS n FROM ${t} WHERE user_id = '${u}'`);
+
+test("deletion removes the user's OAuth consents/tokens, MCP write log and import previews", async () => {
+  const gone = await newUser("mcpgone");
+  const stays = await newUser("mcpstays");
+  const b1 = await seedBudget(gone, "PRIVATE");
+  const b2 = await seedBudget(stays, "PRIVATE");
+  await seedMcp(gone, b1);
+  await seedMcp(stays, b2);
+  for (const t of MCP_TABLES) expect(await countMcp(gone, t)).toBe(1);
+
+  await purgeUserData(gone);
+
+  for (const t of MCP_TABLES) {
+    expect(await countMcp(gone, t)).toBe(0);
+    expect(await countMcp(stays, t)).toBe(1);
+  }
+});
