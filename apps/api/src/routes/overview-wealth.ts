@@ -73,7 +73,7 @@ export function registerOverviewWealthRoutes(r: Hono, deps: BootedDeps) {
             .array(
               z.object({
                 amount_cents: z.string().regex(/^-?\d{1,15}$/),
-                currency: z.string().length(3),
+                currency: z.string().regex(/^[A-Z0-9]{3,5}$/),
               }),
             )
             .min(1),

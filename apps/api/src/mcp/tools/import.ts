@@ -8,7 +8,7 @@ import {
   savePreview,
   withUserContext,
 } from "@budget/platform";
-import { UserId } from "@budget/shared-kernel";
+import { Money, UserId } from "@budget/shared-kernel";
 import { toMinorUnits } from "../money";
 import { MCP_LIMITS } from "../limits";
 import type { DispatchResult } from "../dispatch";
@@ -84,10 +84,17 @@ type Issues = {
   fx_gaps: Array<{ index: number; currency: string; date: string }>;
   invalid_rows: Array<{ index: number; error: string }>;
   older_than_latest_entry: Array<{ index: number; latest: string }>;
-  /** Informational: older wallet balances are not stored (15-01 decision b1). */
-  history_not_stored: Array<{ index: number; wallet_id: string; date: string }>;
+  /** A date that does not name every active wallet: its net-worth point would be partial (15-21). */
+  incomplete_wallet_set: Array<{ date: string; missing_wallets: string[] }>;
 };
-const BLOCKING = ["duplicates", "unknown_categories", "fx_gaps", "invalid_rows", "older_than_latest_entry"] as const;
+const BLOCKING = [
+  "duplicates",
+  "unknown_categories",
+  "fx_gaps",
+  "invalid_rows",
+  "older_than_latest_entry",
+  "incomplete_wallet_set",
+] as const;
 
 /** Edit distance, for "did you mean" suggestions. */
 function distance(a: string, b: string): number {
@@ -109,6 +116,9 @@ function suggest(name: string, cats: Category[]): string[] {
     .slice(0, 3)
     .map((c) => c.name);
 }
+
+// ponytail: Money is only borrowed for its big.js decimal; the currency is moot.
+const big = (v: string) => Money.of(v, "USD").amount;
 
 /** "55.0000" → "55": rules store numeric(…,4); toMinorUnits takes 2 places. */
 const trimZeros = (v: string) => v.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
@@ -134,7 +144,7 @@ async function check(
     fx_gaps: [],
     invalid_rows: [],
     older_than_latest_entry: [],
-    history_not_stored: [],
+    incomplete_wallet_set: [],
   };
   let stored: Stored[] = [];
   for (const [i, raw] of rows.entries()) {
@@ -250,21 +260,28 @@ async function check(
   }
 
   if (kind === "wallet_balances") {
+    // Decision b2 (15-21): every dated row becomes part of that date's
+    // net-worth point; the newest row per wallet also sets its balance now.
     const wallets = (await body<{ wallets: Array<{ id: string }> }>(c, "/wallets", b))?.wallets ?? [];
-    const live = new Set(wallets.map((w) => w.id));
+    const live = wallets.map((w) => w.id);
     const newest = new Map<string, Stored>();
+    const byDate = new Map<string, Set<string>>();
     for (const r of stored) {
-      if (!live.has(r.wallet_id as string)) {
+      const w = r.wallet_id as string;
+      if (!live.includes(w)) {
         issues.invalid_rows.push({ index: r.i, error: "unknown_or_archived_wallet" });
         continue;
       }
-      const top = newest.get(r.wallet_id as string);
-      if (!top || (r.date as string) >= (top.date as string)) newest.set(r.wallet_id as string, r);
+      const top = newest.get(w);
+      if (!top || (r.date as string) >= (top.date as string)) newest.set(w, r);
+      byDate.set(r.date as string, (byDate.get(r.date as string) ?? new Set()).add(w));
     }
-    for (const r of stored)
-      if (live.has(r.wallet_id as string) && newest.get(r.wallet_id as string) !== r)
-        issues.history_not_stored.push({ index: r.i, wallet_id: r.wallet_id as string, date: r.date as string });
-    stored = [...newest.values()];
+    for (const [d, have] of [...byDate].sort(([x], [y]) => x.localeCompare(y))) {
+      const missing = live.filter((w) => !have.has(w));
+      if (missing.length > 0) issues.incomplete_wallet_set.push({ date: d, missing_wallets: missing });
+    }
+    const current = new Set(newest.values());
+    for (const r of stored) r.apply = current.has(r);
   }
 
   const invalid = new Set(issues.invalid_rows.map((x) => x.index));
@@ -351,7 +368,9 @@ export function registerImportTools(server: McpServer, ctx: McpCtx): void {
         "transactions {date, category (id or name), amount, currency?, note?}; " +
         "category_limits {category, month YYYY-MM, amount | no_limit, cushion_amount?}; " +
         "investment_entries (same fields as record_investment_transaction); " +
-        "wallet_balances {wallet_id, date, balance, currency} — only the newest balance per wallet is applied, older ones are not stored; " +
+        "wallet_balances {wallet_id, date, balance, currency} — each date becomes a point in the Overview " +
+        "net-worth history, so give EVERY wallet's balance for each date; the newest balance per wallet " +
+        "also becomes its balance now; " +
         "scheduled_payments (same fields as create_scheduled_payment, category by id or name). " +
         `At most ${MCP_LIMITS.maxRowsPerCall} rows per call. Nothing is saved. ` +
         "If clean, call import_commit without asking. If not, ask the user about ALL issues in one message, " +
@@ -405,7 +424,8 @@ export function registerImportTools(server: McpServer, ctx: McpCtx): void {
         "import wrote is removed again. resolutions answers the preview's issues once: " +
         'duplicates "skip_all" | "add_all" | {add: [row indexes]}; category_map {name: existing category id | ' +
         '{create: {name}}} for every unknown category (never guess one); fx_gaps, older_than_latest_entry ' +
-        'and invalid_rows "skip_rows". The answer has a batch_id for import_undo.',
+        'and invalid_rows "skip_rows"; incomplete_wallet_set "skip_dates" (those dates get no history point, ' +
+        "the newest balances still apply). The answer has a batch_id for import_undo.",
       inputSchema: z.object({
         preview_id: z.uuid(),
         resolutions: z
@@ -417,6 +437,7 @@ export function registerImportTools(server: McpServer, ctx: McpCtx): void {
             fx_gaps: z.literal("skip_rows").optional(),
             older_than_latest_entry: z.literal("skip_rows").optional(),
             invalid_rows: z.literal("skip_rows").optional(),
+            incomplete_wallet_set: z.literal("skip_dates").optional(),
           })
           .optional(),
       }),
@@ -434,7 +455,7 @@ export function registerImportTools(server: McpServer, ctx: McpCtx): void {
       const map = res.category_map ?? {};
 
       const missing = [
-        ...(["duplicates", "fx_gaps", "older_than_latest_entry", "invalid_rows"] as const).filter(
+        ...(["duplicates", "fx_gaps", "older_than_latest_entry", "invalid_rows", "incomplete_wallet_set"] as const).filter(
           (k) => issues[k].length > 0 && !res[k],
         ),
         ...issues.unknown_categories.filter((u) => !(u.name in map)).map((u) => `category_map:${u.name}`),
@@ -460,7 +481,17 @@ export function registerImportTools(server: McpServer, ctx: McpCtx): void {
           creates.set(k, [...(creates.get(k) ?? []), from]);
         }
 
-      const refused = await c.preflight(rows.length + creates.size);
+      // Wallet history (15-21): one net-worth point per complete date, from
+      // each wallet's last row that day. Only the newest rows set a balance.
+      const skipDates = new Set(issues.incomplete_wallet_set.map((x) => x.date));
+      const points = new Map<string, Map<string, Stored>>();
+      if (p.kind === "wallet_balances")
+        for (const r of rows)
+          if (!skipDates.has(r.date as string))
+            points.set(r.date as string, (points.get(r.date as string) ?? new Map()).set(r.wallet_id as string, r));
+      const applied = p.kind === "wallet_balances" ? rows.filter((r) => r.apply) : rows;
+
+      const refused = await c.preflight(applied.length + creates.size + points.size);
       if (refused) return refused;
 
       const batchId = crypto.randomUUID();
@@ -503,9 +534,34 @@ export function registerImportTools(server: McpServer, ctx: McpCtx): void {
         for (const n of names) mapped.set(n, made.id);
       }
 
+      // Before the balances, so a failing balance rolls the points back too.
+      type Imported = { created: Array<{ id: string; date: string }>; skipped_existing: string[] };
+      let snapshots: Imported | null = null;
+      if (points.size > 0) {
+        const r = await c.dispatch({
+          method: "POST",
+          path: `/budgets/${b}/overview/wealth-snapshots/import`,
+          budgetId: b,
+          idempotencyKey: `${preview_id}:wealth_snapshots`,
+          body: {
+            points: [...points].map(([d, ws]) => ({
+              date: d,
+              wallets: [...ws.values()].map((w) => ({
+                amount_cents: big(w.balance as string).times(100).toFixed(0),
+                currency: w.currency,
+              })),
+            })),
+          },
+        });
+        if (!r.ok) return rollback(null, errorOf(r));
+        snapshots = r.body as Imported;
+        for (const made of snapshots.created)
+          await log({ tenantId: b, entityType: "wealth_snapshot", entityId: made.id, op: "create", before: null, after: made, entryCount: 1, replayed: r.replayed });
+      }
+
       const state = { assets: new Map<string, string>() };
       const results: Record<string, unknown>[] = [];
-      for (const [i, row] of rows.entries()) {
+      for (const [i, row] of applied.entries()) {
         const out = await commit(
           c,
           b,
@@ -522,11 +578,17 @@ export function registerImportTools(server: McpServer, ctx: McpCtx): void {
       return {
         result: {
           batch_id: batchId,
-          created: rows.length,
+          created: applied.length,
           skipped: (p.rows as Stored[]).length - rows.length,
           categories_created: creates.size,
           // D-10: what each wallet was, is now, and the difference.
-          ...(p.kind === "wallet_balances" ? { wallets: results, history_not_stored: issues.history_not_stored } : {}),
+          ...(p.kind === "wallet_balances"
+            ? {
+                wallets: results,
+                snapshots_created: snapshots?.created.length ?? 0,
+                snapshots_skipped_existing: snapshots?.skipped_existing ?? [],
+              }
+            : {}),
         },
         // Logged row by row above, with the batch id, so a rollback sees them.
         effects: [],

@@ -350,8 +350,9 @@ const series = async (from: string, to: string) =>
     label: string;
     value_cents: string;
   }>;
+/** The value at the end of `date` (the series carries the last point forward). */
 const valueOn = (s: Array<{ label: string; value_cents: string }>, date: string) =>
-  s.find((p) => p.label.startsWith(date))?.value_cents;
+  s.filter((p) => p.label.startsWith(date)).at(-1)?.value_cents;
 
 describe("wallet_balances (decision b2: past balances become wealth points)", () => {
   it("a complete history writes one wealth point per date; the newest sets each balance", async () => {
@@ -398,7 +399,7 @@ describe("wallet_balances (decision b2: past balances become wealth points)", ()
     expect(r.structuredContent!.snapshots_created).toBe(1);
     expect(await balance(w)).toBe("30000");
     const s = await series("2023-03-01", "2023-04-30");
-    expect(valueOn(s, "2023-03-31")).toBe("0");
+    expect(valueOn(s, "2023-03-31")).toBe(valueOn(s, "2023-03-30"));
     expect(valueOn(s, "2023-04-30")).toBe("33000");
   }, 60_000);
 

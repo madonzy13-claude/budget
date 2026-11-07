@@ -220,6 +220,20 @@ const INVERSES: Record<string, Partial<Record<WriteLogRow["op"], Inverse>>> = {
     },
   },
 
+  // Imported past net-worth points (15-21); never changed after, so no
+  // changed-since check. The route deletes imported points only.
+  wealth_snapshot: {
+    async create(row, c) {
+      const r = await c.send({
+        method: "DELETE",
+        path: `/budgets/${row.tenantId}/overview/wealth-snapshots/${row.entityId}`,
+        budgetId: row.tenantId,
+      });
+      if (r.status === 404 && c.mode === "agent") return "skipped";
+      return done(r);
+    },
+  },
+
   scheduled_payment: {
     async create(row, c) {
       const now = await rule(c, row.tenantId, row.entityId);
