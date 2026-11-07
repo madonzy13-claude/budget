@@ -27,7 +27,6 @@ export const READ_TOOLS = [
   "list_wallets",
   "list_investments",
   "list_scheduled_payments",
-  "get_fx_rate",
   "list_recent_writes",
 ];
 export const WRITE_TOOLS = [

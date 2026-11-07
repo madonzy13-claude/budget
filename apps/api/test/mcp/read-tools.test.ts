@@ -184,12 +184,6 @@ describe("MCP read tools mirror the app's routes", () => {
     } as never);
   });
 
-  it("get_fx_rate = the fx route", async () => {
-    const r = await tool("get_fx_rate", { budget_id: budgetId, from: "EUR", to: "EUR" });
-    expect(r.content[0]!.text).not.toContain("error");
-    expect(r.structuredContent).toEqual((await route("/fx/rate?from=EUR&to=EUR")) as never);
-  });
-
   it("search_transactions pages the full history 200 at a time", async () => {
     const sizes: number[] = [];
     let cursor: string | undefined;
