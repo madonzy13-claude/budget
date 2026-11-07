@@ -94,17 +94,25 @@ async function findHolding(c: WriteCtx, b: string, id: string): Promise<Holding 
 
 /**
  * The budget's Investments switch is off: the app shows none of its assets, so
- * a write would land where the user can't see it. Refuse and say why.
+ * turn it on first, as the user asked for an investment. Only the owner may
+ * flip it; for anyone else, refuse rather than save out of sight.
  */
-async function investmentsOff(c: WriteCtx, b: string): Promise<ToolResult | null> {
+async function ensureInvestmentsOn(c: WriteCtx, b: string): Promise<ToolResult | null> {
   const r = await c.dispatch({ method: "GET", path: `/budgets/${b}`, budgetId: b });
   if (!r.ok) return fromDispatch(r);
-  return (r.body as { investmentsEnabled?: boolean }).investmentsEnabled
+  if ((r.body as { investmentsEnabled?: boolean }).investmentsEnabled) return null;
+  const on = await c.dispatch({
+    method: "PATCH",
+    path: `/budgets/${b}`,
+    budgetId: b,
+    body: { investments_enabled: true },
+  });
+  return on.ok
     ? null
     : toolError("investments_disabled", {
         message:
-          "Investments are switched off for this budget, so the app would not show this. " +
-          "Ask the user to turn them on in the budget's Settings → Investments, then try again.",
+          "Investments are switched off for this budget and only its owner can turn them on " +
+          "(Settings → Investments). Ask the owner, then try again.",
       });
 }
 
@@ -142,7 +150,7 @@ export async function recordInvestmentTxn(
   args: z.infer<typeof investmentTxnRow>,
   idempotencyKey?: string,
 ): Promise<WriteOutcome> {
-  const off = await investmentsOff(c, b);
+  const off = await ensureInvestmentsOn(c, b);
   if (off) return off;
   const ccy = args.currency?.toUpperCase();
   const note = args.note ? { note: args.note } : {};
@@ -317,7 +325,7 @@ export function registerInvestmentWriteTools(server: McpServer, ctx: McpCtx): vo
     },
     async ({ budget_id: b, asset_id, value, unit_price }, c) => {
       if (!value === !unit_price) return toolError("value_or_unit_price_required");
-      const off = await investmentsOff(c, b);
+      const off = await ensureInvestmentsOn(c, b);
       if (off) return off;
       const v = cents((value ?? unit_price)!, value ? "value" : "unit_price");
       if (!v.ok) return v.error;
