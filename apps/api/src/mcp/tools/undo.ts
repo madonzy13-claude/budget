@@ -141,6 +141,22 @@ const INVERSES: Record<string, Partial<Record<WriteLogRow["op"], Inverse>>> = {
         effectiveFrom: `${month}-01`,
         singleMonth: month < new Date().toISOString().slice(0, 7),
       };
+      // The write switched the category's currency: switch it back first, so
+      // the old amounts below land in the currency they were written in.
+      if (after.previousCurrency) {
+        const cat = await get(c, base, row.tenantId);
+        if (!cat || changed(c, cat, after, ["currency"])) return "skipped";
+        done(
+          await c.send({
+            method: "PATCH",
+            path: `${base}/currency`,
+            budgetId: row.tenantId,
+            body: window.singleMonth
+              ? { currency: after.previousCurrency, month: window.effectiveFrom }
+              : { currency: after.previousCurrency },
+          }),
+        );
+      }
       const body = before
         ? {
             normalAmount: before.normalAmount,

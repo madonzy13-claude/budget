@@ -105,12 +105,14 @@ export async function setCategoryLimit(
     amount?: string;
     cushion_amount?: string;
     no_limit?: boolean;
+    currency?: string;
   },
   idempotencyKey?: string,
 ): Promise<WriteOutcome> {
   const base = `/budgets/${args.budget_id}/categories/${args.category_id}`;
   const cat = await getBody<{ currency: string }>(c, base, args.budget_id);
   if (!cat) return toolError("not_found");
+  const ccy = args.currency?.toUpperCase() ?? cat.currency;
   const from = `${args.month}-01`;
   const effective = () =>
     getBody<Limit>(
@@ -121,15 +123,27 @@ export async function setCategoryLimit(
   const before = await effective();
 
   const window = { effectiveFrom: from, singleMonth: args.month < new Date().toISOString().slice(0, 7) };
+  // Another currency switches the category first, exactly as the app's
+  // category sheet does (Phase 14 D-07): the limit is then written in it.
+  if (ccy !== cat.currency) {
+    const sw = await c.dispatch({
+      method: "PATCH",
+      path: `${base}/currency`,
+      budgetId: args.budget_id,
+      body: window.singleMonth ? { currency: ccy, month: from } : { currency: ccy },
+      ...(idempotencyKey ? { idempotencyKey: `${idempotencyKey}:currency` } : {}),
+    });
+    if (!sw.ok) return fromDispatch(sw);
+  }
   let body: Record<string, unknown>;
   if (args.no_limit) {
     // The app's own "No limit" segment for that month.
     body = { noLimit: true, normalAmount: "0", cushionAmount: "0", ...window };
   } else {
-    const normal = toMinorUnits(args.amount ?? "", cat.currency);
+    const normal = toMinorUnits(args.amount ?? "", ccy);
     if (normal.isErr()) return toolError(normal.error);
     const cushion = args.cushion_amount
-      ? toMinorUnits(args.cushion_amount, cat.currency)
+      ? toMinorUnits(args.cushion_amount, ccy)
       : null;
     if (cushion?.isErr()) return toolError(cushion.error);
     const cushionCents = cushion?.isOk() ? cushion.value : (before?.cushionAmount ?? normal.value);
@@ -151,10 +165,10 @@ export async function setCategoryLimit(
       category_id: args.category_id,
       month: args.month,
       ...(after && {
-        amount: decimal(after.normalAmount, cat.currency),
-        cushion_amount: decimal(after.cushionAmount, cat.currency),
+        amount: decimal(after.normalAmount, ccy),
+        cushion_amount: decimal(after.cushionAmount, ccy),
       }),
-      currency: cat.currency,
+      currency: ccy,
     },
     effects: [
       effect(r, {
@@ -163,10 +177,15 @@ export async function setCategoryLimit(
         entityId: args.category_id,
         op: "update",
         before: before && { month: args.month, ...before },
-        after: after && { month: args.month, ...after },
+        after: after && {
+          month: args.month,
+          ...after,
+          currency: ccy,
+          ...(ccy !== cat.currency ? { previousCurrency: cat.currency } : {}),
+        },
       }),
     ],
-    currency: cat.currency,
+    currency: ccy,
   };
 }
 
@@ -382,7 +401,9 @@ export function registerWriteTools(server: McpServer, ctx: McpCtx): void {
     {
       description:
         "Set a category's monthly limit. The current month carries forward to later months; " +
-        "a past month changes only that month. Amount is in the category's currency. " + SAME_AS_APP,
+        "a past month changes only that month. Amount is in the category's currency unless `currency` is given. " +
+        "When the user names a limit in another currency, pass that currency and the amount as said: " +
+        "the category switches to it, as in the app. Never convert the amount yourself. " + SAME_AS_APP,
       inputSchema: z.object({
         budget_id: budgetId,
         category_id: z.uuid(),
@@ -391,6 +412,11 @@ export function registerWriteTools(server: McpServer, ctx: McpCtx): void {
         cushion_amount: amount
           .optional()
           .describe("The cushion budget limit; omitted keeps the current one"),
+        currency: z
+          .string()
+          .length(3)
+          .optional()
+          .describe("ISO code the amounts are in, e.g. \"USD\"; switches the category to it"),
       }),
       annotations: { destructiveHint: false, idempotentHint: true },
       entryCount: () => 1,
