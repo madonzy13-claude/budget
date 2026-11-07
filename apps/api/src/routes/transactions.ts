@@ -31,6 +31,7 @@ import {
 import { DrizzleExpenseLedgerDraftPortRepo } from "@budget/budgeting/src/adapters/persistence/expense-ledger-draft-port-repo";
 import { editTransaction } from "@budget/budgeting/src/application/edit-transaction";
 import type { BootedDeps } from "../boot";
+import { categoryMissing } from "../lib/own-category";
 
 // ──────────────────────────────────────────────────────────────────────
 // Deps interface — accepts BootedDeps for full module access.
@@ -261,6 +262,9 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
     // budgetId comes from the path param :budgetId on the parent router
     const budgetId = c.req.param("budgetId") ?? tenantId;
 
+    if (budgetingModule && (await categoryMissing(budgetingModule, tenantId, body.category_id)))
+      return c.json({ error: "category_not_found" }, 422);
+
     const r = await createTxService({
       date: body.date,
       categoryId: body.category_id,
@@ -294,6 +298,8 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
     const tenantId = pickTenant(c);
     const userId = pickUser(c);
     const body = c.req.valid("json");
+    if (budgetingModule && (await categoryMissing(budgetingModule, tenantId, body.category_id)))
+      return c.json({ error: "category_not_found" }, 422);
 
     const r = await editTxService({
       transactionId: txId,
@@ -499,6 +505,8 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
         422,
       );
     }
+    if (budgetingModule && (await categoryMissing(budgetingModule, pickTenant(c), parsed.data.newCategoryId)))
+      return c.json({ error: "category_not_found" }, 422);
 
     const tenantId = pickTenant(c);
     const userId = pickUser(c);

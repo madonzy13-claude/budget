@@ -21,6 +21,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { BootedDeps } from "../boot";
+import { categoryMissing } from "../lib/own-category";
 import { serverError } from "../middleware/server-error";
 
 // Re-export discriminated union from contracts for route use
@@ -146,6 +147,9 @@ export function createScheduledPaymentsRoute(deps: BootedDeps) {
     const tenantId = pickTenant(c);
     const userId = (c.get("userId") as string) ?? c.get("session")?.user?.id;
 
+    if (await categoryMissing(deps.budgeting, tenantId, (data as any).category_id))
+      return c.json({ error: "category_not_found" }, 422);
+
     // Map snake_case API fields to camelCase application input
     const r = await deps.budgeting.createScheduledPayment({
       tenantId,
@@ -216,6 +220,8 @@ export function createScheduledPaymentsRoute(deps: BootedDeps) {
         422,
       );
     }
+    if (await categoryMissing(deps.budgeting, pickTenant(c), parsed.data.edits.categoryId))
+      return c.json({ error: "category_not_found" }, 422);
 
     const tenantId = pickTenant(c);
     const userId = (c.get("userId") as string) ?? c.get("session")?.user?.id;

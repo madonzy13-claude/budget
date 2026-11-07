@@ -459,7 +459,8 @@ describe("/scheduled-payments", () => {
         cadence: "DAILY",
         amount: "120000",
         currency: "EUR",
-        category_id: crypto.randomUUID(),
+        // No category: a made-up id is refused now (foreign-category.test.ts).
+        category_id: null,
         first_due_date: "2027-01-01",
         note: "Daily allowance",
       }),

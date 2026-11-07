@@ -11,7 +11,7 @@
  *   - once A is removed from it, the same token gets an error (D-03);
  *   - list_recent_writes never shows another user's writes, even on a shared budget.
  */
-import { describe, it, expect, beforeAll } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import { Pool } from "pg";
 import {
   setupMcpTestEnv,
@@ -156,6 +156,20 @@ beforeAll(async () => {
     (await mintMcpToken(app, bUser, ["read", "write"])).accessToken,
   );
 }, 60_000);
+
+// Sign both users out again: identity.sessions is readable without a GUC by
+// design (post-migration.sql, Phase 1), and no-guc-zero-rows counts it on the
+// same database after this file.
+afterAll(async () => {
+  for (const who of [a, bUser])
+    await app.fetch(
+      new Request(`${baseUrl()}/auth/sign-out`, {
+        method: "POST",
+        headers: { cookie: who.cookie, origin: baseUrl(), "content-type": "application/json" },
+        body: "{}",
+      }),
+    );
+});
 
 describe("MCP: user A's token against user B's budget", () => {
   it("list_budgets never includes B's budget", async () => {

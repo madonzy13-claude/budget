@@ -386,6 +386,10 @@ export function registerImportTools(server: McpServer, ctx: McpCtx): void {
     async ({ budget_id: b, kind, rows }, c) => {
       if (rows.length > MCP_LIMITS.maxRowsPerCall)
         return toolError("too_many_rows", { max: MCP_LIMITS.maxRowsPerCall });
+      // Not the user's budget → its route says so; checking every read below
+      // would only find empty lists and save an empty preview.
+      const access = await c.dispatch({ method: "GET", path: `/budgets/${b}/categories`, budgetId: b });
+      if (!access.ok) return fromDispatch(access);
       const { stored, issues } = await check(c, b, kind, rows);
       const id = crypto.randomUUID();
       const saved = await withUserContext(UserId(c.who.userId), (tx) =>
