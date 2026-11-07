@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { Money } from "@budget/shared-kernel";
+import { UI_TYPE_TO_HOLDING_TYPE, uiTypeSchema } from "@budget/investments/src/contracts/api";
 import { toMinorUnits } from "../money";
 import type { DispatchResult } from "../dispatch";
 import {
@@ -11,6 +12,7 @@ import {
   type ToolResult,
   type WriteCtx,
   type WriteEffect,
+  type WriteOutcome,
 } from "./define";
 
 /**
@@ -38,9 +40,10 @@ export const investmentTxnRow = z.object({
   new_asset: z
     .object({
       name: z.string().min(1).max(120),
-      type: z
-        .string()
-        .describe("equities, etf, bond, crypto, reit, commodity, cash_fx, real_estate, other, savings, possession"),
+      // The app's own types, so the asset buys and sells exactly as one added there.
+      type: uiTypeSchema.describe(
+        "stocks, crypto, treasury_bond, collectibles, real_estate, other, precious_metals, cash, savings, possession",
+      ),
     })
     .optional(),
   date,
@@ -112,6 +115,150 @@ async function addedEntries(
     }));
 }
 
+/**
+ * record_investment_transaction's write, also an import row (15-20). A new
+ * asset logs its own create first, so an undo walking newest-first deletes
+ * its entries before checking the asset is gone.
+ */
+export async function recordInvestmentTxn(
+  c: WriteCtx,
+  b: string,
+  args: z.infer<typeof investmentTxnRow>,
+  idempotencyKey?: string,
+): Promise<WriteOutcome> {
+  const ccy = args.currency?.toUpperCase();
+  const note = args.note ? { note: args.note } : {};
+
+  if (args.side === "buy" && !args.asset_id) {
+    if (!args.new_asset) return toolError("asset_id_or_new_asset_required");
+    if (!ccy) return toolError("currency_required");
+    const total = args.price ?? args.amount;
+    if (!total) return toolError("price_or_amount_required");
+    const price = cents(total, "price");
+    if (!price.ok) return price.error;
+    const r = await c.dispatch({
+      method: "POST",
+      path: base(b),
+      budgetId: b,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
+      body: {
+        name: args.new_asset.name,
+        holdingType: UI_TYPE_TO_HOLDING_TYPE[args.new_asset.type],
+        uiType: args.new_asset.type,
+        quantity: args.quantity ?? "1",
+        buyPriceCents: price.value,
+        buyCurrency: ccy,
+        // As the app's own form: a hand-tracked asset starts worth its price.
+        currentPriceCents: price.value,
+        currentPriceCurrency: ccy,
+        openedOn: args.date,
+        ...note,
+      },
+    });
+    if (!r.ok) return fromDispatch(r);
+    const assetId = (r.body as { id: string }).id;
+    const holding = r.body as Record<string, unknown>;
+    const effects: WriteEffect[] = [
+      { tenantId: b, entityType: "investment_asset", entityId: assetId, op: "create", before: null, after: holding, entryCount: 0, replayed: r.replayed },
+      ...(await addedEntries(c, b, assetId, [], r)),
+    ];
+    return { result: { asset_id: assetId, holding }, effects, currency: ccy };
+  }
+
+  if (!args.asset_id) return toolError("asset_id_required");
+  const assetId = args.asset_id;
+  let body: Record<string, unknown>;
+
+  if (args.side === "buy") {
+    if (!ccy) return toolError("currency_required");
+    if (args.quantity && args.price) {
+      const p = cents(args.price, "price");
+      if (!p.ok) return p.error;
+      body = { kind: "quantity", quantity: args.quantity, priceCents: p.value, currency: ccy, effectiveDate: args.date, ...note };
+    } else if (args.amount) {
+      const a = cents(args.amount, "amount");
+      if (!a.ok) return a.error;
+      body = { kind: "amount", amountCents: a.value, currency: ccy, effectiveDate: args.date, ...note };
+    } else return toolError("quantity_and_price_or_amount_required");
+  } else if (args.side === "sell") {
+    if (!ccy) return toolError("currency_required");
+    const h = await findHolding(c, b, assetId);
+    if (!h) return toolError("not_found");
+    let left: Record<string, string>;
+    if (args.quantity) {
+      const rest = big(h.quantity).minus(big(args.quantity));
+      if (rest.lt(0)) return toolError("sell_qty_out_of_range");
+      left = { quantity: rest.toString() };
+    } else if (args.amount) {
+      const a = cents(args.amount, "amount");
+      if (!a.ok) return a.error;
+      const rest = big(h.currentPriceCents ?? "0").minus(big(a.value));
+      if (rest.lt(0)) return toolError("keep_out_of_range");
+      left = { valueCents: rest.toFixed(0) };
+    } else return toolError("quantity_or_amount_required");
+
+    const d = args.destination;
+    let destination: Record<string, unknown>;
+    if (d?.asset_id) {
+      const p = d.price ? cents(d.price, "destination.price") : null;
+      if (p && !p.ok) return p.error;
+      destination = {
+        kind: "existing",
+        holdingId: d.asset_id,
+        ...(d.quantity ? { quantityBought: d.quantity } : {}),
+        ...(p?.ok ? { priceCents: p.value } : {}),
+      };
+    } else {
+      destination = {
+        kind: "out",
+        wallet: d?.wallet_id ? { kind: "existing", walletId: d.wallet_id } : { kind: "nowhere" },
+      };
+    }
+    const received = args.received ? cents(args.received, "received") : null;
+    if (received && !received.ok) return received.error;
+    body = {
+      effectiveDate: args.date,
+      left,
+      destination,
+      ...(received?.ok ? { receivedCents: received.value } : {}),
+      receivedCurrency: ccy,
+      ...note,
+    };
+  } else {
+    const d = args.destination;
+    const to = d?.asset_id
+      ? { kind: "existing", holdingId: d.asset_id }
+      : d?.new_asset_name
+        ? { kind: "new", name: d.new_asset_name }
+        : null;
+    if (!to) return toolError("destination_required");
+    let move: Record<string, string>;
+    if (args.quantity) move = { quantity: args.quantity };
+    else if (args.amount) {
+      const a = cents(args.amount, "amount");
+      if (!a.ok) return a.error;
+      move = { valueCents: a.value };
+    } else return toolError("quantity_or_amount_required");
+    body = { effectiveDate: args.date, move, to, ...note };
+  }
+
+  const before = await entries(c, b, assetId);
+  const r = await c.dispatch({
+    method: "POST",
+    path: `${base(b)}/${assetId}/${args.side}`,
+    budgetId: b,
+    body,
+    ...(idempotencyKey ? { idempotencyKey } : {}),
+  });
+  if (!r.ok) return fromDispatch(r);
+  const effects = await addedEntries(c, b, assetId, before, r);
+  return {
+    result: { asset_id: assetId, ...(r.body as Record<string, unknown>) },
+    effects,
+    ...(ccy ? { currency: ccy } : {}),
+  };
+}
+
 export function registerInvestmentWriteTools(server: McpServer, ctx: McpCtx): void {
   writeTool(
     server,
@@ -129,133 +276,7 @@ export function registerInvestmentWriteTools(server: McpServer, ctx: McpCtx): vo
       annotations: { destructiveHint: false, idempotentHint: false },
       entryCount: () => 1,
     },
-    async (args, c) => {
-      const b = args.budget_id;
-      const ccy = args.currency?.toUpperCase();
-      const note = args.note ? { note: args.note } : {};
-
-      if (args.side === "buy" && !args.asset_id) {
-        if (!args.new_asset) return toolError("asset_id_or_new_asset_required");
-        if (!ccy) return toolError("currency_required");
-        const total = args.price ?? args.amount;
-        if (!total) return toolError("price_or_amount_required");
-        const price = cents(total, "price");
-        if (!price.ok) return price.error;
-        const r = await c.dispatch({
-          method: "POST",
-          path: base(b),
-          budgetId: b,
-          body: {
-            name: args.new_asset.name,
-            holdingType: args.new_asset.type,
-            quantity: args.quantity ?? "1",
-            buyPriceCents: price.value,
-            buyCurrency: ccy,
-            // As the app's own form: a hand-tracked asset starts worth its price.
-            currentPriceCents: price.value,
-            currentPriceCurrency: ccy,
-            openedOn: args.date,
-            ...note,
-          },
-        });
-        if (!r.ok) return fromDispatch(r);
-        const assetId = (r.body as { id: string }).id;
-        const effects = await addedEntries(c, b, assetId, [], r);
-        return { result: { asset_id: assetId, holding: r.body as Record<string, unknown> }, effects, currency: ccy };
-      }
-
-      if (!args.asset_id) return toolError("asset_id_required");
-      const assetId = args.asset_id;
-      let body: Record<string, unknown>;
-
-      if (args.side === "buy") {
-        if (!ccy) return toolError("currency_required");
-        if (args.quantity && args.price) {
-          const p = cents(args.price, "price");
-          if (!p.ok) return p.error;
-          body = { kind: "quantity", quantity: args.quantity, priceCents: p.value, currency: ccy, effectiveDate: args.date, ...note };
-        } else if (args.amount) {
-          const a = cents(args.amount, "amount");
-          if (!a.ok) return a.error;
-          body = { kind: "amount", amountCents: a.value, currency: ccy, effectiveDate: args.date, ...note };
-        } else return toolError("quantity_and_price_or_amount_required");
-      } else if (args.side === "sell") {
-        if (!ccy) return toolError("currency_required");
-        const h = await findHolding(c, b, assetId);
-        if (!h) return toolError("not_found");
-        let left: Record<string, string>;
-        if (args.quantity) {
-          const rest = big(h.quantity).minus(big(args.quantity));
-          if (rest.lt(0)) return toolError("sell_qty_out_of_range");
-          left = { quantity: rest.toString() };
-        } else if (args.amount) {
-          const a = cents(args.amount, "amount");
-          if (!a.ok) return a.error;
-          const rest = big(h.currentPriceCents ?? "0").minus(big(a.value));
-          if (rest.lt(0)) return toolError("keep_out_of_range");
-          left = { valueCents: rest.toFixed(0) };
-        } else return toolError("quantity_or_amount_required");
-
-        const d = args.destination;
-        let destination: Record<string, unknown>;
-        if (d?.asset_id) {
-          const p = d.price ? cents(d.price, "destination.price") : null;
-          if (p && !p.ok) return p.error;
-          destination = {
-            kind: "existing",
-            holdingId: d.asset_id,
-            ...(d.quantity ? { quantityBought: d.quantity } : {}),
-            ...(p?.ok ? { priceCents: p.value } : {}),
-          };
-        } else {
-          destination = {
-            kind: "out",
-            wallet: d?.wallet_id ? { kind: "existing", walletId: d.wallet_id } : { kind: "nowhere" },
-          };
-        }
-        const received = args.received ? cents(args.received, "received") : null;
-        if (received && !received.ok) return received.error;
-        body = {
-          effectiveDate: args.date,
-          left,
-          destination,
-          ...(received?.ok ? { receivedCents: received.value } : {}),
-          receivedCurrency: ccy,
-          ...note,
-        };
-      } else {
-        const d = args.destination;
-        const to = d?.asset_id
-          ? { kind: "existing", holdingId: d.asset_id }
-          : d?.new_asset_name
-            ? { kind: "new", name: d.new_asset_name }
-            : null;
-        if (!to) return toolError("destination_required");
-        let move: Record<string, string>;
-        if (args.quantity) move = { quantity: args.quantity };
-        else if (args.amount) {
-          const a = cents(args.amount, "amount");
-          if (!a.ok) return a.error;
-          move = { valueCents: a.value };
-        } else return toolError("quantity_or_amount_required");
-        body = { effectiveDate: args.date, move, to, ...note };
-      }
-
-      const before = await entries(c, b, assetId);
-      const r = await c.dispatch({
-        method: "POST",
-        path: `${base(b)}/${assetId}/${args.side}`,
-        budgetId: b,
-        body,
-      });
-      if (!r.ok) return fromDispatch(r);
-      const effects = await addedEntries(c, b, assetId, before, r);
-      return {
-        result: { asset_id: assetId, ...(r.body as Record<string, unknown>) },
-        effects,
-        ...(ccy ? { currency: ccy } : {}),
-      };
-    },
+    (args, c) => recordInvestmentTxn(c, args.budget_id, args),
   );
 
   writeTool(

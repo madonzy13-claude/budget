@@ -427,15 +427,4 @@ describe("import_commit", () => {
     const p = await preview([txn("2026-01-03", fuel, "1.00")]);
     expect(errorOf(await tool("import_commit", { preview_id: p.preview_id }, other)).error).toBe("preview_expired");
   });
-
-  it("other kinds wait for 15-20", async () => {
-    const p = (
-      await tool("import_preview", {
-        budget_id: budgetId,
-        kind: "category_limits",
-        rows: [{ category: "Fuel", month: "2026-04", amount: "300.00" }],
-      })
-    ).structuredContent!;
-    expect(errorOf(await tool("import_commit", { preview_id: p.preview_id })).error).toBe("kind_not_supported");
-  });
 });

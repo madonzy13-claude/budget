@@ -205,11 +205,16 @@ describe("scheduled_payments", () => {
     expect(made).toMatchObject({ categoryId: cat, currency: "PLN", cadence: "MONTHLY" });
   }, 60_000);
 
+  // The route refuses an end before the first payment (a deleted category
+  // does not fail it), so row 3 carries one.
   it("rolls back to the list it started from when row 3 fails, and the preview is gone", async () => {
-    const [ok, gone] = [await newCategory("S Ok"), await newCategory("S Gone")];
+    const ok = await newCategory("S Ok");
     const before = await rules();
-    const p = await preview("scheduled_payments", [row(ok, "1"), row(ok, "2"), row(gone, "3")]);
-    await dropCategory(gone);
+    const p = await preview("scheduled_payments", [
+      row(ok, "1"),
+      row(ok, "2"),
+      { ...row(ok, "3"), end_date: "2026-12-01" },
+    ]);
     const r = await commit(p.preview_id);
     expect(errorOf(r)).toMatchObject({ error: "import_rolled_back", row_index: 2, failed_inverses: [] });
     expect(await rules()).toEqual(before);
@@ -243,9 +248,9 @@ describe("investment_entries", () => {
   });
 
   it("a new asset's history, given out of order, is written oldest first", async () => {
-    const asset = { name: "Gold bar", type: "commodity" };
+    const asset = { name: "Gold bar", type: "precious_metals" };
     const p = await preview("investment_entries", [
-      { side: "sell", date: "2024-03-10", quantity: "0.5", currency: "PLN", new_asset: asset },
+      { side: "sell", date: "2024-03-10", quantity: "0.5", received: "60", currency: "PLN", new_asset: asset },
       buy("2024-01-10", { new_asset: asset }),
       buy("2024-02-10", { new_asset: asset, price: "110" }),
     ]);
@@ -266,7 +271,8 @@ describe("investment_entries", () => {
   it("rows for an existing asset land after its latest entry", async () => {
     const h = (await cookie("POST", `/budgets/${b}/investments`, {
       name: "Old ETF",
-      holdingType: "etf",
+      holdingType: "equities",
+      uiType: "stocks",
       quantity: "1",
       buyPriceCents: 10000,
       buyCurrency: "PLN",
@@ -288,7 +294,7 @@ describe("investment_entries", () => {
   }, 60_000);
 
   it("a sell of more than held rolls the asset back to nothing", async () => {
-    const asset = { name: "Too much", type: "commodity" };
+    const asset = { name: "Too much", type: "precious_metals" };
     const before = await holdings();
     const p = await preview("investment_entries", [
       buy("2024-01-10", { new_asset: asset }),
@@ -301,7 +307,7 @@ describe("investment_entries", () => {
   }, 60_000);
 
   it("import_undo deletes the entries newest-first and the asset with them", async () => {
-    const asset = { name: "Undo me", type: "commodity" };
+    const asset = { name: "Undo me", type: "precious_metals" };
     const before = await holdings();
     const p = await preview("investment_entries", [
       buy("2024-01-10", { new_asset: asset }),
@@ -314,7 +320,7 @@ describe("investment_entries", () => {
   }, 60_000);
 
   it("import_undo leaves an asset alone once the user added a newer entry (a1)", async () => {
-    const asset = { name: "Kept", type: "commodity" };
+    const asset = { name: "Kept", type: "precious_metals" };
     const p = await preview("investment_entries", [buy("2024-01-10", { new_asset: asset })]);
     const r = await commit(p.preview_id);
     const id = (await logged(r.structuredContent!.batch_id)).find((e) => e.entity_type === "investment_asset")!
@@ -359,9 +365,10 @@ describe("wallet_balances", () => {
     await cookie("PUT", `/wallets/${w}/balance`, { amount: "10", currency: "PLN" });
     const p = await preview("wallet_balances", [
       { wallet_id: w, date: "2024-02-29", balance: "999", currency: "PLN" },
-      { wallet_id: v, date: "2024-02-29", balance: "1", currency: "PLN" },
+      // An archived wallet still takes a balance; a currency other than the
+      // wallet's own never does (WALT-04).
+      { wallet_id: v, date: "2024-02-29", balance: "1", currency: "USD" },
     ]);
-    await cookie("POST", `/wallets/${v}/archive`, {});
     const r = await commit(p.preview_id);
     expect(errorOf(r)).toMatchObject({ error: "import_rolled_back", row_index: 1, failed_inverses: [] });
     expect(await balance(w)).toBe("1000");

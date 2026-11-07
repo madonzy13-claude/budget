@@ -99,7 +99,7 @@ beforeAll(async () => {
 });
 
 describe("record_investment_transaction", () => {
-  it("buys a new asset with crypto precision and logs the entry", async () => {
+  it("buys a new asset with crypto precision and logs the asset and its entry", async () => {
     const r = await tool("record_investment_transaction", {
       budget_id: budgetId,
       side: "buy",
@@ -113,9 +113,11 @@ describe("record_investment_transaction", () => {
     btc = r.structuredContent!.asset_id;
     expect((await holding(btc))!.quantity).toBe("0.12345678");
     const log = await logOf(r.structuredContent!.call_id);
-    expect(log).toHaveLength(1);
-    expect(log[0]).toMatchObject({ op: "create", entity_type: "investment_entry" });
-    expect((await entries(btc)).map((e) => e.id)).toContain(log[0].entity_id);
+    // 15-20: the new asset is logged too, so undo can tell it is gone.
+    expect(log.map((l: any) => l.entity_type).sort()).toEqual(["investment_asset", "investment_entry"]);
+    const entry = log.find((l: any) => l.entity_type === "investment_entry");
+    expect(entry.op).toBe("create");
+    expect((await entries(btc)).map((e) => e.id)).toContain(entry.entity_id);
   });
 
   it("buys more of an existing asset", async () => {

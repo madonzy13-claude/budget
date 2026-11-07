@@ -203,6 +203,23 @@ const INVERSES: Record<string, Partial<Record<WriteLogRow["op"], Inverse>>> = {
     },
   },
 
+  // Logged before its entries, so it comes up after they were deleted: the
+  // last delete wipes the holding (Phase 13.1). Still there = someone added
+  // to it since, and it stays.
+  investment_asset: {
+    async create(row, c) {
+      const b = row.tenantId;
+      for (const query of [undefined, { hidden: "1" }]) {
+        const r = await c.send({ method: "GET", path: `/budgets/${b}/investments`, budgetId: b, ...(query ? { query } : {}) });
+        if (r.ok && (r.body as { holdings: Json[] }).holdings.some((h) => h.id === row.entityId)) {
+          if (c.mode === "agent") return "skipped";
+          throw new Error("asset_still_has_entries");
+        }
+      }
+      return "reverted";
+    },
+  },
+
   scheduled_payment: {
     async create(row, c) {
       const now = await rule(c, row.tenantId, row.entityId);

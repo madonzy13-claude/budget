@@ -12,10 +12,20 @@ import { UserId } from "@budget/shared-kernel";
 import { toMinorUnits } from "../money";
 import { MCP_LIMITS } from "../limits";
 import type { DispatchResult } from "../dispatch";
-import { writeTool, toolError, type McpCtx, type WriteCtx, type WriteEffect } from "./define";
+import {
+  writeTool,
+  toolError,
+  fromDispatch,
+  type McpCtx,
+  type ToolResult,
+  type WriteCtx,
+  type WriteEffect,
+  type WriteOutcome,
+} from "./define";
 import { undoCallOrBatch } from "./undo";
-import { investmentTxnRow } from "./write-investments";
-import { scheduledPaymentRow } from "./write-planning";
+import { setCategoryLimit, syncWalletBalance } from "./write";
+import { investmentTxnRow, recordInvestmentTxn } from "./write-investments";
+import { createScheduledPayment, scheduledPaymentRow } from "./write-planning";
 
 /**
  * Import (D-13..D-18): the agent turns any file into strict JSON rows of one
@@ -262,37 +272,73 @@ async function check(
 }
 
 /**
- * Per-kind commit: the route, Idempotency-Key and logged entity of one row.
- * 15-20 fills the other four kinds.
+ * Per-kind commit: each row goes through the write tool that does the same
+ * single write (D-14), with the row's Idempotency-Key. `assets` carries a new
+ * asset's id from its first row to the later rows naming it.
  */
-interface KindCommit {
-  dispatchRow(c: WriteCtx, b: string, row: Stored, key: string): Promise<DispatchResult>;
-  effect(b: string, row: Stored, r: DispatchResult): WriteEffect;
-}
-export const KIND_COMMIT: Partial<Record<Kind, KindCommit>> = {
-  transactions: {
-    dispatchRow: (c, b, row, key) =>
-      c.dispatch({
-        method: "POST",
-        path: `/budgets/${b}/transactions`,
-        budgetId: b,
-        idempotencyKey: key,
-        body: {
-          date: row.date,
-          category_id: row.category_id,
-          amount_original_cents: row.amount_cents,
-          ...(row.currency ? { currency_original: (row.currency as string).toUpperCase() } : {}),
-          ...(row.note !== undefined ? { note: row.note } : {}),
-        },
-      }),
-    effect: (b, _row, r) => {
-      const txn = (r.body as { transaction: { id: string } }).transaction;
-      return { tenantId: b, entityType: "transaction", entityId: txn.id, op: "create", before: null, after: txn, entryCount: 1, replayed: r.replayed };
-    },
+type KindCommit = (
+  c: WriteCtx,
+  b: string,
+  row: Stored,
+  key: string,
+  state: { assets: Map<string, string> },
+) => Promise<WriteOutcome>;
+
+export const KIND_COMMIT: Record<Kind, KindCommit> = {
+  async transactions(c, b, row, key) {
+    const r = await c.dispatch({
+      method: "POST",
+      path: `/budgets/${b}/transactions`,
+      budgetId: b,
+      idempotencyKey: key,
+      body: {
+        date: row.date,
+        category_id: row.category_id,
+        amount_original_cents: row.amount_cents,
+        ...(row.currency ? { currency_original: (row.currency as string).toUpperCase() } : {}),
+        ...(row.note !== undefined ? { note: row.note } : {}),
+      },
+    });
+    if (!r.ok) return fromDispatch(r);
+    const txn = (r.body as { transaction: { id: string } }).transaction;
+    return {
+      result: { transaction_id: txn.id },
+      effects: [{ tenantId: b, entityType: "transaction", entityId: txn.id, op: "create", before: null, after: txn, entryCount: 1, replayed: r.replayed }],
+    };
   },
+  category_limits: (c, b, row, key) =>
+    setCategoryLimit(
+      c,
+      {
+        budget_id: b,
+        category_id: row.category_id as string,
+        month: row.month as string,
+        amount: row.amount as string | undefined,
+        cushion_amount: row.cushion_amount as string | undefined,
+        no_limit: row.no_limit as boolean | undefined,
+      },
+      key,
+    ),
+  scheduled_payments: (c, b, row, key) =>
+    createScheduledPayment(c, b, scheduledPaymentRow.parse({ ...row, category_id: row.category_id ?? null }), key),
+  async investment_entries(c, b, row, key, { assets }) {
+    const args = investmentTxnRow.parse(row);
+    const name = args.asset_id ? undefined : args.new_asset?.name.trim().toLowerCase();
+    const known = name ? assets.get(name) : undefined;
+    const out = await recordInvestmentTxn(c, b, known ? { ...args, asset_id: known, new_asset: undefined } : args, key);
+    if (name && !known && !("content" in out)) assets.set(name, out.result.asset_id as string);
+    return out;
+  },
+  wallet_balances: (c, b, row, key) =>
+    syncWalletBalance(
+      c,
+      { budget_id: b, wallet_id: row.wallet_id as string, balance: row.balance as string, currency: row.currency as string },
+      key,
+    ),
 };
 
 const errorOf = (r: DispatchResult) => (r.body as { error?: string } | null)?.error ?? `http_${r.status}`;
+const codeOf = (t: ToolResult) => (JSON.parse(t.content[0]!.text) as { error?: string }).error ?? "error";
 
 export function registerImportTools(server: McpServer, ctx: McpCtx): void {
   writeTool(
@@ -383,7 +429,6 @@ export function registerImportTools(server: McpServer, ctx: McpCtx): void {
       const p = got.value;
       if (!p) return toolError("preview_expired");
       const commit = KIND_COMMIT[p.kind as Kind];
-      if (!commit) return toolError("kind_not_supported", { kind: p.kind });
       const b = p.tenantId;
       const issues = p.issues as Issues;
       const map = res.category_map ?? {};
@@ -458,15 +503,19 @@ export function registerImportTools(server: McpServer, ctx: McpCtx): void {
         for (const n of names) mapped.set(n, made.id);
       }
 
+      const state = { assets: new Map<string, string>() };
+      const results: Record<string, unknown>[] = [];
       for (const [i, row] of rows.entries()) {
-        const r = await commit.dispatchRow(
+        const out = await commit(
           c,
           b,
           { ...row, category_id: row.category_id ?? mapped.get(row.category as string) },
           `${preview_id}:${p.kind}:${i}`,
+          state,
         );
-        if (!r.ok) return rollback(row.i, errorOf(r));
-        await log(commit.effect(b, row, r));
+        if ("content" in out) return rollback(row.i, codeOf(out));
+        for (const e of out.effects) await log(e);
+        results.push(out.result);
       }
 
       await withUserContext(UserId(me.userId), (tx) => deletePreview(tx, { id: preview_id, userId: me.userId }));
@@ -476,6 +525,8 @@ export function registerImportTools(server: McpServer, ctx: McpCtx): void {
           created: rows.length,
           skipped: (p.rows as Stored[]).length - rows.length,
           categories_created: creates.size,
+          // D-10: what each wallet was, is now, and the difference.
+          ...(p.kind === "wallet_balances" ? { wallets: results, history_not_stored: issues.history_not_stored } : {}),
         },
         // Logged row by row above, with the batch id, so a rollback sees them.
         effects: [],

@@ -11,6 +11,7 @@ import {
   type McpCtx,
   type WriteCtx,
   type WriteEffect,
+  type WriteOutcome,
 } from "./define";
 
 /**
@@ -49,6 +50,124 @@ function effect(
 function decimal(cents: string, currency: string): string {
   const v = Money.of(cents, currency as Currency).amount.div(100);
   return v.toFixed(Math.max(2, (v.toString().split(".")[1] ?? "").length));
+}
+
+/** sync_wallet_balance's write, also an import row (15-20). */
+export async function syncWalletBalance(
+  c: WriteCtx,
+  { budget_id, wallet_id, balance, currency }: { budget_id: string; wallet_id: string; balance: string; currency: string },
+  idempotencyKey?: string,
+): Promise<WriteOutcome> {
+  type Wallet = { id: string; currency: string; currentBalanceCents: string };
+  const path = `/wallets/${wallet_id}`;
+  const before = await getBody<Wallet>(c, path, budget_id);
+  if (!before) return toolError("not_found");
+  const r = await c.dispatch({
+    method: "PUT",
+    path: `${path}/balance`,
+    budgetId: budget_id,
+    body: { amount: balance, currency },
+    ...(idempotencyKey ? { idempotencyKey } : {}),
+  });
+  if (!r.ok) return fromDispatch(r);
+  const after = (await getBody<Wallet>(c, path, budget_id)) ?? before;
+  const ccy = after.currency;
+  const diff = String(BigInt(after.currentBalanceCents) - BigInt(before.currentBalanceCents));
+  return {
+    result: {
+      wallet_id,
+      old_balance: decimal(before.currentBalanceCents, ccy),
+      new_balance: decimal(after.currentBalanceCents, ccy),
+      difference: decimal(diff, ccy),
+      currency: ccy,
+    },
+    effects: [
+      effect(r, {
+        tenantId: budget_id,
+        entityType: "wallet",
+        entityId: wallet_id,
+        op: "update",
+        before,
+        after,
+      }),
+    ],
+    currency: ccy,
+  };
+}
+
+/** set_category_limit's write, also an import row (15-20); no_limit is import-only. */
+export async function setCategoryLimit(
+  c: WriteCtx,
+  args: {
+    budget_id: string;
+    category_id: string;
+    month: string;
+    amount?: string;
+    cushion_amount?: string;
+    no_limit?: boolean;
+  },
+  idempotencyKey?: string,
+): Promise<WriteOutcome> {
+  const base = `/budgets/${args.budget_id}/categories/${args.category_id}`;
+  const cat = await getBody<{ currency: string }>(c, base, args.budget_id);
+  if (!cat) return toolError("not_found");
+  const from = `${args.month}-01`;
+  const effective = () =>
+    getBody<Limit>(
+      c,
+      `${base}/limits/effective?date=${from}`,
+      args.budget_id,
+    );
+  const before = await effective();
+
+  const window = { effectiveFrom: from, singleMonth: args.month < new Date().toISOString().slice(0, 7) };
+  let body: Record<string, unknown>;
+  if (args.no_limit) {
+    // The app's own "No limit" segment for that month.
+    body = { noLimit: true, normalAmount: "0", cushionAmount: "0", ...window };
+  } else {
+    const normal = toMinorUnits(args.amount ?? "", cat.currency);
+    if (normal.isErr()) return toolError(normal.error);
+    const cushion = args.cushion_amount
+      ? toMinorUnits(args.cushion_amount, cat.currency)
+      : null;
+    if (cushion?.isErr()) return toolError(cushion.error);
+    const cushionCents = cushion?.isOk() ? cushion.value : (before?.cushionAmount ?? normal.value);
+    if (normal.value < 0 || Number(cushionCents) < 0) return toolError("invalid_amount");
+    body = { normalAmount: String(normal.value), cushionAmount: String(cushionCents), ...window };
+  }
+
+  const r = await c.dispatch({
+    method: "POST",
+    path: `${base}/limits`,
+    budgetId: args.budget_id,
+    body,
+    ...(idempotencyKey ? { idempotencyKey } : {}),
+  });
+  if (!r.ok) return fromDispatch(r);
+  const after = await effective();
+  return {
+    result: {
+      category_id: args.category_id,
+      month: args.month,
+      ...(after && {
+        amount: decimal(after.normalAmount, cat.currency),
+        cushion_amount: decimal(after.cushionAmount, cat.currency),
+      }),
+      currency: cat.currency,
+    },
+    effects: [
+      effect(r, {
+        tenantId: args.budget_id,
+        entityType: "category_limit",
+        entityId: args.category_id,
+        op: "update",
+        before: before && { month: args.month, ...before },
+        after: after && { month: args.month, ...after },
+      }),
+    ],
+    currency: cat.currency,
+  };
 }
 
 export function registerWriteTools(server: McpServer, ctx: McpCtx): void {
@@ -253,42 +372,7 @@ export function registerWriteTools(server: McpServer, ctx: McpCtx): void {
       annotations: { destructiveHint: true, idempotentHint: true },
       entryCount: () => 1,
     },
-    async ({ budget_id, wallet_id, balance, currency }, c) => {
-      type Wallet = { id: string; currency: string; currentBalanceCents: string };
-      const path = `/wallets/${wallet_id}`;
-      const before = await getBody<Wallet>(c, path, budget_id);
-      if (!before) return toolError("not_found");
-      const r = await c.dispatch({
-        method: "PUT",
-        path: `${path}/balance`,
-        budgetId: budget_id,
-        body: { amount: balance, currency },
-      });
-      if (!r.ok) return fromDispatch(r);
-      const after = (await getBody<Wallet>(c, path, budget_id)) ?? before;
-      const ccy = after.currency;
-      const diff = String(BigInt(after.currentBalanceCents) - BigInt(before.currentBalanceCents));
-      return {
-        result: {
-          wallet_id,
-          old_balance: decimal(before.currentBalanceCents, ccy),
-          new_balance: decimal(after.currentBalanceCents, ccy),
-          difference: decimal(diff, ccy),
-          currency: ccy,
-        },
-        effects: [
-          effect(r, {
-            tenantId: budget_id,
-            entityType: "wallet",
-            entityId: wallet_id,
-            op: "update",
-            before,
-            after,
-          }),
-        ],
-        currency: ccy,
-      };
-    },
+    (args, c) => syncWalletBalance(c, args),
   );
 
   writeTool(
@@ -311,64 +395,7 @@ export function registerWriteTools(server: McpServer, ctx: McpCtx): void {
       annotations: { destructiveHint: false, idempotentHint: true },
       entryCount: () => 1,
     },
-    async (args, c) => {
-      const base = `/budgets/${args.budget_id}/categories/${args.category_id}`;
-      const cat = await getBody<{ currency: string }>(c, base, args.budget_id);
-      if (!cat) return toolError("not_found");
-      const from = `${args.month}-01`;
-      const effective = () =>
-        getBody<Limit>(
-          c,
-          `${base}/limits/effective?date=${from}`,
-          args.budget_id,
-        );
-      const before = await effective();
-
-      const normal = toMinorUnits(args.amount, cat.currency);
-      if (normal.isErr()) return toolError(normal.error);
-      const cushion = args.cushion_amount
-        ? toMinorUnits(args.cushion_amount, cat.currency)
-        : null;
-      if (cushion?.isErr()) return toolError(cushion.error);
-      const cushionCents = cushion?.isOk() ? cushion.value : (before?.cushionAmount ?? normal.value);
-      if (normal.value < 0 || Number(cushionCents) < 0) return toolError("invalid_amount");
-
-      const r = await c.dispatch({
-        method: "POST",
-        path: `${base}/limits`,
-        budgetId: args.budget_id,
-        body: {
-          normalAmount: String(normal.value),
-          cushionAmount: String(cushionCents),
-          effectiveFrom: from,
-          singleMonth: args.month < new Date().toISOString().slice(0, 7),
-        },
-      });
-      if (!r.ok) return fromDispatch(r);
-      const after = await effective();
-      return {
-        result: {
-          category_id: args.category_id,
-          month: args.month,
-          ...(after && {
-            amount: decimal(after.normalAmount, cat.currency),
-            cushion_amount: decimal(after.cushionAmount, cat.currency),
-          }),
-          currency: cat.currency,
-        },
-        effects: [
-          effect(r, {
-            tenantId: args.budget_id,
-            entityType: "category_limit",
-            entityId: args.category_id,
-            op: "update",
-            before: before && { month: args.month, ...before },
-            after: after && { month: args.month, ...after },
-          }),
-        ],
-        currency: cat.currency,
-      };
-    },
+    (args, c) => setCategoryLimit(c, args),
   );
 
   writeTool(

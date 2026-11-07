@@ -9,6 +9,7 @@ import {
   type McpCtx,
   type WriteCtx,
   type WriteEffect,
+  type WriteOutcome,
 } from "./define";
 
 /**
@@ -55,6 +56,32 @@ export const scheduledPaymentRow = z.object({
   ...cadenceFields,
 });
 
+/** create_scheduled_payment's write, also an import row (15-20). */
+export async function createScheduledPayment(
+  c: WriteCtx,
+  b: string,
+  body: z.infer<typeof scheduledPaymentRow>,
+  idempotencyKey?: string,
+): Promise<WriteOutcome> {
+  const r = await c.dispatch({
+    method: "POST",
+    path: rulesPath(b),
+    budgetId: b,
+    body,
+    ...(idempotencyKey ? { idempotencyKey } : {}),
+  });
+  if (!r.ok) return fromDispatch(r);
+  const id = (r.body as { ruleId: string }).ruleId;
+  const made = (await findRule(c, b, id)) ?? { id };
+  return {
+    result: { scheduled_payment: made },
+    effects: [
+      effect(r, { tenantId: b, entityType: "scheduled_payment", entityId: id, op: "create", before: null, after: made }),
+    ],
+    currency: body.currency,
+  };
+}
+
 export function registerPlanningWriteTools(server: McpServer, ctx: McpCtx): void {
   writeTool(
     server,
@@ -68,19 +95,7 @@ export function registerPlanningWriteTools(server: McpServer, ctx: McpCtx): void
       annotations: { destructiveHint: false, idempotentHint: false },
       entryCount: () => 1,
     },
-    async ({ budget_id: b, ...body }, c) => {
-      const r = await c.dispatch({ method: "POST", path: rulesPath(b), budgetId: b, body });
-      if (!r.ok) return fromDispatch(r);
-      const id = (r.body as { ruleId: string }).ruleId;
-      const made = (await findRule(c, b, id)) ?? { id };
-      return {
-        result: { scheduled_payment: made },
-        effects: [
-          effect(r, { tenantId: b, entityType: "scheduled_payment", entityId: id, op: "create", before: null, after: made }),
-        ],
-        currency: body.currency,
-      };
-    },
+    ({ budget_id: b, ...body }, c) => createScheduledPayment(c, b, body),
   );
 
   writeTool(
