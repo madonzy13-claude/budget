@@ -354,32 +354,4 @@ export function registerReadTools(server: McpServer, ctx: McpCtx): void {
     async (args, c) =>
       simple(c, args.budget_id, `/budgets/${args.budget_id}/scheduled-payments`),
   );
-
-  readTool(
-    server,
-    ctx,
-    "get_fx_rate",
-    {
-      description:
-        "Exchange rate between two currencies, for today or a past date (the rate the app uses for conversions).",
-      inputSchema: z.object({
-        budget_id: budgetId,
-        from: z.string().length(3),
-        to: z.string().length(3),
-        date: date.optional(),
-      }),
-    },
-    async ({ budget_id, ...q }, c) => {
-      const r = await dispatch(c.app, c.who, {
-        method: "GET",
-        path: "/fx/rate",
-        budgetId: budget_id,
-        query: Object.fromEntries(
-          Object.entries(q).filter(([, v]) => v !== undefined),
-        ) as Record<string, string>,
-      });
-      if (!r.ok) return fromDispatch(r);
-      return toolOk(r.body as Record<string, unknown>);
-    },
-  );
 }
