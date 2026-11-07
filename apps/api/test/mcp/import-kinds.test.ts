@@ -93,9 +93,6 @@ const entries = async (asset: string) =>
     effectiveDate: string;
   }>;
 const balance = async (w: string) => ((await cookie("GET", `/wallets/${w}`)) as any).currentBalanceCents as string;
-const newWallet = async (name: string) =>
-  ((await cookie("POST", "/wallets", { name, walletType: "SPENDINGS", currency: "PLN" })) as any).id as string;
-
 beforeAll(async () => {
   app = await testApp();
   a = await signUpTestUser(app);
@@ -339,15 +336,34 @@ describe("investment_entries", () => {
   }, 60_000);
 });
 
-describe("wallet_balances", () => {
-  it("applies the newest balance per wallet and reports old → new", async () => {
-    const [w, v] = [await newWallet("W main"), await newWallet("V side")];
+/** Only these wallets stay active: a date must name every active wallet. */
+async function onlyWallets(...names: Array<[string, string]>) {
+  for (const w of ((await cookie("GET", "/wallets")) as any).wallets)
+    await cookie("POST", `/wallets/${w.id}/archive`, {});
+  const ids: string[] = [];
+  for (const [name, currency] of names)
+    ids.push(((await cookie("POST", "/wallets", { name, walletType: "SPENDINGS", currency })) as any).id);
+  return ids;
+}
+const series = async (from: string, to: string) =>
+  ((await cookie("GET", `/budgets/${b}/overview/wealth?from=${from}&to=${to}`)) as any).series as Array<{
+    label: string;
+    value_cents: string;
+  }>;
+const valueOn = (s: Array<{ label: string; value_cents: string }>, date: string) =>
+  s.find((p) => p.label.startsWith(date))?.value_cents;
+
+describe("wallet_balances (decision b2: past balances become wealth points)", () => {
+  it("a complete history writes one wealth point per date; the newest sets each balance", async () => {
+    const [w, v] = await onlyWallets(["W main", "PLN"], ["V side", "PLN"]);
     const p = await preview("wallet_balances", [
-      { wallet_id: w, date: "2024-01-31", balance: "100", currency: "PLN" },
-      { wallet_id: w, date: "2024-02-29", balance: "200.50", currency: "PLN" },
-      { wallet_id: v, date: "2024-02-29", balance: "50", currency: "PLN" },
+      { wallet_id: w, date: "2023-01-31", balance: "100", currency: "PLN" },
+      { wallet_id: v, date: "2023-01-31", balance: "10", currency: "PLN" },
+      { wallet_id: w, date: "2023-02-28", balance: "200.50", currency: "PLN" },
+      { wallet_id: v, date: "2023-02-28", balance: "50", currency: "PLN" },
     ]);
     expect(p.clean).toBe(true);
+    expect(p.issues.history_not_stored).toBeUndefined();
     const r = await commit(p.preview_id);
     expect(r.isError).toBeFalsy();
     expect(await balance(w)).toBe("20050");
@@ -356,35 +372,65 @@ describe("wallet_balances", () => {
       { wallet_id: w, old_balance: "0.00", new_balance: "200.50", difference: "200.50", currency: "PLN" },
       { wallet_id: v, old_balance: "0.00", new_balance: "50.00", difference: "50.00", currency: "PLN" },
     ]);
-    expect(r.structuredContent!.history_not_stored).toEqual([{ index: 0, wallet_id: w, date: "2024-01-31" }]);
-    expect((await logged(r.structuredContent!.batch_id)).map((e) => e.entity_type)).toEqual(["wallet", "wallet"]);
+    expect(r.structuredContent!.snapshots_created).toBe(2);
+    const s = await series("2023-01-01", "2023-03-31");
+    expect(valueOn(s, "2023-01-31")).toBe("11000");
+    expect(valueOn(s, "2023-02-28")).toBe("25050");
+    expect((await logged(r.structuredContent!.batch_id)).map((e) => e.entity_type).sort()).toEqual([
+      "wallet",
+      "wallet",
+      "wealth_snapshot",
+      "wealth_snapshot",
+    ]);
   }, 60_000);
 
-  it("rolls the first wallet back when the second one fails", async () => {
-    const [w, v] = [await newWallet("W roll"), await newWallet("V roll")];
-    await cookie("PUT", `/wallets/${w}/balance`, { amount: "10", currency: "PLN" });
+  it("a date missing a wallet blocks until skipped; it then gets no point", async () => {
+    const [w, v] = await onlyWallets(["W gap", "PLN"], ["V gap", "PLN"]);
     const p = await preview("wallet_balances", [
-      { wallet_id: w, date: "2024-02-29", balance: "999", currency: "PLN" },
-      // An archived wallet still takes a balance; a currency other than the
-      // wallet's own never does (WALT-04).
-      { wallet_id: v, date: "2024-02-29", balance: "1", currency: "USD" },
+      { wallet_id: w, date: "2023-03-31", balance: "100", currency: "PLN" },
+      { wallet_id: w, date: "2023-04-30", balance: "300", currency: "PLN" },
+      { wallet_id: v, date: "2023-04-30", balance: "30", currency: "PLN" },
+    ]);
+    expect(p.clean).toBe(false);
+    expect(p.issues.incomplete_wallet_set).toEqual([{ date: "2023-03-31", missing_wallets: [v] }]);
+    expect(errorOf(await commit(p.preview_id)).missing).toEqual(["incomplete_wallet_set"]);
+    const r = await commit(p.preview_id, { incomplete_wallet_set: "skip_dates" });
+    expect(r.structuredContent!.snapshots_created).toBe(1);
+    expect(await balance(w)).toBe("30000");
+    const s = await series("2023-03-01", "2023-04-30");
+    expect(valueOn(s, "2023-03-31")).toBe("0");
+    expect(valueOn(s, "2023-04-30")).toBe("33000");
+  }, 60_000);
+
+  it("a wallet failing after the points were written rolls everything back", async () => {
+    // A balance in a currency other than the wallet's own is refused (WALT-04);
+    // an archived wallet still takes one.
+    const [w, v] = await onlyWallets(["W roll", "PLN"], ["V roll", "EUR"]);
+    await cookie("PUT", `/wallets/${w}/balance`, { amount: "10", currency: "PLN" });
+    const before = await series("2023-05-01", "2023-06-30");
+    const p = await preview("wallet_balances", [
+      { wallet_id: w, date: "2023-05-31", balance: "999", currency: "PLN" },
+      { wallet_id: v, date: "2023-05-31", balance: "1", currency: "PLN" },
     ]);
     const r = await commit(p.preview_id);
     expect(errorOf(r)).toMatchObject({ error: "import_rolled_back", row_index: 1, failed_inverses: [] });
     expect(await balance(w)).toBe("1000");
+    expect(await series("2023-05-01", "2023-06-30")).toEqual(before);
   }, 60_000);
 
-  it("import_undo restores balances, skipping a wallet the user changed since", async () => {
-    const [w, v] = [await newWallet("W undo"), await newWallet("V undo")];
+  it("import_undo removes the points and restores balances, skipping a wallet changed since", async () => {
+    const [w, v] = await onlyWallets(["W undo", "PLN"], ["V undo", "PLN"]);
+    const before = await series("2023-07-01", "2023-08-31");
     const p = await preview("wallet_balances", [
-      { wallet_id: w, date: "2024-02-29", balance: "70", currency: "PLN" },
-      { wallet_id: v, date: "2024-02-29", balance: "80", currency: "PLN" },
+      { wallet_id: w, date: "2023-07-31", balance: "70", currency: "PLN" },
+      { wallet_id: v, date: "2023-07-31", balance: "80", currency: "PLN" },
     ]);
     const r = await commit(p.preview_id);
     await cookie("PUT", `/wallets/${v}/balance`, { amount: "81", currency: "PLN" });
     const u = await tool("import_undo", { batch_id: r.structuredContent!.batch_id });
-    expect(u.structuredContent).toMatchObject({ reverted: 1, skipped_changed_since: [v] });
+    expect(u.structuredContent).toMatchObject({ reverted: 2, skipped_changed_since: [v] });
     expect(await balance(w)).toBe("0");
     expect(await balance(v)).toBe("8100");
+    expect(await series("2023-07-01", "2023-08-31")).toEqual(before);
   }, 60_000);
 });

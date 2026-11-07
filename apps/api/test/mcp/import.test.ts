@@ -224,7 +224,7 @@ describe("import_preview", () => {
     expect(s.order).toEqual([1, 2, 0, 3]);
   });
 
-  it("wallet_balances: only the newest per wallet applies; unknown wallet is invalid", async () => {
+  it("wallet_balances: every dated row is kept (15-21); unknown wallet is invalid", async () => {
     const row = (date: string, wallet_id = walletId) => ({ wallet_id, date, balance: "10.00", currency: "PLN" });
     const r = await tool("import_preview", {
       budget_id: budgetId,
@@ -232,11 +232,12 @@ describe("import_preview", () => {
       rows: [row("2026-01-01"), row("2026-03-01"), row("2026-02-01"), row("2026-03-01", crypto.randomUUID())],
     });
     const s = r.structuredContent!;
-    expect(s.issues.history_not_stored.map((x: any) => x.index).sort()).toEqual([0, 2]);
+    expect(s.issues.history_not_stored).toBeUndefined();
+    expect(s.counts.valid).toBe(3);
     expect(s.issues.invalid_rows.map((x: any) => x.index)).toEqual([3]);
   });
 
-  it("wallet_balances history alone keeps the preview clean", async () => {
+  it("wallet_balances history naming every active wallet is clean", async () => {
     const row = (date: string) => ({ wallet_id: walletId, date, balance: "10.00", currency: "PLN" });
     const r = await tool("import_preview", { budget_id: budgetId, kind: "wallet_balances", rows: [row("2026-01-01"), row("2026-03-01")] });
     expect(r.structuredContent!.clean).toBe(true);
