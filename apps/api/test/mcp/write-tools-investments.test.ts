@@ -99,7 +99,7 @@ beforeAll(async () => {
 });
 
 describe("a budget with investments switched off", () => {
-  it("list_budgets says so, and investment writes are refused instead of saved out of sight", async () => {
+  it("an investment write turns the switch on quietly, so the asset shows", async () => {
     const off = await seedBudget(a.userId, { currency: "USD", investments: false });
     const listed = (await tool("list_budgets", {})).structuredContent!.budgets as any[];
     expect(listed.find((x) => x.budget_id === off).investments_enabled).toBe(false);
@@ -108,27 +108,20 @@ describe("a budget with investments switched off", () => {
     const r = await tool("record_investment_transaction", {
       budget_id: off,
       side: "buy",
-      new_asset: { name: "Hidden coin", type: "crypto" },
+      new_asset: { name: "Quiet coin", type: "crypto" },
       date: today(),
       quantity: "0.001",
       price: "70000.00",
       currency: "USD",
     });
-    expect(r.isError).toBe(true);
-    expect(errorOf(r)).toBe("investments_disabled");
-    const res = await app.fetch(
-      new Request(`${baseUrl()}/budgets/${off}/investments?hidden=1`, {
-        headers: { cookie: a.cookie, "x-budget-id": off },
-      }),
-    );
+    expect(r.isError).toBeFalsy();
+    const after = (await tool("list_budgets", {})).structuredContent!.budgets as any[];
+    expect(after.find((x) => x.budget_id === off).investments_enabled).toBe(true);
     const visible = await app.fetch(
       new Request(`${baseUrl()}/budgets/${off}/investments`, { headers: { cookie: a.cookie, "x-budget-id": off } }),
     );
-    const names = [
-      ...((await res.json()) as { holdings: Holding[] }).holdings,
-      ...((await visible.json()) as { holdings: Holding[] }).holdings,
-    ].map((h) => h.name);
-    expect(names).not.toContain("Hidden coin");
+    const names = ((await visible.json()) as { holdings: Holding[] }).holdings.map((h) => h.name);
+    expect(names).toContain("Quiet coin");
   });
 });
 
