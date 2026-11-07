@@ -750,6 +750,13 @@
       "when": 1783770000000,
       "tag": "0107_oauth_consent_last_used",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1783780000000,
+      "tag": "0108_wealth_snapshot_source",
+      "breakpoints": true
     }
   ]
 }

@@ -16,6 +16,7 @@ import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import { budgetCurrency, fxConvert } from "./fx-sql";
 import type { WealthSnapshotRow } from "../../application/get-overview-wealth";
+import type { ImportedSnapshot } from "../../application/import-wealth-snapshots";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -40,7 +41,18 @@ export interface WealthSnapshotRepo {
     budgetId: string,
     from: string,
   ): Promise<WealthSnapshotRow | null>;
+  /** 15-21: past points from an imported balance history, source 'import'. A
+   *  day that already holds any snapshot is left alone and reported. */
+  insertImported(
+    budgetId: string,
+    rows: ImportedSnapshot[],
+  ): Promise<{ created: { id: string; date: string }[]; skippedExisting: string[] }>;
+  /** Deletes an imported snapshot; a worker snapshot is never deleted. */
+  deleteImported(budgetId: string, id: string): Promise<boolean>;
 }
+
+const nextDay = (date: string) =>
+  new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000).toISOString();
 
 export function createWealthSnapshotRepo(): WealthSnapshotRepo {
   return {
@@ -116,6 +128,63 @@ export function createWealthSnapshotRepo(): WealthSnapshotRepo {
                 ? null
                 : BigInt(row.investment_cost_basis_cents as string),
           } satisfies WealthSnapshotRow;
+        },
+      );
+      if (r.isErr()) throw r.error;
+      return r.value;
+    },
+
+    async insertImported(budgetId, rows) {
+      const r = await withTenantTx(
+        TenantId(budgetId),
+        UserId(SYSTEM_USER_ID),
+        async (tx) => {
+          const created: { id: string; date: string }[] = [];
+          const skippedExisting: string[] = [];
+          for (const row of rows) {
+            // The rebuilt monthly history sits at 00:00: a second point on the
+            // same day would draw two different totals for one date.
+            const res = await (tx as DrizzleTx).execute(sql`
+              INSERT INTO budgeting.budget_wealth_snapshots
+                (tenant_id, budget_id, captured_at, capitalization_cents,
+                 investment_value_cents, investment_cost_basis_cents, currency, source)
+              SELECT ${budgetId}::uuid, ${budgetId}::uuid, ${row.capturedAt.toISOString()}::timestamptz,
+                     ${row.capitalizationCents.toString()}::bigint,
+                     ${row.investmentValueCents.toString()}::bigint,
+                     ${row.investmentCostBasisCents?.toString() ?? null}::bigint,
+                     ${row.currency}, 'import'
+               WHERE NOT EXISTS (
+                 SELECT 1 FROM budgeting.budget_wealth_snapshots
+                  WHERE budget_id = ${budgetId}::uuid
+                    AND captured_at >= ${`${row.date}T00:00:00Z`}::timestamptz
+                    AND captured_at < ${nextDay(row.date)}::timestamptz)
+              ON CONFLICT DO NOTHING
+              RETURNING id
+            `);
+            const id = res.rows[0]?.id as string | undefined;
+            if (id) created.push({ id, date: row.date });
+            else skippedExisting.push(row.date);
+          }
+          return { created, skippedExisting };
+        },
+      );
+      if (r.isErr()) throw r.error;
+      return r.value;
+    },
+
+    async deleteImported(budgetId, id) {
+      const r = await withTenantTx(
+        TenantId(budgetId),
+        UserId(SYSTEM_USER_ID),
+        async (tx) => {
+          const res = await (tx as DrizzleTx).execute(sql`
+            DELETE FROM budgeting.budget_wealth_snapshots
+             WHERE id = ${id}::uuid
+               AND budget_id = ${budgetId}::uuid
+               AND source = 'import'
+            RETURNING id
+          `);
+          return res.rows.length > 0;
         },
       );
       if (r.isErr()) throw r.error;

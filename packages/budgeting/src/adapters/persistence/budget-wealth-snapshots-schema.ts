@@ -17,6 +17,7 @@ import {
   bigint,
   timestamp,
   index,
+  text,
 } from "drizzle-orm/pg-core";
 import { budgeting, appRole, workerRole } from "@budget/platform";
 
@@ -42,6 +43,9 @@ export const budgetWealthSnapshots = budgeting.table(
       mode: "bigint",
     }),
     currency: char("currency", { length: 3 }).notNull(),
+    // 0108: 'import' = written from an imported balance history (15-21); only
+    // those can be deleted. CHECK (worker|import) lives in the migration.
+    source: text("source").notNull().default("worker"),
   },
   (t) => [
     index("budget_wealth_snapshots_series_idx").on(t.budgetId, t.capturedAt),
