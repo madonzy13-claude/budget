@@ -573,6 +573,55 @@ describe("wallets, limits, categories, budgets", () => {
     expect(log).toMatchObject({ op: "update", entity_type: "category_limit", entity_id: cat });
   });
 
+  it("set_category_limit in another currency switches the category, like the app; undo switches it back", async () => {
+    // Today's PLN→USD rate, in case this DB has no history. Removes only its own row.
+    const worker = new Pool({ connectionString: process.env.DATABASE_URL_WORKER?.replace("@db:", "@localhost:") });
+    const seeded =
+      ((
+        await worker.query(
+          `INSERT INTO budgeting.fx_rates (base, quote, date, rate, provider)
+           VALUES ('PLN', 'USD', CURRENT_DATE, 0.25, 'test-15-limit-ccy') ON CONFLICT DO NOTHING RETURNING 1`,
+        )
+      ).rowCount ?? 0) > 0;
+    await worker.end();
+    try {
+      const cat = await newCategory(budgetId, "Tech");
+      const month = new Date().toISOString().slice(0, 7);
+      expect(
+        (await tool("set_category_limit", { budget_id: budgetId, category_id: cat, month, amount: "1000.00" })).isError,
+      ).toBeFalsy();
+
+      const r = await tool("set_category_limit", {
+        budget_id: budgetId,
+        category_id: cat,
+        month,
+        amount: "400.00",
+        currency: "USD",
+      });
+      expect(r.isError).toBeFalsy();
+      expect(r.structuredContent).toMatchObject({ amount: "400.00", currency: "USD" });
+      const catNow = async () =>
+        (await (await cookie("GET", `/budgets/${budgetId}/categories/${cat}`)).json()) as { currency: string };
+      const eff = async () =>
+        (await (
+          await cookie("GET", `/budgets/${budgetId}/categories/${cat}/limits/effective?date=${month}-01`)
+        ).json()) as { normalAmount: string };
+      expect((await catNow()).currency).toBe("USD");
+      expect((await eff()).normalAmount).toBe("40000");
+
+      const undone = await tool("undo", { id: r.structuredContent!.call_id });
+      expect(undone.isError).toBeFalsy();
+      expect((await catNow()).currency).toBe("PLN");
+      expect((await eff()).normalAmount).toBe("100000");
+    } finally {
+      if (seeded) {
+        const m = new Pool({ connectionString: process.env.DATABASE_URL_MIGRATOR?.replace("@db:", "@localhost:") });
+        await m.query(`DELETE FROM budgeting.fx_rates WHERE provider = 'test-15-limit-ccy'`);
+        await m.end();
+      }
+    }
+  });
+
   it("creates, renames and archives a category", async () => {
     const made = await tool("create_category", { budget_id: budgetId, name: "Travel" });
     expect(made.isError).toBeFalsy();
