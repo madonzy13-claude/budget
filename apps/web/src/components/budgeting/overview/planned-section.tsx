@@ -140,7 +140,6 @@ function PlannedByCategoryPie({
   formatIn,
   maskValue = false,
   picked,
-  isInvestment,
   ringLabel,
 }: {
   rows: {
@@ -154,8 +153,6 @@ function PlannedByCategoryPie({
   /** 14-23: money in a given currency — a foreign category's slice reads in it. */
   formatIn: (n: number, currency: string) => string;
   categories: { name: string; colorKey?: unknown }[];
-  /** Which category is THE investment one — it is neither a need nor a want. */
-  isInvestment: (categoryId: string) => boolean;
   ringLabel: (key: PlanRingKey) => string;
   title: string;
   allLabel: string;
@@ -166,17 +163,12 @@ function PlannedByCategoryPie({
 }) {
   // ONE filter for the section (user, 260810). The pie used to keep its own —
   // a slice dropped here stayed on the timeline and the other way round — so
-  // two pickers disagreed about what "this budget" meant. The ring still spans
-  // EVERY row (see planRing below), which is what keeps the investing arc when
-  // Investments itself is unticked.
+  // two pickers disagreed about what "this budget" meant.
   const shown = picked.length ? new Set(picked) : null;
   const inView = rows.filter((c) => !shown || shown.has(c.category_id));
   // The outer ring: needs / wants summed across the SAME categories the slices
-  // show, so narrowing the picker narrows them. The INVESTING arc is different —
-  // it comes from every row in range, so dropping the investment category from
-  // the picker hides its slice without erasing the plan's investing share
-  // (user, 260803).
-  const ring = planRing(inView, isInvestment, rows).map((a) => ({
+  // show, so narrowing the picker narrows them.
+  const ring = planRing(inView).map((a) => ({
     name: ringLabel(a.key),
     value: a.value,
     key: a.key,
@@ -184,9 +176,7 @@ function PlannedByCategoryPie({
   const RING_COLOR: Record<PlanRingKey, string> = {
     needs: "var(--chart-plan-needs)",
     wants: "var(--chart-plan-wants)",
-    investments: "var(--chart-plan-invest)",
   };
-  // Investments is a slice like any other category — and an arc outside.
   // Sized in the budget currency so slices compare; a category in another
   // currency READS in its own (user, 261104).
   const data = planSlices(inView).map((c) => ({
@@ -1270,21 +1260,13 @@ export function PlannedSection({
               categoryIds,
               categories.map((c) => c.id as string),
             )}
-            isInvestment={(id) =>
-              Boolean(categories.find((c) => c.id === id)?.isInvestment)
-            }
             ringLabel={(key) => t(`planned.ring.${key}`)}
             title={t("planned.avgPie")}
-            // The centre keeps saying "All categories" only while that is true —
-            // dropping Investments alone still counts as all, since its money is
-            // not planned spending (user, 260812).
+            // The centre keeps saying "All categories" only while that is true.
             allLabel={(() => {
               const narrowed = narrowedCategoryCount(
                 categoryIds,
-                categories.map((c) => ({
-                  id: c.id as string,
-                  isInvestment: Boolean(c.isInvestment),
-                })),
+                categories.map((c) => c.id as string),
               );
               return narrowed === null
                 ? t("planned.allCategories")

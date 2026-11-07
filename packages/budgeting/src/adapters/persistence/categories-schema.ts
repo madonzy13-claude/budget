@@ -45,12 +45,6 @@ export const categories = budgeting.table(
     // Phase 5 (D-PH5-R10): excluded categories are hidden from reserve math totals.
     // Drag between Active/Excluded sections on the Reserves tab toggles this flag.
     reserveExcluded: boolean("reserve_excluded").notNull().default(false),
-    // r33: THE smart "Investments" category (migration 0052). is_investment marks
-    // the single non-deletable, reserve-excluded category pinned first in the grid.
-    // investment_limit_mode: 'manual' (user-typed limit) | 'smart' (computed on
-    // read = monthly income − Σ other planned). NULL for every normal category.
-    isInvestment: boolean("is_investment").notNull().default(false),
-    investmentLimitMode: text("investment_limit_mode"),
     // Persisted cushion configuration (migration 0059): 'none' | 'needs_wants' |
     // 'needs_only' | 'custom'. NULL = infer from the stored amounts (legacy). Lets
     // the slider show "Needs only" even when cushion == planned (no wants yet).

@@ -43,7 +43,6 @@ import { MonthNavigator } from "./month-navigator";
 import { SlideOnChange } from "@/components/common/slide-on-change";
 import { TransactionSlider } from "../transaction-slider";
 import { CategorySlider } from "../category-slider";
-import { InvestmentCategorySlider } from "../investment-category-slider";
 import { useTranslations, useLocale } from "next-intl";
 import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
 import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
@@ -970,9 +969,6 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       colorKey: cat.colorKey,
       // mig 0059: persisted cushion mode prefills the slider's Cushion selector.
       cushionMode: (cat.cushionMode as string | null | undefined) ?? null,
-      // r33: the smart Investments category uses a different edit form.
-      isInvestment: s?.isInvestment ?? false,
-      investmentLimitMode: s?.investmentLimitMode ?? null,
     };
   }, [catSlider.categoryId, localCategoryOrder, summaryByCatId, budgetCurrency]);
 
@@ -1223,39 +1219,18 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
           : {})}
       />
 
-      {/* r33: editing THE Investments category opens the smart/manual limit form
-          instead of the needs/wants/cushion slider. */}
-      {catSlider.mode === "edit" && editCatInitial?.isInvestment ? (
-        <InvestmentCategorySlider
-          open={catSlider.open}
-          onOpenChange={(o) => setCatSlider({ ...catSlider, open: o })}
-          budgetId={budgetId}
-          budgetCurrency={budgetCurrency}
-          month={month}
-          // The VIEWED month's mode, exactly as the columns read it: a month
-          // that ran in cushion mode plans no investing, so its limit is not a
-          // choice — but stepping back to a normal month restores it.
-          cushionMonth={
-            summary.data?.cushionModeForMonth ??
-            summary.data?.cushionModeEnabled ??
-            false
-          }
-          initial={editCatInitial}
-        />
-      ) : (
-        <CategorySlider
-          open={catSlider.open}
-          onOpenChange={(o) => setCatSlider({ ...catSlider, open: o })}
-          mode={catSlider.mode}
-          budgetId={budgetId}
-          budgetCurrency={budgetCurrency}
-          month={month}
-          cushionEnabled={cushionEnabled}
-          {...(catSlider.mode === "edit" && editCatInitial
-            ? { initial: editCatInitial }
-            : {})}
-        />
-      )}
+      <CategorySlider
+        open={catSlider.open}
+        onOpenChange={(o) => setCatSlider({ ...catSlider, open: o })}
+        mode={catSlider.mode}
+        budgetId={budgetId}
+        budgetCurrency={budgetCurrency}
+        month={month}
+        cushionEnabled={cushionEnabled}
+        {...(catSlider.mode === "edit" && editCatInitial
+          ? { initial: editCatInitial }
+          : {})}
+      />
 
       {/* Permanent-delete confirm — archived column trash. Destructive. */}
       <AlertDialog

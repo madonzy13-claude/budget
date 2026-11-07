@@ -16,15 +16,9 @@ import { ok, err, type Result } from "@budget/shared-kernel";
 import { completedMonthsForRange } from "../domain/completed-months";
 import type { FxProvider } from "@budget/shared-kernel";
 import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
-import {
-  computeInvestmentSmartLimit,
-  normalizeIncomesToMonthlyItems,
-  type IncomeForNormalize,
-} from "./investment-smart-limit";
 import { upcomingByMonth } from "../domain/upcoming-schedule";
 // The monthly-rate normalizer went with the old by-month chart (260807): the
 // upcoming series places each payment in its real month instead of averaging it.
-// Incomes and the smart investment limit still use it.
 import { type Cadence } from "./scheduled-monthly-normalize";
 import { annualiseByCategory } from "../domain/annualise-scheduled";
 import type { Cadence as ScheduledCadence } from "../domain/cadence";
@@ -56,11 +50,6 @@ export interface CategoryWindow {
   name: string;
   created_month: string; // YYYY-MM
   archived_month: string | null; // YYYY-MM, null = active
-  is_investment: boolean;
-  /** 'manual' | 'smart' | null. SMART has no stored limit — it is income minus
-   *  everything else planned, resolved here so the Overview reads the same plan
-   *  the Spendings grid shows. */
-  investment_limit_mode?: string | null;
   /** The category's own currency (14-23). */
   currency?: string;
 }
@@ -130,15 +119,6 @@ export interface GetOverviewPlannedDeps {
     ): Promise<{ default_currency: string } | null>;
   };
   fxProvider: FxProvider;
-  /**
-   * r33: active incomes + FX, used ONLY to resolve the SMART Investments limit
-   * (income − Σ other planned), which the category has no stored limit for.
-   * Optional — a budget whose Investments category is absent or on MANUAL never
-   * touches them.
-   */
-  incomeRepo?: {
-    listActive(tenantId: string): Promise<IncomeForNormalize[]>;
-  };
   /**
    * 260801: the timeline splits each month's spend into what the plan covered,
    * what the RESERVE covered and what was overspent, so it needs the engine's
@@ -467,8 +447,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
           : w.created_month;
       };
 
-      // Every category counts by default, investments included (260803 user
-      // request) — the picker is what narrows the view, exactly as it does for
+      // Every category counts by default — the picker is what narrows the view, exactly as it does for
       // any other category.
       const picked = new Set(
         input.categoryIds?.length
@@ -479,19 +458,10 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
       );
       const inCat = (catId: string) => (picked.size ? picked.has(catId) : true);
 
-      // While the Investments category is on SMART it stores no limit: its plan
-      // is income minus everything else planned, computed on read — the figure
-      // the Spendings grid already shows. Resolve it here too, or the category
-      // would enter these charts against a plan of ZERO, reading as pure
-      // overspend and drowning out every real one.
-      //
-      // Income carries no history, so the CURRENT monthly income is applied to
-      // every month in range; the "everything else" side is each month's own.
       // 0083: a No-limit category stores planned 0, but it is still planned
       // against — its implicit plan for a month is WHAT IT SPENT there, counted
       // entirely as needs (user, 260820). Substituted HERE, at the single point
-      // the rows enter, so every chart, every total and the smart investments
-      // residual below all read one corrected figure instead of eight call
+      // the rows enter, so every chart and every total read one corrected figure instead of eight call
       // sites each remembering to ask.
       const spentPerCatMonth = new Map<string, bigint>();
       for (const sp of spend)
@@ -507,97 +477,7 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         return { ...p, planned_cents: spentHere, needs_cents: spentHere };
       });
 
-      const investWindow = windows.find((w) => w.is_investment);
-      let plannedRows = plannedResolved;
-      if (investWindow?.investment_limit_mode === "none") {
-        // Unbounded: its implicit plan is what it INVESTED, which is rule 0083
-        // applied by MODE rather than by the presence of a stored row. The
-        // substitution above needs a row to substitute into, and a category
-        // that has never carried a stored limit has none for its history — so
-        // the pie's investing arc had nothing to draw and disappeared from the
-        // ring, where it is meant to stay whatever the picker says.
-        const from = startOf(investWindow);
-        const already = new Set(
-          plannedResolved
-            .filter((p) => p.category_id === investWindow.category_id)
-            .map((p) => p.month),
-        );
-        plannedRows = [
-          ...plannedResolved.map((p) =>
-            p.category_id === investWindow.category_id
-              ? {
-                  ...p,
-                  planned_cents:
-                    spentPerCatMonth.get(`${p.category_id}|${p.month}`) ?? 0n,
-                  needs_cents: 0n,
-                }
-              : p,
-          ),
-          // Months with no stored row at all — the usual case for a category
-          // that was never given a limit. Bounded by the category's own start
-          // so an arc is never drawn across history it did not exist for.
-          ...monthsInRange(input.from, input.to)
-            .filter((month) => month >= from && !already.has(month))
-            .map((month) => ({
-              category_id: investWindow.category_id,
-              month,
-              planned_cents:
-                spentPerCatMonth.get(`${investWindow.category_id}|${month}`) ??
-                0n,
-              // No needs/wants split — Investments carries no cushion.
-              needs_cents: 0n,
-            })),
-        ];
-      } else if (investWindow?.investment_limit_mode === "smart") {
-        let monthlyIncome = 0n;
-        if (deps.incomeRepo) {
-          const incomes = await deps.incomeRepo.listActive(input.tenantId);
-          monthlyIncome = await sumWalletsToCurrency(
-            // The month decides whether a ONE-TIME income counts: it is income
-            // in the month it arrives and in no other (260807). "Current" here
-            // matches the comment above — today's monthly income, applied
-            // across the range.
-            normalizeIncomesToMonthlyItems(incomes, isoDay(asOf).slice(0, 7)),
-            ccy,
-            deps.fxProvider,
-            asOf,
-          );
-        }
-        const otherPlannedByMonth = new Map<string, bigint>();
-        for (const p of plannedResolved) {
-          if (p.category_id === investWindow.category_id) continue;
-          otherPlannedByMonth.set(
-            p.month,
-            (otherPlannedByMonth.get(p.month) ?? 0n) + p.planned_cents,
-          );
-        }
-        // Its plan is income minus everything else planned, which in a month
-        // with no other limits is the WHOLE income — so applied to months before
-        // the category existed it drew a full-height band across empty history.
-        const from = startOf(investWindow);
-        plannedRows = [
-          // plannedResolved, NOT planned: rebuilding from the raw rows here
-          // silently discarded the No-limit substitution above, so an unbounded
-          // category fell back to a plan of 0 and drew as pure overspend — but
-          // only in budgets that have a SMART Investments category, which is why
-          // the grid looked right and the charts did not (user, 260819).
-          ...plannedResolved.filter(
-            (p) => p.category_id !== investWindow.category_id,
-          ),
-          ...monthsInRange(input.from, input.to)
-            .filter((month) => month >= from)
-            .map((month) => ({
-              category_id: investWindow.category_id,
-              month,
-              planned_cents: computeInvestmentSmartLimit({
-                monthlyIncomeCents: monthlyIncome,
-                otherPlannedCents: otherPlannedByMonth.get(month) ?? 0n,
-              }),
-              // No needs/wants split — Investments carries no cushion.
-              needs_cents: 0n,
-            })),
-        ];
-      }
+      const plannedRows = plannedResolved;
 
       // Each month's spend, split by WHERE IT CAME FROM (260801 user decision):
       // what the limit covered, what the reserve covered, and the rest. Per
@@ -978,17 +858,9 @@ export function getOverviewPlanned(deps: GetOverviewPlannedDeps) {
         })({ ...input, inCategoryCurrency: true });
         if (r.isErr()) return err(r.error);
         const byId = new Map(r.value.plannedAvgVsReal.map((x) => [x.category_id, x]));
-        // A SMART limit is income minus everything else planned — in this pass
-        // the others are each in their own currency, so it means nothing
-        // there (review CR-02). It keeps its budget-currency figures.
-        const smart = new Set(
-          windows
-            .filter((w) => w.is_investment && w.investment_limit_mode === "smart")
-            .map((w) => w.category_id),
-        );
         for (const row of plannedAvgVsReal) {
           const o =
-            row.currency !== ccy && !smart.has(row.category_id)
+            row.currency !== ccy
               ? byId.get(row.category_id)
               : undefined;
           if (o)

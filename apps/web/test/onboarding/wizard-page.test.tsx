@@ -285,44 +285,6 @@ describe("WizardPage — deferred-create step machine", () => {
     expect(screen.queryByRole("button", { name: /^skip$/i })).toBeNull();
   });
 
-  it("enabling investments creates the smart Investments category AT COMMIT (not deferred to Settings)", async () => {
-    const assignSpy = vi
-      .spyOn(window.location, "assign")
-      .mockImplementation(() => {});
-    await advanceToFeaturesStep();
-    fireEvent.click(screen.getByTestId("wizard-feature-investments"));
-    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 3 → 4 Review
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: /create_budget/i }),
-      ).toBeInTheDocument(),
-    );
-    fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));
-    await waitFor(() => expect(mockBudgetsPost).toHaveBeenCalledTimes(1));
-    await waitFor(() =>
-      expect(mockClientApiWrite).toHaveBeenCalledWith(
-        "/budgets/budget-123/investment-category",
-        expect.objectContaining({ method: "POST" }),
-      ),
-    );
-    assignSpy.mockRestore();
-  });
-
-  it("NOT enabling investments → no category is created at commit", async () => {
-    const assignSpy = vi
-      .spyOn(window.location, "assign")
-      .mockImplementation(() => {});
-    await advanceToFeaturesStep();
-    fireEvent.click(screen.getByRole("button", { name: /next/i })); // 3 → 4 Review
-    fireEvent.click(screen.getByRole("button", { name: /create_budget/i }));
-    await waitFor(() => expect(mockBudgetsPost).toHaveBeenCalledTimes(1));
-    expect(mockClientApiWrite).not.toHaveBeenCalledWith(
-      "/budgets/budget-123/investment-category",
-      expect.anything(),
-    );
-    assignSpy.mockRestore();
-  });
-
   it("completing from the features step lands on /budgets/:id/spendings", async () => {
     const assignSpy = vi
       .spyOn(window.location, "assign")

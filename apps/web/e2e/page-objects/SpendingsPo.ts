@@ -151,7 +151,7 @@ export class SpendingsPo {
     );
   }
 
-  /** The overspent (or "overinvested") figure in a category column header. */
+  /** The overspent figure in a category column header. */
   columnOverspent(categoryName: string): Locator {
     return this.page.getByTestId(
       `column-header-${categoryName.toLowerCase()}-overspent`,

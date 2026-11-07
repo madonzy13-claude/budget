@@ -55,7 +55,6 @@ import { recomputeCushionTask } from "@budget/budgeting/src/application/recomput
 import { makeRecomputeIncomeUnderPlannedTask } from "@budget/budgeting/src/application/recompute-income-under-planned-task";
 import { withTenantTx } from "@budget/platform";
 import { DrizzleCategoryRepo } from "@budget/budgeting/src/adapters/persistence/category-repo";
-import { DrizzleIncomeRepo } from "@budget/budgeting/src/adapters/persistence/income-repo";
 import { DrizzleCategoryLimitRepo } from "@budget/budgeting/src/adapters/persistence/category-limit-repo";
 import { DrizzleTransactionRepo } from "@budget/budgeting/src/adapters/persistence/transaction-repo";
 import { createSpendingsSummaryRepo } from "@budget/budgeting/src/adapters/persistence/spendings-summary-repo";
@@ -390,8 +389,6 @@ export async function boot(): Promise<BootedDeps> {
     // engine cells via the replay orchestrator — the SAME engine-derived reserve
     // per category the reserves tab reads. No reserve_actual fallback.
     reservePositions: baseBudgeting.reservePositions,
-    // r33: income + FX drive the smart Investments limit (income − Σ other planned).
-    incomeRepo: new DrizzleIncomeRepo(),
     fxProvider: baseBudgeting.fxProvider,
   });
 
@@ -524,8 +521,6 @@ export async function boot(): Promise<BootedDeps> {
       },
       metaReader: summaryRepo,
       fxProvider: baseBudgeting.fxProvider,
-      // r33: smart Investments limit (income − Σ other planned) as its planned.
-      incomeRepo: new DrizzleIncomeRepo(),
       // 260801: the timeline colours by reserve (inside plan / covered by
       // reserve / past both), so it needs the same engine seam Overspent uses.
       reservePositions: baseBudgeting.reservePositions,
@@ -637,29 +632,6 @@ export async function boot(): Promise<BootedDeps> {
               )
             ).rate,
         ),
-      // "Invested" metric = the smart Investments category's spend over [from,to],
-      // keyed YYYY-MM. null when the budget has no Investments category. The Excl.
-      // net adjustment uses each snapshot's stored cost basis, not this.
-      investedByMonth: async (input: {
-        tenantId: string;
-        budgetId: string;
-        from: string;
-        to: string;
-      }) => {
-        const cat = await categoryRepo.findInvestmentCategory(input.tenantId);
-        if (!cat) return null;
-        const rows = await createOverviewRepo().monthlySpendByCategory(
-          input.budgetId,
-          input.from,
-          input.to,
-        );
-        const byMonth = new Map<string, bigint>();
-        for (const r of rows) {
-          if (r.category_id !== cat.id) continue;
-          byMonth.set(r.month, (byMonth.get(r.month) ?? 0n) + r.spent_cents);
-        }
-        return byMonth;
-      },
     }),
     // Overview cash-flow projection timeline (today → the caller's window, 100 by default).
     getCashflowProjection: computeCashflowProjection({

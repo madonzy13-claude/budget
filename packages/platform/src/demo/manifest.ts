@@ -159,8 +159,6 @@ export const demoManifest: TableManifest[] = [
       reserve_excluded: ts,
       archived_from: ts,
       color_key: ts,
-      is_investment: ts,
-      investment_limit_mode: ts,
       cushion_mode: ts,
       // Phase 14 (mig 0104): the category's own currency.
       currency: ccy,

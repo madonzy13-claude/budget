@@ -35,6 +35,13 @@ Feature: Connect an AI assistant over MCP (Phase 15)
     Then the client is gone from Connected apps
     And the next MCP call returns 401
 
+  Scenario: Recording an investment turns Investments on quietly
+    Given an MCP client registers and starts authorization in "en"
+    When I allow access in "en"
+    And the client exchanges the code for tokens
+    And the client records buying a new crypto asset "Quiet coin"
+    Then "Quiet coin" is on my Wallets tab
+
   Scenario: Discovery on the public host
     Then the OAuth discovery documents are served
     And an MCP call without a token returns 401 with a challenge

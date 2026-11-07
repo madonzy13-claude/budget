@@ -29,12 +29,6 @@ import { reserveCoverInMonthCurrency } from "../domain/reserve-cover-in-month-cu
 import type { TransactionRepo } from "../ports/transaction-repo";
 import type { SpendingsSummaryRepo } from "../ports/spendings-summary-repo";
 import type { ReservePositionsResult } from "./get-reserve-positions";
-import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
-import {
-  computeInvestmentSmartLimit,
-  normalizeIncomesToMonthlyItems,
-  type IncomeForNormalize,
-} from "./investment-smart-limit";
 
 export interface GetSpendingsSummaryDeps {
   categoryRepo: CategoryRepo;
@@ -53,14 +47,7 @@ export interface GetSpendingsSummaryDeps {
     budgetId: string;
     month?: string;
   }) => Promise<Result<ReservePositionsResult, Error>>;
-  /**
-   * r33: active incomes + FX, used ONLY to compute the smart Investments limit
-   * (income − Σ other planned). Optional — a budget with no Investments category
-   * never touches them, so callers without an investment feature can omit both.
-   */
-  incomeRepo?: {
-    listActive(tenantId: string): Promise<IncomeForNormalize[]>;
-  };
+  /** Phase 14: re-expresses each category's own-currency figures in the budget's. */
   fxProvider?: FxProvider;
   /** Clock for the current-month boundary and the D-08 rate date; defaults to serverNow(). */
   now?: () => Date;
@@ -143,15 +130,9 @@ export interface SpendingsSummaryCategoryDTO {
   /** Archived "keep history" (archived_from set) — the grid renders this column
    *  greyed + read-only (no quick entry / edit). Hidden entirely in future months. */
   archived: boolean;
-  /** Overspend NOT covered by reserve for THIS month (overage − reserveUsed).
-   *  For the Investments category the grid relabels this "overinvested" + green. */
+  /** Overspend NOT covered by reserve for THIS month (overage − reserveUsed). */
   overspentCents: string;
   balanceCents: string;
-  /** r33: THE Investments category — grid pins it, greens the overinvested row,
-   *  dashes its reserve, and swaps its edit form to the smart/manual limit picker. */
-  isInvestment: boolean;
-  /** 'manual' | 'smart' | null (null for every normal category). */
-  investmentLimitMode: string | null;
 }
 
 export interface SpendingsSummaryDTO {
@@ -285,48 +266,6 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
         posResult.value.cushionByMonth?.get(input.month) ??
         meta.cushionModeEnabled;
 
-      // r33: resolve the smart Investments category's planned BEFORE the sync map.
-      // SMART = monthly income (FX→budget ccy) − Σ planned of every OTHER active
-      // category, clamped ≥ 0. MANUAL keeps its stored limit. Either way the
-      // Investments category carries no cushion (forced to 0 in the map below).
-      const invCat = categories.find((c) => (c as any).isInvestment) as
-        { id: string; investmentLimitMode?: string | null } | undefined;
-      let investmentPlannedOverride: bigint | null = null;
-      if (invCat) {
-        if (invCat.investmentLimitMode === "smart") {
-          let otherPlanned = 0n;
-          for (const c of categories) {
-            if (c.id === invCat.id) continue;
-            otherPlanned += effectiveLimits.get(c.id)?.planned ?? 0n;
-          }
-          let monthlyIncome = 0n;
-          if (deps.incomeRepo && deps.fxProvider) {
-            const incomes = await deps.incomeRepo.listActive(input.tenantId);
-            // The month being summarised is the month a ONE-TIME income is
-            // judged against: it counts here only if it arrives in it (260807).
-            const items = normalizeIncomesToMonthlyItems(
-              incomes,
-              ym.toString(),
-            );
-            const asOf = now;
-            monthlyIncome = await sumWalletsToCurrency(
-              items,
-              meta.currency,
-              deps.fxProvider,
-              asOf,
-            );
-          }
-          investmentPlannedOverride = computeInvestmentSmartLimit({
-            monthlyIncomeCents: monthlyIncome,
-            otherPlannedCents: otherPlanned,
-          });
-        } else {
-          // manual — keep the stored limit; override only forces cushion 0.
-          investmentPlannedOverride =
-            effectiveLimits.get(invCat.id)?.planned ?? 0n;
-        }
-      }
-
       // Phase 14: reserve cells are in each category's own currency (D-10);
       // the grid reads them in the budget currency at the same rate date as
       // the limits (D-08).
@@ -383,31 +322,14 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
             originalPlanned: 0n,
             fxUnavailable: false,
           };
-          const isInvestment = Boolean((c as any).isInvestment);
           const spent = perCatSpend.get(c.id) ?? 0n;
           // 0083: a No-limit category's implicit plan is WHAT IT SPENT, counted
           // entirely as needs (user, 260820). It was the category's scheduled
           // payments until then; the scheduled total is not what the month cost,
           // so the charts showed a plan the household never recognised.
-          // A cushion month makes Investments UNBOUNDED (user, 260904g). It used
-          // to be handed a limit of 0, which is a different claim: a plan of
-          // zero is a cap that every złoty spent is outside, so a household
-          // investing in a tight month read as fully overspent. "No limit" says
-          // the true thing, and it is a shape the rest of this function already
-          // understands — plan becomes what it actually cost, overage becomes 0,
-          // and the grid renders its dashes — so nothing below needs to know
-          // that investing is the reason.
-          const noLimit =
-            limits.noLimit === true || (isInvestment && monthCushionMode);
-          const planned = noLimit
-            ? spent
-            : isInvestment && investmentPlannedOverride !== null
-              ? investmentPlannedOverride
-              : limits.planned;
-          // Investments has no cushion → 0. In cushion mode its limit therefore
-          // shows 0 (you shouldn't invest when the budget is on the tighter
-          // cushion). Outside cushion mode it shows the smart/manual planned.
-          const cushion = isInvestment ? 0n : limits.cushion;
+          const noLimit = limits.noLimit === true;
+          const planned = noLimit ? spent : limits.planned;
+          const cushion = limits.cushion;
           // The VIEWED month's mode, not the budget's mode today (user report,
           // 260806). A month that ran in cushion mode is judged against the
           // cushion limit — the engine has always done that — but this column
@@ -433,25 +355,17 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           const pos = positions.get(c.id);
           const cell = pos?.byMonth.get(input.month);
           const reserveExcluded = pos?.reserveExcluded ?? false;
-          // The Investments category's limit (smart or manual) isn't the stored
-          // category_limits value the reserve engine used, so its engine overage
-          // is wrong (spent − stored 0 = full spend). Derive overinvested from the
-          // OVERRIDE limit here instead. It's reserve-excluded → no reserve to net.
           // A No-limit category cannot be overspent. The engine already says so,
           // but the `??` fallback below fires when the engine emitted no cell —
           // and `spent − implicitPlan` would then invent an overspend out of the
           // scheduled figure, which is a plan, not a cap.
           const overage = noLimit
             ? 0n
-            : isInvestment
-              ? spent > active
+            : cell
+              ? reserveIn(c.id, cell.overageCents)
+              : spent > active
                 ? spent - active
-                : 0n
-              : cell
-                ? reserveIn(c.id, cell.overageCents)
-                : spent > active
-                  ? spent - active
-                  : 0n;
+                : 0n;
           const rawUsed = reserveIn(c.id, cell?.usedCents ?? 0n);
           // "Reserve available to this month" = used + free reserve at month's end
           // (clamped ≥ 0). Used is then clamped ≤ available so we never display
@@ -473,7 +387,7 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
           const catCcy = posResult.value.categoryCurrency?.get(c.id) ?? c.currency ?? meta.currency;
           const monthCcy = limits.original?.normalCurrency ?? catCcy;
           let own: SpendingsSummaryCategoryDTO["own"];
-          if ((monthCcy !== meta.currency || catCcy !== meta.currency) && !isInvestment) {
+          if (monthCcy !== meta.currency || catCcy !== meta.currency) {
             // No limit row yet → a zero limit, still in the month's currency.
             const o = limits.original ?? { planned: 0n, cushion: 0n };
             const oSpent = ownSpend.get(c.id) ?? 0n;
@@ -573,8 +487,6 @@ export function getSpendingsSummary(deps: GetSpendingsSummaryDeps) {
             archived: (c as any).archivedFrom != null,
             overspentCents: overspent.toString(),
             balanceCents: balance.toString(),
-            isInvestment,
-            investmentLimitMode: (c as any).investmentLimitMode ?? null,
           };
         });
 

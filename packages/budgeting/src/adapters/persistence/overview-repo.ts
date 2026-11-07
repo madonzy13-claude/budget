@@ -226,8 +226,6 @@ export function createOverviewRepo(
                  to_char(created_at, 'YYYY-MM') AS created_month,
                  CASE WHEN archived_from IS NOT NULL
                       THEN to_char(archived_from, 'YYYY-MM') ELSE NULL END AS archived_month,
-                 COALESCE(is_investment, false) AS is_investment,
-                 investment_limit_mode,
                  currency::text AS currency
             FROM budgeting.categories
            WHERE tenant_id = ${budgetId}::uuid
@@ -237,9 +235,6 @@ export function createOverviewRepo(
           name: r.name as string,
           created_month: r.created_month as string,
           archived_month: (r.archived_month as string | null) ?? null,
-          is_investment: (r.is_investment as boolean | null) ?? false,
-          investment_limit_mode:
-            (r.investment_limit_mode as string | null) ?? null,
           currency: (r.currency as string).trim(),
         }));
       });

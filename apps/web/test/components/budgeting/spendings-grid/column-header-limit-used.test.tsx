@@ -36,7 +36,6 @@ const summary = (over: Record<string, string> = {}) => ({
   reserveExcluded: false,
   overspentCents: "0",
   balanceCents: "0",
-  isInvestment: false,
   ...over,
 });
 

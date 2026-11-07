@@ -35,6 +35,25 @@ export class SettingsPo {
     await this.cushionTargetMonthsInput().waitFor({ state: "attached" });
   }
 
+  /** Expand Settings → Investments (settings.sections.investments). */
+  async openInvestmentsSection(): Promise<void> {
+    const trigger = this.page.getByRole("button", { name: /^Investments$/ });
+    await trigger.waitFor({ state: "visible", timeout: 15000 });
+    if ((await trigger.getAttribute("aria-expanded")) !== "true") {
+      await trigger.click();
+    }
+    await this.investmentsToggle().waitFor({ state: "visible" });
+  }
+
+  investmentsToggle() {
+    return this.page.getByTestId("settings-investments-toggle");
+  }
+
+  /** The expanded Investments accordion panel. */
+  investmentsSection() {
+    return this.page.getByRole("region", { name: /^Investments$/ });
+  }
+
   cushionTargetMonthsInput() {
     return this.page.locator("#cushion-target-months");
   }

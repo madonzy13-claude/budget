@@ -49,7 +49,6 @@ function build(seen: { from?: string }) {
           name: "Gifts",
           created_month: MONTHS[0]!,
           archived_month: null,
-          is_investment: false,
         },
       ];
     },

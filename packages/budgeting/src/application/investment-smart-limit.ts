@@ -1,10 +1,7 @@
 /**
- * investment-smart-limit.ts — pure math for the Investments category's smart limit.
- *
- * Smart limit = monthly income (already FX-converted to budget ccy, summed by the
- * caller via sumWalletsToCurrency) − Σ planned of every OTHER active category,
- * clamped ≥ 0. Because a category only persists planned = needs + wants (not the
- * two halves), the spec's `income − Σwants − Σneeds` is exactly `income − Σplanned`.
+ * investment-smart-limit.ts — income helpers: exact decimal → cents and the
+ * monthly-equivalent of each income (still in its own currency). The name is
+ * historical: the smart Investments limit these once fed is gone (15-18).
  *
  * Money stays in bigint cents. Income amounts arrive as numeric(19,4) strings, so
  * decimalToCents parses them exactly (no float) with round-half-up to the cent.
@@ -25,15 +22,6 @@ export function decimalToCents(amount: string): bigint {
   const roundDigit = frac.charCodeAt(2) - 48; // 3rd fractional digit
   const cents = whole + centDigits + (roundDigit >= 5 ? 1n : 0n);
   return neg ? -cents : cents;
-}
-
-/** income − Σ(other planned), never negative. */
-export function computeInvestmentSmartLimit(input: {
-  monthlyIncomeCents: bigint;
-  otherPlannedCents: bigint;
-}): bigint {
-  const v = input.monthlyIncomeCents - input.otherPlannedCents;
-  return v > 0n ? v : 0n;
 }
 
 export interface IncomeForNormalize {

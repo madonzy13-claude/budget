@@ -36,8 +36,6 @@ export interface ColumnHeaderProps {
     noLimit?: boolean;
     overspentCents: string;
     balanceCents: string;
-    /** r33: THE Investments category — greens the "overinvested" row + dashes reserve. */
-    isInvestment?: boolean;
     /** Phase 14 (D-08): the limit as typed, in its own currency. plannedCents
      *  is the same limit in the budget currency (the viewed month's rate). */
     limitOriginalCents?: string;
@@ -124,12 +122,8 @@ export function ColumnHeader({
   // figures are structurally 0. Showing "0 zł" would read as a measurement —
   // that it came in exactly on budget — when there was no budget to come in on.
   const noLimit = summary.noLimit ?? false;
-  // r33: THE Investments category — overspend reads "overinvested" (green, good),
-  // and the reserve section is always a single dash (no reserves for investments).
-  const isInvestment = summary.isInvestment ?? false;
-  // In cushion mode every category (incl. Investments, whose cushion is 0) shows
-  // the cushion figure under a "planned (cushion)" label. Investments therefore
-  // reads 0 in cushion mode — you don't invest on the tighter cushion budget.
+  // In cushion mode every category shows the cushion figure under a
+  // "planned (cushion)" label.
   // Already resolved for the VIEWED month by the grid: a month completed on the
   // cushion keeps its cushion limit for good, so looking back at it from a
   // normal month must not swap in the normal figure (user, 260806).
@@ -364,15 +358,8 @@ export function ColumnHeader({
           className="flex flex-col px-2 py-1.5 border-b border-[var(--hairline-dark)]"
         >
           <span className="text-[10px] text-[var(--muted-foreground)]">
-            {/* Money into investments is not "used up" (user, 261017). */}
             {/* "(plan)" gives way to the "(cushion)" marker below (user, 261017). */}
-            {t(
-              isInvestment
-                ? "row2.invested"
-                : showCushionValue
-                  ? "row2.used"
-                  : "row2.limitUsed",
-            )}
+            {t(showCushionValue ? "row2.used" : "row2.limitUsed")}
             {/* Cushion months are the ones people misread, so the marker earns
                 the accent colour rather than the same grey as the label it
                 qualifies (user, 260806). */}
@@ -440,8 +427,7 @@ export function ColumnHeader({
               category is excluded NOW: available is a dash (—); if it also used no
               reserve this month, the whole cell is a single dash. */}
             <span className="text-sm tabular-nums whitespace-nowrap">
-              {isInvestment ||
-              noLimit ||
+              {noLimit ||
               (reserveExcluded && reserveUsedCents === 0n) ? (
                 <span
                   data-testid={`column-header-${category.name.toLowerCase()}-reserves-used`}
@@ -486,21 +472,16 @@ export function ColumnHeader({
           className="flex flex-col px-2 py-1.5 border-b border-[var(--hairline-dark)]"
         >
           <span className="text-[10px] text-[var(--muted-foreground)]">
-            {isInvestment ? t("row3.overinvested") : t("row3.overspent")}
+            {t("row3.overspent")}
           </span>
           <span
-            data-testid={`column-header-${category.name.toLowerCase()}-${
-              isInvestment ? "overinvested" : "overspent"
-            }`}
+            data-testid={`column-header-${category.name.toLowerCase()}-overspent`}
             className={cn(
               "text-sm tabular-nums",
               noLimit
                 ? "text-[var(--muted-foreground)]"
                 : overspentCents > 0n
-                  ? // Overinvesting is GOOD → green; overspending is bad → red.
-                    isInvestment
-                    ? "text-[var(--trading-up,#26a69a)]"
-                    : "text-[var(--destructive)]"
+                  ? "text-[var(--destructive)]"
                   : "text-[var(--muted-foreground)]",
             )}
           >

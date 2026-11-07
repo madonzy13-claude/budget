@@ -30,15 +30,6 @@ export interface CashflowCategoryInput {
    *  that cannot be overspent must not draw the reserve pot in the forecast
    *  either, or the projection contradicts the reserve engine. */
   noLimit?: boolean;
-  /** Spending past the plan here is not a failure, so it never becomes overspend
-   *  and never reaches the reserve pot. Set for the Investments category (user,
-   *  260904f): the grid already calls its overage "overinvested" and paints it
-   *  green, while the forecast was spending the household's emergency buffer on
-   *  it and painting the day yellow. Distinct from `noLimit`, which ALSO means
-   *  "no plan to drip" — an investment on a manual or smart limit still drips
-   *  that limit in an ordinary month. The money still leaves: cash falls, so a
-   *  day that would genuinely empty the wallet is still red. */
-  neverOverspends?: boolean;
 }
 
 export interface CashflowEvent {
@@ -311,7 +302,7 @@ export function simulateCashflow(input: CashflowSimInput): CashflowProjection {
   // an outflow may reach the pot at all (user, 260811).
   const unbounded = new Set(
     input.categories
-      .filter((c) => c.noLimit === true || c.neverOverspends === true)
+      .filter((c) => c.noLimit === true)
       .map((c) => c.id),
   );
   const remainingLimit = new Map<string, bigint>();

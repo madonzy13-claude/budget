@@ -175,12 +175,6 @@ export function usePrefetchBudgetTabs(budgetId: string) {
           ),
       },
       {
-        // r33: investments settings toggle + slider read the whole {category,
-        // hasIncome, exists} object.
-        key: ["investment-category", budgetId],
-        fn: () => get(`/budgets/${budgetId}/investment-category`, (j) => j),
-      },
-      {
         // settings scheduled-payments-section reads ["categories-lite"]. Same
         // data + shape as the priority ["budget", id, "categories"] fetch, so
         // REUSE it rather than asking twice.

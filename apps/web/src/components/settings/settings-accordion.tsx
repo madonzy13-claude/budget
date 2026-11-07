@@ -127,9 +127,7 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
   const hasCushionWallet = wallets.some((w) => w.walletType === "CUSHION");
   const hasReserveWallet = wallets.some((w) => w.walletType === "RESERVE");
   const hasInvestment = (investmentsQ.data ?? []).length > 0;
-  const hasCategory = (categoriesQ.data ?? []).some(
-    (c) => !(c as { isInvestment?: boolean }).isInvestment,
-  );
+  const hasCategory = (categoriesQ.data ?? []).length > 0;
   const hasScheduled = (scheduledQ.data ?? false) as boolean;
   const hasIncome = (incomeQ.data ?? false) as boolean;
 

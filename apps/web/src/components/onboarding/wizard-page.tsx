@@ -36,7 +36,6 @@ import { StepBasics } from "./steps/step-basics";
 import { StepFeatures } from "./steps/step-features";
 import { StepReview } from "./steps/step-review";
 import { api } from "@/lib/api-client";
-import { clientApiWrite } from "@/lib/offline-write";
 import { subscribeToPushForBudget } from "@/lib/push-subscribe";
 
 // kind-removal: the Type step is gone. Steps are now
@@ -89,7 +88,6 @@ export function WizardPage({
   const tBasics = useTranslations("onboarding.wizard.basics");
   const tActions = useTranslations("onboarding.wizard.actions");
   const tErrors = useTranslations("onboarding.wizard.errors");
-  const tInvest = useTranslations("budget.investments");
   const tPush = useTranslations("settings.push");
 
   // Defer-create model: a mid-wizard refresh restarts from step 0/1
@@ -223,28 +221,6 @@ export function WizardPage({
         },
         { headers: { "X-Budget-ID": budgetId } },
       );
-    }
-
-    // Investments enabled in the wizard → create the smart Investments category
-    // NOW (at budget creation), not deferred to the first time Settings →
-    // Investments is opened. ensureInvestmentCategory is idempotent, so the
-    // Settings reconcile is harmless. Best-effort: the category can still be
-    // created from Settings if this fails.
-    if (form.investmentsEnabled) {
-      try {
-        await clientApiWrite(`/budgets/${budgetId}/investment-category`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Budget-ID": budgetId,
-          },
-          body: JSON.stringify({
-            name: tInvest("smart_category.default_name"),
-          }),
-        });
-      } catch {
-        /* best-effort — creatable later from Settings */
-      }
     }
 
     // Notifications: opted in → subscribe THIS budget to push (fires the browser

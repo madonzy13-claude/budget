@@ -183,9 +183,6 @@ export interface CategoryDto {
   cushionMode?: string | null;
   // Phase 14 (D-04): the category's own currency.
   currency: string;
-  // r33: THE smart Investments category. Investing is not spending, so charts
-  // that measure spending leave it out (260802).
-  isInvestment?: boolean;
 }
 
 // ---------------------------------------------------------------------------

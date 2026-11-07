@@ -9,6 +9,7 @@ import { fetchWith429Retry } from "../fixtures/fetch-with-429-retry";
 import { ConsentPo } from "../page-objects/ConsentPo";
 import { ConnectedAppsPo } from "../page-objects/ConnectedAppsPo";
 import { SpendingsPo } from "../page-objects/SpendingsPo";
+import { InvestmentsPo } from "../page-objects/InvestmentsPo";
 const { Given, When, Then } = createBdd(test);
 
 // A loopback redirect_uri (allowed by validateRedirectUri, 15-05). Nothing
@@ -221,6 +222,27 @@ When(
     expect(s.callId).toBeTruthy();
   },
 );
+
+// A fresh budget has Investments switched off; the write must turn it on.
+When(
+  "the client records buying a new crypto asset {string}",
+  async ({ freshUser }, name: string) => {
+    await tool(freshUser.baseUrl, "record_investment_transaction", {
+      budget_id: freshUser.budgetId,
+      side: "buy",
+      new_asset: { name, type: "crypto" },
+      date: today(),
+      quantity: "0.001",
+      price: "70000.00",
+      currency: "USD",
+    });
+  },
+);
+
+Then("{string} is on my Wallets tab", async ({ page, freshUser }, name: string) => {
+  await page.goto(`/en/budgets/${freshUser.budgetId}/wallets`);
+  await expect(new InvestmentsPo(page).row(name)).toBeVisible({ timeout: 20000 });
+});
 
 When("the client undoes that write", async ({ freshUser }) => {
   await tool(freshUser.baseUrl, "undo", { id: s.callId });

@@ -167,8 +167,7 @@ export function upcomingIncomeItems(
 }
 
 /**
- * Read active incomes + wallet balances + total planned (non-investment,
- * non-archived, effective today) for a budget and return the comparable monthly
+ * Read active incomes + wallet balances + total planned (non-archived, effective today) for a budget and return the comparable monthly
  * figures in budget currency. Raw SQL over the open tx so it sees the trigger
  * mutation's writes.
  */
@@ -276,7 +275,6 @@ export async function computeIncomeVsPlanned(
        AND cl.effective_from <= ${todayStr}::date
        AND (cl.effective_to IS NULL OR cl.effective_to > ${todayStr}::date)
        AND c.archived_at IS NULL
-       AND NOT (c.is_investment = true AND c.investment_limit_mode = 'smart')
   `);
   const plannedCents = BigInt((plannedRow.rows[0] as { total: string }).total);
 

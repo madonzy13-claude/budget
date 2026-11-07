@@ -18,12 +18,6 @@ export class Category {
     // 260613-v1p: per-category color key (one of the 8 palette keys) or null.
     // Mutable so editCategory can recolor; drives the UI accent bar only.
     public colorKey: string | null = null,
-    // r33: THE smart Investments category. isInvestment marks the single
-    // non-deletable, reserve-excluded category; investmentLimitMode is
-    // 'manual' | 'smart' (null for normal categories). Drives the grid's
-    // green "overinvested" label + the smart-limit compute in the summary.
-    public readonly isInvestment: boolean = false,
-    public investmentLimitMode: string | null = null,
     // Persisted cushion configuration (mig 0059); null = inferred.
     public cushionMode: string | null = null,
     // Phase 14 (D-04): the category's own currency. null on a not-yet-saved
@@ -34,11 +28,6 @@ export class Category {
   /** Set or clear the category color (260613-v1p). null clears it (→ no bar). */
   recolor(colorKey: string | null): void {
     this.colorKey = colorKey;
-  }
-
-  /** r33: switch the Investments limit between user-typed and computed. */
-  setInvestmentLimitMode(mode: "manual" | "smart"): void {
-    this.investmentLimitMode = mode;
   }
 
   /** mig 0059: persist the chosen cushion mode. null clears it (→ inferred). */

@@ -52,14 +52,12 @@ const repo: GetOverviewPlannedDeps["repo"] = {
         name: "Groceries",
         created_month: "2025-06",
         archived_month: null,
-        is_investment: false,
       },
       {
         category_id: "Y",
         name: "Daycare",
         created_month: "2026-02",
         archived_month: null,
-        is_investment: false,
       },
     ];
   },
@@ -291,186 +289,6 @@ describe("getOverviewPlanned", () => {
   // the per-category pass the other limits are each in their own currency, so
   // that subtraction means nothing — a foreign smart Investments row never
   // takes `own`, and keeps reading in the budget currency.
-  test("a smart Investments category in another currency gets no own figures", async () => {
-    const windows = [
-      { category_id: "N", name: "Groceries", created_month: "2026-01", archived_month: null, is_investment: false, currency: "PLN" },
-      { category_id: "I", name: "Investments", created_month: "2026-01", archived_month: null, is_investment: true, investment_limit_mode: "smart", currency: "EUR" },
-    ];
-    const mk = (planned: bigint): GetOverviewPlannedDeps["repo"] => ({
-      async monthlyPlannedByCategory() {
-        return [{ category_id: "N", month: "2026-01", planned_cents: planned }];
-      },
-      async monthlySpendByCategory() { return []; },
-      async categoryWindows() { return windows; },
-      async dailySpend() { return []; },
-      async activeScheduledPayments() { return []; },
-    });
-    const dto = (
-      await getOverviewPlanned({
-        repo: mk(30000n),
-        // Own pass: Groceries' limit in złoty — a different number entirely.
-        inCategoryCurrency: { repo: mk(120000n) },
-        metaReader: { async getBudgetMeta() { return { default_currency: "USD" }; } },
-        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
-        incomeRepo: { async listActive() { return [{ amount: "1000.00", currency: "USD", cadence: "MONTHLY" }]; } },
-      })({ tenantId: "b1", budgetId: "b1", from: "2026-01-01", to: "2026-01-31" })
-    )._unsafeUnwrap();
-    expect(dto.plannedAvgVsReal.find((c) => c.category_id === "N")?.own?.planned_avg_cents).toBe("120000");
-    expect(dto.plannedAvgVsReal.find((c) => c.category_id === "I")?.own).toBeUndefined();
-  });
-
-  test("the Investments category is IN plannedAvgVsReal, at its SMART limit", async () => {
-    // Minimal repo: one normal category N (planned 30000) + a smart investment
-    // category I (no planned/spend). Income 100000/mo → I planned = 100000−30000.
-    const smartRepo: GetOverviewPlannedDeps["repo"] = {
-      async monthlyPlannedByCategory() {
-        return [{ category_id: "N", month: "2026-01", planned_cents: 30000n }];
-      },
-      async monthlySpendByCategory() {
-        return [];
-      },
-      async categoryWindows() {
-        return [
-          {
-            category_id: "N",
-            name: "Groceries",
-            created_month: "2026-01",
-            archived_month: null,
-            is_investment: false,
-          },
-          {
-            category_id: "I",
-            name: "Investments",
-            created_month: "2026-01",
-            archived_month: null,
-            is_investment: true,
-            investment_limit_mode: "smart",
-          },
-        ];
-      },
-      async dailySpend() {
-        return [];
-      },
-      async activeScheduledPayments() {
-        return [];
-      },
-    };
-    const smartDeps: GetOverviewPlannedDeps = {
-      repo: smartRepo,
-      metaReader: {
-        async getBudgetMeta() {
-          return { default_currency: "USD" };
-        },
-      },
-      fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
-      incomeRepo: {
-        async listActive() {
-          return [{ amount: "1000.00", currency: "USD", cadence: "MONTHLY" }];
-        },
-      },
-    };
-    const dto = (
-      await getOverviewPlanned(smartDeps)({
-        tenantId: "b1",
-        budgetId: "b1",
-        from: "2026-01-01",
-        to: "2026-01-31",
-      })
-    )._unsafeUnwrap();
-    const n = dto.plannedAvgVsReal.find((c) => c.category_id === "N")!;
-    expect(n.planned_avg_cents).toBe("30000");
-    // The tooltip shows the average AND the range TOTAL side by side (260803
-    // user request) — one month in range here, so the two agree.
-    expect(n.planned_total_cents).toBe("30000");
-    expect(n.real_total_cents).toBe("0");
-    // It belongs to both by-category charts now (260803 user request), and on
-    // SMART it carries no stored limit — its plan is income minus everything
-    // else planned, the same figure the Spendings grid shows. Without resolving
-    // it the category would arrive with a plan of ZERO and read as pure
-    // overspend.
-    const i = dto.plannedAvgVsReal.find((c) => c.category_id === "I")!;
-    expect(i).toBeTruthy();
-    expect(i.planned_avg_cents).toBe("70000"); // 100000 income − 30000 planned
-  });
-
-  test("timeline COUNTS the investment category's planned + spend", async () => {
-    // Normal N (planned 30000, spend 20000) + investment V on MANUAL (planned
-    // 50000, spend 40000), Jan. A 3-month range → monthly timeline. Both count:
-    // the line is the household's whole outgoing (260803 user request).
-    const tlRepo: GetOverviewPlannedDeps["repo"] = {
-      async monthlyPlannedByCategory() {
-        return [
-          { category_id: "N", month: "2026-01", planned_cents: 30000n },
-          { category_id: "V", month: "2026-01", planned_cents: 50000n },
-        ];
-      },
-      async monthlySpendByCategory() {
-        return [
-          { category_id: "N", month: "2026-01", spent_cents: 20000n },
-          { category_id: "V", month: "2026-01", spent_cents: 40000n },
-        ];
-      },
-      async categoryWindows() {
-        return [
-          {
-            category_id: "N",
-            name: "Groceries",
-            created_month: "2026-01",
-            archived_month: null,
-            is_investment: false,
-          },
-          {
-            category_id: "V",
-            name: "Investments",
-            created_month: "2026-01",
-            archived_month: null,
-            is_investment: true,
-          },
-        ];
-      },
-      async dailySpend() {
-        return [];
-      },
-      async activeScheduledPayments() {
-        return [];
-      },
-    };
-    const tlDeps: GetOverviewPlannedDeps = {
-      repo: tlRepo,
-      metaReader: {
-        async getBudgetMeta() {
-          return { default_currency: "USD" };
-        },
-      },
-      fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
-      incomeRepo: {
-        async listActive() {
-          return [{ amount: "1000.00", currency: "USD", cadence: "MONTHLY" }];
-        },
-      },
-    };
-    const dto = (
-      await getOverviewPlanned(tlDeps)({
-        tenantId: "b1",
-        budgetId: "b1",
-        from: "2026-01-01",
-        to: "2026-03-31",
-      })
-    )._unsafeUnwrap();
-    expect(dto.bucket).toBe("monthly");
-    // Totals run over every month the category was active, not just the one it
-    // has figures in: N is planned 30000 in Jan only, across a 3-month range.
-    const nAvg = dto.plannedAvgVsReal.find((c) => c.category_id === "N")!;
-    expect(nAvg.planned_total_cents).toBe("30000"); // Σ over the range
-    expect(nAvg.planned_avg_cents).toBe("10000"); // …/3 active months
-    expect(nAvg.real_total_cents).toBe("20000");
-    const jan = dto.timeline.find((t) => t.label === "2026-01")!;
-    expect(jan.planned_cents).toBe("80000"); // 30000 + V's 50000
-    expect(jan.real_cents).toBe("60000"); // 20000 + V's 40000
-    // …and the avg-by-category chart lists it too.
-    expect(dto.plannedAvgVsReal.some((c) => c.category_id === "V")).toBe(true);
-  });
-
   test("carries each category's NEEDS share of its plan", async () => {
     // The planned-spend pie grows an outer ring of needs / wants / investments
     // (260803 request), which needs the split per category — the pie is drawn
@@ -502,7 +320,6 @@ describe("getOverviewPlanned", () => {
             name: "Groceries",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -563,7 +380,6 @@ describe("getOverviewPlanned", () => {
             name: "Groceries",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -648,7 +464,6 @@ describe("getOverviewPlanned", () => {
             name: "Groceries",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -710,7 +525,6 @@ describe("getOverviewPlanned", () => {
             name: "Groceries",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -778,7 +592,6 @@ describe("getOverviewPlanned", () => {
             name: "Backdated",
             created_month: "2026-03", // the RECORD is younger than its data
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -811,78 +624,6 @@ describe("getOverviewPlanned", () => {
     expect(b.real_avg_cents).toBe("3333"); // over the 3 months in range
   });
 
-  test("the SMART investment plan does not reach back before the category existed", async () => {
-    // Its plan is income minus everything else planned, so in months with no
-    // other limits it equals the WHOLE income. Applied to every month in range
-    // that drew a full-height plan band across years of empty history, which
-    // then defeated the "All" range's leading-zero trim (user report, 260803).
-    const preRepo: GetOverviewPlannedDeps["repo"] = {
-      async monthlyPlannedByCategory() {
-        return [{ category_id: "N", month: "2026-03", planned_cents: 30000n }];
-      },
-      async monthlySpendByCategory() {
-        return [{ category_id: "I", month: "2026-03", spent_cents: 5000n }];
-      },
-      async categoryWindows() {
-        return [
-          {
-            category_id: "N",
-            name: "Groceries",
-            created_month: "2026-03",
-            archived_month: null,
-            is_investment: false,
-          },
-          {
-            category_id: "I",
-            name: "Investments",
-            created_month: "2026-03",
-            archived_month: null,
-            is_investment: true,
-            investment_limit_mode: "smart",
-          },
-        ];
-      },
-      async dailySpend() {
-        return [];
-      },
-      async activeScheduledPayments() {
-        return [];
-      },
-    };
-    const dto = (
-      await getOverviewPlanned({
-        repo: preRepo,
-        metaReader: {
-          async getBudgetMeta() {
-            return { default_currency: "USD" };
-          },
-        },
-        fxProvider: fx() as GetOverviewPlannedDeps["fxProvider"],
-        incomeRepo: {
-          async listActive() {
-            return [{ amount: "1000.00", currency: "USD", cadence: "MONTHLY" }];
-          },
-        },
-      })({
-        tenantId: "b1",
-        budgetId: "b1",
-        from: "2026-01-01",
-        to: "2026-03-31",
-      })
-    )._unsafeUnwrap();
-    // January and February predate everything — no plan, no spend, nothing to
-    // draw a band with.
-    const jan = dto.timeline.find((t) => t.label === "2026-01")!;
-    expect(jan.planned_cents).toBe("0");
-    expect(dto.timeline.find((t) => t.label === "2026-02")!.planned_cents).toBe(
-      "0",
-    );
-    // March carries both: 30000 planned + the smart 70000.
-    expect(dto.timeline.find((t) => t.label === "2026-03")!.planned_cents).toBe(
-      "100000",
-    );
-  });
-
   test("daily bucket, NO spend but a planned limit → planned-only line (real=0), not empty", async () => {
     const repo: GetOverviewPlannedDeps["repo"] = {
       async monthlyPlannedByCategory() {
@@ -898,7 +639,6 @@ describe("getOverviewPlanned", () => {
             name: "Groceries",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -950,7 +690,6 @@ describe("getOverviewPlanned", () => {
             name: "Groceries",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -1031,7 +770,6 @@ describe("getOverviewPlanned", () => {
             name: "Groceries",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -1103,7 +841,6 @@ describe("getOverviewPlanned", () => {
             name: "Groceries",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -1167,7 +904,6 @@ describe("getOverviewPlanned", () => {
             name: "Groceries",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -1222,7 +958,6 @@ describe("getOverviewPlanned", () => {
             name: "Groceries",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -1360,14 +1095,12 @@ describe("getOverviewPlanned", () => {
             name: "Food",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
           {
             category_id: "FUN",
             name: "Fun",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -1443,14 +1176,12 @@ describe("getOverviewPlanned", () => {
             name: "Food",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
           {
             category_id: "FUN",
             name: "Fun",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -1516,7 +1247,6 @@ describe("getOverviewPlanned", () => {
             name: "A",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -1605,7 +1335,6 @@ describe("getOverviewPlanned", () => {
             name: "Food",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -1670,7 +1399,6 @@ describe("getOverviewPlanned", () => {
             name: "Food",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -1860,7 +1588,6 @@ describe("getOverviewPlanned", () => {
             name: "Food",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -1916,7 +1643,6 @@ describe("getOverviewPlanned", () => {
           name: id,
           created_month: "2026-01",
           archived_month: null,
-          is_investment: false,
         }));
       },
       async dailySpend() {
@@ -1971,7 +1697,6 @@ describe("getOverviewPlanned", () => {
             name: "A",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -2039,7 +1764,6 @@ describe("one-off spend and the per-category averages", () => {
             name: "Sport",
             created_month: "2026-01",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -2135,7 +1859,6 @@ describe("a category whose only month is the one still running", () => {
             name: "Groceries",
             created_month: "2026-08",
             archived_month: null,
-            is_investment: false,
           },
         ];
       },
@@ -2198,7 +1921,6 @@ describe("getOverviewPlanned — a No-limit category", () => {
           name: "House",
           created_month: "2026-01",
           archived_month: null,
-          is_investment: false,
         },
       ];
     },

@@ -88,7 +88,6 @@ export function goldenDeps(categories: number, seed = 42): GetReserveFitDeps {
           name: `Cat ${i}`,
           created_month: c.created,
           archived_month: c.archived,
-          is_investment: false,
         })),
       monthlyPlannedByCategory: async (
         _budgetId: string,

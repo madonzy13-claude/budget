@@ -35,7 +35,6 @@ import { createTransactionsRoute } from "./routes/transactions";
 import { createCurrenciesRoute } from "./routes/currencies";
 import { createScheduledPaymentsRoute } from "./routes/scheduled-payments";
 import { createIncomesRoute } from "./routes/incomes";
-import { createInvestmentCategoryRoute } from "./routes/investment-category";
 import { createTasksRoute } from "./routes/tasks";
 import { createInvestmentsRoute } from "./routes/investments";
 import { createPushRoute } from "./routes/push";
@@ -151,8 +150,6 @@ export function createApp(deps: BootedDeps) {
   app.use("/budgets/:budgetId/categories/*", requireWorkspace);
   app.use("/budgets/:budgetId/scheduled-payments/*", requireWorkspace);
   app.use("/budgets/:budgetId/incomes/*", requireWorkspace);
-  app.use("/budgets/:budgetId/investment-category", requireWorkspace);
-  app.use("/budgets/:budgetId/investment-category/*", requireWorkspace);
   app.use("/budgets/:budgetId/transactions/*", requireWorkspace);
 
   app.route(
@@ -171,13 +168,6 @@ export function createApp(deps: BootedDeps) {
   app.route(
     "/budgets/:budgetId/incomes",
     createIncomesRoute({
-      recomputeIncomeUnderPlanned:
-        deps.budgeting.recomputeIncomeUnderPlannedRunner,
-    }),
-  );
-  app.route(
-    "/budgets/:budgetId/investment-category",
-    createInvestmentCategoryRoute({
       recomputeIncomeUnderPlanned:
         deps.budgeting.recomputeIncomeUnderPlannedRunner,
     }),

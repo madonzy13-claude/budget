@@ -34,14 +34,12 @@ const windows = [
     name: "Food",
     created_month: "2025-01",
     archived_month: null,
-    is_investment: false,
   },
   {
     category_id: CAT_SPORT,
     name: "Sport",
     created_month: "2025-01",
     archived_month: null,
-    is_investment: false,
   },
 ];
 
@@ -214,7 +212,6 @@ describe("a monthly rule the limit already covers", () => {
               name: "Kids",
               created_month: "2025-01",
               archived_month: null,
-              is_investment: false,
             },
           ];
         },
@@ -320,7 +317,6 @@ describe("projected monthly cost", () => {
               name: "Proj",
               created_month: "2025-01",
               archived_month: null,
-              is_investment: false,
             },
           ];
         },
@@ -518,7 +514,6 @@ describe("the limit and the reserve are two routes to one place", () => {
               name: "Levers",
               created_month: "2025-01",
               archived_month: null,
-              is_investment: false,
             },
           ];
         },
@@ -767,7 +762,6 @@ describe("getReserveFit", () => {
               name: "ымо",
               created_month: "2026-07",
               archived_month: "2026-07",
-              is_investment: false,
             },
           ];
         },
@@ -812,7 +806,6 @@ describe("getReserveFit", () => {
               name: "імперія",
               created_month: "2025-01",
               archived_month: "2025-06",
-              is_investment: false,
             },
           ];
         },
@@ -861,7 +854,6 @@ describe("getReserveFit", () => {
               created_month: "2025-01",
               // Archived INSIDE the range: its months still count.
               archived_month: "2026-02",
-              is_investment: false,
             },
           ];
         },
