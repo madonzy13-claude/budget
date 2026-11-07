@@ -74,6 +74,9 @@ const USER_TABLES = [
   "identity.user_preferences",
   "shared_kernel.user_keys",
   "tenancy.onboarding_progress",
+  // Phase 15: an MCP scenario's write log and import previews (user-scoped).
+  "shared_kernel.mcp_import_previews",
+  "shared_kernel.mcp_write_log",
 ] as const;
 
 function dbUrl(): string {
