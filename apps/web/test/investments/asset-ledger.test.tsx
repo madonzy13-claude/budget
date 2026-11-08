@@ -516,6 +516,51 @@ describe("Asset ledger strip", () => {
     expect(await screen.findByTestId("entry-edit-date")).toBeDisabled();
   });
 
+  // 261108 (user): money put in can have its amount and currency fixed —
+  // unless a later entry relied on it (then it shows, locked, with why).
+  it("Edit changes the amount of money put in", async () => {
+    mount([
+      e({
+        id: "a1",
+        kind: "add",
+        amountCents: "64000",
+        amountCurrency: "PLN",
+        dateEditable: true,
+        amountEditable: true,
+      }),
+    ]);
+    fireEvent.click(await screen.findByTestId("ledger-edit-a1"));
+    const amount = await screen.findByTestId("entry-edit-amount");
+    expect(amount).toHaveValue("640");
+    expect(screen.getByTestId("entry-edit-currency")).toBeInTheDocument();
+    fireEvent.change(amount, { target: { value: "700.5" } });
+    fireEvent.click(screen.getByTestId("entry-edit-save"));
+    await waitFor(() => expect(mockWrite).toHaveBeenCalled());
+    const [, init] = mockWrite.mock.calls.at(-1)!;
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      amountCents: "70050",
+    });
+  });
+
+  it("an amount a later entry relied on shows locked, and says why", async () => {
+    mount([
+      e({
+        id: "a1",
+        kind: "add",
+        amountCents: "64000",
+        amountCurrency: "PLN",
+        dateEditable: true,
+        amountEditable: false,
+      }),
+    ]);
+    fireEvent.click(await screen.findByTestId("ledger-edit-a1"));
+    const amount = await screen.findByTestId("entry-edit-amount");
+    expect(amount).toHaveAttribute("readonly");
+    expect(amount).toHaveValue("640");
+    expect(screen.getByText("ledger.edit.amountLocked")).toBeInTheDocument();
+    expect(screen.queryByTestId("entry-edit-currency")).toBeNull();
+  });
+
   it("interest rows have no Edit", async () => {
     mount(ENTRIES);
     await screen.findByTestId("ledger-row-b1");
