@@ -648,7 +648,8 @@
         "endDateOptional": "Дата завершення (необов’язково)",
         "ticker": "Тікер",
         "tickerPlaceholder": "напр. AAPL",
-        "customName": "Власна назва"
+        "customName": "Власна назва",
+        "endDate": "Дата завершення"
       },
       "uitype": {
         "crypto": "Криптовалюти",
@@ -981,7 +982,8 @@
         "g": "{n, plural, one {{qty} грам} few {{qty} грами} many {{qty} грамів} other {{qty} грама}}",
         "oz": "{n, plural, one {{qty} унція} few {{qty} унції} many {{qty} унцій} other {{qty} унції}}",
         "kg": "{n, plural, one {{qty} кілограм} few {{qty} кілограми} many {{qty} кілограмів} other {{qty} кілограма}}"
-      }
+      },
+      "noEndDate": "Без терміну"
     },
     "cushionMode": {
       "name": "Подушка",

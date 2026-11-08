@@ -648,7 +648,8 @@
         "endDateOptional": "End date (optional)",
         "ticker": "Ticker",
         "tickerPlaceholder": "e.g. AAPL",
-        "customName": "Custom name"
+        "customName": "Custom name",
+        "endDate": "End date"
       },
       "uitype": {
         "crypto": "Crypto",
@@ -981,7 +982,8 @@
         "g": "{n, plural, one {{qty} g} other {{qty} g}}",
         "oz": "{n, plural, one {{qty} oz} other {{qty} oz}}",
         "kg": "{n, plural, one {{qty} kg} other {{qty} kg}}"
-      }
+      },
+      "noEndDate": "No end date"
     },
     "cushionMode": {
       "name": "Cushion",

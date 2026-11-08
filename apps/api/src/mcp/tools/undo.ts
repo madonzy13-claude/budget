@@ -188,7 +188,32 @@ const INVERSES: Record<string, Partial<Record<WriteLogRow["op"], Inverse>>> = {
     },
   },
 
-  wallet: { update: walletBack },
+  wallet: {
+    update: walletBack,
+    // No unarchive route: a created wallet goes the way the app deletes one.
+    async create(row, c) {
+      const now = await get(c, `/wallets/${row.entityId}`, row.tenantId);
+      if (!now) return c.mode === "rollback" ? "reverted" : "skipped";
+      if (changed(c, now, row.after as Json, ["name", "currency", "currentBalanceCents"])) return "skipped";
+      return done(await c.send({ method: "POST", path: `/wallets/${row.entityId}/archive`, budgetId: row.tenantId, body: {} }));
+    },
+  },
+  wallet_details: {
+    async update(row, c) {
+      const now = await get(c, `/wallets/${row.entityId}`, row.tenantId);
+      const fields = ["name", "currency", "currentBalanceCents", "walletType"];
+      if (!now || changed(c, now, row.after as Json, fields)) return "skipped";
+      const b = row.before as Json;
+      return done(
+        await c.send({
+          method: "PATCH",
+          path: `/wallets/${row.entityId}`,
+          budgetId: row.tenantId,
+          body: { name: b.name, currency: b.currency, walletType: b.walletType, amount: fromMinorUnits(b.currentBalanceCents, b.currency) },
+        }),
+      );
+    },
+  },
   wallet_balance: { update: walletBack },
 
   category_limit: {

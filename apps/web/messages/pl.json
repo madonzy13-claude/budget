@@ -648,7 +648,8 @@
         "endDateOptional": "Data zakończenia (opcjonalnie)",
         "ticker": "Symbol",
         "tickerPlaceholder": "np. AAPL",
-        "customName": "Własna nazwa"
+        "customName": "Własna nazwa",
+        "endDate": "Data zakończenia"
       },
       "uitype": {
         "crypto": "Krypto",
@@ -981,7 +982,8 @@
         "g": "{n, plural, one {{qty} gram} few {{qty} gramy} many {{qty} gramów} other {{qty} grama}}",
         "oz": "{n, plural, one {{qty} uncja} few {{qty} uncje} many {{qty} uncji} other {{qty} uncji}}",
         "kg": "{n, plural, one {{qty} kilogram} few {{qty} kilogramy} many {{qty} kilogramów} other {{qty} kilograma}}"
-      }
+      },
+      "noEndDate": "Bez terminu"
     },
     "cushionMode": {
       "name": "Poduszka",

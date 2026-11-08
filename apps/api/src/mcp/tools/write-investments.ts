@@ -42,7 +42,7 @@ export const investmentTxnRow = z.object({
       name: z.string().min(1).max(120),
       // The app's own types, so the asset buys and sells exactly as one added there.
       type: uiTypeSchema.describe(
-        "stocks, crypto, treasury_bond, collectibles, real_estate, other, precious_metals, cash, broker, savings, possession",
+        "stocks, crypto, treasury_bond, collectibles, real_estate, other, precious_metals, cash, broker, deposit, savings, possession",
       ),
     })
     .optional(),
@@ -51,6 +51,17 @@ export const investmentTxnRow = z.object({
   price: decimal.optional().describe("Price per unit"),
   amount: decimal.optional().describe("Total, for amount-shaped assets"),
   received: decimal.optional().describe("Sell: money received"),
+  deposit: z
+    .object({
+      annual_rate_percent: z.string().regex(/^\d+(\.\d{1,2})?$/).describe('e.g. "35" for 35% a year'),
+      capitalization: z
+        .enum(["daily", "monthly", "quarterly", "semiannual", "yearly"])
+        .describe("How often interest is added"),
+      start_date: date.optional().describe("First day interest accrues; default the buy date"),
+      end_date: date.optional().describe("Maturity; omit for a deposit with no end"),
+    })
+    .optional()
+    .describe("Required for a new deposit: its rate, capitalization and dates"),
   value_after: decimal
     .optional()
     .describe("Broker deposit: account value right after it, in the account's currency. Omit if unknown"),
@@ -165,6 +176,18 @@ export async function recordInvestmentTxn(
     if (!total) return toolError("price_or_amount_required");
     const price = cents(total, "price");
     if (!price.ok) return price.error;
+    const dep = args.deposit;
+    if (args.new_asset.type === "deposit" && !dep) return toolError("deposit_details_required");
+    // As the app's deposit form: rate in basis points, value computed from it on read.
+    const deposit =
+      args.new_asset.type === "deposit" && dep
+        ? {
+            depositRateBps: Number(big(dep.annual_rate_percent).times(100).toFixed(0)),
+            depositCapFrequency: dep.capitalization,
+            depositStartDate: dep.start_date ?? args.date,
+            depositEndDate: dep.end_date ?? null,
+          }
+        : {};
     const r = await c.dispatch({
       method: "POST",
       path: base(b),
@@ -181,6 +204,7 @@ export async function recordInvestmentTxn(
         currentPriceCents: price.value,
         currentPriceCurrency: ccy,
         openedOn: args.date,
+        ...deposit,
         ...note,
       },
     });

@@ -8,6 +8,7 @@ import {
   writeTool,
   toolError,
   fromDispatch,
+  untrusted,
   type McpCtx,
   type WriteCtx,
   type WriteEffect,
@@ -392,6 +393,113 @@ export function registerWriteTools(server: McpServer, ctx: McpCtx): void {
       entryCount: () => 1,
     },
     (args, c) => syncWalletBalance(c, args),
+  );
+
+  type Wallet = { id: string; name: string; walletType: string; currency: string; currentBalanceCents: string };
+  const balance = z
+    .string()
+    .regex(/^-?\d{1,13}(\.\d{1,4})?$/)
+    .describe('Decimal string in the wallet\'s currency, e.g. "75.34"; negative for a credit card');
+  const walletType = z
+    .enum(["SPENDINGS", "CUSHION", "RESERVE", "POSSESSION", "OTHER"])
+    .describe("SPENDINGS = everyday money (default); CUSHION, RESERVE, POSSESSION, OTHER as in the app");
+
+  writeTool(
+    server,
+    ctx,
+    "create_wallet",
+    {
+      description:
+        "Create a wallet (cash, bank account, card…) with its balance, in the currency the user said. " +
+        SAME_AS_APP,
+      inputSchema: z.object({
+        budget_id: budgetId,
+        name: z.string().min(1).max(120),
+        currency: z.string().regex(/^[A-Z0-9]{3,5}$/),
+        balance: balance.optional(),
+        wallet_type: walletType.default("SPENDINGS"),
+      }),
+      annotations: { destructiveHint: false, idempotentHint: false },
+      entryCount: () => 1,
+    },
+    async ({ budget_id: b, name, currency, balance: amt, wallet_type }, c) => {
+      const r = await c.dispatch({ method: "POST", path: "/wallets", budgetId: b, body: { name, walletType: wallet_type, currency } });
+      if (!r.ok) return fromDispatch(r);
+      const id = (r.body as { id: string }).id;
+      // The app's add form sets the balance with the same PATCH right after.
+      if (amt !== undefined) {
+        const p = await c.dispatch({ method: "PATCH", path: `/wallets/${id}`, budgetId: b, body: { amount: amt } });
+        if (!p.ok) return fromDispatch(p);
+      }
+      const made = (await getBody<Wallet>(c, `/wallets/${id}`, b)) ?? (r.body as Wallet);
+      return {
+        result: { wallet: { ...made, name: untrusted(made.name), balance: decimal(made.currentBalanceCents ?? "0", made.currency) } },
+        effects: [effect(r, { tenantId: b, entityType: "wallet", entityId: id, op: "create", before: null, after: made })],
+        currency: made.currency,
+      };
+    },
+  );
+
+  writeTool(
+    server,
+    ctx,
+    "edit_wallet",
+    {
+      description:
+        "Change a wallet's name, currency, balance or type; pass only what changes. A new currency " +
+        "is not a conversion: give the balance as the user said it in that currency. " + SAME_AS_APP,
+      inputSchema: z.object({
+        budget_id: budgetId,
+        wallet_id: z.uuid(),
+        name: z.string().min(1).max(120).optional(),
+        currency: z.string().regex(/^[A-Z0-9]{3,5}$/).optional(),
+        balance: balance.optional(),
+        wallet_type: walletType.optional(),
+      }),
+      annotations: { destructiveHint: false, idempotentHint: true },
+      entryCount: () => 1,
+    },
+    async ({ budget_id: b, wallet_id: id, name, currency, balance: amt, wallet_type }, c) => {
+      const body = {
+        ...(name !== undefined ? { name } : {}),
+        ...(currency !== undefined ? { currency } : {}),
+        ...(amt !== undefined ? { amount: amt } : {}),
+        ...(wallet_type !== undefined ? { walletType: wallet_type } : {}),
+      };
+      if (Object.keys(body).length === 0) return toolError("nothing_to_change");
+      const before = await getBody<Wallet>(c, `/wallets/${id}`, b);
+      if (!before) return toolError("not_found");
+      const r = await c.dispatch({ method: "PATCH", path: `/wallets/${id}`, budgetId: b, body });
+      if (!r.ok) return fromDispatch(r);
+      const after = (await getBody<Wallet>(c, `/wallets/${id}`, b)) ?? before;
+      return {
+        result: { wallet: { ...after, name: untrusted(after.name), balance: decimal(after.currentBalanceCents, after.currency) } },
+        effects: [effect(r, { tenantId: b, entityType: "wallet_details", entityId: id, op: "update", before, after })],
+        currency: after.currency,
+      };
+    },
+  );
+
+  writeTool(
+    server,
+    ctx,
+    "delete_wallet",
+    {
+      description: "Delete a wallet, the same way the app's delete does (it is archived). " + SAME_AS_APP,
+      inputSchema: z.object({ budget_id: budgetId, wallet_id: z.uuid() }),
+      annotations: { destructiveHint: true, idempotentHint: true },
+      entryCount: () => 1,
+    },
+    async ({ budget_id: b, wallet_id: id }, c) => {
+      const before = await getBody<Wallet>(c, `/wallets/${id}`, b);
+      if (!before) return toolError("not_found");
+      const r = await c.dispatch({ method: "POST", path: `/wallets/${id}/archive`, budgetId: b, body: {} });
+      if (!r.ok) return fromDispatch(r);
+      return {
+        result: { deleted: id },
+        effects: [effect(r, { tenantId: b, entityType: "wallet", entityId: id, op: "delete", before, after: null })],
+      };
+    },
   );
 
   writeTool(

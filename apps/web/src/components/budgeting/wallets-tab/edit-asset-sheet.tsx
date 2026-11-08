@@ -83,6 +83,13 @@ export function EditAssetForm({
     h.holdingType === "deposit" || h.uiType === "deposit"
       ? [
           [
+            "principal",
+            t("field.principal"),
+            h.buyPriceCents == null
+              ? null
+              : `${centsToBare(String(Math.round(Number(h.buyPriceCents))), locale)} ${h.buyCurrency ?? ""}`.trim(),
+          ],
+          [
             "rate",
             t("field.rate"),
             h.depositRateBps == null
@@ -98,6 +105,13 @@ export function EditAssetForm({
             "startDate",
             t("field.startDate"),
             h.depositStartDate && ledgerDate(h.depositStartDate, locale),
+          ],
+          [
+            "endDate",
+            t("field.endDate"),
+            h.depositEndDate
+              ? ledgerDate(h.depositEndDate, locale)
+              : t("noEndDate"),
           ],
         ]
       : h.metal != null
