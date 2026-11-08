@@ -694,6 +694,16 @@ describe("Investment entries ledger", () => {
       });
     });
 
+    it("an old opening entry with no value of its own still carries the value along", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix);
+      const h = await seed(fix); // 10,000.00 PLN in, worth the same
+      await startEntry(fix, h); // value_delta 0, as migrated entries are
+      const [only] = await entriesOf(app, h);
+      expect((await edit(app, only!.id, { amountCents: "1500000", currency: "UAH" })).status).toBe(200);
+      expect(await holding(fix, h)).toMatchObject({ buy: "1500000", cur: "1500000", bc: "UAH", cc: "UAH" });
+    });
+
     it("with other entries, keeps the amount as said and books it at that day's rate", async () => {
       const fix = await createFixture();
       const app = await buildApp(fix, undefined, () => "0.1");
