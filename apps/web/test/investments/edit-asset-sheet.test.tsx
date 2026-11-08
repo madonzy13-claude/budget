@@ -163,6 +163,41 @@ describe("Edit asset sheet — locked configuration", () => {
     expectLocked("endDate", "noEndDate");
   });
 
+  // 15-18 UAT: a deposit saved without its terms still lists every field —
+  // empty ones as "—" — and its note, so nothing is silently missing.
+  it("a deposit lists rate, capitalization, dates and note even when empty", async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url.includes("/entries")
+        ? new Response(
+            JSON.stringify({
+              entries: [
+                { id: "e1", kind: "add", effectiveDate: "2026-11-08", note: "35% a year, no end", deletable: true },
+              ],
+            }),
+            { status: 200 },
+          )
+        : new Response("{}", { status: 200 }),
+    );
+    mount(
+      H({
+        id: "dep-1",
+        name: "Dad",
+        holdingType: "deposit",
+        uiType: "deposit",
+        instrumentId: null,
+        buyPriceCents: "25000",
+        buyCurrency: "PLN",
+        depositRateBps: null,
+        depositCapFrequency: null,
+        depositStartDate: null,
+        depositEndDate: null,
+      }),
+    );
+    for (const f of ["rate", "capFrequency", "startDate"]) expectLocked(f, "—");
+    expectLocked("endDate", "noEndDate");
+    await waitFor(() => expectLocked("note", "35% a year, no end"));
+  });
+
   it("a tracked asset shows its instrument and current price locked", () => {
     mount(btc);
     expectLocked("instrument", "Bitcoin");
