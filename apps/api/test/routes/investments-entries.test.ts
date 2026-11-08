@@ -602,4 +602,144 @@ describe("Investment entries ledger", () => {
       ),
     ).toHaveLength(1);
   });
+
+  // 261108 (user): a transaction's amount and currency can be fixed, unless a
+  // later entry already relied on it (a sale took its cost, money left).
+  describe("PATCH /entries/:id — amount and currency", () => {
+    const create = async (app: Hono, body: Record<string, unknown>) =>
+      ((await (await call(app, "POST", "", body)).json()) as { id: string }).id;
+    const cashBody = {
+      name: "Cash",
+      holdingType: "cash_fx",
+      uiType: "cash",
+      buyPriceCents: "100000",
+      buyCurrency: "PLN",
+      currentPriceCents: "100000",
+      currentPriceCurrency: "PLN",
+      openedOn: "2026-09-01",
+    };
+    const holding = async (fix: Fixture, id: string) =>
+      (
+        await q<{ buy: string; cur: string; bc: string; cc: string; qty: string }>(
+          fix,
+          `SELECT buy_price_cents::text AS buy, current_price_cents::text AS cur,
+                  buy_currency AS bc, current_price_currency AS cc, quantity::text AS qty
+             FROM budgeting.investments WHERE id = $1`,
+          [id],
+        )
+      )[0]!;
+    const edit = (app: Hono, id: unknown, body: Record<string, unknown>) =>
+      call(app, "PATCH", `/entries/${id}`, body);
+
+    it("changes an older add; the asset and the later entry's undo follow", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix);
+      const h = await create(app, cashBody);
+      await buy(app, h, "2026-09-10"); // +10.00
+      await buy(app, h, "2026-09-20"); // +10.00
+      const mid = (await entriesOf(app, h))[1]!;
+      expect(mid.amountEditable).toBe(true);
+
+      const res = await edit(app, mid.id, { amountCents: "5000", currency: "PLN" });
+      expect(res.status).toBe(200);
+      expect(await holding(fix, h)).toMatchObject({ buy: "106000", cur: "106000" });
+      expect((await entriesOf(app, h))[1]).toMatchObject({
+        id: mid.id,
+        amountCents: "5000",
+        amountCurrency: "PLN",
+      });
+
+      // Deleting the newest still lands on the right value.
+      const newest = (await entriesOf(app, h))[0]!;
+      expect((await call(app, "DELETE", `/entries/${newest.id}`)).status).toBe(200);
+      expect(await holding(fix, h)).toMatchObject({ buy: "105000", cur: "105000" });
+    });
+
+    it("refuses when a later sale relied on it, and nothing changes", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix);
+      const h = await create(app, cashBody);
+      await buy(app, h, "2026-09-10");
+      await call(app, "POST", `/${h}/sell`, {
+        effectiveDate: "2026-10-01",
+        left: { valueCents: "50000" },
+        destination: { kind: "out" },
+        receivedCents: "51000",
+        receivedCurrency: "PLN",
+      });
+      const add = (await entriesOf(app, h)).find((e) => e.effectiveDate === "2026-09-10")!;
+      expect(add.amountEditable).toBe(false);
+      const before = await holding(fix, h);
+      const res = await edit(app, add.id, { amountCents: "500" });
+      expect(res.status).toBe(422);
+      expect(await res.json()).toMatchObject({ error: "later_entry_depends" });
+      expect(await holding(fix, h)).toEqual(before);
+      // The sale itself is money out — not editable this way.
+      const sale = (await entriesOf(app, h))[0]!;
+      expect(sale.amountEditable).toBe(false);
+    });
+
+    it("the only entry takes the new currency as said — no conversion", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix, undefined, () => "0.1");
+      const h = await create(app, cashBody);
+      const [only] = await entriesOf(app, h);
+      const res = await edit(app, only!.id, { amountCents: "100000", currency: "UAH" });
+      expect(res.status).toBe(200);
+      expect(await holding(fix, h)).toMatchObject({
+        buy: "100000",
+        cur: "100000",
+        bc: "UAH",
+        cc: "UAH",
+      });
+    });
+
+    it("with other entries, keeps the amount as said and books it at that day's rate", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix, undefined, () => "0.1");
+      const h = await create(app, cashBody);
+      await buy(app, h, "2026-09-10"); // +10.00 PLN
+      const add = (await entriesOf(app, h))[0]!;
+      const res = await edit(app, add.id, { amountCents: "20000", currency: "UAH" });
+      expect(res.status).toBe(200);
+      // 200 UAH × 0.1 = 20 PLN
+      expect(await holding(fix, h)).toMatchObject({ buy: "102000", cur: "102000", bc: "PLN" });
+      expect((await entriesOf(app, h))[0]).toMatchObject({ amountCents: "20000", amountCurrency: "UAH" });
+    });
+
+    it("an older buy of units re-prices the average cost", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix);
+      const h = await create(app, {
+        name: "Coins",
+        holdingType: "other",
+        uiType: "collectibles",
+        quantity: "2",
+        buyPriceCents: "1000",
+        buyCurrency: "PLN",
+        currentPriceCents: "1000",
+        currentPriceCurrency: "PLN",
+        openedOn: "2026-09-01",
+      });
+      await call(app, "POST", `/${h}/buy`, {
+        kind: "quantity",
+        quantity: "2",
+        priceCents: "1000",
+        currency: "PLN",
+        effectiveDate: "2026-09-10",
+      });
+      const first = (await entriesOf(app, h)).at(-1)!; // 2 × 10.00
+      expect((await edit(app, first.id, { amountCents: "6000" })).status).toBe(200);
+      // (60.00 + 20.00) / 4 = 20.00
+      expect(await holding(fix, h)).toMatchObject({ buy: "2000", qty: "4" });
+    });
+
+    it("refuses a zero amount", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix);
+      const h = await create(app, cashBody);
+      const [only] = await entriesOf(app, h);
+      expect((await edit(app, only!.id, { amountCents: "0" })).status).toBe(422);
+    });
+  });
 });
