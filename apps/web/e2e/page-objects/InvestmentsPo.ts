@@ -237,7 +237,12 @@ export class InvestmentsPo {
     // A fresh row is re-keyed from its optimistic id — retry until it opens.
     await expect(async () => {
       const id = (await wrapper.getAttribute("data-investment-row-wrapper"))!;
-      await this.page.getByTestId(`holding-amount-${id}`).click({ timeout: 3000 });
+      // An opened row on a phone shows its amount in the value block instead.
+      await this.page
+        .getByTestId(`holding-amount-${id}`)
+        .or(this.page.getByTestId(`asset-value-amount-${id}`))
+        .filter({ visible: true })
+        .click({ timeout: 3000 });
       await this.swapSheet().waitFor({ state: "visible", timeout: 3000 });
     }).toPass({ timeout: 20_000 });
   }
