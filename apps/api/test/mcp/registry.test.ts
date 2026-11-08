@@ -58,6 +58,9 @@ export const WRITE_TOOLS = [
   "edit_income",
   "delete_income",
   "edit_budget",
+  "create_wallet",
+  "edit_wallet",
+  "delete_wallet",
 ];
 const DESTRUCTIVE = [
   "delete_transaction",
@@ -67,6 +70,7 @@ const DESTRUCTIVE = [
   "delete_investment_entry",
   "delete_scheduled_payment",
   "delete_income",
+  "delete_wallet",
   "undo",
   "import_commit",
   "import_undo",

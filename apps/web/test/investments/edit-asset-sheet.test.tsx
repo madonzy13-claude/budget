@@ -124,6 +124,45 @@ describe("Edit asset sheet — locked configuration", () => {
     expectLocked("startDate", "2026");
   });
 
+  // 15-18 UAT: every deposit detail is visible, including its amount and end.
+  it("a deposit also shows its amount and end date locked", () => {
+    mount(
+      H({
+        name: "Term",
+        holdingType: "deposit",
+        uiType: "deposit",
+        instrumentId: null,
+        buyPriceCents: "25000",
+        buyCurrency: "PLN",
+        depositRateBps: 3500,
+        depositCapFrequency: "monthly",
+        depositStartDate: "2026-11-08",
+        depositEndDate: "2027-11-08",
+      }),
+    );
+    expectLocked("principal", "250");
+    expectLocked("principal", "PLN");
+    expectLocked("endDate", "2027");
+  });
+
+  it("a deposit without an end says so", () => {
+    mount(
+      H({
+        name: "Open",
+        holdingType: "deposit",
+        uiType: "deposit",
+        instrumentId: null,
+        buyPriceCents: "25000",
+        buyCurrency: "PLN",
+        depositRateBps: 3500,
+        depositCapFrequency: "monthly",
+        depositStartDate: "2026-11-08",
+        depositEndDate: null,
+      }),
+    );
+    expectLocked("endDate", "noEndDate");
+  });
+
   it("a tracked asset shows its instrument and current price locked", () => {
     mount(btc);
     expectLocked("instrument", "Bitcoin");
