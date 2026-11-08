@@ -649,7 +649,8 @@
         "ticker": "Тікер",
         "tickerPlaceholder": "напр. AAPL",
         "customName": "Власна назва",
-        "endDate": "Дата завершення"
+        "endDate": "Дата завершення",
+        "note": "Нотатка"
       },
       "uitype": {
         "crypto": "Криптовалюти",

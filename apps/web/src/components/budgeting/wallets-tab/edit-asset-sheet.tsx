@@ -28,6 +28,7 @@ import { holdingShape } from "@/lib/investment-types";
 import { isOfflineWriteError } from "@/lib/offline-write";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
+import { useAssetEntries } from "@/hooks/use-asset-entries";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { FxPreviewLine } from "@/components/budgeting/fields/fx-preview-line";
 import { Field, NumericInput } from "./holding-sheet";
@@ -78,9 +79,19 @@ export function EditAssetForm({
     h.currentPriceCents == null
       ? null
       : centsToBare(String(Math.round(Number(h.currentPriceCents))), locale);
+  const isDeposit = h.holdingType === "deposit" || h.uiType === "deposit";
+  // A deposit's note rides its opening entry (the earliest one with a note).
+  const entriesQ = useAssetEntries(budgetId, h.id, isDeposit);
+  const note =
+    (entriesQ.data ?? [])
+      .filter((e) => e.note)
+      .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))[0]?.note ??
+    null;
+  // A deposit lists every term; one never saved shows "—" rather than vanishing.
+  const unset = "—";
   // [testid suffix, label, value]; a null value is skipped.
   const locked = (
-    h.holdingType === "deposit" || h.uiType === "deposit"
+    isDeposit
       ? [
           [
             "principal",
@@ -93,18 +104,22 @@ export function EditAssetForm({
             "rate",
             t("field.rate"),
             h.depositRateBps == null
-              ? null
+              ? unset
               : `${new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(h.depositRateBps / 100)}%`,
           ],
           [
             "capFrequency",
             t("field.capFrequency"),
-            h.depositCapFrequency && t(`capFrequency.${h.depositCapFrequency}`),
+            h.depositCapFrequency
+              ? t(`capFrequency.${h.depositCapFrequency}`)
+              : unset,
           ],
           [
             "startDate",
             t("field.startDate"),
-            h.depositStartDate && ledgerDate(h.depositStartDate, locale),
+            h.depositStartDate
+              ? ledgerDate(h.depositStartDate, locale)
+              : unset,
           ],
           [
             "endDate",
@@ -113,6 +128,7 @@ export function EditAssetForm({
               ? ledgerDate(h.depositEndDate, locale)
               : t("noEndDate"),
           ],
+          ["note", t("field.note"), note ?? unset],
         ]
       : h.metal != null
         ? [

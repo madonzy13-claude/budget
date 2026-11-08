@@ -70,7 +70,9 @@ Feature: Connect an AI assistant over MCP (Phase 15)
       | principal    | 250         |
       | rate         | 35%         |
       | capFrequency | Monthly     |
+      | startDate    | *           |
       | endDate      | No end date |
+      | note         | From dad    |
     And the wallet "Erste" is in my Spendings wallets
 
   Scenario: Discovery on the public host
