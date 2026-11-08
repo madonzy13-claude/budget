@@ -65,6 +65,10 @@ const entries = async (id: string) =>
   ((await (await cookie("GET", `/budgets/${budgetId}/investments/${id}/entries`)).json()) as {
     entries: Array<{ id: string; kind: string }>;
   }).entries;
+const entriesFull = async (id: string) =>
+  ((await (await cookie("GET", `/budgets/${budgetId}/investments/${id}/entries`)).json()) as {
+    entries: Array<{ effectiveDate: string; amountCents: string | null; amountCurrency: string | null }>;
+  }).entries;
 
 async function logOf(callId: string) {
   const { Pool } = await import("pg");
@@ -220,6 +224,50 @@ describe("delete_investment_entry", () => {
     const [log] = await logOf(r.structuredContent!.call_id);
     expect(log).toMatchObject({ op: "delete", entity_id: newest.id });
     expect(log.before_jsonb.id).toBe(newest.id);
+  });
+});
+
+// 15-18 UAT: "XTB broker, 3000 zł on 1 Jan 2024, +$2000 on 5 Apr 2024, worth
+// 1 500 000 UAH on 15 Aug 2026" failed with shape_mismatch. Every amount stays
+// in the currency the user said — nothing converted unasked.
+describe("a broker account in three currencies", () => {
+  it("opens, takes a deposit, and gets a dated value, each as the user said it", async () => {
+    const made = await tool("record_investment_transaction", {
+      budget_id: budgetId,
+      side: "buy",
+      new_asset: { name: "XTB", type: "broker" },
+      date: "2024-01-01",
+      amount: "3000.00",
+      currency: "PLN",
+    });
+    expect(made.isError).toBeFalsy();
+    const id = made.structuredContent!.asset_id;
+
+    const add = await tool("record_investment_transaction", {
+      budget_id: budgetId,
+      side: "buy",
+      asset_id: id,
+      date: "2024-04-05",
+      amount: "2000.00",
+      currency: "USD",
+    });
+    expect(add.isError).toBeFalsy();
+    const deposit = (await entriesFull(id)).find((e) => e.effectiveDate === "2024-04-05")!;
+    expect(deposit.amountCents).toBe("200000");
+    expect(deposit.amountCurrency).toBe("USD");
+
+    const v = await tool("update_holding_value", {
+      budget_id: budgetId,
+      asset_id: id,
+      value: "1500000.00",
+      currency: "UAH",
+      date: "2026-08-15",
+    });
+    expect(v.isError).toBeFalsy();
+    const h = (await holdings()).find((x) => x.id === id) as Holding & { currentPriceCurrency: string };
+    expect(h.currentPriceCents).toBe("150000000");
+    expect(h.currentPriceCurrency).toBe("UAH");
+    expect((await entriesFull(id)).some((e) => e.effectiveDate === "2026-08-15")).toBe(true);
   });
 });
 
