@@ -58,6 +58,21 @@ Feature: Connect an AI assistant over MCP (Phase 15)
     Then my Settings show a cushion target of 4.5 months
     And the client lists the income "Salary" at "5000.00" USD
 
+  Scenario: The assistant adds a deposit with all its details and a wallet
+    Given an MCP client registers and starts authorization in "en"
+    When I allow access in "en"
+    And the client exchanges the code for tokens
+    And the client records a 250 PLN deposit "Dad's deposit" at 35% a year, monthly, with no end
+    And the client creates a wallet "Erste" in USD with "150.00"
+    Then "Dad's deposit" is on my Wallets tab
+    And Edit of "Dad's deposit" shows these locked fields
+      | field        | value       |
+      | principal    | 250         |
+      | rate         | 35%         |
+      | capFrequency | Monthly     |
+      | endDate      | No end date |
+    And the wallet "Erste" is in my Spendings wallets
+
   Scenario: Discovery on the public host
     Then the OAuth discovery documents are served
     And an MCP call without a token returns 401 with a challenge

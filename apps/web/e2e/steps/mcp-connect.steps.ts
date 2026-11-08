@@ -11,6 +11,7 @@ import { ConnectedAppsPo } from "../page-objects/ConnectedAppsPo";
 import { SpendingsPo } from "../page-objects/SpendingsPo";
 import { InvestmentsPo } from "../page-objects/InvestmentsPo";
 import { SettingsPo } from "../page-objects/SettingsPo";
+import { WalletSectionsPo } from "../page-objects/WalletSectionsPo";
 const { Given, When, Then } = createBdd(test);
 
 // A loopback redirect_uri (allowed by validateRedirectUri, 15-05). Nothing
@@ -303,6 +304,30 @@ Then(
     expect(found?.currency).toBe("USD");
   },
 );
+
+When(
+  "the client records a {int} PLN deposit {string} at {int}% a year, monthly, with no end",
+  async ({ freshUser }, amount: number, name: string, rate: number) => {
+    await tool(freshUser.baseUrl, "record_investment_transaction", {
+      budget_id: freshUser.budgetId, side: "buy", new_asset: { name, type: "deposit" },
+      date: today(), amount: amount.toFixed(2), currency: "PLN",
+      deposit: { annual_rate_percent: String(rate), capitalization: "monthly" },
+    });
+  },
+);
+
+When(
+  "the client creates a wallet {string} in USD with {string}",
+  async ({ freshUser }, name: string, balance: string) => {
+    await tool(freshUser.baseUrl, "create_wallet", {
+      budget_id: freshUser.budgetId, name, currency: "USD", balance,
+    });
+  },
+);
+
+Then("the wallet {string} is in my Spendings wallets", async ({ page }, name: string) => {
+  await expect(new WalletSectionsPo(page).row("SPENDINGS", name)).toBeVisible({ timeout: 15000 });
+});
 
 When("the client undoes that write", async ({ freshUser }) => {
   await tool(freshUser.baseUrl, "undo", { id: s.callId });
