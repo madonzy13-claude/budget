@@ -49,6 +49,15 @@ Feature: Connect an AI assistant over MCP (Phase 15)
     And the client opens broker account "XTB" with 3000 PLN, adds 2000 USD and sets it to 1500000 UAH
     Then "XTB" is on my Wallets tab
 
+  Scenario: The owner sets the cushion and adds an income through the assistant
+    Given an MCP client registers and starts authorization in "en"
+    When I allow access in "en"
+    And the client exchanges the code for tokens
+    And the client sets the cushion target to 4.5 months
+    And the client adds a monthly income "Salary" of 5000 USD
+    Then my Settings show a cushion target of 4.5 months
+    And the client lists the income "Salary" at "5000.00" USD
+
   Scenario: Discovery on the public host
     Then the OAuth discovery documents are served
     And an MCP call without a token returns 401 with a challenge

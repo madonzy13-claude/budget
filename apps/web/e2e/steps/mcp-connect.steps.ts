@@ -10,6 +10,7 @@ import { ConsentPo } from "../page-objects/ConsentPo";
 import { ConnectedAppsPo } from "../page-objects/ConnectedAppsPo";
 import { SpendingsPo } from "../page-objects/SpendingsPo";
 import { InvestmentsPo } from "../page-objects/InvestmentsPo";
+import { SettingsPo } from "../page-objects/SettingsPo";
 const { Given, When, Then } = createBdd(test);
 
 // A loopback redirect_uri (allowed by validateRedirectUri, 15-05). Nothing
@@ -263,6 +264,45 @@ Then("{string} is on my Wallets tab", async ({ page, freshUser }, name: string) 
   await page.goto(`/en/budgets/${freshUser.budgetId}/wallets`);
   await expect(new InvestmentsPo(page).row(name)).toBeVisible({ timeout: 20000 });
 });
+
+When(
+  "the client sets the cushion target to {float} months",
+  async ({ freshUser }, months: number) => {
+    await tool(freshUser.baseUrl, "set_cushion", {
+      budget_id: freshUser.budgetId, enabled: true, target_months: months,
+    });
+  },
+);
+
+When(
+  "the client adds a monthly income {string} of {int} USD",
+  async ({ freshUser }, name: string, amount: number) => {
+    await tool(freshUser.baseUrl, "add_income", {
+      budget_id: freshUser.budgetId, name, amount: amount.toFixed(2),
+      currency: "USD", cadence: "MONTHLY", cadence_anchor: 10,
+    });
+  },
+);
+
+Then(
+  "my Settings show a cushion target of {float} months",
+  async ({ page, freshUser }, months: number) => {
+    await page.goto(`/en/budgets/${freshUser.budgetId}/settings`);
+    const settings = new SettingsPo(page);
+    await settings.openCushionSection();
+    await settings.assertCushionTargetMonthsValue(months);
+  },
+);
+
+Then(
+  "the client lists the income {string} at {string} USD",
+  async ({ freshUser }, name: string, amount: string) => {
+    const r = await tool(freshUser.baseUrl, "list_incomes", { budget_id: freshUser.budgetId });
+    const found = (r.incomes as any[]).find((i) => i.name.untrusted_user_text === name);
+    expect(found?.amount).toBe(amount);
+    expect(found?.currency).toBe("USD");
+  },
+);
 
 When("the client undoes that write", async ({ freshUser }) => {
   await tool(freshUser.baseUrl, "undo", { id: s.callId });
