@@ -12,6 +12,7 @@ import { UserId, ok, err, type Result } from "@budget/shared-kernel";
 import { dispatch, type DispatchOptions, type DispatchResult } from "../dispatch";
 import { fromMinorUnits } from "../money";
 import { readTool, writeTool, toolOk, toolError, type McpCtx } from "./define";
+import { cushionSettings, cushionPatch, findIncome, incomeBody, type CushionSettings, type Income } from "./write-cushion-income";
 
 /**
  * undo.ts — the agent reverts its own logged writes (D-11) through the app's
@@ -92,7 +93,47 @@ async function walletBack(row: WriteLogRow, c: InverseCtx): Promise<Outcome> {
   );
 }
 
+const INCOME_FIELDS = ["name", "amount", "currency", "cadence", "cadenceAnchor", "weeklyDow", "yearlyMonth", "onceDate"];
+const incomePath = (b: string, id: string) => `/budgets/${b}/incomes/${id}`;
+
 const INVERSES: Record<string, Partial<Record<WriteLogRow["op"], Inverse>>> = {
+  cushion_settings: {
+    async update(row, c) {
+      const now = await cushionSettings(c.send, row.tenantId);
+      if (!("enabled" in now) || changed(c, now as unknown as Json, row.after as Json, ["enabled", "spend_from_cushion", "target_months"]))
+        return "skipped";
+      const b = row.before as unknown as CushionSettings;
+      return done(await c.send({ method: "PATCH", path: `/budgets/${row.tenantId}`, budgetId: row.tenantId, body: cushionPatch(b) }));
+    },
+  },
+
+  income: {
+    async create(row, c) {
+      const now = await findIncome(c.send, row.tenantId, row.entityId);
+      if (!now) return c.mode === "rollback" ? "reverted" : "skipped";
+      if (changed(c, now as unknown as Json, row.after as Json, INCOME_FIELDS)) return "skipped";
+      return done(await c.send({ method: "DELETE", path: incomePath(row.tenantId, row.entityId), budgetId: row.tenantId }));
+    },
+    async update(row, c) {
+      const now = await findIncome(c.send, row.tenantId, row.entityId);
+      if (!now || changed(c, now as unknown as Json, row.after as Json, INCOME_FIELDS)) return "skipped";
+      return done(
+        await c.send({
+          method: "PATCH",
+          path: incomePath(row.tenantId, row.entityId),
+          budgetId: row.tenantId,
+          body: incomeBody(row.before as unknown as Income),
+        }),
+      );
+    },
+    // The route only deactivates; the income comes back as a new row.
+    async delete(row, c) {
+      return done(
+        await c.send({ method: "POST", path: `/budgets/${row.tenantId}/incomes`, budgetId: row.tenantId, body: incomeBody(row.before as unknown as Income) }),
+      );
+    },
+  },
+
   transaction: {
     async create(row, c) {
       const now = (await get(c, txnPath(row.tenantId, row.entityId), row.tenantId))?.transaction;

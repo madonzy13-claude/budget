@@ -6,6 +6,7 @@ import { registerInvestmentWriteTools } from "./tools/write-investments";
 import { registerPlanningWriteTools } from "./tools/write-planning";
 import { registerUndoTools } from "./tools/undo";
 import { registerImportTools } from "./tools/import";
+import { registerCushionIncomeTools } from "./tools/write-cushion-income";
 import { registerPrompts } from "./prompts";
 
 const INSTRUCTIONS = `Budget: the user's family budgets, spending, wealth and tasks.
@@ -31,6 +32,7 @@ export function buildMcpServer(ctx: McpCtx): McpServer {
   registerPlanningWriteTools(server, ctx);
   registerUndoTools(server, ctx);
   registerImportTools(server, ctx);
+  registerCushionIncomeTools(server, ctx);
   registerPrompts(server);
   return server;
 }
