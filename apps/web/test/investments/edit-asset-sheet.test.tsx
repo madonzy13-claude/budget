@@ -9,6 +9,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   btc,
+  broker,
   cash,
   H,
   writeMock,

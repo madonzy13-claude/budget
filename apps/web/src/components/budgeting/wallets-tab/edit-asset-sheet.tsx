@@ -89,6 +89,19 @@ export function EditAssetForm({
     null;
   // A deposit lists every term; one never saved shows "—" rather than vanishing.
   const unset = "—";
+  // 261108 (user): what went in, in the asset's own currency (a deposit's
+  // principal says the same).
+  const baseAmount =
+    h.buyPriceCents == null
+      ? null
+      : `${centsToBare(
+          String(
+            Math.round(
+              Number(h.buyPriceCents) * (byQty ? Number(h.quantity) : 1),
+            ),
+          ),
+          locale,
+        )} ${h.buyCurrency ?? ""}`.trim();
   // [testid suffix, label, value]; a null value is skipped.
   const locked = (
     isDeposit
@@ -156,7 +169,9 @@ export function EditAssetForm({
               ["currentPrice", t("field.currentPrice"), priceLine],
             ]
           : []
-  ).filter((f): f is [string, string, string] => !!f[2]);
+  )
+    .concat(isDeposit ? [] : [["baseAmount", t("field.baseAmount"), baseAmount]])
+    .filter((f): f is [string, string, string] => !!f[2]);
 
   const [name, setName] = useState(holding.name);
   const [ccy, setCcy] = useState(ccy0);

@@ -650,7 +650,8 @@
         "tickerPlaceholder": "напр. AAPL",
         "customName": "Власна назва",
         "endDate": "Дата завершення",
-        "note": "Нотатка"
+        "note": "Нотатка",
+        "baseAmount": "Базова сума"
       },
       "uitype": {
         "crypto": "Криптовалюти",
