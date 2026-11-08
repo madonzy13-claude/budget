@@ -57,11 +57,11 @@ export const investmentTxnRow = z.object({
       capitalization: z
         .enum(["daily", "monthly", "quarterly", "semiannual", "yearly"])
         .describe("How often interest is added"),
-      start_date: date.optional().describe("First day interest accrues; default the buy date"),
+      start_date: date.describe("First day interest accrues"),
       end_date: date.optional().describe("Maturity; omit for a deposit with no end"),
     })
     .optional()
-    .describe("Required for a new deposit: its rate, capitalization and dates"),
+    .describe("Required for a new deposit: its rate, capitalization and start date (ask the user if unsaid)"),
   value_after: decimal
     .optional()
     .describe("Broker deposit: account value right after it, in the account's currency. Omit if unknown"),
@@ -184,7 +184,7 @@ export async function recordInvestmentTxn(
         ? {
             depositRateBps: Number(big(dep.annual_rate_percent).times(100).toFixed(0)),
             depositCapFrequency: dep.capitalization,
-            depositStartDate: dep.start_date ?? args.date,
+            depositStartDate: dep.start_date,
             depositEndDate: dep.end_date ?? null,
           }
         : {};

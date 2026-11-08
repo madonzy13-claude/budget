@@ -141,7 +141,7 @@ const centsInput = z
 /** R6 (user): an optional note on any booking, shown in the ledger row. */
 const noteField = z.string().trim().max(200).optional();
 
-export const createHoldingSchema = z.object({
+const holdingFields = z.object({
   note: noteField,
   name: z.string().min(1).max(120),
   holdingType: holdingTypeSchema,
@@ -176,6 +176,12 @@ export const createHoldingSchema = z.object({
   depositCapFrequency: capFrequencySchema.nullish(),
   /** Phase 13: date of the first history entry (default today). */
   openedOn: notFutureIsoDate.optional(),
+});
+export const createHoldingSchema = holdingFields.superRefine((v, ctx) => {
+  // A deposit's value is computed from these three; without one there is nothing to compute.
+  if (v.holdingType !== "deposit") return;
+  for (const k of ["depositRateBps", "depositStartDate", "depositCapFrequency"] as const)
+    if (v[k] == null) ctx.addIssue({ code: "custom", path: [k], message: "deposit_term_required" });
 });
 export type CreateHoldingInput = z.infer<typeof createHoldingSchema>;
 
@@ -394,7 +400,7 @@ export const sellAssetSchema = z.object({
       kind: z.literal("new"),
       // currentPriceCents = the instrument's live price (tracked) — the buy
       // price is priceCents, never received ÷ quantity (13.1 UAT 10).
-      holding: createHoldingSchema
+      holding: holdingFields
         .omit({ buyPriceCents: true, openedOn: true, note: true })
         .extend({ name: label(120), quantity: positiveQty.optional() }),
       priceCents: positiveCents.optional(),

@@ -345,8 +345,8 @@ describe("Investment assets", () => {
     for (const k of ["depositRateBps", "depositStartDate", "depositCapFrequency"] as const) {
       const body: Record<string, unknown> = { ...full };
       delete body[k];
-      expect((await json(app, "", "POST", body)).status).toBe(400);
-      expect((await json(app, "", "POST", { ...full, [k]: null })).status).toBe(400);
+      expect((await json(app, "", "POST", body)).status).toBe(422);
+      expect((await json(app, "", "POST", { ...full, [k]: null })).status).toBe(422);
     }
   });
 

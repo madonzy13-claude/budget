@@ -311,7 +311,7 @@ When(
     await tool(freshUser.baseUrl, "record_investment_transaction", {
       budget_id: freshUser.budgetId, side: "buy", new_asset: { name, type: "deposit" },
       date: today(), amount: amount.toFixed(2), currency: "PLN",
-      deposit: { annual_rate_percent: String(rate), capitalization: "monthly" },
+      deposit: { annual_rate_percent: String(rate), capitalization: "monthly", start_date: today() },
       note: "From dad",
     });
   },
