@@ -302,6 +302,17 @@ describe("Edit asset sheet — locked configuration", () => {
     expectLocked("premium", "25.17%");
   });
 
+  // 261108 (user): every Edit shows the base amount (what went in), locked.
+  it("shows the base amount locked, in the asset's own currency", () => {
+    mount(btc); // 2 × 50,000 PLN
+    expectLocked("baseAmount", "100,000 PLN");
+  });
+
+  it("an amount-shaped asset's base amount is what went in", () => {
+    mount(broker);
+    expectLocked("baseAmount", "100,000");
+  });
+
   it("a hand-priced asset keeps its editable price and no locked duplicate", () => {
     mount(coin);
     expect(screen.getByTestId("edit-asset-price")).toBeInTheDocument();
