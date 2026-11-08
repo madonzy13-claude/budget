@@ -42,7 +42,7 @@ export const investmentTxnRow = z.object({
       name: z.string().min(1).max(120),
       // The app's own types, so the asset buys and sells exactly as one added there.
       type: uiTypeSchema.describe(
-        "stocks, crypto, treasury_bond, collectibles, real_estate, other, precious_metals, cash, savings, possession",
+        "stocks, crypto, treasury_bond, collectibles, real_estate, other, precious_metals, cash, broker, savings, possession",
       ),
     })
     .optional(),
@@ -51,6 +51,9 @@ export const investmentTxnRow = z.object({
   price: decimal.optional().describe("Price per unit"),
   amount: decimal.optional().describe("Total, for amount-shaped assets"),
   received: decimal.optional().describe("Sell: money received"),
+  value_after: decimal
+    .optional()
+    .describe("Broker deposit: account value right after it, in the account's currency. Omit if unknown"),
   currency: z.string().length(3).optional(),
   destination: z
     .object({
@@ -65,7 +68,7 @@ export const investmentTxnRow = z.object({
 });
 
 type Entry = { id: string };
-type Holding = { id: string; quantity: string; currentPriceCents: string | null };
+type Holding = { id: string; quantity: string; currentPriceCents: string | null; uiType?: string | null };
 
 // ponytail: Money is only borrowed for its big.js decimal; the currency is moot.
 const big = (v: string) => Money.of(v, "USD").amount;
@@ -204,7 +207,21 @@ export async function recordInvestmentTxn(
     } else if (args.amount) {
       const a = cents(args.amount, "amount");
       if (!a.ok) return a.error;
-      body = { kind: "amount", amountCents: a.value, currency: ccy, effectiveDate: args.date, ...note };
+      // A broker account takes a deposit (its own form), still in the currency paid.
+      const h = await findHolding(c, b, assetId);
+      if (!h) return toolError("not_found");
+      if (h.uiType === "broker") {
+        const after = args.value_after ? cents(args.value_after, "value_after") : null;
+        if (after && !after.ok) return after.error;
+        body = {
+          kind: "broker",
+          amountCents: a.value,
+          currency: ccy,
+          ...(after?.ok ? { valueAfterCents: after.value } : {}),
+          effectiveDate: args.date,
+          ...note,
+        };
+      } else body = { kind: "amount", amountCents: a.value, currency: ccy, effectiveDate: args.date, ...note };
     } else return toolError("quantity_and_price_or_amount_required");
   } else if (args.side === "sell") {
     if (!ccy) return toolError("currency_required");
@@ -312,18 +329,21 @@ export function registerInvestmentWriteTools(server: McpServer, ctx: McpCtx): vo
     {
       description:
         "Set the current value of a hand-valued asset (savings, real estate, possession…) with " +
-        "`value`, or the price per unit of a hand-priced quantity asset with `unit_price`, in the " +
-        "asset's currency. " + SAME_AS_APP,
+        "`value`, or the price per unit of a hand-priced quantity asset with `unit_price`. Pass " +
+        "`currency` when the user named one: the asset is then shown in it, the number is kept as " +
+        "said (never converted). `date` dates the value (default today). " + SAME_AS_APP,
       inputSchema: z.object({
         budget_id: budgetId,
         asset_id: z.uuid(),
         value: decimal.optional(),
         unit_price: decimal.optional(),
+        currency: z.string().length(3).optional(),
+        date: date.optional(),
       }),
       annotations: { destructiveHint: true, idempotentHint: true },
       entryCount: () => 1,
     },
-    async ({ budget_id: b, asset_id, value, unit_price }, c) => {
+    async ({ budget_id: b, asset_id, value, unit_price, currency, date: on }, c) => {
       if (!value === !unit_price) return toolError("value_or_unit_price_required");
       const off = await ensureInvestmentsOn(c, b);
       if (off) return off;
@@ -334,7 +354,11 @@ export function registerInvestmentWriteTools(server: McpServer, ctx: McpCtx): vo
         method: "PATCH",
         path: `${base(b)}/${asset_id}`,
         budgetId: b,
-        body: value ? { currentValueCents: v.value } : { currentPriceCents: v.value },
+        body: {
+          ...(value ? { currentValueCents: v.value } : { currentPriceCents: v.value }),
+          ...(currency ? { displayCurrency: currency.toUpperCase() } : {}),
+          ...(on ? { effectiveDate: on } : {}),
+        },
       });
       if (!r.ok) return fromDispatch(r);
       const effects = await addedEntries(c, b, asset_id, before, r);

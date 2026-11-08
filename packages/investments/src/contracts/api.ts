@@ -330,7 +330,10 @@ export const buyAssetSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("broker"),
     amountCents: positiveCents,
-    valueAfterCents: centsString,
+    /** The currency the deposit was made in; absent = the account's own. */
+    currency: currencyCode.optional(),
+    /** Account value right after; absent = value before + the deposit. */
+    valueAfterCents: centsString.optional(),
     effectiveDate: notFutureIsoDate,
     note: noteField,
   }),
@@ -344,6 +347,8 @@ export const editAssetSchema = z
     name: label(120).optional(),
     displayCurrency: currencyCode.optional(),
     currentValueCents: centsString.optional(),
+    /** Date of the value/price entry; absent = the viewer's today. */
+    effectiveDate: notFutureIsoDate.optional(),
     // A unit price keeps 6 sub-cent places: a total typed for several units
     // only multiplies back exactly from a fractional unit price (261023).
     currentPriceCents: z
