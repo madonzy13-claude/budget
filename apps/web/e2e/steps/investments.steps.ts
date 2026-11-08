@@ -895,6 +895,27 @@ Then(
   },
 );
 
+Then(
+  "the dotted line under the amount of {string} is the text colour in both themes",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    for (const theme of ["dark", "light"]) {
+      await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+      const { line, text } = await page.evaluate((id) => {
+        const probe = document.createElement("div");
+        probe.style.color = "var(--foreground)";
+        document.body.appendChild(probe);
+        const text = getComputedStyle(probe).color;
+        probe.remove();
+        const el = document.querySelector(`[data-testid="holding-amount-${id}"]`)!;
+        return { line: getComputedStyle(el).textDecorationColor, text };
+      }, id);
+      expect(line, theme).toBe(text);
+    }
+    await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+  },
+);
+
 // Round 6: a currency change in Edit saves (never the offline toast).
 When(
   "I change the currency of {string} to {string} in Edit and save",

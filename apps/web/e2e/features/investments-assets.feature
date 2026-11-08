@@ -223,6 +223,8 @@ Feature: Investments as assets with transactions (13.1)
     Then the asset "ACME" shows "10 × 25 avg. cost" above its price
     And the asset "ACME" caption shows unrealized and realized
     And the asset "ACME" offers no Edit or + action
+    # 261108 (user): the dotted line is white (the text colour), not grey.
+    And the dotted line under the amount of "ACME" is the text colour in both themes
 
   # Round 6 (user): changing a metal's currency must save, not say "offline".
   @r6-metal-ccy
