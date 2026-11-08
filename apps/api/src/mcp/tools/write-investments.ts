@@ -314,7 +314,8 @@ export function registerInvestmentWriteTools(server: McpServer, ctx: McpCtx): vo
         "assets. Sell: quantity sold (or amount for amount assets); destination.wallet_id credits " +
         "a wallet with `received`, destination.asset_id buys into another asset, none = money left " +
         "investments. Transfer: move quantity to destination.asset_id or a new asset of the same " +
-        "type named destination.new_asset_name. " + SAME_AS_APP,
+        "type named destination.new_asset_name. A broker account deposit is a buy with amount. " +
+        "Pass the currency the user said; never convert it yourself. " + SAME_AS_APP,
       inputSchema: investmentTxnRow.extend({ budget_id: budgetId }),
       annotations: { destructiveHint: false, idempotentHint: false },
       entryCount: () => 1,
