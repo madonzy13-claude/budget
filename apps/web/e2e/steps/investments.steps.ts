@@ -3095,6 +3095,41 @@ When(
   },
 );
 
+When(
+  "I change the oldest entry of {string} to {string} in {string}",
+  async ({ page }, name: string, amount: string, ccy: string) => {
+    await new InvestmentsPo(page).editOldestAmount(name, amount, ccy);
+  },
+);
+
+Then(
+  "the Edit of {string} shows the base amount {string} locked",
+  async ({ page }, name: string, text: string) => {
+    await new InvestmentsPo(page).openEdit(name);
+    const base = page.getByTestId("edit-asset-locked-baseAmount");
+    await expect(base).toHaveValue(text);
+    await expect(base).toHaveAttribute("readonly", "");
+  },
+);
+
+Then(
+  "the oldest entry of {string} reads {string}",
+  async ({ page }, name: string, text: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    await expect(ledger.getByRole("row").last()).toContainText(text);
+  },
+);
+
+Then(
+  "the oldest entry of {string} offers its amount locked, saying a later sale relied on it",
+  async ({ page }, name: string) => {
+    await new InvestmentsPo(page).editOldest(name);
+    await expect(page.getByTestId("entry-edit-amount")).toHaveAttribute("readonly", "");
+    await expect(page.getByTestId("entry-edit-currency")).toHaveCount(0);
+    await expect(page.getByTestId("entry-edit-dialog")).toContainText("A later sale or withdrawal relied on this amount");
+  },
+);
+
 // R6 (user): hiding an asset only takes it off the list — it is still owned,
 // so neither its group's total nor the investments total moves.
 const totalsOf = async (page: Page, type: string) => {

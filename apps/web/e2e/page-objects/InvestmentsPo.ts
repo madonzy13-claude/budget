@@ -744,6 +744,34 @@ export class InvestmentsPo {
     expect((await saved).status()).toBe(200);
   }
 
+  /** 261108: open the oldest entry's Edit dialog. */
+  async editOldest(name: string): Promise<void> {
+    const ledger = await this.openLedger(name);
+    const edit = ledger.locator('[data-testid^="ledger-edit-"]').last();
+    await this.revealDelete(edit);
+    await edit.click();
+    await expect(this.page.getByTestId("entry-edit-dialog")).toBeVisible();
+  }
+
+  /** 261108: the oldest entry's amount and currency, through Edit. */
+  async editOldestAmount(name: string, amount: string, ccy: string): Promise<void> {
+    await this.editOldest(name);
+    await this.page.getByTestId("entry-edit-amount").fill(amount);
+    const picker = this.page.getByTestId("entry-edit-currency");
+    const native = picker.getByTestId("currency-picker-native");
+    if (await native.isVisible().catch(() => false)) await native.selectOption(ccy);
+    else {
+      await picker.getByRole("combobox").click();
+      await this.page.getByRole("option", { name: new RegExp(`^${ccy}\\b`) }).first().click();
+    }
+    const saved = this.page.waitForResponse(
+      (r) => /\/entries\/[^/]+$/.test(r.url()) && r.request().method() === "PATCH",
+      { timeout: 15000 },
+    );
+    await this.page.getByTestId("entry-edit-save").click();
+    expect((await saved).status()).toBe(200);
+  }
+
   /** Phone widths hide a ledger row's actions until the row is swiped
    *  (13.1 UAT 12); desktop shows them on hover, like the asset row (R6). */
   async revealDelete(del: Locator): Promise<void> {

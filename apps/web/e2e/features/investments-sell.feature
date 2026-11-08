@@ -41,6 +41,24 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     And I edit the newest entry of "IBKR" to the note "Paid the mortgage"
     Then the ledger of "IBKR" shows the note "Paid the mortgage"
 
+  # 261108 (user): the amount and currency of money put in can be fixed — the
+  # only entry takes the new currency as said, nothing converted.
+  Scenario: Fixing the amount and currency of the money put in
+    Given a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
+    When I open the investments wallets tab
+    And I change the oldest entry of "Pot" to "1500" in "UAH"
+    Then the holding row "Pot" shows the amount "1,500"
+    And the oldest entry of "Pot" reads "1,500 UAH"
+    # 261108 (user): Edit shows what went in, locked.
+    And the Edit of "Pot" shows the base amount "1,500 UAH" locked
+
+  # …unless a later sale relied on it: then it shows, locked, saying why.
+  Scenario: An amount a later sale relied on stays as booked
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I sell "IBKR" leaving "30000" out of investments receiving "66000"
+    Then the oldest entry of "IBKR" offers its amount locked, saying a later sale relied on it
+
   # Roadmap 13.3: realized stays with the source type even when it is gone.
   Scenario: Selling a broker completely into a new cash holding keeps the realized gain
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
