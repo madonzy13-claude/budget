@@ -239,6 +239,26 @@ When(
   },
 );
 
+// 15-18 UAT: the deposit used to fail with shape_mismatch.
+When(
+  "the client opens broker account {string} with 3000 PLN, adds 2000 USD and sets it to 1500000 UAH",
+  async ({ freshUser }, name: string) => {
+    const b = freshUser.budgetId;
+    const made = await tool(freshUser.baseUrl, "record_investment_transaction", {
+      budget_id: b, side: "buy", new_asset: { name, type: "broker" },
+      date: "2024-01-01", amount: "3000.00", currency: "PLN",
+    });
+    await tool(freshUser.baseUrl, "record_investment_transaction", {
+      budget_id: b, side: "buy", asset_id: made.asset_id,
+      date: "2024-04-05", amount: "2000.00", currency: "USD",
+    });
+    const v = await tool(freshUser.baseUrl, "update_holding_value", {
+      budget_id: b, asset_id: made.asset_id, value: "1500000.00", currency: "UAH", date: "2026-08-15",
+    });
+    expect(v.holding.currentPriceCurrency).toBe("UAH");
+  },
+);
+
 Then("{string} is on my Wallets tab", async ({ page, freshUser }, name: string) => {
   await page.goto(`/en/budgets/${freshUser.budgetId}/wallets`);
   await expect(new InvestmentsPo(page).row(name)).toBeVisible({ timeout: 20000 });

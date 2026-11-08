@@ -42,6 +42,13 @@ Feature: Connect an AI assistant over MCP (Phase 15)
     And the client records buying a new crypto asset "Quiet coin"
     Then "Quiet coin" is on my Wallets tab
 
+  Scenario: A broker account in three currencies, as the user said it
+    Given an MCP client registers and starts authorization in "en"
+    When I allow access in "en"
+    And the client exchanges the code for tokens
+    And the client opens broker account "XTB" with 3000 PLN, adds 2000 USD and sets it to 1500000 UAH
+    Then "XTB" is on my Wallets tab
+
   Scenario: Discovery on the public host
     Then the OAuth discovery documents are served
     And an MCP call without a token returns 401 with a challenge
