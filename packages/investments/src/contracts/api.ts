@@ -440,13 +440,16 @@ export const transferAssetSchema = z.object({
   note: noteField,
 });
 /** R6 (user): Edit a transaction — its note and/or its date. "" clears the
- *  note. strict: unknown keys are a 400. */
+ *  note. 261108: and the amount / currency of money put in. strict: unknown
+ *  keys are a 400. */
 export const editEntrySchema = z
   .strictObject({
     note: z.string().trim().max(200).optional(),
     effectiveDate: notFutureIsoDate.optional(),
+    amountCents: positiveCents.optional(),
+    currency: currencyCode.optional(),
   })
-  .refine((v) => v.note !== undefined || v.effectiveDate !== undefined, {
+  .refine((v) => Object.values(v).some((x) => x !== undefined), {
     message: "nothing_to_edit",
   });
 export type EditEntryInput = z.infer<typeof editEntrySchema>;
@@ -527,6 +530,8 @@ export interface EntryDto {
   dateMax: string | null;
   /** A deposit's dates drive its interest — they are not editable. */
   dateEditable: boolean;
+  /** 261108: money put in whose amount / currency may still change. */
+  amountEditable: boolean;
   backfilled: boolean;
   deletable: boolean;
   blockedReason: "not_newest" | "linked_not_newest" | "interest" | null;
@@ -552,6 +557,8 @@ export const INVESTMENT_ERRORS = {
     "invalid_cents",
     "date_out_of_range",
     "date_locked",
+    "not_money_in",
+    "later_entry_depends",
   ],
   409: ["not_newest", "linked_not_newest", "stale"],
   404: ["not_found"],

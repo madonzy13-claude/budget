@@ -200,6 +200,7 @@ export class DrizzleHistoryRepo implements HistoryRepo {
             UPDATE budgeting.investments SET
               quantity = COALESCE(${p.quantity ?? null}::numeric, quantity),
               buy_price_cents = COALESCE(${s(p.buyPriceCents ?? null)}::bigint, buy_price_cents),
+              buy_currency = COALESCE(${p.buyCurrency ?? null}, buy_currency),
               current_price_cents = CASE WHEN ${p.currentPriceCents !== undefined}
                                          THEN ${p.currentPriceCents == null ? null : String(p.currentPriceCents)}::numeric
                                          ELSE current_price_cents END,
@@ -211,6 +212,24 @@ export class DrizzleHistoryRepo implements HistoryRepo {
                                  WHEN ${!!p.unarchive} THEN NULL
                                  ELSE archived_at END
              WHERE id = ${p.id}::uuid AND budget_id = ${plan.budgetId}::uuid
+            RETURNING id
+          `);
+          if (res.rows.length === 0) throw new Error("not_found");
+        }
+
+        for (const r of plan.rewriteEntries ?? []) {
+          const res = await dt.execute(sql`
+            UPDATE budgeting.investment_history SET
+              amount_cents = COALESCE(${s(r.amountCents ?? null)}::bigint, amount_cents),
+              amount_currency = COALESCE(${r.amountCurrency ?? null}, amount_currency),
+              cost_delta_cents = COALESCE(${s(r.costDeltaCents ?? null)}::bigint, cost_delta_cents),
+              cost_currency = COALESCE(${r.costCurrency ?? null}, cost_currency),
+              value_delta_cents = COALESCE(${s(r.valueDeltaCents ?? null)}::bigint, value_delta_cents),
+              flow_cents = COALESCE(${s(r.flowCents ?? null)}::bigint, flow_cents),
+              flow_currency = COALESCE(${r.flowCurrency ?? null}, flow_currency),
+              asset_amount_cents = COALESCE(${s(r.assetAmountCents ?? null)}::bigint, asset_amount_cents),
+              prior_price_cents = COALESCE(${r.priorPriceCents ?? null}::numeric, prior_price_cents)
+             WHERE id = ${r.id}::uuid AND budget_id = ${plan.budgetId}::uuid AND deleted_at IS NULL
             RETURNING id
           `);
           if (res.rows.length === 0) throw new Error("not_found");

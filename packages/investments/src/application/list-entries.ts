@@ -16,6 +16,7 @@ import { ok, err, type Result } from "neverthrow";
 import { Temporal } from "temporal-polyfill";
 import type { FxProvider } from "@budget/shared-kernel";
 import {
+  amountEditBlock,
   entryDateRange,
   newestEntry,
   type LedgerKey,
@@ -248,6 +249,7 @@ export function listEntries(deps: {
             return { dateMin: r.min, dateMax: r.max };
           })(),
           dateEditable: !isDeposit,
+          amountEditable: amountEditBlock(e, live) === null,
           backfilled: e.backfilled,
           deletable: isNewest && partnerOk,
           blockedReason: !isNewest
@@ -302,6 +304,7 @@ export function listEntries(deps: {
             dateMin: null,
             dateMax: null,
             dateEditable: false,
+            amountEditable: false,
             backfilled: false,
             deletable: false,
             blockedReason: "interest",

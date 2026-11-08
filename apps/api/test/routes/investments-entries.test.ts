@@ -622,8 +622,8 @@ describe("Investment entries ledger", () => {
       (
         await q<{ buy: string; cur: string; bc: string; cc: string; qty: string }>(
           fix,
-          `SELECT buy_price_cents::text AS buy, current_price_cents::text AS cur,
-                  buy_currency AS bc, current_price_currency AS cc, quantity::text AS qty
+          `SELECT buy_price_cents::text AS buy, current_price_cents::bigint::text AS cur,
+                  buy_currency AS bc, current_price_currency AS cc, quantity::int::text AS qty
              FROM budgeting.investments WHERE id = $1`,
           [id],
         )

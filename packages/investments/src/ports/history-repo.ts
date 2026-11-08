@@ -72,6 +72,8 @@ export interface HoldingPatch {
   id: string;
   quantity?: string;
   buyPriceCents?: bigint;
+  /** 261108: an asset's only entry changed currency (never converted). */
+  buyCurrency?: string;
   currentPriceCents?: bigint | string | null;
   currentPriceCurrency?: string | null;
   depositStartDate?: string;
@@ -99,12 +101,28 @@ export interface BookingPlan {
   walletCredit?: WalletCredit;
   /** Label change; names are not unique (round-5 scope change). */
   renameHolding?: { id: string; name: string };
+  /** 261108 (user): an entry's amount / currency fixed in place; later
+   *  entries' price snapshots shifted so their undo still lands right. */
+  rewriteEntries?: EntryRewrite[];
   /** Snapshot undo of a price/value update (D-18). */
   restorePrice?: {
     id: string;
     priceCents: string | null;
     currency: string | null;
   };
+}
+
+export interface EntryRewrite {
+  id: string;
+  amountCents?: bigint;
+  amountCurrency?: string;
+  costDeltaCents?: bigint;
+  costCurrency?: string;
+  valueDeltaCents?: bigint;
+  flowCents?: bigint;
+  flowCurrency?: string;
+  assetAmountCents?: bigint;
+  priorPriceCents?: string;
 }
 
 /** A live ledger row with everything its undo needs. */

@@ -20,7 +20,7 @@ export interface LedgerKey {
   holdingId: string;
 }
 
-const after = (a: LedgerKey, b: LedgerKey): boolean =>
+export const after = (a: LedgerKey, b: LedgerKey): boolean =>
   a.effectiveDate !== b.effectiveDate
     ? a.effectiveDate > b.effectiveDate
     : a.createdAt !== b.createdAt
@@ -129,4 +129,21 @@ export function priceChange(i: {
 }): { priorPriceCents: string; newPriceCents: string } {
   if (big(i.newPriceCents).lte(0)) throw new RangeError("price_positive");
   return { priorPriceCents: i.priorPriceCents, newPriceCents: i.newPriceCents };
+}
+
+/** 261108 (user): why an entry's amount / currency cannot be changed, or null.
+ *  Only money put in (opening, buy, add) of one asset; and only while nothing
+ *  after it took money or units out — a sale's cost share, a withdrawal's
+ *  room and a transfer's units were all worked out from what came before. */
+export function amountEditBlock(
+  target: LedgerKey & { kind: string },
+  entries: Array<LedgerKey & { costDeltaCents: bigint; qtyDelta: string | null }>,
+): "not_money_in" | "later_entry_depends" | null {
+  if (!["start", "buy", "add"].includes(target.kind) || target.transferId)
+    return "not_money_in";
+  const out = (x: { costDeltaCents: bigint; qtyDelta: string | null }) =>
+    x.costDeltaCents < 0n || (x.qtyDelta !== null && big(x.qtyDelta).lt(0));
+  return entries.some((x) => x.id !== target.id && after(x, target) && out(x))
+    ? "later_entry_depends"
+    : null;
 }

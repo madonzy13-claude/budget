@@ -6,11 +6,34 @@
  * moves together), so the append-only order never changes. A deposit's dates
  * drive its interest, so they do not move. FX figures stay those of the
  * original booking.
+ *
+ * 261108 (user): the amount and currency of money put in (opening, buy, add)
+ * can be fixed too — while nothing later took money or units out (see
+ * amountEditBlock). The amount stays as said; the asset's cost (and, where
+ * the value follows the money, its value) moves by the difference at the
+ * entry date's rate. An asset's only entry takes the new currency outright —
+ * nothing is converted. Later price snapshots shift with the value, so
+ * deleting them still lands on the right figure.
  */
 import { ok, err, type Result } from "neverthrow";
-import { entryDateRange, type LedgerKey } from "../domain/asset-ledger";
+import type { FxProvider } from "@budget/shared-kernel";
+import {
+  after,
+  amountEditBlock,
+  entryDateRange,
+  type LedgerKey,
+} from "../domain/asset-ledger";
+import { holdingShape, type Holding } from "../domain/holding";
+import { big, cents } from "../domain/sell-booking";
 import type { HoldingRepo } from "../ports/holding-repo";
-import type { HistoryRepo, StoredEntry } from "../ports/history-repo";
+import type {
+  BookingPlan,
+  EntryRewrite,
+  HistoryRepo,
+  HoldingPatch,
+  StoredEntry,
+} from "../ports/history-repo";
+import { makeRate } from "./fx-memo";
 
 const key = (e: StoredEntry): LedgerKey => ({
   id: e.id,
@@ -29,21 +52,128 @@ export class DateOutOfRange extends Error {
   }
 }
 
+/** The booking that re-states `e` as `amount` in `ccy` (see the header). */
+async function planAmount(
+  h: Holding,
+  e: StoredEntry,
+  all: StoredEntry[],
+  amount: bigint,
+  ccy: string,
+  ctx: { budgetId: string; fx: FxProvider },
+): Promise<BookingPlan> {
+  const block = amountEditBlock(e, all);
+  if (block) throw new Error(block);
+  if (amount <= 0n) throw new Error("invalid_cents");
+  const sole = all.length === 1;
+  const shape = holdingShape(h);
+  const oldCost = e.costCurrency ?? h.buyCurrency ?? ccy;
+  const costCcy = sole ? ccy : oldCost;
+  const oldValue = h.currentPriceCurrency ?? oldCost;
+  const switchValue = sole && shape !== "quantity" && oldValue === oldCost;
+  const valueCcy = switchValue ? ccy : oldValue;
+  const rate = makeRate(ctx.fx, e.effectiveDate);
+  const cost = cents(big(amount).times(await rate(ccy, costCcy)));
+  // The value follows the money for plain amount assets; a broker's value is
+  // the stated account value, and a quantity asset is valued by its price.
+  const tracks =
+    shape === "amount" &&
+    h.uiType !== "broker" &&
+    h.currentPriceCents !== null &&
+    (e.priorPriceCents !== null || e.valueDeltaCents === e.costDeltaCents);
+  const value = tracks
+    ? cents(big(amount).times(await rate(ccy, valueCcy)))
+    : e.valueDeltaCents;
+  const rewrites: EntryRewrite[] = [
+    {
+      id: e.id,
+      amountCents: amount,
+      amountCurrency: ccy,
+      costDeltaCents: cost,
+      costCurrency: costCcy,
+      valueDeltaCents: value,
+      flowCents: amount,
+      flowCurrency: ccy,
+      assetAmountCents: cost,
+    },
+  ];
+  const patch: HoldingPatch = { id: h.id };
+  if (sole) patch.buyCurrency = ccy;
+  if (switchValue) patch.currentPriceCurrency = ccy;
+  const dCost = cost - e.costDeltaCents;
+  if (shape === "quantity") {
+    const held = big(h.quantity);
+    patch.buyPriceCents = cents(
+      big(h.buyPriceCents ?? 0n).times(held).plus(big(dCost)).div(held),
+    );
+  } else patch.buyPriceCents = (h.buyPriceCents ?? 0n) + dCost;
+
+  if (tracks) {
+    const dValue = value - e.valueDeltaCents;
+    if (sole) patch.currentPriceCents = value;
+    else {
+      // A later snapshot is the value before that entry: shift it. One that
+      // set the value outright (an update, a broker deposit) ends the ripple.
+      let absolute = false;
+      for (const x of all) {
+        if (!after(x, e)) continue;
+        if (absolute) break;
+        if (x.priorPriceCents !== null && x.priorPriceCurrency === valueCcy)
+          rewrites.push({
+            id: x.id,
+            priorPriceCents: big(x.priorPriceCents).plus(big(dValue)).toString(),
+          });
+        if (x.kind === "value_change" || x.kind === "price_change") absolute = true;
+      }
+      if (!absolute)
+        patch.currentPriceCents = big(h.currentPriceCents!).plus(big(dValue)).toString();
+    }
+  }
+  return {
+    budgetId: ctx.budgetId,
+    patches: [patch],
+    entries: [],
+    rewriteEntries: rewrites,
+    lockHoldingIds: [h.id],
+    // Nothing may land after the check (same guard as delete-entry).
+    expectedNewestEntryId: [{ holdingId: h.id, entryId: all.at(-1)!.id }],
+  };
+}
+
 export function editEntry(deps: {
   historyRepo: HistoryRepo;
   holdingRepo: HoldingRepo;
+  fxProvider: FxProvider;
 }) {
   return async (input: {
     tenantId: string;
     actorUserId: string;
     entryId: string;
+    budgetId?: string;
     note?: string;
     effectiveDate?: string;
+    amountCents?: string;
+    currency?: string;
   }): Promise<Result<{ ok: true }, Error>> => {
     try {
       const { tenantId: t, actorUserId: u } = input;
       const legs = await deps.historyRepo.findLegs(t, u, input.entryId);
       if (legs.length === 0) return err(new Error("not_found"));
+      if (input.amountCents !== undefined || input.currency !== undefined) {
+        const e = legs[0]!;
+        if (legs.length !== 1) return err(new Error("not_money_in"));
+        const h = await deps.holdingRepo.findById(t, u, e.holdingId);
+        if (!h) return err(new Error("not_found"));
+        const all = await deps.historyRepo.listForHolding(t, u, h.id);
+        const plan = await planAmount(
+          h,
+          e,
+          all,
+          BigInt(input.amountCents ?? e.amountCents ?? e.costDeltaCents),
+          input.currency ?? e.amountCurrency ?? e.costCurrency ?? h.buyCurrency!,
+          { budgetId: input.budgetId ?? t, fx: deps.fxProvider },
+        );
+        await deps.historyRepo.commit(t, u, plan);
+      }
       const date = input.effectiveDate;
       if (date !== undefined && date !== legs[0]!.effectiveDate) {
         let min: string | null = null;
