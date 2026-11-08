@@ -28,6 +28,8 @@ export const READ_TOOLS = [
   "list_investments",
   "list_scheduled_payments",
   "list_recent_writes",
+  "get_cushion",
+  "list_incomes",
 ];
 export const WRITE_TOOLS = [
   "add_transactions",
@@ -51,6 +53,10 @@ export const WRITE_TOOLS = [
   "import_preview",
   "import_commit",
   "import_undo",
+  "set_cushion",
+  "add_income",
+  "edit_income",
+  "delete_income",
 ];
 const DESTRUCTIVE = [
   "delete_transaction",
@@ -59,6 +65,7 @@ const DESTRUCTIVE = [
   "update_holding_value",
   "delete_investment_entry",
   "delete_scheduled_payment",
+  "delete_income",
   "undo",
   "import_commit",
   "import_undo",
