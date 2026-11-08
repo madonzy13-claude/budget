@@ -189,6 +189,51 @@ export function registerCushionIncomeTools(server: McpServer, ctx: McpCtx): void
   writeTool(
     server,
     ctx,
+    "edit_budget",
+    {
+      description:
+        "Rename a budget or change its currency. Any member can rename; the new name is the " +
+        "caller's own label, as in the app. Only the owner can change the currency; totals are " +
+        "then shown in it, while every amount keeps the currency it was entered in. " + SAME_AS_APP,
+      inputSchema: z.object({
+        budget_id: budgetId,
+        name: z.string().min(1).max(80).optional(),
+        currency: z.string().length(3).optional(),
+      }),
+      annotations: { destructiveHint: false, idempotentHint: true },
+      entryCount: () => 1,
+    },
+    async ({ budget_id: b, name, currency: ccy }, c) => {
+      if (name === undefined && ccy === undefined) return toolError("nothing_to_change");
+      const now = async () => {
+        const r = await c.dispatch({ method: "GET", path: `/budgets/${b}`, budgetId: b });
+        const v = r.body as { name: string; defaultCurrency: string; currentUserRole?: string };
+        return r.ok ? { name: v.name, currency: v.defaultCurrency, role: v.currentUserRole } : null;
+      };
+      const before = await now();
+      if (!before) return toolError("not_found");
+      // Refuse before the rename lands, so a half-done call never happens.
+      if (ccy !== undefined && before.role !== "owner")
+        return toolError("owner_only", { message: "Only the budget's owner can change its currency." });
+      const r = await c.dispatch({
+        method: "PATCH",
+        path: `/budgets/${b}`,
+        budgetId: b,
+        body: { ...(name !== undefined ? { name } : {}), ...(ccy !== undefined ? { default_currency: ccy.toUpperCase() } : {}) },
+      });
+      if (!r.ok) return fromDispatch(r);
+      const after = (await now()) ?? before;
+      const snap = (v: typeof before) => ({ name: v.name, currency: v.currency });
+      return {
+        result: { budget: { name: untrusted(after.name), currency: after.currency } },
+        effects: [effect(r, { tenantId: b, entityType: "budget_identity", entityId: b, op: "update", before: snap(before), after: snap(after) })],
+      };
+    },
+  );
+
+  writeTool(
+    server,
+    ctx,
     "add_income",
     {
       description:

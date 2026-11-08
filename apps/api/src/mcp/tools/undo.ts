@@ -107,6 +107,27 @@ const INVERSES: Record<string, Partial<Record<WriteLogRow["op"], Inverse>>> = {
     },
   },
 
+  budget_identity: {
+    async update(row, c) {
+      const b = row.tenantId;
+      const now = await get(c, `/budgets/${b}`, b);
+      const after = row.after as Json;
+      const before = row.before as Json;
+      if (!now || changed(c, { name: now.name, currency: now.defaultCurrency }, after, ["name", "currency"])) return "skipped";
+      return done(
+        await c.send({
+          method: "PATCH",
+          path: `/budgets/${b}`,
+          budgetId: b,
+          body: {
+            ...(before.name !== after.name ? { name: before.name } : {}),
+            ...(before.currency !== after.currency ? { default_currency: before.currency } : {}),
+          },
+        }),
+      );
+    },
+  },
+
   income: {
     async create(row, c) {
       const now = await findIncome(c.send, row.tenantId, row.entityId);
