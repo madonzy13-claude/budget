@@ -71,6 +71,7 @@ const FORBIDDEN_EXCEPTIONS = new Set(["search_transactions"]);
 
 await setupMcpTestEnv();
 
+let instructions: string | undefined;
 let tools: Array<{
   name: string;
   annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean };
@@ -79,7 +80,9 @@ beforeAll(async () => {
   const app = await testApp();
   const user = await signUpTestUser(app);
   const { accessToken } = await mintMcpToken(app, user, ["read", "write"]);
-  tools = (await (await createSdkClient(app, accessToken)).listTools()).tools;
+  const client = await createSdkClient(app, accessToken);
+  tools = (await client.listTools()).tools;
+  instructions = client.getInstructions();
 });
 
 describe("MCP tool registry", () => {
@@ -108,5 +111,11 @@ describe("MCP tool registry", () => {
       .map((t) => t.name)
       .sort();
     expect(flagged).toEqual([...DESTRUCTIVE].sort());
+  });
+
+  // 15-18 UAT: Claude turned "1 500 000 UAH" into zł on its own. Amounts go in
+  // the currency the user said; converting is the user's call, not Claude's.
+  it("tells the assistant never to convert an amount on its own", () => {
+    expect(instructions).toContain("Never convert an amount to another currency yourself");
   });
 });
