@@ -59,7 +59,7 @@ describe("a deposit", () => {
       date: today(),
       amount: "250.00",
       currency: "PLN",
-      deposit: { annual_rate_percent: "35", capitalization: "monthly" },
+      deposit: { annual_rate_percent: "35", capitalization: "monthly", start_date: today() },
     });
     expect(r.isError).toBeFalsy();
     const id = r.structuredContent!.asset_id;
@@ -82,6 +82,19 @@ describe("a deposit", () => {
     });
     expect(r.isError).toBe(true);
     expect(JSON.parse(r.content[0]!.text).error).toBe("deposit_details_required");
+  });
+
+  it("refuses a deposit without its start date", async () => {
+    const r = await tool("record_investment_transaction", {
+      budget_id: budgetId,
+      side: "buy",
+      new_asset: { name: "No start", type: "deposit" },
+      date: today(),
+      amount: "100.00",
+      currency: "PLN",
+      deposit: { annual_rate_percent: "5", capitalization: "monthly" },
+    });
+    expect(r.isError).toBe(true);
   });
 });
 
