@@ -79,7 +79,11 @@ async function planAmount(
     shape === "amount" &&
     h.uiType !== "broker" &&
     h.currentPriceCents !== null &&
-    (e.priorPriceCents !== null || e.valueDeltaCents === e.costDeltaCents);
+    (e.priorPriceCents !== null ||
+      e.valueDeltaCents === e.costDeltaCents ||
+      // A migrated opening carries no value delta: the asset still being
+      // worth exactly what went in says the value follows the money.
+      (sole && oldValue === oldCost && big(h.currentPriceCents).eq(big(e.costDeltaCents))));
   const value = tracks
     ? cents(big(amount).times(await rate(ccy, valueCcy)))
     : e.valueDeltaCents;
