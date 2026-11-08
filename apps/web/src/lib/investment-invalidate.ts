@@ -33,6 +33,8 @@ export function assetRefusalKey(code: string): string {
       return "swap.err.beforeLatest";
     case "fx_unavailable":
       return "swap.err.fx";
+    case "later_entry_depends":
+      return "ledger.edit.amountLocked";
     default:
       return "swap.err.saveFailed";
   }

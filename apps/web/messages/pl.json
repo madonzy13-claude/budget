@@ -976,7 +976,10 @@
           "aria": "Edytuj {kind}, {date}",
           "saved": "Transakcja zaktualizowana",
           "range": "Wybierz datę od {min} do {max}.",
-          "dateLocked": "Daty lokaty wyznaczają jej odsetki — nie można ich zmienić."
+          "dateLocked": "Daty lokaty wyznaczają jej odsetki — nie można ich zmienić.",
+          "amount": "Kwota",
+          "currency": "Waluta",
+          "amountLocked": "Późniejsza sprzedaż lub wypłata opiera się na tej kwocie — usuń ją najpierw, aby ją zmienić."
         },
         "actionsAria": "Działania dla tego wpisu"
       },

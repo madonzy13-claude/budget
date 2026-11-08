@@ -56,6 +56,8 @@ export interface EntryDto {
   dateMin?: string | null;
   dateMax?: string | null;
   dateEditable?: boolean;
+  /** 261108: money put in whose amount / currency may still change. */
+  amountEditable?: boolean;
   backfilled: boolean;
   deletable: boolean;
   blockedReason: "not_newest" | "linked_not_newest" | "interest" | null;
