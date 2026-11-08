@@ -57,6 +57,7 @@ export const WRITE_TOOLS = [
   "add_income",
   "edit_income",
   "delete_income",
+  "edit_budget",
 ];
 const DESTRUCTIVE = [
   "delete_transaction",

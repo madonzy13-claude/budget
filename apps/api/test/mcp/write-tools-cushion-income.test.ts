@@ -147,3 +147,33 @@ describe("incomes", () => {
     expect((list.structuredContent!.incomes as any[]).some((i) => i.id === incomeId)).toBe(false);
   });
 });
+
+// 15-18 UAT: any member renames (their own label, as in the app); only the
+// owner changes the currency.
+describe("edit_budget", () => {
+  const listed = async (c: Client) =>
+    ((await tool(c, "list_budgets", {})).structuredContent!.budgets as any[]).find((x) => x.budget_id === budgetId);
+
+  it("a member renames the budget for themselves", async () => {
+    const r = await tool(memberClient, "edit_budget", { budget_id: budgetId, name: "Our home" });
+    expect(r.isError).toBeFalsy();
+    expect((await listed(memberClient)).name.untrusted_user_text).toBe("Our home");
+  });
+
+  it("a member cannot change the currency, and nothing changes", async () => {
+    const r = await tool(memberClient, "edit_budget", { budget_id: budgetId, name: "Nope", currency: "EUR" });
+    expect(r.isError).toBe(true);
+    expect(errorOf(r)).toBe("owner_only");
+    const b = await listed(memberClient);
+    expect(b.currency).toBe("PLN");
+    expect(b.name.untrusted_user_text).toBe("Our home");
+  });
+
+  it("the owner changes the currency, and undo puts it back", async () => {
+    const r = await tool(ownerClient, "edit_budget", { budget_id: budgetId, currency: "EUR" });
+    expect(r.isError).toBeFalsy();
+    expect((await listed(ownerClient)).currency).toBe("EUR");
+    await tool(ownerClient, "undo", { id: r.structuredContent!.call_id });
+    expect((await listed(ownerClient)).currency).toBe("PLN");
+  });
+});
