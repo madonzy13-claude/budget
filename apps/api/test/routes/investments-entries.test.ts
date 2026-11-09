@@ -892,6 +892,58 @@ describe("Investment entries ledger", () => {
       expect(BigInt(now.realizedBudgetCents as string) - BigInt(sale.realizedBudgetCents as string)).toBe(9000n);
     });
 
+    // 261109 (user): "why can't I edit bought from / sold into another asset?"
+    // A swap's amount is fixable from either side: the source keeps its
+    // holding (only its realized gain moves); the destination's cost — and
+    // value, where it follows the money — moves by the difference.
+    const swap = async (app: Hono, a: string, b: string) =>
+      call(app, "POST", `/${a}/sell`, {
+        effectiveDate: "2026-10-01",
+        left: { valueCents: "50000" },
+        destination: { kind: "existing", holdingId: b },
+        receivedCents: "50000",
+        receivedCurrency: "PLN",
+      });
+
+    it("a swap's amount can be fixed; both sides follow", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix);
+      const a = await create(app, cashBody);
+      const b = await create(app, { ...cashBody, name: "Other" });
+      expect((await swap(app, a, b)).status).toBe(201);
+      const out = (await entriesOf(app, a))[0]!;
+      const into = (await entriesOf(app, b))[0]!;
+      expect(out).toMatchObject({ kind: "convert_out", amountEditable: true });
+      expect(into).toMatchObject({ kind: "convert_in", amountEditable: true });
+      const srcBefore = await holding(fix, a);
+      expect((await edit(app, out.id, { amountCents: "60000" })).status).toBe(200);
+      expect(await holding(fix, a)).toEqual(srcBefore);
+      expect(await holding(fix, b)).toMatchObject({ buy: "160000", cur: "160000" });
+      const outNow = (await entriesOf(app, a))[0]!;
+      expect(outNow).toMatchObject({ amountCents: "-60000" });
+      expect(BigInt(outNow.realizedBudgetCents as string) - BigInt(out.realizedBudgetCents as string)).toBe(10000n);
+      expect((await entriesOf(app, b))[0]).toMatchObject({ amountCents: "60000", afterCents: "160000" });
+    });
+
+    it("a swap stays as booked once the destination later gave something out", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix);
+      const a = await create(app, cashBody);
+      const b = await create(app, { ...cashBody, name: "Other" });
+      expect((await swap(app, a, b)).status).toBe(201);
+      await call(app, "POST", `/${b}/sell`, {
+        effectiveDate: "2026-10-05",
+        left: { valueCents: "100000" },
+        destination: { kind: "out" },
+        receivedCents: "50000",
+        receivedCurrency: "PLN",
+      });
+      const out = (await entriesOf(app, a))[0]!;
+      expect(out).toMatchObject({ kind: "convert_out", amountEditable: false });
+      expect((await entriesOf(app, b))[1]).toMatchObject({ kind: "convert_in", amountEditable: false });
+      expect((await edit(app, out.id, { amountCents: "60000" })).status).toBe(422);
+    });
+
     it("refuses a zero amount", async () => {
       const fix = await createFixture();
       const app = await buildApp(fix);
