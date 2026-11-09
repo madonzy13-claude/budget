@@ -81,6 +81,16 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     And I change the newest entry of "IBKR" to "70000" in "USD"
     Then the newest entry of "IBKR" reads "70,000 USD"
 
+  # 261109 (user): "sold into another asset" too — both sides follow.
+  Scenario: Fixing what a swap moved
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "cash" holding "Cash" deposited 1000000 cents worth 1000000 cents exists in my budget
+    When I open the investments wallets tab
+    And I sell "IBKR" leaving "30000" into "Cash" receiving "66000"
+    And I change the newest entry of "IBKR" to "70000" in "USD"
+    Then the newest entry of "IBKR" reads "70,000 USD"
+    And the holding row "Cash" shows "80,000"
+
   # …unless a later sale relied on it: then it shows, locked, saying why.
   Scenario: An amount a later sale relied on stays as booked
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
