@@ -3161,6 +3161,39 @@ Then(
   },
 );
 
+// 261109 (user): a picked currency's base is the history cost — each
+// transaction at its own date's rate, as GET /investments/pl prices it.
+// Pick a currency the section never asked for, so the request is fresh.
+Then(
+  "picking {string} in the Edit of {string} shows the base at its transactions' date rates",
+  async ({ page }, ccy: string, name: string) => {
+    const open = page.getByTestId("edit-asset-sheet");
+    if (await open.isVisible().catch(() => false)) {
+      await page.keyboard.press("Escape");
+      await expect(open).toBeHidden();
+    }
+    await new InvestmentsPo(page).openEdit(name);
+    const sheet = page.getByTestId("edit-asset-sheet");
+    const pl = page.waitForResponse((r) =>
+      r.url().includes(`/investments/pl?currency=${ccy}`),
+    );
+    const native = sheet.getByTestId("currency-picker-native");
+    if (await native.isVisible().catch(() => false))
+      await native.selectOption(ccy);
+    else {
+      await sheet.getByRole("combobox").first().click();
+      await page.getByTestId(`currency-option-${ccy}`).first().click();
+    }
+    const { costCents } = (await (await pl).json()) as { costCents: string };
+    const want = new Intl.NumberFormat("en-US", {
+      maximumFractionDigits: 2,
+    }).format(Number(costCents) / 100);
+    await expect(sheet.getByTestId("edit-asset-locked-baseAmount")).toHaveValue(
+      want,
+    );
+  },
+);
+
 Then(
   "the oldest entry of {string} reads {string}",
   async ({ page }, name: string, text: string) => {
