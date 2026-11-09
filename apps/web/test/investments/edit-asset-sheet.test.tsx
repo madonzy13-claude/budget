@@ -312,12 +312,23 @@ describe("Edit asset sheet — locked configuration", () => {
     expect((locked("baseAmount") as HTMLInputElement).value).toBe("100,000");
   });
 
-  it("the base amount converts on a currency pick", async () => {
-    routeFetch({ rate: "0.25" });
+  // 261109 (user): a pick converts the base at each transaction's own date
+  // rate (the history cost), never today's — today's 0.25 would read 25,000.
+  it("the base amount converts at the transactions' date rates", async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      String(url).includes("/fx/rate")
+        ? new Response(JSON.stringify({ rate: "0.25" }), { status: 200 })
+        : String(url).includes("/investments/pl?currency=EUR&ids=11111111-1111-1111-1111-111111111111")
+          ? new Response(
+              JSON.stringify({ currency: "EUR", costCents: "3000000" }),
+              { status: 200 },
+            )
+          : new Response("{}", { status: 200 }),
+    );
     mount(btc);
     type("currency-picker", "EUR");
     await waitFor(() =>
-      expect((locked("baseAmount") as HTMLInputElement).value).toBe("25,000"),
+      expect((locked("baseAmount") as HTMLInputElement).value).toBe("30,000"),
     );
   });
 
