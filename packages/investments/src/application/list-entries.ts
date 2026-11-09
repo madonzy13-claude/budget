@@ -250,6 +250,7 @@ export function listEntries(deps: {
           })(),
           dateEditable: !isDeposit,
           amountEditable: amountEditBlock(e, live) === null,
+          valueCents: e.kind === "value_change" && e.amountCents !== null ? e.amountCents.toString() : null,
           backfilled: e.backfilled,
           deletable: isNewest && partnerOk,
           blockedReason: !isNewest
@@ -305,6 +306,7 @@ export function listEntries(deps: {
             dateMax: null,
             dateEditable: false,
             amountEditable: false,
+          valueCents: null,
             backfilled: false,
             deletable: false,
             blockedReason: "interest",

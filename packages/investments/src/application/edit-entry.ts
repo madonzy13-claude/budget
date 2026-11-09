@@ -52,6 +52,79 @@ export class DateOutOfRange extends Error {
   }
 }
 
+/** An entry that set the value outright: an update, or a broker deposit
+ *  that stated the account value after it. */
+const statedBy = (broker: boolean) => (x: StoredEntry) =>
+  x.kind === "value_change" ||
+  x.kind === "price_change" ||
+  (broker && x.kind === "add" && x.valueDeltaCents !== x.costDeltaCents);
+
+/** `e`'s value moved by `d` (in `ccy`): a later snapshot is the value before
+ *  that entry — shift it. One that set the value outright keeps that value
+ *  (its delta absorbs the shift, so the running totals walked back from today
+ *  move) and ends the ripple; with none, the current value moves. */
+async function rippleLater(
+  h: Holding,
+  e: StoredEntry,
+  all: StoredEntry[],
+  d: bigint,
+  ccy: string,
+  rewrites: EntryRewrite[],
+  patch: HoldingPatch,
+  rate: (from: string, to: string) => Promise<string>,
+): Promise<void> {
+  const stated = statedBy(h.uiType === "broker");
+  let absolute = false;
+  for (const x of all) {
+    if (!after(x, e)) continue;
+    if (absolute) break;
+    absolute = stated(x);
+    if (x.priorPriceCents !== null && (x.priorPriceCurrency ?? ccy) === ccy)
+      rewrites.push({
+        id: x.id,
+        priorPriceCents: big(x.priorPriceCents).plus(big(d)).toString(),
+        ...(absolute ? { valueDeltaCents: x.valueDeltaCents - d } : {}),
+      });
+  }
+  if (absolute) return;
+  const cur = h.currentPriceCurrency ?? ccy;
+  const dCur = cur === ccy ? big(d) : big(d).times(await rate(ccy, cur));
+  patch.currentPriceCents = cents(big(h.currentPriceCents!).plus(dCur)).toString();
+}
+
+/** 261109 (user): a value update re-stated as `amount` in `ccy` — kept as
+ *  said, valued at that day's rate in the asset's value currency. */
+async function planValue(
+  h: Holding,
+  e: StoredEntry,
+  all: StoredEntry[],
+  amount: bigint,
+  ccy: string,
+  ctx: { budgetId: string; fx: FxProvider },
+): Promise<BookingPlan> {
+  const block = amountEditBlock(e, all);
+  if (block) throw new Error(block);
+  if (amount <= 0n) throw new Error("invalid_cents");
+  const valueCcy = e.priorPriceCurrency ?? h.currentPriceCurrency ?? ccy;
+  const rate = makeRate(ctx.fx, e.effectiveDate);
+  const v = cents(big(amount).times(await rate(ccy, valueCcy)));
+  const old = cents(big(e.priorPriceCents ?? "0").plus(big(e.valueDeltaCents)));
+  const d = v - old;
+  const rewrites: EntryRewrite[] = [
+    { id: e.id, amountCents: amount, amountCurrency: ccy, valueDeltaCents: e.valueDeltaCents + d },
+  ];
+  const patch: HoldingPatch = { id: h.id };
+  await rippleLater(h, e, all, d, valueCcy, rewrites, patch, rate);
+  return {
+    budgetId: ctx.budgetId,
+    patches: [patch],
+    entries: [],
+    rewriteEntries: rewrites,
+    lockHoldingIds: [h.id],
+    expectedNewestEntryId: [{ holdingId: h.id, entryId: all.at(-1)!.id }],
+  };
+}
+
 /** The booking that re-states `e` as `amount` in `ccy` (see the header). */
 async function planAmount(
   h: Holding,
@@ -77,10 +150,7 @@ async function planAmount(
   // deposit stated no account value after it; a quantity asset is valued by
   // its price.
   const broker = h.uiType === "broker";
-  const stated = (x: StoredEntry) =>
-    x.kind === "value_change" ||
-    x.kind === "price_change" ||
-    (broker && x.kind === "add" && x.valueDeltaCents !== x.costDeltaCents);
+  const stated = statedBy(broker);
   // A migrated opening carries no value delta: what went in WAS its value.
   const legacy =
     e.kind === "start" && e.valueDeltaCents === 0n && e.priorPriceCents === null;
@@ -128,26 +198,7 @@ async function planAmount(
   if (tracks) {
     const dValue = newValue - was;
     if (sole) patch.currentPriceCents = newValue;
-    else {
-      // A later snapshot is the value before that entry: shift it. One that
-      // set the value outright (an update, a broker deposit with its value
-      // after) keeps that value — its delta absorbs the shift, so the running
-      // totals walked back from today move — and ends the ripple.
-      let absolute = false;
-      for (const x of all) {
-        if (!after(x, e)) continue;
-        if (absolute) break;
-        absolute = stated(x);
-        if (x.priorPriceCents !== null && (x.priorPriceCurrency ?? valueCcy) === valueCcy)
-          rewrites.push({
-            id: x.id,
-            priorPriceCents: big(x.priorPriceCents).plus(big(dValue)).toString(),
-            ...(absolute ? { valueDeltaCents: x.valueDeltaCents - dValue } : {}),
-          });
-      }
-      if (!absolute)
-        patch.currentPriceCents = big(h.currentPriceCents!).plus(big(dValue)).toString();
-    }
+    else await rippleLater(h, e, all, dValue, valueCcy, rewrites, patch, rate);
   }
   return {
     budgetId: ctx.budgetId,
@@ -185,7 +236,7 @@ export function editEntry(deps: {
         const h = await deps.holdingRepo.findById(t, u, e.holdingId);
         if (!h) return err(new Error("not_found"));
         const all = await deps.historyRepo.listForHolding(t, u, h.id);
-        const plan = await planAmount(
+        const plan = await (e.kind === "value_change" ? planValue : planAmount)(
           h,
           e,
           all,

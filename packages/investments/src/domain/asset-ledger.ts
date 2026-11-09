@@ -139,7 +139,8 @@ export function amountEditBlock(
   target: LedgerKey & { kind: string },
   entries: Array<LedgerKey & { costDeltaCents: bigint; qtyDelta: string | null }>,
 ): "not_money_in" | "later_entry_depends" | null {
-  if (!["start", "buy", "add"].includes(target.kind) || target.transferId)
+  // 261109 (user): a value update too — it set the value outright.
+  if (!["start", "buy", "add", "value_change"].includes(target.kind) || target.transferId)
     return "not_money_in";
   const out = (x: { costDeltaCents: bigint; qtyDelta: string | null }) =>
     x.costDeltaCents < 0n || (x.qtyDelta !== null && big(x.qtyDelta).lt(0));
