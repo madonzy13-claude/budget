@@ -304,9 +304,38 @@ describe("Edit asset sheet — locked configuration", () => {
   });
 
   // 261108 (user): every Edit shows the base amount (what went in), locked.
-  it("shows the base amount locked, in the asset's own currency", () => {
+  // 261109 (user): no currency in it — the picker above names it.
+  it("shows the base amount locked, without a currency", () => {
     mount(btc); // 2 × 50,000 PLN
-    expectLocked("baseAmount", "100,000 PLN");
+    expectLocked("baseAmount", "100,000");
+    expect((locked("baseAmount") as HTMLInputElement).value).toBe("100,000");
+  });
+
+  it("the base amount converts on a currency pick", async () => {
+    routeFetch({ rate: "0.25" });
+    mount(btc);
+    type("currency-picker", "EUR");
+    await waitFor(() =>
+      expect((locked("baseAmount") as HTMLInputElement).value).toBe("25,000"),
+    );
+  });
+
+  // 261109 (user): base amount goes before the current amount.
+  it("the base amount sits above the current value", () => {
+    mount(cash);
+    const base = locked("baseAmount");
+    const value = screen.getByTestId("edit-asset-value");
+    expect(
+      base.compareDocumentPosition(value) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("the base amount sits above the locked price", () => {
+    mount(btc);
+    expect(
+      locked("baseAmount").compareDocumentPosition(locked("currentPrice")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("an amount-shaped asset's base amount is what went in", () => {

@@ -243,38 +243,33 @@ describe("Asset ledger strip", () => {
   });
 
   // Round-3 gap 9: the swiped delete is square, shadowed on its left edge.
-  // R6 (user): with Edit beside it, the leftmost button (Edit) carries it.
-  it("the swiped buttons are square; the leftmost (Edit) carries the inset shadow", async () => {
+  // 261109 (user): Edit left the swipe — the amount opens it.
+  it("the swiped delete is square and carries the inset shadow; no Edit beside it", async () => {
     mount(ENTRIES);
     const del = await screen.findByTestId("ledger-delete-b1");
-    const edit = screen.getByTestId("ledger-edit-b1");
     // Square on a phone (desktop rounds its hover chip: sm:rounded).
     expect(del.className).not.toMatch(/(^|\s)rounded/);
-    expect(edit.className).toMatch(
+    expect(del.className).toMatch(
       /shadow-\[inset_6px_0_8px_-6px_rgba\(0,0,0,0\.7\)\]/,
     );
-    expect(del.className).not.toMatch(/shadow-\[inset/);
+    expect(screen.queryByTestId("ledger-edit-b1")).toBeNull();
   });
 
-  // 261102 (user): desktop tucks Edit / Delete behind a "…" — hovering it
-  // fades them in over a blurred right end; the phone's swipe squares stay.
+  // 261102 (user): desktop tucks Delete behind a "…" — hovering it fades it
+  // in over a blurred right end; the phone's swipe square stays.
   it("on desktop the actions sit behind a … that reveals them on hover", async () => {
     mount(ENTRIES);
-    const edit = await screen.findByTestId("ledger-edit-b1");
-    const del = screen.getByTestId("ledger-delete-b1");
+    const del = await screen.findByTestId("ledger-delete-b1");
     const row = screen.getByTestId("ledger-row-b1");
     expect(row.className).toMatch(/group\/row/);
-    const toolbar = edit.closest('[role="toolbar"]') as HTMLElement;
+    const toolbar = del.closest('[role="toolbar"]') as HTMLElement;
     expect(toolbar).not.toBeNull();
-    expect(del.closest('[role="toolbar"]')).toBe(toolbar);
     expect(toolbar.className).toMatch(/sm:opacity-0/);
     expect(toolbar.className).toMatch(/sm:group-hover\/actions:opacity-100/);
     expect(toolbar.className).toMatch(/sm:backdrop-blur/);
     expect(row.querySelector('[data-testid="row-actions-more"]')).not.toBeNull();
-    for (const b of [edit, del]) {
-      expect(b.className).toMatch(/sm:bg-transparent/);
-      expect(b.className).toMatch(/sm:shadow-none/);
-    }
+    expect(del.className).toMatch(/sm:bg-transparent/);
+    expect(del.className).toMatch(/sm:shadow-none/);
   });
 
   // Round-4 gap 28: a leading icon says money in (green) / out (red).
@@ -454,7 +449,9 @@ describe("Asset ledger strip", () => {
   });
 
   // R6 (user): Edit a transaction — note and date (within its neighbours).
-  it("Edit opens a sheet with the note and a bounded date, and saves changes", async () => {
+  // 261109 (user): the dotted amount opens it, in a side sheet like the
+  // asset's Edit — not a popup in the middle.
+  it("tapping the amount opens a sheet with the note and a bounded date, and saves changes", async () => {
     mount([
       e({
         id: "b1",
@@ -466,11 +463,13 @@ describe("Asset ledger strip", () => {
         dateEditable: true,
       }),
     ]);
-    fireEvent.click(await screen.findByTestId("ledger-edit-b1"));
+    fireEvent.click(await screen.findByTestId("ledger-amount-b1"));
+    expect(screen.getByTestId("ledger-amount-b1").className).toMatch(/decoration-dotted/);
     const date = await screen.findByTestId("entry-edit-date");
+    expect(screen.getByTestId("entry-edit-sheet")).toHaveAttribute("data-sheet-content");
     // R6 (user): opening must not focus the date — a phone pops its calendar.
     await waitFor(() =>
-      expect(screen.getByTestId("entry-edit-dialog")).toContainElement(
+      expect(screen.getByTestId("entry-edit-sheet")).toContainElement(
         document.activeElement as HTMLElement,
       ),
     );
@@ -505,14 +504,14 @@ describe("Asset ledger strip", () => {
       }),
       e({ id: "d1", kind: "start", dateEditable: false }),
     ]);
-    fireEvent.click(await screen.findByTestId("ledger-edit-b1"));
+    fireEvent.click(await screen.findByTestId("ledger-amount-b1"));
     fireEvent.change(await screen.findByTestId("entry-edit-date"), {
       target: { value: "2026-10-25" },
     });
     expect(screen.getByTestId("entry-edit-save")).toBeDisabled();
     expect(screen.getByText("ledger.edit.range")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("entry-edit-cancel"));
-    fireEvent.click(await screen.findByTestId("ledger-edit-d1"));
+    fireEvent.click(await screen.findByTestId("ledger-amount-d1"));
     expect(await screen.findByTestId("entry-edit-date")).toBeDisabled();
   });
 
@@ -529,7 +528,7 @@ describe("Asset ledger strip", () => {
         amountEditable: true,
       }),
     ]);
-    fireEvent.click(await screen.findByTestId("ledger-edit-a1"));
+    fireEvent.click(await screen.findByTestId("ledger-amount-a1"));
     const amount = await screen.findByTestId("entry-edit-amount");
     expect(amount).toHaveValue("640");
     expect(screen.getByTestId("entry-edit-currency")).toBeInTheDocument();
@@ -553,7 +552,7 @@ describe("Asset ledger strip", () => {
         amountEditable: false,
       }),
     ]);
-    fireEvent.click(await screen.findByTestId("ledger-edit-a1"));
+    fireEvent.click(await screen.findByTestId("ledger-amount-a1"));
     const amount = await screen.findByTestId("entry-edit-amount");
     expect(amount).toHaveAttribute("readonly");
     expect(amount).toHaveValue("640");
@@ -564,8 +563,8 @@ describe("Asset ledger strip", () => {
   it("interest rows have no Edit", async () => {
     mount(ENTRIES);
     await screen.findByTestId("ledger-row-b1");
-    expect(screen.queryByTestId("ledger-edit-interest-2026-10-20")).toBeNull();
-    expect(screen.getByTestId("ledger-edit-b1")).toBeInTheDocument();
+    expect(screen.queryByTestId("ledger-amount-interest-2026-10-20")).toBeNull();
+    expect(screen.getByTestId("ledger-amount-b1")).toBeInTheDocument();
   });
 
   // Round 6 (user): qty × price and realized are lighter, like the asset row.

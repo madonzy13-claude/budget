@@ -728,12 +728,11 @@ export class InvestmentsPo {
     return ledger;
   }
 
-  /** R6: Edit the newest entry's note through the Edit dialog. */
+  /** R6: Edit the newest entry's note through its Edit sheet. */
   async editNewestNote(name: string, note: string): Promise<void> {
     const ledger = await this.openLedger(name);
-    const edit = ledger.locator('[data-testid^="ledger-edit-"]').first();
-    await this.revealDelete(edit);
-    await edit.click();
+    // 261109: the dotted amount opens Edit.
+    await ledger.locator('[data-testid^="ledger-amount-"]').first().click();
     await this.page.getByTestId("entry-edit-note").fill(note);
     const saved = this.page.waitForResponse(
       (r) =>
@@ -744,13 +743,11 @@ export class InvestmentsPo {
     expect((await saved).status()).toBe(200);
   }
 
-  /** 261108: open the oldest entry's Edit dialog. */
+  /** 261108: open the oldest entry's Edit sheet (its dotted amount). */
   async editOldest(name: string): Promise<void> {
     const ledger = await this.openLedger(name);
-    const edit = ledger.locator('[data-testid^="ledger-edit-"]').last();
-    await this.revealDelete(edit);
-    await edit.click();
-    await expect(this.page.getByTestId("entry-edit-dialog")).toBeVisible();
+    await ledger.locator('[data-testid^="ledger-amount-"]').last().click();
+    await expect(this.page.getByTestId("entry-edit-sheet")).toBeVisible();
   }
 
   /** 261108: the oldest entry's amount and currency, through Edit. */

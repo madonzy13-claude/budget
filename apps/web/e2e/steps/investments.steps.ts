@@ -916,6 +916,33 @@ Then(
   },
 );
 
+// 261109 (user): on an opened asset the dotted line sits close under the amount.
+Then(
+  "the dotted line under the opened amount of {string} sits close to it",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const amount = page
+      .getByTestId(`holding-amount-${id}`)
+      .or(page.getByTestId(`asset-value-amount-${id}`))
+      .filter({ visible: true });
+    const offset = await amount.evaluate(
+      (el) => parseFloat(getComputedStyle(el).textUnderlineOffset) || 0,
+    );
+    expect(offset).toBeLessThanOrEqual(2);
+  },
+);
+
+Then(
+  "the running totals of {string} read {string}",
+  async ({ page }, name: string, totals: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    await expect(ledger.locator("[data-after]")).toHaveText(
+      totals.split(" / ").map((t) => new RegExp(`^= ${t} [A-Z]{3}$`)),
+      { timeout: 15000 },
+    );
+  },
+);
+
 // Round 6: a currency change in Edit saves (never the offline toast).
 When(
   "I change the currency of {string} to {string} in Edit and save",
@@ -2486,15 +2513,11 @@ Then(
       const cs = getComputedStyle(el);
       return { radius: cs.borderTopLeftRadius, shadow: cs.boxShadow };
     };
-    const row0 = del.locator("xpath=ancestor::*[@data-ledger-row][1]");
-    const edit = await row0
-      .locator('[data-testid^="ledger-edit-"]')
-      .evaluate(look);
+    // 261109: Edit left the swipe (the amount opens it) — Delete is the
+    // leftmost revealed button and carries the under-row shade.
     const d = await del.evaluate(look);
     expect(d.radius).toBe("0px");
-    expect(edit.radius).toBe("0px");
-    expect(edit.shadow).toContain("inset");
-    expect(d.shadow).toBe("none");
+    expect(d.shadow).toContain("inset");
     // Gap 11: the swiped row is shaded on its left; gap 12: smaller qty line.
     const row = del.locator("xpath=ancestor::*[@data-ledger-row][1]");
     await expect(row.locator("[data-ledger-swipe-shade]")).toHaveCSS(
@@ -3126,7 +3149,7 @@ Then(
     await new InvestmentsPo(page).editOldest(name);
     await expect(page.getByTestId("entry-edit-amount")).toHaveAttribute("readonly", "");
     await expect(page.getByTestId("entry-edit-currency")).toHaveCount(0);
-    await expect(page.getByTestId("entry-edit-dialog")).toContainText("A later sale or withdrawal relied on this amount");
+    await expect(page.getByTestId("entry-edit-sheet")).toContainText("A later sale or withdrawal relied on this amount");
   },
 );
 

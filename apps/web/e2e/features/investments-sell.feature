@@ -49,8 +49,17 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     And I change the oldest entry of "Pot" to "1500" in "UAH"
     Then the holding row "Pot" shows the amount "1,500"
     And the oldest entry of "Pot" reads "1,500 UAH"
-    # 261108 (user): Edit shows what went in, locked.
-    And the Edit of "Pot" shows the base amount "1,500 UAH" locked
+    # 261108 (user): Edit shows what went in, locked — 261109: without a
+    # currency, the picker above names it.
+    And the Edit of "Pot" shows the base amount "1,500" locked
+
+  # 261109 (user): the running total of that entry and every later one moves.
+  Scenario: Fixing an older amount moves every running total after it
+    Given a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
+    When I open the investments wallets tab
+    And I buy into "Pot" adding "100"
+    And I change the oldest entry of "Pot" to "1500" in "PLN"
+    Then the running totals of "Pot" read "1,600 / 1,500"
 
   # …unless a later sale relied on it: then it shows, locked, saying why.
   Scenario: An amount a later sale relied on stays as booked
