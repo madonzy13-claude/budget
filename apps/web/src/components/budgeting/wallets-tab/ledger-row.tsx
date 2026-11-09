@@ -297,7 +297,13 @@ export function LedgerRow({
                     />
                     <span
                       className="truncate"
-                      style={{ fontSize: "11px", lineHeight: 1.4 }}
+                      // The truncate clip would cut the link's line, 4px down.
+                      style={{
+                        fontSize: "11px",
+                        lineHeight: 1.4,
+                        paddingBottom: "6px",
+                        marginBottom: "-6px",
+                      }}
                     >
                       {t(linkedOut ? "ledger.toAsset" : "ledger.fromAsset", {
                         name: entry.counterpartyName,
