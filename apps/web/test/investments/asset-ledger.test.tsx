@@ -595,6 +595,32 @@ describe("Asset ledger strip", () => {
     });
   });
 
+  // 261109 (user): "bought from / sold into another asset" — a swap's Edit
+  // offers its amount and currency from either side.
+  it.each([
+    ["convert_out", "-51000"],
+    ["convert_in", "51000"],
+  ])("a swap's %s Edit offers its amount and currency", async (kind, cents) => {
+    mount([
+      e({
+        id: "w1",
+        kind,
+        amountCents: cents,
+        amountCurrency: "PLN",
+        transferId: "t1",
+        linked: true,
+        counterpartyName: "Other",
+        dateEditable: true,
+        amountEditable: true,
+      }),
+    ]);
+    fireEvent.click(await screen.findByTestId("ledger-amount-w1"));
+    const amount = await screen.findByTestId("entry-edit-amount");
+    expect(amount).toHaveValue("510");
+    expect(amount).not.toHaveAttribute("readonly");
+    expect(screen.getByTestId("entry-edit-currency")).toBeInTheDocument();
+  });
+
   it("a sale moved into a wallet shows its amount locked, saying why", async () => {
     mount([
       e({
