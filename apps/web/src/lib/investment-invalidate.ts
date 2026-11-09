@@ -35,6 +35,8 @@ export function assetRefusalKey(code: string): string {
       return "swap.err.fx";
     case "later_entry_depends":
       return "ledger.edit.amountLocked";
+    case "sale_linked":
+      return "ledger.edit.amountLinked";
     default:
       return "swap.err.saveFailed";
   }

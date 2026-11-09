@@ -27,15 +27,18 @@ import { ErrorLine, today } from "./swap-shared";
 import { Field, NumericInput } from "./holding-sheet";
 import { kindKey, ledgerDate } from "./ledger-row";
 
-// 261109 (user): a value update offers its value and currency too.
-const MONEY_IN = ["start", "buy", "add", "value_change"];
+// 261109 (user): a value update and a sale offer theirs too.
+const MONEY_IN = ["start", "buy", "add", "value_change", "withdraw"];
 const bare = (c: string | null | undefined) =>
   c == null ? "" : String(Number(c) / 100);
 const toCents = (v: string) =>
   String(Math.round(Number(v.replace(/\s/g, "").replace(/,/g, ".")) * 100));
-/** What the entry said: the money put in, or the value an update set. */
+/** What the entry said: the money put in or received, or the value an
+ *  update set. */
 const said = (e: EntryDto) =>
-  e.kind === "value_change" ? (e.valueCents ?? null) : e.amountCents;
+  e.kind === "value_change"
+    ? (e.valueCents ?? null)
+    : (e.amountCents?.replace(/^-/, "") ?? null);
 const caption = "text-caption text-[var(--muted-foreground)]";
 const lock = (
   <Lock
@@ -162,7 +165,13 @@ export function EntryEditSheet({
                     {lock}
                   </div>
                 </Field>
-                <p className={caption}>{t("ledger.edit.amountLocked")}</p>
+                <p className={caption}>
+                  {t(
+                    entry?.kind === "withdraw"
+                      ? "ledger.edit.amountLinked"
+                      : "ledger.edit.amountLocked",
+                  )}
+                </p>
               </>
             ))}
           <Field label={t("sell.date")}>

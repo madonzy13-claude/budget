@@ -979,7 +979,8 @@
           "dateLocked": "Daty lokaty wyznaczają jej odsetki — nie można ich zmienić.",
           "amount": "Kwota",
           "currency": "Waluta",
-          "amountLocked": "Późniejsza sprzedaż lub wypłata opiera się na tej kwocie — usuń ją najpierw, aby ją zmienić."
+          "amountLocked": "Późniejsza sprzedaż lub wypłata opiera się na tej kwocie — usuń ją najpierw, aby ją zmienić.",
+          "amountLinked": "Wpłacono do portfela — usuń tę sprzedaż i zapisz ją ponownie, aby zmienić otrzymaną kwotę."
         },
         "actionsAria": "Działania dla tego wpisu"
       },

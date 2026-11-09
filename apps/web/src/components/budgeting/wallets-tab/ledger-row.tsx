@@ -318,7 +318,13 @@ export function LedgerRow({
                       ev.stopPropagation();
                       onOpenLinked();
                     }}
-                    className="flex min-w-0 items-center gap-1 self-start text-left underline decoration-dotted underline-offset-2"
+                    className="flex min-w-0 items-center gap-1 self-start text-left underline decoration-dotted"
+                    // 261109 (user): grey like its text, thin, a little lower.
+                    style={{
+                      textDecorationColor: "currentColor",
+                      textDecorationThickness: "0.5px",
+                      textUnderlineOffset: "4px",
+                    }}
                   >
                     {content}
                   </button>

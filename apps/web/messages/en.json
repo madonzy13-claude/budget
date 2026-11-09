@@ -979,7 +979,8 @@
           "dateLocked": "A deposit's dates set its interest — they can't change.",
           "amount": "Amount",
           "currency": "Currency",
-          "amountLocked": "A later sale or withdrawal relied on this amount — delete it first to change this one."
+          "amountLocked": "A later sale or withdrawal relied on this amount — delete it first to change this one.",
+          "amountLinked": "Paid into a wallet — delete this sale and book it again to change what it received."
         },
         "actionsAria": "Actions for this entry"
       },
