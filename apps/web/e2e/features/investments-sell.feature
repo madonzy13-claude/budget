@@ -71,6 +71,15 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     Then the holding row "Pot" shows the amount "1,500"
     And the running totals of "Pot" read "1,500 / 1,000"
 
+  # 261109 (user): what a sale received can be fixed too — only its realized
+  # gain follows, nothing in the asset.
+  Scenario: Fixing what a sale received
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I sell "IBKR" leaving "30000" out of investments receiving "66000"
+    And I change the newest entry of "IBKR" to "70000" in "USD"
+    Then the newest entry of "IBKR" reads "70,000 USD"
+
   # …unless a later sale relied on it: then it shows, locked, saying why.
   Scenario: An amount a later sale relied on stays as booked
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget

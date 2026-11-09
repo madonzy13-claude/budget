@@ -833,6 +833,29 @@ describe("Investment entries ledger", () => {
       expect((await entriesOf(app, h))[0]).toMatchObject({ valueCents: "1200000", amountCurrency: "UAH" });
     });
 
+    // 261109 (user): a sale's received amount and currency can be fixed too —
+    // only what came out changes: the realized gain, nothing in the asset.
+    it("a sale's received amount can be fixed; only the realized gain follows", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix);
+      const h = await create(app, cashBody);
+      await call(app, "POST", `/${h}/sell`, {
+        effectiveDate: "2026-10-01",
+        left: { valueCents: "50000" },
+        destination: { kind: "out" },
+        receivedCents: "51000",
+        receivedCurrency: "PLN",
+      });
+      const sale = (await entriesOf(app, h))[0]!;
+      expect(sale).toMatchObject({ kind: "withdraw", amountEditable: true });
+      const before = await holding(fix, h);
+      expect((await edit(app, sale.id, { amountCents: "60000" })).status).toBe(200);
+      expect(await holding(fix, h)).toEqual(before);
+      const now = (await entriesOf(app, h))[0]!;
+      expect(now).toMatchObject({ amountCents: "-60000", amountCurrency: "PLN" });
+      expect(BigInt(now.realizedBudgetCents as string) - BigInt(sale.realizedBudgetCents as string)).toBe(9000n);
+    });
+
     it("refuses a zero amount", async () => {
       const fix = await createFixture();
       const app = await buildApp(fix);

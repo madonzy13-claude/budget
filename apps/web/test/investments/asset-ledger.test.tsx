@@ -348,6 +348,9 @@ describe("Asset ledger strip", () => {
     expect(row).toHaveAttribute("data-transfer-id", "tr1");
     const link = screen.getByTestId("ledger-link-t1");
     expect(link.tagName).toBe("BUTTON");
+    // 261109 (user): its dotted line is grey like its text, a little lower.
+    expect(link.style.textDecorationColor.toLowerCase()).toBe("currentcolor");
+    expect(link.style.textUnderlineOffset).toBe("4px");
     fireEvent.click(link);
     expect(onOpenLinked).toHaveBeenCalledWith("pot", "tr1");
   });
@@ -565,6 +568,47 @@ describe("Asset ledger strip", () => {
     expect(JSON.parse(String((init as RequestInit).body))).toEqual({
       amountCents: "150000",
     });
+  });
+
+  // 261109 (user): a sale's Edit offers what was received, and its currency.
+  it("a sale's Edit offers the amount received, and its currency", async () => {
+    mount([
+      e({
+        id: "s1",
+        kind: "withdraw",
+        amountCents: "-51000",
+        amountCurrency: "PLN",
+        dateEditable: true,
+        amountEditable: true,
+      }),
+    ]);
+    fireEvent.click(await screen.findByTestId("ledger-amount-s1"));
+    const amount = await screen.findByTestId("entry-edit-amount");
+    expect(amount).toHaveValue("510");
+    expect(screen.getByTestId("entry-edit-currency")).toBeInTheDocument();
+    fireEvent.change(amount, { target: { value: "600" } });
+    fireEvent.click(screen.getByTestId("entry-edit-save"));
+    await waitFor(() => expect(mockWrite).toHaveBeenCalled());
+    const [, init] = mockWrite.mock.calls.at(-1)!;
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      amountCents: "60000",
+    });
+  });
+
+  it("a sale moved into a wallet shows its amount locked, saying why", async () => {
+    mount([
+      e({
+        id: "s1",
+        kind: "withdraw",
+        amountCents: "-51000",
+        amountCurrency: "PLN",
+        walletName: "Cash",
+        amountEditable: false,
+      }),
+    ]);
+    fireEvent.click(await screen.findByTestId("ledger-amount-s1"));
+    expect(await screen.findByTestId("entry-edit-amount")).toHaveAttribute("readonly");
+    expect(screen.getByText("ledger.edit.amountLinked")).toBeInTheDocument();
   });
 
   // 261109 (user): the dotted line under a transaction amount is grey like

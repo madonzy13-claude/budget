@@ -3170,6 +3170,14 @@ Then(
 );
 
 Then(
+  "the newest entry of {string} reads {string}",
+  async ({ page }, name: string, text: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    await expect(ledger.getByRole("row").first()).toContainText(text);
+  },
+);
+
+Then(
   "the oldest entry of {string} offers its amount locked, saying a later sale relied on it",
   async ({ page }, name: string) => {
     await new InvestmentsPo(page).editOldest(name);
