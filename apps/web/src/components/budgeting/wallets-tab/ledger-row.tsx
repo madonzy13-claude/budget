@@ -367,8 +367,14 @@ export function LedgerRow({
                   close();
                   onEdit();
                 }}
-                className="text-[14px] leading-[1.4] underline decoration-dotted underline-offset-2"
-                style={{ color: "var(--muted-foreground)" }}
+                className="text-[14px] leading-[1.4] underline decoration-dotted"
+                // 261109 (user): grey like the amount, thin, a little lower.
+                style={{
+                  color: "var(--muted-foreground)",
+                  textDecorationColor: "currentColor",
+                  textDecorationThickness: "0.5px",
+                  textUnderlineOffset: "4px",
+                }}
               >
                 {signed(amount)} {ccy}
               </button>

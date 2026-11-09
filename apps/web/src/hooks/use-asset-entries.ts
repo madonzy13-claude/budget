@@ -58,6 +58,8 @@ export interface EntryDto {
   dateEditable?: boolean;
   /** 261108: money put in whose amount / currency may still change. */
   amountEditable?: boolean;
+  /** 261109: the value a value update set, as said. */
+  valueCents?: string | null;
   backfilled: boolean;
   deletable: boolean;
   blockedReason: "not_newest" | "linked_not_newest" | "interest" | null;

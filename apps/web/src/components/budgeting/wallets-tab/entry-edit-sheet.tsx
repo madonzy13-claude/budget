@@ -27,11 +27,15 @@ import { ErrorLine, today } from "./swap-shared";
 import { Field, NumericInput } from "./holding-sheet";
 import { kindKey, ledgerDate } from "./ledger-row";
 
-const MONEY_IN = ["start", "buy", "add"];
+// 261109 (user): a value update offers its value and currency too.
+const MONEY_IN = ["start", "buy", "add", "value_change"];
 const bare = (c: string | null | undefined) =>
   c == null ? "" : String(Number(c) / 100);
 const toCents = (v: string) =>
   String(Math.round(Number(v.replace(/\s/g, "").replace(/,/g, ".")) * 100));
+/** What the entry said: the money put in, or the value an update set. */
+const said = (e: EntryDto) =>
+  e.kind === "value_change" ? (e.valueCents ?? null) : e.amountCents;
 const caption = "text-caption text-[var(--muted-foreground)]";
 const lock = (
   <Lock
@@ -60,7 +64,7 @@ export function EntryEditSheet({
     if (!entry) return;
     setDate(entry.effectiveDate);
     setNote(entry.note ?? "");
-    setAmount(bare(entry.amountCents));
+    setAmount(bare(said(entry)));
     setCcy(entry.amountCurrency ?? "");
   }, [entry]);
 
@@ -72,12 +76,12 @@ export function EntryEditSheet({
   const outOfRange =
     date === "" || (!!min && date < min) || (!!max && date > max);
   const moneyIn =
-    !!entry && MONEY_IN.includes(entry.kind) && entry.amountCents != null;
+    !!entry && MONEY_IN.includes(entry.kind) && said(entry) != null;
   const amountEditable = moneyIn && entry?.amountEditable === true;
   const badAmount = amountEditable && !(Number(toCents(amount)) > 0);
   const body: EntryEditBody = {
     ...(note.trim() !== (entry?.note ?? "") ? { note: note.trim() } : {}),
-    ...(amountEditable && !badAmount && toCents(amount) !== entry?.amountCents
+    ...(amountEditable && !badAmount && toCents(amount) !== (entry && said(entry))
       ? { amountCents: toCents(amount) }
       : {}),
     ...(amountEditable && ccy !== (entry?.amountCurrency ?? "")

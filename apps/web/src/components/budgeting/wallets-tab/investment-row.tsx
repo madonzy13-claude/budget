@@ -189,8 +189,8 @@ export function InvestmentRow({
       }
     : {};
   const dots = onSwap ? "editable-dots" : "";
-  // 261109 (user): opened, the dotted line sits close under the amount.
-  const closeDots = expanded && onSwap ? { textUnderlineOffset: "2px" } : undefined;
+  // 261109 (user): opened, the dotted line sits closer under the amount.
+  const closeDots = expanded && onSwap ? { textUnderlineOffset: "3px" } : undefined;
   // R6 (user): an amount that prices itself (a feed, the spot price, the
   // deposit's rate) carries a lock, and its line says when the PRICE refreshed.
   const autoPriced = pricesItself(holding);

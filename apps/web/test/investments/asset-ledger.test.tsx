@@ -572,7 +572,7 @@ describe("Asset ledger strip", () => {
   it("the dotted line under a transaction amount is grey, thin and a little lower", async () => {
     mount(ENTRIES);
     const amount = await screen.findByTestId("ledger-amount-b1");
-    expect(amount.style.textDecorationColor).toBe("currentcolor");
+    expect(amount.style.textDecorationColor.toLowerCase()).toBe("currentcolor");
     expect(amount.style.textDecorationThickness).toBe("0.5px");
     expect(amount.style.textUnderlineOffset).toBe("4px");
   });
