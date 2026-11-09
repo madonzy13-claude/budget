@@ -704,6 +704,21 @@ describe("Investment entries ledger", () => {
       expect(await holding(fix, h)).toMatchObject({ buy: "1500000", cur: "1500000", bc: "UAH", cc: "UAH" });
     });
 
+    it("an old opening entry with later entries moves the value and every total", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix);
+      const h = await seed(fix); // 10,000.00 PLN in, worth the same
+      await startEntry(fix, h); // value_delta 0, as migrated entries are
+      await buy(app, h, "2026-10-01"); // +10.00
+      const opening = (await entriesOf(app, h)).at(-1)!;
+      expect((await edit(app, opening.id, { amountCents: "1200000" })).status).toBe(200);
+      expect(await holding(fix, h)).toMatchObject({ buy: "1201000", cur: "1201000" });
+      expect((await entriesOf(app, h)).map((e) => e.afterCents)).toEqual([
+        "1201000",
+        "1200000",
+      ]);
+    });
+
     it("with other entries, keeps the amount as said and books it at that day's rate", async () => {
       const fix = await createFixture();
       const app = await buildApp(fix, undefined, () => "0.1");
