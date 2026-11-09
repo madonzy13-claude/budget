@@ -178,6 +178,19 @@ export function listEntries(deps: {
         }
       };
 
+      // 261109 (user): a swap's out leg is fixed with its in leg — locked
+      // when the destination later gave something out.
+      const partnerLive = new Map<string, Promise<StoredEntry[]>>();
+      const swapOpen = async (e: StoredEntry) => {
+        if (e.kind !== "convert_out" || !e.counterpartyHoldingId) return true;
+        const pid = e.counterpartyHoldingId;
+        if (!partnerLive.has(pid))
+          partnerLive.set(pid, deps.historyRepo.listForHolding(input.tenantId, input.actorUserId, pid));
+        const theirs = await partnerLive.get(pid)!;
+        const leg = theirs.find((x) => x.transferId === e.transferId);
+        return !!leg && amountEditBlock(leg, theirs) === null;
+      };
+
       const rows: EntryDto[] = [];
       for (const e of live) {
         const linked = LINKED.has(e.kind) && e.transferId !== null;
@@ -249,7 +262,10 @@ export function listEntries(deps: {
             return { dateMin: r.min, dateMax: r.max };
           })(),
           dateEditable: !isDeposit,
-          amountEditable: !(isDeposit && e.kind === "withdraw") && amountEditBlock(e, live) === null,
+          amountEditable:
+            !(isDeposit && e.kind === "withdraw") &&
+            amountEditBlock(e, live) === null &&
+            (await swapOpen(e)),
           valueCents: e.kind === "value_change" && e.amountCents !== null ? e.amountCents.toString() : null,
           backfilled: e.backfilled,
           deletable: isNewest && partnerOk,

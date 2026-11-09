@@ -27,8 +27,8 @@ import { ErrorLine, today } from "./swap-shared";
 import { Field, NumericInput } from "./holding-sheet";
 import { kindKey, ledgerDate } from "./ledger-row";
 
-// 261109 (user): a value update and a sale offer theirs too.
-const MONEY_IN = ["start", "buy", "add", "value_change", "withdraw"];
+// 261109 (user): a value update, a sale and a swap offer theirs too.
+const MONEY_IN = ["start", "buy", "add", "value_change", "withdraw", "convert_out", "convert_in"];
 const bare = (c: string | null | undefined) =>
   c == null ? "" : String(Number(c) / 100);
 const toCents = (v: string) =>

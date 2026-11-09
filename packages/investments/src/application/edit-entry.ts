@@ -130,8 +130,8 @@ async function planValue(
   };
 }
 
-/** 261109 (user): a sale re-stated as having received `amount` in `ccy` —
- *  only its realized gain moves (same sum as the sale); nothing in the asset. */
+/** 261109 (user): a sale (or a swap's out leg) re-stated as having received
+ *  `amount` in `ccy` — only its realized gain moves; nothing in the asset. */
 async function planSale(
   h: Holding,
   e: StoredEntry,
@@ -142,7 +142,8 @@ async function planSale(
 ): Promise<BookingPlan> {
   const block = amountEditBlock(e, all);
   if (block) throw new Error(block);
-  if (holdingShape(h) === "deposit") throw new Error("not_money_in");
+  const swap = e.kind === "convert_out";
+  if (!swap && holdingShape(h) === "deposit") throw new Error("not_money_in");
   if (amount <= 0n) throw new Error("invalid_cents");
   const rate = makeRate(ctx.fx, e.effectiveDate);
   const buyCcy = e.costCurrency ?? h.buyCurrency ?? ccy;
@@ -161,8 +162,8 @@ async function planSale(
         id: e.id,
         amountCents: amount,
         amountCurrency: ccy,
-        flowCents: -amount,
-        flowCurrency: ccy,
+        // A swap moved no money out of investments.
+        ...(swap ? {} : { flowCents: -amount, flowCurrency: ccy }),
         assetAmountCents: fx.proceedsCents,
         realizedBudgetCents: fx.realizedBudgetCents,
       },
@@ -232,8 +233,8 @@ async function planAmount(
       costDeltaCents: cost,
       costCurrency: costCcy,
       valueDeltaCents: value,
-      flowCents: amount,
-      flowCurrency: ccy,
+      // A swap's in leg brought no new money into investments.
+      ...(e.transferId ? {} : { flowCents: amount, flowCurrency: ccy }),
       assetAmountCents: cost,
     },
   ];
@@ -284,22 +285,46 @@ export function editEntry(deps: {
       const legs = await deps.historyRepo.findLegs(t, u, input.entryId);
       if (legs.length === 0) return err(new Error("not_found"));
       if (input.amountCents !== undefined || input.currency !== undefined) {
-        const e = legs[0]!;
-        if (legs.length !== 1) return err(new Error("not_money_in"));
-        const h = await deps.holdingRepo.findById(t, u, e.holdingId);
-        if (!h) return err(new Error("not_found"));
-        const all = await deps.historyRepo.listForHolding(t, u, h.id);
-        const plan = await (
-          e.kind === "value_change" ? planValue : e.kind === "withdraw" ? planSale : planAmount
-        )(
-          h,
-          e,
-          all,
-          BigInt(input.amountCents ?? e.amountCents ?? e.costDeltaCents),
-          input.currency ?? e.amountCurrency ?? e.costCurrency ?? h.buyCurrency!,
-          { budgetId: input.budgetId ?? t, fx: deps.fxProvider },
-        );
-        await deps.historyRepo.commit(t, u, plan);
+        const ctx = { budgetId: input.budgetId ?? t, fx: deps.fxProvider };
+        const planFor = async (e: StoredEntry, amount?: string, ccy?: string | null) => {
+          const h = await deps.holdingRepo.findById(t, u, e.holdingId);
+          if (!h) throw new Error("not_found");
+          const all = await deps.historyRepo.listForHolding(t, u, h.id);
+          return (
+            e.kind === "value_change"
+              ? planValue
+              : e.kind === "withdraw" || e.kind === "convert_out"
+                ? planSale
+                : planAmount
+          )(
+            h,
+            e,
+            all,
+            BigInt(amount ?? e.amountCents ?? e.costDeltaCents),
+            ccy ?? e.amountCurrency ?? e.costCurrency ?? h.buyCurrency!,
+            ctx,
+          );
+        };
+        // 261109 (user): a swap is fixed on both sides at once.
+        const out = legs.find((l) => l.kind === "convert_out");
+        const into = legs.find((l) => l.kind === "convert_in");
+        if (legs.length === 2 && out && into) {
+          const amount = input.amountCents ?? out.amountCents?.toString();
+          const ccy = input.currency ?? out.amountCurrency;
+          const a = await planFor(out, amount, ccy);
+          const b = await planFor(into, amount, ccy);
+          await deps.historyRepo.commit(t, u, {
+            ...a,
+            patches: [...a.patches, ...b.patches],
+            rewriteEntries: [...(a.rewriteEntries ?? []), ...(b.rewriteEntries ?? [])],
+            lockHoldingIds: [...(a.lockHoldingIds ?? []), ...(b.lockHoldingIds ?? [])],
+            expectedNewestEntryId: [...(a.expectedNewestEntryId ?? []), ...(b.expectedNewestEntryId ?? [])],
+          });
+        } else {
+          const e = legs[0]!;
+          if (legs.length !== 1) return err(new Error("not_money_in"));
+          await deps.historyRepo.commit(t, u, await planFor(e, input.amountCents, input.currency));
+        }
       }
       const date = input.effectiveDate;
       if (date !== undefined && date !== legs[0]!.effectiveDate) {
