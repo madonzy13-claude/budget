@@ -326,7 +326,7 @@ export function EditAssetForm({
               base,
             )}
           {showValue && (
-            <Field label={`${t("edit.currentValue")} (${ccy})`}>
+            <Field label={t("edit.currentValue")}>
               <div className="relative">
                 <NumericInput
                   testId="edit-asset-value"
@@ -338,7 +338,7 @@ export function EditAssetForm({
             </Field>
           )}
           {showPrice && (
-            <Field label={`${t("edit.currentPrice")} (${ccy})`}>
+            <Field label={t("edit.currentPrice")}>
               <div className="relative">
                 <NumericInput
                   testId="edit-asset-price"
