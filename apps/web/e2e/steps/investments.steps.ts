@@ -918,7 +918,7 @@ Then(
 
 // 261109 (user): on an opened asset the dotted line sits close under the amount.
 Then(
-  "the dotted line under the opened amount of {string} sits close to it",
+  "the dotted line under the opened amount of {string} sits 3px under it",
   async ({ page }, name: string) => {
     const id = await new InvestmentsPo(page).assetId(name);
     const amount = page
@@ -928,7 +928,8 @@ Then(
     const offset = await amount.evaluate(
       (el) => parseFloat(getComputedStyle(el).textUnderlineOffset) || 0,
     );
-    expect(offset).toBeLessThanOrEqual(2);
+    // 261109 (user): 5px was too far, 2px a touch too close.
+    expect(offset).toBe(3);
   },
 );
 
@@ -3122,6 +3123,31 @@ When(
   "I change the oldest entry of {string} to {string} in {string}",
   async ({ page }, name: string, amount: string, ccy: string) => {
     await new InvestmentsPo(page).editOldestAmount(name, amount, ccy);
+  },
+);
+
+// 261109 (user): a Value updated entry's Edit offers its value and currency.
+When(
+  "I change the newest entry of {string} to {string} in {string}",
+  async ({ page }, name: string, amount: string, ccy: string) => {
+    await new InvestmentsPo(page).editOldestAmount(name, amount, ccy, "first");
+  },
+);
+
+When(
+  "I set the value of {string} to {string} in Edit",
+  async ({ page }, name: string, value: string) => {
+    await new InvestmentsPo(page).openEdit(name);
+    const sheet = page.getByTestId("edit-asset-sheet");
+    await sheet.getByTestId("edit-asset-value").fill(value);
+    const res = page.waitForResponse(
+      (r) =>
+        /\/investments\/[0-9a-f-]+$/.test(r.url()) &&
+        r.request().method() === "PATCH",
+      { timeout: 15000 },
+    );
+    await sheet.getByTestId("edit-asset-save").click();
+    expect((await res).status()).toBe(200);
   },
 );
 

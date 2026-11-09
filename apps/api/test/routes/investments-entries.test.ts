@@ -804,6 +804,35 @@ describe("Investment entries ledger", () => {
       ]);
     });
 
+    // 261109 (user): a value update's Edit offers its value and currency too.
+    it("a value update's value can be fixed; the asset and totals follow", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix);
+      const h = await create(app, cashBody);
+      expect((await call(app, "PATCH", `/${h}`, { currentValueCents: "200000" })).status).toBe(200);
+      const upd = (await entriesOf(app, h))[0]!;
+      expect(upd).toMatchObject({ kind: "value_change", valueCents: "200000", amountEditable: true });
+      expect((await edit(app, upd.id, { amountCents: "150000" })).status).toBe(200);
+      expect(await holding(fix, h)).toMatchObject({ cur: "150000" });
+      expect((await entriesOf(app, h)).map((e) => e.afterCents)).toEqual(["150000", "100000"]);
+      expect((await entriesOf(app, h))[0]).toMatchObject({ valueCents: "150000", amountCents: "50000" });
+      // Undoing it still lands on the value before.
+      expect((await call(app, "DELETE", `/entries/${upd.id}`)).status).toBe(200);
+      expect(await holding(fix, h)).toMatchObject({ cur: "100000" });
+    });
+
+    it("a value update said in another currency keeps it, valued at that day's rate", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix, undefined, () => "0.1");
+      const h = await create(app, cashBody);
+      expect((await call(app, "PATCH", `/${h}`, { currentValueCents: "200000" })).status).toBe(200);
+      const upd = (await entriesOf(app, h))[0]!;
+      expect((await edit(app, upd.id, { amountCents: "1200000", currency: "UAH" })).status).toBe(200);
+      // 12,000 UAH × 0.1 = 1,200 PLN
+      expect(await holding(fix, h)).toMatchObject({ cur: "120000", cc: "PLN" });
+      expect((await entriesOf(app, h))[0]).toMatchObject({ valueCents: "1200000", amountCurrency: "UAH" });
+    });
+
     it("refuses a zero amount", async () => {
       const fix = await createFixture();
       const app = await buildApp(fix);

@@ -744,15 +744,20 @@ export class InvestmentsPo {
   }
 
   /** 261108: open the oldest entry's Edit sheet (its dotted amount). */
-  async editOldest(name: string): Promise<void> {
+  async editOldest(name: string, which: "first" | "last" = "last"): Promise<void> {
     const ledger = await this.openLedger(name);
-    await ledger.locator('[data-testid^="ledger-amount-"]').last().click();
+    await ledger.locator('[data-testid^="ledger-amount-"]')[which]().click();
     await expect(this.page.getByTestId("entry-edit-sheet")).toBeVisible();
   }
 
   /** 261108: the oldest entry's amount and currency, through Edit. */
-  async editOldestAmount(name: string, amount: string, ccy: string): Promise<void> {
-    await this.editOldest(name);
+  async editOldestAmount(
+    name: string,
+    amount: string,
+    ccy: string,
+    which: "first" | "last" = "last",
+  ): Promise<void> {
+    await this.editOldest(name, which);
     await this.page.getByTestId("entry-edit-amount").fill(amount);
     const picker = this.page.getByTestId("entry-edit-currency");
     const native = picker.getByTestId("currency-picker-native");

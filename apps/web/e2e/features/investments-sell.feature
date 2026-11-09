@@ -62,6 +62,15 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     And I change the oldest entry of "Pot" to "1500" in "USD"
     Then the running totals of "Pot" read "1,600 / 1,500"
 
+  # 261109 (user): a value update's Edit offers its value and currency.
+  Scenario: Fixing the value a value update set
+    Given a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
+    When I open the investments wallets tab
+    And I set the value of "Pot" to "2000" in Edit
+    And I change the newest entry of "Pot" to "1500" in "USD"
+    Then the holding row "Pot" shows the amount "1,500"
+    And the running totals of "Pot" read "1,500 / 1,000"
+
   # …unless a later sale relied on it: then it shows, locked, saying why.
   Scenario: An amount a later sale relied on stays as booked
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget

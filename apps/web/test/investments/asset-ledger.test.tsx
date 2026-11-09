@@ -541,6 +541,42 @@ describe("Asset ledger strip", () => {
     });
   });
 
+  // 261109 (user): a Value updated entry's Edit offers its value and currency.
+  it("a value update's Edit offers the value it set, and its currency", async () => {
+    mount([
+      e({
+        id: "v1",
+        kind: "value_change",
+        amountCents: "50000",
+        valueCents: "200000",
+        amountCurrency: "PLN",
+        dateEditable: true,
+        amountEditable: true,
+      }),
+    ]);
+    fireEvent.click(await screen.findByTestId("ledger-amount-v1"));
+    const amount = await screen.findByTestId("entry-edit-amount");
+    expect(amount).toHaveValue("2000");
+    expect(screen.getByTestId("entry-edit-currency")).toBeInTheDocument();
+    fireEvent.change(amount, { target: { value: "1500" } });
+    fireEvent.click(screen.getByTestId("entry-edit-save"));
+    await waitFor(() => expect(mockWrite).toHaveBeenCalled());
+    const [, init] = mockWrite.mock.calls.at(-1)!;
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      amountCents: "150000",
+    });
+  });
+
+  // 261109 (user): the dotted line under a transaction amount is grey like
+  // the amount, thin, and sits a little lower.
+  it("the dotted line under a transaction amount is grey, thin and a little lower", async () => {
+    mount(ENTRIES);
+    const amount = await screen.findByTestId("ledger-amount-b1");
+    expect(amount.style.textDecorationColor).toBe("currentcolor");
+    expect(amount.style.textDecorationThickness).toBe("0.5px");
+    expect(amount.style.textUnderlineOffset).toBe("4px");
+  });
+
   it("an amount a later entry relied on shows locked, and says why", async () => {
     mount([
       e({

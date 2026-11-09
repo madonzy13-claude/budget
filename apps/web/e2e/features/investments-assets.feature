@@ -226,7 +226,7 @@ Feature: Investments as assets with transactions (13.1)
     # 261108 (user): the dotted line is white (the text colour), not grey.
     And the dotted line under the amount of "ACME" is the text colour in both themes
     # 261109 (user): opened, the dotted line sits close under the amount.
-    And the dotted line under the opened amount of "ACME" sits close to it
+    And the dotted line under the opened amount of "ACME" sits 3px under it
 
   # Round 6 (user): changing a metal's currency must save, not say "offline".
   @r6-metal-ccy
