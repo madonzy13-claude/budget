@@ -60,9 +60,10 @@ const statedBy = (broker: boolean) => (x: StoredEntry) =>
   (broker && x.kind === "add" && x.valueDeltaCents !== x.costDeltaCents);
 
 /** `e`'s value moved by `d` (in `ccy`): a later snapshot is the value before
- *  that entry — shift it. One that set the value outright keeps that value
- *  (its delta absorbs the shift, so the running totals walked back from today
- *  move) and ends the ripple; with none, the current value moves. */
+ *  that entry — shift it (kept in another currency: at its own date's rate).
+ *  One that set the value outright keeps that value (its delta absorbs the
+ *  shift, so the running totals walked back from today move) and ends the
+ *  ripple; with none, the current value moves. */
 async function rippleLater(
   h: Holding,
   e: StoredEntry,
@@ -72,6 +73,7 @@ async function rippleLater(
   rewrites: EntryRewrite[],
   patch: HoldingPatch,
   rate: (from: string, to: string) => Promise<string>,
+  fx: FxProvider,
 ): Promise<void> {
   const stated = statedBy(h.uiType === "broker");
   let absolute = false;
@@ -79,12 +81,15 @@ async function rippleLater(
     if (!after(x, e)) continue;
     if (absolute) break;
     absolute = stated(x);
-    if (x.priorPriceCents !== null && (x.priorPriceCurrency ?? ccy) === ccy)
-      rewrites.push({
-        id: x.id,
-        priorPriceCents: big(x.priorPriceCents).plus(big(d)).toString(),
-        ...(absolute ? { valueDeltaCents: x.valueDeltaCents - d } : {}),
-      });
+    if (x.priorPriceCents === null) continue;
+    const xCcy = x.priorPriceCurrency ?? ccy;
+    const dx =
+      xCcy === ccy ? d : cents(big(d).times(await makeRate(fx, x.effectiveDate)(ccy, xCcy)));
+    rewrites.push({
+      id: x.id,
+      priorPriceCents: big(x.priorPriceCents).plus(big(dx)).toString(),
+      ...(absolute ? { valueDeltaCents: x.valueDeltaCents - dx } : {}),
+    });
   }
   if (absolute) return;
   const cur = h.currentPriceCurrency ?? ccy;
@@ -114,7 +119,7 @@ async function planValue(
     { id: e.id, amountCents: amount, amountCurrency: ccy, valueDeltaCents: e.valueDeltaCents + d },
   ];
   const patch: HoldingPatch = { id: h.id };
-  await rippleLater(h, e, all, d, valueCcy, rewrites, patch, rate);
+  await rippleLater(h, e, all, d, valueCcy, rewrites, patch, rate, ctx.fx);
   return {
     budgetId: ctx.budgetId,
     patches: [patch],
@@ -183,36 +188,42 @@ async function planAmount(
   const shape = holdingShape(h);
   const oldCost = e.costCurrency ?? h.buyCurrency ?? ccy;
   const costCcy = sole ? ccy : oldCost;
-  const oldValue = h.currentPriceCurrency ?? oldCost;
+  // The value as it stood then — the asset may be shown in another currency now.
+  const oldValue = e.priorPriceCurrency ?? h.currentPriceCurrency ?? oldCost;
   const switchValue = sole && shape !== "quantity" && oldValue === oldCost;
   const valueCcy = switchValue ? ccy : oldValue;
   const rate = makeRate(ctx.fx, e.effectiveDate);
   const cost = cents(big(amount).times(await rate(ccy, costCcy)));
-  // The value follows the money for amount assets — a broker's only when the
-  // deposit stated no account value after it; a quantity asset is valued by
-  // its price.
+  // The value follows the money for amount assets; a quantity asset is valued
+  // by its price. 261109 (user): a deposit that stated the value after it
+  // too — that value moves by what the deposit changed by.
   const broker = h.uiType === "broker";
-  const stated = statedBy(broker);
+  const statedSelf = statedBy(broker)(e);
   // A migrated opening carries no value delta: what went in WAS its value.
   const legacy =
     e.kind === "start" && e.valueDeltaCents === 0n && e.priorPriceCents === null;
   const tracks =
     shape === "amount" &&
     h.currentPriceCents !== null &&
-    !stated(e) &&
-    (e.priorPriceCents !== null ||
+    (statedSelf ||
+      e.priorPriceCents !== null ||
       e.valueDeltaCents === e.costDeltaCents ||
       // A broker's opening stated its value; only one still worth exactly
       // what went in follows the money.
       (legacy && !broker) ||
       (legacy && sole && oldValue === oldCost && big(h.currentPriceCents).eq(big(e.costDeltaCents))));
   const newValue = cents(big(amount).times(await rate(ccy, valueCcy)));
-  // The legacy opening keeps its zero delta; the shift is measured from the
-  // cost it put in.
-  const value = tracks && !legacy ? newValue : e.valueDeltaCents;
-  const was = legacy
-    ? cents(big(e.costDeltaCents).times(await rate(oldCost, valueCcy)))
-    : e.valueDeltaCents;
+  // The legacy opening keeps its zero delta; it and a stated deposit shift by
+  // the change from the cost put in.
+  const was =
+    legacy || statedSelf
+      ? cents(big(e.costDeltaCents).times(await rate(oldCost, valueCcy)))
+      : e.valueDeltaCents;
+  const value = !tracks || legacy
+    ? e.valueDeltaCents
+    : statedSelf
+      ? e.valueDeltaCents + newValue - was
+      : newValue;
   const rewrites: EntryRewrite[] = [
     {
       id: e.id,
@@ -240,7 +251,7 @@ async function planAmount(
   if (tracks) {
     const dValue = newValue - was;
     if (sole) patch.currentPriceCents = newValue;
-    else await rippleLater(h, e, all, dValue, valueCcy, rewrites, patch, rate);
+    else await rippleLater(h, e, all, dValue, valueCcy, rewrites, patch, rate, ctx.fx);
   }
   return {
     budgetId: ctx.budgetId,
