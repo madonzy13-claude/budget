@@ -291,6 +291,9 @@ export class InvestmentsPo {
       return;
     }
     const id = (await wrapper.getAttribute("data-investment-row-wrapper"))!;
+    // A toast from the step before sits bottom-right — over the action of a
+    // row low on the page; mid-screen it is clear.
+    await this.row(name).evaluate((el) => el.scrollIntoView({ block: "center" }));
     // 261106: the one desktop action shows on the row's hover.
     await this.row(name).hover();
     await this.page.getByTestId(`investment-${action}-desktop-${id}`).click();
