@@ -5,7 +5,7 @@
  */
 import "./_swap-fixtures";
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   btc,
@@ -391,6 +391,15 @@ describe("Edit asset sheet", () => {
     mount(coin);
     expect(screen.getByTestId("edit-asset-price")).toHaveValue("2000");
     expect(screen.queryByTestId("edit-asset-value")).toBeNull();
+  });
+
+  // 261109 (user): no currency in the label — the picker above names it.
+  it("the current value and price labels carry no currency", () => {
+    mount(cash);
+    expect(screen.getByText("edit.currentValue")).toBeInTheDocument();
+    cleanup();
+    mount(coin);
+    expect(screen.getByText("edit.currentPrice")).toBeInTheDocument();
   });
 
   it("a market-priced asset offers neither value nor price", () => {

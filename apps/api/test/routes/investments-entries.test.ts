@@ -804,6 +804,42 @@ describe("Investment entries ledger", () => {
       ]);
     });
 
+    // 261109 (user): XTB — a deposit fixed from 2,000 to 500,000 USD still
+    // showed the old total, and the later value update (shown in UAH) still
+    // read "+1,373,715" from the old figure. The fixed deposit's value moves
+    // by what it changed by, even where a value after it was stated; a later
+    // update in another currency takes the shift at its own date's rate.
+    it("a fixed deposit moves its total; a later update in another currency absorbs it", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix, undefined, (d) =>
+        d.toISOString().slice(0, 10) >= "2026-10-01" ? "10" : "1",
+      );
+      const h = await create(app, { ...cashBody, name: "XTB", holdingType: "other", uiType: "broker" });
+      expect(
+        (
+          await call(app, "POST", `/${h}/buy`, {
+            kind: "broker",
+            amountCents: "1000",
+            currency: "PLN",
+            effectiveDate: "2026-09-10",
+            valueAfterCents: "150000",
+          })
+        ).status,
+      ).toBe(201);
+      expect(
+        (await call(app, "PATCH", `/${h}`, { displayCurrency: "UAH", currentValueCents: "2000000" })).status,
+      ).toBe(200);
+      const before = await entriesOf(app, h);
+      expect(before[0]).toMatchObject({ kind: "value_change", amountCents: "500000" }); // 1,500,000 → 2,000,000 UAH
+      const dep = before.find((e) => e.effectiveDate === "2026-09-10")!;
+      expect((await edit(app, dep.id, { amountCents: "5000" })).status).toBe(200);
+      expect(await holding(fix, h)).toMatchObject({ buy: "105000", cur: "2000000", cc: "UAH" });
+      const after = await entriesOf(app, h);
+      // +40.00 PLN × 10 = +400 UAH before the update, so it rose by 400 less.
+      expect(after[0]).toMatchObject({ kind: "value_change", amountCents: "460000" });
+      expect(after.map((e) => e.afterCents).slice(0, 2)).toEqual(["2000000", "1540000"]);
+    });
+
     // 261109 (user): a value update's Edit offers its value and currency too.
     it("a value update's value can be fixed; the asset and totals follow", async () => {
       const fix = await createFixture();
