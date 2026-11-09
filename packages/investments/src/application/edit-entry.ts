@@ -73,12 +73,18 @@ async function planAmount(
   const valueCcy = switchValue ? ccy : oldValue;
   const rate = makeRate(ctx.fx, e.effectiveDate);
   const cost = cents(big(amount).times(await rate(ccy, costCcy)));
-  // The value follows the money for plain amount assets; a broker's value is
-  // the stated account value, and a quantity asset is valued by its price.
+  // The value follows the money for amount assets — a broker's only when the
+  // deposit stated no account value after it; a quantity asset is valued by
+  // its price.
+  const broker = h.uiType === "broker";
+  const stated = (x: StoredEntry) =>
+    x.kind === "value_change" ||
+    x.kind === "price_change" ||
+    (broker && x.kind === "add" && x.valueDeltaCents !== x.costDeltaCents);
   const tracks =
     shape === "amount" &&
-    h.uiType !== "broker" &&
     h.currentPriceCents !== null &&
+    !stated(e) &&
     (e.priorPriceCents !== null ||
       e.valueDeltaCents === e.costDeltaCents ||
       // A migrated opening carries no value delta: the asset still being
@@ -116,17 +122,20 @@ async function planAmount(
     if (sole) patch.currentPriceCents = value;
     else {
       // A later snapshot is the value before that entry: shift it. One that
-      // set the value outright (an update, a broker deposit) ends the ripple.
+      // set the value outright (an update, a broker deposit with its value
+      // after) keeps that value — its delta absorbs the shift, so the running
+      // totals walked back from today move — and ends the ripple.
       let absolute = false;
       for (const x of all) {
         if (!after(x, e)) continue;
         if (absolute) break;
-        if (x.priorPriceCents !== null && x.priorPriceCurrency === valueCcy)
+        absolute = stated(x);
+        if (x.priorPriceCents !== null && (x.priorPriceCurrency ?? valueCcy) === valueCcy)
           rewrites.push({
             id: x.id,
             priorPriceCents: big(x.priorPriceCents).plus(big(dValue)).toString(),
+            ...(absolute ? { valueDeltaCents: x.valueDeltaCents - dValue } : {}),
           });
-        if (x.kind === "value_change" || x.kind === "price_change") absolute = true;
       }
       if (!absolute)
         patch.currentPriceCents = big(h.currentPriceCents!).plus(big(dValue)).toString();
