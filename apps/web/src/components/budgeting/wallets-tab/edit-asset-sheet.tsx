@@ -29,6 +29,7 @@ import { isOfflineWriteError } from "@/lib/offline-write";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
 import { useAssetEntries } from "@/hooks/use-asset-entries";
+import { useFxRates } from "@/hooks/use-fx-rates";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { FxPreviewLine } from "@/components/budgeting/fields/fx-preview-line";
 import { Field, NumericInput } from "./holding-sheet";
@@ -89,30 +90,17 @@ export function EditAssetForm({
     null;
   // A deposit lists every term; one never saved shows "—" rather than vanishing.
   const unset = "—";
-  // 261108 (user): what went in, in the asset's own currency (a deposit's
-  // principal says the same).
-  const baseAmount =
+  // 261108 (user): what went in (a deposit's principal). 261109: above the
+  // current amount, no currency — the picker names it, a pick converts it.
+  const baseCents =
     h.buyPriceCents == null
       ? null
-      : `${centsToBare(
-          String(
-            Math.round(
-              Number(h.buyPriceCents) * (byQty ? Number(h.quantity) : 1),
-            ),
-          ),
-          locale,
-        )} ${h.buyCurrency ?? ""}`.trim();
+      : Number(h.buyPriceCents) * (byQty ? Number(h.quantity) : 1);
+  const baseCcy = h.buyCurrency ?? ccy0;
   // [testid suffix, label, value]; a null value is skipped.
   const locked = (
     isDeposit
       ? [
-          [
-            "principal",
-            t("field.principal"),
-            h.buyPriceCents == null
-              ? null
-              : `${centsToBare(String(Math.round(Number(h.buyPriceCents))), locale)} ${h.buyCurrency ?? ""}`.trim(),
-          ],
           [
             "rate",
             t("field.rate"),
@@ -170,7 +158,6 @@ export function EditAssetForm({
             ]
           : []
   )
-    .concat(isDeposit ? [] : [["baseAmount", t("field.baseAmount"), baseAmount]])
     .filter((f): f is [string, string, string] => !!f[2]);
 
   const [name, setName] = useState(holding.name);
@@ -182,6 +169,8 @@ export function EditAssetForm({
   const asked = useRef(ccy0);
   const rates = useRef(new Map<string, { rate: string; asOf: string }>());
   const [error, setError] = useState<string | null>(null);
+  // Base kept in another currency than the value: its own rate to the pick.
+  const baseRates = useFxRates(baseCcy, baseCcy === ccy0 ? [] : [ccy]);
 
   const editValue = (v: string) => {
     touched.current = true;
@@ -192,7 +181,8 @@ export function EditAssetForm({
     setFx(null);
     setFxFailed(false);
     asked.current = next;
-    if (!showValue && !showPrice && priceLine === null) return;
+    if (!showValue && !showPrice && priceLine === null && baseCents === null)
+      return;
     if (next === ccy0) {
       if (!touched.current) setPrice(price0);
       return;
@@ -234,16 +224,53 @@ export function EditAssetForm({
     !fx &&
     !fxFailed &&
     (showValue || showPrice || priceLine !== null);
-  const spinner = (
+  const spin = (testId: string) => (
     <Loader2
-      data-testid="edit-asset-fx-loading"
+      data-testid={testId}
       role="status"
       aria-label={t("edit.fxLoading")}
       className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin"
       style={{ color: "var(--muted-foreground)" }}
     />
   );
+  const spinner = spin("edit-asset-fx-loading");
   const shownPrice = converting && !touched.current ? "" : price;
+  const baseRate =
+    ccy === baseCcy
+      ? 1
+      : baseCcy === ccy0
+        ? fx && Number(fx.rate)
+        : baseRates.get(ccy);
+  const base =
+    baseCents === null
+      ? null
+      : baseRate
+        ? centsToBare(String(Math.round(baseCents * baseRate)), locale)
+        : "";
+  const lockedField = (id: string, label: string, value: string) => (
+    <Field key={id} label={label}>
+      <div className="relative">
+        <Input
+          data-testid={`edit-asset-locked-${id}`}
+          value={value}
+          readOnly
+          aria-readonly="true"
+          tabIndex={-1}
+          className="pr-9"
+          style={{ color: "var(--muted-foreground)" }}
+        />
+        {value === "" && !fxFailed ? (
+          id === "currentPrice" ? spinner : spin(`edit-asset-locked-${id}-loading`)
+        ) : (
+          <Lock
+            aria-hidden="true"
+            className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2"
+            style={{ color: "var(--muted-foreground)" }}
+          />
+        )}
+      </div>
+    </Field>
+  );
   const valueChanged =
     touched.current &&
     price.trim() !== "" &&
@@ -293,6 +320,12 @@ export function EditAssetForm({
               aria-label={t("edit.displayCurrency")}
             />
           </Field>
+          {base !== null &&
+            lockedField(
+              isDeposit ? "principal" : "baseAmount",
+              t(isDeposit ? "field.principal" : "field.baseAmount"),
+              base,
+            )}
           {showValue && (
             <Field label={`${t("edit.currentValue")} (${ccy})`}>
               <div className="relative">
@@ -317,44 +350,25 @@ export function EditAssetForm({
               </div>
             </Field>
           )}
-          {locked.map(([id, label, value]) => (
-            <Field key={id} label={label}>
-              <div className="relative">
-                <Input
-                  data-testid={`edit-asset-locked-${id}`}
-                  value={
-                    // R6: the locked price follows the picked currency.
-                    id === "currentPrice" && converting
-                      ? ""
-                      : id === "currentPrice" && fx && ccy !== ccy0
-                        ? centsToBare(
-                            String(
-                              Math.round(
-                                Number(h.currentPriceCents) * Number(fx.rate),
-                              ),
-                            ),
-                            locale,
-                          )
-                        : value
-                  }
-                  readOnly
-                  aria-readonly="true"
-                  tabIndex={-1}
-                  className="pr-9"
-                  style={{ color: "var(--muted-foreground)" }}
-                />
-                {id === "currentPrice" && converting ? (
-                  spinner
-                ) : (
-                  <Lock
-                    aria-hidden="true"
-                    className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2"
-                    style={{ color: "var(--muted-foreground)" }}
-                  />
-                )}
-              </div>
-            </Field>
-          ))}
+          {locked.map(([id, label, value]) =>
+            lockedField(
+              id,
+              label,
+              // R6: the locked price follows the picked currency.
+              id === "currentPrice" && converting
+                ? ""
+                : id === "currentPrice" && fx && ccy !== ccy0
+                  ? centsToBare(
+                      String(
+                        Math.round(
+                          Number(h.currentPriceCents) * Number(fx.rate),
+                        ),
+                      ),
+                      locale,
+                    )
+                  : value,
+            ),
+          )}
           {fx && price0 && (showValue || showPrice) && (
             <div data-testid="edit-asset-fx">
               <FxPreviewLine

@@ -189,6 +189,8 @@ export function InvestmentRow({
       }
     : {};
   const dots = onSwap ? "editable-dots" : "";
+  // 261109 (user): opened, the dotted line sits close under the amount.
+  const closeDots = expanded && onSwap ? { textUnderlineOffset: "2px" } : undefined;
   // R6 (user): an amount that prices itself (a feed, the spot price, the
   // deposit's rate) carries a lock, and its line says when the PRICE refreshed.
   const autoPriced = pricesItself(holding);
@@ -319,6 +321,7 @@ export function InvestmentRow({
       <span
         data-testid={`asset-value-amount-${holding.id}`}
         className={`text-[var(--body-on-dark)] ${dots}`}
+        style={closeDots}
         title={autoPriced ? t("row.autoPricedTip") : undefined}
         {...amountDoor}
       >
@@ -557,6 +560,7 @@ export function InvestmentRow({
                     ? "text-[var(--muted-strong)]"
                     : "text-[var(--body-on-dark)]",
                 ].join(" ")}
+                style={closeDots}
                 {...amountDoor}
               >
                 {value}

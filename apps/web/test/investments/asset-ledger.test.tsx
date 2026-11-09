@@ -219,7 +219,7 @@ describe("Asset ledger strip", () => {
   it("every amount uses the muted grey, the deletable newest included", async () => {
     mount(ENTRIES);
     const buy = await screen.findByTestId("ledger-row-b1");
-    const amount = [...buy.querySelectorAll<HTMLElement>("span")].find(
+    const amount = [...buy.querySelectorAll<HTMLElement>("span, button")].find(
       (s) =>
         /PLN$/.test(s.textContent ?? "") && !/ × /.test(s.textContent ?? ""),
     )!;

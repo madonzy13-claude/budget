@@ -142,7 +142,8 @@ describe("Edit asset sheet — locked configuration", () => {
       }),
     );
     expectLocked("principal", "250");
-    expectLocked("principal", "PLN");
+    // 261109 (user): no currency in the field — the picker above names it.
+    expect((locked("principal") as HTMLInputElement).value).not.toContain("PLN");
     expectLocked("endDate", "2027");
   });
 

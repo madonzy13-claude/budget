@@ -19,7 +19,6 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Link2,
-  Pencil,
   Percent,
   Trash2,
   TrendingDown,
@@ -128,7 +127,8 @@ interface LedgerRowProps {
   rowKey: string;
   first: boolean;
   onDelete: () => void;
-  /** R6 (user): Edit the note / date; absent for computed (interest) rows. */
+  /** R6 (user): Edit the entry — 261109: its dotted amount opens it; absent
+   *  for computed (interest) rows. */
   onEdit?: () => void;
   /** Round 4: open the partner entry in the other asset (visible partner only). */
   onOpenLinked?: () => void;
@@ -194,35 +194,8 @@ export function LedgerRow({
         : t("ledger.onlyLatest");
 
   const rowRef = useRef<HTMLDivElement>(null);
-  // R6 (user): Edit sits left of Delete — the swipe reveals both.
-  const actionW = onEdit ? ACTION_W + 48 : ACTION_W;
-  const { offset, swiping, close } = useSwipeReveal(rowRef, actionW);
-  const swipedOpen = offset <= -actionW / 2;
-  const editButton = onEdit && (
-    <button
-      type="button"
-      data-no-swipe
-      data-open={swipedOpen}
-      data-testid={`ledger-edit-${rowKey}`}
-      aria-label={t("ledger.edit.aria", { kind, date })}
-      onClick={(ev) => {
-        ev.stopPropagation();
-        close();
-        onEdit();
-      }}
-      className={[
-        "absolute bottom-0 right-12 top-0 flex w-12 items-center justify-center",
-        "bg-[var(--surface-elevated-dark)] text-[var(--foreground)] transition-opacity",
-        "pointer-events-none opacity-0 data-[open=true]:pointer-events-auto data-[open=true]:opacity-100",
-        // R6 (user): the leftmost revealed button carries the under-row shade.
-        LEFT_SHADE,
-        ROW_ACTION_BUTTON,
-        "sm:text-[var(--foreground)]",
-      ].join(" ")}
-    >
-      <Pencil className="h-4 w-4" aria-hidden="true" />
-    </button>
-  );
+  const { offset, swiping, close } = useSwipeReveal(rowRef, ACTION_W);
+  const swipedOpen = offset <= -ACTION_W / 2;
   const deleteButton = (
     <button
       type="button"
@@ -242,7 +215,7 @@ export function LedgerRow({
         // Round 3: square, shadowed on its left as if under the sliding row.
         "text-white transition-opacity",
         "pointer-events-none opacity-0 data-[open=true]:pointer-events-auto data-[open=true]:opacity-100",
-        onEdit ? "" : LEFT_SHADE,
+        LEFT_SHADE,
         ROW_ACTION_BUTTON,
         entry.deletable
           ? "bg-[var(--destructive)] sm:text-[var(--foreground)]"
@@ -267,15 +240,14 @@ export function LedgerRow({
       }}
       className="group group/row relative"
     >
-      {/* 261102 (user): desktop shows a "…" that reveals Edit / Delete over a
-          blurred right end; phones keep the swipe (RowActions dissolves). */}
+      {/* 261102 (user): desktop shows a "…" that reveals Delete over a blurred
+          right end; phones keep the swipe (RowActions dissolves). */}
       <RowActions
         mobile="contents"
         label={t("ledger.actionsAria")}
         tint="var(--surface-ledger-dark)"
         className="sm:absolute sm:inset-y-0 sm:right-0"
       >
-        {editButton}
         {reason ? (
           <Popover>
             <PopoverTrigger asChild>{deleteButton}</PopoverTrigger>
@@ -382,14 +354,32 @@ export function LedgerRow({
                 ` × ${centsToShort(entry.priceCents, locale)} ${entry.amountCurrency ?? ""}`.trimEnd()}
             </span>
           )}
-          {amount != null && (
-            <span
-              className="text-[14px] leading-[1.4]"
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              {signed(amount)} {ccy}
-            </span>
-          )}
+          {amount != null &&
+            (onEdit ? (
+              // 261109 (user): the dotted amount opens Edit (no swipe button).
+              <button
+                type="button"
+                data-no-swipe
+                data-testid={`ledger-amount-${rowKey}`}
+                aria-label={t("ledger.edit.aria", { kind, date })}
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  close();
+                  onEdit();
+                }}
+                className="text-[14px] leading-[1.4] underline decoration-dotted underline-offset-2"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                {signed(amount)} {ccy}
+              </button>
+            ) : (
+              <span
+                className="text-[14px] leading-[1.4]"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                {signed(amount)} {ccy}
+              </span>
+            ))}
           {entry.afterCents != null && (
             // R6 (user): what the asset held right after this — the history
             // reads as a running total; smaller and dimmed under the deal.
