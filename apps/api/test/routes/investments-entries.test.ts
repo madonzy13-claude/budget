@@ -744,6 +744,51 @@ describe("Investment entries ledger", () => {
       expect(await holding(fix, h)).toMatchObject({ buy: "2000", qty: "4" });
     });
 
+    // 261109 (user): the running total of that row and every later one moves.
+    it("a later value update keeps its value; the totals before it move", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix);
+      const h = await create(app, cashBody);
+      await buy(app, h, "2026-09-10"); // +10.00
+      expect((await call(app, "PATCH", `/${h}`, { currentValueCents: "200000" })).status).toBe(200);
+      const add = (await entriesOf(app, h)).find((e) => e.effectiveDate === "2026-09-10")!;
+      expect((await edit(app, add.id, { amountCents: "5000" })).status).toBe(200);
+      expect(await holding(fix, h)).toMatchObject({ buy: "105000", cur: "200000" });
+      expect((await entriesOf(app, h)).map((e) => e.afterCents)).toEqual([
+        "200000",
+        "105000",
+        "100000",
+      ]);
+      // Undoing the update lands on the edited value.
+      const newest = (await entriesOf(app, h))[0]!;
+      expect((await call(app, "DELETE", `/entries/${newest.id}`)).status).toBe(200);
+      expect(await holding(fix, h)).toMatchObject({ cur: "105000" });
+    });
+
+    it("a broker deposit moves the account value; a later stated value stays", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix);
+      const h = await create(app, { ...cashBody, name: "IKE", holdingType: "other", uiType: "broker" });
+      const deposit = (date: string, extra: Record<string, unknown> = {}) =>
+        call(app, "POST", `/${h}/buy`, {
+          kind: "broker",
+          amountCents: "1000",
+          currency: "PLN",
+          effectiveDate: date,
+          ...extra,
+        });
+      expect((await deposit("2026-09-10")).status).toBe(201); // value follows: 1,010.00
+      expect((await deposit("2026-09-20", { valueAfterCents: "150000" })).status).toBe(201);
+      const first = (await entriesOf(app, h)).find((e) => e.effectiveDate === "2026-09-10")!;
+      expect((await edit(app, first.id, { amountCents: "5000" })).status).toBe(200);
+      expect(await holding(fix, h)).toMatchObject({ buy: "106000", cur: "150000" });
+      expect((await entriesOf(app, h)).map((e) => e.afterCents)).toEqual([
+        "150000",
+        "105000",
+        "100000",
+      ]);
+    });
+
     it("refuses a zero amount", async () => {
       const fix = await createFixture();
       const app = await buildApp(fix);
