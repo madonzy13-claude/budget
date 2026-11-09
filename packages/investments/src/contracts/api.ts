@@ -561,6 +561,7 @@ export const INVESTMENT_ERRORS = {
     "date_locked",
     "not_money_in",
     "later_entry_depends",
+    "sale_linked",
   ],
   409: ["not_newest", "linked_not_newest", "stale"],
   404: ["not_found"],

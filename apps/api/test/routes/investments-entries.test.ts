@@ -674,9 +674,9 @@ describe("Investment entries ledger", () => {
       expect(res.status).toBe(422);
       expect(await res.json()).toMatchObject({ error: "later_entry_depends" });
       expect(await holding(fix, h)).toEqual(before);
-      // The sale itself is money out — not editable this way.
+      // 261109 (user): the sale itself can have what it received fixed.
       const sale = (await entriesOf(app, h))[0]!;
-      expect(sale.amountEditable).toBe(false);
+      expect(sale.amountEditable).toBe(true);
     });
 
     it("the only entry takes the new currency as said — no conversion", async () => {

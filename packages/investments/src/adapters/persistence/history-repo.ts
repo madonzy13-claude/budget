@@ -228,7 +228,8 @@ export class DrizzleHistoryRepo implements HistoryRepo {
               flow_cents = COALESCE(${s(r.flowCents ?? null)}::bigint, flow_cents),
               flow_currency = COALESCE(${r.flowCurrency ?? null}, flow_currency),
               asset_amount_cents = COALESCE(${s(r.assetAmountCents ?? null)}::bigint, asset_amount_cents),
-              prior_price_cents = COALESCE(${r.priorPriceCents ?? null}::numeric, prior_price_cents)
+              prior_price_cents = COALESCE(${r.priorPriceCents ?? null}::numeric, prior_price_cents),
+              realized_budget_cents = COALESCE(${s(r.realizedBudgetCents ?? null)}::bigint, realized_budget_cents)
              WHERE id = ${r.id}::uuid AND budget_id = ${plan.budgetId}::uuid AND deleted_at IS NULL
             RETURNING id
           `);

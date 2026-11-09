@@ -136,12 +136,15 @@ export function priceChange(i: {
  *  after it took money or units out — a sale's cost share, a withdrawal's
  *  room and a transfer's units were all worked out from what came before. */
 export function amountEditBlock(
-  target: LedgerKey & { kind: string },
+  target: LedgerKey & { kind: string; walletId?: string | null },
   entries: Array<LedgerKey & { costDeltaCents: bigint; qtyDelta: string | null }>,
-): "not_money_in" | "later_entry_depends" | null {
+): "not_money_in" | "later_entry_depends" | "sale_linked" | null {
   // 261109 (user): a value update too — it set the value outright.
-  if (!["start", "buy", "add", "value_change"].includes(target.kind) || target.transferId)
+  if (!["start", "buy", "add", "value_change", "withdraw"].includes(target.kind) || target.transferId)
     return "not_money_in";
+  // 261109 (user): a sale's proceeds — nothing later was worked out from
+  // them; one paid into a wallet would have to move the wallet too.
+  if (target.kind === "withdraw") return target.walletId ? "sale_linked" : null;
   const out = (x: { costDeltaCents: bigint; qtyDelta: string | null }) =>
     x.costDeltaCents < 0n || (x.qtyDelta !== null && big(x.qtyDelta).lt(0));
   return entries.some((x) => x.id !== target.id && after(x, target) && out(x))

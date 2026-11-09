@@ -24,7 +24,7 @@ import {
   type LedgerKey,
 } from "../domain/asset-ledger";
 import { holdingShape, type Holding } from "../domain/holding";
-import { big, cents } from "../domain/sell-booking";
+import { big, cents, realizedInBudget } from "../domain/sell-booking";
 import type { HoldingRepo } from "../ports/holding-repo";
 import type {
   BookingPlan,
@@ -120,6 +120,48 @@ async function planValue(
     patches: [patch],
     entries: [],
     rewriteEntries: rewrites,
+    lockHoldingIds: [h.id],
+    expectedNewestEntryId: [{ holdingId: h.id, entryId: all.at(-1)!.id }],
+  };
+}
+
+/** 261109 (user): a sale re-stated as having received `amount` in `ccy` —
+ *  only its realized gain moves (same sum as the sale); nothing in the asset. */
+async function planSale(
+  h: Holding,
+  e: StoredEntry,
+  all: StoredEntry[],
+  amount: bigint,
+  ccy: string,
+  ctx: { budgetId: string; fx: FxProvider },
+): Promise<BookingPlan> {
+  const block = amountEditBlock(e, all);
+  if (block) throw new Error(block);
+  if (holdingShape(h) === "deposit") throw new Error("not_money_in");
+  if (amount <= 0n) throw new Error("invalid_cents");
+  const rate = makeRate(ctx.fx, e.effectiveDate);
+  const buyCcy = e.costCurrency ?? h.buyCurrency ?? ccy;
+  const fx = realizedInBudget({
+    receivedCents: amount,
+    sourceToReceivedRate: await rate(buyCcy, ccy),
+    soldCostCents: -e.costDeltaCents,
+    sourceToBudgetRate: await rate(buyCcy, e.budgetCurrency ?? buyCcy),
+  });
+  return {
+    budgetId: ctx.budgetId,
+    patches: [],
+    entries: [],
+    rewriteEntries: [
+      {
+        id: e.id,
+        amountCents: amount,
+        amountCurrency: ccy,
+        flowCents: -amount,
+        flowCurrency: ccy,
+        assetAmountCents: fx.proceedsCents,
+        realizedBudgetCents: fx.realizedBudgetCents,
+      },
+    ],
     lockHoldingIds: [h.id],
     expectedNewestEntryId: [{ holdingId: h.id, entryId: all.at(-1)!.id }],
   };
@@ -236,7 +278,9 @@ export function editEntry(deps: {
         const h = await deps.holdingRepo.findById(t, u, e.holdingId);
         if (!h) return err(new Error("not_found"));
         const all = await deps.historyRepo.listForHolding(t, u, h.id);
-        const plan = await (e.kind === "value_change" ? planValue : planAmount)(
+        const plan = await (
+          e.kind === "value_change" ? planValue : e.kind === "withdraw" ? planSale : planAmount
+        )(
           h,
           e,
           all,

@@ -249,7 +249,7 @@ export function listEntries(deps: {
             return { dateMin: r.min, dateMax: r.max };
           })(),
           dateEditable: !isDeposit,
-          amountEditable: amountEditBlock(e, live) === null,
+          amountEditable: !(isDeposit && e.kind === "withdraw") && amountEditBlock(e, live) === null,
           valueCents: e.kind === "value_change" && e.amountCents !== null ? e.amountCents.toString() : null,
           backfilled: e.backfilled,
           deletable: isNewest && partnerOk,

@@ -123,6 +123,7 @@ export interface EntryRewrite {
   flowCurrency?: string;
   assetAmountCents?: bigint;
   priorPriceCents?: string;
+  realizedBudgetCents?: bigint;
 }
 
 /** A live ledger row with everything its undo needs. */
