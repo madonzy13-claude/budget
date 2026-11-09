@@ -29,7 +29,7 @@ import { isOfflineWriteError } from "@/lib/offline-write";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
 import { useAssetEntries } from "@/hooks/use-asset-entries";
-import { useFxRates } from "@/hooks/use-fx-rates";
+import { useCurrencyPLs } from "@/hooks/use-fx-rates";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { FxPreviewLine } from "@/components/budgeting/fields/fx-preview-line";
 import { Field, NumericInput } from "./holding-sheet";
@@ -169,8 +169,12 @@ export function EditAssetForm({
   const asked = useRef(ccy0);
   const rates = useRef(new Map<string, { rate: string; asOf: string }>());
   const [error, setError] = useState<string | null>(null);
-  // Base kept in another currency than the value: its own rate to the pick.
-  const baseRates = useFxRates(baseCcy, baseCcy === ccy0 ? [] : [ccy]);
+  // 261109 (user): another currency's base is the history cost — each
+  // transaction at its own date's rate, never today's.
+  const [basePl] = useCurrencyPLs(
+    budgetId,
+    baseCents === null || ccy === baseCcy ? [] : [{ currency: ccy, ids: [h.id] }],
+  );
 
   const editValue = (v: string) => {
     touched.current = true;
@@ -181,8 +185,7 @@ export function EditAssetForm({
     setFx(null);
     setFxFailed(false);
     asked.current = next;
-    if (!showValue && !showPrice && priceLine === null && baseCents === null)
-      return;
+    if (!showValue && !showPrice && priceLine === null) return;
     if (next === ccy0) {
       if (!touched.current) setPrice(price0);
       return;
@@ -235,18 +238,14 @@ export function EditAssetForm({
   );
   const spinner = spin("edit-asset-fx-loading");
   const shownPrice = converting && !touched.current ? "" : price;
-  const baseRate =
-    ccy === baseCcy
-      ? 1
-      : baseCcy === ccy0
-        ? fx && Number(fx.rate)
-        : baseRates.get(ccy);
   const base =
     baseCents === null
       ? null
-      : baseRate
-        ? centsToBare(String(Math.round(baseCents * baseRate)), locale)
-        : "";
+      : ccy === baseCcy
+        ? centsToBare(String(Math.round(baseCents)), locale)
+        : basePl?.costCents
+          ? centsToBare(basePl.costCents, locale)
+          : "";
   const lockedField = (id: string, label: string, value: string) => (
     <Field key={id} label={label}>
       <div className="relative">
