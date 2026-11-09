@@ -58,7 +58,8 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     Given a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
     When I open the investments wallets tab
     And I buy into "Pot" adding "100"
-    And I change the oldest entry of "Pot" to "1500" in "PLN"
+    # The budget's own currency: nothing converted.
+    And I change the oldest entry of "Pot" to "1500" in "USD"
     Then the running totals of "Pot" read "1,600 / 1,500"
 
   # …unless a later sale relied on it: then it shows, locked, saying why.

@@ -81,17 +81,25 @@ async function planAmount(
     x.kind === "value_change" ||
     x.kind === "price_change" ||
     (broker && x.kind === "add" && x.valueDeltaCents !== x.costDeltaCents);
+  // A migrated opening carries no value delta: what went in WAS its value.
+  const legacy =
+    e.kind === "start" && e.valueDeltaCents === 0n && e.priorPriceCents === null;
   const tracks =
     shape === "amount" &&
     h.currentPriceCents !== null &&
     !stated(e) &&
     (e.priorPriceCents !== null ||
       e.valueDeltaCents === e.costDeltaCents ||
-      // A migrated opening carries no value delta: the asset still being
-      // worth exactly what went in says the value follows the money.
-      (sole && oldValue === oldCost && big(h.currentPriceCents).eq(big(e.costDeltaCents))));
-  const value = tracks
-    ? cents(big(amount).times(await rate(ccy, valueCcy)))
+      // A broker's opening stated its value; only one still worth exactly
+      // what went in follows the money.
+      (legacy && !broker) ||
+      (legacy && sole && oldValue === oldCost && big(h.currentPriceCents).eq(big(e.costDeltaCents))));
+  const newValue = cents(big(amount).times(await rate(ccy, valueCcy)));
+  // The legacy opening keeps its zero delta; the shift is measured from the
+  // cost it put in.
+  const value = tracks && !legacy ? newValue : e.valueDeltaCents;
+  const was = legacy
+    ? cents(big(e.costDeltaCents).times(await rate(oldCost, valueCcy)))
     : e.valueDeltaCents;
   const rewrites: EntryRewrite[] = [
     {
@@ -118,8 +126,8 @@ async function planAmount(
   } else patch.buyPriceCents = (h.buyPriceCents ?? 0n) + dCost;
 
   if (tracks) {
-    const dValue = value - e.valueDeltaCents;
-    if (sole) patch.currentPriceCents = value;
+    const dValue = newValue - was;
+    if (sole) patch.currentPriceCents = newValue;
     else {
       // A later snapshot is the value before that entry: shift it. One that
       // set the value outright (an update, a broker deposit with its value
