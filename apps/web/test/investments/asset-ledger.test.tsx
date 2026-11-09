@@ -351,6 +351,12 @@ describe("Asset ledger strip", () => {
     // 261109 (user): its dotted line is grey like its text, a little lower.
     expect(link.style.textDecorationColor.toLowerCase()).toBe("currentcolor");
     expect(link.style.textUnderlineOffset).toBe("4px");
+    // 261109 (user): "from USDT - SafePal should have the line" — the name is
+    // truncated (overflow hidden), which clipped a line 4px down; its clip
+    // box reaches below the line, the layout unchanged.
+    const name = link.querySelector("span.truncate") as HTMLElement;
+    expect(name.style.paddingBottom).toBe("6px");
+    expect(name.style.marginBottom).toBe("-6px");
     fireEvent.click(link);
     expect(onOpenLinked).toHaveBeenCalledWith("pot", "tr1");
   });
