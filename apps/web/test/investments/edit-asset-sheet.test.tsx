@@ -203,7 +203,7 @@ describe("Edit asset sheet — locked configuration", () => {
   it("a tracked asset shows its instrument and current price locked", () => {
     mount(btc);
     expectLocked("instrument", "Bitcoin");
-    expectLocked("currentPrice", "60,000");
+    expectLocked("currentPrice", "60000");
   });
 
   // Round 6 (user): the currency is picked above — the locked price carries
@@ -212,9 +212,9 @@ describe("Edit asset sheet — locked configuration", () => {
     routeFetch({ rate: "0.25" });
     mount(btc);
     const price = locked("currentPrice") as HTMLInputElement;
-    expect(price.value).toBe("60,000");
+    expect(price.value).toBe("60000");
     type("currency-picker", "EUR");
-    await waitFor(() => expect(price.value).toBe("15,000"));
+    await waitFor(() => expect(price.value).toBe("15000"));
   });
 
   // Round 6 (user): "sometimes it takes time, sometimes it never changes".
@@ -225,10 +225,10 @@ describe("Edit asset sheet — locked configuration", () => {
     mount(btc);
     const price = locked("currentPrice") as HTMLInputElement;
     type("currency-picker", "EUR");
-    await waitFor(() => expect(price.value).toBe("15,000"));
+    await waitFor(() => expect(price.value).toBe("15000"));
     type("currency-picker", "USD");
     type("currency-picker", "EUR");
-    expect(price.value).toBe("15,000");
+    expect(price.value).toBe("15000");
     const fxCalls = () =>
       fetchMock.mock.calls.filter(([u]) => String(u).includes("to=EUR")).length;
     expect(fxCalls()).toBe(1);
@@ -249,7 +249,7 @@ describe("Edit asset sheet — locked configuration", () => {
     expect(screen.getByTestId("edit-asset-fx-loading")).toBeInTheDocument();
     await waitFor(() => expect(release).toBeTypeOf("function"));
     release();
-    await waitFor(() => expect(price.value).toBe("15,000"));
+    await waitFor(() => expect(price.value).toBe("15000"));
     expect(screen.queryByTestId("edit-asset-fx-loading")).toBeNull();
   });
 
@@ -281,7 +281,7 @@ describe("Edit asset sheet — locked configuration", () => {
     mount(btc);
     const price = locked("currentPrice") as HTMLInputElement;
     type("currency-picker", "EUR");
-    await waitFor(() => expect(price.value).toBe("15,000"));
+    await waitFor(() => expect(price.value).toBe("15000"));
   });
 
   it("a metal shows metal, kind, unit, current price and premium locked", () => {
@@ -308,8 +308,8 @@ describe("Edit asset sheet — locked configuration", () => {
   // 261109 (user): no currency in it — the picker above names it.
   it("shows the base amount locked, without a currency", () => {
     mount(btc); // 2 × 50,000 PLN
-    expectLocked("baseAmount", "100,000");
-    expect((locked("baseAmount") as HTMLInputElement).value).toBe("100,000");
+    expectLocked("baseAmount", "100000");
+    expect((locked("baseAmount") as HTMLInputElement).value).toBe("100000");
   });
 
   // 261109 (user): a pick converts the base at each transaction's own date
@@ -328,7 +328,7 @@ describe("Edit asset sheet — locked configuration", () => {
     mount(btc);
     type("currency-picker", "EUR");
     await waitFor(() =>
-      expect((locked("baseAmount") as HTMLInputElement).value).toBe("30,000"),
+      expect((locked("baseAmount") as HTMLInputElement).value).toBe("30000"),
     );
   });
 

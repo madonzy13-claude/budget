@@ -51,7 +51,7 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     And the oldest entry of "Pot" reads "1,500 UAH"
     # 261108 (user): Edit shows what went in, locked — 261109: without a
     # currency, the picker above names it.
-    And the Edit of "Pot" shows the base amount "1,500" locked
+    And the Edit of "Pot" shows the base amount "1500" locked
     And picking "EUR" in the Edit of "Pot" shows the base at its transactions' date rates
 
   # 261109 (user): the running total of that entry and every later one moves.

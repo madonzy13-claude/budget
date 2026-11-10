@@ -3204,9 +3204,8 @@ Then(
       await page.getByTestId(`currency-option-${ccy}`).first().click();
     }
     const { costCents } = (await (await pl).json()) as { costCents: string };
-    const want = new Intl.NumberFormat("en-US", {
-      maximumFractionDigits: 2,
-    }).format(Number(costCents) / 100);
+    // 261110 (user): plain, unformatted.
+    const want = String(Number(costCents) / 100);
     await expect(sheet.getByTestId("edit-asset-locked-baseAmount")).toHaveValue(
       want,
     );
