@@ -2812,6 +2812,25 @@ Then(
   },
 );
 
+Then(
+  "tapping the linked entry in the ledger of {string} opens the hidden {string} at the matching entry",
+  async ({ page }, from: string, to: string) => {
+    const po = new InvestmentsPo(page);
+    const ledger = await po.openLedger(from);
+    const link = ledger.locator('[data-testid^="ledger-link-"]').first();
+    // The dotted line says it is a link.
+    await expect(link).toHaveCSS("text-decoration-line", "underline");
+    await link.click();
+    const row = page
+      .locator('[data-testid^="hidden-asset-"]')
+      .filter({ hasText: to });
+    await expect(row).toBeVisible({ timeout: 10000 });
+    const flashed = row.locator('[data-flash="true"]');
+    await expect(flashed).toBeVisible();
+    await expect(flashed).toBeInViewport();
+  },
+);
+
 // Round 4 (user): archive is an explicit action; buying into it revives it.
 When(
   "I show the {string} group in {string}",

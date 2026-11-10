@@ -524,6 +524,18 @@ Feature: Investments as assets with transactions (13.1)
     When I open the investments wallets tab
     Then tapping the linked entry in the ledger of "IBKR" opens "Pot" at the matching entry
 
+  # 261110 (user): a link to a hidden asset is a link too — it lists the
+  # group's hidden assets and opens it there.
+  @r4-link
+  Scenario: Tapping a linked entry opens its hidden partner
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
+    And a "cash" holding "Purse" deposited 100000 cents worth 100000 cents exists in my budget
+    And "IBKR" moved 100000 cents to "Pot" on its ledger
+    When I open the investments wallets tab
+    And I hide the asset "Pot"
+    Then tapping the linked entry in the ledger of "IBKR" opens the hidden "Pot" at the matching entry
+
   # Gap 26: nothing but the opening entry → Delete (it is gone for good).
   @r4-delete-asset
   Scenario: An asset with no transactions is deleted instead of archived
