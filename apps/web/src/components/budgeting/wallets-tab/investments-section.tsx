@@ -58,10 +58,7 @@ import { useSetTypeOrder, useTypeSummary } from "@/hooks/use-type-summary";
 import { useReorderHoldings } from "@/hooks/use-reorder-holdings";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { setDndDragging } from "@/lib/dnd-dragging";
-import {
-  deriveUiType,
-  type UiType,
-} from "@/lib/investment-types";
+import { deriveUiType, type UiType } from "@/lib/investment-types";
 import {
   buildTypeBlocks,
   moveTypeBlock,
@@ -274,10 +271,17 @@ export function InvestmentsSection({
     transferId: string;
   } | null>(null);
   const openLinked = (holdingId: string, transferId: string) => {
-    const h = holdings.find((x) => x.id === holdingId);
+    const h =
+      holdings.find((x) => x.id === holdingId) ??
+      hidden.find((x) => x.id === holdingId);
     if (!h) return;
     const ui = deriveUiType(h.uiType, h.holdingType, h.isCustom);
     if (!isExpanded(ui)) toggleType(ui);
+    // 261110 (user): a hidden partner opens in its group's hidden list.
+    if (hidden.includes(h))
+      setShowHidden((cur) =>
+        cur.has(typeOf(h)) ? cur : new Set(cur).add(typeOf(h)),
+      );
     toggleAsset(holdingId, true);
     setFlash({ holdingId, transferId });
     window.setTimeout(() => setFlash(null), 1500);
@@ -300,6 +304,8 @@ export function InvestmentsSection({
   // Groups whose hidden assets are listed (the "N hidden" link toggles);
   // HIDDEN_GROUPS stands for the list of fully hidden groups.
   const [showHidden, setShowHidden] = useState<Set<string>>(new Set());
+  const canOpenLinked = (id: string) =>
+    holdings.some((x) => x.id === id) || hidden.some((x) => x.id === id);
   const toggleHidden = (uiType: string) =>
     setShowHidden((cur) => {
       const next = new Set(cur);
@@ -362,10 +368,11 @@ export function InvestmentsSection({
   const assetCcy = (h: HoldingDto) =>
     uiPrefs.prefs[assetKey(h.id)]?.[0] ?? ownCcy(h);
   // 261105 (user): hidden assets are still yours — Buy/Sell pickers offer them.
-  const allHoldings = useMemo(() => [...holdings, ...hidden], [holdings, hidden]);
-  const convertedAssets = allHoldings.filter(
-    (h) => assetCcy(h) !== ownCcy(h),
+  const allHoldings = useMemo(
+    () => [...holdings, ...hidden],
+    [holdings, hidden],
   );
+  const convertedAssets = allHoldings.filter((h) => assetCcy(h) !== ownCcy(h));
   const assetPLs = useCurrencyPLs(
     budgetId,
     convertedAssets.map((h) => ({ currency: assetCcy(h), ids: [h.id] })),
@@ -680,7 +687,7 @@ export function InvestmentsSection({
                     swipeOffset={swipe?.id === h.id ? swipe.px : 0}
                     swiping={swipe?.id === h.id && swipe.live}
                     onOpenLinked={openLinked}
-                    canOpen={(id) => holdings.some((x) => x.id === id)}
+                    canOpen={canOpenLinked}
                     flashTransferId={
                       flash?.holdingId === h.id ? flash.transferId : null
                     }
@@ -738,8 +745,10 @@ export function InvestmentsSection({
                     swipeOffset={swipe?.id === h.id ? swipe.px : 0}
                     swiping={swipe?.id === h.id && swipe.live}
                     onOpenLinked={openLinked}
-                    canOpen={(id) => holdings.some((x) => x.id === id)}
-                    flashTransferId={null}
+                    canOpen={canOpenLinked}
+                    flashTransferId={
+                      flash?.holdingId === h.id ? flash.transferId : null
+                    }
                   />
                 </div>
               ))}
