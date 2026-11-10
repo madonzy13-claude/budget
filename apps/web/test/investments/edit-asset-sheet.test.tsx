@@ -352,7 +352,7 @@ describe("Edit asset sheet — locked configuration", () => {
 
   it("an amount-shaped asset's base amount is what went in", () => {
     mount(broker);
-    expectLocked("baseAmount", "100,000");
+    expectLocked("baseAmount", "100000");
   });
 
   it("a hand-priced asset keeps its editable price and no locked duplicate", () => {

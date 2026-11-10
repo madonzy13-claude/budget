@@ -35,7 +35,6 @@ import { FxPreviewLine } from "@/components/budgeting/fields/fx-preview-line";
 import { Field, NumericInput } from "./holding-sheet";
 import { today } from "./swap-shared";
 import { ledgerDate } from "./ledger-row";
-import { centsToBare } from "@/lib/cents-format";
 
 const decimal = (cents: string | null) =>
   cents == null ? "" : String(Number(cents) / 100);
@@ -79,15 +78,15 @@ export function EditAssetForm({
   const priceLine =
     h.currentPriceCents == null
       ? null
-      : centsToBare(String(Math.round(Number(h.currentPriceCents))), locale);
+      : decimal(String(Math.round(Number(h.currentPriceCents))));
   const isDeposit = h.holdingType === "deposit" || h.uiType === "deposit";
   // A deposit's note rides its opening entry (the earliest one with a note).
   const entriesQ = useAssetEntries(budgetId, h.id, isDeposit);
   const note =
     (entriesQ.data ?? [])
       .filter((e) => e.note)
-      .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))[0]?.note ??
-    null;
+      .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))[0]
+      ?.note ?? null;
   // A deposit lists every term; one never saved shows "—" rather than vanishing.
   const unset = "—";
   // 261108 (user): what went in (a deposit's principal). 261109: above the
@@ -118,9 +117,7 @@ export function EditAssetForm({
           [
             "startDate",
             t("field.startDate"),
-            h.depositStartDate
-              ? ledgerDate(h.depositStartDate, locale)
-              : unset,
+            h.depositStartDate ? ledgerDate(h.depositStartDate, locale) : unset,
           ],
           [
             "endDate",
@@ -157,8 +154,7 @@ export function EditAssetForm({
               ["currentPrice", t("field.currentPrice"), priceLine],
             ]
           : []
-  )
-    .filter((f): f is [string, string, string] => !!f[2]);
+  ).filter((f): f is [string, string, string] => !!f[2]);
 
   const [name, setName] = useState(holding.name);
   const [ccy, setCcy] = useState(ccy0);
@@ -173,7 +169,9 @@ export function EditAssetForm({
   // transaction at its own date's rate, never today's.
   const [basePl] = useCurrencyPLs(
     budgetId,
-    baseCents === null || ccy === baseCcy ? [] : [{ currency: ccy, ids: [h.id] }],
+    baseCents === null || ccy === baseCcy
+      ? []
+      : [{ currency: ccy, ids: [h.id] }],
   );
 
   const editValue = (v: string) => {
@@ -242,9 +240,9 @@ export function EditAssetForm({
     baseCents === null
       ? null
       : ccy === baseCcy
-        ? centsToBare(String(Math.round(baseCents)), locale)
+        ? decimal(String(Math.round(baseCents)))
         : basePl?.costCents
-          ? centsToBare(basePl.costCents, locale)
+          ? decimal(basePl.costCents)
           : "";
   const lockedField = (id: string, label: string, value: string) => (
     <Field key={id} label={label}>
@@ -259,7 +257,11 @@ export function EditAssetForm({
           style={{ color: "var(--muted-foreground)" }}
         />
         {value === "" && !fxFailed ? (
-          id === "currentPrice" ? spinner : spin(`edit-asset-locked-${id}-loading`)
+          id === "currentPrice" ? (
+            spinner
+          ) : (
+            spin(`edit-asset-locked-${id}-loading`)
+          )
         ) : (
           <Lock
             aria-hidden="true"
@@ -303,125 +305,122 @@ export function EditAssetForm({
   }
 
   return (
-        <div data-testid="edit-asset-sheet" className="space-y-4 px-1">
-          <Field label={t("edit.label")}>
-            <Input
-              data-testid="edit-asset-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+    <div data-testid="edit-asset-sheet" className="space-y-4 px-1">
+      <Field label={t("edit.label")}>
+        <Input
+          data-testid="edit-asset-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </Field>
+      <Field label={t("edit.displayCurrency")}>
+        <CurrencyPicker
+          variant="field"
+          value={ccy}
+          onSelect={pickCcy}
+          aria-label={t("edit.displayCurrency")}
+        />
+      </Field>
+      {base !== null &&
+        lockedField(
+          isDeposit ? "principal" : "baseAmount",
+          t(isDeposit ? "field.principal" : "field.baseAmount"),
+          base,
+        )}
+      {showValue && (
+        <Field label={t("edit.currentValue")}>
+          <div className="relative">
+            <NumericInput
+              testId="edit-asset-value"
+              value={shownPrice}
+              onChange={editValue}
             />
-          </Field>
-          <Field label={t("edit.displayCurrency")}>
-            <CurrencyPicker
-              variant="field"
-              value={ccy}
-              onSelect={pickCcy}
-              aria-label={t("edit.displayCurrency")}
-            />
-          </Field>
-          {base !== null &&
-            lockedField(
-              isDeposit ? "principal" : "baseAmount",
-              t(isDeposit ? "field.principal" : "field.baseAmount"),
-              base,
-            )}
-          {showValue && (
-            <Field label={t("edit.currentValue")}>
-              <div className="relative">
-                <NumericInput
-                  testId="edit-asset-value"
-                  value={shownPrice}
-                  onChange={editValue}
-                />
-                {converting && !touched.current && spinner}
-              </div>
-            </Field>
-          )}
-          {showPrice && (
-            <Field label={t("edit.currentPrice")}>
-              <div className="relative">
-                <NumericInput
-                  testId="edit-asset-price"
-                  value={shownPrice}
-                  onChange={editValue}
-                />
-                {converting && !touched.current && spinner}
-              </div>
-            </Field>
-          )}
-          {locked.map(([id, label, value]) =>
-            lockedField(
-              id,
-              label,
-              // R6: the locked price follows the picked currency.
-              id === "currentPrice" && converting
-                ? ""
-                : id === "currentPrice" && fx && ccy !== ccy0
-                  ? centsToBare(
-                      String(
-                        Math.round(
-                          Number(h.currentPriceCents) * Number(fx.rate),
-                        ),
-                      ),
-                      locale,
-                    )
-                  : value,
-            ),
-          )}
-          {fx && price0 && (showValue || showPrice) && (
-            <div data-testid="edit-asset-fx">
-              <FxPreviewLine
-                original={{ amount: price0, currency: ccy0 }}
-                converted={{
-                  amount: convert(price0, fx.rate),
-                  currency: ccy,
-                }}
-                rate={fx.rate}
-                asOf={fx.asOf}
-              />
-            </div>
-          )}
-          {fxFailed && (
-            <p
-              role="status"
-              className="text-[12px]"
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              {t("edit.fxUnavailable")}
-            </p>
-          )}
-          {error && (
-            <p
-              role="alert"
-              className="text-[14px]"
-              style={{ color: "var(--trading-down)" }}
-            >
-              {error}
-            </p>
-          )}
-          <div
-            className="flex flex-col gap-2 border-t pt-4"
-            style={{ borderColor: "var(--hairline-dark)" }}
-          >
-            <Button
-              type="button"
-              variant="primary"
-              data-testid="edit-asset-save"
-              disabled={!canSave}
-              onClick={save}
-              className="h-auto min-h-11 w-full whitespace-normal break-words"
-            >
-              {t("edit.save")}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onDone()}
-              className="h-auto min-h-11 w-full whitespace-normal break-words"
-            >
-              {t("swap.discard")}
-            </Button>
+            {converting && !touched.current && spinner}
           </div>
+        </Field>
+      )}
+      {showPrice && (
+        <Field label={t("edit.currentPrice")}>
+          <div className="relative">
+            <NumericInput
+              testId="edit-asset-price"
+              value={shownPrice}
+              onChange={editValue}
+            />
+            {converting && !touched.current && spinner}
+          </div>
+        </Field>
+      )}
+      {locked.map(([id, label, value]) =>
+        lockedField(
+          id,
+          label,
+          // R6: the locked price follows the picked currency.
+          id === "currentPrice" && converting
+            ? ""
+            : id === "currentPrice" && fx && ccy !== ccy0
+              ? decimal(
+                  String(
+                    Math.round(Number(h.currentPriceCents) * Number(fx.rate)),
+                  ),
+                )
+              : value,
+        ),
+      )}
+      {fx && price0 && (showValue || showPrice) && (
+        <div data-testid="edit-asset-fx">
+          <FxPreviewLine
+            original={{ amount: price0, currency: ccy0 }}
+            converted={{
+              amount: convert(price0, fx.rate),
+              currency: ccy,
+            }}
+            rate={fx.rate}
+            asOf={fx.asOf}
+          />
         </div>
+      )}
+      {fxFailed && (
+        <p
+          role="status"
+          className="text-[12px]"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          {t("edit.fxUnavailable")}
+        </p>
+      )}
+      {error && (
+        <p
+          role="alert"
+          className="text-[14px]"
+          style={{ color: "var(--trading-down)" }}
+        >
+          {error}
+        </p>
+      )}
+      <div
+        className="flex flex-col gap-2 border-t pt-4"
+        style={{ borderColor: "var(--hairline-dark)" }}
+      >
+        <Button
+          type="button"
+          variant="primary"
+          data-testid="edit-asset-save"
+          disabled={!canSave}
+          onClick={save}
+          className="h-auto min-h-11 w-full whitespace-normal break-words"
+        >
+          {t("edit.save")}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => onDone()}
+          className="h-auto min-h-11 w-full whitespace-normal break-words"
+        >
+          {t("swap.discard")}
+        </Button>
+      </div>
+    </div>
   );
 }
