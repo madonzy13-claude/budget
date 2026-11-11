@@ -130,4 +130,10 @@ describe("MCP tool registry", () => {
   it("tells the assistant never to convert an amount on its own", () => {
     expect(instructions).toContain("Never convert an amount to another currency yourself");
   });
+
+  // 261111 (user): a pasted CSV went through add_transactions, skipping the
+  // import's duplicate and unknown-category checks.
+  it("sends a file or a pasted list through the import", () => {
+    expect(instructions).toContain("import_preview");
+  });
 });
