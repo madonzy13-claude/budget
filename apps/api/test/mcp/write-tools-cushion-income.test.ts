@@ -122,6 +122,32 @@ describe("incomes", () => {
     expect(salary.currency).toBe("USD");
   });
 
+  // 261111 (user): income changes are owner-only, in the app and through MCP.
+  it("a member cannot add, edit or delete an income, and nothing changes", async () => {
+    const add = await tool(memberClient, "add_income", {
+      budget_id: budgetId,
+      name: "Bonus",
+      amount: "100.00",
+      currency: "PLN",
+      cadence: "MONTHLY",
+      cadence_anchor: 1,
+    });
+    expect(add.isError).toBe(true);
+    expect(errorOf(add)).toBe("owner_only");
+    const edit = await tool(memberClient, "edit_income", {
+      budget_id: budgetId,
+      income_id: incomeId,
+      changes: { amount: "1.00" },
+    });
+    expect(edit.isError).toBe(true);
+    expect(errorOf(edit)).toBe("owner_only");
+    const del = await tool(memberClient, "delete_income", { budget_id: budgetId, income_id: incomeId });
+    expect(del.isError).toBe(true);
+    expect(errorOf(del)).toBe("owner_only");
+    const list = (await tool(ownerClient, "list_incomes", { budget_id: budgetId })).structuredContent!.incomes as any[];
+    expect(list.map((i) => [i.name, i.amount])).toEqual([["Salary", "5000.00"]]);
+  });
+
   it("edits only what changed, and undo restores it", async () => {
     const r = await tool(ownerClient, "edit_income", {
       budget_id: budgetId,
