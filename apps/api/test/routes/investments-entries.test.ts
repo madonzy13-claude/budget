@@ -869,6 +869,40 @@ describe("Investment entries ledger", () => {
       expect((await entriesOf(app, h))[0]).toMatchObject({ valueCents: "1200000", amountCurrency: "UAH" });
     });
 
+    // 261111 (user): "Price updated" entries are editable too — the unit
+    // price is fixed; a later update keeps its price and absorbs the change.
+    it("a price update's price can be fixed; a later update keeps its own", async () => {
+      const fix = await createFixture();
+      const app = await buildApp(fix);
+      const h = await create(app, {
+        name: "Coins",
+        holdingType: "other",
+        uiType: "collectibles",
+        quantity: "2",
+        buyPriceCents: "1000",
+        buyCurrency: "PLN",
+        currentPriceCents: "1000",
+        currentPriceCurrency: "PLN",
+        openedOn: "2026-09-01",
+      });
+      expect((await call(app, "PATCH", `/${h}`, { currentPriceCents: "1500" })).status).toBe(200);
+      const upd = (await entriesOf(app, h))[0]!;
+      expect(upd).toMatchObject({ kind: "price_change", valueCents: "1500", amountEditable: true });
+      expect((await edit(app, upd.id, { amountCents: "1200" })).status).toBe(200);
+      expect(await holding(fix, h)).toMatchObject({ cur: "1200" });
+      expect((await entriesOf(app, h))[0]).toMatchObject({ valueCents: "1200", amountCents: "400" });
+
+      expect((await call(app, "PATCH", `/${h}`, { currentPriceCents: "2000" })).status).toBe(200);
+      expect((await edit(app, upd.id, { amountCents: "1100" })).status).toBe(200);
+      expect(await holding(fix, h)).toMatchObject({ cur: "2000" });
+      const [later, first] = await entriesOf(app, h);
+      expect(first).toMatchObject({ valueCents: "1100", amountCents: "200" });
+      expect(later).toMatchObject({ valueCents: "2000", amountCents: "1800" });
+      // Undoing the later one lands on the fixed price.
+      expect((await call(app, "DELETE", `/entries/${later!.id}`)).status).toBe(200);
+      expect(await holding(fix, h)).toMatchObject({ cur: "1100" });
+    });
+
     // 261109 (user): a sale's received amount and currency can be fixed too —
     // only what came out changes: the realized gain, nothing in the asset.
     it("a sale's received amount can be fixed; only the realized gain follows", async () => {
