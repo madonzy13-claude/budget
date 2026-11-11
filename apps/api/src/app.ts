@@ -170,6 +170,7 @@ export function createApp(deps: BootedDeps) {
     createIncomesRoute({
       recomputeIncomeUnderPlanned:
         deps.budgeting.recomputeIncomeUnderPlannedRunner,
+      listMembers: (t) => deps.tenancy.workspaceRepo.listMembers(t),
     }),
   );
   // UAT Defect 1: transactions were only mounted at /transactions (cross-budget root),
@@ -211,6 +212,7 @@ export function createApp(deps: BootedDeps) {
     createIncomesRoute({
       recomputeIncomeUnderPlanned:
         deps.budgeting.recomputeIncomeUnderPlannedRunner,
+      listMembers: (t) => deps.tenancy.workspaceRepo.listMembers(t),
     }),
   );
 

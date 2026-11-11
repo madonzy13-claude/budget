@@ -71,6 +71,12 @@ export interface Income {
 }
 
 const incomesPath = (b: string) => `/budgets/${b}/incomes`;
+// 261111 (user): incomes are the owner's to change, as in the app.
+const OWNER_ONLY = " Only the budget's owner can change incomes.";
+const incomeRefused = (r: DispatchResult) =>
+  r.status === 403
+    ? toolError("owner_only", { message: OWNER_ONLY.trim() })
+    : fromDispatch(r);
 
 export async function findIncome(send: Send, b: string, id: string): Promise<Income | null> {
   const r = await send({ method: "GET", path: incomesPath(b), budgetId: b });
@@ -238,14 +244,14 @@ export function registerCushionIncomeTools(server: McpServer, ctx: McpCtx): void
     {
       description:
         "Add an income (salary, rent received…), repeating or one-time. Pass the amount in the " +
-        "currency the user said. " + SAME_AS_APP,
+        "currency the user said." + OWNER_ONLY + " " + SAME_AS_APP,
       inputSchema: z.object({ budget_id: budgetId, name: z.string().min(1).max(120), amount, currency, ...cadenceFields }),
       annotations: { destructiveHint: false, idempotentHint: false },
       entryCount: () => 1,
     },
     async ({ budget_id: b, ...i }, c) => {
       const r = await c.dispatch({ method: "POST", path: incomesPath(b), budgetId: b, body: i });
-      if (!r.ok) return fromDispatch(r);
+      if (!r.ok) return incomeRefused(r);
       const made = (await findIncome(c.dispatch, b, (r.body as Income).id)) ?? (r.body as Income);
       return {
         result: { income: shown(made) },
@@ -260,7 +266,7 @@ export function registerCushionIncomeTools(server: McpServer, ctx: McpCtx): void
     ctx,
     "edit_income",
     {
-      description: "Change an income; pass only what changes. " + SAME_AS_APP,
+      description: "Change an income; pass only what changes." + OWNER_ONLY + " " + SAME_AS_APP,
       inputSchema: z.object({
         budget_id: budgetId,
         income_id: z.uuid(),
@@ -293,7 +299,7 @@ export function registerCushionIncomeTools(server: McpServer, ctx: McpCtx): void
         ...(ch.once_date !== undefined ? { onceDate: ch.once_date } : {}),
       };
       const r = await c.dispatch({ method: "PATCH", path: `${incomesPath(b)}/${id}`, budgetId: b, body: incomeBody(merged) });
-      if (!r.ok) return fromDispatch(r);
+      if (!r.ok) return incomeRefused(r);
       const after = (await findIncome(c.dispatch, b, id)) ?? merged;
       return {
         result: { income: shown(after) },
@@ -308,7 +314,7 @@ export function registerCushionIncomeTools(server: McpServer, ctx: McpCtx): void
     ctx,
     "delete_income",
     {
-      description: "Delete an income, the same way the app's delete does. " + SAME_AS_APP,
+      description: "Delete an income, the same way the app's delete does." + OWNER_ONLY + " " + SAME_AS_APP,
       inputSchema: z.object({ budget_id: budgetId, income_id: z.uuid() }),
       annotations: { destructiveHint: true, idempotentHint: true },
       entryCount: () => 1,
@@ -317,7 +323,7 @@ export function registerCushionIncomeTools(server: McpServer, ctx: McpCtx): void
       const before = await findIncome(c.dispatch, b, id);
       if (!before) return toolError("not_found");
       const r = await c.dispatch({ method: "DELETE", path: `${incomesPath(b)}/${id}`, budgetId: b });
-      if (!r.ok) return fromDispatch(r);
+      if (!r.ok) return incomeRefused(r);
       return {
         result: { deleted: id },
         effects: [effect(r, { tenantId: b, entityType: "income", entityId: id, op: "delete", before: { ...before }, after: null })],

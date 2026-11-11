@@ -145,7 +145,7 @@ describe("incomes", () => {
     expect(del.isError).toBe(true);
     expect(errorOf(del)).toBe("owner_only");
     const list = (await tool(ownerClient, "list_incomes", { budget_id: budgetId })).structuredContent!.incomes as any[];
-    expect(list.map((i) => [i.name, i.amount])).toEqual([["Salary", "5000.00"]]);
+    expect(list.map((i) => [i.name.untrusted_user_text, i.amount])).toEqual([["Salary", "5000.00"]]);
   });
 
   it("edits only what changed, and undo restores it", async () => {
