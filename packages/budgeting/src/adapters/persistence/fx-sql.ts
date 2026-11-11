@@ -15,14 +15,17 @@
  */
 import { sql, type SQL } from "drizzle-orm";
 
-/** budgeting.fx_convert(cents, src, dst, onDate) → bigint cents (NULL: no pair). */
+/** budgeting.fx_convert(cents, src, dst, onDate) → bigint cents (NULL: no pair).
+ *  261111: same currency never reaches the function — Postgres runs a SQL
+ *  function per row even when it would short-circuit, and a wealth read made
+ *  ~20k such calls (5 per snapshot). */
 export const fxConvert = (
   cents: SQL | string,
   src: SQL | string,
   dst: SQL | string,
   onDate: SQL | string,
 ): SQL =>
-  sql`budgeting.fx_convert((${cents})::bigint, (${src})::text, (${dst})::text, (${onDate})::date)`;
+  sql`CASE WHEN (${src})::text = (${dst})::text THEN (${cents})::bigint ELSE budgeting.fx_convert((${cents})::bigint, (${src})::text, (${dst})::text, (${onDate})::date) END`;
 
 /** D-08: the date a month's limit converts at. `today` is an ISO date string or a budgetToday() fragment. */
 export const limitRateDate = (monthEnd: SQL | string, today: SQL | string): SQL =>
