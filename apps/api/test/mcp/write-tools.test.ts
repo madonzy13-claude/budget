@@ -291,6 +291,38 @@ describe("add_transactions", () => {
     expect(log.filter((l) => l.call_id === calls[1])).toHaveLength(2);
   });
 
+  // 261111 (user): "Add 7 nov tech transaction for 300zl" went in although two
+  // such were there. Same day + category + amount + currency, already in the
+  // budget or twice in the rows: nothing is written until the user says so.
+  it("stops on a likely duplicate and adds it only when told to", async () => {
+    const row = { date: "2026-09-07", category_id: foodId, amount: "300.00" };
+    const first = await tool("add_transactions", { budget_id: budgetId, idempotency_key: key(), rows: [row] });
+    expect(first.isError).toBeFalsy();
+    const before = await ledgerCount();
+
+    const again = await tool("add_transactions", {
+      budget_id: budgetId,
+      idempotency_key: key(),
+      rows: [{ ...row, amount: "5.00" }, row, { ...row, amount: "5.00" }],
+    });
+    expect(again.isError).toBe(true);
+    expect(errorOf(again)).toBe("possible_duplicates");
+    expect(JSON.parse(again.content[0]!.text).duplicates).toEqual([
+      { index: 1, duplicate_of: "existing" },
+      { index: 2, duplicate_of: 0 },
+    ]);
+    expect(await ledgerCount()).toBe(before);
+
+    const told = await tool("add_transactions", {
+      budget_id: budgetId,
+      idempotency_key: key(),
+      rows: [row],
+      allow_duplicates: true,
+    });
+    expect(told.isError).toBeFalsy();
+    expect(await ledgerCount()).toBe(before + 1);
+  });
+
   it("refuses more than 500 rows and writes nothing", async () => {
     const before = await ledgerCount();
     const r = await tool("add_transactions", {
