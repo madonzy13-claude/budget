@@ -14,6 +14,7 @@ import {
   type WriteEffect,
   type WriteOutcome,
 } from "./define";
+import { categoryCurrencies, findDuplicates } from "./import";
 
 /**
  * Write tools — each a dispatch over the route the web app uses, so the side
@@ -200,7 +201,12 @@ export function registerWriteTools(server: McpServer, ctx: McpCtx): void {
         "Add up to 500 spendings to a budget, exactly as if the user typed them in the app. " +
         "A negative amount is a refund. Currency defaults to the category's own. " +
         "Retrying with the same idempotency_key and rows is safe: rows already added are not added again. " +
-        "If a row fails, the rows before it stay and the answer says which row failed.",
+        "If a row fails, the rows before it stay and the answer says which row failed. " +
+        "A row with the same day, category, amount and currency as one already in the budget " +
+        "(or earlier in the rows) is a likely duplicate: nothing is written and the answer lists " +
+        "them. Ask the user once, then call again without those rows, or with allow_duplicates: " +
+        "true to add them anyway. Retrying a batch that already partly went in also needs " +
+        "allow_duplicates: true; the rows already added are still not added twice.",
       inputSchema: z.object({
         budget_id: budgetId,
         idempotency_key: z
@@ -219,6 +225,7 @@ export function registerWriteTools(server: McpServer, ctx: McpCtx): void {
             }),
           )
           .min(1),
+        allow_duplicates: z.boolean().optional(),
       }),
       annotations: { destructiveHint: false, idempotentHint: true },
       entryCount: (args) => args.rows.length,
@@ -241,6 +248,23 @@ export function registerWriteTools(server: McpServer, ctx: McpCtx): void {
           ...(row.currency ? { currency_original: row.currency.toUpperCase() } : {}),
           ...(row.note !== undefined ? { note: row.note } : {}),
         });
+      }
+
+      // 261111 (user): a likely duplicate waits for the user's word.
+      if (!args.allow_duplicates) {
+        const cats = await categoryCurrencies(c, args.budget_id);
+        const duplicates = await findDuplicates(
+          c,
+          args.budget_id,
+          bodies.map((b, index) => ({
+            index,
+            date: b.date,
+            category_id: b.category_id,
+            cents: b.amount_original_cents,
+            currency: b.currency_original ?? cats.get(b.category_id) ?? "",
+          })),
+        );
+        if (duplicates.length > 0) return toolError("possible_duplicates", { duplicates });
       }
 
       const created: Txn[] = [];

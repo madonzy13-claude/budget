@@ -131,6 +131,40 @@ async function body<T>(c: WriteCtx, path: string, budgetId: string): Promise<T |
 const categories = async (c: WriteCtx, b: string) =>
   (await body<{ categories: Category[] }>(c, `/budgets/${b}/categories`, b))?.categories ?? [];
 
+/** Category id → its own currency (a row without one is in it). */
+export const categoryCurrencies = async (c: WriteCtx, b: string) =>
+  new Map((await categories(c, b)).map((x) => [x.id, x.currency]));
+
+/** Duplicates (D-16): same day + amount + currency + category, in the budget
+ *  already or earlier in the same rows. Shared with add_transactions. */
+export async function findDuplicates(
+  c: WriteCtx,
+  b: string,
+  rows: Array<{ index: number; date: string; category_id: string; cents: number; currency: string }>,
+): Promise<Array<{ index: number; duplicate_of: number | "existing" }>> {
+  const key = (cat: string, cents: string, ccy: string) => `${cat}|${cents}|${ccy.toUpperCase()}`;
+  const existing = new Map<string, Set<string>>();
+  for (const d of new Set(rows.map((r) => r.date))) {
+    const found = await body<{
+      transactions: Array<{ category_id: string; amount_original_cents: string; currency_original: string }>;
+    }>(c, `/budgets/${b}/transactions/search?from=${d}&to=${d}&limit=200`, b);
+    existing.set(
+      d,
+      new Set((found?.transactions ?? []).map((t) => key(t.category_id, String(t.amount_original_cents), t.currency_original))),
+    );
+  }
+  const out: Array<{ index: number; duplicate_of: number | "existing" }> = [];
+  const seen = new Map<string, number>();
+  for (const r of rows) {
+    const k = key(r.category_id, String(r.cents), r.currency);
+    const first = seen.get(`${r.date}|${k}`);
+    if (existing.get(r.date)?.has(k)) out.push({ index: r.index, duplicate_of: "existing" });
+    else if (first !== undefined) out.push({ index: r.index, duplicate_of: first });
+    else seen.set(`${r.date}|${k}`, r.index);
+  }
+  return out;
+}
+
 /** Checks one kind's rows against the budget; returns the rows to store. */
 async function check(
   c: WriteCtx,
@@ -187,29 +221,21 @@ async function check(
   }
 
   if (kind === "transactions") {
-    // Duplicates (D-16): same day + amount + currency + category, in the
-    // budget already or earlier in this import.
-    const key = (cat: string, cents: string, ccy: string) => `${cat}|${cents}|${ccy}`;
-    const existing = new Map<string, Set<string>>();
-    for (const d of new Set(stored.filter((r) => r.category_id).map((r) => r.date as string))) {
-      const found = await body<{
-        transactions: Array<{ category_id: string; amount_original_cents: string; currency_original: string }>;
-      }>(c, `/budgets/${b}/transactions/search?from=${d}&to=${d}&limit=200`, b);
-      existing.set(
-        d,
-        new Set((found?.transactions ?? []).map((t) => key(t.category_id, String(t.amount_original_cents), t.currency_original))),
-      );
-    }
-    const seen = new Map<string, number>();
-    for (const r of stored) {
-      if (!r.category_id) continue;
-      const ccy = ((r.currency as string | undefined) ?? (r.category_currency as string)).toUpperCase();
-      const k = key(r.category_id as string, String(r.amount_cents), ccy);
-      const first = seen.get(`${r.date}|${k}`);
-      if (existing.get(r.date as string)?.has(k)) issues.duplicates.push({ index: r.i, duplicate_of: "existing" });
-      else if (first !== undefined) issues.duplicates.push({ index: r.i, duplicate_of: first });
-      else seen.set(`${r.date}|${k}`, r.i);
-    }
+    issues.duplicates.push(
+      ...(await findDuplicates(
+        c,
+        b,
+        stored
+          .filter((r) => r.category_id)
+          .map((r) => ({
+            index: r.i,
+            date: r.date as string,
+            category_id: r.category_id as string,
+            cents: r.amount_cents as number,
+            currency: (r.currency as string | undefined) ?? (r.category_currency as string),
+          })),
+      )),
+    );
     // FX gaps: a foreign row needs that day's rate (D-18).
     const rates = new Map<string, boolean>();
     for (const r of stored) {

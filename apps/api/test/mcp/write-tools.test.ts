@@ -234,6 +234,8 @@ describe("add_transactions", () => {
         { date: today(), category_id: foodId, amount: "1.00" },
         { date: today(), category_id: foodId, amount: "2.00" },
       ],
+      // A replay is a likely duplicate by design; the key stops a second add.
+      allow_duplicates: true,
     };
     const first = await tool("add_transactions", args);
     const rows = await ledgerCount();
@@ -267,6 +269,7 @@ describe("add_transactions", () => {
       budget_id: budgetId,
       idempotency_key: idem,
       rows: rows("2026-02-30"),
+      allow_duplicates: true,
     });
     expect(first.isError).toBeFalsy();
     expect(first.structuredContent!.created).toHaveLength(1);
@@ -277,6 +280,7 @@ describe("add_transactions", () => {
       budget_id: budgetId,
       idempotency_key: idem,
       rows: rows(today()),
+      allow_duplicates: true,
     });
     expect(retry.isError).toBeFalsy();
     expect(retry.structuredContent!.created).toHaveLength(3);

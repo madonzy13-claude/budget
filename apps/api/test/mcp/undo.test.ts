@@ -89,6 +89,8 @@ async function addTxns(n: number, cat = foodId): Promise<Result> {
       category_id: cat,
       amount: `${i + 1}.00`,
     })),
+    // Fixture rows repeat across tests on purpose.
+    allow_duplicates: true,
   });
 }
 const txn = (id: string) => getJson(`/budgets/${budgetId}/transactions/${id}`);
