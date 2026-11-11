@@ -3153,22 +3153,23 @@ When(
   },
 );
 
-When(
-  "I set the value of {string} to {string} in Edit",
-  async ({ page }, name: string, value: string) => {
-    await new InvestmentsPo(page).openEdit(name);
-    const sheet = page.getByTestId("edit-asset-sheet");
-    await sheet.getByTestId("edit-asset-value").fill(value);
-    const res = page.waitForResponse(
-      (r) =>
-        /\/investments\/[0-9a-f-]+$/.test(r.url()) &&
-        r.request().method() === "PATCH",
-      { timeout: 15000 },
-    );
-    await sheet.getByTestId("edit-asset-save").click();
-    expect((await res).status()).toBe(200);
-  },
-);
+for (const field of ["value", "price"])
+  When(
+    `I set the ${field} of {string} to {string} in Edit`,
+    async ({ page }, name: string, value: string) => {
+      await new InvestmentsPo(page).openEdit(name);
+      const sheet = page.getByTestId("edit-asset-sheet");
+      await sheet.getByTestId(`edit-asset-${field}`).fill(value);
+      const res = page.waitForResponse(
+        (r) =>
+          /\/investments\/[0-9a-f-]+$/.test(r.url()) &&
+          r.request().method() === "PATCH",
+        { timeout: 15000 },
+      );
+      await sheet.getByTestId("edit-asset-save").click();
+      expect((await res).status()).toBe(200);
+    },
+  );
 
 Then(
   "the Edit of {string} shows the base amount {string} locked",

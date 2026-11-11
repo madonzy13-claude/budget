@@ -72,6 +72,14 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     Then the holding row "Pot" shows the amount "1,500"
     And the running totals of "Pot" read "1,500 / 1,000"
 
+  # 261111 (user): a price update's Edit offers its price and currency.
+  Scenario: Fixing the price a price update set
+    Given a "collectibles" asset "Coins" of "2" units at 1000 cents exists in my budget
+    When I open the investments wallets tab
+    And I set the price of "Coins" to "15" in Edit
+    And I change the newest entry of "Coins" to "12" in "USD"
+    Then the holding row "Coins" shows the amount "24"
+
   # 261109 (user): what a sale received can be fixed too — only its realized
   # gain follows, nothing in the asset.
   Scenario: Fixing what a sale received
