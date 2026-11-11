@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: track)_
-status: executing
+status: verifying
 stopped_at: Phase 15 context gathered
-last_updated: "2026-11-05T15:19:17.921Z"
-last_activity: 2026-11-05 -- Phase 15 planning complete
+last_updated: "2026-11-11T20:14:55.932Z"
+last_activity: 2026-11-11
 progress:
   total_phases: 16
-  completed_phases: 13
+  completed_phases: 14
   total_plans: 211
-  completed_plans: 190
-  percent: 81
+  completed_plans: 211
+  percent: 88
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 **Core value:** A family can replace a complex personal-budget spreadsheet with a multi-user, multi-currency tool that tells them — through a single Tasks queue — exactly what to do this week to keep budget, reserve, and cushion healthy.
-**Current focus:** Milestone complete
+**Current focus:** Phase 15 — mcp-server-manage-budgets-via-ai-agents-and-assistants
 
 ## Current Position
 
-Phase: 14
-Plan: Not started
+Phase: 15 (mcp-server-manage-budgets-via-ai-agents-and-assistants) — EXECUTING
+Plan: 21 of 21
 Next: Phase 13.1 inserted — /gsd:discuss-phase 13.1 (assets with transactions redesign); Phase 13 UAT paused at test 7
-Status: Ready to execute
-Last activity: 2026-11-05 -- Phase 15 planning complete
+Status: Phase complete — ready for verification
+Last activity: 2026-11-11
 
 ### Known test-debt (non-CI, non-blocking)
 
@@ -284,3 +284,6 @@ v1.0 milestone (Phases 1–2 shipped, Phases 3–6 frozen) is archived at:
 - `.planning/archive/v1.0/REQUIREMENTS.md`
 
 v1.0 carried-forward production capabilities are listed in `REQUIREMENTS.md` § v1.0 Validated.
+| 261105-rse | Investments Buy/Sell: hidden assets in pickers, "Quantity bought", buy price fill | 2026-11-05 | [261105-rse](./quick/261105-rse-investments-buy-sell-dialog-fixes/) |
+| 261106-95b | Agent-created asset starts worth its price; Mama's Green Side 1/2 get their missing value-update entry | 2026-11-06 | [261106-95b](./quick/261106-95b-investments-value-change-delete-and-mama/) |
+| 261106-9g9 | Investments: the amount opens the asset sheet (Details · Buy · Sell · Transfer); swipe keeps only Delete | 2026-11-06 | [261106-9g9](./quick/261106-9g9-investments-amount-opens-swap-sheet-with/) |
