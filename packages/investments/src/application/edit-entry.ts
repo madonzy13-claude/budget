@@ -130,6 +130,64 @@ async function planValue(
   };
 }
 
+/** 261111 (user): a price update re-stated as `amount` per unit in `ccy`.
+ *  Its value moves by the price change × the units held then; a later price
+ *  update keeps its price (its delta absorbs it), else today's price moves. */
+async function planPrice(
+  h: Holding,
+  e: StoredEntry,
+  all: StoredEntry[],
+  amount: bigint,
+  ccy: string,
+  ctx: { budgetId: string; fx: FxProvider },
+): Promise<BookingPlan> {
+  const block = amountEditBlock(e, all);
+  if (block) throw new Error(block);
+  if (amount <= 0n) throw new Error("invalid_cents");
+  const priceCcy = e.priorPriceCurrency ?? h.currentPriceCurrency ?? ccy;
+  const rate = makeRate(ctx.fx, e.effectiveDate);
+  const inPrice = async (c: bigint, from: string) =>
+    from === priceCcy ? c : cents(big(c).times(await rate(from, priceCcy)));
+  const p = await inPrice(amount, ccy);
+  const d = p - (await inPrice(e.amountCents ?? 0n, e.amountCurrency ?? priceCcy));
+  const heldAt = (x: StoredEntry) =>
+    all
+      .filter((y) => after(y, x) && y.qtyDelta !== null)
+      .reduce((q, y) => q.minus(big(y.qtyDelta!)), big(h.quantity));
+  const rewrites: EntryRewrite[] = [
+    {
+      id: e.id,
+      amountCents: amount,
+      amountCurrency: ccy,
+      valueDeltaCents: cents(big(p).minus(big(e.priorPriceCents ?? "0")).times(heldAt(e))),
+    },
+  ];
+  const patch: HoldingPatch = { id: h.id };
+  const later = all.find((x) => after(x, e) && x.kind === "price_change");
+  if (later) {
+    const xCcy = later.priorPriceCurrency ?? priceCcy;
+    const dx =
+      xCcy === priceCcy ? d : cents(big(d).times(await makeRate(ctx.fx, later.effectiveDate)(priceCcy, xCcy)));
+    rewrites.push({
+      id: later.id,
+      priorPriceCents: big(later.priorPriceCents ?? "0").plus(big(dx)).toString(),
+      valueDeltaCents: later.valueDeltaCents - cents(big(dx).times(heldAt(later))),
+    });
+  } else {
+    const cur = h.currentPriceCurrency ?? priceCcy;
+    const dCur = cur === priceCcy ? big(d) : big(d).times(await rate(priceCcy, cur));
+    patch.currentPriceCents = cents(big(h.currentPriceCents ?? 0n).plus(dCur)).toString();
+  }
+  return {
+    budgetId: ctx.budgetId,
+    patches: [patch],
+    entries: [],
+    rewriteEntries: rewrites,
+    lockHoldingIds: [h.id],
+    expectedNewestEntryId: [{ holdingId: h.id, entryId: all.at(-1)!.id }],
+  };
+}
+
 /** 261109 (user): a sale (or a swap's out leg) re-stated as having received
  *  `amount` in `ccy` — only its realized gain moves; nothing in the asset. */
 async function planSale(
@@ -293,7 +351,9 @@ export function editEntry(deps: {
           return (
             e.kind === "value_change"
               ? planValue
-              : e.kind === "withdraw" || e.kind === "convert_out"
+              : e.kind === "price_change"
+                ? planPrice
+                : e.kind === "withdraw" || e.kind === "convert_out"
                 ? planSale
                 : planAmount
           )(

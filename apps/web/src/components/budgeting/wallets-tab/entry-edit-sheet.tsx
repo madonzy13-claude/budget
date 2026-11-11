@@ -28,7 +28,8 @@ import { Field, NumericInput } from "./holding-sheet";
 import { kindKey, ledgerDate } from "./ledger-row";
 
 // 261109 (user): a value update, a sale and a swap offer theirs too.
-const MONEY_IN = ["start", "buy", "add", "value_change", "withdraw", "convert_out", "convert_in"];
+// 261111 (user): a price update too.
+const MONEY_IN = ["start", "buy", "add", "value_change", "price_change", "withdraw", "convert_out", "convert_in"];
 const bare = (c: string | null | undefined) =>
   c == null ? "" : String(Number(c) / 100);
 const toCents = (v: string) =>
@@ -36,7 +37,7 @@ const toCents = (v: string) =>
 /** What the entry said: the money put in or received, or the value an
  *  update set. */
 const said = (e: EntryDto) =>
-  e.kind === "value_change"
+  e.kind === "value_change" || e.kind === "price_change"
     ? (e.valueCents ?? null)
     : (e.amountCents?.replace(/^-/, "") ?? null);
 const caption = "text-caption text-[var(--muted-foreground)]";

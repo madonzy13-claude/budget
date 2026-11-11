@@ -266,7 +266,10 @@ export function listEntries(deps: {
             !(isDeposit && e.kind === "withdraw") &&
             amountEditBlock(e, live) === null &&
             (await swapOpen(e)),
-          valueCents: e.kind === "value_change" && e.amountCents !== null ? e.amountCents.toString() : null,
+          valueCents:
+            (e.kind === "value_change" || e.kind === "price_change") && e.amountCents !== null
+              ? e.amountCents.toString()
+              : null,
           backfilled: e.backfilled,
           deletable: isNewest && partnerOk,
           blockedReason: !isNewest

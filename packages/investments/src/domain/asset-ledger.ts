@@ -141,7 +141,8 @@ export function amountEditBlock(
 ): "not_money_in" | "later_entry_depends" | "sale_linked" | null {
   // 261109 (user): a value update too — it set the value outright; and a
   // swap's legs (convert_out / convert_in), money moved between assets.
-  if (!["start", "buy", "add", "value_change", "withdraw", "convert_out", "convert_in"].includes(target.kind))
+  // 261111 (user): a price update too.
+  if (!["start", "buy", "add", "value_change", "price_change", "withdraw", "convert_out", "convert_in"].includes(target.kind))
     return "not_money_in";
   // 261109 (user): a sale's proceeds — nothing later was worked out from
   // them; one paid into a wallet would have to move the wallet too.
