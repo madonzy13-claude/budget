@@ -576,6 +576,32 @@ describe("Asset ledger strip", () => {
     });
   });
 
+  // 261111 (user): a Price updated entry is editable too — its unit price.
+  it("a price update's Edit offers the price it set, and its currency", async () => {
+    mount([
+      e({
+        id: "p1",
+        kind: "price_change",
+        amountCents: "1000",
+        valueCents: "1500",
+        amountCurrency: "PLN",
+        dateEditable: true,
+        amountEditable: true,
+      }),
+    ]);
+    fireEvent.click(await screen.findByTestId("ledger-amount-p1"));
+    const amount = await screen.findByTestId("entry-edit-amount");
+    expect(amount).toHaveValue("15");
+    expect(screen.getByTestId("entry-edit-currency")).toBeInTheDocument();
+    fireEvent.change(amount, { target: { value: "12" } });
+    fireEvent.click(screen.getByTestId("entry-edit-save"));
+    await waitFor(() => expect(mockWrite).toHaveBeenCalled());
+    const [, init] = mockWrite.mock.calls.at(-1)!;
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      amountCents: "1200",
+    });
+  });
+
   // 261109 (user): a sale's Edit offers what was received, and its currency.
   it("a sale's Edit offers the amount received, and its currency", async () => {
     mount([
