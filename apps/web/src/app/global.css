@@ -1119,17 +1119,18 @@ main[data-shell-scroll]:has([data-lock-page-scroll]) {
 .editable-dots [data-dots-overlay] {
   text-decoration-line: underline;
   text-decoration-style: dotted;
-  /* 261108 (user): white (the text colour), not grey. */
-  text-decoration-color: var(--foreground);
+  /* 261108 (user): the text colour, not grey. 261112: whatever that is. */
+  text-decoration-color: currentColor;
   text-decoration-thickness: 1px;
   text-underline-offset: 5px;
 }
 .editable-dots [data-dots-overlay] {
   display: flex;
 }
-/* Every other dotted underline too (ledger rows, sheet captions, tasks). */
+/* Every other dotted underline too (ledger rows, sheet captions, tasks).
+   261112 (user): the colour of the text it sits under. */
 .decoration-dotted {
-  text-decoration-color: var(--foreground);
+  text-decoration-color: currentColor;
 }
 /* 261102 (user): the desktop currency dropdown is already a bordered field —
    no dotted line under its code / name / symbol. */

@@ -91,8 +91,9 @@ export function EditAssetForm({
   const unset = "—";
   // 261108 (user): what went in (a deposit's principal). 261109: above the
   // current amount, no currency — the picker names it, a pick converts it.
+  // 261112 (user): cash has none — what went in is what it is.
   const baseCents =
-    h.buyPriceCents == null
+    h.buyPriceCents == null || h.holdingType === "cash_fx"
       ? null
       : Number(h.buyPriceCents) * (byQty ? Number(h.quantity) : 1);
   const baseCcy = h.buyCurrency ?? ccy0;
