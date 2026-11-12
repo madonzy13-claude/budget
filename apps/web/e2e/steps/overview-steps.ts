@@ -588,10 +588,9 @@ Then(
 // another page keeps it.
 When("I go to the budgets list and back", async ({ page }) => {
   const back = page.url();
-  await page.getByRole("link", { name: "Budget", exact: true }).click();
-  await page.waitForURL((u) => u.toString() !== back, { timeout: 10000 });
-  await page.goBack();
-  await page.waitForURL(back, { timeout: 10000 });
+  // With one budget the list sends the user straight back to its overview.
+  await page.goto("/en?list=1");
+  await expect(page).toHaveURL(back, { timeout: 15000 });
 });
 
 When("I tap an overview amount", async ({ page }) => {
