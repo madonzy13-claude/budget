@@ -217,11 +217,13 @@ export function InvestmentRow({
       : null;
   // A tracked (auto-fetch) holding whose `name` the user overrode — it differs
   // from the instrument's own display name. Show that custom name verbatim
-  // instead of the auto "TICKER (name)" label.
+  // instead of the auto "TICKER (name)" label. 261112 (user): a custom asset
+  // (no instrument) shows its own name too, even with a typed ticker.
   const customName =
-    holding.instrumentName &&
     holding.name.trim() &&
-    holding.name.trim() !== holding.instrumentName.trim()
+    (holding.instrumentId == null ||
+      (holding.instrumentName &&
+        holding.name.trim() !== holding.instrumentName.trim()))
       ? holding.name.trim()
       : null;
   const desktopName = isCash
