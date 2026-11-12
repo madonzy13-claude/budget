@@ -26,6 +26,13 @@ Feature: Investments wallet — section, holdings, type groups, optimistic add
     And the holding row "Vintage Watch" has no inline amount input
     And the holding row "Vintage Watch" persists after a reload
 
+  # 261112 (user): a custom asset with a typed ticker is listed by its name.
+  Scenario: A custom asset with a ticker is listed by its name
+    Given investments are enabled for my budget
+    And a custom crypto asset "Euro - Kraken" with ticker "EURO" exists in my budget
+    When I open the investments wallets tab
+    Then the holding row "Euro - Kraken" shows its name, not the ticker "EURO"
+
   # Savings holding: manual starting + current amount (no quantity), rides the
   # broker field-set. Exercises the full add→POST→DB CHECK('savings')→persist path.
   Scenario: Add a savings holding persists with its starting and current amounts

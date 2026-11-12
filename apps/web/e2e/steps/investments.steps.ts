@@ -197,6 +197,33 @@ Given(
 );
 
 
+Given(
+  "a custom crypto asset {string} with ticker {string} exists in my budget",
+  async ({ freshUser }, name: string, ticker: string) => {
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      await client.query(
+        `INSERT INTO budgeting.investments
+           (id, tenant_id, budget_id, name, holding_type, ui_type, manual_ticker, quantity,
+            current_price_cents, current_price_currency, sort_order, created_at)
+         VALUES (gen_random_uuid(), $1::uuid, $1::uuid, $2, 'crypto', 'crypto', $3, 1, 100, 'EUR', 0, now())`,
+        [freshUser.budgetId, name, ticker],
+      );
+      await addStart(client, freshUser.budgetId, name);
+    });
+  },
+);
+
+// 261112 (user): a custom asset is listed by its name, never its ticker.
+Then(
+  "the holding row {string} shows its name, not the ticker {string}",
+  async ({ page }, name: string, ticker: string) => {
+    const row = new InvestmentsPo(page).row(name);
+    await expect(row.getByText(name, { exact: true }).filter({ visible: true })).not.toHaveCount(0);
+    await expect(row.getByText(ticker, { exact: true }).filter({ visible: true })).toHaveCount(0);
+    await expect(row.getByText(`${ticker} (${name})`).filter({ visible: true })).toHaveCount(0);
+  },
+);
+
 When(
   "I add a cash asset {string} of {string} with money from {string}",
   async ({ page }, name: string, amount: string, source: string) => {
