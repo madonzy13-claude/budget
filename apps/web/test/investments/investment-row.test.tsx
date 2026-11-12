@@ -188,6 +188,24 @@ describe("InvestmentRow", () => {
     expect(screen.queryByText("BTC (Bitcoin)")).toBeNull();
   });
 
+  // 261112 (user): a custom asset with a typed ticker shows its name, not the ticker.
+  it("custom asset with a ticker → renders its name, not the ticker", () => {
+    render(
+      <InvestmentRow
+        holding={holding({
+          name: "Euro - Kraken",
+          instrumentId: null,
+          instrumentName: null,
+          symbol: "EURO",
+          holdingType: "crypto",
+        })}
+      />,
+    );
+    expect(screen.getAllByText("Euro - Kraken").length).toBe(2);
+    expect(screen.queryByText("EURO")).toBeNull();
+    expect(screen.queryByText("EURO (Euro - Kraken)")).toBeNull();
+  });
+
   it("auto-fetch asset whose name matches the instrument → auto label (no custom)", () => {
     render(
       <InvestmentRow
