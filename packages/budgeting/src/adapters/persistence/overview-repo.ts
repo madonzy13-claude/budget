@@ -13,13 +13,14 @@
  * confirmed filter. Per-month planned uses the SCD-2 category_limits row active at
  * month-start and the mode from budget_mode_history that month.
  */
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId, serverNow } from "@budget/shared-kernel";
 import {
   budgetCurrency,
   budgetToday,
-  fxConvert,
+  fxApply,
+  fxRate,
   ledgerAmountIn,
   limitRateDate,
   categoryCurrencyOf,
@@ -111,6 +112,9 @@ export function createOverviewRepo(
     ): Promise<MonthlyPlannedRow[]> {
       const ccy = opts.inCategoryCurrency ? sql`cm.category_currency` : budgetCurrency(budgetId);
       const rateOn = limitRateDate(sql`cm.month_end`, budgetToday(budgetId, serverNow()));
+      const monthRate = (src: SQL) =>
+        sql`(SELECT mr.rate FROM month_rate mr
+              WHERE mr.month_end = cm.month_end AND mr.src = (${src})::text AND mr.dst = (${ccy})::text)`;
       return read(budgetId, async (tx) => {
         const res = await tx.execute(sql`
           WITH months AS (
@@ -153,6 +157,19 @@ export function createOverviewRepo(
               CROSS JOIN months m
              WHERE c.tenant_id = ${budgetId}::uuid
                AND (c.archived_from IS NULL OR to_char(c.archived_from, 'YYYY-MM') >= m.month)
+          ),
+          -- 261112: one rate per (month, limit currency, target), looked up once
+          -- here instead of three times for every category in every month.
+          lim_ccy AS (
+            SELECT normal_currency::text AS src FROM budgeting.category_limits WHERE tenant_id = ${budgetId}::uuid
+            UNION
+            SELECT cushion_currency::text FROM budgeting.category_limits WHERE tenant_id = ${budgetId}::uuid
+          ),
+          month_rate AS (
+            SELECT k.month_end, k.src, k.dst, ${fxRate(sql`k.src`, sql`k.dst`, sql`k.on_date`)} AS rate
+              FROM (SELECT DISTINCT cm.month_end, lc.src, (${ccy})::text AS dst, ${rateOn} AS on_date
+                      FROM cat_month cm CROSS JOIN lim_ccy lc) k
+             WHERE k.src <> k.dst
           )
           SELECT cm.category_id::text AS category_id,
                  cm.month AS month,
@@ -188,9 +205,9 @@ export function createOverviewRepo(
             JOIN mode_at ma ON ma.month_start = cm.month_start
             JOIN LATERAL (
               -- D-08: each amount from its own currency at LEAST(month end, today).
-              SELECT COALESCE(${fxConvert(sql`cl.normal_amount`, sql`cl.normal_currency`, ccy, rateOn)}, 0) AS normal_amount,
-                     COALESCE(${fxConvert(sql`cl.cushion_amount`, sql`cl.cushion_currency`, ccy, rateOn)}, 0) AS cushion_amount,
-                     ${fxConvert(sql`cl.needs_amount`, sql`cl.normal_currency`, ccy, rateOn)} AS needs_amount,
+              SELECT COALESCE(${fxApply(sql`cl.normal_amount`, sql`cl.normal_currency`, ccy, monthRate(sql`cl.normal_currency`))}, 0) AS normal_amount,
+                     COALESCE(${fxApply(sql`cl.cushion_amount`, sql`cl.cushion_currency`, ccy, monthRate(sql`cl.cushion_currency`))}, 0) AS cushion_amount,
+                     ${fxApply(sql`cl.needs_amount`, sql`cl.normal_currency`, ccy, monthRate(sql`cl.normal_currency`))} AS needs_amount,
                      cl.no_limit
                 FROM budgeting.category_limits cl
                WHERE cl.tenant_id = ${budgetId}::uuid

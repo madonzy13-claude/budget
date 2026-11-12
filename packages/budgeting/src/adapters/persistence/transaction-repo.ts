@@ -16,7 +16,7 @@
  */
 import { sql } from "drizzle-orm";
 import { withTenantTx, writeOutbox } from "@budget/platform";
-import { fxConvert } from "./fx-sql";
+import { budgetCurrency, ledgerAmountIn } from "./fx-sql";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import type {
   TransactionRepo,
@@ -73,17 +73,12 @@ const LEDGER_SELECT = sql`SELECT l.id, l.tenant_id, l.budget_id, l.category_id,
     FROM budgeting.expense_ledger l
     JOIN tenancy.budgets b ON b.id = l.budget_id
     CROSS JOIN LATERAL (
-      SELECT ${fxConvert(sql`l.amount_original_cents`, sql`l.currency_original`, sql`b.default_currency`, sql`l.transaction_date`)} AS cv
+      SELECT ${ledgerAmountIn(sql`b.default_currency`, "l")} AS cv
     ) x`;
 
 /** SUM of spending in the budget's current currency, each row at its own date. */
 const spendSum = (budgetId: string) =>
-  sql`COALESCE(SUM(${fxConvert(
-    sql`amount_original_cents`,
-    sql`currency_original`,
-    sql`(SELECT default_currency FROM tenancy.budgets WHERE id = ${budgetId}::uuid)`,
-    sql`transaction_date`,
-  )}), 0)`;
+  sql`COALESCE(SUM(${ledgerAmountIn(budgetCurrency(budgetId))}), 0)`;
 
 export class DrizzleTransactionRepo implements TransactionRepo {
   // Constructor accepts repo handles for cross-aggregate side-effects
@@ -611,7 +606,7 @@ export class DrizzleTransactionRepo implements TransactionRepo {
            WHERE c.tenant_id = ${tenantId}::uuid
         )
         SELECT l.category_id::text AS category_id,
-               COALESCE(SUM(${fxConvert(sql`l.amount_original_cents`, sql`l.currency_original`, sql`mc.ccy`, sql`l.transaction_date`)}), 0)::text AS cents
+               COALESCE(SUM(${ledgerAmountIn(sql`mc.ccy`, "l")}), 0)::text AS cents
           FROM budgeting.expense_ledger l
           JOIN mc ON mc.id = l.category_id
          WHERE l.tenant_id = ${tenantId}::uuid

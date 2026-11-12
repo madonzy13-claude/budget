@@ -13,7 +13,9 @@ describe("fxConvert", () => {
   test("a row already in the target currency skips the function call", () => {
     const q = render(fxConvert(sql`amount`, sql`ccy`, sql`'PLN'`, sql`d`));
     expect(q).toMatch(
-      /^CASE WHEN \(ccy\)::text = \('PLN'\)::text THEN \(amount\)::bigint ELSE budgeting\.fx_convert\(/,
+      /^CASE WHEN \(ccy\)::text = \('PLN'\)::text THEN \(amount\)::bigint ELSE round\(/,
     );
+    // 261112: and the other currency does not call it either — the lookup is inline.
+    expect(q).not.toContain("budgeting.fx_convert(");
   });
 });

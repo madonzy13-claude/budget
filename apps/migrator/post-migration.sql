@@ -712,6 +712,12 @@ GRANT UPDATE (note, transaction_date, category_id, amount_original_cents, curren
 -- a grant only in a numbered migration vanishes on the next run.
 GRANT UPDATE (deferred_at, updated_at, amount_converted_cents, fx_rate, fx_as_of)
   ON budgeting.expense_ledger TO worker_role;
+-- 0110: clearing fx_cache_ccy makes the row's trigger store its conversion
+-- again (budget currency change, fx_cache_fill). The trigger writes the cents.
+GRANT UPDATE (fx_cache_ccy) ON budgeting.expense_ledger TO app_role, worker_role;
+GRANT UPDATE (fx_cache_ccy) ON budgeting.budget_wealth_snapshots TO app_role, worker_role;
+GRANT EXECUTE ON FUNCTION budgeting.fx_convert_final(bigint, text, text, date) TO app_role, worker_role;
+GRANT EXECUTE ON FUNCTION budgeting.fx_cache_fill(uuid) TO app_role, worker_role;
 
 -- Phase 2 plan 02-03: GRANT on reserves auto-compute view —
 -- REMOVED in Phase 05 reserve rewrite (migration 0030, decision B): the

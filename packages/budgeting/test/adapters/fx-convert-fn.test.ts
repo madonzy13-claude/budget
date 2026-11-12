@@ -13,7 +13,10 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { Pool } from "pg";
 import Big from "big.js";
+import { sql } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { seedFxRates, deleteFxRates } from "../fx-seed";
+import { fxConvert } from "../../src/adapters/persistence/fx-sql";
 
 const APP = process.env.DATABASE_URL_APP?.replace("@db:", "@localhost:");
 const MIGRATOR = process.env.DATABASE_URL_MIGRATOR?.replace("@db:", "@localhost:");
@@ -93,6 +96,27 @@ describe.skipIf(!APP || !MIGRATOR)("budgeting.fx_convert", () => {
 
   test("an unknown pair is NULL, never a fabricated rate of 1", async () => {
     expect(await convert(1000, "XXX", "PLN", "2026-01-01")).toBeNull();
+  });
+
+  // 261112: fx-sql's fxConvert writes the function's body inline (3× cheaper
+  // than the call). The two must never drift apart.
+  test("fxConvert's inline SQL answers exactly as the function", async () => {
+    const dialect = new PgDialect();
+    const lit = (v: string) => sql.raw(`'${v}'`);
+    for (const [cents, src, dst, on] of [
+      [1000, "ZZA", "ZZB", D1],
+      [1000, "ZZA", "ZZB", D2],
+      [-3, "ZZA", "ZZB", D1],
+      [12345, "ZZA", "ZZB", D3],
+      [1000, "ZZA", "ZZB", "1990-01-01"],
+      [1000, "ZZA", "ZZB", "2030-01-01"],
+      [1000, "XXX", "PLN", "2026-01-01"],
+      [777, "PLN", "PLN", "2026-01-01"],
+    ] as const) {
+      const q = dialect.sqlToQuery(fxConvert(sql.raw(`${cents}`), lit(src), lit(dst), sql.raw(`'${on}'::date`))).sql;
+      const inline = (await app.query<{ v: string | null }>(`SELECT (${q})::text AS v`)).rows[0]!.v;
+      expect(inline).toBe(await convert(cents, src, dst, on));
+    }
   });
 
   test("grouped conversion over the largest budget is index-backed and fast", async () => {

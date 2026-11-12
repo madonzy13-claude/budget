@@ -14,7 +14,7 @@
 import { sql } from "drizzle-orm";
 import { withTenantTx } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
-import { budgetCurrency, fxConvert } from "./fx-sql";
+import { budgetCurrency, fxConvert, storedOr } from "./fx-sql";
 import type { WealthSnapshotRow } from "../../application/get-overview-wealth";
 import type { ImportedSnapshot } from "../../application/import-wealth-snapshots";
 
@@ -22,7 +22,12 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 /** One amount column in the budget's current currency at its capture date (NULL stays NULL). */
 const snap = (column: string, budgetId: string) =>
-  fxConvert(sql`${sql.identifier(column)}`, sql`currency`, budgetCurrency(budgetId), sql`captured_at::date`);
+  storedOr(
+    sql`fx_cache_ccy`,
+    sql`${sql.identifier(`fx_cache_${column}`)}`,
+    budgetCurrency(budgetId),
+    fxConvert(sql`${sql.identifier(column)}`, sql`currency`, budgetCurrency(budgetId), sql`captured_at::date`),
+  );
 
 type DrizzleTx = {
   execute: (q: unknown) => Promise<{ rows: Record<string, unknown>[] }>;

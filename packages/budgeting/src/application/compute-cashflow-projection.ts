@@ -10,6 +10,7 @@
 import { positionsInBudget } from "./get-reserve-positions";
 import { Temporal } from "temporal-polyfill";
 import { sql } from "drizzle-orm";
+import { ledgerAmountIn } from "../adapters/persistence/fx-sql";
 import { nextOccurrence, type CadenceSpec } from "../domain/cadence";
 import {
   TenantId,
@@ -289,8 +290,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
         const spend = await tx.execute(sql`
           -- Phase 14 (D-02): each row in the budget's current currency at its own date.
           SELECT category_id::text AS id,
-                 COALESCE(SUM(budgeting.fx_convert(amount_original_cents, currency_original,
-                                                   ${currency}::text, transaction_date)), 0)::text AS spent
+                 COALESCE(SUM(${ledgerAmountIn(sql`${currency}::text`)}), 0)::text AS spent
             FROM budgeting.expense_ledger
            WHERE tenant_id = ${input.tenantId}::uuid
              AND kind = 'SPENDING'
@@ -319,8 +319,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
           SELECT e.transaction_date::text AS date,
                  COALESCE(NULLIF(e.note, ''), sp.note, '') AS name,
                  e.category_id::text AS category_id,
-                 COALESCE(budgeting.fx_convert(e.amount_original_cents, e.currency_original,
-                                               ${currency}::text, e.transaction_date), 0)::text AS amount_cents
+                 COALESCE(${ledgerAmountIn(sql`${currency}::text`, "e")}, 0)::text AS amount_cents
             FROM budgeting.expense_ledger e
             LEFT JOIN budgeting.scheduled_payments sp ON sp.id = e.scheduled_payment_id
            WHERE e.tenant_id = ${input.tenantId}::uuid

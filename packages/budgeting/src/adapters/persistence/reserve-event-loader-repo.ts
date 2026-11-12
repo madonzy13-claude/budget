@@ -45,7 +45,7 @@ import type { TransactionRepo } from "../../ports/transaction-repo";
 import type { CategoryLimitRepo } from "../../ports/category-limit-repo";
 import type { ReservesSummaryRepo } from "../../ports/reserves-summary-repo";
 import { convertCents } from "../../domain/fx-round";
-import { fxConvert } from "./fx-sql";
+import { ledgerAmountIn } from "./fx-sql";
 import {
   convertClosedMonthResult,
   toEngineMonthEvents,
@@ -194,7 +194,7 @@ export function createReserveEventLoaderRepo(
                              to_char(l.transaction_date, 'YYYY-MM') AS month,
                              l.amount_original_cents::text AS cents,
                              l.currency_original AS ccy,
-                             ${fxConvert(sql`l.amount_original_cents`, sql`l.currency_original`, sql`c.currency`, sql`l.transaction_date`)}::text AS native
+                             ${ledgerAmountIn(sql`c.currency`, "l")}::text AS native
                         FROM budgeting.expense_ledger l
                         JOIN budgeting.categories c ON c.id = l.category_id
                        WHERE l.tenant_id = ${tenantId}::uuid

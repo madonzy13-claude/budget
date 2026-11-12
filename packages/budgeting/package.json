@@ -98,6 +98,7 @@
     "./src/application/scheduled-monthly-normalize": "./src/application/scheduled-monthly-normalize.ts",
     "./src/adapters/persistence/overview-cards-repo": "./src/adapters/persistence/overview-cards-repo.ts",
     "./src/adapters/persistence/overview-repo": "./src/adapters/persistence/overview-repo.ts",
+    "./src/adapters/persistence/fx-cache-fill": "./src/adapters/persistence/fx-cache-fill.ts",
     "./src/adapters/persistence/reserve-fit-repo": "./src/adapters/persistence/reserve-fit-repo.ts",
     "./src/application/recompute-cushion-task": "./src/application/recompute-cushion-task.ts",
     "./src/application/recompute-income-under-planned-task": "./src/application/recompute-income-under-planned-task.ts",
