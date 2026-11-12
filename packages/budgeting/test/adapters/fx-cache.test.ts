@@ -13,6 +13,7 @@ import { createWealthSnapshotRepo } from "../../src/adapters/persistence/wealth-
 import { createOverviewRepo } from "../../src/adapters/persistence/overview-repo";
 import { addTx, asApp, createFixture, dropFixture, setBudgetCurrency, type Fixture } from "./multi-currency-fixture";
 import { seedFxRates, deleteFxRates } from "../fx-seed";
+import { fillFxCaches } from "../../src/adapters/persistence/fx-cache-fill";
 
 const PROVIDER = `test-fx-cache-${crypto.randomUUID()}`;
 const LATE = `test-fx-cache-late-${crypto.randomUUID()}`;
@@ -83,6 +84,13 @@ describe.skipIf(!process.env.DATABASE_URL_APP)("Stored conversions", () => {
     await seedFxRates([{ base: "EUR", quote: "PLN", date: "1999-06-07", rate: "4.2" }], LATE);
     await run(`SELECT budgeting.fx_cache_fill($1::uuid)`, [f.tenant]);
     expect(await stored(id)).toEqual({ ccy: "PLN", cents: "4200" });
+  });
+
+  test("the hourly fill reaches every budget", async () => {
+    const id = await addTx(f, f.A, "1999-06-08", 1000, "EUR");
+    await seedFxRates([{ base: "EUR", quote: "PLN", date: "1999-06-08", rate: "4.3" }], LATE);
+    await fillFxCaches();
+    expect(await stored(id)).toEqual({ ccy: "PLN", cents: "4300" });
   });
 
   test("wealth snapshots store all three amounts and follow a currency change", async () => {
