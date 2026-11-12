@@ -334,7 +334,7 @@ describe("Edit asset sheet — locked configuration", () => {
 
   // 261109 (user): base amount goes before the current amount.
   it("the base amount sits above the current value", () => {
-    mount(cash);
+    mount(broker);
     const base = locked("baseAmount");
     const value = screen.getByTestId("edit-asset-value");
     expect(
@@ -348,6 +348,13 @@ describe("Edit asset sheet — locked configuration", () => {
       locked("baseAmount").compareDocumentPosition(locked("currentPrice")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  // 261112 (user): cash has no base amount — what went in is what it is.
+  it("cash shows no base amount", () => {
+    mount(cash);
+    expect(screen.queryByTestId("edit-asset-locked-baseAmount")).toBeNull();
+    expect(screen.getByTestId("edit-asset-value")).toBeInTheDocument();
   });
 
   it("an amount-shaped asset's base amount is what went in", () => {

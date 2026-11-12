@@ -606,6 +606,8 @@ Feature: Investments as assets with transactions (13.1)
     And I hide the asset "IBKR"
     Then the holding row "IBKR" is gone
     And the hidden-assets link of "broker" is centred and lowercase
+    # 261112 (user): its dotted line is the colour of its text.
+    And the dotted line under the hidden-assets link of "broker" is its text colour
     When I open the hidden assets of "broker"
     Then the hidden asset "IBKR" is listed fainter
     When I unhide the asset "IBKR"

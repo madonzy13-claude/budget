@@ -2900,6 +2900,19 @@ Then(
   },
 );
 
+Then(
+  "the dotted line under the hidden-assets link of {string} is its text colour",
+  async ({ page }, type: string) => {
+    const { line, text } = await new InvestmentsPo(page)
+      .hiddenLink(type)
+      .evaluate((el) => ({
+        line: getComputedStyle(el).textDecorationColor,
+        text: getComputedStyle(el).color,
+      }));
+    expect(line).toBe(text);
+  },
+);
+
 Then("the hidden-groups link is centred and lowercase", async ({ page }) => {
   const link = new InvestmentsPo(page).hiddenGroupsLink();
   await expectCentredLowercase(link, link.locator(".."));
