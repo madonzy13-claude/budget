@@ -33,6 +33,14 @@ export class OverviewPo {
     return this.bdp.overviewCard(name);
   }
 
+  /** The first privacy-masked amount (every one reveals together). */
+  firstAmount() {
+    return this.page
+      .getByTestId("slot-amount")
+      .filter({ visible: true })
+      .first();
+  }
+
   /** The "Free to move" figure on the available-to-spend card — the money that
    *  can leave the budget today with every dip in the window still covered.
    *  Absent when there is nothing to move (the balanced note takes its place). */

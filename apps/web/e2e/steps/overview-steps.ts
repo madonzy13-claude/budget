@@ -583,3 +583,28 @@ Then(
     expect(clicks.filter((c) => c !== "tooltip")).toEqual([]);
   },
 );
+
+// 261112 (user): a reveal lasts until a manual hide or the app is closed —
+// another page keeps it.
+When("I go to the budgets list and back", async ({ page }) => {
+  const back = page.url();
+  await page.getByRole("link", { name: "Budget", exact: true }).click();
+  await page.waitForURL((u) => u.toString() !== back, { timeout: 10000 });
+  await page.goBack();
+  await page.waitForURL(back, { timeout: 10000 });
+});
+
+When("I tap an overview amount", async ({ page }) => {
+  await new OverviewPo(page).firstAmount().click();
+});
+
+Then(
+  /^the overview amounts are (revealed|hidden)$/,
+  async ({ page }, state: string) => {
+    await expect(new OverviewPo(page).firstAmount()).toHaveAttribute(
+      "data-revealed",
+      state === "revealed" ? "true" : "false",
+      { timeout: 10000 },
+    );
+  },
+);

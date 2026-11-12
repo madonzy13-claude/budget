@@ -116,4 +116,48 @@ describe("SlotAmount", () => {
     expect(a!.textContent).toBe("$10");
     expect(b!.textContent).toBe("$20");
   });
+
+  // 261112 (user): revealed stays revealed when the user goes to another page
+  // (the provider unmounts and mounts again); only a manual hide or closing
+  // the app (sessionStorage is per app session) hides it again.
+  describe("reveal lasts the app session", () => {
+    beforeEach(() => sessionStorage.clear());
+
+    it("stays revealed after leaving the page and coming back", () => {
+      const page = () => (
+        <SlotRevealProvider>
+          <SlotAmount value="$10" />
+        </SlotRevealProvider>
+      );
+      const first = render(page());
+      clickAndSettle(screen.getByTestId("slot-amount"));
+      first.unmount();
+      render(page());
+      expect(screen.getByTestId("slot-amount").dataset.revealed).toBe("true");
+    });
+
+    it("a manual hide stays hidden on the next page", () => {
+      const page = () => (
+        <SlotRevealProvider>
+          <SlotAmount value="$10" />
+        </SlotRevealProvider>
+      );
+      const first = render(page());
+      clickAndSettle(screen.getByTestId("slot-amount"));
+      clickAndSettle(screen.getByTestId("slot-amount"));
+      first.unmount();
+      render(page());
+      expect(screen.getByTestId("slot-amount").dataset.revealed).toBe("false");
+    });
+
+    it("a new app session starts hidden", () => {
+      sessionStorage.clear();
+      render(
+        <SlotRevealProvider>
+          <SlotAmount value="$10" />
+        </SlotRevealProvider>,
+      );
+      expect(screen.getByTestId("slot-amount").dataset.revealed).toBe("false");
+    });
+  });
 });

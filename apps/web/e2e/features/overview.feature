@@ -140,3 +140,22 @@ Feature: Budget Overview tab
     And I expand the "reserves" overview section
     Then the "overview-planned-needs-month" chart does not wait for a finished month
     And the "reserve-fit-needs-month" chart does not wait for a finished month
+
+  # 261112 (user): revealed amounts stay revealed on another page; only a
+  # manual hide (or closing the app) hides them again.
+  Scenario: Revealed amounts stay revealed after visiting another page
+    Given the budget has a SPENDINGS wallet holding 500000 cents
+    And amounts are hidden for privacy
+    When I open the BDP for "My E2E Budget"
+    And I click the "Overview" tab pill
+    Then the overview amounts are hidden
+    When I tap an overview amount
+    Then the overview amounts are revealed
+    When I go to the budgets list and back
+    Then the overview amounts are revealed
+    When I open the BDP for "My E2E Budget"
+    And I click the "Overview" tab pill
+    Then the overview amounts are revealed
+    When I tap an overview amount
+    And I go to the budgets list and back
+    Then the overview amounts are hidden
