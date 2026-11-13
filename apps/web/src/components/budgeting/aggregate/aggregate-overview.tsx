@@ -14,7 +14,7 @@
  * STRING cents already FX-converted into `display_currency` by the API.
  */
 import { type ReactNode, useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   CircleAlert,
   CircleCheck,
@@ -34,7 +34,13 @@ import {
   SlotRevealProvider,
 } from "@/components/budgeting/overview/slot-amount";
 import { centsToPlAmount, centsToRounded } from "@/lib/cents-format";
-import { PL_TONE_CLASS, plPctDecimals, plSign, plTone } from "@/lib/pl-tone";
+import {
+  PL_TONE_CLASS,
+  plPctDecimals,
+  plSign,
+  plTone,
+  pctFigure,
+} from "@/lib/pl-tone";
 import { AggregateTrend } from "@/components/budgeting/aggregate/aggregate-trend";
 import { AggregateBudgetsTasks } from "@/components/budgeting/aggregate/aggregate-budgets-tasks";
 import { RangeSelector } from "@/components/budgeting/overview/range-selector";
@@ -126,6 +132,7 @@ const iconBad = (
 
 export function AggregateOverview() {
   const t = useTranslations("aggregate");
+  const locale = useLocale();
   const tz = useUserTimezone();
   const { data, isPending, isError } = useBudgetsAggregate();
 
@@ -171,7 +178,7 @@ export function AggregateOverview() {
 
   const ccy = data.display_currency;
   const fmt = (cents: string | bigint) =>
-    centsToRounded(cents, ccy, "en", true);
+    centsToRounded(cents, ccy, locale, true);
 
   const summable = data.budgets.filter((b) => b.included && !b.fx_unavailable);
   const netWorth = sumCents(summable, "net_worth_cents");
@@ -378,12 +385,12 @@ export function AggregateOverview() {
                         />
                       )}
                       <SlotAmount
-                        value={`${plSign(plDir, "")}${plGrow.delta_pct.toFixed(plDecimals)}%`}
+                        value={`${plSign(plDir, "")}${pctFigure(plGrow.delta_pct, plDecimals, locale)}%`}
                       />
                     </span>
                     <span className="num">
                       <SlotAmount
-                        value={`${plSign(plDir, "")}${centsToPlAmount(plGrow.delta_cents, ccy, "en", true)}`}
+                        value={`${plSign(plDir, "")}${centsToPlAmount(plGrow.delta_cents, ccy, locale, true)}`}
                       />
                     </span>
                     <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">

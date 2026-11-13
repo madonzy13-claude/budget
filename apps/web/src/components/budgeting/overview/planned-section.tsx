@@ -421,13 +421,17 @@ export function PlannedSection({
   const ownSplitById = new Map(
     (summary.data?.categories ?? []).flatMap((c) =>
       // Not `ccy`: that is declared below, from the planned query.
-      c.limitOriginal && c.limitCurrency && c.limitCurrency !== summary.data?.budgetCurrency
+      c.limitOriginal &&
+      c.limitCurrency &&
+      c.limitCurrency !== summary.data?.budgetCurrency
         ? [
             [
               c.categoryId,
               {
                 currency: c.limitCurrency,
-                needsCents: Number(c.limitOriginal.needsCents ?? c.limitOriginal.plannedCents),
+                needsCents: Number(
+                  c.limitOriginal.needsCents ?? c.limitOriginal.plannedCents,
+                ),
                 wantsCents: Number(c.limitOriginal.wantsCents ?? 0),
                 cushionCents: Number(c.limitOriginal.cushionCents),
               },
@@ -598,17 +602,17 @@ export function PlannedSection({
   const ccy = data?.currency ?? "USD";
   const fmtY = chartCompactCents;
   const fmtTooltip = (n: number) =>
-    centsToRounded(BigInt(Math.round(n)), ccy, "en", true);
+    centsToRounded(BigInt(Math.round(n)), ccy, locale, true);
   // 14-23: the same, in a category's own currency.
   const fmtTooltipIn = (n: number, currency: string) =>
-    centsToRounded(BigInt(Math.round(n)), currency, "en", true);
+    centsToRounded(BigInt(Math.round(n)), currency, locale, true);
   // To the cent: the limit dialog puts an editable "894.44" beside what the
   // limit is now, and a rounded figure next to it reads as a mismatch that is
   // not there (the lesson from the reserve dialog, 260805).
   const fmtExact = (n: number) =>
-    centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en", true);
+    centsToDisplayCompact(BigInt(Math.round(n)), ccy, locale, true);
   const fmtExactIn = (n: number, currency: string) =>
-    centsToDisplayCompact(BigInt(Math.round(n)), currency, "en", true);
+    centsToDisplayCompact(BigInt(Math.round(n)), currency, locale, true);
 
   return (
     <OverviewSection
@@ -666,7 +670,7 @@ export function PlannedSection({
               // Each total also says what it comes to in a month (user,
               // 260805) — one month of range has nothing to average.
               months={monthsInRange(range.from, range.to, todayIso, firstMonth)}
-              format={(cents) => centsToRounded(cents, ccy, "en", true)}
+              format={(cents) => centsToRounded(cents, ccy, locale, true)}
               // Deliberately NOT masked (user, 260803): these are the plan and
               // what it cost, not a balance — the figures the member reads while
               // the rest of the page stays redacted.
@@ -968,60 +972,64 @@ export function PlannedSection({
                         },
                         proj: number | undefined,
                       ) => {
-                      const real = Number(v.real_avg_cents);
-                      const avg = Number(v.planned_avg_cents);
-                      // A payload cached before the field existed replays
-                      // without it — fall back to the average, which is what
-                      // the chart used to draw either way.
-                      const current = Number(
-                        v.planned_current_cents ?? v.planned_avg_cents,
-                      );
-                      // Whichever baseline is being read is the one the bar and
-                      // its colour come from; the other rides along in the
-                      // tooltip so the comparison is visible either way.
-                      //
-                      // FUTURE measures today's limit against what the category
-                      // will actually COST from here — the habit plus every
-                      // recurring payment at its monthly rate. It used to draw
-                      // the reserve walk's suggested change instead, while the
-                      // rows above it listed today's limit and the spend: 2,500
-                      // and 2,215 with a difference of +1,314, which is not the
-                      // difference between anything on screen (user, 260808).
-                      // Three figures, one subtraction.
-                      // No projection means the reserve engine never examined
-                      // this category (reserve-excluded). Its limit is then the
-                      // only honest answer — nothing has been worked out that
-                      // would change it. Falling back to the past AVERAGE was
-                      // the formula that gave those rows the largest bars on
-                      // the chart (audit, 260807); it is gone.
-                      const expected =
-                        futureExpectedCents({
-                          projected: proj,
-                          currentCents: current,
-                          noLimit: noLimitIds.has(c.category_id),
-                        }) ?? (basis === "future" ? current : real);
-                      const planned = basis === "future" ? current : avg;
-                      const rawGap =
-                        basis === "future"
-                          ? expected - current
-                          : real - planned;
-                      // A limit is set in whole units, and the dialog proposes
-                      // whole ones — so what a rebalance leaves behind is a few
-                      // groszy of rounding, which is nothing to act on (the
-                      // same rule that makes the dialog's button inert). Drawn,
-                      // those groszy became the largest thing on the chart:
-                      // with no real change left the axis zoomed into them and
-                      // every settled category came back as a full-length
-                      // "−1 zł" bar (user, 260809).
-                      const gap =
-                        basis === "future" && Math.abs(rawGap) < UNIT_CENTS
-                          ? 0
-                          : rawGap;
-                      // Colour follows the bar: as a share of today's limit for
-                      // the change, and of the baseline for the past reading.
-                      const pctBase = basis === "future" ? current : planned;
-                      const pct =
-                        pctBase > 0 ? (gap / pctBase) * 100 : gap > 0 ? 100 : 0;
+                        const real = Number(v.real_avg_cents);
+                        const avg = Number(v.planned_avg_cents);
+                        // A payload cached before the field existed replays
+                        // without it — fall back to the average, which is what
+                        // the chart used to draw either way.
+                        const current = Number(
+                          v.planned_current_cents ?? v.planned_avg_cents,
+                        );
+                        // Whichever baseline is being read is the one the bar and
+                        // its colour come from; the other rides along in the
+                        // tooltip so the comparison is visible either way.
+                        //
+                        // FUTURE measures today's limit against what the category
+                        // will actually COST from here — the habit plus every
+                        // recurring payment at its monthly rate. It used to draw
+                        // the reserve walk's suggested change instead, while the
+                        // rows above it listed today's limit and the spend: 2,500
+                        // and 2,215 with a difference of +1,314, which is not the
+                        // difference between anything on screen (user, 260808).
+                        // Three figures, one subtraction.
+                        // No projection means the reserve engine never examined
+                        // this category (reserve-excluded). Its limit is then the
+                        // only honest answer — nothing has been worked out that
+                        // would change it. Falling back to the past AVERAGE was
+                        // the formula that gave those rows the largest bars on
+                        // the chart (audit, 260807); it is gone.
+                        const expected =
+                          futureExpectedCents({
+                            projected: proj,
+                            currentCents: current,
+                            noLimit: noLimitIds.has(c.category_id),
+                          }) ?? (basis === "future" ? current : real);
+                        const planned = basis === "future" ? current : avg;
+                        const rawGap =
+                          basis === "future"
+                            ? expected - current
+                            : real - planned;
+                        // A limit is set in whole units, and the dialog proposes
+                        // whole ones — so what a rebalance leaves behind is a few
+                        // groszy of rounding, which is nothing to act on (the
+                        // same rule that makes the dialog's button inert). Drawn,
+                        // those groszy became the largest thing on the chart:
+                        // with no real change left the axis zoomed into them and
+                        // every settled category came back as a full-length
+                        // "−1 zł" bar (user, 260809).
+                        const gap =
+                          basis === "future" && Math.abs(rawGap) < UNIT_CENTS
+                            ? 0
+                            : rawGap;
+                        // Colour follows the bar: as a share of today's limit for
+                        // the change, and of the baseline for the past reading.
+                        const pctBase = basis === "future" ? current : planned;
+                        const pct =
+                          pctBase > 0
+                            ? (gap / pctBase) * 100
+                            : gap > 0
+                              ? 100
+                              : 0;
                         return {
                           real: basis === "future" ? expected : real,
                           planned,
@@ -1054,7 +1062,12 @@ export function PlannedSection({
                               own,
                               ccy: c.currency,
                               label: signedMoney((n) =>
-                                centsToRounded(BigInt(Math.round(n)), c.currency!, "en", true),
+                                centsToRounded(
+                                  BigInt(Math.round(n)),
+                                  c.currency!,
+                                  locale,
+                                  true,
+                                ),
                               )(own.gap),
                             }
                           : {}),
@@ -1083,7 +1096,7 @@ export function PlannedSection({
                   // "−320" as room left.
                   labelKey="label"
                   formatValue={signedMoney((n) =>
-                    centsToRounded(BigInt(Math.round(n)), ccy, "en", true),
+                    centsToRounded(BigInt(Math.round(n)), ccy, locale, true),
                   )}
                   // Under plan while the range is the month still running is just
                   // "not spent yet" — those bars read grey rather than claiming
@@ -1291,37 +1304,40 @@ export function PlannedSection({
           {(data.scheduledPerMonth ?? []).some(
             (m) => Number(m.planned_cents) > 0,
           ) ? (
-          <div className="flex flex-col gap-2">
-            <ChartLabel>{t("planned.scheduledPerMonth")}</ChartLabel>
-            <OverviewAreaChart
-              // A dozen payment rows cover the chart wherever recharts places
-              // them; below the plot they do not (user, 261016).
-              tooltipBelow
-              data={data.scheduledPerMonth.map((m) => ({
-                month: String(m.month),
-                planned: Number(m.planned_cents),
-                items: m.items,
-              }))}
-              xKey="month"
-              // The tooltip repeats the series name under the month it already
-              // names, so it drops the ", by month" the chart title needs.
-              series={[{ key: "planned", label: t("planned.scheduledSeries") }]}
-              formatY={fmtY}
-              formatTooltip={fmtTooltip}
-              xTickFormat={shortMonthName}
-              labelFormat={monthName}
-              maskAmounts={false}
-              // Each payment behind the month (the series row carries the total).
-              tooltipExtra={(row) => {
-                const items =
-                  (row.items as { name: string; amount_cents: string }[]) ?? [];
-                return items.map((it) => ({
-                  label: it.name || "—",
-                  value: fmtTooltip(Number(it.amount_cents)),
-                }));
-              }}
-            />
-          </div>
+            <div className="flex flex-col gap-2">
+              <ChartLabel>{t("planned.scheduledPerMonth")}</ChartLabel>
+              <OverviewAreaChart
+                // A dozen payment rows cover the chart wherever recharts places
+                // them; below the plot they do not (user, 261016).
+                tooltipBelow
+                data={data.scheduledPerMonth.map((m) => ({
+                  month: String(m.month),
+                  planned: Number(m.planned_cents),
+                  items: m.items,
+                }))}
+                xKey="month"
+                // The tooltip repeats the series name under the month it already
+                // names, so it drops the ", by month" the chart title needs.
+                series={[
+                  { key: "planned", label: t("planned.scheduledSeries") },
+                ]}
+                formatY={fmtY}
+                formatTooltip={fmtTooltip}
+                xTickFormat={shortMonthName}
+                labelFormat={monthName}
+                maskAmounts={false}
+                // Each payment behind the month (the series row carries the total).
+                tooltipExtra={(row) => {
+                  const items =
+                    (row.items as { name: string; amount_cents: string }[]) ??
+                    [];
+                  return items.map((it) => ({
+                    label: it.name || "—",
+                    value: fmtTooltip(Number(it.amount_cents)),
+                  }));
+                }}
+              />
+            </div>
           ) : (
             <ChartStoodDown
               title={t("planned.scheduledPerMonth")}

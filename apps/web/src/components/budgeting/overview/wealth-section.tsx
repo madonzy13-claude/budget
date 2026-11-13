@@ -16,7 +16,13 @@ import { useTranslations, useLocale } from "next-intl";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { cumulativeReturnPct, investChangeBars } from "@/lib/investment-return";
-import { PL_TONE_CLASS, plPctDecimals, plSign, plTone } from "@/lib/pl-tone";
+import {
+  PL_TONE_CLASS,
+  plPctDecimals,
+  plSign,
+  plTone,
+  pctFigure,
+} from "@/lib/pl-tone";
 import { capitalizationBuckets } from "@/lib/cap-buckets";
 import { OverviewSection } from "./overview-section";
 import { CombinedStat } from "./combined-stat";
@@ -65,11 +71,12 @@ function PctStat({
 }) {
   // Three-state: no movement is 0, which is neither a gain nor a loss.
   const dir = plTone(pct);
+  const locale = useLocale();
   const Arrow = dir === "up" ? ArrowUp : dir === "down" ? ArrowDown : null;
   const pctStr =
     pct === null
       ? ""
-      : `${plSign(dir, "−")}${Math.abs(pct).toFixed(plPctDecimals(pct))}%`;
+      : `${plSign(dir, "−")}${pctFigure(Math.abs(pct), plPctDecimals(pct), locale)}%`;
   return (
     <div className="flex flex-col items-center gap-0.5">
       <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
@@ -202,7 +209,7 @@ export function WealthSection({
   const ccy = data?.currency ?? "USD";
   // Overview shows NO cents anywhere (round to whole units).
   const fmtRounded = (cents: string | bigint) =>
-    centsToRounded(cents, ccy, "en", true);
+    centsToRounded(cents, ccy, locale, true);
   // Signed, sign-tight, no cents: "+30,640 zł" / "−30,640 zł".
   const fmtSigned = (cents: string | bigint) => {
     // BigInt() throws on "NaN"/"1.5" — a single dynamics bucket missing its
@@ -216,10 +223,10 @@ export function WealthSection({
           ? BigInt(Math.round(n))
           : 0n;
     const sign = b > 0n ? "+" : b < 0n ? "−" : "";
-    return `${sign}${centsToRounded(b < 0n ? -b : b, ccy, "en", true)}`;
+    return `${sign}${centsToRounded(b < 0n ? -b : b, ccy, locale, true)}`;
   };
   const fmtSignedPct = (n: number) =>
-    `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(1)}%`;
+    `${n > 0 ? "+" : n < 0 ? "−" : ""}${pctFigure(Math.abs(n), 1, locale)}%`;
   // Chart AXIS: bare + COMPACT ("82K", "1M") — no currency (r24 items 5/7).
   const fmtY = chartCompactCents;
   // Chart TOOLTIP (on tap): the FULL value WITH currency, no cents.

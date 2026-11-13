@@ -9,7 +9,7 @@
  * By-category bars use each category's colorKey.
  */
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { OverviewSection } from "./overview-section";
 import { usePersistedSectionOpen } from "@/components/budgeting/bdp-ui-state";
 import { OverviewPieChart } from "@/components/budgeting/charts/pie-chart";
@@ -43,6 +43,7 @@ export function OverspentReservesSection({
   reservesEnabled?: boolean;
 }) {
   const t = useTranslations("bdp.tab.overview");
+  const locale = useLocale();
   const [reservesOpen, toggleReserves] = usePersistedSectionOpen("reserves");
   // Warmed in the background like the other sections (260806) — a wave behind
   // Planned so the two do not compete for the wire.
@@ -102,7 +103,11 @@ export function OverspentReservesSection({
   // refreshes the Overview itself — with its toast held back, because the
   // dialog's own rows report each move.
   const adjustReserve = useUpdateReserveAdjustment(budgetId, { silent: true });
-  const onRebalance = async (categoryId: string, targetCents: number, currency?: string) => {
+  const onRebalance = async (
+    categoryId: string,
+    targetCents: number,
+    currency?: string,
+  ) => {
     // Phase 14: the target is in the budget currency — or, for a category in
     // another currency, in its own (14-23), which the server then takes as is.
     // It answers in the currency asked.
@@ -110,10 +115,13 @@ export function OverspentReservesSection({
       categoryId,
       expectedCents: targetCents,
       currency: currency ?? ccy,
-    })) as { reserveCents?: string; reserveCentsIn?: { cents: string } } | undefined;
+    })) as
+      { reserveCents?: string; reserveCentsIn?: { cents: string } } | undefined;
     // What the engine SETTLED on, which is below the target when the raise
     // covered this month's overspend.
-    return Number(res?.reserveCentsIn?.cents ?? res?.reserveCents ?? targetCents);
+    return Number(
+      res?.reserveCentsIn?.cents ?? res?.reserveCents ?? targetCents,
+    );
   };
   // Always money (user, 260805): the action here is "move 2,900 zł", and a
   // percentage of a buffer is a step away from that. The percent view went with
@@ -131,15 +139,15 @@ export function OverspentReservesSection({
 
   const ccy = data?.currency ?? "USD";
   const fmtTooltip = (n: number) =>
-    centsToRounded(BigInt(Math.round(n)), ccy, "en", true);
+    centsToRounded(BigInt(Math.round(n)), ccy, locale, true);
   // Keeps the cents where there are any. The rebalance dialog needs them: its
   // target field is editable to the cent, so rounding what the reserve holds
   // beside it invents a difference (user screenshot, 260805).
   const fmtExact = (n: number) =>
-    centsToDisplayCompact(BigInt(Math.round(n)), ccy, "en", true);
+    centsToDisplayCompact(BigInt(Math.round(n)), ccy, locale, true);
   // 14-23: the same, in a category's own currency.
   const fmtExactIn = (n: number, currency: string) =>
-    centsToDisplayCompact(BigInt(Math.round(n)), currency, "en", true);
+    centsToDisplayCompact(BigInt(Math.round(n)), currency, locale, true);
   const BAR_BLUE = "var(--chart-bar-1)";
 
   const balanceSlices = reserveBalanceSlices(data?.reserves_by_category ?? []);

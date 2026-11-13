@@ -27,10 +27,7 @@ export function plTone(
  * appears ("0.007%"). Capped, or a rounding-error percent would print a wall of
  * zeroes.
  */
-export function plPctDecimals(
-  pct: number | null | undefined,
-  max = 6,
-): number {
+export function plPctDecimals(pct: number | null | undefined, max = 6): number {
   if (pct === null || pct === undefined || !Number.isFinite(pct)) return 1;
   const abs = Math.abs(pct);
   if (abs === 0) return 1;
@@ -64,4 +61,17 @@ export const PL_TONE_CLASS: Record<PlTone, string> = {
 /** Leading sign for a P/L string. Flat gets none — "0.0%", not "+0.0%". */
 export function plSign(tone: PlTone, minus = "-"): string {
   return tone === "up" ? "+" : tone === "down" ? minus : "";
+}
+
+/**
+ * A percentage's number in the visitor's language — "4,5" in Polish and
+ * Ukrainian, "4.5" in English (261113: Overview read "4.5%" beside
+ * "44 274,63"). Never grouped: a percent is read as one figure.
+ */
+export function pctFigure(n: number, decimals: number, locale: string): string {
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+    useGrouping: false,
+  }).format(n);
 }

@@ -3,9 +3,12 @@
  * Planned range figures). It coloured by `pct >= 0`, so a metric that did not
  * move at all rendered as a GAIN: green, up-arrow, "+0.0%".
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { CombinedStat } from "@/components/budgeting/overview/combined-stat";
+
+// The percent follows the visitor's language (261113).
+vi.mock("next-intl", () => ({ useLocale: () => "en" }));
 
 describe("CombinedStat", () => {
   it("renders an unchanged metric as flat — muted, no arrow, no + sign", () => {

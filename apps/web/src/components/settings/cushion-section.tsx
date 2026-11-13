@@ -29,7 +29,7 @@
  * shortfall_cents > 0 → --trading-down; shortfall_cents ≤ 0 → --trading-up.
  */
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Switch } from "@/components/ui/switch";
@@ -67,6 +67,7 @@ export function CushionSection({
   budgetCurrency,
 }: CushionSectionProps) {
   const t = useTranslations("settings");
+  const locale = useLocale();
   const [enabled, setEnabled] = useState(cushionEnabled);
   const [mode, setMode] = useState(cushionModeEnabled);
   const [savingFlag, setSavingFlag] = useState(false);
@@ -326,7 +327,12 @@ export function CushionSection({
           {/* Rounded, with the short sign — the same money formatting the
               Overview cards and the Assets totals use. */}
           <span className="num text-[var(--body)]">
-            {centsToRounded(cushionSummary.actual_cents, currency, "en", true)}
+            {centsToRounded(
+              cushionSummary.actual_cents,
+              currency,
+              locale,
+              true,
+            )}
             <span className="text-[var(--muted-foreground)]">
               {" / "}
               {centsToRounded(

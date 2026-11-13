@@ -18,7 +18,13 @@ import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PL_TONE_CLASS, plPctDecimals, plSign, plTone } from "@/lib/pl-tone";
+import {
+  PL_TONE_CLASS,
+  plPctDecimals,
+  plSign,
+  plTone,
+  pctFigure,
+} from "@/lib/pl-tone";
 import { useAggregateWealth } from "@/hooks/use-budgets-aggregate";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { seriesGrowth } from "@/lib/series-growth";
@@ -56,6 +62,7 @@ type WealthView = "capitalization" | "investments";
 function PctStat({ label, pct }: { label: string; pct: number | null }) {
   // Three-state: no movement is 0, which is neither a gain nor a loss.
   const dir = plTone(pct);
+  const locale = useLocale();
   const Arrow = dir === "up" ? ArrowUp : dir === "down" ? ArrowDown : null;
   return (
     <div className="flex flex-col items-center gap-0.5">
@@ -72,7 +79,7 @@ function PctStat({ label, pct }: { label: string; pct: number | null }) {
           <>
             {Arrow && <Arrow className="size-3.5" aria-hidden="true" />}
             <SlotAmount
-              value={`${plSign(dir, "−")}${Math.abs(pct).toFixed(plPctDecimals(pct))}%`}
+              value={`${plSign(dir, "−")}${pctFigure(Math.abs(pct), plPctDecimals(pct), locale)}%`}
             />
           </>
         )}
@@ -93,12 +100,13 @@ function CombinedStat({
   amount: string;
 }) {
   const dir = plTone(pct);
+  const locale = useLocale();
   const Arrow = dir === "up" ? ArrowUp : dir === "down" ? ArrowDown : null;
   const color = PL_TONE_CLASS[dir];
   const pctStr =
     pct === null
       ? "—"
-      : `${plSign(dir, "−")}${Math.abs(pct).toFixed(plPctDecimals(pct))}%`;
+      : `${plSign(dir, "−")}${pctFigure(Math.abs(pct), plPctDecimals(pct), locale)}%`;
   return (
     <div className="flex flex-col items-center gap-0.5">
       <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
@@ -134,6 +142,7 @@ export function AggregateTrend({
 }) {
   const t = useTranslations("aggregate");
   const tInvest = useTranslations("budget.investments");
+  const tOverview = useTranslations("bdp.tab.overview");
   const locale = useLocale();
   const [view, setView] = useState<WealthView>("capitalization");
   const { data, isPending } = useAggregateWealth(
@@ -161,7 +170,7 @@ export function AggregateTrend({
   const fmtPieValue = (v: number) =>
     centsToRounded(BigInt(Math.round(v)), ccy, locale, true);
   const fmtSignedPct = (n: number) =>
-    `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(1)}%`;
+    `${n > 0 ? "+" : n < 0 ? "−" : ""}${pctFigure(Math.abs(n), 1, locale)}%`;
   const { revealed } = useSlotReveal();
 
   const hasSeries = !!data && data.series.length > 0;
@@ -589,7 +598,9 @@ export function AggregateTrend({
                 colorFor={(n: string) => capColor[n] ?? NEUTRAL}
                 formatName={(n: string) => t(n === "cushion" ? "cushion" : n)}
                 formatValue={fmtPieValue}
-                allLabel={t("by_bucket")}
+                // The centre names the whole, like every other pie — not the
+                // caption above it again ("Rozkład | Rozkład", 261113).
+                allLabel={tOverview("range.all")}
                 maskValue
               />
             </div>
@@ -617,7 +628,7 @@ export function AggregateTrend({
                     tInvest(`uitype.${deriveUiType(ht, ht, false)}`)
                   }
                   formatValue={fmtPieValue}
-                  allLabel={t("by_type")}
+                  allLabel={tOverview("range.all")}
                   maskValue
                 />
               ) : (

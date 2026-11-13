@@ -83,7 +83,7 @@ function buildTitleParams(
       const asNumber = Number(raw);
       if (!Number.isFinite(asNumber)) return "";
       const intStr = Math.trunc(asNumber).toString();
-      return centsToDisplayCompact(intStr, currency, "en", true);
+      return centsToDisplayCompact(intStr, currency, locale, true);
     } catch {
       return "";
     }
@@ -93,12 +93,20 @@ function buildTitleParams(
     case "RESERVE_TOPUP": {
       // Phase 14 (D-12): one part per currency when the server sent lines.
       const lines = payload.lines as
-        | Array<{ currency: string; shortfall_cents: string; equiv?: { currency: string; cents: string } }>
+        | Array<{
+            currency: string;
+            shortfall_cents: string;
+            equiv?: { currency: string; cents: string };
+          }>
         | undefined;
       if (lines?.length) {
         return {
           amount: formatReserveLines(
-            lines.map((l) => ({ currency: l.currency, cents: l.shortfall_cents, equiv: l.equiv })),
+            lines.map((l) => ({
+              currency: l.currency,
+              cents: l.shortfall_cents,
+              equiv: l.equiv,
+            })),
             locale,
           ),
         };
