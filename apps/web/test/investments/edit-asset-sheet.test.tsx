@@ -350,6 +350,36 @@ describe("Edit asset sheet — locked configuration", () => {
     ).toBeTruthy();
   });
 
+  // 261113 (user): a counted asset also shows its quantity and current amount,
+  // locked, below the price; the amount follows the price.
+  it("a counted asset shows quantity and current amount after the price", () => {
+    mount(btc); // 2 × 60,000 PLN
+    expectLocked("quantity", "2");
+    expectLocked("currentAmount", "120000");
+    expect(
+      locked("currentPrice").compareDocumentPosition(locked("quantity")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      locked("quantity").compareDocumentPosition(locked("currentAmount")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("a hand-priced asset's current amount follows the typed price", () => {
+    mount(coin); // 3 × 2,000
+    expectLocked("quantity", "3");
+    expectLocked("currentAmount", "6000");
+    type("edit-asset-price", "2500");
+    expect((locked("currentAmount") as HTMLInputElement).value).toBe("7500");
+  });
+
+  it("an amount-shaped asset shows no quantity or current amount", () => {
+    mount(broker);
+    expect(screen.queryByTestId("edit-asset-locked-quantity")).toBeNull();
+    expect(screen.queryByTestId("edit-asset-locked-currentAmount")).toBeNull();
+  });
+
   // 261112 (user): cash has no base amount — what went in is what it is.
   it("cash shows no base amount", () => {
     mount(cash);
