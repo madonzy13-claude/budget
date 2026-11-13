@@ -421,7 +421,9 @@ export function AggregateOverview() {
                   </span>
                 </div>
                 <p className="text-caption text-[var(--muted-foreground)]">
-                  {t("retire_inflation", { pct: RETIRE_INFLATION_PCT })}
+                  {t("retire_inflation", {
+                    pct: pctFigure(RETIRE_INFLATION_PCT, 1, locale),
+                  })}
                 </p>
               </div>
             )}
