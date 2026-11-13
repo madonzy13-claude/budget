@@ -152,6 +152,15 @@ beforeAll(async () => {
       [SOURCE, CAT_HOUSE, OWNER],
     );
     await c.query(
+      `INSERT INTO budgeting.expense_ledger
+         (id, tenant_id, budget_id, category_id, note, currency_original, fx_rate, fx_as_of,
+          amount_original_cents, amount_converted_cents, transaction_date, kind, scheduled_payment_id, created_at)
+       SELECT gen_random_uuid(), $1, $1, $2, 'private', 'PLN', 1, '2026-11-10', 300000, 300000, '2026-11-10',
+              'SPENDING', s.id, now()
+         FROM budgeting.scheduled_payments s WHERE s.tenant_id = $1`,
+      [SOURCE, CAT_HOUSE],
+    );
+    await c.query(
       `INSERT INTO budgeting.category_reserve_adjustments
          (id, tenant_id, category_id, delta_cents, note, created_by, occurred_at, currency)
        VALUES (gen_random_uuid(), $1, $2, 50000, NULL, $3, now(), 'PLN'),
@@ -367,6 +376,16 @@ describe("names", () => {
     expect(merchantsForCategory("en", cats.indexOf("Housing"))).toContain(
       s.note,
     );
+  });
+
+  test("a payment made by a scheduled payment carries that payment's name", async () => {
+    const rows = await q(
+      `SELECT l.note, s.note AS scheduled FROM budgeting.expense_ledger l
+         JOIN budgeting.scheduled_payments s ON s.id = l.scheduled_payment_id
+        WHERE l.tenant_id = $1`,
+    );
+    expect(rows.length).toBe(1);
+    expect(rows[0].note).toBe(rows[0].scheduled);
   });
 
   test("reserve notes say which way the money moved", async () => {
