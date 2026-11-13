@@ -110,7 +110,7 @@ function poolExpr(locale: DemoLocale, pool: PoolName, unique: boolean): string {
  * Emitted as a CASE over the category ordinal — generated from the same tables
  * the TypeScript side uses, so the two can never drift apart.
  */
-function coherentMerchantExpr(locale: DemoLocale): string {
+function coherentMerchantExpr(locale: DemoLocale, ranked: boolean): string {
   const n = categoryCount(locale);
   // The concept the row's category was NAMED from (buildNameMap), so the note
   // and the category it sits in mean the same thing.
@@ -119,9 +119,10 @@ function coherentMerchantExpr(locale: DemoLocale): string {
   for (let i = 0; i < n; i++) {
     const list = merchantsForCategory(locale, i);
     const arr = list.map(literal).join(",");
-    branches.push(
-      `WHEN ${i} THEN (ARRAY[${arr}])[((src.__rn - 1) % ${list.length}) + 1]`,
-    );
+    const pick = ranked
+      ? `least(${list.length - 1}, floor(src.__pr * ${list.length}))::int + 1`
+      : `((src.__rn - 1) % ${list.length}) + 1`;
+    branches.push(`WHEN ${i} THEN (ARRAY[${arr}])[${pick}]`);
   }
   const flat = poolValues(locale, "merchant");
   const fallback = `(ARRAY[${flat.map(literal).join(",")}])[((src.__rn - 1) % ${flat.length}) + 1]`;
@@ -221,7 +222,7 @@ function columnExpr(
     }
     case "FAKE_TEXT": {
       const text = rule.coherentWithCategory
-        ? coherentMerchantExpr(pair.textLocale)
+        ? coherentMerchantExpr(pair.textLocale, rule.rankBy !== undefined)
         : poolExpr(pair.textLocale, rule.pool, rule.unique === true);
       if (rule.fillNull) return text;
       return `CASE WHEN src.${col(name)} IS NULL THEN NULL ELSE ${text} END`;
@@ -428,11 +429,18 @@ export async function copyIntoDemoTenant(
       exprs.push(expr);
     }
 
+    // Where a note is picked by size: the row's rank within its category.
+    const rankBy = Object.values(t.columns).find(
+      (r) => r.kind === "FAKE_TEXT" && r.rankBy,
+    ) as { rankBy?: string } | undefined;
+    const rank = rankBy?.rankBy
+      ? `, percent_rank() OVER (PARTITION BY s.category_id ORDER BY abs(s.${col(rankBy.rankBy)}::numeric) DESC) AS __pr`
+      : "";
     const res = await client.query(
       `INSERT INTO ${ident(t.table)} (${names.join(", ")})
        SELECT ${exprs.join(", ")}
          FROM (
-           SELECT s.*, row_number() OVER (ORDER BY ${orderBy}) AS __rn
+           SELECT s.*, row_number() OVER (ORDER BY ${orderBy}) AS __rn${rank}
              FROM ${ident(t.table)} s
             WHERE s.${col(scope.column)} = $1
          ) src`,
@@ -648,18 +656,26 @@ async function buildNameMap(client: PoolClient, pair: CopyPair): Promise<void> {
   });
 
   // Wallets, per type.
-  const wallets = await client.query<{ id: string; t: string }>(
-    `SELECT id, wallet_type::text AS t FROM budgeting.wallets WHERE tenant_id = $1
-      ORDER BY archived_at NULLS FIRST, sort_order, id`,
+  const wallets = await client.query<{ id: string; t: string; ccy: string }>(
+    `SELECT id, wallet_type::text AS t, currency::text AS ccy FROM budgeting.wallets
+      WHERE tenant_id = $1 ORDER BY archived_at NULLS FIRST, sort_order, id`,
     [pair.source],
   );
   const perType = new Map<string, number>();
+  const walletNames = new Set<string>();
   for (const w of wallets.rows) {
     const key = `wallet${w.t}` as keyof typeof P;
     const list = (Array.isArray(P[key]) ? P[key] : P.walletOTHER) as string[];
     const k = perType.get(key) ?? 0;
     perType.set(key, k + 1);
-    out.push([w.id, "name", lapName(list, k), null]);
+    // Past the end of the list, the currency tells two apart ("Emergency
+    // Fund CHF") before a number has to.
+    const base = list[k % list.length]!;
+    const ccy = pair.currencyMap[w.ccy] ?? w.ccy;
+    let name = k < list.length ? base : `${base} ${ccy}`;
+    for (let n = 2; walletNames.has(name); n++) name = `${base} ${n}`;
+    walletNames.add(name);
+    out.push([w.id, "name", name, null]);
   }
 
   // Investments, per type; tracked/ticked ones by ticker and where it is held.
@@ -704,8 +720,9 @@ async function buildNameMap(client: PoolClient, pair: CopyPair): Promise<void> {
     } else if (ui === "broker") {
       name = lapName(P.brokers, bump(ui));
     } else if (ui === "cash") {
-      const c = (h.ccy ?? pair.currency).toUpperCase();
-      name = `${lapName(P.cashAccounts, bump(`cash:${c}`))} ${pair.currencyMap[c] ?? c}`;
+      const src = (h.ccy ?? pair.currency).toUpperCase();
+      const c = pair.currencyMap[src] ?? src; // what the visitor will see
+      name = `${lapName(P.cashAccounts, bump(`cash:${c}`))} ${c}`;
     } else if (ui === "treasury_bond") {
       name = lapName(P.bonds, bump(ui));
     } else {

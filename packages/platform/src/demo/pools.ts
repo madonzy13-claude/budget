@@ -694,13 +694,57 @@ export function conceptForName(name: string): number | null {
   return null;
 }
 
-/** Merchants belonging to the category at `index` (wrapping). */
+/**
+ * Each concept's merchants, priciest first (indices into its list; the same
+ * for every locale, since the lists are index-aligned). A row's note is picked
+ * by how big its amount is within its category, so the biggest housing
+ * payment is the mortgage and the smallest is the building fee — never a
+ * $2,617 "Car wash" (261113).
+ */
+const PRICIEST_FIRST: number[][] = [
+  [3, 0, 2, 1], // groceries: weekly shop … corner grocer
+  [0, 3, 2, 1], // transport: metro card, taxi, tram, bus
+  [3, 0, 2, 1], // utilities: heating, electricity, gas, water
+  [0, 2, 3, 1], // dining: diner, pizza, lunch, coffee
+  [1, 2, 0, 3], // health: dentist, doctor, pharmacy, prescription
+  [1, 0, 2], // household: kitchen, cleaning, detergent
+  [3, 0, 1, 2], // subscriptions: news, streaming, music, cloud
+  [0, 1, 3, 2], // travel: flight, hotel, car rental, train
+  [3, 0, 2, 1], // education: tuition, course, online, textbooks
+  [1, 2, 0], // gifts: anniversary, holiday, birthday
+  [0, 1, 3, 2], // clothing: jacket, shoes, jeans, t-shirts
+  [1, 2, 0], // pets: vet, grooming, food
+  [3, 1, 0, 2], // repair: electrician, plumber, hardware, paint
+  [1, 2, 0, 3], // entertainment: concert, board game, cinema, museum
+  [0, 1],
+  [0, 1, 2],
+  [0, 1, 2],
+  [2, 0, 1], // fitness: gear, gym, yoga
+  [2, 0, 1], // beauty: spa, haircut, cosmetics
+  [0, 1, 2],
+  [1, 2, 0], // electronics: headphones, charger, case
+  [0, 2, 1], // garden: centre, lawn care, seeds
+  [0, 1],
+  [0, 1],
+  [0, 2, 1], // fuel: petrol, diesel, fuel stop
+  [2, 0, 1], // parking: permit, garage, street
+  [0, 1],
+  [0, 1],
+  [1, 0, 3, 2], // housing: mortgage, rent, service charge, building fees
+  [1, 3, 0, 2], // car: service, tyres, petrol, car wash
+  [3, 0, 1, 2], // celebrations: wedding gift, party, dinner, supplies
+  [0, 1, 2],
+];
+
+/** Merchants belonging to the category at `index` (wrapping), priciest first. */
 export function merchantsForCategory(
   locale: DemoLocale,
   index: number,
 ): string[] {
   const lists = BY_LOCALE[locale].merchantsByCategory;
-  return lists[Math.abs(index) % lists.length]!;
+  const i = Math.abs(index) % lists.length;
+  const order = PRICIEST_FIRST[i] ?? lists[i]!.map((_, k) => k);
+  return order.map((k) => lists[i]![k]!);
 }
 
 export function categoryCount(locale: DemoLocale): number {

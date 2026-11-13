@@ -384,7 +384,7 @@ describe("names", () => {
     const names = rows.map((r) => r.name);
     expect(new Set(names).size).toBe(names.length);
     for (const r of rows) {
-      const base = r.name.replace(/ \d+$/, "");
+      const base = r.name.replace(/ ([A-Z]{3}|\d+)$/, "");
       expect(poolValues("en", `wallet${r.t}` as never)).toContain(base);
     }
   });

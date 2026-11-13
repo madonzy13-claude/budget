@@ -285,7 +285,7 @@ export const demoManifest: TableManifest[] = [
       fx_as_of: ts,
       created_at: ts,
       transaction_date: ts,
-      note: merchantOfCategory,
+      note: { ...merchantOfCategory, rankBy: "amount_converted_cents" },
       category_id: ref("budgeting.categories"),
       amount_original_cents: flow0("src.currency_original"),
       amount_converted_cents: flow0(HOME),
@@ -342,7 +342,7 @@ export const demoManifest: TableManifest[] = [
       cadence_anchor: ts,
       weekly_dow: ts,
       // From its category's vocabulary — never "Mortgage payment" in Beauty.
-      note: merchantOfCategory,
+      note: { ...merchantOfCategory, rankBy: "amount" },
       active: ts,
       next_due_date: ts,
       created_at: ts,

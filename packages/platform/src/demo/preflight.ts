@@ -68,6 +68,11 @@ export type Rule =
       unique?: true;
       /** A NULL source still gets a value (an empty note reads as broken). */
       fillNull?: true;
+      /**
+       * With coherentWithCategory: pick by how big this column is within the
+       * category (biggest → the category's priciest item) instead of cycling.
+       */
+      rankBy?: string;
     }
   /** A name worked out in code before the copy (copy.ts buildNameMap). */
   | { kind: "MAPPED_TEXT"; field: string }
