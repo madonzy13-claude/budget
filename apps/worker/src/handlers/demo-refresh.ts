@@ -61,7 +61,8 @@ export async function handleDemoRefresh(
   const summary = Object.entries(result.counts)
     .map(([label, counts]) => {
       const rows = Object.values(counts).reduce((a, b) => a + b, 0);
-      return `${label}=${rows} rows @ x${result.scales[label]?.toFixed(3)}`;
+      const f = result.scales[label];
+      return `${label}=${rows} rows @ flow x${f?.flow} wealth x${f?.wealth}`;
     })
     .join(" ");
   console.log(`[demo-refresh] rebuilt ${summary}`);

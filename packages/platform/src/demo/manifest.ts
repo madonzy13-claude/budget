@@ -16,17 +16,35 @@
  *   - `mode: "wipe-only"` still WIPES. Skipping the wipe would let owner-shaped
  *     rows survive in the demo tenant from night to night.
  */
-import type { TableManifest } from "./preflight";
+import type { Basis, TableManifest } from "./preflight";
 
 const ts = { kind: "COPY" } as const; // timestamps, enums, booleans, flags
 const tenant = { kind: "TENANT" } as const;
 const owner = { kind: "OWNER" } as const;
 const id = { kind: "REMAP_ID" } as const;
-const money0 = { kind: "SCALE_MONEY", decimals: 0 } as const;
-const money4 = { kind: "SCALE_MONEY", decimals: 4 } as const;
+
+/**
+ * Money (261113, user): converted at the rate from its own currency into the
+ * one it is relabelled to, then scaled — WEALTH (wallets, investments) by the
+ * pair's ×0.1–5, everything else (FLOW) by its ×0.8–1.2. `c` is SQL for the
+ * source currency; `$HOME` is the source budget's own.
+ */
+const money = (
+  c: string | undefined,
+  basis: Basis,
+  decimals: 0 | 4 | 6 | 8 = 0,
+) => ({ kind: "SCALE_MONEY", decimals, basis, ccy: c }) as const;
+const flow0 = (c: string) => money(c, "flow");
+const wealth0 = (c: string) => money(c, "wealth");
 // Targets, not sums — safe to round to what a person would have typed.
-const limit0 = { kind: "SCALE_MONEY", decimals: 0, round: "nice" } as const;
-const limit4 = { kind: "SCALE_MONEY", decimals: 4, round: "nice" } as const;
+const limit0 = (c: string) => ({ ...money(c, "flow"), round: "nice" }) as const;
+const limit4 = (c: string) =>
+  ({ ...money(c, "flow", 4), round: "nice" }) as const;
+const HOME = "$HOME";
+// An investment entry's amounts are in its holding's currency.
+const HOLDING_CCY = `(SELECT coalesce(i.current_price_currency, i.buy_currency)::text FROM budgeting.investments i WHERE i.id = src.holding_id)`;
+// A one-unit asset (broker, cash, bond…) keeps its VALUE in the price.
+const AMOUNT_HOLDING = `(SELECT i.ui_type NOT IN ('stocks','crypto','precious_metals','collectibles') AND i.quantity = 1 FROM budgeting.investments i WHERE i.id = src.holding_id)`;
 const ccy = { kind: "RELABEL_CURRENCY" } as const;
 const nul = { kind: "NULL" } as const;
 const ref = (t: string) => ({ kind: "REMAP_ID", references: t }) as const;
@@ -45,7 +63,10 @@ const merchantOfCategory = {
   kind: "FAKE_TEXT",
   pool: "merchant",
   coherentWithCategory: true,
+  fillNull: true,
 } as const;
+/** A name worked out per row before the copy — see copy.ts buildNameMap. */
+const mapped = (field: string) => ({ kind: "MAPPED_TEXT", field }) as const;
 
 export const demoManifest: TableManifest[] = [
   // ─── tenancy ──────────────────────────────────────────────────────────────
@@ -150,7 +171,8 @@ export const demoManifest: TableManifest[] = [
       id,
       tenant_id: tenant,
       // UNIQUE (tenant_id, lower(name)) WHERE archived_at IS NULL.
-      name: { ...fake("category"), unique: true as const },
+      // By what the source category IS (House → Housing), unique per tenant.
+      name: mapped("name"),
       parent_id: ref("budgeting.categories"),
       archived_at: ts,
       created_at: ts,
@@ -171,17 +193,19 @@ export const demoManifest: TableManifest[] = [
       id,
       tenant_id: tenant,
       category_id: ref("budgeting.categories"),
-      normal_amount: limit0,
+      normal_amount: limit0("src.normal_currency"),
       normal_currency: ccy,
-      cushion_amount: limit0,
+      cushion_amount: limit0("src.cushion_currency"),
       cushion_currency: ccy,
       effective_from: ts,
       effective_to: ts,
       actor_user_id: owner,
       created_at: ts,
-      cushion_amount_cents: limit0,
-      needs_amount: limit0,
-      wants_amount: limit0,
+      cushion_amount_cents: limit0("src.cushion_currency"),
+      needs_amount: limit0("src.normal_currency"),
+      // Rounded too, then re-derived as total − needs (copy.ts fixups) so the
+      // two parts still add up to the limit.
+      wants_amount: limit0("src.normal_currency"),
       no_limit: ts,
       // 0105: real typed amounts + currency — dropped; a demo limit converts from itself.
       converted_from: nul,
@@ -194,10 +218,16 @@ export const demoManifest: TableManifest[] = [
       id,
       tenant_id: tenant,
       category_id: ref("budgeting.categories"),
-      delta_cents: money0,
+      delta_cents: flow0("src.currency"),
       // Phase 14 (mig 0104): the adjustment's currency (its category's).
       currency: ccy,
-      note: merchantOfCategory,
+      // A reserve MOVE, never a shop item: "Top-up" / "Covered overspend".
+      note: {
+        kind: "SIGNED_TEXT",
+        column: "delta_cents",
+        pos: "reserveIn",
+        neg: "reserveOut",
+      },
       created_by: owner,
       occurred_at: ts,
     },
@@ -221,9 +251,15 @@ export const demoManifest: TableManifest[] = [
     columns: {
       id,
       tenant_id: tenant,
-      name: fake("wallet"),
+      // By wallet type, never repeated (a cushion is not a "Credit Card").
+      name: mapped("name"),
       currency: ccy,
-      current_balance: money4,
+      // Wealth — except a RESERVE wallet, which holds the reserves the flows
+      // build, so it moves with them.
+      current_balance: {
+        ...money("src.currency", "wealth", 4),
+        alt: { when: "src.wallet_type = 'RESERVE'", basis: "flow" },
+      },
       // 0101: trigger-stamped "updated … ago"; a timestamp, no PII.
       balance_updated_at: ts,
       archived_at: ts,
@@ -244,14 +280,15 @@ export const demoManifest: TableManifest[] = [
       currency_original: ccy,
       // An FX RATE is a ratio, not an amount — scaling it would corrupt the
       // relationship between amount_original and amount_converted.
-      fx_rate: ts,
+      // Re-derived from the converted amounts, so original × rate = converted.
+      fx_rate: { kind: "RATE", from: "src.currency_original", to: HOME },
       fx_as_of: ts,
       created_at: ts,
       transaction_date: ts,
       note: merchantOfCategory,
       category_id: ref("budgeting.categories"),
-      amount_original_cents: money0,
-      amount_converted_cents: money0,
+      amount_original_cents: flow0("src.currency_original"),
+      amount_converted_cents: flow0(HOME),
       budget_id: ref("tenancy.budgets"),
       kind: ts,
       scheduled_payment_id: ref("budgeting.scheduled_payments"),
@@ -276,8 +313,9 @@ export const demoManifest: TableManifest[] = [
     columns: {
       id,
       tenant_id: tenant,
-      name: fake("income"),
-      amount: limit4,
+      // By cadence and size: the biggest monthly income is the salary.
+      name: mapped("name"),
+      amount: limit4("src.currency"),
       currency: ccy,
       cadence: ts,
       cadence_anchor: ts,
@@ -297,12 +335,14 @@ export const demoManifest: TableManifest[] = [
       id,
       tenant_id: tenant,
       category_id: ref("budgeting.categories"),
-      amount: limit4,
+      // Not rounded: it must equal the payments it already generated.
+      amount: money("src.currency", "flow", 4),
       currency: ccy,
       cadence: ts,
       cadence_anchor: ts,
       weekly_dow: ts,
-      note: fake("scheduled"),
+      // From its category's vocabulary — never "Mortgage payment" in Beauty.
+      note: merchantOfCategory,
       active: ts,
       next_due_date: ts,
       created_at: ts,
@@ -329,16 +369,19 @@ export const demoManifest: TableManifest[] = [
       // points at the same rows so live prices still resolve.
       instrument_id: ts,
       // 0088: UNIQUE (budget_id, ui_type, lower(btrim(name))) — the label is the asset key.
-      name: { ...fake("holding"), unique: true as const },
+      // By type: "BTC – Exchange", "Krugerrand 1 oz", "Brokerage Account".
+      name: mapped("name"),
       holding_type: ts,
-      group_name: fake("holding"),
+      group_name: mapped("group_name"),
       // Prices are market facts and must stay real, or the holding's price
-      // history and its live quote would disagree. Scale the QUANTITY instead:
-      // that is what makes the position size non-identifying.
-      buy_price_cents: ts,
+      // history and its live quote would disagree — converted, never scaled.
+      // Scale the QUANTITY instead: that is what makes the position size
+      // non-identifying. 8 decimals: crypto lives there. (A one-unit asset's
+      // value moves back into its price after the copy — copy.ts fixups.)
+      buy_price_cents: money("src.buy_currency", "none"),
       buy_currency: ccy,
-      quantity: money4,
-      current_price_cents: ts,
+      quantity: money(undefined, "wealth", 8),
+      current_price_cents: money("src.current_price_currency", "none", 6),
       current_price_currency: ccy,
       sort_order: ts,
       archived_at: ts,
@@ -360,9 +403,9 @@ export const demoManifest: TableManifest[] = [
     },
   },
   {
-    // Phase 13 (0087). Cost/flow/realized amounts scale like the holding's
-    // cost (qty is money4-scaled, price kept) so Σhistory still matches the
-    // holding; qty_delta scales exactly like investments.quantity.
+    // Phase 13 (0087). Cost/flow/realized amounts take the WEALTH factor like
+    // the holding's quantity (prices are only converted) so Σhistory still
+    // matches the holding; qty_delta scales exactly like investments.quantity.
     table: "budgeting.investment_history",
     mode: "copy",
     columns: {
@@ -372,18 +415,24 @@ export const demoManifest: TableManifest[] = [
       holding_id: ref("budgeting.investments"),
       kind: ts,
       effective_date: ts,
-      amount_cents: money0,
+      amount_cents: wealth0("src.amount_currency"),
       amount_currency: ccy,
-      qty_delta: money4,
-      cost_delta_cents: money0,
+      qty_delta: money(undefined, "wealth", 8),
+      cost_delta_cents: wealth0("src.cost_currency"),
       cost_currency: ccy,
-      flow_cents: money0,
+      flow_cents: wealth0("src.flow_currency"),
       flow_currency: ccy,
-      sold_cost_budget_cents: money0,
-      realized_budget_cents: money0,
+      sold_cost_budget_cents: wealth0(
+        `coalesce(src.budget_currency, '${HOME}')`,
+      ),
+      realized_budget_cents: wealth0(
+        `coalesce(src.budget_currency, '${HOME}')`,
+      ),
       budget_currency: ccy,
-      value_delta_cents: money0,
-      prior_principal_cents: money0,
+      value_delta_cents: wealth0(HOLDING_CCY),
+      prior_principal_cents: wealth0(
+        `coalesce(src.amount_currency, ${HOLDING_CCY})`,
+      ),
       prior_start_date: ts,
       // Shared by both legs of a conversion. The global id map sends one
       // source uuid to one destination uuid, so the legs stay paired.
@@ -392,13 +441,22 @@ export const demoManifest: TableManifest[] = [
       deleted_at: ts,
       // 0088 (Phase 13.1): sell → wallet credit scales like wallets.current_balance.
       wallet_id: ref("budgeting.wallets"),
-      wallet_delta_numeric: money4,
+      wallet_delta_numeric: money(
+        `(SELECT w.currency::text FROM budgeting.wallets w WHERE w.id = src.wallet_id)`,
+        "wealth",
+        4,
+      ),
       wallet_created: ts,
-      prior_price_cents: ts,
+      // A unit price (converted only) — or, on a one-unit asset, its previous
+      // VALUE, which scales like the value.
+      prior_price_cents: {
+        ...money("src.prior_price_currency", "none", 6),
+        alt: { when: AMOUNT_HOLDING, basis: "wealth" },
+      },
       prior_price_currency: ccy,
       backfilled: ts,
       // 0094: the deal's amount in the asset's own currency — scales like amount_cents.
-      asset_amount_cents: money0,
+      asset_amount_cents: wealth0(HOLDING_CCY),
       // 0098: the user's own note on a sale. Free text, so it does not travel.
       note: nul,
     },
@@ -445,9 +503,9 @@ export const demoManifest: TableManifest[] = [
     columns: {
       template_id: ref("budgeting.budget_templates"),
       category_id: ref("budgeting.categories"),
-      normal_amount: limit0,
+      normal_amount: limit0("src.normal_currency"),
       normal_currency: ccy,
-      cushion_amount: limit0,
+      cushion_amount: limit0("src.cushion_currency"),
       cushion_currency: ccy,
       tenant_id: tenant,
     },
@@ -463,10 +521,10 @@ export const demoManifest: TableManifest[] = [
       tenant_id: tenant,
       budget_id: ref("tenancy.budgets"),
       captured_at: ts,
-      capitalization_cents: money0,
-      investment_value_cents: money0,
+      capitalization_cents: wealth0("src.currency"),
+      investment_value_cents: wealth0("src.currency"),
       currency: ccy,
-      investment_cost_basis_cents: money0,
+      investment_cost_basis_cents: wealth0("src.currency"),
       source: ts, // 'worker' | 'import' (15-21)
       // 0110: derived by the BEFORE trigger, like the ledger's.
       fx_cache_ccy: nul,
@@ -486,8 +544,8 @@ export const demoManifest: TableManifest[] = [
       workspace_id: ref("tenancy.budgets"),
       category_id: ref("budgeting.categories"),
       month_start_date: ts,
-      normal_amount: money4,
-      cushion_amount: money4,
+      normal_amount: money("src.currency", "flow", 4),
+      cushion_amount: money("src.currency", "flow", 4),
       currency: ccy,
       updated_at: ts,
     },

@@ -23,6 +23,8 @@ import {
   poolValues,
   merchantsForCategory,
   categoryCount,
+  localePools,
+  conceptForName,
   type PoolName,
   type DemoLocale,
 } from "./pools";
@@ -33,10 +35,20 @@ export type CopyPair = {
   label: string;
   /** Destination budget's default_currency. */
   currency: string;
+  /** The source budgets' own currency (DEMO_HOME_CURRENCY). */
+  home: string;
   /** e.g. {PLN:"USD"}; {} keeps every source currency. */
   currencyMap: Record<string, string>;
-  /** This night's factor for this pair — resolved ONCE, threaded everywhere. */
-  moneyScale: number;
+  /**
+   * Rate per RELABELLED source currency into the code it becomes, e.g.
+   * {PLN: 0.27} for PLN→USD. A relabel without its rate made the family
+   * budget ~9× too expensive and the hryvnia one ~9× too cheap (261113).
+   */
+  fxMultipliers: Record<string, number>;
+  /** Everything that is not wealth: spendings, limits, incomes… (0.8–1.2). */
+  flowScale: number;
+  /** Wallets and investments (0.1–5). Resolved ONCE per pair. */
+  wealthScale: number;
   demoUserId: string;
   /** Extra member on a shared demo budget, so the sharing story renders. */
   secondMemberUserId?: string;
@@ -100,6 +112,9 @@ function poolExpr(locale: DemoLocale, pool: PoolName, unique: boolean): string {
  */
 function coherentMerchantExpr(locale: DemoLocale): string {
   const n = categoryCount(locale);
+  // The concept the row's category was NAMED from (buildNameMap), so the note
+  // and the category it sits in mean the same thing.
+  const concept = `(SELECT n.concept FROM demo_names n WHERE n.src = src.category_id AND n.field = 'name')`;
   const branches: string[] = [];
   for (let i = 0; i < n; i++) {
     const list = merchantsForCategory(locale, i);
@@ -110,7 +125,7 @@ function coherentMerchantExpr(locale: DemoLocale): string {
   }
   const flat = poolValues(locale, "merchant");
   const fallback = `(ARRAY[${flat.map(literal).join(",")}])[((src.__rn - 1) % ${flat.length}) + 1]`;
-  return `CASE (cat_ord.ord % ${n}) ${branches.join(" ")} ELSE ${fallback} END`;
+  return `CASE (${concept} % ${n}) ${branches.join(" ")} ELSE ${fallback} END`;
 }
 
 /**
@@ -173,8 +188,10 @@ function columnExpr(
     case "NULL":
       return `NULL`;
     case "SCALE_MONEY": {
-      const s = bind("scale", String(pair.moneyScale), "::numeric");
-      const scaled = `(src.${col(name)}::numeric * ${s})`;
+      const factor = rule.alt
+        ? `(CASE WHEN ${rule.alt.when} THEN ${factorSql(rule.alt.basis, pair, bind)} ELSE ${factorSql(rule.basis, pair, bind)} END)`
+        : factorSql(rule.basis, pair, bind);
+      const scaled = `(src.${col(name)}::numeric * ${rateSql(rule.ccy, pair, bind)} * ${factor})`;
       if (rule.round === "nice") {
         // Round in MAJOR units (what the user sees), then return to the
         // column's own scale.
@@ -182,12 +199,20 @@ function columnExpr(
         const rounded = niceRoundSql(major);
         return rule.decimals === 0
           ? `(${rounded} * 100)::bigint`
-          : `round(${rounded}, 4)`;
+          : `round(${rounded}, ${rule.decimals})`;
       }
       return rule.decimals === 0
         ? `round(${scaled})::bigint`
-        : `round(${scaled}, 4)`;
+        : `round(${scaled}, ${rule.decimals})`;
     }
+    case "RATE":
+      // Both amounts were converted by their own currency's rate; the factor
+      // is common to both and cancels.
+      return `round(src.${col(name)}::numeric * ${rateSql(rule.to, pair, bind)} / ${rateSql(rule.from, pair, bind)}, 8)`;
+    case "MAPPED_TEXT":
+      return `(SELECT n.name FROM demo_names n WHERE n.src = src.id AND n.field = ${literal(rule.field)})`;
+    case "SIGNED_TEXT":
+      return `CASE WHEN src.${col(rule.column)} < 0 THEN ${poolExpr(pair.textLocale, rule.neg, false)} ELSE ${poolExpr(pair.textLocale, rule.pos, false)} END`;
     case "RELABEL_CURRENCY": {
       // Unmapped codes pass through unchanged — that is how the family pair
       // keeps PLN while the personal pair relabels it.
@@ -198,11 +223,42 @@ function columnExpr(
       const text = rule.coherentWithCategory
         ? coherentMerchantExpr(pair.textLocale)
         : poolExpr(pair.textLocale, rule.pool, rule.unique === true);
+      if (rule.fillNull) return text;
       return `CASE WHEN src.${col(name)} IS NULL THEN NULL ELSE ${text} END`;
     }
     case "REMAP_ID":
       return `(SELECT m.dst FROM demo_idmap m WHERE m.src = src.${col(name)})`;
   }
+}
+
+/** The pair's factor for a basis, as a bound parameter. */
+function factorSql(
+  basis: "flow" | "wealth" | "none",
+  pair: CopyPair,
+  bind: Binder,
+): string {
+  if (basis === "none") return "1";
+  return basis === "flow"
+    ? bind("flow", String(pair.flowScale), "::numeric")
+    : bind("wealth", String(pair.wealthScale), "::numeric");
+}
+
+/**
+ * The rate an amount in `ccy` (SQL for its SOURCE currency) is converted by:
+ * the pair's rate when that currency is relabelled, else 1 — a EUR wallet in
+ * a USD demo stays euros, worth what it is worth.
+ */
+function rateSql(
+  ccy: string | undefined,
+  pair: CopyPair,
+  bind: Binder,
+): string {
+  if (!ccy) return "1";
+  const fx = bind("fx", JSON.stringify(pair.fxMultipliers), "::jsonb");
+  const c = ccy
+    .replaceAll("'$HOME'", literal(pair.home))
+    .replaceAll("$HOME", literal(pair.home));
+  return `coalesce((${fx} ->> upper((${c})::text))::numeric, 1)`;
 }
 
 function byTable(table: string): TableManifest {
@@ -372,20 +428,6 @@ export async function copyIntoDemoTenant(
       exprs.push(expr);
     }
 
-    // Only joined when a column actually needs it. `cat_ord` numbers the
-    // source tenant's categories the SAME way the categories copy does, so a
-    // row's category ordinal here selects the very vocabulary its category was
-    // renamed from — that is what keeps a Groceries note about groceries.
-    const needsCategoryOrdinal = Object.values(t.columns).some(
-      (r) => r.kind === "FAKE_TEXT" && r.coherentWithCategory,
-    );
-    const catOrdJoin = needsCategoryOrdinal
-      ? ` LEFT JOIN (
-            SELECT id, (row_number() OVER (ORDER BY id) - 1) AS ord
-              FROM budgeting.categories WHERE tenant_id = $1
-          ) cat_ord ON cat_ord.id = src.category_id`
-      : "";
-
     const res = await client.query(
       `INSERT INTO ${ident(t.table)} (${names.join(", ")})
        SELECT ${exprs.join(", ")}
@@ -393,14 +435,341 @@ export async function copyIntoDemoTenant(
            SELECT s.*, row_number() OVER (ORDER BY ${orderBy}) AS __rn
              FROM ${ident(t.table)} s
             WHERE s.${col(scope.column)} = $1
-         ) src${catOrdJoin}`,
+         ) src`,
       values,
     );
     counts[t.table] = res.rowCount ?? 0;
   }
 
+  await fixUps(client, pair);
   await synthesiseMembership(client, pair);
   return counts;
+}
+
+const QUANTITY_UI_TYPES = `('stocks','crypto','precious_metals','collectibles')`;
+const COUNT_UI_TYPES = `('precious_metals','collectibles')`;
+
+/**
+ * What a column rule cannot say, because it spans columns or rows.
+ *
+ * 1. Needs + wants = the limit. Each was rounded on its own and 10 of 93
+ *    stopped adding up (261113).
+ * 2. A one-unit asset (broker, cash, bond — value in the price, quantity 1)
+ *    stays one unit: its scaled quantity moves into its prices.
+ * 3. Coins are whole: the scaled count is rounded (at least 1) and the
+ *    holding's entries follow by the same ratio.
+ * 4. A single purchase of several coins becomes staged purchases — same
+ *    coins, same total cost — so the asset has a history to open.
+ */
+async function fixUps(client: PoolClient, pair: CopyPair): Promise<void> {
+  await client.query(
+    `UPDATE budgeting.category_limits
+        SET wants_amount = normal_amount - needs_amount
+      WHERE tenant_id = $1 AND wants_amount IS NOT NULL
+        AND needs_amount IS NOT NULL AND normal_amount >= needs_amount`,
+    [pair.dest],
+  );
+  await client.query(
+    `UPDATE budgeting.investments
+        SET current_price_cents = current_price_cents * quantity,
+            buy_price_cents = round(buy_price_cents * quantity)::bigint,
+            quantity = 1
+      WHERE tenant_id = $1 AND ui_type NOT IN ${QUANTITY_UI_TYPES}
+        AND quantity = round($2::numeric, 8) AND quantity <> 1`,
+    [pair.dest, String(pair.wealthScale)],
+  );
+  const ratio = `h.nq / h.q`;
+  await client.query(
+    `WITH h AS (
+       SELECT id, quantity AS q, greatest(1, round(quantity)) AS nq
+         FROM budgeting.investments
+        WHERE tenant_id = $1 AND ui_type IN ${COUNT_UI_TYPES}
+          AND quantity > 0 AND quantity <> greatest(1, round(quantity))
+     )
+     UPDATE budgeting.investment_history x
+        SET qty_delta = round(x.qty_delta * ${ratio}),
+            amount_cents = round(x.amount_cents * ${ratio})::bigint,
+            cost_delta_cents = round(x.cost_delta_cents * ${ratio})::bigint,
+            flow_cents = round(x.flow_cents * ${ratio})::bigint,
+            value_delta_cents = round(x.value_delta_cents * ${ratio})::bigint,
+            asset_amount_cents = round(x.asset_amount_cents * ${ratio})::bigint,
+            sold_cost_budget_cents = round(x.sold_cost_budget_cents * ${ratio})::bigint,
+            realized_budget_cents = round(x.realized_budget_cents * ${ratio})::bigint
+       FROM h WHERE x.holding_id = h.id`,
+    [pair.dest],
+  );
+  await client.query(
+    `UPDATE budgeting.investments SET quantity = greatest(1, round(quantity))
+      WHERE tenant_id = $1 AND ui_type IN ${COUNT_UI_TYPES} AND quantity > 0`,
+    [pair.dest],
+  );
+  await stagePurchases(client, pair);
+}
+
+/** Unit-cost ramp of staged purchases: older coins were cheaper. */
+const STAGE_WEIGHTS = [0.94, 1, 1.06];
+const STAGE_MONTHS = 7;
+
+async function stagePurchases(client: PoolClient, pair: CopyPair) {
+  const { rows } = await client.query<{
+    id: string;
+    d: string;
+    qty: string;
+    cost: string;
+  }>(
+    `SELECT x.id, x.effective_date::text AS d, x.qty_delta::text AS qty,
+            x.cost_delta_cents::text AS cost
+       FROM budgeting.investment_history x
+       JOIN budgeting.investments i ON i.id = x.holding_id
+      WHERE x.tenant_id = $1 AND i.ui_type IN ${COUNT_UI_TYPES}
+        AND x.kind = 'start' AND x.deleted_at IS NULL AND x.qty_delta >= 2
+        AND NOT EXISTS (SELECT 1 FROM budgeting.investment_history y
+                         WHERE y.holding_id = x.holding_id AND y.id <> x.id
+                           AND y.deleted_at IS NULL)`,
+    [pair.dest],
+  );
+  for (const r of rows) {
+    const plan = stagePlan(Number(r.qty), BigInt(r.cost), r.d, new Date());
+    if (plan.length < 2) continue;
+    const [first, ...rest] = plan;
+    await client.query(
+      `UPDATE budgeting.investment_history
+          SET qty_delta = $2, amount_cents = $3, cost_delta_cents = $3, flow_cents = $3
+        WHERE id = $1`,
+      [r.id, first!.qty, first!.cost.toString()],
+    );
+    for (const [k, p] of rest.entries()) {
+      await client.query(
+        `INSERT INTO budgeting.investment_history
+           (id, tenant_id, budget_id, holding_id, kind, effective_date, amount_cents, amount_currency,
+            qty_delta, cost_delta_cents, cost_currency, flow_cents, flow_currency, value_delta_cents,
+            asset_amount_cents, created_at)
+         SELECT gen_random_uuid(), tenant_id, budget_id, holding_id, 'buy', $2::date, $3, amount_currency,
+                $4, $3, cost_currency, $3, flow_currency, 0, $3, created_at + ($5 || ' minutes')::interval
+           FROM budgeting.investment_history WHERE id = $1`,
+        [r.id, p.date, p.cost.toString(), p.qty, String(k + 1)],
+      );
+    }
+  }
+}
+
+/**
+ * Splits `qty` whole coins bought on `start` for `cost` into up to three
+ * purchases, STAGE_MONTHS apart and never later than a week ago. Quantities
+ * and costs sum exactly to the originals.
+ */
+export function stagePlan(
+  qty: number,
+  cost: bigint,
+  start: string,
+  today: Date,
+): Array<{ date: string; qty: number; cost: bigint }> {
+  const limit = new Date(today.getTime() - 7 * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  const dates = [start];
+  for (let k = 1; k < Math.min(qty, STAGE_WEIGHTS.length); k++) {
+    const d = new Date(`${start}T00:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() + STAGE_MONTHS * k);
+    const iso = d.toISOString().slice(0, 10);
+    if (iso > limit) break;
+    dates.push(iso);
+  }
+  const n = dates.length;
+  const qtys = dates.map((_, i) => Math.floor(qty / n) + (i < qty % n ? 1 : 0));
+  const weights = qtys.map((q, i) => q * STAGE_WEIGHTS[i]!);
+  const total = weights.reduce((a, b) => a + b, 0);
+  let left = cost;
+  return dates.map((date, i) => {
+    const c =
+      i === n - 1
+        ? left
+        : BigInt(Math.round((Number(cost) * weights[i]!) / total));
+    left -= c;
+    return { date, qty: qtys[i]!, cost: c };
+  });
+}
+
+/**
+ * Step 2b. A name for every row whose name has to fit what the row IS
+ * (261113, user: "check sense of naming… in some places they are
+ * ridiculous"). Worked out here, in code, from the SOURCE rows, and read by
+ * MAPPED_TEXT / coherent notes through the `demo_names` temp table.
+ *
+ *   categories   by the meaning of the source name (House → Housing)
+ *   wallets      by wallet type, never repeated
+ *   investments  by type: "BTC – Exchange", "Krugerrand 1 oz", "Brokerage
+ *                Account", "Savings USD"; groups by type
+ *   incomes      by cadence and size: the biggest monthly one is the salary
+ *
+ * Only the source's SHAPE is read (a category name to classify, a type, a
+ * ticker); no source text is written anywhere.
+ */
+async function buildNameMap(client: PoolClient, pair: CopyPair): Promise<void> {
+  await client.query(`DROP TABLE IF EXISTS demo_names`);
+  await client.query(
+    `CREATE TEMP TABLE demo_names (src uuid, field text, name text, concept int,
+       PRIMARY KEY (src, field)) ON COMMIT DROP`,
+  );
+  const P = localePools(pair.textLocale);
+  const out: Array<[string, string, string, number | null]> = [];
+
+  // Categories. Live ones claim their concept first.
+  const cats = await client.query<{ id: string; name: string }>(
+    `SELECT id, name FROM budgeting.categories WHERE tenant_id = $1
+      ORDER BY archived_at NULLS FIRST, sort_index, id`,
+    [pair.source],
+  );
+  const used = new Set<number>();
+  const wanted = cats.rows.map((c) => {
+    const k = conceptForName(c.name);
+    if (k === null || used.has(k)) return null;
+    used.add(k);
+    return k;
+  });
+  let next = 0;
+  let lap = 0;
+  cats.rows.forEach((c, i) => {
+    let k = wanted[i];
+    let suffix = "";
+    if (k === null || k === undefined) {
+      while (used.has(next) && next < P.category.length) next++;
+      if (next >= P.category.length) {
+        // More categories than concepts: lap the list, numbered.
+        k = lap % P.category.length;
+        suffix = ` ${Math.floor(lap / P.category.length) + 2}`;
+        lap++;
+      } else {
+        k = next;
+        used.add(k);
+      }
+    }
+    out.push([c.id, "name", `${P.category[k]}${suffix}`, k]);
+  });
+
+  // Wallets, per type.
+  const wallets = await client.query<{ id: string; t: string }>(
+    `SELECT id, wallet_type::text AS t FROM budgeting.wallets WHERE tenant_id = $1
+      ORDER BY archived_at NULLS FIRST, sort_order, id`,
+    [pair.source],
+  );
+  const perType = new Map<string, number>();
+  for (const w of wallets.rows) {
+    const key = `wallet${w.t}` as keyof typeof P;
+    const list = (Array.isArray(P[key]) ? P[key] : P.walletOTHER) as string[];
+    const k = perType.get(key) ?? 0;
+    perType.set(key, k + 1);
+    out.push([w.id, "name", lapName(list, k), null]);
+  }
+
+  // Investments, per type; tracked/ticked ones by ticker and where it is held.
+  const holdings = await client.query<{
+    id: string;
+    ui: string | null;
+    grp: string | null;
+    ccy: string | null;
+    ticker: string | null;
+    display: string | null;
+    symbol: string | null;
+  }>(
+    `SELECT i.id, i.ui_type AS ui, i.group_name AS grp,
+            coalesce(i.current_price_currency, i.buy_currency)::text AS ccy,
+            i.manual_ticker AS ticker, ins.display_name AS display, ins.symbol
+       FROM budgeting.investments i
+       LEFT JOIN budgeting.instruments ins ON ins.id = i.instrument_id
+      WHERE i.tenant_id = $1
+      ORDER BY i.archived_at NULLS FIRST, i.sort_order, i.id`,
+    [pair.source],
+  );
+  const counters = new Map<string, number>();
+  const taken = new Map<string, Set<string>>();
+  const groups = new Map<string, Map<string, string>>();
+  const bump = (key: string) => {
+    const k = counters.get(key) ?? 0;
+    counters.set(key, k + 1);
+    return k;
+  };
+  for (const h of holdings.rows) {
+    const ui = h.ui ?? "other";
+    let name: string;
+    if (ui === "crypto" || ui === "stocks" || ui === "etf") {
+      const ticker =
+        h.display?.match(/\(([^)]+)\)\s*$/)?.[1] ??
+        h.ticker ??
+        h.symbol?.toUpperCase() ??
+        P.stablecoin;
+      name = `${ticker} – ${P.places[bump(`place:${ticker}`) % P.places.length]}`;
+    } else if (ui === "precious_metals" || ui === "collectibles") {
+      name = lapName(P.coins, bump(ui));
+    } else if (ui === "broker") {
+      name = lapName(P.brokers, bump(ui));
+    } else if (ui === "cash") {
+      const c = (h.ccy ?? pair.currency).toUpperCase();
+      name = `${lapName(P.cashAccounts, bump(`cash:${c}`))} ${pair.currencyMap[c] ?? c}`;
+    } else if (ui === "treasury_bond") {
+      name = lapName(P.bonds, bump(ui));
+    } else {
+      name = lapName(P.holding, bump("other"));
+    }
+    // UNIQUE (budget_id, ui_type, lower(btrim(name))).
+    const seen = taken.get(ui) ?? new Set<string>();
+    taken.set(ui, seen);
+    let unique = name;
+    for (let n = 2; seen.has(unique.toLowerCase()); n++)
+      unique = `${name} ${n}`;
+    seen.add(unique.toLowerCase());
+    out.push([h.id, "name", unique, null]);
+
+    if (h.grp) {
+      const byGroup = groups.get(ui) ?? new Map<string, string>();
+      groups.set(ui, byGroup);
+      if (!byGroup.has(h.grp)) {
+        const list = ui === "precious_metals" ? P.groupMetals : P.groupDefault;
+        byGroup.set(h.grp, lapName(list, byGroup.size));
+      }
+      out.push([h.id, "group_name", byGroup.get(h.grp)!, null]);
+    }
+  }
+
+  // Incomes: by cadence, the biggest first.
+  const incomes = await client.query<{ id: string; cadence: string }>(
+    `SELECT id, cadence FROM budgeting.incomes WHERE tenant_id = $1 ORDER BY amount DESC, id`,
+    [pair.source],
+  );
+  const PREFERRED: Record<string, number[]> = {
+    MONTHLY: [0, 4, 6, 1],
+    ONCE: [2, 5, 1],
+    YEARLY: [2, 3, 7],
+    WEEKLY: [1, 6],
+  };
+  const usedIncome = new Set<number>();
+  for (const inc of incomes.rows) {
+    const order = [
+      ...(PREFERRED[inc.cadence] ?? []),
+      ...P.income.map((_, i) => i),
+    ];
+    const k = order.find((i) => !usedIncome.has(i)) ?? 0;
+    usedIncome.add(k);
+    out.push([inc.id, "name", P.income[k]!, null]);
+  }
+
+  if (!out.length) return;
+  await client.query(
+    `INSERT INTO demo_names (src, field, name, concept)
+     SELECT * FROM unnest($1::uuid[], $2::text[], $3::text[], $4::int[])`,
+    [
+      out.map((o) => o[0]),
+      out.map((o) => o[1]),
+      out.map((o) => o[2]),
+      out.map((o) => o[3]),
+    ],
+  );
+}
+
+/** The k-th name of a list, numbered once it wraps: "Cash", …, "Cash 2". */
+function lapName(list: string[], k: number): string {
+  const lap = Math.floor(k / list.length);
+  return lap === 0 ? list[k]! : `${list[k % list.length]} ${lap + 1}`;
 }
 
 /**
@@ -422,7 +791,7 @@ export async function copyIntoDemoTenant(
  */
 export async function levelWealthHistory(
   client: PoolClient,
-  pair: CopyPair,
+  pair: Pick<CopyPair, "source" | "dest" | "currency" | "demoUserId">,
   live: { capitalizationCents: bigint; investmentValueCents: bigint },
 ): Promise<void> {
   await client.query(`SELECT set_config('app.tenant_ids', $1, true)`, [
@@ -522,6 +891,7 @@ export async function refreshPair(
 
   const live = await liveColumns(client);
   await buildIdMap(client, pair);
+  await buildNameMap(client, pair);
   await wipeDemoTenant(client, pair.dest);
   return copyIntoDemoTenant(client, pair, live);
 }

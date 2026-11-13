@@ -13,7 +13,10 @@ import {
   relabelCurrency,
   fakeText,
   niceRound,
-  isUsableScale,
+  inRange,
+  stablePick,
+  FLOW_RANGE,
+  WEALTH_RANGE,
   poolValues,
   merchantsForCategory,
   categoryCount,
@@ -82,20 +85,25 @@ describe("scaleMoney", () => {
   });
 });
 
-describe("isUsableScale", () => {
-  test("accepts a plausible configured factor", () => {
-    for (const v of [0.325, 1, 2.208, 13]) expect(isUsableScale(v)).toBe(true);
+describe("factor ranges", () => {
+  test("a configured factor must sit inside its range", () => {
+    expect(inRange(0.8, FLOW_RANGE)).toBe(true);
+    expect(inRange(1.21, FLOW_RANGE)).toBe(false);
+    expect(inRange(5, WEALTH_RANGE)).toBe(true);
+    for (const v of [0, -1, 1e9, NaN, Infinity, undefined]) {
+      expect(inRange(v, WEALTH_RANGE)).toBe(false);
+    }
   });
 
-  test("rejects the shapes a typo actually takes", () => {
-    // The factor is hand-configured per budget, so the failure mode is a stray
-    // character, not a subtle drift. A bad value must fall back to 1 rather
-    // than reach a public login as, say, x1000.
-    for (const v of [0, -1, 1e9, NaN, Infinity]) {
-      expect({ v: String(v), ok: isUsableScale(v) }).toEqual({
-        v: String(v),
-        ok: false,
-      });
+  test("stablePick stays in range and is deterministic", () => {
+    for (let i = 0; i < 200; i++) {
+      const id = `budget-${i}`;
+      const w = stablePick(id, "wealth", WEALTH_RANGE);
+      expect(inRange(w, WEALTH_RANGE)).toBe(true);
+      expect(stablePick(id, "wealth", WEALTH_RANGE)).toBe(w);
+      expect(inRange(stablePick(id, "flow", FLOW_RANGE), FLOW_RANGE)).toBe(
+        true,
+      );
     }
   });
 });

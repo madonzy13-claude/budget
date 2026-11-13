@@ -28,7 +28,14 @@ export type PoolName =
   | "scheduled"
   | "wallet"
   | "holding"
-  | "budget";
+  | "budget"
+  | "walletSPENDINGS"
+  | "walletCUSHION"
+  | "walletRESERVE"
+  | "walletPOSSESSION"
+  | "walletOTHER"
+  | "reserveIn"
+  | "reserveOut";
 
 type LocalePools = {
   category: string[];
@@ -39,6 +46,26 @@ type LocalePools = {
   wallet: string[];
   holding: string[];
   budget: string[];
+  // 261113 (user): a name has to fit what the row IS — a cushion wallet named
+  // "Credit Card" or BTC named "Property Share 2" read as noise.
+  walletSPENDINGS: string[];
+  walletCUSHION: string[];
+  walletRESERVE: string[];
+  walletPOSSESSION: string[];
+  walletOTHER: string[];
+  /** Reserve moves, by direction — never a shop item. */
+  reserveIn: string[];
+  reserveOut: string[];
+  /** Where a crypto position is held: "BTC – Exchange". */
+  places: string[];
+  coins: string[];
+  brokers: string[];
+  /** Followed by the account's currency: "Savings USD". */
+  cashAccounts: string[];
+  bonds: string[];
+  stablecoin: string;
+  groupMetals: string[];
+  groupDefault: string[];
 };
 
 const EN: LocalePools = {
@@ -71,6 +98,10 @@ const EN: LocalePools = {
     "Parking",
     "Phone",
     "Internet",
+    "Housing",
+    "Car",
+    "Celebrations",
+    "Other",
   ],
   merchantsByCategory: [
     ["City Market", "Corner Grocer", "Fresh Foods", "Weekly shop"],
@@ -101,6 +132,10 @@ const EN: LocalePools = {
     ["Parking garage", "Street parking", "Monthly permit"],
     ["Mobile plan", "Top-up"],
     ["Home internet", "Router rental"],
+    ["Rent", "Mortgage payment", "Building fees", "Service charge"],
+    ["Petrol fill-up", "Car service", "Car wash", "Tyres"],
+    ["Birthday party", "Holiday dinner", "Party supplies", "Wedding gift"],
+    ["Online order", "Market stall", "Miscellaneous"],
   ],
   income: [
     "Salary",
@@ -152,6 +187,52 @@ const EN: LocalePools = {
     "Corporate Bond",
   ],
   budget: ["Personal", "Family"],
+  walletSPENDINGS: [
+    "Main Account",
+    "Debit Card",
+    "Cash",
+    "Credit Card",
+    "Second Account",
+    "Joint Account",
+  ],
+  walletCUSHION: [
+    "Emergency Fund",
+    "Savings Account",
+    "Rainy Day Fund",
+    "Deposit Account",
+  ],
+  walletRESERVE: ["Reserve Pot", "Reserve Account"],
+  walletPOSSESSION: [
+    "Apartment",
+    "Car",
+    "Land Plot",
+    "Garage",
+    "Summer House",
+    "Jewellery",
+  ],
+  walletOTHER: ["Holiday Fund", "Kids Fund", "Gift Fund"],
+  reserveIn: ["Monthly top-up", "Top-up", "Moved from savings"],
+  reserveOut: ["Covered overspend", "Used for a purchase", "Rebalanced"],
+  places: ["Exchange", "Hardware wallet", "Mobile wallet", "Savings app"],
+  coins: [
+    "Krugerrand 1 oz",
+    "Maple Leaf 1 oz",
+    "Britannia 1 oz",
+    "Philharmonic 1 oz",
+    "Kangaroo 1 oz",
+    "Gold bar 1 oz",
+  ],
+  brokers: [
+    "Brokerage Account",
+    "Retirement Account",
+    "Pension Account",
+    "Investment Account",
+  ],
+  cashAccounts: ["Savings", "Currency Account", "Deposit", "Cash Reserve"],
+  bonds: ["Treasury Bonds", "Savings Bonds", "Inflation-linked Bonds"],
+  stablecoin: "Stablecoin",
+  groupMetals: ["Gold Coins", "Bullion"],
+  groupDefault: ["Portfolio", "Long Term"],
 };
 
 const PL: LocalePools = {
@@ -184,6 +265,10 @@ const PL: LocalePools = {
     "Parking",
     "Telefon",
     "Internet",
+    "Mieszkanie",
+    "Samochód",
+    "Uroczystości",
+    "Inne",
   ],
   merchantsByCategory: [
     [
@@ -224,6 +309,15 @@ const PL: LocalePools = {
     ["Parking podziemny", "Parking uliczny", "Abonament parkingowy"],
     ["Abonament komórkowy", "Doładowanie"],
     ["Internet domowy", "Wynajem routera"],
+    ["Czynsz", "Rata kredytu", "Opłaty wspólnoty", "Fundusz remontowy"],
+    ["Tankowanie", "Serwis auta", "Myjnia", "Opony"],
+    [
+      "Przyjęcie urodzinowe",
+      "Kolacja świąteczna",
+      "Artykuły imprezowe",
+      "Prezent ślubny",
+    ],
+    ["Zamówienie online", "Targ", "Różne"],
   ],
   income: [
     "Wynagrodzenie",
@@ -275,6 +369,64 @@ const PL: LocalePools = {
     "Obligacje korporacyjne",
   ],
   budget: ["Osobisty", "Rodzinny"],
+  walletSPENDINGS: [
+    "Konto główne",
+    "Karta debetowa",
+    "Gotówka",
+    "Karta kredytowa",
+    "Drugie konto",
+    "Konto wspólne",
+  ],
+  walletCUSHION: [
+    "Fundusz awaryjny",
+    "Konto oszczędnościowe",
+    "Poduszka finansowa",
+    "Lokata",
+  ],
+  walletRESERVE: ["Rezerwa", "Konto rezerwowe"],
+  walletPOSSESSION: [
+    "Mieszkanie",
+    "Samochód",
+    "Działka",
+    "Garaż",
+    "Domek letniskowy",
+    "Biżuteria",
+  ],
+  walletOTHER: [
+    "Fundusz wakacyjny",
+    "Fundusz dla dzieci",
+    "Fundusz prezentowy",
+  ],
+  reserveIn: ["Miesięczne zasilenie", "Zasilenie", "Przelew z oszczędności"],
+  reserveOut: [
+    "Pokrycie przekroczenia",
+    "Wykorzystane na zakup",
+    "Przesunięcie",
+  ],
+  places: ["Giełda", "Portfel sprzętowy", "Portfel mobilny", "Aplikacja"],
+  coins: [
+    "Krugerrand 1 oz",
+    "Liść klonu 1 oz",
+    "Britannia 1 oz",
+    "Wiedeńscy Filharmonicy 1 oz",
+    "Kangur 1 oz",
+    "Sztabka złota 1 oz",
+  ],
+  brokers: ["Rachunek maklerski", "IKE", "IKZE", "Konto inwestycyjne"],
+  cashAccounts: [
+    "Oszczędności",
+    "Konto walutowe",
+    "Lokata",
+    "Rezerwa gotówkowa",
+  ],
+  bonds: [
+    "Obligacje skarbowe",
+    "Obligacje oszczędnościowe",
+    "Obligacje indeksowane",
+  ],
+  stablecoin: "Stablecoin",
+  groupMetals: ["Złote monety", "Sztabki"],
+  groupDefault: ["Portfel", "Długoterminowe"],
 };
 
 const UK: LocalePools = {
@@ -307,6 +459,10 @@ const UK: LocalePools = {
     "Парковка",
     "Телефон",
     "Інтернет",
+    "Житло",
+    "Автомобіль",
+    "Свята",
+    "Інше",
   ],
   merchantsByCategory: [
     ["Міський ринок", "Магазин біля дому", "Свіжі продукти", "Тижневі покупки"],
@@ -346,6 +502,15 @@ const UK: LocalePools = {
     ["Підземний паркінг", "Вулична парковка", "Місячний абонемент"],
     ["Мобільний тариф", "Поповнення"],
     ["Домашній інтернет", "Оренда роутера"],
+    ["Оренда", "Платіж за іпотекою", "Внески ОСББ", "Комунальний платіж"],
+    ["Заправка", "Сервіс авто", "Автомийка", "Шини"],
+    [
+      "День народження",
+      "Святкова вечеря",
+      "Товари для свята",
+      "Весільний подарунок",
+    ],
+    ["Онлайн-замовлення", "Ринок", "Різне"],
   ],
   income: [
     "Зарплата",
@@ -397,6 +562,61 @@ const UK: LocalePools = {
     "Корпоративні облігації",
   ],
   budget: ["Особистий", "Сімейний"],
+  walletSPENDINGS: [
+    "Основний рахунок",
+    "Дебетова картка",
+    "Готівка",
+    "Кредитна картка",
+    "Другий рахунок",
+    "Спільний рахунок",
+  ],
+  walletCUSHION: [
+    "Резервний фонд",
+    "Ощадний рахунок",
+    "Фінансова подушка",
+    "Депозитний рахунок",
+  ],
+  walletRESERVE: ["Резерв", "Резервний рахунок"],
+  walletPOSSESSION: [
+    "Квартира",
+    "Автомобіль",
+    "Ділянка",
+    "Гараж",
+    "Дача",
+    "Прикраси",
+  ],
+  walletOTHER: ["Фонд відпустки", "Фонд для дітей", "Фонд подарунків"],
+  reserveIn: ["Щомісячне поповнення", "Поповнення", "Переказ із заощаджень"],
+  reserveOut: [
+    "Покриття перевитрати",
+    "Використано на покупку",
+    "Перерозподіл",
+  ],
+  places: ["Біржа", "Апаратний гаманець", "Мобільний гаманець", "Застосунок"],
+  coins: [
+    "Крюгерранд 1 унція",
+    "Кленовий лист 1 унція",
+    "Британія 1 унція",
+    "Віденська філармонія 1 унція",
+    "Кенгуру 1 унція",
+    "Злиток золота 1 унція",
+  ],
+  brokers: [
+    "Брокерський рахунок",
+    "Пенсійний рахунок",
+    "Накопичувальний рахунок",
+    "Інвестиційний рахунок",
+  ],
+  cashAccounts: [
+    "Заощадження",
+    "Валютний рахунок",
+    "Депозит",
+    "Готівковий резерв",
+  ],
+  bonds: ["ОВДП", "Ощадні облігації", "Облігації з індексацією"],
+  stablecoin: "Стейблкоїн",
+  groupMetals: ["Золоті монети", "Злитки"],
+  groupDefault: ["Портфель", "Довгострокові"],
 };
 
 const BY_LOCALE: Record<DemoLocale, LocalePools> = { en: EN, pl: PL, uk: UK };
@@ -414,6 +634,64 @@ export function poolValues(locale: DemoLocale, pool: PoolName): string[] {
   const p = BY_LOCALE[locale];
   if (pool === "merchant") return p.merchantsByCategory.flat();
   return p[pool];
+}
+
+/** The whole vocabulary of a locale, for name generation in copy.ts. */
+export function localePools(locale: DemoLocale): Readonly<LocalePools> {
+  return BY_LOCALE[locale];
+}
+
+/**
+ * Which concept (index into `category`) a SOURCE category name is about.
+ *
+ * 261113 (user): categories used to be renamed by the order of their random
+ * ids, so the owner's "House" (rent, mortgage) became "Household" with a
+ * €11,064 "Laundry detergent". The name is matched against a few stems in the
+ * languages the source may be written in; the first match wins, so the more
+ * specific rules come first ("Food & Home" is food, "Household" is not
+ * housing). null = no idea — the caller hands out an unused concept.
+ */
+const CONCEPT_RULES: Array<[RegExp, number]> = [
+  [/food|grocer|продукт|їжа|еда|jedzen|żywn|spożyw/i, 0],
+  [/transport|taxi|metro|komunik|транспорт/i, 1],
+  [/utilit|\bmedia\b|bills?\b|комунал/i, 2],
+  [/restaur|dining|cafe|kawiar|ресторан|кафе/i, 3],
+  [/health|medic|zdrow|здоров|медиц|лік/i, 4],
+  [/household|chemi|побут/i, 5],
+  [/subscri|subskr|підпис|abonam/i, 6],
+  [/travel|trip|vacation|podró|wakac|подорож|відпуст/i, 7],
+  [/educat|school|course|eduk|szkoł|освіт|навч/i, 8],
+  [/present|gift|prezent|подарун/i, 9],
+  [/cloth|apparel|odzież|ubran|одяг/i, 10],
+  [/\bpets?\b|zwierz|тварин/i, 11],
+  [/repair|renov|remont|ремонт/i, 12],
+  [/entertain|leisure|rozryw|розваг/i, 13],
+  [/invest|saving|oszczęd|inwest|заощадж|інвест/i, 14],
+  [/\bkids?\b|child|baby|dzieci|dziec|діт|дит/i, 15],
+  [/insur|ubezp|страх/i, 16],
+  [/sport|fitness|\bgym\b|siłown|спорт/i, 17],
+  [/beauty|cosmet|uroda|краса|космет/i, 18],
+  [/\bbooks?\b|książ|книг/i, 19],
+  [/electron|gadget|електрон/i, 20],
+  [/garden|ogród|сад/i, 21],
+  [/altru|charit|donat|darowiz|благод/i, 22],
+  [/\btax|podat|подат/i, 23],
+  [/fuel|petrol|paliw|пальн/i, 24],
+  [/parking|парков/i, 25],
+  [/phone|mobile|telefon|телефон/i, 26],
+  [/internet|інтернет/i, 27],
+  [
+    /house|housing|\bhome\b|\brent\b|mortgage|\bdom\b|mieszk|czynsz|житл|оренд|квартир|дім/i,
+    28,
+  ],
+  [/\bcars?\b|\bauto|samoch|машин|авто/i, 29],
+  [/celebr|party|party|święt|imprez|свят/i, 30],
+  [/uncategor|other|misc|\binne\b|різне|інше/i, 31],
+];
+
+export function conceptForName(name: string): number | null {
+  for (const [re, i] of CONCEPT_RULES) if (re.test(name)) return i;
+  return null;
 }
 
 /** Merchants belonging to the category at `index` (wrapping). */

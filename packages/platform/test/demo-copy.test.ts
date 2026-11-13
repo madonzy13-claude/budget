@@ -107,8 +107,13 @@ function pairFor(scale: number, map: Record<string, string>): CopyPair {
     dest: DEST,
     label: "personal",
     currency: "USD",
+    home: "PLN",
     currencyMap: map,
-    moneyScale: scale,
+    // Rate 1: these tests pin the scrub, not the conversion
+    // (demo-realism.test.ts covers rates and the two factors).
+    fxMultipliers: {},
+    flowScale: scale,
+    wealthScale: scale,
     demoUserId: DEMO_USER,
     budgetName: "Personal",
     textLocale: "en" as const,

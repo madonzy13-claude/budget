@@ -11,23 +11,41 @@
 export type MoneyDecimals = 0 | 4;
 
 /**
- * Sanity bounds for a CONFIGURED money factor.
+ * The ranges a demo factor may take (261113, user): wallets and investments
+ * ×0.1–5, everything else ×0.8–1.2 — on top of the exchange rate.
  *
- * The factor used to be re-rolled nightly across this range, which made the
- * demo's capitalization swing by 60-90% between consecutive days — fine for a
- * screenshot, wrong for something people revisit. It is now a constant set per
- * budget in configuration; these bounds only stop a typo (a stray 100 or a
- * negative) from reaching a public login.
- *
- * A fixed factor is also the easiest of the schemes to invert if anyone ever
- * works out the constant — a deliberate trade, chosen for stability.
+ * The factor used to be re-rolled nightly, which made the demo's
+ * capitalization swing by 60-90% between consecutive days — fine for a
+ * screenshot, wrong for something people revisit. It is a constant per budget.
  */
-export const SCALE_MIN = 0.01;
-export const SCALE_MAX = 100;
+export const FLOW_RANGE = [0.8, 1.2] as const;
+export const WEALTH_RANGE = [0.1, 5] as const;
 
-/** True when a configured factor is usable at all. */
-export function isUsableScale(v: number): boolean {
-  return Number.isFinite(v) && v >= SCALE_MIN && v <= SCALE_MAX;
+export function inRange(
+  v: number | undefined,
+  [lo, hi]: readonly [number, number],
+): v is number {
+  return v !== undefined && Number.isFinite(v) && v >= lo && v <= hi;
+}
+
+/**
+ * A factor inside `range`, derived from `id` — the same every night for the
+ * same budget, different between budgets. Log-uniform, so ×0.1–5 is as likely
+ * to shrink as to grow. Rounded to 3 decimals so logs read cleanly.
+ */
+export function stablePick(
+  id: string,
+  salt: string,
+  [lo, hi]: readonly [number, number],
+): number {
+  let h = 0x811c9dc5; // FNV-1a
+  for (const ch of `${salt}:${id}`) {
+    h ^= ch.charCodeAt(0);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  const u = h / 2 ** 32;
+  const v = Math.exp(Math.log(lo) + u * (Math.log(hi) - Math.log(lo)));
+  return Math.min(hi, Math.max(lo, Math.round(v * 1000) / 1000));
 }
 
 /** bigint for `*_cents` columns, string for `numeric(19,4)` (pg returns NUMERIC as string). */

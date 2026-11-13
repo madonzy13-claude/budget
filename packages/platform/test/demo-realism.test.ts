@@ -250,7 +250,11 @@ describe("investments", () => {
       `SELECT quantity::float qty, current_price_cents::float p, buy_price_cents::float bp
          FROM budgeting.investments WHERE tenant_id = $1 AND ui_type = 'broker'`,
     );
-    expect(b).toEqual({ qty: 1, p: 10000000 * 0.25 * 0.5, bp: 9000000 * 0.25 * 0.5 });
+    expect(b).toEqual({
+      qty: 1,
+      p: 10000000 * 0.25 * 0.5,
+      bp: 9000000 * 0.25 * 0.5,
+    });
   });
 
   test("a crypto quantity keeps its 8 decimals", async () => {
@@ -274,7 +278,7 @@ describe("investments", () => {
       async (c) =>
         (
           await c.query(
-            `SELECT kind, effective_date::text d, qty_delta::float qd, cost_delta_cents::float cost
+            `SELECT kind, effective_date::text d, qty_delta::float qd, cost_delta_cents::text cost
                FROM budgeting.investment_history WHERE holding_id = $1 AND deleted_at IS NULL
               ORDER BY effective_date`,
             [g.id],
@@ -285,10 +289,12 @@ describe("investments", () => {
     expect(entries[0].kind).toBe("start");
     expect(entries[0].d).toBe("2022-10-31");
     expect(entries.slice(1).every((e) => e.kind === "buy")).toBe(true);
-    expect(entries.every((e) => Number.isInteger(e.qd) && e.qd >= 1)).toBe(true);
+    expect(entries.every((e) => Number.isInteger(e.qd) && e.qd >= 1)).toBe(
+      true,
+    );
     expect(entries.reduce((a, e) => a + e.qd, 0)).toBe(3);
     // Same total cost as the one purchase it replaces: 48,000 × 0.25 × 0.5.
-    expect(entries.reduce((a, e) => a + e.cost, 0)).toBe(4800000 * 0.25 * 0.5);
+    expect(entries.reduce((a, e) => a + BigInt(e.cost), 0n)).toBe(600000n);
   });
 
   test("holding names follow their type", async () => {
