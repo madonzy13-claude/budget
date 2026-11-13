@@ -124,6 +124,8 @@ beforeAll(async () => {
       ["CUSHION", "EUR", "1000", 4],
       ["RESERVE", "PLN", "8000", 5],
       ["POSSESSION", "PLN", "400000", 6],
+      ["CUSHION", "CHF", "100", 7],
+      ["CUSHION", "CHF", "200", 8],
     ] as const) {
       await c.query(
         `INSERT INTO budgeting.wallets (id, tenant_id, name, currency, current_balance, wallet_type, sort_order, created_at, actor_user_id)
@@ -138,6 +140,8 @@ beforeAll(async () => {
           amount_original_cents, amount_converted_cents, transaction_date, kind, created_at)
        VALUES
          (gen_random_uuid(), $1, $1, $2, NULL, 'PLN', 1, '2026-10-01', 10000, 10000, '2026-10-01', 'SPENDING', now()),
+         (gen_random_uuid(), $1, $1, $2, NULL, 'PLN', 1, '2026-10-03', 900000, 900000, '2026-10-03', 'SPENDING', now()),
+         (gen_random_uuid(), $1, $1, $2, NULL, 'PLN', 1, '2026-10-04', 5000, 5000, '2026-10-04', 'SPENDING', now()),
          (gen_random_uuid(), $1, $1, $3, 'private note', 'EUR', 4.3, '2026-10-02', 1000, 4300, '2026-10-02', 'SPENDING', now())`,
       [SOURCE, CAT_HOUSE, CAT_CAR],
     );
@@ -206,6 +210,8 @@ describe("money", () => {
       ["USD", 2500],
       ["EUR", 500],
       ["USD", 50000],
+      ["CHF", 50],
+      ["CHF", 100],
     ]);
   });
 
@@ -329,6 +335,28 @@ describe("names", () => {
         r.note,
       );
     }
+  });
+
+  test("the biggest spending in a category gets its priciest item, the smallest its cheapest", async () => {
+    // 261113: "Car wash" for a $2,617 payment read as nonsense.
+    const rows = await q(
+      `SELECT l.note FROM budgeting.expense_ledger l JOIN budgeting.categories c ON c.id = l.category_id
+        WHERE l.tenant_id = $1 AND c.name = 'Housing' ORDER BY l.amount_converted_cents DESC`,
+    );
+    const list = merchantsForCategory(
+      "en",
+      poolValues("en", "category").indexOf("Housing"),
+    );
+    expect(rows[0].note).toBe(list[0]);
+    expect(rows.at(-1)!.note).toBe(list.at(-1));
+  });
+
+  test("a wallet name that would repeat takes its currency instead of a number", async () => {
+    const rows = await q(
+      `SELECT name FROM budgeting.wallets WHERE tenant_id = $1 AND wallet_type = 'CUSHION' ORDER BY sort_order`,
+    );
+    expect(rows.map((r) => r.name).filter((n) => / \d+$/.test(n))).toEqual([]);
+    expect(rows.some((r) => / CHF$/.test(r.name))).toBe(true);
   });
 
   test("a scheduled payment is named from its category", async () => {
