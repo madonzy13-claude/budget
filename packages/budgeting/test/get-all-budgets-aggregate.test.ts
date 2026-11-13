@@ -369,4 +369,56 @@ describe("getAllBudgetsAggregate — payment-date rates", () => {
     // left is still held money: today's 1.10
     expect(row.left_month_cents).toBe("66000");
   });
+
+  // 261113: privacy is the member's own choice (mig 0082), and the budget pages
+  // follow it — the all-budgets page masked every amount regardless.
+  describe("amount privacy", () => {
+    const prefs =
+      (...flags: boolean[]) =>
+      async () =>
+        new Map(
+          flags.map((f, i) => [
+            `b${i + 1}`,
+            {
+              ownership_share_pct: 100,
+              include_in_aggregation: true,
+              amount_privacy_enabled: f,
+            },
+          ]),
+        );
+    const two = async () => [
+      {
+        id: "b1",
+        name: "A",
+        default_currency: "EUR",
+        member_count: 1,
+        pendingTasksCount: 0,
+      },
+      {
+        id: "b2",
+        name: "B",
+        default_currency: "EUR",
+        member_count: 1,
+        pendingTasksCount: 0,
+      },
+    ];
+
+    it("is off when the member keeps it off on every budget", async () => {
+      const out = await getAllBudgetsAggregate({
+        ...deps,
+        listForUser: two,
+        getAggPrefsForUser: prefs(false, false),
+      } as any)("u1");
+      expect(out.amount_privacy_enabled).toBe(false);
+    });
+
+    it("is on when the member has it on for any budget", async () => {
+      const out = await getAllBudgetsAggregate({
+        ...deps,
+        listForUser: two,
+        getAggPrefsForUser: prefs(false, true),
+      } as any)("u1");
+      expect(out.amount_privacy_enabled).toBe(true);
+    });
+  });
 });

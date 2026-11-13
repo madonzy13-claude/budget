@@ -144,6 +144,22 @@ describe("AggregateOverview", () => {
     await waitFor(() => expect(hero.textContent).toMatch(/10,?000/));
   });
 
+  // 261113: privacy is the member's choice; with it off on every budget the
+  // all-budgets page shows its amounts like the budget pages do.
+  it("shows amounts without a tap when the member keeps privacy off", async () => {
+    dataRef.current = { ...DATA, amount_privacy_enabled: false };
+    render(<AggregateOverview />);
+    const hero = screen.getByTestId("aggregate-hero");
+    await waitFor(() => expect(hero.textContent).toMatch(/10,?000/));
+  });
+
+  it("keeps amounts hidden while privacy is on", async () => {
+    dataRef.current = { ...DATA, amount_privacy_enabled: true };
+    render(<AggregateOverview />);
+    const hero = screen.getByTestId("aggregate-hero");
+    expect(hero.textContent).not.toMatch(/10,?000/);
+  });
+
   it("excludes an included:false budget from the hero sum", async () => {
     dataRef.current = {
       display_currency: "USD",
