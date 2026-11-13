@@ -94,6 +94,9 @@ export interface AllBudgetsAggregate {
    *  leave the household today with every dip still covered. Floored at "0" —
    *  below zero there is nothing to move. */
   forecast_free_to_move_cents: string;
+  /** On when the member hides amounts on ANY of their budgets — the page
+   *  rolls them all up, so one hidden budget hides the totals (261113). */
+  amount_privacy_enabled: boolean;
 }
 
 export interface GetAllBudgetsAggregateDeps {
@@ -119,6 +122,8 @@ export interface GetAllBudgetsAggregateDeps {
       {
         ownership_share_pct: number;
         include_in_aggregation: boolean;
+        /** The member's own privacy choice for this budget (mig 0082). */
+        amount_privacy_enabled?: boolean;
         /** The member's stored chart picks for this budget. Only the forecast
          *  window is read here; the shape is the ui-prefs jsonb as stored. */
         ui_prefs?: Record<string, string[]> | null;
@@ -545,6 +550,9 @@ export function getAllBudgetsAggregate(deps: GetAllBudgetsAggregateDeps) {
       forecast_status,
       forecast_shortfall_cents: forecast_shortfall.toString(),
       forecast_free_to_move_cents: forecast_free_to_move.toString(),
+      amount_privacy_enabled: budgets.some(
+        (b) => prefs.get(b.id)?.amount_privacy_enabled === true,
+      ),
     };
   };
 }

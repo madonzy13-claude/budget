@@ -75,8 +75,16 @@ const writeRevealed = (r: boolean) => {
   } catch {}
 };
 
-/** Shared reveal state — every SlotAmount inside toggles together (r41b). */
-export function SlotRevealProvider({ children }: { children: ReactNode }) {
+/** Shared reveal state — every SlotAmount inside toggles together (r41b).
+ *  `always`: privacy is off for this member, so amounts simply show and a tap
+ *  hides nothing (261113 — the all-budgets page masked regardless). */
+export function SlotRevealProvider({
+  children,
+  always = false,
+}: {
+  children: ReactNode;
+  always?: boolean;
+}) {
   const [revealed, setRevealed] = useState(readRevealed);
   const toggle = useCallback(
     () =>
@@ -86,7 +94,11 @@ export function SlotRevealProvider({ children }: { children: ReactNode }) {
       }),
     [],
   );
-  const value = useMemo(() => ({ revealed, toggle }), [revealed, toggle]);
+  const value = useMemo(
+    () =>
+      always ? { revealed: true, toggle: () => {} } : { revealed, toggle },
+    [always, revealed, toggle],
+  );
   return (
     <SlotRevealCtx.Provider value={value}>{children}</SlotRevealCtx.Provider>
   );

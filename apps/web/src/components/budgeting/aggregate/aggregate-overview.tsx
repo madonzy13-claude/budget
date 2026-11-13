@@ -309,7 +309,7 @@ export function AggregateOverview() {
     plDir === "up" ? TrendingUp : plDir === "down" ? TrendingDown : null;
 
   return (
-    <SlotRevealProvider>
+    <SlotRevealProvider always={data.amount_privacy_enabled === false}>
       <div className="flex w-full min-w-0 flex-col gap-3">
         {/* HERO — net worth (yellow) + incl. investments + day P/L. A FLIP card
             (like the BDP capitalization card): tapping empty space rotates to the
