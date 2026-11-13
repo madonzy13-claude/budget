@@ -273,6 +273,37 @@ export function EditAssetForm({
       </div>
     </Field>
   );
+  // R6: the locked price follows the picked currency.
+  const lockedPrice = converting
+    ? ""
+    : fx && ccy !== ccy0
+      ? decimal(
+          String(Math.round(Number(h.currentPriceCents) * Number(fx.rate))),
+        )
+      : priceLine;
+  // 261113 (user): a counted asset also shows how many it holds and what they
+  // are worth now — the price it shows times the quantity.
+  const unitPrice = showPrice ? shownPrice : lockedPrice;
+  const qty = Number(h.quantity);
+  const quantityFields = byQty &&
+    unitPrice !== null && [
+      lockedField("quantity", t("edit.quantity"), String(qty)),
+      lockedField(
+        "currentAmount",
+        t("field.currentAmount"),
+        unitPrice === ""
+          ? converting
+            ? ""
+            : unset
+          : String(
+              Number(
+                (
+                  Number(unitPrice.replace(/\s/g, "").replace(/,/g, ".")) * qty
+                ).toFixed(2),
+              ),
+            ),
+      ),
+    ];
   const valueChanged =
     touched.current &&
     price.trim() !== "" &&
@@ -356,18 +387,10 @@ export function EditAssetForm({
         lockedField(
           id,
           label,
-          // R6: the locked price follows the picked currency.
-          id === "currentPrice" && converting
-            ? ""
-            : id === "currentPrice" && fx && ccy !== ccy0
-              ? decimal(
-                  String(
-                    Math.round(Number(h.currentPriceCents) * Number(fx.rate)),
-                  ),
-                )
-              : value,
+          id === "currentPrice" ? (lockedPrice ?? value) : value,
         ),
       )}
+      {quantityFields}
       {fx && price0 && (showValue || showPrice) && (
         <div data-testid="edit-asset-fx">
           <FxPreviewLine
