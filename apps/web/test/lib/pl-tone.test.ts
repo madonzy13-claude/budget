@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { plTone, plPctDecimals, PL_TONE_CLASS } from "@/lib/pl-tone";
+import { pctFigure } from "@/lib/pl-tone";
 
 /**
  * Every P/L readout used `delta >= 0` to pick its colour, so a delta of exactly
@@ -94,5 +95,14 @@ describe("plPctDecimals — no trailing zero the rounding invented", () => {
   it("keeps rounding UP into view rather than printing zero", () => {
     // The original reason the rule exists: 0.049 → "0.05", never "0.0".
     expect(plPctDecimals(0.049)).toBe(2);
+  });
+});
+
+// 261113: Polish Overview read "4.5%" next to "44 274,63" elsewhere.
+describe("pctFigure", () => {
+  it("writes the decimals the visitor's language writes", () => {
+    expect(pctFigure(4.5, 1, "pl")).toBe("4,5");
+    expect(pctFigure(4.5, 1, "en")).toBe("4.5");
+    expect(pctFigure(1234.5, 1, "uk")).toBe("1234,5");
   });
 });
