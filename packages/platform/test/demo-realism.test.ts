@@ -24,6 +24,9 @@ const DEMO = "54444444-4444-4444-4444-444444444444";
 const CAT_HOUSE = "5aaaaaaa-0000-0000-0000-000000000001";
 const CAT_FOOD = "5aaaaaaa-0000-0000-0000-000000000002";
 const CAT_CAR = "5aaaaaaa-0000-0000-0000-000000000003";
+// The old special Investments category (removed as a feature, 15-18) stays in
+// the owner's budget as a plain one. The demo leaves it out with its rows.
+const CAT_INVEST = "5aaaaaaa-0000-0000-0000-000000000004";
 
 // PLN → USD at 0.25; every other currency keeps its own.
 const PAIR: CopyPair = {
@@ -101,6 +104,7 @@ beforeAll(async () => {
       [CAT_HOUSE, "House", 0],
       [CAT_FOOD, "Food & Home", 1],
       [CAT_CAR, "Car", 2],
+      [CAT_INVEST, "Investments", 3],
     ] as const) {
       await c.query(
         `INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id, sort_index)
@@ -196,6 +200,34 @@ beforeAll(async () => {
          (gen_random_uuid(), $1, $1, $2, 'start', '2022-10-31', 4800000, 'PLN', 6, 4800000, 'PLN', 4800000, 'PLN', 0, now()),
          (gen_random_uuid(), $1, $1, $3, 'add', '2026-01-15', 9000000, 'PLN', NULL, 9000000, 'PLN', 9000000, 'PLN', 9000000, now())`,
       [SOURCE, gold, broker],
+    );
+    await c.query(
+      `INSERT INTO budgeting.category_limits
+         (id, tenant_id, category_id, normal_amount, normal_currency, cushion_amount, cushion_currency,
+          effective_from, actor_user_id, created_at)
+       VALUES (gen_random_uuid(), $1, $2, 0, 'PLN', 0, 'PLN', '2026-01-01', $3, now())`,
+      [SOURCE, CAT_INVEST, OWNER],
+    );
+    await c.query(
+      `INSERT INTO budgeting.scheduled_payments
+         (id, tenant_id, category_id, amount, currency, cadence, cadence_anchor, note, next_due_date, actor_user_id)
+       VALUES (gen_random_uuid(), $1, $2, 2000.0000, 'PLN', 'MONTHLY', 5, 'ETF', '2026-12-05', $3)`,
+      [SOURCE, CAT_INVEST, OWNER],
+    );
+    await c.query(
+      `INSERT INTO budgeting.expense_ledger
+         (id, tenant_id, budget_id, category_id, note, currency_original, fx_rate, fx_as_of,
+          amount_original_cents, amount_converted_cents, transaction_date, kind, scheduled_payment_id, created_at)
+       SELECT gen_random_uuid(), $1, $1, $2, 'ETF', 'PLN', 1, '2026-11-05', 200000, 200000, '2026-11-05',
+              'SPENDING', s.id, now()
+         FROM budgeting.scheduled_payments s WHERE s.category_id = $2`,
+      [SOURCE, CAT_INVEST],
+    );
+    await c.query(
+      `INSERT INTO budgeting.category_reserve_adjustments
+         (id, tenant_id, category_id, delta_cents, note, created_by, occurred_at, currency)
+       VALUES (gen_random_uuid(), $1, $2, 10000, NULL, $3, now(), 'PLN')`,
+      [SOURCE, CAT_INVEST, OWNER],
     );
   });
   await refresh();
@@ -330,6 +362,17 @@ describe("names", () => {
       `SELECT name FROM budgeting.categories WHERE tenant_id = $1 ORDER BY sort_index`,
     );
     expect(rows.map((r) => r.name)).toEqual(["Housing", "Groceries", "Car"]);
+  });
+
+  test("the old Investments category stays out, with everything filed under it", async () => {
+    const [n] = await q(
+      `SELECT (SELECT count(*) FROM budgeting.categories WHERE tenant_id = $1)::int AS cats,
+              (SELECT count(*) FROM budgeting.expense_ledger WHERE tenant_id = $1)::int AS ledger,
+              (SELECT count(*) FROM budgeting.scheduled_payments WHERE tenant_id = $1)::int AS sched,
+              (SELECT count(*) FROM budgeting.category_limits WHERE tenant_id = $1)::int AS limits,
+              (SELECT count(*) FROM budgeting.category_reserve_adjustments WHERE tenant_id = $1)::int AS adj`,
+    );
+    expect(n).toEqual({ cats: 3, ledger: 5, sched: 1, limits: 1, adj: 2 });
   });
 
   test("every spending has a note, from its own category's vocabulary", async () => {
