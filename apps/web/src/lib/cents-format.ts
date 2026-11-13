@@ -31,6 +31,12 @@ const SUFFIX_SIGN_CURRENCIES = new Set([
 ]);
 
 /**
+ * Thousands are always grouped. Polish CLDR leaves four digits alone, so a card
+ * read "3444 zł" beside "27 310 zł" (user, 261113).
+ */
+const GROUPED = { useGrouping: "always" } as const;
+
+/**
  * Format `num` as `currency` with EN grouping. `narrow` picks the short sign
  * (zł/₴/$) over the ISO code; for suffix-convention currencies the short sign is
  * moved AFTER the number ("916 zł") — otherwise Intl's `en` locale always prefixes.
@@ -46,6 +52,7 @@ function formatCurrency(
     style: "currency",
     currency,
     currencyDisplay: narrow ? "narrowSymbol" : "symbol",
+    ...GROUPED,
     ...opts,
   });
   if (!narrow || !SUFFIX_SIGN_CURRENCIES.has(currency)) return nf.format(num);
@@ -77,6 +84,7 @@ export function centsToDisplay(
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
+    ...GROUPED,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(neg ? -Number(num) : Number(num));
@@ -142,6 +150,7 @@ export function centsToBare(cents: string | bigint, locale = "en"): string {
   const hasFrac = frac !== 0n;
   const num = Number(`${whole.toString()}.${frac.toString().padStart(2, "0")}`);
   const formatted = new Intl.NumberFormat(locale, {
+    ...GROUPED,
     minimumFractionDigits: hasFrac ? 2 : 0,
     maximumFractionDigits: 2,
   }).format(num);
@@ -246,6 +255,7 @@ export function centsToShort(cents: string | bigint, locale = "en"): string {
   let units = abs / 100n;
   if (abs % 100n >= 50n) units += 1n;
   const formatted = new Intl.NumberFormat(locale, {
+    ...GROUPED,
     maximumFractionDigits: 0,
   }).format(Number(units));
   return neg ? `-${formatted}` : formatted;

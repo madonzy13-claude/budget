@@ -11,6 +11,7 @@ import { SettingsAccordion } from "@/components/settings/settings-accordion";
 // next-intl mock
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
+  useLocale: () => "en",
 }));
 
 // api-client mock

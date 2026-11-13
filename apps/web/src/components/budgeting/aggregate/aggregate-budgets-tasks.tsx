@@ -261,7 +261,7 @@ function BudgetRow({
         data-testid={`aggregate-bt-budget-${id}`}
         onClick={() => setTapped(true)}
       >
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--body)]">
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--body)] underline decoration-dotted underline-offset-2">
           {name}
         </span>
         {/* The row has always been a link and read as a plain section label —
