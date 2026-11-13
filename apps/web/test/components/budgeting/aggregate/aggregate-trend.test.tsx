@@ -29,8 +29,8 @@ vi.mock("@/components/budgeting/charts/area-chart", () => ({
   ),
 }));
 vi.mock("@/components/budgeting/charts/pie-chart", () => ({
-  OverviewPieChart: ({ data }: { data: any[] }) => (
-    <div data-testid="pie">
+  OverviewPieChart: ({ data, allLabel }: { data: any[]; allLabel?: string }) => (
+    <div data-testid="pie" data-all={allLabel}>
       {data.map((d) => d.name ?? d.holding_type).join(",")}
     </div>
   ),
@@ -77,6 +77,13 @@ describe("AggregateTrend", () => {
     expect(screen.getByTestId("pie").textContent).toContain("investments");
     // no inline range selector (parent owns it)
     expect(screen.queryByTestId("overview-range-selector")).toBeNull();
+  });
+
+  // 261113: the pie's centre repeated the caption above it ("Rozkład | Rozkład").
+  // Like every other pie, its centre names the whole: "All".
+  it("the where-it-sits pie's centre does not repeat its caption", () => {
+    renderTrend();
+    expect(screen.getByTestId("pie").dataset.all).toBe("range.all");
   });
 
   // 260721 user feedback (7): possessions are part of capitalization → a slice
