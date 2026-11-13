@@ -29,10 +29,10 @@ const DATA = {
   },
   capitalization_cents: "134131100",
   investment_value_cents: "0",
-  retirement_months: null,
-  retirement_inflation_pct: 3,
+  retirement_months: 30,
+  retirement_inflation_pct: 4.5,
   available_reserves_cents: "200000",
-  reserves: { required_cents: "150000", wallet_cents: "200000", status: "ok" },
+  reserves: { required_cents: "286673", wallet_cents: "200000", status: "short" },
   cushion: {
     enabled: true,
     real_months: 6,
@@ -61,6 +61,20 @@ vi.mock("@/components/common/user-timezone-provider", () => ({
 }));
 
 describe("Overview in Polish", () => {
+  it("the reserves note uses a decimal comma", () => {
+    render(
+      <SlotRevealProvider>
+        <BdpUiStateProvider>
+          <OverviewCards budgetId="b1" amountPrivacyEnabled={false} />
+        </BdpUiStateProvider>
+      </SlotRevealProvider>,
+    );
+    const text = document.body.textContent ?? "";
+    // 2 866,73 − 2 000 = 866,73 missing; never "866.73".
+    expect(text).toMatch(/866,73/);
+    expect(text).not.toMatch(/866\.73/);
+  });
+
   it("groups thousands the Polish way, like the rest of the app", () => {
     render(
       <SlotRevealProvider>
