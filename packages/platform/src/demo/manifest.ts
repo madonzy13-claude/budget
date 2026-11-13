@@ -264,6 +264,10 @@ export const demoManifest: TableManifest[] = [
       transfer_group_id: id,
       wallet_id: ref("budgeting.wallets"),
       note_tsv: { kind: "GENERATED" },
+      // 0110: the amount stored in the budget's currency. Derived — the BEFORE
+      // trigger fills it from the copied row itself.
+      fx_cache_ccy: nul,
+      fx_cache_cents: nul,
     },
   },
   {
@@ -464,6 +468,11 @@ export const demoManifest: TableManifest[] = [
       currency: ccy,
       investment_cost_basis_cents: money0,
       source: ts, // 'worker' | 'import' (15-21)
+      // 0110: derived by the BEFORE trigger, like the ledger's.
+      fx_cache_ccy: nul,
+      fx_cache_capitalization_cents: nul,
+      fx_cache_investment_value_cents: nul,
+      fx_cache_investment_cost_basis_cents: nul,
     },
   },
   {

@@ -48,13 +48,14 @@ export async function handleDemoRefresh(
   });
 
   if (!result.ok) {
-    // Loud, and NOT an exception: the demo is intentionally left as it was.
-    // Failing the job would retry the same doomed copy all night.
-    console.error(
+    // The demo is left as it was — and the JOB FAILS. A refusal returned
+    // quietly marked the job "completed" and froze the demo for a night
+    // unnoticed (261113: 0110 added columns the manifest did not know). A
+    // retry only re-runs the read-only preflight, which is cheap.
+    throw new Error(
       `[demo-refresh] refused to run: ${result.reason}. ` +
         `Yesterday's demo data is intact. Update the scrub manifest.`,
     );
-    return;
   }
 
   const summary = Object.entries(result.counts)
