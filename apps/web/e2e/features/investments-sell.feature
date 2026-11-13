@@ -49,10 +49,18 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     And I change the oldest entry of "Pot" to "1500" in "UAH"
     Then the holding row "Pot" shows the amount "1,500"
     And the oldest entry of "Pot" reads "1,500 UAH"
-    # 261108 (user): Edit shows what went in, locked — 261109: without a
-    # currency, the picker above names it.
-    And the Edit of "Pot" shows the base amount "1500" locked
-    And picking "EUR" in the Edit of "Pot" shows the base at its transactions' date rates
+    # 261112 (user): cash has no base amount — what went in is what it is.
+    And the Edit of "Pot" shows no base amount
+
+  # 261108 (user): Edit shows what went in, locked — 261109: without a
+  # currency, the picker above names it. 261113 (user): a counted asset also
+  # shows its quantity and current amount.
+  Scenario: Edit shows a counted asset's base, quantity and current amount
+    Given a crypto holding "Coin" of "2" bought at 50000 cents now 60000 cents exists in my budget
+    When I open the investments wallets tab
+    Then the Edit of "Coin" shows the base amount "1000" locked
+    And the Edit of "Coin" shows the quantity "2" and current amount "1200" locked
+    And picking "EUR" in the Edit of "Coin" shows the base at its transactions' date rates
 
   # 261109 (user): the running total of that entry and every later one moves.
   Scenario: Fixing an older amount moves every running total after it

@@ -196,7 +196,6 @@ Given(
   },
 );
 
-
 Given(
   "a custom crypto asset {string} with ticker {string} exists in my budget",
   async ({ freshUser }, name: string, ticker: string) => {
@@ -218,9 +217,15 @@ Then(
   "the holding row {string} shows its name, not the ticker {string}",
   async ({ page }, name: string, ticker: string) => {
     const row = new InvestmentsPo(page).row(name);
-    await expect(row.getByText(name, { exact: true }).filter({ visible: true })).not.toHaveCount(0);
-    await expect(row.getByText(ticker, { exact: true }).filter({ visible: true })).toHaveCount(0);
-    await expect(row.getByText(`${ticker} (${name})`).filter({ visible: true })).toHaveCount(0);
+    await expect(
+      row.getByText(name, { exact: true }).filter({ visible: true }),
+    ).not.toHaveCount(0);
+    await expect(
+      row.getByText(ticker, { exact: true }).filter({ visible: true }),
+    ).toHaveCount(0);
+    await expect(
+      row.getByText(`${ticker} (${name})`).filter({ visible: true }),
+    ).toHaveCount(0);
   },
 );
 
@@ -927,19 +932,26 @@ Then(
   async ({ page }, name: string) => {
     const id = await new InvestmentsPo(page).assetId(name);
     for (const theme of ["dark", "light"]) {
-      await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+      await page.evaluate(
+        (t) => document.documentElement.setAttribute("data-theme", t),
+        theme,
+      );
       const { line, text } = await page.evaluate((id) => {
         const probe = document.createElement("div");
         probe.style.color = "var(--foreground)";
         document.body.appendChild(probe);
         const text = getComputedStyle(probe).color;
         probe.remove();
-        const el = document.querySelector(`[data-testid="holding-amount-${id}"]`)!;
+        const el = document.querySelector(
+          `[data-testid="holding-amount-${id}"]`,
+        )!;
         return { line: getComputedStyle(el).textDecorationColor, text };
       }, id);
       expect(line, theme).toBe(text);
     }
-    await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+    await page.evaluate(() =>
+      document.documentElement.setAttribute("data-theme", "dark"),
+    );
   },
 );
 
@@ -3221,6 +3233,33 @@ Then(
   },
 );
 
+Then(
+  "the Edit of {string} shows no base amount",
+  async ({ page }, name: string) => {
+    await new InvestmentsPo(page).openEdit(name);
+    await expect(page.getByTestId("edit-asset-locked-baseAmount")).toHaveCount(
+      0,
+    );
+  },
+);
+
+Then(
+  "the Edit of {string} shows the quantity {string} and current amount {string} locked",
+  async ({ page }, name: string, qty: string, amount: string) => {
+    const sheet = page.getByTestId("edit-asset-sheet");
+    if (!(await sheet.isVisible().catch(() => false)))
+      await new InvestmentsPo(page).openEdit(name);
+    for (const [id, v] of [
+      ["quantity", qty],
+      ["currentAmount", amount],
+    ] as const) {
+      const el = sheet.getByTestId(`edit-asset-locked-${id}`);
+      await expect(el).toHaveValue(v);
+      await expect(el).toHaveAttribute("readonly", "");
+    }
+  },
+);
+
 // 261109 (user): a picked currency's base is the history cost — each
 // transaction at its own date's rate, as GET /investments/pl prices it.
 // Pick a currency the section never asked for, so the request is fresh.
@@ -3273,9 +3312,14 @@ Then(
   "the oldest entry of {string} offers its amount locked, saying a later sale relied on it",
   async ({ page }, name: string) => {
     await new InvestmentsPo(page).editOldest(name);
-    await expect(page.getByTestId("entry-edit-amount")).toHaveAttribute("readonly", "");
+    await expect(page.getByTestId("entry-edit-amount")).toHaveAttribute(
+      "readonly",
+      "",
+    );
     await expect(page.getByTestId("entry-edit-currency")).toHaveCount(0);
-    await expect(page.getByTestId("entry-edit-sheet")).toContainText("A later sale or withdrawal relied on this amount");
+    await expect(page.getByTestId("entry-edit-sheet")).toContainText(
+      "A later sale or withdrawal relied on this amount",
+    );
   },
 );
 
