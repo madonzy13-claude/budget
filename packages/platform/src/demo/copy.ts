@@ -468,8 +468,17 @@ const COUNT_UI_TYPES = `('precious_metals','collectibles')`;
  *    holding's entries follow by the same ratio.
  * 4. A single purchase of several coins becomes staged purchases — same
  *    coins, same total cost — so the asset has a history to open.
+ * 5. A payment a scheduled payment made carries that payment's name: the two
+ *    notes are drawn in separate copies and could disagree.
  */
 async function fixUps(client: PoolClient, pair: CopyPair): Promise<void> {
+  await client.query(
+    `UPDATE budgeting.expense_ledger l SET note = s.note
+       FROM budgeting.scheduled_payments s
+      WHERE l.tenant_id = $1 AND s.id = l.scheduled_payment_id
+        AND s.note IS NOT NULL AND l.note IS DISTINCT FROM s.note`,
+    [pair.dest],
+  );
   await client.query(
     `UPDATE budgeting.category_limits
         SET wants_amount = normal_amount - needs_amount
