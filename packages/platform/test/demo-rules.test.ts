@@ -95,6 +95,20 @@ describe("factor ranges", () => {
     }
   });
 
+  test("ids that differ only at the end still get unrelated picks", () => {
+    const a = stablePick(
+      "d0000000-0000-4000-8000-000000000001",
+      "wealth",
+      WEALTH_RANGE,
+    );
+    const b = stablePick(
+      "d0000000-0000-4000-8000-000000000002",
+      "wealth",
+      WEALTH_RANGE,
+    );
+    expect(Math.abs(Math.log(a / b))).toBeGreaterThan(0.1);
+  });
+
   test("stablePick stays in range and is deterministic", () => {
     for (let i = 0; i < 200; i++) {
       const id = `budget-${i}`;
