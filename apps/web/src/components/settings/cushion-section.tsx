@@ -338,7 +338,7 @@ export function CushionSection({
               {centsToRounded(
                 cushionSummary.required_cents,
                 currency,
-                "en",
+                locale,
                 true,
               )}
             </span>

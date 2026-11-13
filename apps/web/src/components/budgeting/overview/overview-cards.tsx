@@ -377,7 +377,7 @@ export function OverviewCards({
           ).toString()
         : data.reserves.required_cents,
     ccy,
-    "en",
+    locale,
     true,
   );
 
@@ -451,7 +451,7 @@ export function OverviewCards({
                           centsToRounded(
                             data.capitalization_cents,
                             ccy,
-                            "en",
+                            locale,
                             true,
                           ),
                         ),
@@ -542,7 +542,11 @@ export function OverviewCards({
                   </div>
                   <p className="text-caption text-[var(--muted-foreground)]">
                     {t("cards.retirementInflation", {
-                      pct: data.retirement_inflation_pct,
+                      pct: pctFigure(
+                        data.retirement_inflation_pct,
+                        Number.isInteger(data.retirement_inflation_pct) ? 0 : 1,
+                        locale,
+                      ),
                     })}
                   </p>
                 </div>
@@ -657,8 +661,7 @@ export function OverviewCards({
                   {animRounded(String(freeToMove))}
                 </dd>
               </div>
-            ) : surplusDeficit !== null ? // "upcoming" figure. // below would answer a question about spare money with the unrelated // Explicitly null rather than deleted: falling through to the branch // // "there is nothing spare to tell you about". // złoty above it (user, 260825). Silence is the honest version of // same thing whether the forecast sat comfortably clear of zero or a // solid"), which read as praise the card had not earned: it said the // Nothing at all. The row used to carry a note here ("Plan looks
-            null : (
+            ) : surplusDeficit !== null ? null : ( // "upcoming" figure. // below would answer a question about spare money with the unrelated // Explicitly null rather than deleted: falling through to the branch // // "there is nothing spare to tell you about". // złoty above it (user, 260825). Silence is the honest version of // same thing whether the forecast sat comfortably clear of zero or a // solid"), which read as praise the card had not earned: it said the // Nothing at all. The row used to carry a note here ("Plan looks
               // No upcoming income → keep the original "upcoming" figure.
               <div className="flex items-center justify-between gap-2">
                 <dt>{t("cards.leftToSpend")}</dt>
