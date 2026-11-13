@@ -470,8 +470,46 @@ const COUNT_UI_TYPES = `('precious_metals','collectibles')`;
  *    coins, same total cost — so the asset has a history to open.
  * 5. A payment a scheduled payment made carries that payment's name: the two
  *    notes are drawn in separate copies and could disagree.
+ * 6. The old Investments spendings category (a feature removed in 15-18) stays
+ *    in the owner's budget as a plain one; the demo leaves it out with every
+ *    row filed under it (user, 261113). Investments live on the Wallets tab.
  */
 async function fixUps(client: PoolClient, pair: CopyPair): Promise<void> {
+  const dropped = (
+    await client.query<{ dst: string }>(
+      `SELECT m.dst FROM budgeting.categories c JOIN demo_idmap m ON m.src = c.id
+        WHERE c.tenant_id = $1
+          AND lower(trim(c.name)) IN ('investments', 'investment', 'inwestycje', 'інвестиції')`,
+      [pair.source],
+    )
+  ).rows.map((r) => r.dst);
+  if (dropped.length > 0) {
+    await client.query(
+      `DELETE FROM budgeting.reserve_fit_exclusions WHERE ledger_id IN
+         (SELECT id FROM budgeting.expense_ledger WHERE category_id = ANY($1::uuid[]))`,
+      [dropped],
+    );
+    // Children before the category; the ledger before the scheduled payments
+    // its rows point at.
+    for (const t of [
+      "budgeting.expense_ledger",
+      ...DEMO_COPY_ORDER.filter(
+        (n) =>
+          n !== "budgeting.expense_ledger" &&
+          byTable(n).mode === "copy" &&
+          "category_id" in byTable(n).columns,
+      ),
+    ]) {
+      await client.query(
+        `DELETE FROM ${ident(t)} WHERE category_id = ANY($1::uuid[])`,
+        [dropped],
+      );
+    }
+    await client.query(
+      `DELETE FROM budgeting.categories WHERE id = ANY($1::uuid[])`,
+      [dropped],
+    );
+  }
   await client.query(
     `UPDATE budgeting.expense_ledger l SET note = s.note
        FROM budgeting.scheduled_payments s
