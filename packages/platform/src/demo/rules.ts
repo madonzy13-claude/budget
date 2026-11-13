@@ -43,7 +43,14 @@ export function stablePick(
     h ^= ch.charCodeAt(0);
     h = Math.imul(h, 0x01000193) >>> 0;
   }
-  const u = h / 2 ** 32;
+  // Final avalanche (murmur3 fmix32): demo ids differ only in their last
+  // characters, and FNV alone left those picks within 1% of each other.
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b) >>> 0;
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35) >>> 0;
+  h ^= h >>> 16;
+  const u = (h >>> 0) / 2 ** 32;
   const v = Math.exp(Math.log(lo) + u * (Math.log(hi) - Math.log(lo)));
   return Math.min(hi, Math.max(lo, Math.round(v * 1000) / 1000));
 }
