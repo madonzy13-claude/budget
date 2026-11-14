@@ -141,7 +141,9 @@ Then(
           id: cell.getAttribute("data-testid") ?? "wallet",
           code: codeRight(cell),
           right: Math.round(box.right),
-          col: `${cell.closest('[data-testid^="wallet-section-"]')?.getAttribute("data-testid")}|${cell.getAttribute("data-testid")?.startsWith("investment-type-") ? "groups" : cell.closest('[data-testid^="investment-group-guide-"]')?.getAttribute("data-testid")}@${Math.round(box.right)}`,
+          // 51e64274: group headers and assets share ONE amount width, so all
+          // of investments is one column.
+          col: `${cell.closest('[data-testid^="wallet-section-"]')?.getAttribute("data-testid") ?? "investments"}@${Math.round(box.right)}`,
           w: textW(amt!),
         };
       });
