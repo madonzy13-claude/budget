@@ -1980,9 +1980,7 @@
           "archived": "Wallet deleted",
           "archiveFailed": "Couldn't delete wallet. Try again.",
           "moved": "Moved {name} to {sectionLabel}",
-          "moveFailed": "Couldn't move {name}. It stayed in {originalSectionLabel}.",
-          "reserveCurrencyRejected": "Reserve wallets must be in {budgetCcy}. {name} stayed in {originalSectionLabel}.",
-          "reserveCurrencyOnEdit": "Reserve wallets must be in {budgetCcy}. Change rolled back."
+          "moveFailed": "Couldn't move {name}. It stayed in {originalSectionLabel}."
         },
         "confirm": {
           "delete": {

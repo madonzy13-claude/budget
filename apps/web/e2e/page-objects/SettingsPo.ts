@@ -143,31 +143,51 @@ export class SettingsPo {
     if (await native.isVisible().catch(() => false)) {
       await native.selectOption(ccy);
     } else {
-      await picker.getByRole("combobox").click();
-      await this.page.getByRole("option").filter({ hasText: ccy }).first().click();
+      // Right after a currency change the settings re-render as the budget
+      // refetches; a click landing in that window focused the combobox but
+      // never opened it (CI, both projects). Click until the list is open.
+      const option = this.page
+        .getByRole("option")
+        .filter({ hasText: ccy })
+        .first();
+      await expect(async () => {
+        if (!(await option.isVisible()))
+          await picker.getByRole("combobox").click();
+        await expect(option).toBeVisible({ timeout: 2000 });
+      }).toPass({ timeout: 15000 });
+      await option.click();
     }
-    await expect(this.page.getByTestId("budget-currency-dialog")).toBeVisible({ timeout: 10000 });
+    await expect(this.page.getByTestId("budget-currency-dialog")).toBeVisible({
+      timeout: 10000,
+    });
   }
 
   async confirmCurrencyDialog(): Promise<void> {
     const saved = this.page.waitForResponse(
-      (r) => r.request().method() === "PATCH" && /\/budgets\/[^/]+$/.test(new URL(r.url()).pathname),
+      (r) =>
+        r.request().method() === "PATCH" &&
+        /\/budgets\/[^/]+$/.test(new URL(r.url()).pathname),
       { timeout: 15000 },
     );
     await this.page.getByTestId("budget-currency-confirm").click();
     if (!(await saved).ok()) throw new Error("currency change failed");
-    await expect(this.page.getByTestId("budget-currency-dialog")).toBeHidden({ timeout: 10000 });
+    await expect(this.page.getByTestId("budget-currency-dialog")).toBeHidden({
+      timeout: 10000,
+    });
   }
 
   async cancelCurrencyDialog(): Promise<void> {
     await this.page.getByTestId("budget-currency-cancel").click();
-    await expect(this.page.getByTestId("budget-currency-dialog")).toBeHidden({ timeout: 10000 });
+    await expect(this.page.getByTestId("budget-currency-dialog")).toBeHidden({
+      timeout: 10000,
+    });
   }
 
   async assertCurrency(ccy: string): Promise<void> {
     const picker = this.budgetCurrencyPicker();
     const native = picker.getByTestId("currency-picker-native");
-    if (await native.isVisible({ timeout: 10000 }).catch(() => false)) await expect(native).toHaveValue(ccy);
+    if (await native.isVisible({ timeout: 10000 }).catch(() => false))
+      await expect(native).toHaveValue(ccy);
     else await expect(picker).toContainText(ccy);
   }
 }

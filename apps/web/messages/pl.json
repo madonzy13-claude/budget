@@ -2003,9 +2003,7 @@
           "archived": "Portfel usunięty",
           "archiveFailed": "Nie udało się usunąć portfela. Spróbuj ponownie.",
           "moved": "Przeniesiono {name} do {sectionLabel}",
-          "moveFailed": "Nie udało się przenieść {name}. Zostaje w {originalSectionLabel}.",
-          "reserveCurrencyRejected": "Portfele rezerw muszą być w {budgetCcy}. {name} zostaje w {originalSectionLabel}.",
-          "reserveCurrencyOnEdit": "Portfele rezerw muszą być w {budgetCcy}. Zmiana cofnięta."
+          "moveFailed": "Nie udało się przenieść {name}. Zostaje w {originalSectionLabel}."
         },
         "confirm": {
           "delete": {

@@ -2003,9 +2003,7 @@
           "archived": "Гаманець видалено",
           "archiveFailed": "Не вдалося видалити гаманець. Спробуйте ще раз.",
           "moved": "{name} переміщено до {sectionLabel}",
-          "moveFailed": "Не вдалося перенести {name}. Залишається в {originalSectionLabel}.",
-          "reserveCurrencyRejected": "Гаманці резервів мають бути в {budgetCcy}. {name} залишається в {originalSectionLabel}.",
-          "reserveCurrencyOnEdit": "Гаманці резервів мають бути в {budgetCcy}. Зміну скасовано."
+          "moveFailed": "Не вдалося перенести {name}. Залишається в {originalSectionLabel}."
         },
         "confirm": {
           "delete": {
