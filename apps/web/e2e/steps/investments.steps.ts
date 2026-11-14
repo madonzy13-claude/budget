@@ -3132,7 +3132,11 @@ Given(
         `INSERT INTO budgeting.instruments
            (id, symbol, display_name, provider, asset_class, quote_currency, active, refresh_cadence)
          VALUES (gen_random_uuid(), $1, $2, 'coingecko', 'crypto', 'USD', true, 'hourly')
-         ON CONFLICT (symbol, provider) DO NOTHING`,
+         -- The daily universe seed (18:00 Berlin) can land mid-run and turn
+         -- off a coin its live feed missed; the scenario states the row.
+         ON CONFLICT (symbol, provider) DO UPDATE
+           SET display_name = EXCLUDED.display_name, asset_class = 'crypto',
+               quote_currency = 'USD', active = true`,
         [symbol, displayName],
       );
     } finally {
