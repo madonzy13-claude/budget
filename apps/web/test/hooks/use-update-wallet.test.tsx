@@ -17,6 +17,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useUpdateWallet } from "../../src/hooks/use-update-wallet";
 import type { WalletDto } from "../../src/hooks/use-wallets";
 
+vi.mock("next-intl", () => ({
+  useTranslations: (ns?: string) => (k: string) => (ns ? `${ns}.${k}` : k),
+}));
+
 const mockFetch = vi.fn();
 vi.mock("../../src/lib/budget-fetch", () => ({
   clientApiFetch: (...args: unknown[]) => mockFetch(...args),
@@ -75,7 +79,7 @@ const RESERVE_WALLET: WalletDto = {
   archivedAt: null,
 };
 
-describe.skip("useUpdateWallet", () => {
+describe("useUpdateWallet", () => {
   beforeEach(() => {
     mockFetch.mockClear();
     mockToastError.mockClear();
@@ -136,7 +140,9 @@ describe.skip("useUpdateWallet", () => {
 
   // ── Error handling ─────────────────────────────────────────────────────────
 
-  it("on generic error: rolls back optimistic update and toasts saveFailed", async () => {
+  // A 5xx is the server-unreachable class (offline-write.ts): the shared
+  // offline toast, not the save-failed one.
+  it("on a 5xx: rolls back optimistic update and shows the offline toast", async () => {
     const qc = makeClient([SPENDINGS_WALLET]);
 
     // Capture the name at onError time (before onSettled invalidation removes data)
@@ -167,10 +173,7 @@ describe.skip("useUpdateWallet", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
 
     setDataSpy.mockRestore();
-    // toast.error should be called with saveFailed key
-    expect(mockToastError).toHaveBeenCalledWith(
-      "bdp.tab.wallets.toast.saveFailed",
-    );
+    expect(mockToastError).toHaveBeenCalledWith("offline.writeBlocked");
     // Verify rollback happened — name restored before invalidation cleared cache
     expect(nameAtRollback).toBe("Cash");
   });
@@ -191,7 +194,9 @@ describe.skip("useUpdateWallet", () => {
     });
     result.current.mutate({ walletId: "wallet-1", currency: "USD" });
     await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(mockToastError).toHaveBeenCalledWith("bdp.tab.wallets.toast.saveFailed");
+    expect(mockToastError).toHaveBeenCalledWith(
+      "bdp.tab.wallets.toast.saveFailed",
+    );
   });
 
   // ── Cross-invalidation matrix (D-PH5-E1) ──────────────────────────────────
