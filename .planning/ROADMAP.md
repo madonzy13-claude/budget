@@ -522,13 +522,13 @@ Plans:
 
 **Requirements**: MCP-01..MCP-11 (from 15-RESEARCH/15-VALIDATION; CONTEXT D-01..D-25)
 **Depends on:** Phase 14
-**Plans:** 21 plans
+**Plans:** 1/21 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 15-01-PLAN.md — Package legitimacy gate + exact-pin installs + decisions: investment undo scope, wallet-history import (wave 1, checkpoint)
+- [x] 15-01-PLAN.md — Package legitimacy gate + exact-pin installs + decisions: investment undo scope, wallet-history import (wave 1, checkpoint)
 - [ ] 15-02-PLAN.md — Internal route dispatch (WeakMap identity) + decimal-string money boundary (wave 1)
 - [ ] 15-03-PLAN.md — Full-history paged transaction search route (wave 1)
 
