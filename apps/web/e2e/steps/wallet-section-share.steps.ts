@@ -249,15 +249,18 @@ Then(
 );
 
 Then(
-  "the asset {string} and the {string} group carry no dotted line",
+  "the asset {string} amount is dotted, but the {string} group carries no dotted line",
   async ({ page }, asset: string, type: string) => {
-    // Their amounts can't be typed — no dots there (the currency picker is
-    // tap-and-switch, so it is dotted).
+    // 261106 (user): every asset's amount opens its sheet — a deposit's too —
+    // so it is dotted. The group's amount is a sum nobody types: no dots there
+    // (the currency picker is tap-and-switch, so it is dotted).
     await expect(
       page
         .getByTestId(`holding-row-${asset}`)
-        .locator("[data-amount-cell] .editable-dots"),
-    ).toHaveCount(0);
+        .locator("[data-amount-cell] .editable-dots")
+        .locator("visible=true")
+        .first(),
+    ).toHaveCSS("text-decoration-style", "dotted");
     await expect(
       page
         .getByTestId(`investment-type-value-${type}`)

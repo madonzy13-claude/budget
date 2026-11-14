@@ -14,5 +14,5 @@ Feature: Refunds give money back to a spending category
     Then the refund of 2500 cents shows a refund mark
     And the refund of 2500 cents keeps its amount and note on one line
     When I reveal the spent total on the "Food" usage chip
-    Then the "Food" usage chip reads "225"
+    Then the "Food" usage chip reads "$225"
     And editing the refund of 2500 cents shows Refund with 25

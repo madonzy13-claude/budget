@@ -13,7 +13,7 @@ Feature: A category's percent chip doubles as its spent total
     When I open the spendings tab for the budget
     Then the "Food" usage chip reads "25%"
     When I reveal the spent total on the "Food" usage chip
-    Then the "Food" usage chip reads "250"
+    Then the "Food" usage chip reads "$250"
     When I tap the "Food" usage chip
     Then the "Food" usage chip reads "25%"
     When I reveal the spent total on the "Food" usage chip
@@ -26,7 +26,7 @@ Feature: A category's percent chip doubles as its spent total
     And "Food" has 250 of spending this month
     When I open the spendings tab for the budget
     And I tap the "Food" usage chip
-    Then the "Food" usage chip reads "250"
+    Then the "Food" usage chip reads "$250"
     When I tap the "Food" usage chip
     Then the "Food" usage chip reads "25%"
     And the category editor is not open
