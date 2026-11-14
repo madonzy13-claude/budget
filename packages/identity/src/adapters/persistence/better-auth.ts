@@ -236,6 +236,17 @@ export async function purgeUserData(uid: string): Promise<void> {
     await tx.execute(
       sql`DELETE FROM tenancy.budget_members WHERE user_id = ${uid}::uuid`,
     );
+    // Phase 15 (MCP-11): these are USER-scoped (user_id, no tenant_id), so they
+    // belong in this step, not TENANT_TABLES. oauth_client stays: dynamic
+    // client registration is anonymous and links to no user.
+    for (const t of [
+      "identity.oauth_refresh_token",
+      "identity.oauth_access_token",
+      "identity.oauth_consent",
+      "shared_kernel.mcp_import_previews",
+      "shared_kernel.mcp_write_log",
+    ])
+      await tx.execute(sql`DELETE FROM ${sql.raw(t)} WHERE user_id = ${uid}::uuid`);
     // Crypto-shred the user's DEK (app_role has UPDATE, not DELETE, on user_keys —
     // the design erases by destroying key material, not row deletion). Any DEK-
     // encrypted PII left anywhere becomes undecryptable (T-10-09).

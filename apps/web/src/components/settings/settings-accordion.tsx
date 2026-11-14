@@ -127,9 +127,7 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
   const hasCushionWallet = wallets.some((w) => w.walletType === "CUSHION");
   const hasReserveWallet = wallets.some((w) => w.walletType === "RESERVE");
   const hasInvestment = (investmentsQ.data ?? []).length > 0;
-  const hasCategory = (categoriesQ.data ?? []).some(
-    (c) => !(c as { isInvestment?: boolean }).isInvestment,
-  );
+  const hasCategory = (categoriesQ.data ?? []).length > 0;
   const hasScheduled = (scheduledQ.data ?? false) as boolean;
   const hasIncome = (incomeQ.data ?? false) as boolean;
 
@@ -191,14 +189,15 @@ export function SettingsAccordion({ budget }: SettingsAccordionProps) {
               on top of the first row's 12 and put 32px above "Name" (user,
               260810). */}
           <AccordionContent className="bg-[var(--surface-sunken-dark)] px-6 py-3 shadow-[inset_0_4px_8px_-2px_rgba(0,0,0,0.22)]">
-            <OwnerGate isOwner={isOwner}>
-              <BudgetIdentitySection
-                budgetId={budget.id}
-                name={budget.name}
-                defaultCurrency={budget.defaultCurrency}
-                hasTransactions={budget.hasTransactions}
-              />
-            </OwnerGate>
+            {/* Not behind the owner gate: the name is each member's own
+                label (261103, user); the section locks the currency itself. */}
+            <BudgetIdentitySection
+              budgetId={budget.id}
+              name={budget.name}
+              defaultCurrency={budget.defaultCurrency}
+              hasTransactions={budget.hasTransactions}
+              isOwner={isOwner}
+            />
             {/* Privacy mode is the READER's, not the budget's (user, 260810),
                 so it sits OUTSIDE the owner gate — a member who is not the
                 owner is exactly who needs it. Joins on the rows' rhythm:

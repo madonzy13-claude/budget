@@ -12,7 +12,7 @@
  *   data-testid="wallet-row-draft"
  *
  * T-05-10: All text via JSX — React auto-escapes (no raw innerHTML).
- * D-PH5-R3: Currency cell is read-only plain text on Reserve-section rows.
+ * Phase 14 (D-09): the currency cell is editable on every row, Reserve included.
  * D-PH5-W5: Hover reveals trash on desktop (group-hover:flex).
  * D-PH5-W6: Mobile first-tap sets data-selected → trash appears.
  */
@@ -281,9 +281,9 @@ function DraftRow({
           gets a yellow ring while the dropdown is open (260723). */}
       <div
         // NOTE: keep a space before `${` — Tailwind's scanner does not extract a
-        // class glued to an interpolation, and md:w-[224px] silently vanished
+        // class glued to an interpolation, and md:w-[var(--ccy-w,224px)] silently vanished
         // from the CSS bundle (260812-dgf).
-        className={`w-[44px] shrink-0 rounded sm:w-[96px] md:w-[224px] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] ${
+        className={`w-[44px] shrink-0 rounded sm:w-[96px] md:w-[var(--ccy-w,224px)] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] ${
           currencyOpen ? "ring-1 ring-[var(--primary)]" : ""
         }`}
         data-nav-field="currency"
@@ -358,7 +358,8 @@ function PersistedRow({
   maxAmountChars,
   onUpdate,
   onArchive,
-  isReserveSection,
+  // Phase 14 (D-09): reserve rows render like any other section now.
+  isReserveSection: _isReserveSection,
 }: PersistedProps) {
   const t = useTranslations("bdp.tab.wallets.row");
   const locale = useLocale();
@@ -532,11 +533,9 @@ function PersistedRow({
       ? `${dndTransform} ${swipeTransform}`
       : swipeTransform;
 
-  // 260724 (tasks 2/4/6): the four keyboard-hoppable fields in DOM order. Reserve
-  // rows expose no currency picker (read-only), so it's skipped there.
-  const ROW_FIELDS = isReserveSection
-    ? (["icon", "name", "amount"] as const)
-    : (["icon", "name", "currency", "amount"] as const);
+  // 260724 (tasks 2/4/6): the four keyboard-hoppable fields in DOM order.
+  // Phase 14 (D-09): reserve rows pick a currency too.
+  const ROW_FIELDS = ["icon", "name", "currency", "amount"] as const;
 
   // Focus (and activate) a field by its data-nav-field key: the icon opens on
   // Enter, the currency dropdown opens on land (yellow ring), name/amount enter
@@ -765,7 +764,7 @@ function PersistedRow({
           />
         </div>
 
-        {/* Currency — read-only for Reserve section per D-PH5-R3; editable otherwise.
+        {/* Currency — editable on every row (Phase 14, D-09).
           UAT-PH5-T3-24: narrower on mobile so name + amount have room.
           UAT-PH5-T3-42: render the CurrencyPicker directly (no
           InlineEditCell wrapper). On touch devices the picker emits a
@@ -776,34 +775,24 @@ function PersistedRow({
           onSelect directly. */}
         <div
           // Space before `${` is load-bearing — see the draft row above.
-          className={`w-[44px] rounded max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[224px] ${
+          className={`w-[44px] rounded max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] data-[nav-field-active=true]:ring-1 data-[nav-field-active=true]:ring-[var(--primary)] sm:w-[96px] md:w-[var(--ccy-w,224px)] ${
             currencyOpen ? "ring-1 ring-[var(--primary)]" : ""
           }`}
           data-inline-cell
           data-nav-field="currency"
         >
-          {isReserveSection ? (
-            // R6 (user): the other wallets' currency font; no dotted line —
-            // it can't be changed here (reserve wallets use the budget currency).
-            <span
-              className="block w-full text-num-md text-[var(--foreground)] max-sm:text-right"
-              aria-label={t("currencyReadOnlyAria", { ccy: wallet.currency })}
-            >
-              {wallet.currency}
-            </span>
-          ) : (
-            <span className="editable-dots contents">
-              <CurrencyPicker
-                value={wallet.currency}
-                aria-label={t("currencyAria")}
-                onSelect={(v: string) => onUpdate({ currency: v })}
-                richLabel={wide}
-                desktopDropdown={wide}
-                open={currencyOpen}
-                onOpenChange={setCurrencyOpen}
-              />
-            </span>
-          )}
+          {/* Phase 14 (D-09): reserve wallets may hold any currency. */}
+          <span className="editable-dots contents">
+            <CurrencyPicker
+              value={wallet.currency}
+              aria-label={t("currencyAria")}
+              onSelect={(v: string) => onUpdate({ currency: v })}
+              richLabel={wide}
+              desktopDropdown={wide}
+              open={currencyOpen}
+              onOpenChange={setCurrencyOpen}
+            />
+          </span>
         </div>
 
         {/* Amount — numeric, editable.

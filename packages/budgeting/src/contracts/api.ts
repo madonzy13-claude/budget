@@ -3,6 +3,7 @@
  * Used by both the API route layer and application use cases.
  */
 import { z } from "zod";
+import { FIAT_CURRENCIES } from "@budget/shared-kernel";
 
 // Wallet schemas (renamed from Account in Plan 01-02, v1.1 schema)
 export const walletTypeSchema = z.enum([
@@ -144,6 +145,9 @@ export const createCategorySchema = z.object({
   parentId: z.string().uuid().optional(),
   colorKey: categoryColorKeySchema,
   cushionMode: cushionModeSchema,
+  // Phase 14 (D-04): omitted = the budget's currency at creation. Only the 8
+  // currencies with FX history — anything else could never be converted.
+  currency: z.enum(FIAT_CURRENCIES).optional(),
 });
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
@@ -157,6 +161,16 @@ export const updateCategorySchema = z.object({
 
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 
+// Phase 14 (D-07): PATCH /categories/:id/currency.
+export const changeCategoryCurrencySchema = z.object({
+  currency: z.enum(FIAT_CURRENCIES),
+  /** The month being viewed, 'YYYY-MM-01'. A past one changes only itself. */
+  month: z
+    .string()
+    .regex(/^\d{4}-\d{2}-01$/)
+    .optional(),
+});
+
 export interface CategoryDto {
   id: string;
   name: string;
@@ -167,9 +181,8 @@ export interface CategoryDto {
   colorKey: string | null;
   // mig 0059: persisted cushion mode (null = inferred from amounts on reopen).
   cushionMode?: string | null;
-  // r33: THE smart Investments category. Investing is not spending, so charts
-  // that measure spending leave it out (260802).
-  isInvestment?: boolean;
+  // Phase 14 (D-04): the category's own currency.
+  currency: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -193,17 +206,11 @@ export const setLimitSchema = z.object({
     .string()
     .regex(/^\d{1,15}$/)
     .optional(),
-  // Currencies optional — when omitted the API derives both from the active
-  // workspace's default_currency. The form does not ask the user to pick.
-  normalCurrency: z
-    .string()
-    .regex(/^[A-Z0-9]{3,5}$/)
-    .optional(),
+  // Currencies optional — when omitted the API takes the CATEGORY's. Named,
+  // they must be it (review CR-03), and one the FX table knows.
+  normalCurrency: z.enum(FIAT_CURRENCIES).optional(),
   cushionAmount: z.string().regex(/^\d{1,15}$/),
-  cushionCurrency: z
-    .string()
-    .regex(/^[A-Z0-9]{3,5}$/)
-    .optional(),
+  cushionCurrency: z.enum(FIAT_CURRENCIES).optional(),
   effectiveFrom: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)

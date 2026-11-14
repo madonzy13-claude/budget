@@ -1,0 +1,742 @@
+/**
+ * write-tools.test.ts — 15-13: the agent writes through the app's own routes,
+ * under the write scope, the per-connection limits and the hidden write log.
+ * Real app, real OAuth tokens, real Postgres (`infisical run --env=dev --`).
+ */
+import { describe, it, expect, beforeAll } from "bun:test";
+import { Pool } from "pg";
+import {
+  setupMcpTestEnv,
+  testApp,
+  testDeps,
+  baseUrl,
+  signUpTestUser,
+  seedBudget,
+  mintMcpToken,
+  createSdkClient,
+  type TestUser,
+} from "./helpers";
+
+await setupMcpTestEnv();
+const { clearRateLimits } = await import("../../src/middleware/rate-limit");
+const { checkRate } = await import("../../src/mcp/limits");
+const { withUserContext, insertWriteLog } = await import("@budget/platform");
+const { UserId } = await import("@budget/shared-kernel");
+
+type App = Awaited<ReturnType<typeof testApp>>;
+type Client = Awaited<ReturnType<typeof createSdkClient>>;
+type Result = {
+  isError?: boolean;
+  structuredContent?: Record<string, any>;
+  content: Array<{ text: string }>;
+};
+
+let app: App;
+let a: TestUser;
+let budgetId: string;
+let foodId: string;
+let client: Client;
+let clientId: string;
+
+async function q<T = any>(
+  text: string,
+  params: unknown[],
+  ctx: { user: string; budget?: string },
+): Promise<T[]> {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
+  const c = await pool.connect();
+  try {
+    await c.query("BEGIN");
+    if (ctx.budget)
+      await c.query(`SELECT set_config('app.tenant_ids', $1, true)`, [`{${ctx.budget}}`]);
+    await c.query(`SELECT set_config('app.current_user_id', $1, true)`, [ctx.user]);
+    const r = await c.query(text, params);
+    await c.query("COMMIT");
+    return r.rows as T[];
+  } finally {
+    c.release();
+    await pool.end();
+  }
+}
+
+const ledgerCount = async (budget = budgetId) =>
+  (
+    await q<{ n: number }>(
+      `SELECT count(*)::int AS n FROM budgeting.expense_ledger WHERE tenant_id = $1`,
+      [budget],
+      { user: a.userId, budget },
+    )
+  )[0]!.n;
+
+const logRows = (where = "TRUE", params: unknown[] = []) =>
+  q(
+    `SELECT * FROM shared_kernel.mcp_write_log WHERE user_id = $1 AND ${where}
+      ORDER BY created_at, id`,
+    [a.userId, ...params],
+    { user: a.userId },
+  );
+
+async function cookie(method: string, path: string, body?: unknown, budget = budgetId) {
+  return app.fetch(
+    new Request(`${baseUrl()}${path}`, {
+      method,
+      headers: {
+        cookie: a.cookie,
+        "x-budget-id": budget,
+        "content-type": "application/json",
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    }),
+  );
+}
+
+async function tool(name: string, args: Record<string, unknown>, c = client): Promise<Result> {
+  clearRateLimits();
+  return (await c.callTool({ name, arguments: args })) as Result;
+}
+
+const errorOf = (r: Result) => JSON.parse(r.content[0]!.text).error as string;
+const key = () => `k-${crypto.randomUUID()}`;
+const today = () => new Date().toISOString().slice(0, 10);
+
+async function newCategory(budget = budgetId, name = "Cat"): Promise<string> {
+  const id = crypto.randomUUID();
+  await q(
+    `INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id)
+     VALUES ($1, $2, $3, now(), $4)`,
+    [id, budget, name, a.userId],
+    { user: a.userId, budget },
+  );
+  return id;
+}
+
+beforeAll(async () => {
+  app = await testApp();
+  a = await signUpTestUser(app);
+  budgetId = await seedBudget(a.userId, { currency: "PLN" });
+  foodId = await newCategory(budgetId, "Food");
+  const t = await mintMcpToken(app, a, ["read", "write"]);
+  clientId = t.clientId;
+  client = await createSdkClient(app, t.accessToken);
+});
+
+describe("add_transactions", () => {
+  it("refuses a read-only token and writes nothing", async () => {
+    const { accessToken } = await mintMcpToken(app, a, ["read"]);
+    const ro = await createSdkClient(app, accessToken);
+    const before = await ledgerCount();
+    const call = tool(
+      "add_transactions",
+      {
+        budget_id: budgetId,
+        idempotency_key: key(),
+        rows: [{ date: today(), category_id: foodId, amount: "1.00" }],
+      },
+      ro,
+    ).then(
+      (r) => errorOf(r),
+      (e: Error) => String(e),
+    );
+    // The SDK answers with a 403 write-scope challenge before the tool runs.
+    expect(await call).toMatch(/insufficient.?scope/i);
+    expect(await ledgerCount()).toBe(before);
+  });
+
+  it("adds rows exactly like the app does, and logs each one", async () => {
+    const idem = key();
+    const r = await tool("add_transactions", {
+      budget_id: budgetId,
+      idempotency_key: idem,
+      rows: [
+        { date: today(), category_id: foodId, amount: "12.50" },
+        { date: today(), category_id: foodId, amount: "-3.00", note: "refund" },
+        { date: "2026-10-01", category_id: foodId, amount: "10.00", currency: "EUR" },
+      ],
+    });
+    expect(r.isError).toBeFalsy();
+    const created = r.structuredContent!.created as Array<{ id: string }>;
+    expect(created).toHaveLength(3);
+    const callId = r.structuredContent!.call_id as string;
+
+    // D-07: the same shape the app's own route answers with — no extra keys.
+    const direct = await cookie("POST", `/budgets/${budgetId}/transactions`, {
+      date: today(),
+      category_id: foodId,
+      amount_original_cents: 100,
+    });
+    expect(direct.status).toBe(201);
+    const directRow = ((await direct.json()) as { transaction: Record<string, unknown> })
+      .transaction;
+    const viaTool = (await (
+      await cookie("GET", `/budgets/${budgetId}/transactions/${created[0]!.id}`)
+    ).json()) as { transaction: Record<string, unknown> };
+    expect(Object.keys(viaTool.transaction).sort()).toEqual(Object.keys(directRow).sort());
+    expect(viaTool.transaction.amount_original_cents).toBe("1250");
+
+    // EUR in a PLN budget: converted at that date's rate (Phase 14).
+    const eur = (await (
+      await cookie("GET", `/budgets/${budgetId}/transactions/${created[2]!.id}`)
+    ).json()) as { transaction: Record<string, string> };
+    expect(eur.transaction.currency_original).toBe("EUR");
+    expect(Number(eur.transaction.fx_rate)).toBeGreaterThan(1);
+
+    const log = await logRows("call_id = $2", [callId]);
+    expect(log).toHaveLength(3);
+    for (const row of log) {
+      expect(row).toMatchObject({
+        op: "create",
+        entity_type: "transaction",
+        tool: "add_transactions",
+        client_id: clientId,
+        tenant_id: budgetId,
+        entry_count: 1,
+      });
+    }
+    expect(log.map((l) => l.entity_id).sort()).toEqual(created.map((c) => c.id).sort());
+    expect(log[0]!.after_jsonb.id).toBe(log[0]!.entity_id);
+  });
+
+  it("refreshes the reserve task like the app's own route", async () => {
+    const budget = await seedBudget(a.userId, { currency: "USD" });
+    await q(
+      `UPDATE tenancy.budgets SET reserves_enabled = true WHERE id = $1`,
+      [budget],
+      { user: a.userId, budget },
+    );
+    await q(
+      `INSERT INTO budgeting.wallets
+         (id, tenant_id, name, currency, current_balance, wallet_type, created_at, actor_user_id)
+       VALUES (gen_random_uuid(), $1, 'Reserve', 'USD', 500, 'RESERVE', now(), $2)`,
+      [budget, a.userId],
+      { user: a.userId, budget },
+    );
+    const cat = await newCategory(budget);
+    const r = await tool("add_transactions", {
+      budget_id: budget,
+      idempotency_key: key(),
+      rows: [{ date: today(), category_id: cat, amount: "5.00" }],
+    });
+    expect(r.isError).toBeFalsy();
+    const tasks = await q(
+      `SELECT payload_json->>'direction' AS direction FROM budgeting.tasks
+        WHERE tenant_id = $1 AND kind = 'RESERVE_TOPUP' AND status = 'PENDING'`,
+      [budget],
+      { user: a.userId, budget },
+    );
+    expect(tasks).toHaveLength(1);
+  });
+
+  it("replaying the same key creates and logs nothing", async () => {
+    const args = {
+      budget_id: budgetId,
+      idempotency_key: key(),
+      rows: [
+        { date: today(), category_id: foodId, amount: "1.00" },
+        { date: today(), category_id: foodId, amount: "2.00" },
+      ],
+      // A replay is a likely duplicate by design; the key stops a second add.
+      allow_duplicates: true,
+    };
+    const first = await tool("add_transactions", args);
+    const rows = await ledgerCount();
+    const logged = (await logRows()).length;
+
+    const again = await tool("add_transactions", args);
+    expect(again.isError).toBeFalsy();
+    expect(again.structuredContent!.created.map((c: { id: string }) => c.id)).toEqual(
+      first.structuredContent!.created.map((c: { id: string }) => c.id),
+    );
+    expect(await ledgerCount()).toBe(rows);
+    expect((await logRows()).length).toBe(logged);
+
+    const swapped = await tool("add_transactions", {
+      ...args,
+      rows: [{ date: today(), category_id: foodId, amount: "9.00" }],
+    });
+    expect(swapped.isError).toBe(true);
+    expect(errorOf(swapped)).toBe("idempotency_key_reused_with_different_body");
+  });
+
+  it("a retry after a mid-batch failure logs only the rows it wrote", async () => {
+    const idem = key();
+    const rows = (bad: string) => [
+      { date: today(), category_id: foodId, amount: "1.00" },
+      { date: bad, category_id: foodId, amount: "2.00" },
+      { date: today(), category_id: foodId, amount: "3.00" },
+    ];
+    // Shaped like a date, but not one: the route refuses it.
+    const first = await tool("add_transactions", {
+      budget_id: budgetId,
+      idempotency_key: idem,
+      rows: rows("2026-02-30"),
+      allow_duplicates: true,
+    });
+    expect(first.isError).toBeFalsy();
+    expect(first.structuredContent!.created).toHaveLength(1);
+    expect(first.structuredContent!.failed.index).toBe(1);
+
+    // Same key, row 2 corrected: row 1 is a replay, rows 2-3 are new.
+    const retry = await tool("add_transactions", {
+      budget_id: budgetId,
+      idempotency_key: idem,
+      rows: rows(today()),
+      allow_duplicates: true,
+    });
+    expect(retry.isError).toBeFalsy();
+    expect(retry.structuredContent!.created).toHaveLength(3);
+    expect(retry.structuredContent!.failed).toBeUndefined();
+    expect(retry.structuredContent!.created[0].id).toBe(
+      first.structuredContent!.created[0].id,
+    );
+
+    const calls = [first, retry].map((r) => r.structuredContent!.call_id);
+    const log = await logRows("call_id = ANY($2::uuid[])", [calls]);
+    expect(log).toHaveLength(3);
+    expect(log.filter((l) => l.call_id === calls[1])).toHaveLength(2);
+  });
+
+  // 261111 (user): "Add 7 nov tech transaction for 300zl" went in although two
+  // such were there. Same day + category + amount + currency, already in the
+  // budget or twice in the rows: nothing is written until the user says so.
+  it("stops on a likely duplicate and adds it only when told to", async () => {
+    const row = { date: "2026-09-07", category_id: foodId, amount: "300.00" };
+    const first = await tool("add_transactions", { budget_id: budgetId, idempotency_key: key(), rows: [row] });
+    expect(first.isError).toBeFalsy();
+    const before = await ledgerCount();
+
+    const again = await tool("add_transactions", {
+      budget_id: budgetId,
+      idempotency_key: key(),
+      rows: [{ ...row, amount: "5.00" }, row, { ...row, amount: "5.00" }],
+    });
+    expect(again.isError).toBe(true);
+    expect(errorOf(again)).toBe("possible_duplicates");
+    expect(JSON.parse(again.content[0]!.text).duplicates).toEqual([
+      { index: 1, duplicate_of: "existing" },
+      { index: 2, duplicate_of: 0 },
+    ]);
+    expect(await ledgerCount()).toBe(before);
+
+    const told = await tool("add_transactions", {
+      budget_id: budgetId,
+      idempotency_key: key(),
+      rows: [row],
+      allow_duplicates: true,
+    });
+    expect(told.isError).toBeFalsy();
+    expect(await ledgerCount()).toBe(before + 1);
+  });
+
+  it("refuses more than 500 rows and writes nothing", async () => {
+    const before = await ledgerCount();
+    const r = await tool("add_transactions", {
+      budget_id: budgetId,
+      idempotency_key: key(),
+      rows: Array.from({ length: 501 }, () => ({
+        date: today(),
+        category_id: foodId,
+        amount: "1.00",
+      })),
+    });
+    expect(r.isError).toBe(true);
+    expect(errorOf(r)).toBe("too_many_rows");
+    expect(await ledgerCount()).toBe(before);
+  });
+
+  it.each([
+    ["12.345", undefined, "too_many_decimals"],
+    ["12.00", "XYZ", "unsupported_currency"],
+  ])("rejects amount %s %s before writing anything", async (amount, currency, code) => {
+    const before = await ledgerCount();
+    const r = await tool("add_transactions", {
+      budget_id: budgetId,
+      idempotency_key: key(),
+      rows: [
+        { date: today(), category_id: foodId, amount: "1.00" },
+        { date: today(), category_id: foodId, amount, ...(currency ? { currency } : {}) },
+      ],
+    });
+    expect(r.isError).toBe(true);
+    expect(JSON.parse(r.content[0]!.text)).toMatchObject({ error: code, index: 1 });
+    expect(await ledgerCount()).toBe(before);
+  });
+
+  it("accepts a row dated two years ago (D-12)", async () => {
+    const d = new Date();
+    d.setUTCFullYear(d.getUTCFullYear() - 2);
+    const r = await tool("add_transactions", {
+      budget_id: budgetId,
+      idempotency_key: key(),
+      rows: [{ date: d.toISOString().slice(0, 10), category_id: foodId, amount: "4.00" }],
+    });
+    expect(r.isError).toBeFalsy();
+    expect(r.structuredContent!.created).toHaveLength(1);
+  });
+});
+
+describe("write limits", () => {
+  it("the 21st write in a minute is rate limited", async () => {
+    clearRateLimits();
+    for (let i = 0; i < 20; i++) checkRate({ clientId, userId: a.userId }, "write");
+    const r = (await client.callTool({
+      name: "add_transactions",
+      arguments: {
+        budget_id: budgetId,
+        idempotency_key: key(),
+        rows: [{ date: today(), category_id: foodId, amount: "1.00" }],
+      },
+    })) as Result;
+    expect(r.isError).toBe(true);
+    expect(errorOf(r)).toBe("rate_limited");
+  });
+
+  it("the daily entry cap is checked before anything is written", async () => {
+    const t = await mintMcpToken(app, a, ["read", "write"]);
+    const capped = await createSdkClient(app, t.accessToken);
+    await withUserContext(UserId(a.userId), (tx) =>
+      insertWriteLog(tx, [
+        {
+          tenantId: budgetId,
+          userId: a.userId,
+          clientId: t.clientId,
+          callId: crypto.randomUUID(),
+          batchId: null,
+          tool: "add_transactions",
+          entityType: "transaction",
+          entityId: "seed",
+          op: "create",
+          before: null,
+          after: null,
+          entryCount: 4999,
+        },
+      ]),
+    );
+    const before = await ledgerCount();
+    const r = await tool(
+      "add_transactions",
+      {
+        budget_id: budgetId,
+        idempotency_key: key(),
+        rows: [
+          { date: today(), category_id: foodId, amount: "1.00" },
+          { date: today(), category_id: foodId, amount: "1.00" },
+        ],
+      },
+      capped,
+    );
+    expect(r.isError).toBe(true);
+    expect(errorOf(r)).toBe("daily_entry_limit");
+    expect(await ledgerCount()).toBe(before);
+  });
+});
+
+describe("writeTool wrapper", () => {
+  it("refuses a mutating dispatch that skipped the daily-cap preflight", async () => {
+    const { McpServer } = await import("@modelcontextprotocol/server");
+    const { z } = await import("zod");
+    const { writeTool } = await import("../../src/mcp/tools/define");
+    let reached = 0;
+    const stub = { fetch: () => (reached++, new Response("{}", { status: 201 })) };
+    const server = new McpServer({ name: "t", version: "1" });
+    const handler = writeTool(
+      server,
+      {
+        who: { userId: a.userId, clientId: "preflight-test", email: a.email, locale: "en" },
+        scopes: ["read", "write"],
+        deps: await testDeps(),
+        app: stub,
+      },
+      "sneaky_write",
+      { description: "test only", inputSchema: z.object({}) },
+      async (_args, ctx) => {
+        await ctx.dispatch({ method: "POST", path: "/anything", body: {} });
+        return { result: {}, effects: [] };
+      },
+    );
+    const r = (await handler({})) as Result;
+    expect(r.isError).toBe(true);
+    expect(errorOf(r)).toBe("preflight_required");
+    expect(reached).toBe(0);
+  });
+});
+
+async function addOne(amount = "10.00", budget = budgetId, cat = foodId): Promise<string> {
+  const r = await tool("add_transactions", {
+    budget_id: budget,
+    idempotency_key: key(),
+    rows: [{ date: today(), category_id: cat, amount }],
+  });
+  expect(r.isError).toBeFalsy();
+  return r.structuredContent!.created[0].id;
+}
+
+const txnOf = async (id: string) =>
+  (await (await cookie("GET", `/budgets/${budgetId}/transactions/${id}`)).json()) as {
+    transaction?: Record<string, string>;
+  };
+
+describe("edit and delete a transaction", () => {
+  it("edit_transaction applies the change and logs before and after", async () => {
+    const id = await addOne("10.00");
+    const r = await tool("edit_transaction", {
+      budget_id: budgetId,
+      transaction_id: id,
+      changes: { amount: "20.00", note: "fixed" },
+    });
+    expect(r.isError).toBeFalsy();
+    const t = (await txnOf(id)).transaction!;
+    expect(t.amount_original_cents).toBe("2000");
+    expect(t.note).toBe("fixed");
+    const [log] = await logRows("call_id = $2", [r.structuredContent!.call_id]);
+    expect(log).toMatchObject({ op: "update", entity_id: id, entity_type: "transaction" });
+    expect(log.before_jsonb.amount_original_cents).toBe("1000");
+    expect(log.after_jsonb.amount_original_cents).toBe("2000");
+  });
+
+  it("delete_transaction soft-deletes like the app and logs the row", async () => {
+    const id = await addOne("7.00");
+    const r = await tool("delete_transaction", { budget_id: budgetId, transaction_id: id });
+    expect(r.isError).toBeFalsy();
+    const [row] = await q(
+      `SELECT deleted_at FROM budgeting.expense_ledger WHERE id = $1`,
+      [id],
+      { user: a.userId, budget: budgetId },
+    );
+    expect(row.deleted_at).not.toBeNull();
+    const [log] = await logRows("call_id = $2", [r.structuredContent!.call_id]);
+    expect(log).toMatchObject({ op: "delete", entity_id: id });
+    expect(log.before_jsonb.amount_original_cents).toBe("700");
+  });
+
+  it("cannot touch another user's budget", async () => {
+    const b = await signUpTestUser(app);
+    const theirs = await seedBudget(b.userId);
+    const cat = crypto.randomUUID();
+    await q(
+      `INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id)
+       VALUES ($1, $2, 'Theirs', now(), $3)`,
+      [cat, theirs, b.userId],
+      { user: b.userId, budget: theirs },
+    );
+    const txId = crypto.randomUUID();
+    await q(
+      `INSERT INTO budgeting.expense_ledger
+         (id, tenant_id, budget_id, category_id, transaction_date, amount_original_cents,
+          currency_original, amount_converted_cents, fx_rate, fx_as_of, kind,
+          confirmed_at, created_at, updated_at)
+       VALUES ($1, $2, $2, $3, current_date, 500, 'EUR', 500, 1, current_date,
+               'SPENDING', now(), now(), now())`,
+      [txId, theirs, cat],
+      { user: b.userId, budget: theirs },
+    );
+    for (const budget of [theirs, budgetId]) {
+      const r = await tool("edit_transaction", {
+        budget_id: budget,
+        transaction_id: txId,
+        changes: { amount: "1.00" },
+      });
+      expect(r.isError).toBe(true);
+    }
+    const [row] = await q(
+      `SELECT amount_original_cents::text AS c FROM budgeting.expense_ledger WHERE id = $1`,
+      [txId],
+      { user: b.userId, budget: theirs },
+    );
+    expect(row.c).toBe("500");
+  });
+});
+
+describe("wallets, limits, categories, budgets", () => {
+  it("sync_wallet_balance answers old → new and the difference", async () => {
+    const res = await cookie("POST", "/wallets", {
+      name: "Cash",
+      walletType: "SPENDINGS",
+      currency: "PLN",
+    });
+    expect(res.status).toBe(201);
+    const wallet = (await res.json()) as { id: string };
+    const set = await cookie("PUT", `/wallets/${wallet.id}/balance`, {
+      amount: "100.00",
+      currency: "PLN",
+    });
+    expect(set.status).toBe(200);
+    const r = await tool("sync_wallet_balance", {
+      budget_id: budgetId,
+      wallet_id: wallet.id,
+      balance: "150.25",
+      currency: "PLN",
+    });
+    expect(r.isError).toBeFalsy();
+    expect(r.structuredContent).toMatchObject({
+      old_balance: "100.00",
+      new_balance: "150.25",
+      difference: "50.25",
+      currency: "PLN",
+    });
+    const [log] = await logRows("call_id = $2", [r.structuredContent!.call_id]);
+    expect(log).toMatchObject({ op: "update", entity_type: "wallet", entity_id: wallet.id });
+  });
+
+  it("set_category_limit accepts a month 18 months ago and logs the previous limit", async () => {
+    const cat = await newCategory(budgetId, "Limits");
+    const now = new Date();
+    const month = (back: number) => {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1));
+      return d.toISOString().slice(0, 7);
+    };
+    const current = await tool("set_category_limit", {
+      budget_id: budgetId,
+      category_id: cat,
+      month: month(0),
+      amount: "500.00",
+    });
+    expect(current.isError).toBeFalsy();
+    const past = await tool("set_category_limit", {
+      budget_id: budgetId,
+      category_id: cat,
+      month: month(18),
+      amount: "300.00",
+    });
+    expect(past.isError).toBeFalsy();
+    const eff = async (m: string) =>
+      (await (
+        await cookie("GET", `/budgets/${budgetId}/categories/${cat}/limits/effective?date=${m}-01`)
+      ).json()) as { normalAmount: string };
+    expect((await eff(month(18))).normalAmount).toBe("30000");
+    expect((await eff(month(0))).normalAmount).toBe("50000");
+    expect(past.structuredContent).toMatchObject({ amount: "300.00", currency: "PLN" });
+    const [log] = await logRows("call_id = $2", [current.structuredContent!.call_id]);
+    expect(log).toMatchObject({ op: "update", entity_type: "category_limit", entity_id: cat });
+  });
+
+  it("set_category_limit in another currency switches the category, like the app; undo switches it back", async () => {
+    // Today's PLN→USD rate, in case this DB has no history. Removes only its own row.
+    const worker = new Pool({ connectionString: process.env.DATABASE_URL_WORKER?.replace("@db:", "@localhost:") });
+    const seeded =
+      ((
+        await worker.query(
+          `INSERT INTO budgeting.fx_rates (base, quote, date, rate, provider)
+           VALUES ('PLN', 'USD', CURRENT_DATE, 0.25, 'test-15-limit-ccy') ON CONFLICT DO NOTHING RETURNING 1`,
+        )
+      ).rowCount ?? 0) > 0;
+    await worker.end();
+    try {
+      const cat = await newCategory(budgetId, "Tech");
+      const month = new Date().toISOString().slice(0, 7);
+      expect(
+        (await tool("set_category_limit", { budget_id: budgetId, category_id: cat, month, amount: "1000.00" })).isError,
+      ).toBeFalsy();
+
+      const r = await tool("set_category_limit", {
+        budget_id: budgetId,
+        category_id: cat,
+        month,
+        amount: "400.00",
+        currency: "USD",
+      });
+      expect(r.isError).toBeFalsy();
+      expect(r.structuredContent).toMatchObject({ amount: "400.00", currency: "USD" });
+      const catNow = async () =>
+        (await (await cookie("GET", `/budgets/${budgetId}/categories/${cat}`)).json()) as { currency: string };
+      const eff = async () =>
+        (await (
+          await cookie("GET", `/budgets/${budgetId}/categories/${cat}/limits/effective?date=${month}-01`)
+        ).json()) as { normalAmount: string };
+      expect((await catNow()).currency).toBe("USD");
+      expect((await eff()).normalAmount).toBe("40000");
+
+      const undone = await tool("undo", { id: r.structuredContent!.call_id });
+      expect(undone.isError).toBeFalsy();
+      expect((await catNow()).currency).toBe("PLN");
+      expect((await eff()).normalAmount).toBe("100000");
+    } finally {
+      if (seeded) {
+        const m = new Pool({ connectionString: process.env.DATABASE_URL_MIGRATOR?.replace("@db:", "@localhost:") });
+        await m.query(`DELETE FROM budgeting.fx_rates WHERE provider = 'test-15-limit-ccy'`);
+        await m.end();
+      }
+    }
+  });
+
+  it("creates, renames and archives a category", async () => {
+    const made = await tool("create_category", { budget_id: budgetId, name: "Travel" });
+    expect(made.isError).toBeFalsy();
+    const id = made.structuredContent!.category.id as string;
+    const renamed = await tool("rename_category", {
+      budget_id: budgetId,
+      category_id: id,
+      name: "Trips",
+    });
+    expect(renamed.isError).toBeFalsy();
+    const archived = await tool("archive_category", { budget_id: budgetId, category_id: id });
+    expect(archived.isError).toBeFalsy();
+    const [row] = await q(
+      `SELECT name, archived_at FROM budgeting.categories WHERE id = $1`,
+      [id],
+      { user: a.userId, budget: budgetId },
+    );
+    expect(row.name).toBe("Trips");
+    expect(row.archived_at).not.toBeNull();
+    const log = await logRows("entity_id = $2", [id]);
+    expect(log.map((l) => l.op)).toEqual(["create", "update", "update"]);
+  });
+
+  it("a budget it creates is usable by the same token at once (D-04)", async () => {
+    const made = await tool("budget_create", { name: "Agent budget", currency: "USD" });
+    expect(made.isError).toBeFalsy();
+    const id = made.structuredContent!.id as string;
+    const list = await tool("list_budgets", {});
+    expect(JSON.stringify(list.structuredContent)).toContain(id);
+    const cat = await tool("create_category", { budget_id: id, name: "Groceries" });
+    expect(cat.isError).toBeFalsy();
+    await addOne("3.00", id, cat.structuredContent!.category.id);
+  });
+});
+
+describe("daily cap on every write tool", () => {
+  it("refuses each one before it changes anything", async () => {
+    const t = await mintMcpToken(app, a, ["read", "write"]);
+    const capped = await createSdkClient(app, t.accessToken);
+    const txId = await addOne("5.00");
+    await withUserContext(UserId(a.userId), (tx) =>
+      insertWriteLog(tx, [
+        {
+          tenantId: budgetId,
+          userId: a.userId,
+          clientId: t.clientId,
+          callId: crypto.randomUUID(),
+          batchId: null,
+          tool: "add_transactions",
+          entityType: "transaction",
+          entityId: "seed",
+          op: "create",
+          before: null,
+          after: null,
+          entryCount: 5000,
+        },
+      ]),
+    );
+    const calls: Array<[string, Record<string, unknown>]> = [
+      ["add_transactions", { budget_id: budgetId, idempotency_key: key(), rows: [{ date: today(), category_id: foodId, amount: "1.00" }] }],
+      ["edit_transaction", { budget_id: budgetId, transaction_id: txId, changes: { amount: "9.00" } }],
+      ["delete_transaction", { budget_id: budgetId, transaction_id: txId }],
+      ["sync_wallet_balance", { budget_id: budgetId, wallet_id: crypto.randomUUID(), balance: "1.00", currency: "PLN" }],
+      ["set_category_limit", { budget_id: budgetId, category_id: foodId, month: today().slice(0, 7), amount: "1.00" }],
+      ["create_category", { budget_id: budgetId, name: "Never" }],
+      ["rename_category", { budget_id: budgetId, category_id: foodId, name: "Never" }],
+      ["archive_category", { budget_id: budgetId, category_id: foodId }],
+      ["budget_create", { name: "Never", currency: "EUR" }],
+    ];
+    for (const [name, args] of calls) {
+      const r = await tool(name, args, capped);
+      expect(`${name}:${r.isError ? errorOf(r) : "ok"}`).toBe(`${name}:daily_entry_limit`);
+    }
+    expect((await txnOf(txId)).transaction!.amount_original_cents).toBe("500");
+    const [food] = await q(
+      `SELECT name, archived_at FROM budgeting.categories WHERE id = $1`,
+      [foodId],
+      { user: a.userId, budget: budgetId },
+    );
+    expect(food).toMatchObject({ name: "Food", archived_at: null });
+  });
+});

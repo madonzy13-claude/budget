@@ -94,7 +94,7 @@ import {
   useOtherAssetDate,
 } from "./swap-shared";
 import { useMinEntryDate } from "@/hooks/use-asset-entries";
-import { useInvestments } from "@/hooks/use-investments";
+import { useHiddenHoldings, useInvestments } from "@/hooks/use-investments";
 import {
   InstrumentSearchInput,
   type InstrumentSuggestion,
@@ -211,7 +211,13 @@ export function HoldingSheet({
   const [pickedId, setPickedId] = useState<string | null>(
     initialPickedId ?? null,
   );
-  const holdingsList = useInvestments(budgetId).data;
+  // 261105 (user): hidden assets are still yours — pickable and a source.
+  const visibleList = useInvestments(budgetId).data;
+  const hiddenList = useHiddenHoldings(budgetId).data;
+  const holdingsList = useMemo(
+    () => visibleList && [...visibleList, ...(hiddenList ?? [])],
+    [visibleList, hiddenList],
+  );
   const picked =
     (pickedId && holdingsList?.find((h) => h.id === pickedId)) || null;
 
@@ -282,6 +288,10 @@ export function HoldingSheet({
   const [buyPrice, setBuyPrice] = useState(
     centsToDecimal(holding?.buyPriceCents ?? null),
   );
+  /** A typed (or pegged) buy price is never overwritten by the fill below. */
+  const priceTyped = useRef(!!holding?.buyPriceCents);
+  /** Same for the quantity bought: typed, the price follows it instead. */
+  const qtyTyped = useRef(false);
   const [buyCurrency, setBuyCurrency] = useState(
     holding?.buyCurrency ?? budgetCurrency,
   );
@@ -502,6 +512,7 @@ export function HoldingSheet({
       setBuyCurrency(peg);
       setCurrentPriceCurrency(peg);
       setBuyPrice("1");
+      priceTyped.current = true;
     } else if (adoptInstrumentCcy && inst.quoteCurrency) {
       setBuyCurrency(inst.quoteCurrency);
       setCurrentPriceCurrency(inst.quoteCurrency);
@@ -665,6 +676,17 @@ export function HoldingSheet({
     recvCcy,
   });
   const fromSource = !dest && source.fromAsset;
+  // 261105 (user): from a counted asset, sold + bought quantities fill the
+  // buy price until it is edited; an edited price fills the quantity instead.
+  const filledPrice = qtyBuy ? source.priceFor(quantity) : null;
+  const filledQty = qtyBuy ? source.qtyFor(buyPrice) : null;
+  useEffect(() => {
+    if (qtyBuy && !priceTyped.current) setBuyPrice(filledPrice ?? "");
+  }, [qtyBuy, filledPrice]);
+  useEffect(() => {
+    if (priceTyped.current && !qtyTyped.current && filledQty !== null)
+      setQuantity(filledQty);
+  }, [filledQty]);
   // R6 (user): the source's newest entry bounds the date (append-only).
   const srcDate = useOtherAssetDate(
     budgetId,
@@ -922,11 +944,9 @@ export function HoldingSheet({
           dest ? dest.onPickExisting?.(null) : setPickedId(null)
         }
         excludeId={dest?.excludeId}
-        // A sale lands in a live, non-deposit asset (server: same_holding,
-        // unsupported_destination).
-        include={
-          dest ? (a) => !a.archived && a.holdingType !== "deposit" : undefined
-        }
+        // A sale lands in any non-deposit asset (server: same_holding,
+        // unsupported_destination); a hidden one is unhidden (261105, user).
+        include={dest ? (a) => a.holdingType !== "deposit" : undefined}
         onPickExisting={(a) => {
           if (dest) return dest.onPickExisting?.(a.id);
           if (a.archived) restoreMut.mutate(a.id);
@@ -1321,6 +1341,7 @@ export function HoldingSheet({
                 value={buyPrice}
                 onChange={(v) => {
                   markDirty();
+                  priceTyped.current = true;
                   setBuyPrice(v);
                 }}
               />
@@ -1334,6 +1355,7 @@ export function HoldingSheet({
                 value={quantity}
                 onChange={(v) => {
                   markDirty();
+                  qtyTyped.current = true;
                   setQuantity(v);
                 }}
               />

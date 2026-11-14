@@ -1,12 +1,12 @@
 /**
  * foreign-amount.tsx — R6 (user): a spending paid in another currency reads
  * in THAT currency (its short sign: €, $, kr, ₴). Its budget-currency figure
- * (that day's rate) shows only in Edit. A budget-currency row keeps its bare
- * amount. A refund (negative) reads with a refund mark and no minus.
+ * (that day's rate) shows only in Edit. A budget-currency row carries its
+ * sign too (Phase 14). A refund (negative) reads with a refund mark and no minus.
  */
 import { Undo2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
+import { centsToDisplayCompact } from "@/lib/cents-format";
 
 const abs = (cents: string) => cents.replace(/^-/, "");
 
@@ -47,7 +47,14 @@ export function FxAmount({
             locale,
             true,
           )
-        : centsToBare(abs(row.amountConvertedCents), locale)}
+        : // Phase 14 (user, 261103): always the sign, so the currency of
+          // every row is explicit — not only the foreign ones.
+          centsToDisplayCompact(
+            abs(row.amountConvertedCents),
+            row.currencyConverted,
+            locale,
+            true,
+          )}
     </span>
   );
 }

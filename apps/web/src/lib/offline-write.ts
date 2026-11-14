@@ -20,7 +20,7 @@
  *    and the caller's onError runs (rollback + toast) instead of spinning forever.
  *  - network throw / AbortError / 5xx → OfflineWriteError (server-unreachable class).
  *  - genuine 4xx → the Response is RETURNED unchanged so the caller surfaces its
- *    own validation error (e.g. reserve_currency_mismatch) exactly as before.
+ *    own validation error (a 422) exactly as before.
  *  - 2xx → the Response is returned.
  */
 import { clientApiFetch } from "./budget-fetch";

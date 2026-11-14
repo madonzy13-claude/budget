@@ -45,7 +45,6 @@ function deps(seen: { from?: string; to?: string }): GetReserveFitDeps {
           name: "Gifts",
           created_month: MONTHS[0]!,
           archived_month: null,
-          is_investment: false,
         },
       ],
       // Honours the range it is handed, like a real repo — a stub that ignored

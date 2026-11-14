@@ -33,6 +33,19 @@ export interface ReserveFitTransaction {
 export interface ReserveFitRow {
   category_id: string;
   name: string;
+  /** 14-23: the category's currency, and — when it differs from the budget's —
+   *  its money figures in it (labels and the rebalance read these). */
+  currency?: string;
+  own?: {
+    held_cents: string;
+    needed_cents: string;
+    gap_cents: string;
+    worst_overage_cents: string;
+    projected_monthly_cents: string;
+    suggested_limit_cents: string | null;
+    suggested_needed_cents: string | null;
+    suggested_delta_cents: string | null;
+  };
   held_cents: string;
   needed_cents: string;
   /** held − needed. Negative = short, positive = trimmable. */
@@ -180,21 +193,28 @@ export function projectedMonthlyMap(
         projected_by_category?: {
           category_id: string;
           projected_monthly_cents: string;
+          own_projected_monthly_cents?: string;
         }[];
         rows?: {
           category_id: string;
           projected_monthly_cents?: string | null;
+          own?: { projected_monthly_cents?: string | null };
         }[];
       }
     | undefined,
+  /** 14-23: the figures in each category's OWN currency (foreign ones only). */
+  opts: { own?: boolean } = {},
 ): Map<string, number> {
   const out = new Map<string, number>();
   for (const r of data?.rows ?? []) {
-    if (r.projected_monthly_cents == null) continue;
-    out.set(r.category_id, Number(r.projected_monthly_cents));
+    const v = opts.own ? r.own?.projected_monthly_cents : r.projected_monthly_cents;
+    if (v == null) continue;
+    out.set(r.category_id, Number(v));
   }
   for (const p of data?.projected_by_category ?? []) {
-    out.set(p.category_id, Number(p.projected_monthly_cents));
+    const v = opts.own ? p.own_projected_monthly_cents : p.projected_monthly_cents;
+    if (v == null) continue;
+    out.set(p.category_id, Number(v));
   }
   return out;
 }

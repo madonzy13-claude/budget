@@ -37,6 +37,38 @@ export class SpendingsPo {
     await input.press("Enter");
   }
 
+  /** Quick-enter and wait for the server to accept it. */
+  async quickEnterAndWait(categoryName: string, amount: string): Promise<void> {
+    const saved = this.page.waitForResponse(
+      (r) => r.request().method() === "POST" && /\/transactions$/.test(new URL(r.url()).pathname),
+      { timeout: 15000 },
+    );
+    await this.typeQuickEntry(categoryName, amount);
+    if (!(await saved).ok()) throw new Error("quick entry failed");
+  }
+
+  /** The column of a category (testid category-column-{id} is keyed by id, so find it by its quick input). */
+  columnFor(categoryName: string): Locator {
+    return this.page
+      .locator('[data-testid^="category-column-"]')
+      .filter({ has: this.quickEntryInputFor(categoryName) });
+  }
+
+  /** Phase 14 (D-05): the top spending in a column reads in a currency sign. */
+  async assertNewestRowCurrency(categoryName: string, sign: string): Promise<void> {
+    await expect(
+      this.columnFor(categoryName).locator('[data-testid^="txn-row-"]').first(),
+    ).toContainText(sign, { timeout: 10000 });
+  }
+
+  /** Phase 14: a foreign category's limit reads in its own sign, no "≈" line. */
+  async assertForeignLimit(categoryName: string, sign: string): Promise<void> {
+    await expect(
+      this.page.getByTestId(`column-header-${categoryName.toLowerCase()}-planned`),
+    ).toContainText(sign, { timeout: 10000 });
+    await expect(this.columnFor(categoryName).getByTestId("column-limit-equivalent")).toHaveCount(0);
+  }
+
   /**
    * A confirmed transaction row. The component keys the testid off
    * `amountConvertedCents`, e.g. `txn-row-500` for a 5.00 spend.
@@ -119,7 +151,7 @@ export class SpendingsPo {
     );
   }
 
-  /** The overspent (or "overinvested") figure in a category column header. */
+  /** The overspent figure in a category column header. */
   columnOverspent(categoryName: string): Locator {
     return this.page.getByTestId(
       `column-header-${categoryName.toLowerCase()}-overspent`,
@@ -210,7 +242,8 @@ export class SpendingsPo {
   columnPlannedAmount(categoryName: string, bareAmount: string): Locator {
     return this.columnHeader(categoryName)
       .getByTestId(`column-header-${categoryName.toLowerCase()}-planned`)
-      .filter({ hasText: `/ ${bareAmount}` });
+      // Phase 14: the limit carries its currency sign ("/ $500", "/ 500 zł").
+      .filter({ hasText: new RegExp(`/ \\D{0,3}${bareAmount.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\D|$)`) });
   }
 
   /** The category edit slider sheet. */

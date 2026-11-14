@@ -17,14 +17,30 @@ export type Rule =
   | { kind: "COPY" }
   | {
       kind: "SCALE_MONEY";
-      decimals: 0 | 4;
+      decimals: 0 | 4 | 6 | 8;
       /**
        * Round to a value a human would have typed. Only for TARGETS (limits,
        * template amounts, planned figures) — never for transactions, whose
        * rows must keep summing to the totals shown above them.
        */
       round?: "nice";
+      /**
+       * Which of the pair's factors applies (261113, user: wealth ×0.1–5,
+       * everything else ×0.8–1.2). "none" = converted only — a unit price is a
+       * market fact. `alt` switches basis for rows matching a SQL condition
+       * (a RESERVE wallet holds reserves, so it moves with the flows).
+       */
+      basis: Basis;
+      alt?: { when: string; basis: Basis };
+      /**
+       * SQL for the SOURCE currency of this amount (`src.` = the row; `$HOME`
+       * = the source budget's currency). The amount is converted by the rate
+       * into the currency it is relabelled to. Absent = not money (a quantity).
+       */
+      ccy?: string;
     }
+  /** A rate between two amounts' currencies: re-derived after conversion. */
+  | { kind: "RATE"; from: string; to: string }
   | { kind: "RELABEL_CURRENCY" }
   | {
       kind: "FAKE_TEXT";
@@ -50,6 +66,22 @@ export type Rule =
        * tenancy.budgets.slug (global).
        */
       unique?: true;
+      /** A NULL source still gets a value (an empty note reads as broken). */
+      fillNull?: true;
+      /**
+       * With coherentWithCategory: pick by how big this column is within the
+       * category (biggest → the category's priciest item) instead of cycling.
+       */
+      rankBy?: string;
+    }
+  /** A name worked out in code before the copy (copy.ts buildNameMap). */
+  | { kind: "MAPPED_TEXT"; field: string }
+  /** A note picked by the sign of an amount column. */
+  | {
+      kind: "SIGNED_TEXT";
+      column: string;
+      pos: "reserveIn";
+      neg: "reserveOut";
     }
   | { kind: "NULL" }
   | { kind: "REMAP_ID"; references?: string }
@@ -86,6 +118,8 @@ export type TableMode = "copy" | "wipe-only" | "leave";
  * Every use needs a comment saying why the drift exists. If the answer is
  * "someone should write a migration", write the migration instead.
  */
+export type Basis = "flow" | "wealth" | "none";
+
 export type ColumnEntry = Rule & { optional?: true };
 
 export type TableManifest = {

@@ -324,7 +324,7 @@ describe("CategoryReserveAdjustmentsRepo — listForCategory", () => {
 // ReservesSummaryRepo
 // ──────────────────────────────────────────────────────────────────────────────
 
-describe("ReservesSummaryRepo — sumReserveWalletAmounts", () => {
+describe("ReservesSummaryRepo — reserveWalletsByCurrency", () => {
   let fix: Fixture;
 
   beforeAll(async () => {
@@ -333,7 +333,7 @@ describe("ReservesSummaryRepo — sumReserveWalletAmounts", () => {
 
   test("returns 0n when no reserve wallets", async () => {
     const repo = new DrizzleReservesSummaryRepo();
-    const total = await repo.sumReserveWalletAmounts(fix.budgetId);
+    const total = (await repo.reserveWalletsByCurrency(fix.budgetId)).byCurrency.get("EUR") ?? 0n;
     expect(total).toBe(0n);
   });
 
@@ -344,7 +344,7 @@ describe("ReservesSummaryRepo — sumReserveWalletAmounts", () => {
     await seedWallet(fix2.budgetId, fix2.userId, "RESERVE", 75.5);
 
     const repo = new DrizzleReservesSummaryRepo();
-    const total = await repo.sumReserveWalletAmounts(fix2.budgetId);
+    const total = (await repo.reserveWalletsByCurrency(fix2.budgetId)).byCurrency.get("EUR") ?? 0n;
     // 150 + 75.50 = 225.50 → 22550 cents
     expect(total).toBe(22550n);
   });
@@ -355,7 +355,7 @@ describe("ReservesSummaryRepo — sumReserveWalletAmounts", () => {
     await seedWallet(fix3.budgetId, fix3.userId, "RESERVE", 999, true); // archived — excluded
 
     const repo = new DrizzleReservesSummaryRepo();
-    const total = await repo.sumReserveWalletAmounts(fix3.budgetId);
+    const total = (await repo.reserveWalletsByCurrency(fix3.budgetId)).byCurrency.get("EUR") ?? 0n;
     expect(total).toBe(10000n); // only the 100 EUR active wallet
   });
 
@@ -365,7 +365,7 @@ describe("ReservesSummaryRepo — sumReserveWalletAmounts", () => {
     await seedWallet(fix4.budgetId, fix4.userId, "RESERVE", 50);
 
     const repo = new DrizzleReservesSummaryRepo();
-    const total = await repo.sumReserveWalletAmounts(fix4.budgetId);
+    const total = (await repo.reserveWalletsByCurrency(fix4.budgetId)).byCurrency.get("EUR") ?? 0n;
     expect(total).toBe(5000n); // only the 50 EUR RESERVE wallet
   });
 });

@@ -52,6 +52,51 @@ Feature: Budget Overview tab
     Then the wealth view "Investments" is active
     And the wealth pie region is visible
 
+  # 261102 (user): P/L % is the INVESTMENT RETURN — what the invested money
+  # earned, deposits never counted as gains. 1000 grows +10% to 1100, 10,000 is
+  # added, 11,100 grows +10% to 12,210: +21%. Profit ÷ (start + added) read
+  # +11%; profit ÷ contributions at the start read +121%.
+  @wealth-pl-pct
+  Scenario: Investments P/L % is the investment return over the range
+    Given the budget held investments worth 100000 cents costing 100000 cents 90 days ago
+    And the budget held investments worth 110000 cents costing 100000 cents 60 days ago
+    And the budget held investments worth 1110000 cents costing 1100000 cents 40 days ago
+    And a "broker" holding "Fund" deposited 1100000 cents worth 1221000 cents exists in my budget
+    When I open the BDP for "My E2E Budget"
+    And I click the "Overview" tab pill
+    And I select the "All" overview range
+    And I expand the "wealth" overview section
+    And I switch the wealth view to "Investments"
+    Then the wealth "pl" metric reads "+21.0%"
+
+  # 261102 (user): the cursor survives a pressed slide past the chart, and a
+  # drag (mouse) or two fingers (touch) select a range whose change the tooltip
+  # shows. 261103 (user): the tooltip covered the chart — it now sits outside
+  # it; a two-finger range stays after the fingers lift until a tap on the
+  # chart or the tooltip, and a stray touch mid-gesture does not drop it. A
+  # first slide wobbled the page and dropped the tooltip, and a tap on the
+  # tooltip flipped the hidden amounts behind it.
+  @r8-chart-scrub
+  Scenario: The wealth chart follows the pointer and measures a selected range
+    Given the budget held investments worth 100000 cents costing 100000 cents 90 days ago
+    And the budget held investments worth 110000 cents costing 100000 cents 60 days ago
+    And the budget held investments worth 1110000 cents costing 1100000 cents 40 days ago
+    And a "broker" holding "Fund" deposited 1100000 cents worth 1221000 cents exists in my budget
+    When I open the BDP for "My E2E Budget"
+    And I click the "Overview" tab pill
+    And I select the "All" overview range
+    And I expand the "wealth" overview section
+    And I switch the wealth view to "Investments"
+    Then the wealth tooltip sits outside the chart and follows the pointer
+    And the wealth tooltip stays while a pressed pointer slides past the chart
+    And dragging across the wealth chart shows the change across the range
+    And two fingers on the wealth chart show the change between them
+    And a touch on the tooltip mid-gesture keeps the range
+    And the range stays after the fingers lift until the tooltip is tapped
+    And the range stays after the fingers lift until the chart is tapped
+    And one finger sliding across the chart with a slight wobble keeps the tooltip
+    And a tap on the tooltip does not reach what is behind it
+
   # The grid sized its two rows independently, so the Cushion note wrapping to a
   # second line left the row above it visibly shorter (user screenshot, 260825).
   # The cushion surplus is what makes that note two lines on a phone — without it
@@ -95,3 +140,22 @@ Feature: Budget Overview tab
     And I expand the "reserves" overview section
     Then the "overview-planned-needs-month" chart does not wait for a finished month
     And the "reserve-fit-needs-month" chart does not wait for a finished month
+
+  # 261112 (user): revealed amounts stay revealed on another page; only a
+  # manual hide (or closing the app) hides them again.
+  Scenario: Revealed amounts stay revealed after visiting another page
+    Given the budget has a SPENDINGS wallet holding 500000 cents
+    And amounts are hidden for privacy
+    When I open the BDP for "My E2E Budget"
+    And I click the "Overview" tab pill
+    Then the overview amounts are hidden
+    When I tap an overview amount
+    Then the overview amounts are revealed
+    When I go to the budgets list and back
+    Then the overview amounts are revealed
+    When I open the BDP for "My E2E Budget"
+    And I click the "Overview" tab pill
+    Then the overview amounts are revealed
+    When I tap an overview amount
+    And I go to the budgets list and back
+    Then the overview amounts are hidden

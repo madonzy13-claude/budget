@@ -16,6 +16,7 @@ import {
   char,
   date,
   timestamp,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { budgeting, appRole, workerRole } from "@budget/platform";
 
@@ -42,6 +43,9 @@ export const categoryLimits = budgeting.table(
     // On the SCD-2 row, not on the category, so a month that ran with a real
     // limit keeps its overspend when the flag is later toggled.
     noLimit: boolean("no_limit").notNull().default(false),
+    // 0105: the amounts + currency a currency-converted segment was made from
+    // (restored exactly when the category converts back). NULL = typed by the user.
+    convertedFrom: jsonb("converted_from"),
     effectiveFrom: date("effective_from").notNull(),
     effectiveTo: date("effective_to"),
     actorUserId: uuid("actor_user_id").notNull(),

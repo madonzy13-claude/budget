@@ -29,6 +29,7 @@
 import type { FxProvider } from "@budget/shared-kernel";
 import { FX_PAIRS_SQL } from "./fx-pairs-sql";
 import { withInfraTx } from "@budget/platform";
+import { fillFxCaches } from "@budget/budgeting/src/adapters/persistence/fx-cache-fill";
 
 /** Queue name — unchanged on purpose; see the note above. */
 export const FX_FETCH_QUEUE = "fx-daily-fetch";
@@ -80,6 +81,9 @@ export function registerFxDailyFetch(boss: PgBossLike, fxProvider: FxProvider) {
       }
     }
 
-    return { fetched, failed };
+    // 0110: store the conversions this hour's rates made final.
+    const stored = await fillFxCaches();
+
+    return { fetched, failed, stored };
   });
 }

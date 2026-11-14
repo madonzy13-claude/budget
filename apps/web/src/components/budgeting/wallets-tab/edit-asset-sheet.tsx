@@ -21,12 +21,6 @@ import { useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Loader2, Lock } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CurrencyPicker } from "@/components/common/currency-picker";
@@ -34,12 +28,13 @@ import { holdingShape } from "@/lib/investment-types";
 import { isOfflineWriteError } from "@/lib/offline-write";
 import type { HoldingDto } from "@/hooks/use-investments";
 import { useUpdateHolding } from "@/hooks/use-update-holding";
+import { useAssetEntries } from "@/hooks/use-asset-entries";
+import { useCurrencyPLs } from "@/hooks/use-fx-rates";
 import { clientApiFetch } from "@/lib/budget-fetch";
 import { FxPreviewLine } from "@/components/budgeting/fields/fx-preview-line";
 import { Field, NumericInput } from "./holding-sheet";
 import { today } from "./swap-shared";
 import { ledgerDate } from "./ledger-row";
-import { centsToBare } from "@/lib/cents-format";
 
 const decimal = (cents: string | null) =>
   cents == null ? "" : String(Number(cents) / 100);
@@ -52,15 +47,14 @@ const toCents = (v: string) =>
     Number((Number(v.replace(/\s/g, "").replace(/,/g, ".")) * 100).toFixed(6)),
   );
 
-export function EditAssetSheet({
-  open,
-  onOpenChange,
+/** 261106: the Details tab of the asset's sheet (swap-sheet.tsx). */
+export function EditAssetForm({
+  onDone,
   budgetId,
   budgetCurrency,
   holding,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onDone: () => void;
   budgetId: string;
   budgetCurrency: string;
   holding: HoldingDto;
@@ -84,28 +78,56 @@ export function EditAssetSheet({
   const priceLine =
     h.currentPriceCents == null
       ? null
-      : centsToBare(String(Math.round(Number(h.currentPriceCents))), locale);
+      : decimal(String(Math.round(Number(h.currentPriceCents))));
+  const isDeposit = h.holdingType === "deposit" || h.uiType === "deposit";
+  // A deposit's note rides its opening entry (the earliest one with a note).
+  const entriesQ = useAssetEntries(budgetId, h.id, isDeposit);
+  const note =
+    (entriesQ.data ?? [])
+      .filter((e) => e.note)
+      .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))[0]
+      ?.note ?? null;
+  // A deposit lists every term; one never saved shows "—" rather than vanishing.
+  const unset = "—";
+  // 261108 (user): what went in (a deposit's principal). 261109: above the
+  // current amount, no currency — the picker names it, a pick converts it.
+  // 261112 (user): cash has none — what went in is what it is.
+  const baseCents =
+    h.buyPriceCents == null || h.holdingType === "cash_fx"
+      ? null
+      : Number(h.buyPriceCents) * (byQty ? Number(h.quantity) : 1);
+  const baseCcy = h.buyCurrency ?? ccy0;
   // [testid suffix, label, value]; a null value is skipped.
   const locked = (
-    h.holdingType === "deposit" || h.uiType === "deposit"
+    isDeposit
       ? [
           [
             "rate",
             t("field.rate"),
             h.depositRateBps == null
-              ? null
+              ? unset
               : `${new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(h.depositRateBps / 100)}%`,
           ],
           [
             "capFrequency",
             t("field.capFrequency"),
-            h.depositCapFrequency && t(`capFrequency.${h.depositCapFrequency}`),
+            h.depositCapFrequency
+              ? t(`capFrequency.${h.depositCapFrequency}`)
+              : unset,
           ],
           [
             "startDate",
             t("field.startDate"),
-            h.depositStartDate && ledgerDate(h.depositStartDate, locale),
+            h.depositStartDate ? ledgerDate(h.depositStartDate, locale) : unset,
           ],
+          [
+            "endDate",
+            t("field.endDate"),
+            h.depositEndDate
+              ? ledgerDate(h.depositEndDate, locale)
+              : t("noEndDate"),
+          ],
+          ["note", t("field.note"), note ?? unset],
         ]
       : h.metal != null
         ? [
@@ -144,6 +166,14 @@ export function EditAssetSheet({
   const asked = useRef(ccy0);
   const rates = useRef(new Map<string, { rate: string; asOf: string }>());
   const [error, setError] = useState<string | null>(null);
+  // 261109 (user): another currency's base is the history cost — each
+  // transaction at its own date's rate, never today's.
+  const [basePl] = useCurrencyPLs(
+    budgetId,
+    baseCents === null || ccy === baseCcy
+      ? []
+      : [{ currency: ccy, ids: [h.id] }],
+  );
 
   const editValue = (v: string) => {
     touched.current = true;
@@ -196,16 +226,84 @@ export function EditAssetSheet({
     !fx &&
     !fxFailed &&
     (showValue || showPrice || priceLine !== null);
-  const spinner = (
+  const spin = (testId: string) => (
     <Loader2
-      data-testid="edit-asset-fx-loading"
+      data-testid={testId}
       role="status"
       aria-label={t("edit.fxLoading")}
       className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin"
       style={{ color: "var(--muted-foreground)" }}
     />
   );
+  const spinner = spin("edit-asset-fx-loading");
   const shownPrice = converting && !touched.current ? "" : price;
+  const base =
+    baseCents === null
+      ? null
+      : ccy === baseCcy
+        ? decimal(String(Math.round(baseCents)))
+        : basePl?.costCents
+          ? decimal(basePl.costCents)
+          : "";
+  const lockedField = (id: string, label: string, value: string) => (
+    <Field key={id} label={label}>
+      <div className="relative">
+        <Input
+          data-testid={`edit-asset-locked-${id}`}
+          value={value}
+          readOnly
+          aria-readonly="true"
+          tabIndex={-1}
+          className="pr-9"
+          style={{ color: "var(--muted-foreground)" }}
+        />
+        {value === "" && !fxFailed ? (
+          id === "currentPrice" ? (
+            spinner
+          ) : (
+            spin(`edit-asset-locked-${id}-loading`)
+          )
+        ) : (
+          <Lock
+            aria-hidden="true"
+            className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2"
+            style={{ color: "var(--muted-foreground)" }}
+          />
+        )}
+      </div>
+    </Field>
+  );
+  // R6: the locked price follows the picked currency.
+  const lockedPrice = converting
+    ? ""
+    : fx && ccy !== ccy0
+      ? decimal(
+          String(Math.round(Number(h.currentPriceCents) * Number(fx.rate))),
+        )
+      : priceLine;
+  // 261113 (user): a counted asset also shows how many it holds and what they
+  // are worth now — the price it shows times the quantity.
+  const unitPrice = showPrice ? shownPrice : lockedPrice;
+  const qty = Number(h.quantity);
+  const quantityFields = byQty &&
+    unitPrice !== null && [
+      lockedField("quantity", t("edit.quantity"), String(qty)),
+      lockedField(
+        "currentAmount",
+        t("field.currentAmount"),
+        unitPrice === ""
+          ? converting
+            ? ""
+            : unset
+          : String(
+              Number(
+                (
+                  Number(unitPrice.replace(/\s/g, "").replace(/,/g, ".")) * qty
+                ).toFixed(2),
+              ),
+            ),
+      ),
+    ];
   const valueChanged =
     touched.current &&
     price.trim() !== "" &&
@@ -228,7 +326,7 @@ export function EditAssetSheet({
       {
         onSuccess: () => {
           toast.success(t("edit.saved"));
-          onOpenChange(false);
+          onDone();
         },
         onError: (e) => {
           if (isOfflineWriteError(e)) return;
@@ -239,155 +337,114 @@ export function EditAssetSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        data-testid="edit-asset-sheet"
-        className="!pointer-events-auto flex w-full flex-col overflow-y-auto bg-[var(--canvas-dark)] pb-8 sm:max-w-[480px]"
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        <SheetHeader className="mb-2">
-          <SheetTitle
-            className="break-words"
-            style={{ color: "var(--body-on-dark)" }}
-          >
-            {t("sheet.title.edit")}
-          </SheetTitle>
-        </SheetHeader>
-        <div className="space-y-4 px-1">
-          <Field label={t("edit.label")}>
-            <Input
-              data-testid="edit-asset-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+    <div data-testid="edit-asset-sheet" className="space-y-4 px-1">
+      <Field label={t("edit.label")}>
+        <Input
+          data-testid="edit-asset-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </Field>
+      <Field label={t("edit.displayCurrency")}>
+        <CurrencyPicker
+          variant="field"
+          value={ccy}
+          onSelect={pickCcy}
+          aria-label={t("edit.displayCurrency")}
+        />
+      </Field>
+      {base !== null &&
+        lockedField(
+          isDeposit ? "principal" : "baseAmount",
+          t(isDeposit ? "field.principal" : "field.baseAmount"),
+          base,
+        )}
+      {showValue && (
+        <Field label={t("edit.currentValue")}>
+          <div className="relative">
+            <NumericInput
+              testId="edit-asset-value"
+              value={shownPrice}
+              onChange={editValue}
             />
-          </Field>
-          <Field label={t("edit.displayCurrency")}>
-            <CurrencyPicker
-              variant="field"
-              value={ccy}
-              onSelect={pickCcy}
-              aria-label={t("edit.displayCurrency")}
-            />
-          </Field>
-          {showValue && (
-            <Field label={`${t("edit.currentValue")} (${ccy})`}>
-              <div className="relative">
-                <NumericInput
-                  testId="edit-asset-value"
-                  value={shownPrice}
-                  onChange={editValue}
-                />
-                {converting && !touched.current && spinner}
-              </div>
-            </Field>
-          )}
-          {showPrice && (
-            <Field label={`${t("edit.currentPrice")} (${ccy})`}>
-              <div className="relative">
-                <NumericInput
-                  testId="edit-asset-price"
-                  value={shownPrice}
-                  onChange={editValue}
-                />
-                {converting && !touched.current && spinner}
-              </div>
-            </Field>
-          )}
-          {locked.map(([id, label, value]) => (
-            <Field key={id} label={label}>
-              <div className="relative">
-                <Input
-                  data-testid={`edit-asset-locked-${id}`}
-                  value={
-                    // R6: the locked price follows the picked currency.
-                    id === "currentPrice" && converting
-                      ? ""
-                      : id === "currentPrice" && fx && ccy !== ccy0
-                        ? centsToBare(
-                            String(
-                              Math.round(
-                                Number(h.currentPriceCents) * Number(fx.rate),
-                              ),
-                            ),
-                            locale,
-                          )
-                        : value
-                  }
-                  readOnly
-                  aria-readonly="true"
-                  tabIndex={-1}
-                  className="pr-9"
-                  style={{ color: "var(--muted-foreground)" }}
-                />
-                {id === "currentPrice" && converting ? (
-                  spinner
-                ) : (
-                  <Lock
-                    aria-hidden="true"
-                    className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2"
-                    style={{ color: "var(--muted-foreground)" }}
-                  />
-                )}
-              </div>
-            </Field>
-          ))}
-          {fx && price0 && (showValue || showPrice) && (
-            <div data-testid="edit-asset-fx">
-              <FxPreviewLine
-                original={{ amount: price0, currency: ccy0 }}
-                converted={{
-                  amount: convert(price0, fx.rate),
-                  currency: ccy,
-                }}
-                rate={fx.rate}
-                asOf={fx.asOf}
-              />
-            </div>
-          )}
-          {fxFailed && (
-            <p
-              role="status"
-              className="text-[12px]"
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              {t("edit.fxUnavailable")}
-            </p>
-          )}
-          {error && (
-            <p
-              role="alert"
-              className="text-[14px]"
-              style={{ color: "var(--trading-down)" }}
-            >
-              {error}
-            </p>
-          )}
-          <div
-            className="flex flex-col gap-2 border-t pt-4"
-            style={{ borderColor: "var(--hairline-dark)" }}
-          >
-            <Button
-              type="button"
-              variant="primary"
-              data-testid="edit-asset-save"
-              disabled={!canSave}
-              onClick={save}
-              className="h-auto min-h-11 w-full whitespace-normal break-words"
-            >
-              {t("edit.save")}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              className="h-auto min-h-11 w-full whitespace-normal break-words"
-            >
-              {t("swap.discard")}
-            </Button>
+            {converting && !touched.current && spinner}
           </div>
+        </Field>
+      )}
+      {showPrice && (
+        <Field label={t("edit.currentPrice")}>
+          <div className="relative">
+            <NumericInput
+              testId="edit-asset-price"
+              value={shownPrice}
+              onChange={editValue}
+            />
+            {converting && !touched.current && spinner}
+          </div>
+        </Field>
+      )}
+      {locked.map(([id, label, value]) =>
+        lockedField(
+          id,
+          label,
+          id === "currentPrice" ? (lockedPrice ?? value) : value,
+        ),
+      )}
+      {quantityFields}
+      {fx && price0 && (showValue || showPrice) && (
+        <div data-testid="edit-asset-fx">
+          <FxPreviewLine
+            original={{ amount: price0, currency: ccy0 }}
+            converted={{
+              amount: convert(price0, fx.rate),
+              currency: ccy,
+            }}
+            rate={fx.rate}
+            asOf={fx.asOf}
+          />
         </div>
-      </SheetContent>
-    </Sheet>
+      )}
+      {fxFailed && (
+        <p
+          role="status"
+          className="text-[12px]"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          {t("edit.fxUnavailable")}
+        </p>
+      )}
+      {error && (
+        <p
+          role="alert"
+          className="text-[14px]"
+          style={{ color: "var(--trading-down)" }}
+        >
+          {error}
+        </p>
+      )}
+      <div
+        className="flex flex-col gap-2 border-t pt-4"
+        style={{ borderColor: "var(--hairline-dark)" }}
+      >
+        <Button
+          type="button"
+          variant="primary"
+          data-testid="edit-asset-save"
+          disabled={!canSave}
+          onClick={save}
+          className="h-auto min-h-11 w-full whitespace-normal break-words"
+        >
+          {t("edit.save")}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => onDone()}
+          className="h-auto min-h-11 w-full whitespace-normal break-words"
+        >
+          {t("swap.discard")}
+        </Button>
+      </div>
+    </div>
   );
 }

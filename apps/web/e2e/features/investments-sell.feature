@@ -41,6 +41,79 @@ Feature: Investments — Swap → Sell (Phase 13 → 13.1)
     And I edit the newest entry of "IBKR" to the note "Paid the mortgage"
     Then the ledger of "IBKR" shows the note "Paid the mortgage"
 
+  # 261108 (user): the amount and currency of money put in can be fixed — the
+  # only entry takes the new currency as said, nothing converted.
+  Scenario: Fixing the amount and currency of the money put in
+    Given a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
+    When I open the investments wallets tab
+    And I change the oldest entry of "Pot" to "1500" in "UAH"
+    Then the holding row "Pot" shows the amount "1,500"
+    And the oldest entry of "Pot" reads "1,500 UAH"
+    # 261112 (user): cash has no base amount — what went in is what it is.
+    And the Edit of "Pot" shows no base amount
+
+  # 261108 (user): Edit shows what went in, locked — 261109: without a
+  # currency, the picker above names it. 261113 (user): a counted asset also
+  # shows its quantity and current amount.
+  Scenario: Edit shows a counted asset's base, quantity and current amount
+    Given a crypto holding "Coin" of "2" bought at 50000 cents now 60000 cents exists in my budget
+    When I open the investments wallets tab
+    Then the Edit of "Coin" shows the base amount "1000" locked
+    And the Edit of "Coin" shows the quantity "2" and current amount "1200" locked
+    And picking "EUR" in the Edit of "Coin" shows the base at its transactions' date rates
+
+  # 261109 (user): the running total of that entry and every later one moves.
+  Scenario: Fixing an older amount moves every running total after it
+    Given a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
+    When I open the investments wallets tab
+    And I buy into "Pot" adding "100"
+    # The budget's own currency: nothing converted.
+    And I change the oldest entry of "Pot" to "1500" in "USD"
+    Then the running totals of "Pot" read "1,600 / 1,500"
+
+  # 261109 (user): a value update's Edit offers its value and currency.
+  Scenario: Fixing the value a value update set
+    Given a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
+    When I open the investments wallets tab
+    And I set the value of "Pot" to "2000" in Edit
+    And I change the newest entry of "Pot" to "1500" in "USD"
+    Then the holding row "Pot" shows the amount "1,500"
+    And the running totals of "Pot" read "1,500 / 1,000"
+
+  # 261111 (user): a price update's Edit offers its price and currency.
+  Scenario: Fixing the price a price update set
+    Given a "collectibles" asset "Coins" of "2" units at 1000 cents exists in my budget
+    When I open the investments wallets tab
+    And I set the price of "Coins" to "15" in Edit
+    And I change the newest entry of "Coins" to "12" in "USD"
+    Then the holding row "Coins" shows the amount "24"
+
+  # 261109 (user): what a sale received can be fixed too — only its realized
+  # gain follows, nothing in the asset.
+  Scenario: Fixing what a sale received
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I sell "IBKR" leaving "30000" out of investments receiving "66000"
+    And I change the newest entry of "IBKR" to "70000" in "USD"
+    Then the newest entry of "IBKR" reads "70,000 USD"
+
+  # 261109 (user): "sold into another asset" too — both sides follow.
+  Scenario: Fixing what a swap moved
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "cash" holding "Cash" deposited 1000000 cents worth 1000000 cents exists in my budget
+    When I open the investments wallets tab
+    And I sell "IBKR" leaving "30000" into "Cash" receiving "66000"
+    And I change the newest entry of "IBKR" to "70000" in "USD"
+    Then the newest entry of "IBKR" reads "70,000 USD"
+    And the holding row "Cash" shows "80,000"
+
+  # …unless a later sale relied on it: then it shows, locked, saying why.
+  Scenario: An amount a later sale relied on stays as booked
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I sell "IBKR" leaving "30000" out of investments receiving "66000"
+    Then the oldest entry of "IBKR" offers its amount locked, saying a later sale relied on it
+
   # Roadmap 13.3: realized stays with the source type even when it is gone.
   Scenario: Selling a broker completely into a new cash holding keeps the realized gain
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget

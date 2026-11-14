@@ -5,6 +5,7 @@
 import { Hono } from "hono";
 import type { BootedDeps } from "../boot";
 import { serverError } from "../middleware/server-error";
+import { categoryCurrencyConverter } from "./convert-to-category-currency";
 
 export function createCategoryLimitsRoute(deps: BootedDeps) {
   const app = new Hono<{ Variables: Record<string, any> }>();
@@ -34,32 +35,71 @@ export function createCategoryLimitsRoute(deps: BootedDeps) {
     const userId = (c.get("userId") as string) ?? session?.user?.id;
     const { id: categoryId } = c.req.param();
 
-    // Currencies inherit from the active workspace's default_currency so the
-    // user never has to pick — the workspace already declared the currency at
-    // creation time and that's immutable per workspace. We resolve via
-    // listForUser (app-context, RLS-aware) instead of findById (which uses the
-    // worker pool and doesn't see workspace rows that aren't in its scope).
-    let normalCurrency = parsed.data.normalCurrency;
-    let cushionCurrency = parsed.data.cushionCurrency;
-    if (!normalCurrency || !cushionCurrency) {
-      let fallback = "USD";
-      try {
-        const userIdForLookup = session?.user?.id;
-        if (userIdForLookup) {
-          const memberships =
-            await deps.tenancy.workspaceRepo.listForUser(userIdForLookup);
-          const ws = memberships.find((m) => m.id === tenantId);
-          if (ws?.default_currency) fallback = ws.default_currency;
-        }
-      } catch {
-        // best-effort; keep USD fallback
+    // Phase 14: a limit is in its CATEGORY's currency. A body naming another
+    // one is refused (review CR-03): stored, it read as 0 everywhere and no
+    // currency change could convert it again. Amounts in another currency say
+    // so with `amountsCurrency` instead, and convert below.
+    const cat = await deps.budgeting.findCategoryById({ tenantId, categoryId });
+    if (cat.isErr()) return serverError(c, "set_category_limit_failed", cat.error);
+    if (!cat.value) return c.json({ error: "Not found" }, 404);
+    let catCcy = cat.value.currency;
+    // Owner, 261104: a past month edited alone keeps the currency it had —
+    // the segment in force then (a later change never moved it).
+    if (parsed.data.singleMonth && parsed.data.effectiveFrom) {
+      const eff = await deps.budgeting.getEffectiveLimit({
+        tenantId,
+        categoryId,
+        reportDate: parsed.data.effectiveFrom,
+      });
+      if (eff.isOk() && eff.value?.normalCurrency) catCcy = eff.value.normalCurrency.trim();
+    }
+    if (
+      (parsed.data.normalCurrency && parsed.data.normalCurrency !== catCcy) ||
+      (parsed.data.cushionCurrency && parsed.data.cushionCurrency !== catCcy)
+    ) {
+      return c.json({ error: "currency_mismatch", currency: catCcy }, 422);
+    }
+    let normalCurrency: string = catCcy;
+    let cushionCurrency: string = catCcy;
+
+    // Phase 14: amounts sent in another currency (the Overview rebalance works
+    // in the budget's) convert into the category's at today's rate.
+    let amounts: Partial<typeof parsed.data> = {};
+    if ((body as { amountsCurrency?: unknown }).amountsCurrency !== undefined) {
+      const conv = await categoryCurrencyConverter(
+        deps.budgeting as never,
+        tenantId,
+        categoryId,
+        (body as { amountsCurrency?: unknown }).amountsCurrency,
+      );
+      if (!conv.ok) {
+        return c.json({ error: conv.error }, conv.error === "not_found" ? 404 : 422);
       }
-      normalCurrency = normalCurrency ?? fallback;
-      cushionCurrency = cushionCurrency ?? fallback;
+      const cv = (v: string | undefined) => (v === undefined ? undefined : conv.convert(v));
+      const normalAmount = cv(parsed.data.normalAmount)!;
+      const needsAmount = cv(parsed.data.needsAmount);
+      amounts = {
+        normalAmount,
+        cushionAmount: cv(parsed.data.cushionAmount)!,
+        ...(needsAmount !== undefined ? { needsAmount } : {}),
+        // Derived, not converted on its own (review WR-06): two roundings
+        // could leave needs + wants a cent off the limit (0061 invariant).
+        ...(parsed.data.wantsAmount !== undefined
+          ? {
+              wantsAmount:
+                needsAmount !== undefined
+                  ? String(BigInt(normalAmount) - BigInt(needsAmount))
+                  : cv(parsed.data.wantsAmount),
+            }
+          : {}),
+      };
+      normalCurrency = conv.currency ?? normalCurrency;
+      cushionCurrency = conv.currency ?? cushionCurrency;
     }
 
     const r = await deps.budgeting.setCategoryLimit({
       ...parsed.data,
+      ...amounts,
       normalCurrency,
       cushionCurrency,
       tenantId,

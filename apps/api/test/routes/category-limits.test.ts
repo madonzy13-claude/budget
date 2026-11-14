@@ -470,3 +470,70 @@ describe("No limit (mig 0083)", () => {
     expect(eff.noLimit).toBe(false);
   });
 });
+
+// Review CR-03: a limit is in its category's currency. A body naming another
+// one (or anything the FX table can never convert) is refused, not stored —
+// such a limit silently read as 0 everywhere and locked the category's
+// currency for good.
+describe("Limit currency follows the category", () => {
+  it("refuses a limit in a currency other than the category's", async () => {
+    const t = await createTestUser();
+    const app = await buildApp(t.userId, t.tenantId);
+    const cat = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Trips" }),
+      })
+    ).json();
+    const post = (normalCurrency: string, cushionCurrency: string) =>
+      app.request(`/categories/${cat.category.id}/limits`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          normalAmount: "10000",
+          cushionAmount: "0",
+          normalCurrency,
+          cushionCurrency,
+          effectiveFrom: "2026-07-01",
+        }),
+      });
+    const mismatch = await post("PLN", "PLN");
+    expect(mismatch.status).toBe(422);
+    expect((await mismatch.json()).error).toBe("currency_mismatch");
+    expect((await post("EUR", "PLN")).status).toBe(422);
+    expect((await post("BTC", "BTC")).status).toBe(422);
+    expect((await post("EUR", "EUR")).status).toBe(201);
+  });
+
+  // Owner, 261104: a past month keeps the currency it had, so editing it
+  // alone is checked against THAT month's currency.
+  it("a single past month is edited in the currency it had", async () => {
+    const t = await createTestUser();
+    const app = await buildApp(t.userId, t.tenantId);
+    const cat = await (
+      await app.request("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Moved" }),
+      })
+    ).json();
+    const { DrizzleCategoryLimitRepo } = await import("@budget/budgeting/src/adapters/persistence/category-limit-repo");
+    // January still in PLN, the category EUR today (a change made in February).
+    await new DrizzleCategoryLimitRepo().setLimitForMonth({
+      tenantId: t.tenantId, categoryId: cat.category.id, monthStart: "2026-01-01", normalAmount: "40000",
+      normalCurrency: "PLN", cushionAmount: "0", cushionCurrency: "PLN", actorUserId: t.userId, carryForward: false,
+    });
+    const post = (ccy: string) =>
+      app.request(`/categories/${cat.category.id}/limits`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          normalAmount: "45000", cushionAmount: "0", normalCurrency: ccy, cushionCurrency: ccy,
+          effectiveFrom: "2026-01-01", singleMonth: true,
+        }),
+      });
+    expect((await post("EUR")).status).toBe(422);
+    expect((await post("PLN")).status).toBe(201);
+  });
+});

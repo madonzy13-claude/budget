@@ -599,4 +599,57 @@ describe("Overview without contributions — history hybrid (D-08)", () => {
     expect(r.isOk()).toBe(true);
     expect(valueAt(r._unsafeUnwrap(), "2026-10-26T00")).toBe("0");
   });
+
+  // "All" groups by YEAR (261106): the first and the running year are partial.
+  // Counted whole they dragged "Average change" down; each counts for the share
+  // of it the snapshots cover.
+  test("yearly average weighs a partial year by the part the data covers", async () => {
+    const at = (iso: string, cents: bigint) => ({
+      captured_at: new Date(`${iso}T00:00:00Z`),
+      capitalization_cents: cents,
+      investment_value_cents: 0n,
+      investment_cost_basis_cents: 0n,
+    });
+    const repo: GetOverviewWealthDeps["snapshotRepo"] = {
+      async seriesForRange() {
+        return [
+          at("2023-10-01", 10000000n),
+          at("2023-12-31", 11000000n),
+          at("2024-01-01", 11000000n),
+          at("2024-12-31", 12100000n),
+          at("2025-01-01", 12100000n),
+          at("2025-12-31", 13310000n),
+          at("2026-01-01", 13310000n),
+        ];
+      },
+      async openingBefore() {
+        return null;
+      },
+    };
+    const live: GetOverviewWealthDeps["computeWealthNow"] = async () => ({
+      capitalization_cents: 14641000n,
+      investment_value_cents: 0n,
+      investment_cost_basis_cents: 0n,
+      currency: "USD",
+    });
+    const dto = (
+      await getOverviewWealth(
+        deps({ snapshotRepo: repo, computeWealthNow: live }),
+      )({
+        ...base,
+        from: "2021-11-06",
+        to: "2026-11-06",
+        now: () => new Date("2026-07-02T12:00:00Z"),
+        view: "capitalization",
+      })
+    )._unsafeUnwrap();
+    expect(dto.dynamicsBucket).toBe("yearly");
+    expect(dto.dynamics.map((d) => Math.round(d.pct!))).toEqual([10, 10, 10, 10]);
+    const years = 92 / 365 + 1 + 1 + 182.5 / 365;
+    expect(dto.monthly_avg_grow_pct).toBeCloseTo(
+      (Math.pow(1.1 ** 4, 1 / years) - 1) * 100,
+      6,
+    );
+  });
 });
+

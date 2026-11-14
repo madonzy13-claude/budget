@@ -141,7 +141,9 @@ Then(
           id: cell.getAttribute("data-testid") ?? "wallet",
           code: codeRight(cell),
           right: Math.round(box.right),
-          col: `${cell.closest('[data-testid^="wallet-section-"]')?.getAttribute("data-testid")}|${cell.getAttribute("data-testid")?.startsWith("investment-type-") ? "groups" : cell.closest('[data-testid^="investment-group-guide-"]')?.getAttribute("data-testid")}@${Math.round(box.right)}`,
+          // 51e64274: group headers and assets share ONE amount width, so all
+          // of investments is one column.
+          col: `${cell.closest('[data-testid^="wallet-section-"]')?.getAttribute("data-testid") ?? "investments"}@${Math.round(box.right)}`,
           w: textW(amt!),
         };
       });
@@ -186,7 +188,7 @@ Then(
   async ({ page }, name: string) => {
     const amount = page
       .getByTestId(`holding-row-${name}`)
-      .locator('[data-testid^="holding-amount-readonly-"]')
+      .locator('[data-testid^="holding-amount-"]')
       .locator("visible=true");
     await expect(amount).toHaveAttribute("title", /add a transaction/, {
       timeout: 15000,
@@ -249,15 +251,18 @@ Then(
 );
 
 Then(
-  "the asset {string} and the {string} group carry no dotted line",
+  "the asset {string} amount is dotted, but the {string} group carries no dotted line",
   async ({ page }, asset: string, type: string) => {
-    // Their amounts can't be typed — no dots there (the currency picker is
-    // tap-and-switch, so it is dotted).
+    // 261106 (user): every asset's amount opens its sheet — a deposit's too —
+    // so it is dotted. The group's amount is a sum nobody types: no dots there
+    // (the currency picker is tap-and-switch, so it is dotted).
     await expect(
       page
         .getByTestId(`holding-row-${asset}`)
-        .locator("[data-amount-cell] .editable-dots"),
-    ).toHaveCount(0);
+        .locator("[data-amount-cell] .editable-dots")
+        .locator("visible=true")
+        .first(),
+    ).toHaveCSS("text-decoration-style", "dotted");
     await expect(
       page
         .getByTestId(`investment-type-value-${type}`)
@@ -267,7 +272,7 @@ Then(
     ).toHaveCount(0);
     const amount = page
       .getByTestId(`holding-row-${asset}`)
-      .locator('[data-testid^="holding-amount-readonly-"]')
+      .locator('[data-testid^="holding-amount-"]')
       .locator("visible=true");
     await expect(amount).toHaveCSS("opacity", "1");
   },

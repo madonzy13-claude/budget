@@ -13,6 +13,7 @@
  * payment happens on one date, so neither is part of a perpetual burn.
  */
 import { sql } from "drizzle-orm";
+import { ledgerAmountIn } from "../adapters/persistence/fx-sql";
 import type { FxProvider } from "@budget/shared-kernel";
 import { TenantId, UserId } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
@@ -55,12 +56,12 @@ export function computeScheduledMonthly(deps: ComputeScheduledMonthlyDeps) {
       UserId(SYSTEM_USER_ID),
       async (tx) => {
         const dz = tx as TxLike;
-        // Spend already converted to the budget currency, by month, so the
-        // average needs no FX of its own.
+        // Spend by month in the budget's current currency, each row at its own
+        // date (Phase 14, D-02), so the average needs no FX of its own.
         const spend = await dz.execute(sql`
           SELECT category_id,
                  to_char(transaction_date, 'YYYY-MM') AS month,
-                 COALESCE(SUM(amount_converted_cents), 0)::text AS cents
+                 COALESCE(SUM(${ledgerAmountIn(sql`${input.currency}::text`)}), 0)::text AS cents
             FROM budgeting.expense_ledger
            WHERE tenant_id = ${input.tenantId}::uuid
              AND kind = 'SPENDING'

@@ -211,21 +211,6 @@ async function main() {
   );
   await boss.schedule("outbox-dispatch", "*/1 * * * *");
 
-  // Demo tenant refresh — nightly, and ONLY when configured. An unconfigured
-  // deployment never registers the queue at all, so the feature that reads a
-  // real household's data cannot switch itself on by omission.
-  if (readDemoConfig()) {
-    await boss.createQueue("demo-refresh");
-    await boss.work(
-      "demo-refresh",
-      { pollingIntervalSeconds: 60, batchSize: 1 },
-      async () => {
-        await handleDemoRefresh(wealthSnapshotDeps);
-      },
-    );
-    await boss.schedule("demo-refresh", "0 3 * * *", null, { tz: "UTC" });
-    console.log("[worker] demo-refresh scheduled (03:00 UTC)");
-  }
 
   // FX fetcher — hourly. The API is cache-only now, so anything this job has
   // not stored is served as a stale-flagged prior rate.
@@ -512,6 +497,26 @@ async function main() {
     boss as unknown as Parameters<typeof registerBudgetWealthSnapshot3h>[0],
     wealthSnapshotDeps,
   );
+
+  // Demo tenant refresh — nightly, and ONLY when configured. Registered
+  // AFTER wealthSnapshotDeps: a job already waiting at boot runs the moment
+  // its handler exists, and used to hit the const before it was declared
+  // (261113, "Cannot access 'wealthSnapshotDeps' before initialization").
+  // An unconfigured deployment never registers the queue at all, so the
+  // feature that reads a
+  // real household's data cannot switch itself on by omission.
+  if (readDemoConfig()) {
+    await boss.createQueue("demo-refresh");
+    await boss.work(
+      "demo-refresh",
+      { pollingIntervalSeconds: 60, batchSize: 1 },
+      async () => {
+        await handleDemoRefresh(wealthSnapshotDeps);
+      },
+    );
+    await boss.schedule("demo-refresh", "0 3 * * *", null, { tz: "UTC" });
+    console.log("[worker] demo-refresh scheduled (03:00 UTC)");
+  }
 
   // Push notifications — eventBus subscriber on task.created (no boss queue).
   registerPushNotificationHandler({

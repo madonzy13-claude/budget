@@ -692,7 +692,7 @@ function ProjectionTooltip({
   // popup of scrambled digits with no way to read them — the toggle stays in
   // force on the cards and the chart behind it, which is what it is for.
   const money = (c: string) =>
-    centsToDisplayCompact(roundToUnit(c), currency, "en", true);
+    centsToDisplayCompact(roundToUnit(c), currency, locale, true);
   const available = Number(day.available_cents);
   // Anchor the tooltip so it never clips the card edge: pin its LEFT edge to the
   // cursor near the start, its RIGHT edge near the end, else centre it.

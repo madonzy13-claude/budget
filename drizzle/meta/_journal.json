@@ -722,6 +722,55 @@
       "when": 1783730000000,
       "tag": "0103_better_auth_17_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1783740000000,
+      "tag": "0104_multi_currency",
+      "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1783750000000,
+      "tag": "0105_limit_converted_from",
+      "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1783760000000,
+      "tag": "0106_mcp",
+      "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1783770000000,
+      "tag": "0107_oauth_consent_last_used",
+      "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1783780000000,
+      "tag": "0108_wealth_snapshot_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1783790000000,
+      "tag": "0109_drop_investment_category",
+      "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1783800000000,
+      "tag": "0110_fx_cache",
+      "breakpoints": true
     }
   ]
 }

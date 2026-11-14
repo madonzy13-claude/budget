@@ -118,4 +118,10 @@ export class ReservesPo {
     // Editor closes once the optimistic write lands; the resting cell shows it.
     await expect(editor).toBeHidden({ timeout: 5000 });
   }
+
+  /** Phase 14: a footer total, read as its per-currency parts. */
+  async assertTotal(which: "needed" | "held", text: string): Promise<void> {
+    const id = which === "needed" ? "reserves-total-available" : "reserves-total-wallets";
+    await expect(this.page.getByTestId(id)).toHaveText(text, { timeout: 15000 });
+  }
 }

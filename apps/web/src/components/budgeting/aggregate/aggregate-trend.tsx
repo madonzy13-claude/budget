@@ -13,11 +13,18 @@
  * The aggregate DTO has no dynamics/grow_from_open, so the change buckets are
  * computed client-side here (intraDynamics) — same intra-period logic as BDP.
  */
+import { returnBetween } from "@/lib/chart-scrub";
 import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PL_TONE_CLASS, plPctDecimals, plSign, plTone } from "@/lib/pl-tone";
+import {
+  PL_TONE_CLASS,
+  plPctDecimals,
+  plSign,
+  plTone,
+  pctFigure,
+} from "@/lib/pl-tone";
 import { useAggregateWealth } from "@/hooks/use-budgets-aggregate";
 import { OverviewAreaChart } from "@/components/budgeting/charts/area-chart";
 import { seriesGrowth } from "@/lib/series-growth";
@@ -31,8 +38,11 @@ import type { OverviewRange } from "@/lib/overview-range";
 import { formatChartDate } from "@/lib/chart-date-format";
 import { chartCompactCents, pctAxisTick } from "@/lib/chart-format";
 import { centsToRounded } from "@/lib/cents-format";
+import { geoMean, labelEndMs, labelMs, periodShare } from "@/lib/change-bars";
+import { cumulativeReturnPct, investChangeBars } from "@/lib/investment-return";
 import { UI_TYPE_COLOR } from "@/lib/investment-icons";
 import { deriveUiType } from "@/lib/investment-types";
+import { investPoints, rangeInvestMetrics } from "@/lib/wealth-growth";
 
 const CARD =
   "rounded-[var(--radius-xl)] bg-[var(--surface-card-dark)] border border-[var(--hairline-dark)] p-4 min-w-0";
@@ -52,6 +62,7 @@ type WealthView = "capitalization" | "investments";
 function PctStat({ label, pct }: { label: string; pct: number | null }) {
   // Three-state: no movement is 0, which is neither a gain nor a loss.
   const dir = plTone(pct);
+  const locale = useLocale();
   const Arrow = dir === "up" ? ArrowUp : dir === "down" ? ArrowDown : null;
   return (
     <div className="flex flex-col items-center gap-0.5">
@@ -68,7 +79,7 @@ function PctStat({ label, pct }: { label: string; pct: number | null }) {
           <>
             {Arrow && <Arrow className="size-3.5" aria-hidden="true" />}
             <SlotAmount
-              value={`${plSign(dir, "−")}${Math.abs(pct).toFixed(plPctDecimals(pct))}%`}
+              value={`${plSign(dir, "−")}${pctFigure(Math.abs(pct), plPctDecimals(pct), locale)}%`}
             />
           </>
         )}
@@ -89,12 +100,13 @@ function CombinedStat({
   amount: string;
 }) {
   const dir = plTone(pct);
+  const locale = useLocale();
   const Arrow = dir === "up" ? ArrowUp : dir === "down" ? ArrowDown : null;
   const color = PL_TONE_CLASS[dir];
   const pctStr =
     pct === null
       ? "—"
-      : `${plSign(dir, "−")}${Math.abs(pct).toFixed(plPctDecimals(pct))}%`;
+      : `${plSign(dir, "−")}${pctFigure(Math.abs(pct), plPctDecimals(pct), locale)}%`;
   return (
     <div className="flex flex-col items-center gap-0.5">
       <p className="text-caption text-[var(--muted-foreground)]">{label}</p>
@@ -109,15 +121,6 @@ function CombinedStat({
       </span>
     </div>
   );
-}
-
-/** Geometric mean of the per-period %s — matches BDP's monthly_avg_grow_pct. */
-function geoMean(pcts: (number | null)[]): number | null {
-  const nn = pcts.filter((p): p is number => p !== null);
-  if (nn.length === 0) return null;
-  const product = nn.reduce((a, p) => a * (1 + p / 100), 1);
-  if (product < 0) return null;
-  return (Math.pow(product, 1 / nn.length) - 1) * 100;
 }
 
 export function AggregateTrend({
@@ -139,6 +142,7 @@ export function AggregateTrend({
 }) {
   const t = useTranslations("aggregate");
   const tInvest = useTranslations("budget.investments");
+  const tOverview = useTranslations("bdp.tab.overview");
   const locale = useLocale();
   const [view, setView] = useState<WealthView>("capitalization");
   const { data, isPending } = useAggregateWealth(
@@ -166,7 +170,7 @@ export function AggregateTrend({
   const fmtPieValue = (v: number) =>
     centsToRounded(BigInt(Math.round(v)), ccy, locale, true);
   const fmtSignedPct = (n: number) =>
-    `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(1)}%`;
+    `${n > 0 ? "+" : n < 0 ? "−" : ""}${pctFigure(Math.abs(n), 1, locale)}%`;
   const { revealed } = useSlotReveal();
 
   const hasSeries = !!data && data.series.length > 0;
@@ -196,30 +200,20 @@ export function AggregateTrend({
         })
       : [];
 
-  // Three metrics, first tick → last tick (BDP parity):
-  //   Total         = value(last) − value(first).
-  //   P/L           = profit(last) − profit(first) ÷ contributions@start (the
-  //                   real P/L for the range).
-  //   Contributions = contributions(last) − contributions(first).
+  // P/L % at each point = the investment return since the chart's start
+  // (lib/investment-return) — tooltip, header and bars agree (BDP parity).
+  const returnByLabel = new Map<string, number>();
+  if (isInvest && data) {
+    const pts = investPoints(seriesPoints, exclByLabel);
+    cumulativeReturnPct(pts).forEach((pct, k) =>
+      returnByLabel.set(pts[k]!.label, pct),
+    );
+  }
+
+  // Contributions · P/L · Total, first tick → last (BDP parity, lib/wealth-growth).
   const invMetrics =
-    isInvest && exclQ.data && seriesPoints.length > 0
-      ? (() => {
-          const n = seriesPoints.length;
-          const vFirst = Number(seriesPoints[0].value_cents);
-          const vLast = Number(seriesPoints[n - 1].value_cents);
-          const pFirst = exclByLabel.get(seriesPoints[0].label) ?? 0;
-          const pLast = exclByLabel.get(seriesPoints[n - 1].label) ?? 0;
-          const cFirst = vFirst - pFirst;
-          const cLast = vLast - pLast;
-          return {
-            totalDelta: Math.round(vLast - vFirst),
-            totalPct: vFirst !== 0 ? (100 * (vLast - vFirst)) / vFirst : null,
-            plDelta: Math.round(pLast - pFirst),
-            plPct: cFirst !== 0 ? (100 * (pLast - pFirst)) / cFirst : null,
-            contribDelta: Math.round(cLast - cFirst),
-            contribPct: cFirst !== 0 ? (100 * (cLast - cFirst)) / cFirst : null,
-          };
-        })()
+    isInvest && exclQ.data
+      ? rangeInvestMetrics(seriesPoints, exclByLabel)
       : null;
 
   // Change-chart bucket by the range SPAN (BDP parity): day ≤1mo, month ≤1y, YEAR
@@ -253,9 +247,23 @@ export function AggregateTrend({
     });
   };
   const dynamics = hasSeries && data ? intraDynamics(data.series) : [];
-  const dynamicsPL = isInvest ? intraDynamics(exclQ.data?.series) : [];
-  const avgTotalPct = geoMean(dynamics.map((d) => d.pct));
-  const avgPlPct = geoMean(dynamicsPL.map((d) => d.pct));
+  // Partial first / running years count for the part covered (261106).
+  const realPoints = (data?.series ?? [])
+    .filter((p) => Number(p.value_cents) !== 0)
+    .map((p) => p.label)
+    .sort();
+  const avgTotalPct = geoMean(
+    dynamics.map((d) => d.pct),
+    realPoints.length
+      ? dynamics.map((d) =>
+          periodShare(
+            d.label,
+            labelMs(realPoints[0]!),
+            labelEndMs(realPoints.at(-1)!),
+          ),
+        )
+      : undefined,
+  );
   const up = hasSeries ? Number(data.grow.delta_cents) >= 0 : true;
 
   const capBuckets = [
@@ -340,6 +348,7 @@ export function AggregateTrend({
             {isInvest && investStack.length > 0 ? (
               // Stacked: contributions (grey) + profit (yellow) sum to the total.
               <OverviewAreaChart
+                scrub
                 data={investStack}
                 xKey="label"
                 series={[
@@ -362,27 +371,38 @@ export function AggregateTrend({
                 formatTooltip={(n) => fmt(String(Math.round(n)))}
                 xTickFormat={(v) => formatChartDate(String(v), locale)}
                 maskAmounts
-                // Each row = absolute · growth% · growth amount (from range start
-                // to the hovered tick), % + amount both mask under privacy.
-                rowSuffix={(row, key) => {
-                  const f = investStack[0];
+                // Each row = absolute · change % · change amount (from range
+                // start to the hovered tick); P/L % = the investment return.
+                // % + amount both mask under privacy.
+                rowSuffix={(row, key, base) => {
+                  const f = base ?? investStack[0];
                   if (!f) return undefined;
-                  const cBase = Number(f.contributions);
-                  if (cBase === 0) return undefined;
-                  const delta =
-                    key === "contributions"
-                      ? Number(row.contributions) - cBase
-                      : Number(row.profit) - Number(f.profit);
+                  if (key === "contributions") {
+                    const cBase = Number(f.contributions);
+                    if (cBase === 0) return undefined;
+                    const delta = Number(row.contributions) - cBase;
+                    return [
+                      revealed ? fmtSignedPct((100 * delta) / cBase) : "•••",
+                      revealed ? fmtSigned(String(Math.round(delta))) : "•••",
+                    ];
+                  }
+                  const end = returnByLabel.get(String(row.label));
+                  const start = returnByLabel.get(String(f.label));
+                  if (end === undefined || start === undefined)
+                    return undefined;
+                  // From the range start: the two returns since the first point, chained.
+                  const pct = returnBetween(start, end);
+                  const delta = Number(row.profit) - Number(f.profit);
                   return [
-                    revealed ? fmtSignedPct((100 * delta) / cBase) : "•••",
+                    revealed ? fmtSignedPct(pct) : "•••",
                     revealed ? fmtSigned(String(Math.round(delta))) : "•••",
                   ];
                 }}
                 // Total = contributions + profit, aligned in the same columns.
-                summary={(row) => {
+                summary={(row, base) => {
                   const total =
                     Number(row.contributions ?? 0) + Number(row.profit ?? 0);
-                  const f = investStack[0];
+                  const f = base ?? investStack[0];
                   const vBase = f
                     ? Number(f.contributions) + Number(f.profit)
                     : 0;
@@ -406,6 +426,7 @@ export function AggregateTrend({
               />
             ) : (
               <OverviewAreaChart
+                scrub
                 data={data.series.map((p) => ({
                   label: p.label,
                   value: Number(p.value_cents),
@@ -418,9 +439,11 @@ export function AggregateTrend({
                 maskAmounts
                 // Same three columns the investments view has: the value, then
                 // how far it has moved since the range started (user, 260804).
-                rowSuffix={(row) => {
+                rowSuffix={(row, _key, base) => {
                   const g = seriesGrowth(
-                    Number(data.series[0]?.value_cents ?? 0),
+                    Number(
+                      base?.value ?? Number(data.series[0]?.value_cents ?? 0),
+                    ),
                     Number(row.value),
                   );
                   if (!g) return undefined;
@@ -440,55 +463,14 @@ export function AggregateTrend({
           {dynamics.length > 0 &&
             (isInvest ? (
               (() => {
-                const plByLabel = new Map<
-                  string,
-                  { pct: number | null; delta: number }
-                >();
-                for (const d of dynamicsPL)
-                  plByLabel.set(d.label, { pct: d.pct, delta: d.delta_cents });
-                const contribPctList: (number | null)[] = [];
-                const combined = dynamics.map((d) => {
-                  const pl = plByLabel.get(d.label);
-                  const totalDelta = d.delta_cents;
-                  const plDelta = pl?.delta ?? 0;
-                  const contribDelta = totalDelta - plDelta;
-                  const totalBase =
-                    d.pct != null && d.pct !== 0
-                      ? (totalDelta * 100) / d.pct
-                      : null;
-                  const plBase =
-                    pl?.pct != null && pl.pct !== 0
-                      ? (plDelta * 100) / pl.pct
-                      : null;
-                  const contribBase =
-                    totalBase != null && plBase != null
-                      ? totalBase - plBase
-                      : null;
-                  const contribPct =
-                    contribBase != null && contribBase !== 0
-                      ? (contribDelta * 100) / contribBase
-                      : null;
-                  contribPctList.push(contribPct);
-                  return {
-                    label: d.label,
-                    total: d.pct ?? 0,
-                    totalDelta,
-                    pl: pl?.pct ?? 0,
-                    plDelta,
-                    contrib: contribPct ?? 0,
-                    contribDelta,
-                  };
-                });
-                const avgContribPct = geoMean(contribPctList);
-                const meanAmt = (
-                  key: "totalDelta" | "plDelta" | "contribDelta",
-                ) =>
-                  combined.length === 0
-                    ? 0
-                    : Math.round(
-                        combined.reduce((s, c) => s + Number(c[key] || 0), 0) /
-                          combined.length,
-                      );
+                const {
+                  rows: combined,
+                  avg,
+                  avgDelta,
+                } = investChangeBars(
+                  investPoints(seriesPoints, exclByLabel),
+                  (label) => label.slice(0, dynBucketLen),
+                );
                 return (
                   <div
                     className="mt-3 flex flex-col gap-2"
@@ -500,18 +482,18 @@ export function AggregateTrend({
                     <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-2">
                       <CombinedStat
                         label={t("contributions")}
-                        pct={avgContribPct}
-                        amount={fmtSigned(String(meanAmt("contribDelta")))}
+                        pct={avg.contrib}
+                        amount={fmtSigned(String(avgDelta.contrib))}
                       />
                       <CombinedStat
                         label={t("pl")}
-                        pct={avgPlPct}
-                        amount={fmtSigned(String(meanAmt("plDelta")))}
+                        pct={avg.pl}
+                        amount={fmtSigned(String(avgDelta.pl))}
                       />
                       <CombinedStat
                         label={t("total")}
-                        pct={avgTotalPct}
-                        amount={fmtSigned(String(meanAmt("totalDelta")))}
+                        pct={avg.total}
+                        amount={fmtSigned(String(avgDelta.total))}
                       />
                     </div>
                     <OverviewBarChart
@@ -616,7 +598,9 @@ export function AggregateTrend({
                 colorFor={(n: string) => capColor[n] ?? NEUTRAL}
                 formatName={(n: string) => t(n === "cushion" ? "cushion" : n)}
                 formatValue={fmtPieValue}
-                allLabel={t("by_bucket")}
+                // The centre names the whole, like every other pie — not the
+                // caption above it again ("Rozkład | Rozkład", 261113).
+                allLabel={tOverview("range.all")}
                 maskValue
               />
             </div>
@@ -644,7 +628,7 @@ export function AggregateTrend({
                     tInvest(`uitype.${deriveUiType(ht, ht, false)}`)
                   }
                   formatValue={fmtPieValue}
-                  allLabel={t("by_type")}
+                  allLabel={tOverview("range.all")}
                   maskValue
                 />
               ) : (

@@ -6,10 +6,13 @@
 import { sql } from "drizzle-orm";
 import { withTenantTx, writeAudit, writeOutbox } from "@budget/platform";
 import { TenantId, UserId } from "@budget/shared-kernel";
+import { convertCents } from "../../domain/fx-round";
 import type {
+  ChangeCurrencyResult,
   CategoryLimitRepo,
   CategoryLimitRow,
   SetLimitInput,
+  EffectiveLimit,
 } from "../../ports/category-limit-repo";
 
 function rowToDto(row: {
@@ -52,7 +55,312 @@ function rowToDto(row: {
   };
 }
 
+/** 0105: what a currency-converted limit segment was made from. */
+type Source = {
+  currency: string;
+  normal: string;
+  cushion: string;
+  needs: string | null;
+  wants: string | null;
+  cushionCents: string | null;
+};
+
+type Query = <T>(query: unknown) => Promise<{ rows: T[] }>;
+
+/**
+ * Convert one PAST month's limit into `to` and leave every other month alone:
+ * the segment covering it is split so the month stands on its own. The rate is
+ * that month's (D-08: the last one within it). It converts from the typed
+ * amounts (`converted_from`), so switching the month back restores them.
+ */
+async function changeOneMonth(
+  q: Query,
+  a: {
+    tenantId: string;
+    categoryId: string;
+    to: string;
+    month: string;
+    today: string;
+    actor: string;
+    /** The category's current currency — a month with no limit reads in it. */
+    catCurrency: string;
+  },
+): Promise<ChangeCurrencyResult> {
+  const end = (
+    await q<{ end: string; next: string }>(sql`
+      SELECT (${a.month}::date + INTERVAL '1 month' - INTERVAL '1 day')::date::text AS end,
+             (${a.month}::date + INTERVAL '1 month')::date::text AS next`)
+  ).rows[0]!;
+  const seg = (
+    await q<{
+      id: string;
+      effective_from: string;
+      effective_to: string | null;
+      normal_currency: string;
+      normal_amount: string;
+      cushion_amount: string;
+      needs_amount: string | null;
+      wants_amount: string | null;
+      cushion_amount_cents: string | null;
+      converted_from: Source | null;
+    }>(sql`
+      SELECT id::text, effective_from::text, effective_to::text, normal_currency::text,
+             normal_amount::text, cushion_amount::text, needs_amount::text,
+             wants_amount::text, cushion_amount_cents::text, converted_from
+        FROM budgeting.category_limits
+       WHERE category_id = ${a.categoryId}::uuid AND tenant_id = ${a.tenantId}::uuid
+         AND effective_from <= ${a.month}::date
+         AND (effective_to IS NULL OR effective_to >= ${a.month}::date)
+       ORDER BY effective_from DESC LIMIT 1`)
+  ).rows[0];
+  // No limit that month: give it its own zero segment in the new currency —
+  // that segment IS the month's currency, and the limit the slider writes
+  // next must land in it (owner, 261104: "my category", September).
+  if (!seg) {
+    if (a.to === a.catCurrency) return { status: "same", currency: a.to };
+    await q(sql`
+      INSERT INTO budgeting.category_limits
+        (tenant_id, category_id, normal_amount, normal_currency, cushion_amount, cushion_currency,
+         effective_from, effective_to, actor_user_id)
+      VALUES (${a.tenantId}::uuid, ${a.categoryId}::uuid, 0, ${a.to}, 0, ${a.to},
+              ${a.month}::date, ${end.end}::date, ${a.actor}::uuid)`);
+    return { status: "changed", fromCurrency: a.to, toCurrency: a.to, limitsConverted: 0, month: a.month };
+  }
+  const from = seg.normal_currency.trim();
+  if (from === a.to) return { status: "same", currency: a.to };
+  const src: Source = seg.converted_from ?? {
+    currency: from,
+    normal: seg.normal_amount,
+    cushion: seg.cushion_amount,
+    needs: seg.needs_amount,
+    wants: seg.wants_amount,
+    cushionCents: seg.cushion_amount_cents,
+  };
+  const back = src.currency === a.to;
+  let rate = "1";
+  if (!back) {
+    const rateOn = a.today < end.end ? a.today : end.end;
+    const rr = await q<{ rate: string | null }>(sql`
+      SELECT COALESCE(
+        (SELECT rate::text FROM budgeting.fx_rates
+          WHERE base = ${src.currency}::bpchar AND quote = ${a.to}::bpchar AND date <= ${rateOn}::date
+          ORDER BY date DESC LIMIT 1),
+        (SELECT rate::text FROM budgeting.fx_rates
+          WHERE base = ${src.currency}::bpchar AND quote = ${a.to}::bpchar ORDER BY date ASC LIMIT 1)) AS rate`);
+    const r = rr.rows[0]?.rate ?? null;
+    if (r === null) return { status: "no_rate", fromCurrency: from, toCurrency: a.to };
+    rate = r;
+  }
+  const cv = (v: string | null) => (v === null ? null : convertCents(BigInt(v), rate).toString());
+  const normal = cv(src.normal);
+  const needs = cv(src.needs);
+  const wants = src.wants === null ? null : needs === null ? cv(src.wants) : String(BigInt(normal!) - BigInt(needs));
+  const keep = back ? null : JSON.stringify(src);
+  // The part after the month keeps the segment as it was. Closed at the
+  // month's end FIRST — only one open segment per category may exist.
+  if (seg.effective_to === null || seg.effective_to > end.end) {
+    await q(sql`UPDATE budgeting.category_limits SET effective_to = ${end.end}::date WHERE id = ${seg.id}::uuid`);
+    await q(sql`
+      INSERT INTO budgeting.category_limits
+        (tenant_id, category_id, normal_amount, normal_currency, cushion_amount, cushion_currency,
+         needs_amount, wants_amount, cushion_amount_cents, no_limit, effective_from, effective_to,
+         actor_user_id, converted_from)
+      SELECT tenant_id, category_id, normal_amount, normal_currency, cushion_amount, cushion_currency,
+             needs_amount, wants_amount, cushion_amount_cents, no_limit, ${end.next}::date,
+             ${seg.effective_to}::date, actor_user_id, converted_from
+        FROM budgeting.category_limits WHERE id = ${seg.id}::uuid`);
+  }
+  const month = sql`normal_amount = ${normal}::bigint, cushion_amount = ${cv(src.cushion)}::bigint,
+                    needs_amount = ${needs}::bigint, wants_amount = ${wants}::bigint,
+                    cushion_amount_cents = ${cv(src.cushionCents)}::bigint,
+                    normal_currency = ${a.to}, cushion_currency = ${a.to},
+                    converted_from = ${keep}::jsonb`;
+  if (seg.effective_from < a.month) {
+    // The part before keeps the segment; the month gets its own row.
+    await q(sql`
+      INSERT INTO budgeting.category_limits
+        (tenant_id, category_id, normal_amount, normal_currency, cushion_amount, cushion_currency,
+         needs_amount, wants_amount, cushion_amount_cents, no_limit, effective_from, effective_to,
+         actor_user_id, converted_from)
+      SELECT tenant_id, category_id, ${normal}::bigint, ${a.to}, ${cv(src.cushion)}::bigint, ${a.to},
+             ${needs}::bigint, ${wants}::bigint, ${cv(src.cushionCents)}::bigint, no_limit,
+             ${a.month}::date, ${end.end}::date, ${a.actor}::uuid, ${keep}::jsonb
+        FROM budgeting.category_limits WHERE id = ${seg.id}::uuid`);
+    await q(sql`
+      UPDATE budgeting.category_limits SET effective_to = ${a.month}::date - INTERVAL '1 day'
+       WHERE id = ${seg.id}::uuid`);
+  } else {
+    await q(sql`UPDATE budgeting.category_limits SET ${month} WHERE id = ${seg.id}::uuid`);
+  }
+  await writeAudit(
+    // the caller's tx: q is bound to it
+    { execute: (x: unknown) => q(x) } as never,
+    {
+      tenantId: TenantId(a.tenantId),
+      entityType: "category_limit",
+      entityId: a.categoryId,
+      action: "update",
+      actorUserId: UserId(a.actor),
+      before: { month: a.month, currency: from },
+      after: { month: a.month, currency: a.to },
+    },
+  );
+  return { status: "changed", fromCurrency: from, toCurrency: a.to, limitsConverted: 1, month: a.month };
+}
+
 export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
+  async changeCategoryCurrency(input: {
+    tenantId: string;
+    actorUserId: string;
+    categoryId: string;
+    currency: string;
+    now: Date;
+    month?: string;
+  }): Promise<ChangeCurrencyResult> {
+    const { tenantId, categoryId, currency: to } = input;
+    const r = await withTenantTx(TenantId(tenantId), UserId(input.actorUserId), async (tx) => {
+      type Rows<T> = { rows: T[] };
+      const q = <T>(query: unknown) => (tx as { execute: (q: unknown) => Promise<Rows<T>> }).execute(query);
+      // Same lock setLimit takes: no concurrent limit write sees half a split.
+      await q(sql`SELECT pg_advisory_xact_lock(hashtext(${tenantId} || '::' || ${categoryId} || '::category_limits'))`);
+      const cat = (
+        await q<{ currency: string; today: string; month_start: string }>(sql`
+          SELECT c.currency::text AS currency,
+                 d.today::text AS today,
+                 date_trunc('month', d.today)::date::text AS month_start
+            FROM budgeting.categories c
+            JOIN tenancy.budgets b ON b.id = c.tenant_id
+            CROSS JOIN LATERAL (
+              SELECT (${input.now.toISOString()}::timestamptz AT TIME ZONE COALESCE(b.timezone, 'UTC'))::date AS today
+            ) d
+           WHERE c.id = ${categoryId}::uuid AND c.tenant_id = ${tenantId}::uuid
+           FOR UPDATE OF c`)
+      ).rows[0];
+      if (!cat) return { status: "not_found" } as const;
+      // Owner, 261104: a past month changes ONLY itself — the months around
+      // it and the category's current currency stay as they were.
+      if (input.month && input.month < cat.month_start) {
+        const one = await changeOneMonth(q, {
+          tenantId,
+          categoryId,
+          to,
+          month: input.month,
+          today: cat.today,
+          actor: input.actorUserId,
+          catCurrency: cat.currency.trim(),
+        });
+        return one.status === "changed" ? { ...one, categoryCurrency: cat.currency.trim() } : one;
+      }
+      const from = cat.currency.trim();
+      if (from === to) return { status: "same", currency: to } as const;
+
+      // Current + future segments: the one covering this month, and later ones.
+      const segs = (
+        await q<{
+          id: string;
+          effective_from: string;
+          normal_currency: string;
+          normal_amount: string;
+          cushion_amount: string;
+          needs_amount: string | null;
+          wants_amount: string | null;
+          cushion_amount_cents: string | null;
+          converted_from: Source | null;
+        }>(sql`
+          SELECT id::text, effective_from::text, normal_currency::text,
+                 normal_amount::text, cushion_amount::text, needs_amount::text,
+                 wants_amount::text, cushion_amount_cents::text, converted_from
+            FROM budgeting.category_limits
+           WHERE category_id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid
+             AND (effective_to IS NULL OR effective_to >= ${cat.month_start}::date)
+           ORDER BY effective_from`)
+      ).rows;
+
+      // Today's rate per segment currency (same fallback as fx_convert).
+      const rates = new Map<string, string | null>();
+      // Each segment converts from its SOURCE: the amounts it was converted from,
+      // if it was, else itself. Never a conversion of a conversion (0105).
+      const sourceOf = (x: (typeof segs)[number]): Source =>
+        x.converted_from ?? {
+          currency: x.normal_currency.trim(),
+          normal: x.normal_amount,
+          cushion: x.cushion_amount,
+          needs: x.needs_amount,
+          wants: x.wants_amount,
+          cushionCents: x.cushion_amount_cents,
+        };
+      // Only the currencies something converts FROM need a rate — the category's
+      // current one may be a conversion with no pair of its own to `to`.
+      for (const c of new Set(segs.map((x) => sourceOf(x).currency))) {
+        if (c === to) continue;
+        const rr = await q<{ rate: string | null }>(sql`
+          SELECT COALESCE(
+            (SELECT rate::text FROM budgeting.fx_rates
+              WHERE base = ${c}::bpchar AND quote = ${to}::bpchar AND date <= ${cat.today}::date
+              ORDER BY date DESC LIMIT 1),
+            (SELECT rate::text FROM budgeting.fx_rates
+              WHERE base = ${c}::bpchar AND quote = ${to}::bpchar ORDER BY date ASC LIMIT 1)) AS rate`);
+        rates.set(c, rr.rows[0]?.rate ?? null);
+      }
+      if ([...rates.values()].some((v) => v === null)) {
+        return { status: "no_rate", fromCurrency: from, toCurrency: to } as const;
+      }
+
+      await q(sql`UPDATE budgeting.categories SET currency = ${to} WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid`);
+      for (const seg of segs) {
+        const src = sourceOf(seg);
+        const back = src.currency === to;
+        const rate = back ? "1" : rates.get(src.currency)!;
+        const cv = (v: string | null) => (v === null ? null : convertCents(BigInt(v), rate).toString());
+        const keep = back ? null : JSON.stringify(src);
+        // wants is derived (review WR-06): converted on its own, two roundings
+        // could leave needs + wants a cent off the limit (0061 invariant).
+        const normal = cv(src.normal);
+        const needs = cv(src.needs);
+        const wants =
+          src.wants === null ? null : needs === null ? cv(src.wants) : String(BigInt(normal!) - BigInt(needs));
+        const amounts = sql`normal_amount = ${normal}::bigint,
+                            cushion_amount = ${cv(src.cushion)}::bigint,
+                            needs_amount = ${needs}::bigint,
+                            wants_amount = ${wants}::bigint,
+                            cushion_amount_cents = ${cv(src.cushionCents)}::bigint,
+                            normal_currency = ${to}, cushion_currency = ${to},
+                            converted_from = ${keep}::jsonb`;
+        if (seg.effective_from < cat.month_start) {
+          // Started before this month: close it the day before (setLimit's
+          // convention) and continue it from the 1st in the new currency.
+          await q(sql`
+            INSERT INTO budgeting.category_limits
+              (tenant_id, category_id, normal_amount, normal_currency, cushion_amount, cushion_currency,
+               needs_amount, wants_amount, cushion_amount_cents, no_limit, effective_from, effective_to, actor_user_id,
+               converted_from)
+            SELECT tenant_id, category_id, ${normal}::bigint, ${to}, ${cv(src.cushion)}::bigint, ${to},
+                   ${needs}::bigint, ${wants}::bigint, ${cv(src.cushionCents)}::bigint,
+                   no_limit, ${cat.month_start}::date, effective_to, ${input.actorUserId}::uuid, ${keep}::jsonb
+              FROM budgeting.category_limits WHERE id = ${seg.id}::uuid`);
+          await q(sql`
+            UPDATE budgeting.category_limits
+               SET effective_to = ${cat.month_start}::date - INTERVAL '1 day'
+             WHERE id = ${seg.id}::uuid`);
+        } else {
+          await q(sql`UPDATE budgeting.category_limits SET ${amounts} WHERE id = ${seg.id}::uuid`);
+        }
+      }
+      await writeAudit(tx, {
+        tenantId: TenantId(tenantId),
+        entityType: "category",
+        entityId: categoryId,
+        action: "update",
+        actorUserId: UserId(input.actorUserId),
+        before: { currency: from },
+        after: { currency: to },
+      });
+      return { status: "changed", fromCurrency: from, toCurrency: to, limitsConverted: segs.length } as const;
+    });
+    if (r.isErr()) throw r.error;
+    return r.value;
+  }
+
   async setLimit(input: SetLimitInput): Promise<void> {
     const tid = TenantId(input.tenantId);
     const uid = UserId(input.actorUserId);
@@ -89,6 +397,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
                 needs_amount = ${input.needsAmount ?? null}::bigint,
                 wants_amount = ${input.wantsAmount ?? null}::bigint,
                 no_limit = ${input.noLimit ?? false}::boolean,
+                converted_from = NULL,
                 actor_user_id = ${input.actorUserId}::uuid
             WHERE category_id = ${input.categoryId}::uuid AND effective_to IS NULL
           `);
@@ -272,6 +581,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
               needs_amount = ${input.needsAmount ?? null}::bigint,
               wants_amount = ${input.wantsAmount ?? null}::bigint,
               no_limit = ${input.noLimit ?? false}::boolean,
+              converted_from = NULL,
               actor_user_id = ${input.actorUserId}::uuid
           WHERE id = ${S.id}::uuid
         `);
@@ -415,13 +725,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
       string,
       Map<
         string,
-        {
-          planned: bigint;
-          cushion: bigint;
-          needs: bigint | null;
-          wants: bigint | null;
-          noLimit: boolean;
-        }
+        EffectiveLimit
       >
     >
   > {
@@ -429,13 +733,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
       string,
       Map<
         string,
-        {
-          planned: bigint;
-          cushion: bigint;
-          needs: bigint | null;
-          wants: bigint | null;
-          noLimit: boolean;
-        }
+        EffectiveLimit
       >
     >();
     // Every requested month gets an entry, so a caller cannot tell a month with
@@ -460,11 +758,15 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         needs_amount: string | null;
         wants_amount: string | null;
         no_limit: boolean;
+        normal_currency: string;
+        cushion_currency: string;
+        converted_from: EffectiveLimit["convertedFrom"];
       }>(sql`
         SELECT m.month_start::text AS month_start,
                cl.category_id::text, cl.normal_amount::text,
                cl.cushion_amount::text, cl.needs_amount::text,
-               cl.wants_amount::text, cl.no_limit
+               cl.wants_amount::text, cl.no_limit,
+               cl.normal_currency::text, cl.cushion_currency::text, cl.converted_from
           FROM unnest(${monthsLiteral}::date[]) AS m(month_start)
           JOIN budgeting.category_limits cl
             ON cl.tenant_id = ${tenantId}::uuid
@@ -483,6 +785,9 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         needs: row.needs_amount === null ? null : BigInt(row.needs_amount),
         wants: row.wants_amount === null ? null : BigInt(row.wants_amount),
         noLimit: row.no_limit,
+        normalCurrency: row.normal_currency,
+        cushionCurrency: row.cushion_currency,
+        convertedFrom: row.converted_from ?? null,
       });
     }
     return out;
@@ -495,13 +800,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
   ): Promise<
     Map<
       string,
-      {
-        planned: bigint;
-        cushion: bigint;
-        needs: bigint | null;
-        wants: bigint | null;
-        noLimit: boolean;
-      }
+      EffectiveLimit
     >
   > {
     // v1.1 invariant: budget_id === tenant_id; category_limits are tenant-scoped
@@ -516,9 +815,12 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         needs_amount: string | null;
         wants_amount: string | null;
         no_limit: boolean;
+        normal_currency: string;
+        cushion_currency: string;
       }>(sql`
         SELECT category_id::text, normal_amount::text, cushion_amount::text,
-               needs_amount::text, wants_amount::text, no_limit
+               needs_amount::text, wants_amount::text, no_limit,
+               normal_currency::text, cushion_currency::text, converted_from
           FROM budgeting.category_limits
          WHERE tenant_id = ${tenantId}::uuid
            AND effective_from <= ${monthStart}::date
@@ -530,13 +832,7 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
     if (r.isErr()) throw r.error;
     const m = new Map<
       string,
-      {
-        planned: bigint;
-        cushion: bigint;
-        needs: bigint | null;
-        wants: bigint | null;
-        noLimit: boolean;
-      }
+      EffectiveLimit
     >();
     for (const row of r.value) {
       m.set(row.category_id, {
@@ -545,6 +841,9 @@ export class DrizzleCategoryLimitRepo implements CategoryLimitRepo {
         needs: row.needs_amount == null ? null : BigInt(row.needs_amount),
         wants: row.wants_amount == null ? null : BigInt(row.wants_amount),
         noLimit: row.no_limit === true,
+        normalCurrency: row.normal_currency,
+        cushionCurrency: row.cushion_currency,
+        convertedFrom: (row as { converted_from?: EffectiveLimit["convertedFrom"] }).converted_from ?? null,
       });
     }
     return m;

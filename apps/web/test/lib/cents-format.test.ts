@@ -172,3 +172,23 @@ describe("centsToShort", () => {
     expect(centsToShort("123456789")).toBe("1,234,568");
   });
 });
+
+// 261113 (user): Polish leaves four-digit amounts ungrouped ("3444 zł") while
+// the card beside it reads "27 310 zł". Every amount groups its thousands.
+describe("four-digit amounts group their thousands in every locale", () => {
+  const nbsp = (s: string) => s.replace(/[\s  ]/g, " ");
+  it("centsToRounded", () => {
+    expect(nbsp(centsToRounded(344_400n, "PLN", "pl", true))).toBe("3 444 zł");
+  });
+  it("centsToDisplayCompact", () => {
+    expect(nbsp(centsToDisplayCompact(144_850n, "PLN", "pl", true))).toBe(
+      "1 448,50 zł",
+    );
+  });
+  it("centsToBare", () => {
+    expect(nbsp(centsToBare(515_400n, "pl"))).toBe("5 154");
+  });
+  it("centsToShort", () => {
+    expect(nbsp(centsToShort(943_300n, "pl"))).toBe("9 433");
+  });
+});

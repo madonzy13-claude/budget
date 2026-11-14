@@ -5,12 +5,14 @@
  * T-01-07-06: zValidator on every state-changing endpoint.
  * T-01-07-05: roles enforced server-side in application services; RLS provides second layer.
  */
+import { categoryCurrencyConverter } from "./convert-to-category-currency";
+import { internalRequests } from "../mcp/dispatch";
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { sql } from "drizzle-orm";
 import type { BootedDeps } from "../boot";
-import { UserId } from "@budget/shared-kernel";
+import { UserId, FIAT_CURRENCIES } from "@budget/shared-kernel";
 import { DrizzleBudgetShareLinkRepo } from "@budget/tenancy/src/adapters/persistence/budget-share-link-repo";
 import { createShareLink } from "@budget/tenancy/src/application/create-share-link";
 import { revokeShareLink } from "@budget/tenancy/src/application/revoke-share-link";
@@ -43,7 +45,7 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
   // stripped by zod's default object parsing, so old callers don't break.
   const createSchema = z.object({
     name: z.string().min(1).max(100),
-    default_currency: z.string().regex(/^[A-Z]{3}$/),
+    default_currency: z.enum(FIAT_CURRENCIES),
   });
 
   const inviteSchema = z.object({
@@ -89,7 +91,9 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
           default_currency: body.default_currency,
           userId: session.user.id,
         },
-        headers: c.req.raw.headers,
+        // An MCP call has no cookie for Better Auth to find; without headers
+        // it creates for body.userId, the token's user (15-13, D-04).
+        headers: internalRequests.has(c.req.raw) ? undefined : c.req.raw.headers,
       });
 
       // Default the user's global display currency to their FIRST budget's
@@ -521,7 +525,19 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
     const body = await c.req.json().catch(() => null);
     if (!body) return c.json({ error: "Invalid JSON" }, 422);
 
-    const parsed = reserveAdjustmentSchema.safeParse(body);
+    // Phase 14: the Overview rebalance sends its target in the budget
+    // currency; the category's reserve is in its own — convert it here.
+    const { currency: amountCurrency, ...adjustBody } = body as { currency?: unknown; expectedCents?: unknown };
+    const conv = await categoryCurrencyConverter(
+      deps.budgeting as never,
+      budgetId,
+      categoryId,
+      amountCurrency,
+    );
+    if (!conv.ok) return c.json({ error: conv.error }, conv.error === "not_found" ? 404 : 422);
+    // Validated BEFORE converting (review WR-01): a fractional target reached
+    // BigInt("1.5") and threw, a 500 instead of a 422.
+    const parsed = reserveAdjustmentSchema.safeParse(adjustBody);
     if (!parsed.success)
       return c.json(
         {
@@ -530,6 +546,9 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
         },
         422,
       );
+    if (conv.currency) {
+      parsed.data.expectedCents = Number(conv.convert(String(parsed.data.expectedCents)));
+    }
 
     const result = await deps.budgeting.adjustCategoryReserve({
       ...parsed.data,
@@ -542,6 +561,11 @@ export function budgetsRoutesFactory(deps: BootedDeps) {
       const m = result.error.message;
       if (m === "not_found") return c.json({ error: "not_found" }, 404);
       return c.json({ error: m }, 422);
+    }
+    // The settled reserve, also in the currency the caller asked in.
+    const settled = (result.value as { reserveCents?: string }).reserveCents;
+    if (conv.currency && typeof amountCurrency === "string" && amountCurrency !== conv.currency && settled !== undefined) {
+      return c.json({ ...result.value, reserveCentsIn: { currency: amountCurrency, cents: conv.back(String(settled)) } }, 200);
     }
     return c.json(result.value, 200);
   });

@@ -6,6 +6,7 @@ export * from "./db/schemas";
 export * from "./db/roles";
 export * from "./db/expense-ledger";
 export * from "./audit/schema";
+export * from "./mcp";
 export * from "./audit/writer";
 export * from "./outbox/schema";
 export * from "./outbox/writer";

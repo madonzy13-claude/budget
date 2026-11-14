@@ -47,14 +47,22 @@ export function shouldGrabAssetFocus(
   return true;
 }
 
-/** Reset the previous highlight and move it to `el` (null just clears). */
+/** Reset the previous highlight and move it to `el` (null just clears).
+ *  A highlight the MOUSE set is `="pointer"`: the keys carry on from it, but
+ *  nothing is drawn or revealed for it — `:hover` already does that while the
+ *  pointer is there, and `="true"` outlived the pointer, leaving a row's P/L
+ *  up after it left (261103, user). Styles key on `="true"`, the keyboard's. */
 export function highlightNavItem(
   root: HTMLElement,
   el: HTMLElement | null,
+  via: "keys" | "pointer" = "keys",
 ): void {
   clearNavMarkers(root);
   if (el) {
-    el.setAttribute("data-nav-highlighted", "true");
+    el.setAttribute(
+      "data-nav-highlighted",
+      via === "pointer" ? "pointer" : "true",
+    );
     el.scrollIntoView({ block: "nearest" });
   }
 }

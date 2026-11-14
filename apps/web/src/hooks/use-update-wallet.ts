@@ -3,7 +3,7 @@
  * use-update-wallet.ts — Optimistic PATCH /wallets/:id mutation.
  *
  * T-05-02: Server validates cross-tenant (404 on foreign wallet).
- * T-05-03: Server returns 422 reserve_currency_mismatch; onError rolls back.
+ * T-05-03: on a server error onError rolls back.
  * D-PH5-E1: Cross-invalidates ['budget', id, 'reserves'] when a RESERVE
  *            wallet is touched (current type OR new type === RESERVE).
  */
@@ -136,15 +136,7 @@ export function useUpdateWallet(budgetId: string) {
         offlineToast();
         return;
       }
-      // reserve_currency_mismatch: the component (wallets-sectioned-list) shows a
-      // translated toast with budget currency context. Skip generic toast here.
-      // (err typed unknown so the OfflineWriteError guard above doesn't narrow the
-      // structural `Error & {code}` intersection down to `never` — cast for code.)
-      if (
-        (err as { code?: string | null })?.code !== "reserve_currency_mismatch"
-      ) {
-        toast.error(t("saveFailed"));
-      }
+      toast.error(t("saveFailed"));
     },
 
     onSuccess: (data) => {

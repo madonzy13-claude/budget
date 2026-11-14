@@ -607,3 +607,79 @@ describe("PATCH an unconfirmed scheduled payment's date", () => {
     expect(thisMonth).not.toBe(lastMonth.slice(0, 7));
   });
 });
+
+describe("GET transactions after a budget currency change", () => {
+  const PROVIDER = `test-14-06-route-${crypto.randomUUID()}`;
+  let f: { userId: string; budgetId: string; categoryId: string };
+  const setCcy = async (ccy: string) => {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL_APP });
+    const c = await pool.connect();
+    try {
+      await c.query(`SELECT set_config('app.tenant_ids', $1, false)`, [`{${f.budgetId}}`]);
+      await c.query(`UPDATE tenancy.budgets SET default_currency = $1 WHERE id = $2`, [ccy, f.budgetId]);
+    } finally {
+      c.release();
+      await pool.end();
+    }
+  };
+
+  beforeAll(async () => {
+    const { seedFxRates } = await import("../../../../packages/budgeting/test/fx-seed");
+    await seedFxRates(
+      [{ base: "PLN", quote: "EUR", date: "1999-03-01", rate: "0.25" }],
+      PROVIDER,
+    );
+    f = await createTestFixture("PLN");
+    const app = await buildApp(f.userId, f.budgetId);
+    const res = await app.request(`/budgets/${f.budgetId}/transactions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: "1999-03-01",
+        category_id: f.categoryId,
+        amount_original_cents: 10000,
+      }),
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it("keeps each row's own currency and shows the converted figure in the new budget currency", async () => {
+    await setCcy("EUR");
+    try {
+      const app = await buildApp(f.userId, f.budgetId);
+      const body = await (
+        await app.request(`/budgets/${f.budgetId}/transactions?month=1999-03`)
+      ).json();
+      const a = body.transactions[0];
+      expect(a.amount_original_cents).toBe("10000");
+      expect(a.currency_original).toBe("PLN");
+      expect(a.currency_converted).toBe("EUR");
+      expect(a.amount_converted_cents).toBe("2500");
+    } finally {
+      await setCcy("PLN");
+      const { deleteFxRates } = await import("../../../../packages/budgeting/test/fx-seed");
+      await deleteFxRates(PROVIDER);
+    }
+  });
+});
+
+describe("POST transactions — the reply names its converted currency", () => {
+  it("a foreign spending's converted figure is labelled with the budget currency", async () => {
+    const f = await createTestFixture("PLN");
+    const app = await buildApp(f.userId, f.budgetId);
+    const res = await app.request(`/budgets/${f.budgetId}/transactions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: new Date().toISOString().slice(0, 10),
+        category_id: f.categoryId,
+        amount_original_cents: 2000,
+        currency_original: "EUR",
+      }),
+    });
+    expect(res.status).toBe(201);
+    const { transaction } = await res.json();
+    expect(transaction.currency_original).toBe("EUR");
+    expect(transaction.currency_converted).toBe("PLN");
+  });
+});

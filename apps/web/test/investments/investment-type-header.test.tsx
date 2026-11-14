@@ -195,9 +195,9 @@ describe("InvestmentTypeHeader", () => {
     expect(
       screen.getByTestId("investment-type-pl-desktop-stocks"),
     ).toHaveTextContent("53.7%");
-    expect(cls("investment-type-plamt-desktop-stocks")).toMatch(/w-24/);
+    expect(cls("investment-type-plamt-desktop-stocks")).toMatch(/w-\[7\.5rem\].*pr-6/);
     expect(cls("investment-type-share-desktop-stocks")).toMatch(
-      /hidden .*w-16.*sm:block/,
+      /hidden .*w-\[80px\].*sm:block/,
     );
     expect(
       screen.getByTestId("investment-type-share-desktop-stocks"),
@@ -237,7 +237,7 @@ describe("InvestmentTypeHeader", () => {
   it("desktop shows the unrealized / realized caption, closed too", () => {
     renderHeader();
     const cap = screen.getByTestId("investment-type-caption-desktop-stocks");
-    expect(cap.className).toMatch(/hidden .*sm:block/);
+    expect(cap.className).toMatch(/hidden .*sm:group-hover\/row:block/);
     expect(cap.textContent).toMatch(/unrealized: .*realized: /);
   });
 
@@ -246,7 +246,25 @@ describe("InvestmentTypeHeader", () => {
     renderHeader({ onCurrencyChange: () => {} });
     expect(
       screen.getByTestId("investment-type-currency-stocks").className,
-    ).toMatch(/w-\[44px\].*sm:w-\[96px\].*md:w-\[224px\]/);
+    ).toMatch(/w-\[44px\].*sm:w-\[96px\].*md:w-\[var\(--ccy-w,224px\)\]/);
+  });
+
+  // 261102 (user): P/L and the unreal./real. line wait for a hover or the
+  // group being opened.
+  it("desktop figures hide until the group is hovered or opened", () => {
+    const h = renderHeader();
+    const pl = () => screen.getByTestId("investment-type-pl-desktop-stocks");
+    const cap = () =>
+      screen.getByTestId("investment-type-caption-desktop-stocks");
+    expect(pl().parentElement!.className).toMatch(
+      /sm:invisible sm:group-hover\/row:visible/,
+    );
+    // The caption leaves the layout (the name sits centred) until hovered.
+    expect(cap().className).toMatch(/sm:group-hover\/row:block/);
+    expect(cap().className).not.toMatch(/sm:block/);
+    h.open();
+    expect(pl().parentElement!.className).not.toMatch(/sm:invisible/);
+    expect(cap().className).toMatch(/hidden .*sm:block/);
   });
 
   it("collapsed shows name and value, no sum-up and no share", () => {

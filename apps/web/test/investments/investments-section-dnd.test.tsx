@@ -77,7 +77,8 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("../../src/hooks/use-offline-write-toast", () => ({
   useOfflineWriteToast: () => vi.fn(),
 }));
-vi.mock("../../src/components/budgeting/wallets-tab/holding-sheet", () => ({
+vi.mock("../../src/components/budgeting/wallets-tab/holding-sheet", async (orig) => ({
+  ...(await orig<object>()),
   HoldingSheet: () => null,
 }));
 
@@ -285,7 +286,8 @@ describe("Asset rows and ledger (13.1 D-17, D-28, D-30, R5-3)", () => {
     ).not.toBeNull();
   });
 
-  it("an inline value edit is booked as a value update (currentValueCents), never a raw price", async () => {
+  // 261106 (user): the amount opens the asset's sheet on Details.
+  it("tapping an amount opens the asset's sheet on Details", async () => {
     const qc = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
     });
@@ -314,20 +316,13 @@ describe("Asset rows and ledger (13.1 D-17, D-28, D-30, R5-3)", () => {
         ) as HTMLElement
       ).click();
     });
-    const input = document.querySelector(
-      '[data-testid="holding-amount-k1"] input, input[inputmode="decimal"]',
-    ) as HTMLInputElement;
-    const { fireEvent } = await import("@testing-library/react");
-    await act(async () => {
-      fireEvent.change(input, { target: { value: "123.45" } });
-      fireEvent.keyDown(input, { key: "Enter" });
-    });
-    const patch = mockWrite.mock.calls.find(
-      ([, init]) => (init as RequestInit).method === "PATCH",
-    );
-    expect(patch).toBeDefined();
-    expect(JSON.parse(String((patch![1] as RequestInit).body))).toEqual({
-      currentValueCents: "12345",
-    });
+    const sheet = document.querySelector('[data-testid="swap-sheet"]');
+    expect(sheet).not.toBeNull();
+    expect(
+      document.querySelector('[data-testid="swap-tab-details"]'),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(
+      (document.querySelector('[data-testid="edit-asset-name"]') as HTMLInputElement).value,
+    ).toBe("Pot");
   });
 });

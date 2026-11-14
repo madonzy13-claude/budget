@@ -12,6 +12,7 @@ import { expect } from "@playwright/test";
 import { test } from "../fixtures/fresh-user-per-scenario";
 import { SpendingsPo } from "../page-objects/SpendingsPo";
 import { OverviewPo } from "../page-objects/OverviewPo";
+import { seedFxRows } from "./fx-seed.steps";
 
 const { Given, When, Then } = createBdd(test);
 
@@ -199,6 +200,17 @@ Given(
   async ({ freshUser }, name: string, eur: string, budget: string) => {
     const orig = Math.round(Number(eur) * 100);
     const conv = Math.round(Number(budget) * 100);
+    // 0110: a row converts at the day's stored rate, never at the figure it
+    // was written with. Seed that rate (a fresh CI database has none); a real
+    // one already there wins, so the row is then found by what it shows.
+    await seedFxRows([
+      {
+        base: "EUR",
+        quote: "USD",
+        date: monthStart(),
+        rate: String(conv / orig),
+      },
+    ]);
     await withTenant(freshUser.budgetId, freshUser.userId, async (q) => {
       const cat = (await q(
         `SELECT id FROM budgeting.categories
@@ -215,14 +227,35 @@ Given(
                  $4::numeric / $3::numeric, $5::date, $5::date, now())`,
         [freshUser.budgetId, cat.rows[0]!.id, orig, conv, monthStart()],
       );
+      const shown = (await q(
+        // The stored conversion, else the live one (latest rate on or before
+        // the day) — as the ledger read does.
+        `SELECT COALESCE(l.fx_cache_cents,
+                  (SELECT round(l.amount_original_cents * r.rate)::bigint
+                     FROM budgeting.fx_rates r
+                    WHERE r.base = 'EUR' AND r.quote = 'USD'
+                      AND r.date <= l.transaction_date
+                    ORDER BY r.date DESC LIMIT 1),
+                  l.amount_original_cents)::text AS c
+           FROM budgeting.expense_ledger l
+          WHERE l.tenant_id = $1::uuid AND l.amount_original_cents = $2::bigint
+            AND l.currency_original = 'EUR'`,
+        [freshUser.budgetId, orig],
+      )) as { rows: { c: string }[] };
+      rowCents.set(conv, Number(shown.rows[0]!.c));
     });
   },
 );
 
+/** The scenario's "worth N cents" → the cents the row is keyed by on screen. */
+const rowCents = new Map<number, number>();
+const shownCents = (cents: string) =>
+  rowCents.get(Number(cents)) ?? Number(cents);
+
 Then(
   /^the spending worth (\d+) cents reads "(.+?)" only$/,
   async ({ page }, cents: string, own: string) => {
-    const row = new SpendingsPo(page).transactionRowByAmount(Number(cents));
+    const row = new SpendingsPo(page).transactionRowByAmount(shownCents(cents));
     await expect(row).toContainText(own, { timeout: 15000 });
     // R6 (user): the budget figure lives in Edit, not on the row.
     await expect(row.getByTestId("txn-converted")).toHaveCount(0);
@@ -233,7 +266,7 @@ Then(
   /^deleting the spending worth (\d+) cents asks about "(.+?)"$/,
   async ({ page }, cents: string, own: string) => {
     await (
-      await new SpendingsPo(page).revealTxnAction(Number(cents), "delete")
+      await new SpendingsPo(page).revealTxnAction(shownCents(cents), "delete")
     ).click();
     const dialog = page.getByRole("alertdialog");
     await expect(dialog).toContainText(own);
@@ -244,7 +277,7 @@ Then(
 Then(
   /^editing the spending worth (\d+) cents shows (.+?) (\w{3}) with the rate below$/,
   async ({ page }, cents: string, amount: string, ccy: string) => {
-    const sheet = await new SpendingsPo(page).openTxnEdit(Number(cents));
+    const sheet = await new SpendingsPo(page).openTxnEdit(shownCents(cents));
     await expect(sheet.locator("#txn-slider-amount")).toHaveValue(amount);
     await expect(sheet).toContainText(ccy);
     const line = sheet.getByTestId("fx-preview-line");

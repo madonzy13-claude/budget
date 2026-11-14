@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: track)_
-status: executing
-stopped_at: Phase 13.1 UI-SPEC approved
-last_updated: "2026-10-30T11:30:18.196Z"
-last_activity: 2026-10-30
+status: verifying
+stopped_at: Phase 15 context gathered
+last_updated: "2026-11-11T20:14:55.932Z"
+last_activity: 2026-11-11
 progress:
-  total_phases: 14
-  completed_phases: 11
-  total_plans: 165
-  completed_plans: 164
-  percent: 79
+  total_phases: 16
+  completed_phases: 14
+  total_plans: 211
+  completed_plans: 211
+  percent: 88
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-11 for v1.1 milestone)
 
 **Core value:** A family can replace a complex personal-budget spreadsheet with a multi-user, multi-currency tool that tells them — through a single Tasks queue — exactly what to do this week to keep budget, reserve, and cushion healthy.
-**Current focus:** Phase 13.1 — investments-assets-with-transactions-type-asset-transaction-
+**Current focus:** Phase 15 — mcp-server-manage-budgets-via-ai-agents-and-assistants
 
 ## Current Position
 
-Phase: 13.1 (investments-assets-with-transactions-type-asset-transaction-) — EXECUTING
-Plan: 21 of 45
+Phase: 15 (mcp-server-manage-budgets-via-ai-agents-and-assistants) — EXECUTING
+Plan: 21 of 21
 Next: Phase 13.1 inserted — /gsd:discuss-phase 13.1 (assets with transactions redesign); Phase 13 UAT paused at test 7
-Status: Ready to execute
-Last activity: 2026-10-30
+Status: Phase complete — ready for verification
+Last activity: 2026-11-11
 
 ### Known test-debt (non-CI, non-blocking)
 
@@ -65,7 +65,7 @@ Phase-02 dead-table gap (`account_balance_adjustments`) is RESOLVED — only doc
 
 **Velocity:**
 
-- Total plans completed: 7 (v1.1 — v1.0 history archived)
+- Total plans completed: 31 (v1.1 — v1.0 history archived)
 - Average duration: —
 - Total execution time: 0 hours
 
@@ -82,6 +82,7 @@ Phase-02 dead-table gap (`account_balance_adjustments`) is RESOLVED — only doc
 | 7. Tasks Queue                              | 0/TBD | —     | —        |
 | 8. PWA, Offline, Push, i18n & E2E Hardening | 0/TBD | —     | —        |
 | 09                                          | 7     | -     | -        |
+| 14                                          | 24    | -     | -        |
 
 **Recent Trend:**
 
@@ -111,6 +112,10 @@ _Updated after each plan completion_
 ## Accumulated Context
 
 ### Roadmap Evolution
+
+- Phase 15 added (2026-11-05): MCP server — agents/assistants manage budgets via remote MCP + OAuth 2.1; read tools, bounded writes, preview/commit/undo import (agent normalizes formats); no exfiltration tools; audited MCP writes with undo.
+
+- Phase 14 added (2026-11-03): Multi-currency budgets — changeable budget currency, per-category currency, multi-currency reserves
 
 - Phase 10 added (2026-06-26): User Settings Redesign — 2-pill carousel (General · User) reusing the BDP pill/prefetch frame + Settings-tab accordion; remove AI/voice Provider feature end-to-end (incl. column-drop migration); add profile name/email edit (email re-verify), email-gated password change (reuses reset flow), active-sessions revoke + sign-out-others, Danger Zone account deletion (GDPR); build the missing logged-out forgot/reset-password pages + fix the dead sign-in link. Depends on Phase 3 (BDP frame) + Phase 6 (settings). _(v1.2 track)_
 - Phase 12 added (2026-08-29): Demo Account — one shared login for prospect walkthroughs, backed by a nightly pg-boss job that wipes and re-copies two real budgets (`Private Budget` → demo personal, `Family Budget` → demo family) into a demo tenant through an allowlist scrub manifest. Decided with the user: shared login (not per-visitor sandboxes), copied-from-live (not synthetic), nightly re-pull (not a frozen fixture) — the re-pull risk is bought off by the manifest preflight, which ABORTS the refresh on any unmanifested column instead of publishing it. Money uniformly scaled + PLN relabeled USD; demo user is a member of the demo budgets only, so RLS is the isolation guarantee (pinned by a new ci-gate test). Depends on Phase 9 (investments), Phase 10 (`purgeUserData` cascade order, reused for the wipe), Phase 11 (all-budgets aggregate, which the 2nd demo budget populates). _(v1.2 track)_
@@ -222,6 +227,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 | ID         | Date       | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Status                                                            | Plan                                                                                 | Summary                                                                                    |
 | ---------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| 20261113-demo-realism | 2026-11-13 | Demo account realism — per-currency money with wealth/flow factors, names that fit each row, staged coin purchases, unfrozen refresh; Overview/all-budgets follow the visitor locale and privacy | complete ✓ | [PLAN](quick/20261113-demo-realism/20261113-demo-realism-PLAN.md) | [SUMMARY](quick/20261113-demo-realism/20261113-demo-realism-SUMMARY.md) |
+| 20261112-fx-cache | 2026-11-12 | Stored conversions into the budget currency (mig 0110) — reads after a currency change stop converting every row | complete ✓ | [PLAN](quick/20261112-fx-cache/20261112-fx-cache-PLAN.md) | [SUMMARY](quick/20261112-fx-cache/20261112-fx-cache-SUMMARY.md) |
 | 260507-m3x | 2026-05-07 | Migrate E2E tests to Gherkin (playwright-bdd) + Page Objects + freshUser fixture                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | complete ✓                                                        | [PLAN](quick/260507-m3x-migrate-e2e-tests-to-gherkin/260507-m3x-PLAN.md)             | [SUMMARY](quick/260507-m3x-migrate-e2e-tests-to-gherkin/260507-m3x-SUMMARY.md)             |
 | 260611-vuo | 2026-06-11 | BDP archived-category fixes: full-width names, dead trash (42501 grants), column-wide reveal, unarchive lifecycle                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | complete ✓                                                        | [PLAN](quick/260611-vuo-bdp-archived-category-fixes-truncation-r/260611-vuo-PLAN.md) | [SUMMARY](quick/260611-vuo-bdp-archived-category-fixes-truncation-r/260611-vuo-SUMMARY.md) |
 | 260612-a0c | 2026-06-12 | Shell safe-area regressions: standalone sheet bottom gap (in-sheet spacer), tasks banner under pinned header (moved into sticky band)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | complete ✓                                                        | [PLAN](quick/260612-a0c-fix-shell-safe-area-regressions-pwa-popu/260612-a0c-PLAN.md) | [SUMMARY](quick/260612-a0c-fix-shell-safe-area-regressions-pwa-popu/260612-a0c-SUMMARY.md) |
@@ -247,6 +254,10 @@ Decisions are logged in PROJECT.md Key Decisions table.
 | 260812-fya | 2026-08-12 | Money-forecast line explains itself: every day carries `available = opening + income − bills − plannedBurn + reserveCovered` (asserted per cell) and the tooltip reads it out, so the first cell no longer silently sits one day's burn below the "available to spend" card. Unconfirmed past-due occurrences — in neither the dated bills nor confirmed spend once their draft rolled `next_due_date` — are now listed on today's cell (informational, they move no cash). Pie centre says "N categories" once narrowed, still "All categories" when only Investments is dropped. Burn rule deliberately unchanged (plan − spent over days LEFT; passed days' unspent money does not expire) | complete ✓ | [PLAN](quick/260812-fya-forecast-tooltip-shows-the-spend-equatio/260812-fya-PLAN.md) | [SUMMARY](quick/260812-fya-forecast-tooltip-shows-the-spend-equatio/260812-fya-SUMMARY.md) |
 | 260814-jfw | 2026-08-14 | Dependency refresh: every outdated package across 13 workspaces to latest stable — zod 3→4, nanoid 6, pino 10, motion 13, temporal-polyfill 1.0.4, libsodium-wrappers 0.8.4, recharts 3.10.1, Playwright 1.62.1 + playwright-bdd 9, jest-dom 7 (+ the `@testing-library/dom` peer it now requires), fast-check 4, lint-staged 17, dependency-cruiser 18, @typescript-eslint 8.67, the `@types/*`, CI Node 20→22. **TypeScript held at 5.9.3** (typescript-eslint throws on TS 7, killing the lint gate and `local/no-float-money`; TS 6 is beta-only) and **Next held at 16.2.12** (16.3.1 passes `next build` on the host but fails the image build — Bun "Expected CommonJS module to have a function wrapper" collecting page data for /icon.svg). Along the way: playwright-bdd 9's arity check caught a step definition discarding its captured argument; `@budget/budgeting` had no `typecheck` script, hiding 27 type errors from a CI gate — script added, all 27 fixed | complete ✓ | [PLAN](quick/260814-jfw-dependency-refresh/260814-jfw-PLAN.md) | [SUMMARY](quick/260814-jfw-dependency-refresh/260814-jfw-SUMMARY.md) |
 | 260824-f2o | 2026-08-24 | Forecast strip month labels: `MIN_LABEL_PCT` 8 → 12. The 260823 guard sized the threshold from glyph width alone, ignoring the label's 8px lead-in and any trailing gap, so a segment could clear the check and still print on the divider — live on 24 Aug, where Sep turns on day 8 of 100 (8.08%) and "Aug" landed flush against its rule. One constant covers both ends (head room = distance to next open, tail room = `100 - pct`). The unit tests could never have caught this: happy-dom lays out nothing, so a percentage guess 2px short reads green. Added an `@overview @projection` E2E measuring real boxes — which **passed against a deliberately-rebuilt broken image** on its first run (`.sort()` lexicographic; "next divider" searched from the label's right edge, so an overlapping label skipped its own rule), and failed at **−2.82px** once corrected | complete ✓ | [PLAN](quick/260824-forecast-month-label-padding/PLAN.md) | [SUMMARY](quick/260824-forecast-month-label-padding/SUMMARY.md) |
+| 261102-eu2 | 2026-11-02 | Investments: a group whose assets are all hidden hides behind a "N hidden groups" link, faded, assets listed inside | complete ✓ | [PLAN](quick/261102-eu2-hide-fully-hidden-investment-groups/261102-eu2-PLAN.md) | [SUMMARY](quick/261102-eu2-hide-fully-hidden-investment-groups/261102-eu2-SUMMARY.md) |
+| 261102-pf1 | 2026-11-02 | Overview/investments perf: FX pair series cache, batched ledger reads, one set_config per tx, Postgres jit=off | complete ✓ | [PLAN](quick/261102-pf1-overview-perf-n-plus-one/261102-pf1-PLAN.md) | [SUMMARY](quick/261102-pf1-overview-perf-n-plus-one/261102-pf1-SUMMARY.md) |
+| 261102-pf2 | 2026-11-02 | Overview perf round 2: shared reserve replays for GETs, deposit/reserve-fit CPU, tracing verb regex, 10 stale tests fixed | complete ✓ | [PLAN](quick/261102-pf2-reserve-read-cache-cpu/261102-pf2-PLAN.md) | [SUMMARY](quick/261102-pf2-reserve-read-cache-cpu/261102-pf2-SUMMARY.md) |
+| 261102-ui1 | 2026-11-02 | Desktop wallet rows: fitted currency column, level amounts, figures on hover/open, actions behind a "…" with blur | complete ✓ | [PLAN](quick/261102-ui1-desktop-wallet-rows/261102-ui1-PLAN.md) | [SUMMARY](quick/261102-ui1-desktop-wallet-rows/261102-ui1-SUMMARY.md) |
 
 ## Deferred Items
 
@@ -263,9 +274,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ## Session Continuity
 
-Last session: 2026-10-27T12:23:21.130Z
-Stopped at: Phase 13.1 UI-SPEC approved
-Resume file: .planning/phases/13.1-investments-assets-with-transactions-type-asset-transaction-/13.1-UI-SPEC.md
+Last session: 2026-11-05T14:28:42.826Z
+Stopped at: Phase 15 context gathered
+Resume file: .planning/phases/15-mcp-server-manage-budgets-via-ai-agents-and-assistants/15-CONTEXT.md
 
 ## v1.0 History (archived)
 
@@ -275,3 +286,6 @@ v1.0 milestone (Phases 1–2 shipped, Phases 3–6 frozen) is archived at:
 - `.planning/archive/v1.0/REQUIREMENTS.md`
 
 v1.0 carried-forward production capabilities are listed in `REQUIREMENTS.md` § v1.0 Validated.
+| 261105-rse | Investments Buy/Sell: hidden assets in pickers, "Quantity bought", buy price fill | 2026-11-05 | [261105-rse](./quick/261105-rse-investments-buy-sell-dialog-fixes/) |
+| 261106-95b | Agent-created asset starts worth its price; Mama's Green Side 1/2 get their missing value-update entry | 2026-11-06 | [261106-95b](./quick/261106-95b-investments-value-change-delete-and-mama/) |
+| 261106-9g9 | Investments: the amount opens the asset sheet (Details · Buy · Sell · Transfer); swipe keeps only Delete | 2026-11-06 | [261106-9g9](./quick/261106-9g9-investments-amount-opens-swap-sheet-with/) |

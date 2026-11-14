@@ -14,6 +14,7 @@ import {
   bigint,
   timestamp,
   index,
+  char,
 } from "drizzle-orm/pg-core";
 import { budgeting, appRole, workerRole } from "@budget/platform";
 
@@ -27,6 +28,8 @@ export const categoryReserveAdjustments = budgeting.table(
     deltaCents: bigint("delta_cents", { mode: "bigint" }).notNull(),
     /** Optional user note (Zod refine in Plan 02 enforces max 280 chars). */
     note: text("note"),
+    /** Phase 14 (migration 0104): currency of delta_cents = its category's at write time. */
+    currency: char("currency", { length: 3 }).notNull(),
     createdBy: uuid("created_by"),
     occurredAt: timestamp("occurred_at", { withTimezone: true })
       .defaultNow()

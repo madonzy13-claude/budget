@@ -29,6 +29,11 @@
  * Pure: no Drizzle, no Temporal here — the loader owns IO + the TZ-correct open
  * month. Money stays in cents (bigint); display wrapping is the route's job (05-14).
  */
+import {
+  settleReserveByCurrency,
+  type ReserveSettlement,
+} from "../domain/reserve-settle";
+import { convertCents } from "../domain/fx-round";
 import { ok, err, type Result } from "@budget/shared-kernel";
 import type { ReserveEventLoaderRepo } from "../ports/reserve-event-loader-repo";
 import type { ReserveEventInputs } from "../ports/reserve-event-loader-repo";
@@ -69,6 +74,20 @@ export interface ReservePositionsResult {
   openMonth: string;
   /** Σ R over active (non-excluded, non-archived) categories. 0 when disabled. */
   internalCents: bigint;
+  /** D-10: the same, one amount per category currency. Optional for older mocks. */
+  internalByCurrency?: Map<string, bigint>;
+  /** Phase 14: some row had no FX pair and was left out of the replay. */
+  fxUnavailable?: boolean;
+  /** Each category's current currency (its reserve is held in it). */
+  categoryCurrency?: Map<string, string>;
+  /** D-14: RESERVE wallet balances per wallet currency. */
+  walletsByCurrency?: Map<string, bigint>;
+  /** D-11..D-16: the need settled against the wallets, per currency, exact.
+   *  surplusCents / direction above come from it. */
+  settlement?: ReserveSettlement;
+  /** Today's rate from each reserve/wallet currency to the budget currency
+   *  (null = no pair) — for any total that crosses categories. */
+  rateToBudget?: Map<string, string | null>;
   /** Σ RESERVE-wallet balances. */
   userDefinedCents: bigint;
   /** userDefined − internal. */
@@ -246,6 +265,8 @@ export function getReservePositions(deps: GetReservePositionsDeps) {
         events,
         openMonth: inputs.openMonth,
         reservesEnabled: inputs.reservesEnabled,
+        categoryCurrency: inputs.categoryCurrency,
+        defaultCurrency: inputs.budgetCurrency,
       });
 
       // Group engine cells per category → byMonth maps + Σ overspent.
@@ -308,14 +329,55 @@ export function getReservePositions(deps: GetReservePositionsDeps) {
         });
       }
 
-      const surplusCents = engine.surplusCents;
+      // D-11..D-16: settle the per-currency need against the per-currency
+      // wallets at today's rates. Loaders that predate Phase 14 (in-memory
+      // fakes) carry no wallet breakdown and keep the engine's single-currency
+      // surplus.
+      let surplusCents = engine.surplusCents;
+      let internalCents = engine.internalCents;
+      let settlement: ReserveSettlement | undefined;
+      if (inputs.walletsByCurrency) {
+        const ccy = inputs.budgetCurrency;
+        const rate = (from: string, to: string) =>
+          from === to ? "1" : (inputs.todayRates?.get(`${from}|${to}`) ?? null);
+        settlement = settleReserveByCurrency({
+          needByCurrency: engine.internalByCurrency,
+          walletsByCurrency: inputs.walletsByCurrency,
+          reserveWalletCurrencies: inputs.reserveWalletCurrencies ?? new Set(inputs.walletsByCurrency.keys()),
+          budgetCurrency: ccy,
+          rate,
+        });
+        surplusCents = settlement.netBudgetCents;
+        internalCents = 0n;
+        for (const [c, cents] of engine.internalByCurrency) {
+          const r = rate(c, ccy);
+          if (r !== null) internalCents += convertCents(cents, r);
+        }
+      }
       const direction: "TOPUP" | "WITHDRAW" | "NONE" =
         surplusCents < 0n ? "TOPUP" : surplusCents > 0n ? "WITHDRAW" : "NONE";
 
       return ok({
         positions,
         openMonth: inputs.openMonth,
-        internalCents: engine.internalCents,
+        internalCents,
+        internalByCurrency: engine.internalByCurrency,
+        walletsByCurrency: inputs.walletsByCurrency,
+        settlement,
+        rateToBudget: new Map(
+          [...new Set([...(inputs.categoryCurrency?.values() ?? []), ...(inputs.walletsByCurrency?.keys() ?? [])])].map(
+            (c) => [
+              c,
+              c === inputs.budgetCurrency ? "1" : (inputs.todayRates?.get(`${c}|${inputs.budgetCurrency}`) ?? null),
+            ],
+          ),
+        ),
+        categoryCurrency: inputs.categoryCurrency,
+        // …or a currency the settlement could not convert (review WR-05):
+        // it is out of internalCents, so the total is not the whole story.
+        ...(inputs.fxUnavailable || (settlement?.unconvertible.length ?? 0) > 0
+          ? { fxUnavailable: true }
+          : {}),
         userDefinedCents: engine.userDefinedCents,
         surplusCents,
         direction,
@@ -328,4 +390,44 @@ export function getReservePositions(deps: GetReservePositionsDeps) {
       return err(e as Error);
     }
   };
+}
+
+/**
+ * Phase 14: every engine value is in its category's own currency (D-10).
+ * Budget-level readers — reserve fit, overview charts, cash flow — want the
+ * budget currency: convert each at today's rate (no pair → 0, never par).
+ * A result from a loader without currencies passes through unchanged.
+ */
+export function positionsInBudget<P extends object>(
+  r: {
+    positions?: Map<string, P>;
+    categoryCurrency?: Map<string, string>;
+    rateToBudget?: Map<string, string | null>;
+  },
+  budgetCurrency: string,
+): Map<string, P> {
+  const positions = r.positions ?? new Map<string, P>();
+  if (!r.categoryCurrency) return positions;
+  // Every bigint on a position and its month cells is money in the category's currency.
+  const convertAll = <T extends object>(o: T, cv: (v: bigint) => bigint): T =>
+    Object.fromEntries(
+      Object.entries(o).map(([k, v]) => [k, typeof v === "bigint" ? cv(v) : v]),
+    ) as T;
+  const out = new Map<string, P>();
+  for (const [id, p] of positions) {
+    const ccy = r.categoryCurrency.get(id) ?? budgetCurrency;
+    if (ccy === budgetCurrency) {
+      out.set(id, p);
+      continue;
+    }
+    const rate = r.rateToBudget?.get(ccy) ?? null;
+    const cv = (v: bigint) => (rate === null ? 0n : convertCents(v, rate));
+    const converted = convertAll(p, cv) as P & { byMonth?: Map<string, object> };
+    const months = (p as { byMonth?: Map<string, object> }).byMonth;
+    if (months) {
+      converted.byMonth = new Map([...months].map(([m, c]) => [m, convertAll(c, cv)]));
+    }
+    out.set(id, converted);
+  }
+  return out;
 }

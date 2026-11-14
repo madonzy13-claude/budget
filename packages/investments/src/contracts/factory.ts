@@ -61,7 +61,7 @@ export function createInvestmentsModule(deps: {
     transferAsset: transferAsset({ ...ledger, fxProvider: deps.fxProvider }),
     listEntries: listEntries({ ...ledger, fxProvider: deps.fxProvider }),
     deleteEntry: deleteEntry(ledger),
-    editEntry: editEntry(ledger),
+    editEntry: editEntry({ ...ledger, fxProvider: deps.fxProvider }),
     archiveHolding: archiveHolding({ holdingRepo: deps.holdingRepo }),
     restoreHolding: restoreHolding({ holdingRepo: deps.holdingRepo }),
     listHoldings: listHoldings({

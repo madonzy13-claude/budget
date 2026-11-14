@@ -35,7 +35,7 @@
  *     `app.tenant_ids` GUC set by the caller's withTenantTx.
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
-import { TenantId, UserId } from "@budget/shared-kernel";
+import { TenantId, UserId, serverNow } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
 import { sql } from "drizzle-orm";
 import { Temporal } from "temporal-polyfill";
@@ -122,10 +122,15 @@ export async function computeCushionSummary(
   //    Active row = effective_from <= today AND (effective_to IS NULL OR
   //    effective_to > today). v1.1: tenant_id === budget_id; filter on
   //    tenant_id (category_limits has no budget_id column).
-  const todayPlainDate = Temporal.Now.plainDateISO();
+  //    Phase 14 (D-08): each limit from its own currency at today's rate.
+  // serverNow, not the host clock (review WR-08) — the gated test clock lives there.
+  const todayPlainDate = Temporal.Instant.fromEpochMilliseconds(serverNow().getTime())
+    .toZonedDateTimeISO("UTC")
+    .toPlainDate();
   const todayStr = todayPlainDate.toString();
   const cushionAmounts = await tx.execute(sql`
-    SELECT COALESCE(SUM(cushion_amount), 0)::text AS total
+    SELECT COALESCE(SUM(budgeting.fx_convert(cushion_amount, cushion_currency,
+                                             ${budget.default_currency}::text, ${todayStr}::date)), 0)::text AS total
       FROM budgeting.category_limits
      WHERE tenant_id = ${input.tenantId}::uuid
        AND effective_from <= ${todayStr}::date

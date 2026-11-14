@@ -326,6 +326,30 @@ describe("Investment assets", () => {
     expect(await res.json()).toEqual({ error: "deposit_not_allowed" });
   });
 
+  // 15-18 UAT: a deposit's value is computed from its rate, capitalization
+  // and start — without any of them there is nothing to compute.
+  it("a new deposit needs its rate, capitalization and start date", async () => {
+    const fix = await createFixture();
+    const app = await buildApp(fix);
+    const full = {
+      name: "Bank",
+      holdingType: "deposit",
+      uiType: "deposit",
+      quantity: "1",
+      buyPriceCents: "100000",
+      buyCurrency: "PLN",
+      depositRateBps: 500,
+      depositStartDate: "2026-03-01",
+      depositCapFrequency: "monthly",
+    };
+    for (const k of ["depositRateBps", "depositStartDate", "depositCapFrequency"] as const) {
+      const body: Record<string, unknown> = { ...full };
+      delete body[k];
+      expect((await json(app, "", "POST", body)).status).toBe(422);
+      expect((await json(app, "", "POST", { ...full, [k]: null })).status).toBe(422);
+    }
+  });
+
   // Round-5 gap 1: a deposit's opening entry sits on its start date.
   it("a new deposit's opening entry is dated on its start date", async () => {
     const fix = await createFixture();

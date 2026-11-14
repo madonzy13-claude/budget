@@ -60,7 +60,18 @@ vi.mock("../../src/hooks/use-asset-names", () => ({
               valueCurrency: "USD",
             },
           ]
-        : type === "cash"
+        : type === "collectibles"
+          ? [
+              {
+                id: "watch",
+                name: "Watch",
+                archived: true,
+                instrumentId: null,
+                valueCents: "300000",
+                valueCurrency: "PLN",
+              },
+            ]
+          : type === "cash"
           ? [
               {
                 id: "pot",
@@ -180,6 +191,7 @@ vi.mock(
 );
 // 13.1 UAT 7: picking an existing asset in Add = the locked Swap → Buy form.
 vi.mock("../../src/hooks/use-investments", () => ({
+  useHiddenHoldings: () => ({ data: [] }),
   useInvestments: () => ({
     data: [
       { id: "btc-id", name: "BTC Ledger", uiType: "crypto" },
@@ -1262,6 +1274,27 @@ describe("HoldingSheet — add joins by name (13.1 D-02)", () => {
     fireEvent.focus(screen.getByTestId("holding-sheet-name"));
     fireEvent.mouseDown(screen.getByTestId("asset-name-option-0"));
     expect(onPickExisting).toHaveBeenCalledWith("btc-id");
+  });
+
+  // 261105 (user): a hidden asset is still yours — a sale may land in it
+  // (the server unhides it).
+  it("a hidden asset is offered as a sale destination", () => {
+    const onPickExisting = vi.fn();
+    render(
+      <HoldingSheet
+        {...baseProps}
+        holding={null}
+        destination={{
+          receivedCurrency: "PLN",
+          initialUiType: "collectibles",
+          onChange: () => {},
+          onPickExisting,
+        }}
+      />,
+    );
+    fireEvent.focus(screen.getByTestId("holding-sheet-name"));
+    fireEvent.mouseDown(screen.getByTestId("asset-name-option-0"));
+    expect(onPickExisting).toHaveBeenCalledWith("watch");
   });
 
   // Round-6 gap 3: picked in place — only Type + Name stay; typing drops it.

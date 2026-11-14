@@ -63,9 +63,10 @@ const DATA = {
   ],
 };
 
-const { dataRef, wealthRef } = vi.hoisted(() => ({
+const { dataRef, wealthRef, localeRef } = vi.hoisted(() => ({
   dataRef: { current: undefined as any },
   wealthRef: { current: undefined as any },
+  localeRef: { current: "en" },
 }));
 
 vi.mock("next-intl", () => {
@@ -74,7 +75,7 @@ vi.mock("next-intl", () => {
   // that amount in the tree. The chunk is handed the key, which is all this mock
   // has; the component ignores it and renders its own SlotAmount.
   t.rich = (k: string, v?: any) => (v?.amt ? v.amt(k) : k);
-  return { useTranslations: () => t, useLocale: () => "en" };
+  return { useTranslations: () => t, useLocale: () => localeRef.current };
 });
 // 260805: the range now comes from the user's stored picks, so the page waits
 // for them before it draws anything.
@@ -127,6 +128,7 @@ vi.mock("@/components/budgeting/aggregate/aggregate-budgets-tasks", () => ({
 }));
 
 beforeEach(() => {
+  localeRef.current = "en";
   dataRef.current = DATA;
   wealthRef.current = undefined;
 });
@@ -142,6 +144,29 @@ describe("AggregateOverview", () => {
     reveal(hero);
     // 660000 + 340000 = 1,000,000 cents = $10,000
     await waitFor(() => expect(hero.textContent).toMatch(/10,?000/));
+  });
+
+  // 261113: privacy is the member's choice; with it off on every budget the
+  // all-budgets page shows its amounts like the budget pages do.
+  it("shows amounts without a tap when the member keeps privacy off", async () => {
+    dataRef.current = { ...DATA, amount_privacy_enabled: false };
+    render(<AggregateOverview />);
+    const hero = screen.getByTestId("aggregate-hero");
+    await waitFor(() => expect(hero.textContent).toMatch(/10,?000/));
+  });
+
+  it("keeps amounts hidden while privacy is on", async () => {
+    dataRef.current = { ...DATA, amount_privacy_enabled: true };
+    render(<AggregateOverview />);
+    const hero = screen.getByTestId("aggregate-hero");
+    expect(hero.textContent).not.toMatch(/10,?000/);
+  });
+
+  // 261113: Polish read "4.5% rocznej inflacji" beside "545 559 zł".
+  it("the inflation rate uses the visitor's decimal separator", () => {
+    localeRef.current = "pl";
+    render(<AggregateOverview />);
+    expect(document.body.textContent).toContain("your 4,5%");
   });
 
   it("excludes an included:false budget from the hero sum", async () => {

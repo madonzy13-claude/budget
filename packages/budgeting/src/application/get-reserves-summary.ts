@@ -24,6 +24,8 @@ export interface ReservesSummaryRow {
   name: string;
   /** 260613-v1p: per-category color key (null = no color → no row accent bar). */
   colorKey: string | null;
+  /** Phase 14 (D-10): the category's currency — every amount on this row is in it. */
+  currency?: string;
   /** R — available reserve for this category (serialized cents). */
   reserveCents: string;
   /** U — reserve consumed by overspend (cumulative / ALL TIME, serialized cents). */
@@ -53,6 +55,17 @@ export interface ReservesSummaryDto {
     usedThisMonthCents: string;
     disabled: boolean;
     budgetCurrency: string;
+    /** D-10: Σ reserve per category currency (alphabetical). */
+    needByCurrency?: Array<{ currency: string; cents: string }>;
+    /** D-14: RESERVE wallets per wallet currency (alphabetical). */
+    walletsByCurrency?: Array<{ currency: string; cents: string }>;
+    /** D-12/D-16: what to top up / withdraw, per currency (settlement order). */
+    lines?: Array<{
+      currency: string;
+      cents: string;
+      direction: "TOPUP" | "WITHDRAW";
+      equiv?: { currency: string; cents: string };
+    }>;
   };
 }
 
@@ -82,6 +95,9 @@ function disabledDto(budgetCurrency: string): ReservesSummaryDto {
       usedThisMonthCents: "0",
       disabled: true,
       budgetCurrency,
+      needByCurrency: [],
+      walletsByCurrency: [],
+      lines: [],
     },
   };
 }
@@ -116,7 +132,6 @@ export function getReservesSummary(deps: GetReservesSummaryDeps) {
             name: c.name,
             reserveExcluded: c.reserveExcluded ?? false,
             colorKey: c.colorKey ?? null,
-            isInvestment: c.isInvestment ?? false,
           })),
           budgetCurrency,
           disabled: false,

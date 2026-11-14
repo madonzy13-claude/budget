@@ -33,6 +33,14 @@ export class OverviewPo {
     return this.bdp.overviewCard(name);
   }
 
+  /** The first privacy-masked amount (every one reveals together). */
+  firstAmount() {
+    return this.page
+      .getByTestId("slot-amount")
+      .filter({ visible: true })
+      .first();
+  }
+
   /** The "Free to move" figure on the available-to-spend card — the money that
    *  can leave the budget today with every dip in the window still covered.
    *  Absent when there is nothing to move (the balanced note takes its place). */
@@ -124,6 +132,31 @@ export class OverviewPo {
       name: label,
       exact: true,
     });
+  }
+
+  /** A range metric's percent in the investments view (contributions / pl / total). */
+  wealthMetricPct(metric: string) {
+    return this.section("wealth").getByTestId(`wealth-metric-${metric}-pct`);
+  }
+
+  /** The wealth chart's pointer layer (the chart owns the pointer, 261102). */
+  wealthChart() {
+    return this.section("wealth").getByTestId("chart-scrub-layer").first();
+  }
+
+  /** The tooltip for the point under the pointer. */
+  wealthTooltip() {
+    return this.section("wealth").getByTestId("chart-scrub-tooltip");
+  }
+
+  /** The tooltip for a selected range. */
+  wealthRangeTooltip() {
+    return this.section("wealth").getByTestId("chart-range-tooltip");
+  }
+
+  /** The shaded range on the wealth chart. */
+  wealthRange() {
+    return this.section("wealth").getByTestId("chart-range");
   }
 
   /** The investments-view pie region (renders the pie or the calm empty-pie copy). */

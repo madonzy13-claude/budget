@@ -4,8 +4,9 @@
  * budget-identity-section.tsx — D-01
  *
  * Budget name autosaves on blur via InlineEditCell.
- * Currency field: editable select when hasTransactions=false,
- * locked with tooltip when true.
+ * Currency field: the owner can change it at any time (Phase 14, D-01) behind
+ * a confirm dialog — every total re-expresses in the new currency; members see
+ * it read-only.
  */
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -16,19 +17,33 @@ import { InlineEditCell } from "@/components/common/inline-edit-cell";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api-client";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export interface BudgetIdentitySectionProps {
   budgetId: string;
   name: string;
   defaultCurrency: string;
-  hasTransactions: boolean;
+  /** Kept for callers (settings progress); the currency no longer locks on it. */
+  hasTransactions?: boolean;
+  /** The currency is the household's — the owner's to change. The name is
+   *  each member's own label (260808), so anyone may rename (261103, user). */
+  isOwner?: boolean;
 }
 
 export function BudgetIdentitySection({
   budgetId,
   name,
   defaultCurrency,
-  hasTransactions,
+  isOwner = true,
 }: BudgetIdentitySectionProps) {
   const t = useTranslations("settings");
   const router = useRouter();
@@ -64,21 +79,39 @@ export function BudgetIdentitySection({
     router.refresh();
   };
 
-  const saveCurrency = async (currency: string) => {
-    const res = await api.budgets[":id"].$patch({
-      param: { id: budgetId },
-      json: { default_currency: currency },
-    });
-    if (!res.ok) {
-      const body = (await res.json()) as { error?: string };
-      if (body.error === "currency_locked") {
-        toast.error(t("identity.currency_locked_tooltip"));
-        return;
-      }
-      throw new Error("Failed to update currency");
+  // Phase 14 (UI-SPEC §4): a pick opens the confirm dialog; nothing is sent
+  // until the owner confirms. `current` follows a confirmed change at once.
+  const [current, setCurrent] = useState(defaultCurrency);
+  const [pending, setPending] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    setCurrent(defaultCurrency);
+  }, [defaultCurrency]);
+
+  const confirmCurrency = async () => {
+    if (!pending) return;
+    setSaving(true);
+    try {
+      const res = await api.budgets[":id"].$patch({
+        param: { id: budgetId },
+        json: { default_currency: pending as never },
+      });
+      if (!res.ok) throw new Error("Failed to update currency");
+      setCurrent(pending);
+      // Every amount of this budget is re-expressed server-side: drop every
+      // cached query that belongs to it (summary, overview, reserves, tasks…).
+      void qc.invalidateQueries({
+        predicate: (q) => (q.queryKey as unknown[]).includes(budgetId),
+      });
+      void qc.invalidateQueries({ queryKey: ["active-budgets"] });
+      toast.success(t("identity.currency_saved"));
+      router.refresh();
+    } catch {
+      toast.error(t("identity.currency_save_failed"));
+    } finally {
+      setSaving(false);
+      setPending(null);
     }
-    toast.success(t("identity.currency_saved"));
-    router.refresh();
   };
 
   return (
@@ -98,7 +131,8 @@ export function BudgetIdentitySection({
             // currency stopping short of it (user, 260810). The hover tint
             // hugs the text instead, which still reads as "this is editable".
             render={(v) => (
-              <span className="block rounded-md py-1.5 text-sm text-[var(--body)] hover:bg-[var(--surface-elevated-dark)]">
+              // 261103 (user): dotted like the Assets amounts — editable.
+              <span className="editable-dots block rounded-md py-1.5 text-sm text-[var(--body)] hover:bg-[var(--surface-elevated-dark)]">
                 {v}
               </span>
             )}
@@ -137,14 +171,11 @@ export function BudgetIdentitySection({
           </p>
         </div>
         <div className="flex justify-end">
-          {hasTransactions ? (
-            // Locked (post-first-transaction): plain grey code, no lock chrome —
-            // matches the investments-row currency styling (r31 item 4).
-            <span
-              className="py-1.5 text-sm text-[var(--muted-foreground)]"
-              aria-label={t("identity.currency_locked_tooltip")}
-            >
-              {defaultCurrency}
+          {!isOwner ? (
+            // A member sees the household's currency read-only: plain grey
+            // code — matches the investments-row currency styling (r31 item 4).
+            <span className="py-1.5 text-sm text-[var(--muted-foreground)]">
+              {current}
             </span>
           ) : (
             // CurrencyPicker's internal triggers (Radix SelectTrigger on
@@ -153,19 +184,56 @@ export function BudgetIdentitySection({
             // width wrapper. Browsers also tend to ignore text-align on
             // <select>. Force intrinsic width on both trigger variants
             // with !w-auto and override Radix's justify-between → end so
-            // the value sits at the right edge of the row. The wrapper
+            // the value sits at the right edge of the row. iOS ignores
+            // text-align on a <select> — text-align-last does the job there,
+            // so the code sits over its dotted line (user, 261103). The wrapper
             // itself uses inline-flex justify-end so it shrinks to the
             // intrinsic size of the trigger.
-            <div className="inline-flex justify-end [&_button]:!w-auto [&_button]:justify-end [&_select]:!w-auto [&_select]:text-right">
+            <div data-testid="budget-currency-picker" className="editable-dots inline-flex justify-end [&_button]:!w-auto [&_button]:justify-end [&_select]:!w-auto [&_select]:text-right [&_select]:[text-align-last:right]">
               <CurrencyPicker
-                value={defaultCurrency}
-                onSelect={saveCurrency}
+                value={pending ?? current}
+                onSelect={(v: string) => {
+                  if (v !== current) setPending(v);
+                }}
                 aria-label={t("identity.currency_label")}
               />
             </div>
           )}
         </div>
       </div>
+
+      <AlertDialog
+        open={pending !== null}
+        onOpenChange={(o) => {
+          if (!o && !saving) setPending(null);
+        }}
+      >
+        <AlertDialogContent data-testid="budget-currency-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("identity.currency_confirm_title", { currency: pending ?? "" })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("identity.currency_confirm_body", { currency: pending ?? "" })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving} data-testid="budget-currency-cancel">
+              {t("identity.currency_confirm_cancel", { currentCurrency: current })}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={saving}
+              data-testid="budget-currency-confirm"
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmCurrency();
+              }}
+            >
+              {t("identity.currency_confirm_cta")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

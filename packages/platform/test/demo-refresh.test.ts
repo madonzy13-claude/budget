@@ -28,7 +28,8 @@ const ENV = {
   DEMO_TENANT_IDS: `${DST_A},${DST_B}`,
   DEMO_USER_ID: DEMO,
   DEMO_CURRENCIES: "USD,EUR",
-  DEMO_MONEY_SCALES: "0.5,2",
+  DEMO_WEALTH_SCALES: "0.5,2",
+  DEMO_FLOW_SCALES: "0.9,1.1",
   DEMO_BUDGET_NAMES: "Personal,Family",
   DEMO_LABELS: "personal,family",
   DEMO_HOME_CURRENCY: "PLN",
@@ -38,6 +39,12 @@ beforeAll(async () => {
   const { urlApp, urlMigrator } = await startTestcontainer();
   pool = new Pool({ connectionString: urlApp });
   ddl = new Pool({ connectionString: urlMigrator });
+  // The relabel converts at the stored rate (reference data: migrator writes).
+  await ddl.query(
+    `INSERT INTO budgeting.fx_rates (base, quote, date, rate, provider)
+     VALUES ('PLN','USD','2026-11-01',0.25,'test'), ('PLN','EUR','2026-11-01',0.23,'test')
+     ON CONFLICT DO NOTHING`,
+  );
   const c = await pool.connect();
   try {
     await c.query(`SELECT set_config('app.tenant_ids', $1, false)`, [
@@ -102,19 +109,29 @@ describe("runDemoRefresh", () => {
     expect(await countIn(DST_B)).toBe(1);
   });
 
-  test("each budget carries its own configured factor", async () => {
+  test("each budget carries its own configured factors", async () => {
     const r = await runDemoRefresh(pool, readDemoConfig(ENV));
     // Labels carry their locale, because there is one budget pair per language.
-    expect(r.scales["personal-en"]).toBe(0.5);
-    expect(r.scales["family-en"]).toBe(2);
+    expect(r.scales["personal-en"]).toEqual({ flow: 0.9, wealth: 0.5 });
+    expect(r.scales["family-en"]).toEqual({ flow: 1.1, wealth: 2 });
+  });
+
+  test("a wallet converts at the stored PLN rate before its factor", async () => {
+    await runDemoRefresh(pool, readDemoConfig(ENV));
+    const { rows } = await pool.query(
+      `SELECT currency, current_balance::float b FROM budgeting.wallets WHERE tenant_id = $1`,
+      [DST_A],
+    );
+    // 1000 PLN × 0.25 (PLN→USD) × 0.5 wealth.
+    expect(rows).toEqual([{ currency: "USD", b: 125 }]);
   });
 
   test("the SAME amounts every run — the factor is a constant", () => {
     // Was: "a different day produces different amounts". That was the whole
     // problem — capitalization swung 60-90% between consecutive days, so anyone
     // revisiting the demo saw a household in freefall or a windfall.
-    const a = readDemoConfig(ENV)!.pairs[0]!.moneyScale;
-    const b = readDemoConfig(ENV)!.pairs[0]!.moneyScale;
+    const a = readDemoConfig(ENV)!.pairs[0]!.wealthScale;
+    const b = readDemoConfig(ENV)!.pairs[0]!.wealthScale;
     expect(a).toBe(b);
     expect(a).toBe(0.5);
   });

@@ -55,6 +55,7 @@ export function editAsset(deps: {
       );
       if (!h) return err(fail("not_found"));
       const today =
+        input.effectiveDate ??
         input.today ??
         Temporal.Now.plainDateISO(input.timezone ?? "UTC").toString();
       const rate = makeRate(deps.fxProvider, today);

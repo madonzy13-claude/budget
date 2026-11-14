@@ -30,10 +30,11 @@ export class DrizzleCategoryReserveAdjustmentsRepo implements CategoryReserveAdj
         // identical to the DB default; the gated test clock can move it to drive a
         // multi-month timeline). occurred_at's month is the adjust's asOf month.
         sql`INSERT INTO budgeting.category_reserve_adjustments
-              (tenant_id, category_id, delta_cents, note, created_by, occurred_at)
+              (tenant_id, category_id, delta_cents, currency, note, created_by, occurred_at)
             VALUES
               (${input.tenantId}::uuid, ${input.categoryId}::uuid,
                ${input.deltaCents.toString()}::bigint,
+               (SELECT currency FROM budgeting.categories WHERE id = ${input.categoryId}::uuid),
                ${input.note ?? null},
                ${input.actorUserId}::uuid,
                ${serverNow().toISOString()}::timestamptz)

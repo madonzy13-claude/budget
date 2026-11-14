@@ -60,11 +60,6 @@ interface SpendingsCategoryLike {
   activeBudgetCents: string;
   /** Normal planned amount (NOT cushion) — retirement-runway burn rate (item 5). */
   plannedCents: string;
-  /** THE Investments category — excluded from the retirement burn rate. */
-  isInvestment: boolean;
-  /** How that category's limit is set: "smart" = whatever income is left after
-   *  every other limit, "manual" = a figure the household chose. */
-  investmentLimitMode?: string | null;
 }
 interface SpendingsSummaryLike {
   budgetCurrency: string;
@@ -152,7 +147,7 @@ export interface OverviewCards {
    * — "how long could I survive if I retire now" (item 5). null = no planned spend
    * (would last forever). */
   retirement_months: number | null;
-  /** Effective monthly planned spend = Σ active-budget of non-Investment
+  /** Effective monthly planned spend = Σ active-budget of all
    * categories (activeBudget = the category's cushion amount when the budget is in
    * cushion mode, else its normal planned). This is the "money runway" burn rate —
    * planned spend, cushion-aware — NOT spent-this-month. */
@@ -328,32 +323,20 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
       for (const c of spendings.categories) {
         if (c.archived) continue;
         spentThisMonth += BigInt(c.spentCents);
-        // Retirement spend EXCLUDES the Investments category: once retired there's
-        // no income, so you stop investing — its planned amount isn't a cost.
         // 0083: an unbounded category has no plan to burn. Retirement is a
         // forever-projection, so what it costs from here is its STANDING
         // payments — not the spend that happens to sit in plannedCents.
         const retirementCost = c.noLimit
           ? (standingMonthly.get(c.categoryId) ?? 0n)
           : BigInt(c.plannedCents);
-        if (!c.isInvestment) monthlyPlanned += retirementCost;
+        monthlyPlanned += retirementCost;
         // Effective planned = active budget (cushion amount in cushion mode, else
-        // planned) — the money-runway burn rate. Also excludes Investments.
-        if (!c.isInvestment)
-          monthlyEffectivePlanned += c.noLimit
-            ? retirementCost
-            : BigInt(c.activeBudgetCents);
-        // A SMART investments limit is not a bill — it is "whatever income is
-        // left when every other limit is paid", so carrying it here made "Left"
-        // read as the whole month's income and the card was permanently short
-        // (user, 260809: 38,422 zł left against 5,133 zł of cash). Its own
-        // upcoming outflows below still count; only the residual limit goes.
-        // MANUAL stays: choosing to move 500 a month IS money spoken for — the
-        // same line the INCOME_UNDER_PLANNED task draws.
-        const smartInvestment =
-          c.isInvestment && c.investmentLimitMode === "smart";
+        // planned) — the money-runway burn rate.
+        monthlyEffectivePlanned += c.noLimit
+          ? retirementCost
+          : BigInt(c.activeBudgetCents);
         const leftover = BigInt(c.activeBudgetCents) - BigInt(c.spentCents);
-        const leftoverPos = smartInvestment || leftover < 0n ? 0n : leftover;
+        const leftoverPos = leftover < 0n ? 0n : leftover;
         const catUpcoming = upcoming.get(c.categoryId) ?? 0n;
         leftToSpend += leftoverPos > catUpcoming ? leftoverPos : catUpcoming;
       }
@@ -368,8 +351,7 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
       //   N = ln(1 + W·r/s) / ln(1+r),  r = monthly inflation, W = wealth, s = spend.
       // W = capitalization MINUS possessions: a house/car/jewelry counts toward net
       // worth but you can't draw it down as monthly income, so it's out of the pot.
-      // s already excludes the Investments category above (no investing in
-      // retirement). No planned spend → lasts forever (null).
+      // No planned spend → lasts forever (null).
       const retirementMonths = (() => {
         if (monthlyPlanned <= 0n) return null;
         const W = Number(
@@ -394,12 +376,9 @@ export function getOverviewCards(deps: GetOverviewCardsDeps) {
       // Overspent: after-reserves overspent from the spendings grid, archived
       // categories excluded (D-06), top-N + total count.
       const overspentCats = spendings.categories
-        // Investments excluded — over-investing isn't overspending (mirrors the
-        // retirement-runway "Excludes Investments" filter above).
         .filter(
           (c) =>
             !c.archived &&
-            !c.isInvestment &&
             // 0083: unbounded — it cannot be overspent, so it never belongs here.
             !c.noLimit &&
             BigInt(c.overspentCents) > 0n,

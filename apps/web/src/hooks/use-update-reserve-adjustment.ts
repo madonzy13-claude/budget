@@ -85,11 +85,15 @@ export function useUpdateReserveAdjustment(
       categoryId: string;
       expectedCents: number;
       note?: string;
+      /** Phase 14: the currency expectedCents is in when it is not the
+       *  category's own (the Overview works in the budget currency). */
+      currency?: string;
     }) => {
-      const body: { expectedCents: number; note?: string } = {
+      const body: { expectedCents: number; note?: string; currency?: string } = {
         expectedCents: input.expectedCents,
       };
       if (input.note !== undefined) body.note = input.note;
+      if (input.currency !== undefined) body.currency = input.currency;
 
       const res = await clientApiWrite(
         `/budgets/${budgetId}/reserves/${input.categoryId}/adjust`,
@@ -112,6 +116,9 @@ export function useUpdateReserveAdjustment(
     },
 
     onMutate: async (input) => {
+      // An amount in another currency than the row's cannot be shown
+      // optimistically in that row — wait for the server's figure.
+      if (input.currency !== undefined) return { previous: undefined };
       await qc.cancelQueries({ queryKey: ["budget", budgetId, "reserves"] });
       const previous = qc.getQueryData<ReservesSummaryDto>([
         "budget",

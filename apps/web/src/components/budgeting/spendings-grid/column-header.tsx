@@ -11,7 +11,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { Pencil, Trash2, Undo2 } from "lucide-react";
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { useRevealActions } from "./reveal-actions";
-import { centsToBare } from "@/lib/cents-format";
+import { centsToBare, centsToDisplayCompact } from "@/lib/cents-format";
 import { cn } from "@/lib/utils";
 import { categoryUsage } from "@/lib/category-usage";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
@@ -36,9 +36,25 @@ export interface ColumnHeaderProps {
     noLimit?: boolean;
     overspentCents: string;
     balanceCents: string;
-    /** r33: THE Investments category — greens the "overinvested" row + dashes reserve. */
-    isInvestment?: boolean;
+    /** Phase 14 (D-08): the limit as typed, in its own currency. plannedCents
+     *  is the same limit in the budget currency (the viewed month's rate). */
+    limitOriginalCents?: string;
+    limitCurrency?: string;
+    /** Phase 14: the column's figures in a foreign category's own currency. */
+    own?: {
+      currency: string;
+      plannedCents: string;
+      cushionCents: string;
+      activeBudgetCents: string;
+      spentCents: string;
+      reserveUsedCents: string;
+      reserveAvailableCents: string;
+      overspentCents: string;
+      balanceCents: string;
+    };
   };
+  /** The budget currency — a limit in another one shows in its own + "≈". */
+  budgetCurrency?: string;
   cushionModeEnabled: boolean;
   dragGripProps?: DraggableSyntheticListeners;
   onEdit: (categoryId: string) => void;
@@ -62,8 +78,9 @@ const canHover = () =>
 
 export function ColumnHeader({
   category,
-  summary,
+  summary: summaryIn,
   cushionModeEnabled,
+  budgetCurrency,
   dragGripProps = undefined,
   onEdit,
   reservesEnabled = true,
@@ -73,12 +90,21 @@ export function ColumnHeader({
 }: ColumnHeaderProps) {
   const t = useTranslations("grid.header");
   const locale = useLocale();
+  // Phase 14 (user, 261103): a category in another currency reads its whole
+  // column in ITS currency, and every figure carries its currency sign so the
+  // currency in use is never a guess.
+  const summary = summaryIn.own ? { ...summaryIn, ...summaryIn.own } : summaryIn;
+  const columnCurrency = summaryIn.own?.currency ?? budgetCurrency;
+  const money = (cents: string | bigint) =>
+    columnCurrency
+      ? centsToDisplayCompact(cents, columnCurrency, locale, true)
+      : centsToBare(cents, locale);
   const { revealed, setRevealed, ref } = useRevealActions();
   // R6 (user): the usage chip swaps to the spent total — tap toggles, a mouse
   // shows it while over the chip. Local state, so a reload is back to %.
   const [showSpent, setShowSpent] = useState(false);
   const spent = BigInt(summary.spentCents);
-  const spentWhole = centsToBare(((spent + 50n) / 100n) * 100n, locale);
+  const spentWhole = money(((spent + 50n) / 100n) * 100n);
   // With a mouse the pen shows on hover LEFT of the chip, which stays put and
   // hoverable (a reserved slot truncated names; sliding the chip aside moved
   // it out from under the pointer).
@@ -96,12 +122,8 @@ export function ColumnHeader({
   // figures are structurally 0. Showing "0 zł" would read as a measurement —
   // that it came in exactly on budget — when there was no budget to come in on.
   const noLimit = summary.noLimit ?? false;
-  // r33: THE Investments category — overspend reads "overinvested" (green, good),
-  // and the reserve section is always a single dash (no reserves for investments).
-  const isInvestment = summary.isInvestment ?? false;
-  // In cushion mode every category (incl. Investments, whose cushion is 0) shows
-  // the cushion figure under a "planned (cushion)" label. Investments therefore
-  // reads 0 in cushion mode — you don't invest on the tighter cushion budget.
+  // In cushion mode every category shows the cushion figure under a
+  // "planned (cushion)" label.
   // Already resolved for the VIEWED month by the grid: a month completed on the
   // cushion keeps its cushion limit for good, so looking back at it from a
   // normal month must not swap in the normal figure (user, 260806).
@@ -336,15 +358,8 @@ export function ColumnHeader({
           className="flex flex-col px-2 py-1.5 border-b border-[var(--hairline-dark)]"
         >
           <span className="text-[10px] text-[var(--muted-foreground)]">
-            {/* Money into investments is not "used up" (user, 261017). */}
             {/* "(plan)" gives way to the "(cushion)" marker below (user, 261017). */}
-            {t(
-              isInvestment
-                ? "row2.invested"
-                : showCushionValue
-                  ? "row2.used"
-                  : "row2.limitUsed",
-            )}
+            {t(showCushionValue ? "row2.used" : "row2.limitUsed")}
             {/* Cushion months are the ones people misread, so the marker earns
                 the accent colour rather than the same grey as the label it
                 qualifies (user, 260806). */}
@@ -388,11 +403,10 @@ export function ColumnHeader({
                   a plan rather than a ceiling. */}
               {noLimit
                 ? "\u221E"
-                : centsToBare(
+                : money(
                     showCushionValue
                       ? summary.cushionCents
                       : summary.plannedCents,
-                    locale,
                   )}
             </span>
           </span>
@@ -413,8 +427,7 @@ export function ColumnHeader({
               category is excluded NOW: available is a dash (—); if it also used no
               reserve this month, the whole cell is a single dash. */}
             <span className="text-sm tabular-nums whitespace-nowrap">
-              {isInvestment ||
-              noLimit ||
+              {noLimit ||
               (reserveExcluded && reserveUsedCents === 0n) ? (
                 <span
                   data-testid={`column-header-${category.name.toLowerCase()}-reserves-used`}
@@ -444,10 +457,7 @@ export function ColumnHeader({
                     {" / "}
                     {reserveExcluded
                       ? "—"
-                      : centsToBare(
-                          summary.reserveAvailableCents ?? "0",
-                          locale,
-                        )}
+                      : money(summary.reserveAvailableCents ?? "0")}
                   </span>
                 </>
               )}
@@ -462,25 +472,20 @@ export function ColumnHeader({
           className="flex flex-col px-2 py-1.5 border-b border-[var(--hairline-dark)]"
         >
           <span className="text-[10px] text-[var(--muted-foreground)]">
-            {isInvestment ? t("row3.overinvested") : t("row3.overspent")}
+            {t("row3.overspent")}
           </span>
           <span
-            data-testid={`column-header-${category.name.toLowerCase()}-${
-              isInvestment ? "overinvested" : "overspent"
-            }`}
+            data-testid={`column-header-${category.name.toLowerCase()}-overspent`}
             className={cn(
               "text-sm tabular-nums",
               noLimit
                 ? "text-[var(--muted-foreground)]"
                 : overspentCents > 0n
-                  ? // Overinvesting is GOOD → green; overspending is bad → red.
-                    isInvestment
-                    ? "text-[var(--trading-up,#26a69a)]"
-                    : "text-[var(--destructive)]"
+                  ? "text-[var(--destructive)]"
                   : "text-[var(--muted-foreground)]",
             )}
           >
-            {noLimit ? "—" : centsToBare(summary.overspentCents, locale)}
+            {noLimit ? "—" : money(summary.overspentCents)}
           </span>
         </div>
       </div>

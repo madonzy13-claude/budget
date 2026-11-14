@@ -26,6 +26,7 @@ import { UI_TYPE_COLOR, UI_TYPE_ICON } from "@/lib/investment-icons";
 import { useIsWide } from "@/hooks/use-is-wide";
 import { CurrencyPicker } from "@/components/common/currency-picker";
 import type { TypeGroupPL } from "@/lib/investment-type-groups";
+import { REVEAL_ON_ROW, SHOW_ON_ROW } from "./row-actions";
 
 interface InvestmentTypeHeaderProps {
   uiType: UiType;
@@ -151,10 +152,14 @@ export function InvestmentTypeHeader({
   // Revealed, it shrinks to the asset row's small value so the three lines fit
   // the card (it grew 56 → 69.6px).
   const value = (
-    <div className="flex shrink-0 items-baseline gap-1 tabular-nums">
+    // 261102 (user): centred on desktop — on the baseline the amount rode at
+    // the top of the 40px currency field.
+    <div className="flex shrink-0 items-baseline gap-1 tabular-nums sm:items-center">
       <span
         data-testid={`investment-type-value-${uiType}`}
-        className={`relative flex items-baseline ${showSplit ? "gap-1" : "gap-2 sm:gap-1"}`}
+        // 261103 (user): spaced exactly as the wallet rows — gap-2 to an
+        // amount column one character wider than its widest figure.
+        className={`relative flex items-baseline sm:items-center sm:gap-2 ${showSplit ? "gap-1" : "gap-2"}`}
       >
         {onCurrencyChange ? (
           // Picking a currency never toggles the group.
@@ -162,7 +167,7 @@ export function InvestmentTypeHeader({
             data-testid={`investment-type-currency-${uiType}`}
             // R6 (user): the spending wallets' currency cell — full label on
             // a wide screen, the code alone on a narrow one.
-            className={`editable-dots w-[44px] shrink-0 self-center text-num-sm sm:block sm:w-[96px] md:w-[224px] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] ${showSplit ? "hidden" : "block"}`}
+            className={`editable-dots w-[44px] shrink-0 self-center text-num-sm sm:block sm:w-[96px] md:w-[var(--ccy-w,224px)] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right] ${showSplit ? "hidden" : "block"}`}
             style={{ color: "var(--muted-foreground)" }}
             onClick={stop}
             onKeyDown={stop}
@@ -188,13 +193,15 @@ export function InvestmentTypeHeader({
             with no sm: variant) — its own span at the asset row's size. */}
         <span
           data-testid={`investment-type-amount-desktop-${uiType}`}
-          className="num hidden text-right text-num-md sm:inline"
+          className="num hidden text-right text-num-md sm:inline-block"
           style={{
             color: "var(--body-on-dark)",
-            minWidth: `${(maxAmountChars ?? 4) + 1}ch`,
+            // The wallets' sizing — widest figure + 1ch — but never under
+            // the measured widest figure (--amt-w), so rows stay straight.
+            width: `max(var(--amt-w, 0px), ${(maxAmountChars ?? 4) + 1}ch)`,
           }}
         >
-          {money(pl.valueBudgetCents)}
+          <span data-amt-text>{money(pl.valueBudgetCents)}</span>
         </span>
         {onCurrencyChange && showSplit && (
           // R6 (user): open on a phone = the asset row's open value line —
@@ -251,6 +258,9 @@ export function InvestmentTypeHeader({
       </span>
     );
   const hasPL = uiType !== "cash";
+  // 261102 (user): desktop keeps P/L and the unreal./real. line out of sight
+  // until the group is opened or hovered (columns keep their place).
+  const revealOnRow = expanded ? "" : REVEAL_ON_ROW;
 
   return (
     <div
@@ -271,7 +281,7 @@ export function InvestmentTypeHeader({
           onToggle();
         }
       }}
-      className="flex min-h-[56px] w-full cursor-pointer items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 sm:min-h-[48px] data-[nav-highlighted=true]:bg-[var(--surface-elevated-dark)]"
+      className="group/row flex min-h-[56px] w-full cursor-pointer items-center gap-2 rounded-[var(--radius-md)] bg-[var(--surface-card-dark)] px-3 sm:min-h-[48px] data-[nav-highlighted=true]:bg-[var(--surface-elevated-dark)]"
     >
       {dragHandle && (
         <span onClick={stop} className="contents">
@@ -311,7 +321,7 @@ export function InvestmentTypeHeader({
         {hasPL && (
           <div
             data-testid={`investment-type-caption-desktop-${uiType}`}
-            className="hidden min-w-0 sm:block"
+            className={`hidden min-w-0 ${expanded ? "sm:block" : SHOW_ON_ROW}`}
           >
             <PlCaption
               data-pl-caption
@@ -346,10 +356,14 @@ export function InvestmentTypeHeader({
       </div>
       {/* Desktop columns, as the asset row (R6, user): qty (blank) · P/L % ·
           P/L amount · value · share · the actions slot. */}
-      <span className="hidden w-20 shrink-0 sm:block" aria-hidden="true" />
+      <span
+        data-testid={`investment-type-qty-desktop-${uiType}`}
+        className="hidden w-28 shrink-0 sm:block"
+        aria-hidden="true"
+      />
       <span
         {...(hasPL ? { "data-pl-line": true } : {})}
-        className="hidden shrink-0 gap-2 sm:flex"
+        className={`hidden shrink-0 gap-2 sm:flex ${revealOnRow}`}
       >
         <span
           data-testid={`investment-type-pl-desktop-${uiType}`}
@@ -359,7 +373,8 @@ export function InvestmentTypeHeader({
         </span>
         <span
           data-testid={`investment-type-plamt-desktop-${uiType}`}
-          className="flex w-24 shrink-0 justify-end text-right text-num-sm tabular-nums"
+          // 261103 (user): P/L further left — 24px clear of the currency.
+          className="flex w-[7.5rem] shrink-0 justify-end pr-6 text-right text-num-sm tabular-nums"
           style={{ color: signColor(pl.totalPLCents) }}
         >
           {hasPL ? signed(pl.totalPLCents) : ""}
@@ -388,7 +403,7 @@ export function InvestmentTypeHeader({
       </div>
       <span
         data-testid={`investment-type-share-desktop-${uiType}`}
-        className="hidden w-16 shrink-0 text-right text-num-sm tabular-nums sm:block"
+        className="hidden w-[80px] shrink-0 text-right text-num-sm tabular-nums sm:block"
         style={{ color: "var(--muted-foreground)" }}
       >
         {`${Number(portfolioPct.toFixed(1))}%`}

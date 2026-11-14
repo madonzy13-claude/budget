@@ -203,7 +203,9 @@ describe("WalletRow — persisted mode", () => {
     expect(stub).toBeInTheDocument();
   });
 
-  it("RESERVE wallet: Currency cell is plain text with aria-label (read-only per D-PH5-R3)", () => {
+  // Phase 14 (D-09): reserve wallets may hold any currency, so the cell is the
+  // same editable picker as every other section (was read-only, D-PH5-R3).
+  it("RESERVE wallet: Currency cell is the editable picker like any wallet", () => {
     render(
       <WalletRow
         mode="persisted"
@@ -214,20 +216,8 @@ describe("WalletRow — persisted mode", () => {
         isReserveSection={true}
       />,
     );
-    // No InlineEditCell for currency in RESERVE section — plain text span
-    const currencyCell = screen.queryByTestId(
-      `wallet-currency-${RESERVE_WALLET.id}`,
-    );
-    expect(currencyCell).toBeNull();
-    // Should have aria-label indicating read-only
-    const readOnlySpan = screen.getByLabelText(/Currency EUR/);
-    expect(readOnlySpan).toBeInTheDocument();
-    // R6 (user): same font as the other wallets' currency, dimmed — it can't
-    // be changed here.
-    expect(readOnlySpan.className).toContain("text-num-md");
-    // I1 (user): not dimmed, and no dotted line — it can't be changed.
-    expect(readOnlySpan.style.opacity).toBe("");
-    expect(readOnlySpan.className).not.toContain("editable-dots");
+    expect(screen.getByTestId("currency-picker")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Currency EUR/)).toBeNull();
   });
 
   // UAT-PH5-T3-14 + T3-45: Share column reflects wallet's share among

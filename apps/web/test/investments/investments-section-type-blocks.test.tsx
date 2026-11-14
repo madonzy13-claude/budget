@@ -51,6 +51,8 @@ vi.mock("../../src/hooks/use-offline-write-toast", () => ({
 }));
 vi.mock("../../src/components/budgeting/wallets-tab/holding-sheet", () => ({
   HoldingSheet: () => null,
+  Field: () => null,
+  NumericInput: () => null,
 }));
 
 import { InvestmentsSection } from "../../src/components/budgeting/wallets-tab/investments-section";

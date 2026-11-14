@@ -214,15 +214,19 @@ Feature: Investments as assets with transactions (13.1)
     And moving "Vase" asks how many units
 
   # Round-6 gaps 4 + 6 (user): qty × avg. cost above the price, unrealized ·
-  # realized like the header; Edit first, then + (new transaction).
+  # realized like the header. 261106: no Edit / + — the amount opens the sheet.
   @r6-row
-  Scenario: A tapped asset shows qty × avg. cost and its P/L split; the transaction action sits second
+  Scenario: A tapped asset shows qty × avg. cost and its P/L split
     Given a "stocks" asset "ACME" of "10" units at 2500 cents exists in my budget
     When I open the investments wallets tab
     And I tap the asset row "ACME"
     Then the asset "ACME" shows "10 × 25 avg. cost" above its price
     And the asset "ACME" caption shows unrealized and realized
-    And the asset "ACME" offers Edit first and + second
+    And the asset "ACME" offers no Edit or + action
+    # 261108 (user): the dotted line is white (the text colour), not grey.
+    And the dotted line under the amount of "ACME" is the text colour in both themes
+    # 261109 (user): opened, the dotted line sits close under the amount.
+    And the dotted line under the opened amount of "ACME" sits 3px under it
 
   # Round 6 (user): changing a metal's currency must save, not say "offline".
   @r6-metal-ccy
@@ -520,6 +524,18 @@ Feature: Investments as assets with transactions (13.1)
     When I open the investments wallets tab
     Then tapping the linked entry in the ledger of "IBKR" opens "Pot" at the matching entry
 
+  # 261110 (user): a link to a hidden asset is a link too — it lists the
+  # group's hidden assets and opens it there.
+  @r4-link
+  Scenario: Tapping a linked entry opens its hidden partner
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "cash" holding "Pot" deposited 100000 cents worth 100000 cents exists in my budget
+    And a "cash" holding "Purse" deposited 100000 cents worth 100000 cents exists in my budget
+    And "IBKR" moved 100000 cents to "Pot" on its ledger
+    When I open the investments wallets tab
+    And I hide the asset "Pot"
+    Then tapping the linked entry in the ledger of "IBKR" opens the hidden "Pot" at the matching entry
+
   # Gap 26: nothing but the opening entry → Delete (it is gone for good).
   @r4-delete-asset
   Scenario: An asset with no transactions is deleted instead of archived
@@ -529,9 +545,45 @@ Feature: Investments as assets with transactions (13.1)
     Then the holding row "Fresh" is gone
 
   # Gaps 20 + 21: hiding is explicit; buying into a hidden asset revives it.
+  # 261102 (user, desktop screenshot): currency fields only as wide as the
+  # longest pick and without a dotted line, amounts level with them, qty / P/L
+  # out of sight until a row is hovered or opened, and the actions behind a
+  # "…" that fades them in over a blurred right end — transactions too.
+  @desktop-only @r7-desktop-rows
+  Scenario: Desktop asset rows stay quiet until hovered
+    Given I am on a 1280px-wide viewport
+    And a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a "crypto" asset "BTC Ledger" of "1" units at 5000000 cents exists in my budget
+    And a "crypto" asset "ETH Ledger" of "1" units at 1000 cents exists in my budget
+    # A far bigger broker: the widest total sits in another group (user, 261102).
+    And a "broker" holding "Big Broker" deposited 100000000 cents worth 100000000 cents exists in my budget
+    And the budget has a CUSHION wallet holding 101165 cents
+    When I open the investments wallets tab
+    Then every investments currency field is one width, under 224px, with no dotted line
+    And the "IBKR" amount sits level with its currency field
+    And the "IBKR" asset shows its P/L only while hovered
+    # 261106 (user): one action is left, so it shows itself — no "…".
+    And the "IBKR" asset's one action shows only while hovered, with no "…"
+    And the "IBKR" transactions open their actions from a "…"
+    And the "BTC Ledger" name sits centred in its row until hovered
+    And the "broker" group's columns line up with the "IBKR" asset's
+    And the "crypto" group's columns line up with the "ETH Ledger" asset's
+    And the "BTC Ledger" quantity reads "qty: 1"
+    And the "IBKR" P/L sits at least 24px clear of its currency
+    # 261103 (user): the measured amount column left the figure touching the field.
+    And every investments amount sits at least 12px clear of its currency
+    # 261103 (user): currency, amount and share spaced exactly as the wallets'.
+    And the "IBKR" asset spaces its currency, amount and share like the wallets
+    And the investments section total and share sit over the "IBKR" amount and share
+    # 261103 (user): a click left focus on the row, and focus kept it "shown".
+    And the "BTC Ledger" asset goes quiet once opened, closed and left
+    And the "crypto" group goes quiet once opened, closed and left
+
   @r4-archive
   Scenario: Hiding an asset removes it and buying into it brings it back
     Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    # A second broker keeps the group on screen (a fully hidden group hides too).
+    And a "broker" holding "Exante" deposited 100000 cents worth 100000 cents exists in my budget
     When I open the investments wallets tab
     # A transaction beyond the opening entry, so Hide (not Delete) is offered.
     And I buy into broker "IBKR" adding "1000" with the account now at "97000"
@@ -553,10 +605,43 @@ Feature: Investments as assets with transactions (13.1)
     And I buy into broker "IBKR" adding "1000" with the account now at "97000"
     And I hide the asset "IBKR"
     Then the holding row "IBKR" is gone
+    And the hidden-assets link of "broker" is centred and lowercase
+    # 261112 (user): its dotted line is the colour of its text.
+    And the dotted line under the hidden-assets link of "broker" is its text colour
     When I open the hidden assets of "broker"
     Then the hidden asset "IBKR" is listed fainter
     When I unhide the asset "IBKR"
     Then the "broker" group has no hidden assets
+
+  # 261102 (user): government bonds and real estate showed no total after
+  # their entries; every hand-valued type does now.
+  @r6-ledger-total
+  Scenario Outline: A <type> ledger shows the total after each entry
+    Given a "<type>" holding "Holding A" deposited 1000000 cents worth 1200000 cents exists in my budget
+    When I open the investments wallets tab
+    Then every entry in the ledger of "Holding A" shows the total after it
+
+    Examples:
+      | type          |
+      | treasury_bond |
+      | real_estate   |
+      | broker        |
+
+  # 261102 (user): a group whose assets are ALL hidden hides the same way —
+  # behind a link under the list, fainter, its assets listed inside.
+  @r6-hidden
+  Scenario: A group whose every asset is hidden hides too and comes back from its link
+    Given a "broker" holding "IBKR" deposited 5500000 cents worth 9600000 cents exists in my budget
+    And a crypto holding "Bitcoin binance" of "2.1" bought at 6099162 cents now 7600000 cents exists in my budget
+    When I open the investments wallets tab
+    And I buy into broker "IBKR" adding "1000" with the account now at "97000"
+    And I hide the asset "IBKR"
+    Then the "broker" group is gone from the list
+    And the hidden-groups link is centred and lowercase
+    When I open the hidden groups
+    Then the hidden group "broker" is listed fainter with "IBKR" in it
+    When I unhide the asset "IBKR"
+    Then the "broker" group is back in the list
 
   # Gap 22: tapped crypto / metal rows stay inside their card.
   @r4-wide

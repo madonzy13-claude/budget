@@ -18,6 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { signIn } from "@/lib/auth-client";
+import { oauthContinueUrl } from "@/lib/oauth-continue";
 
 interface SignInFormProps {
   locale: string;
@@ -89,7 +90,10 @@ export function SignInForm({ locale }: SignInFormProps) {
     // guard pushing the user to /budgets/new?step=1), the chained RSC
     // stream lands as an empty document — a blank page that only
     // recovers after a manual reload.
-    window.location.href = `/${targetLocale}`;
+    // An MCP client's OAuth flow sent the user here: resume it
+    // (same-origin /auth/oauth2/authorize only — see oauth-continue.ts).
+    window.location.href =
+      oauthContinueUrl(window.location.search) ?? `/${targetLocale}`;
   }
 
   return (

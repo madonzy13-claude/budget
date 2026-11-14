@@ -5,7 +5,7 @@
  * silently break real users' password changes and invitations. Every "blocks
  * the demo user" case is paired with "leaves everyone else alone".
  */
-import { describe, it, expect, afterEach } from "bun:test";
+import { describe, it, expect, afterEach, afterAll } from "bun:test";
 import { Hono } from "hono";
 import { demoGuard } from "../../src/middleware/demo-guard";
 
@@ -18,18 +18,21 @@ const DEMO_ENV = {
   DEMO_USER_ID: DEMO_USER,
 };
 
+// The host env may carry a full multi-locale demo config (Infisical dev does:
+// DEMO_LOCALES + DEMO_USER_ID_EN …), and the per-locale keys WIN over the bare
+// ones this file sets. Start every test from a DEMO_*-free env.
+const hostDemoEnv = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => k.startsWith("DEMO_")),
+);
+
 function setEnv(env: Record<string, string> | null) {
-  for (const k of [
-    "DEMO_SOURCE_TENANT_IDS",
-    "DEMO_TENANT_IDS",
-    "DEMO_USER_ID",
-  ]) {
-    delete process.env[k];
-  }
+  for (const k of Object.keys(process.env))
+    if (k.startsWith("DEMO_")) delete process.env[k];
   if (env) Object.assign(process.env, env);
 }
 
 afterEach(() => setEnv(null));
+afterAll(() => Object.assign(process.env, hostDemoEnv));
 
 function buildApp(userId: string | null) {
   const deps = {

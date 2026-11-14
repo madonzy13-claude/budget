@@ -34,6 +34,14 @@ export interface SpendingsSummaryDTO {
     /** mig 0061: persisted needs/wants split (null/absent = never set). */
     needsCents?: string | null;
     wantsCents?: string | null;
+    /** Phase 14: the limit's currency, and the limit as typed in it. */
+    limitCurrency?: string;
+    limitOriginal?: {
+      plannedCents: string;
+      cushionCents: string;
+      needsCents: string | null;
+      wantsCents: string | null;
+    };
     activeBudgetCents: string;
     spentCents: string;
     reserveUsedCents: string;
@@ -43,9 +51,6 @@ export interface SpendingsSummaryDTO {
     archived?: boolean;
     overspentCents: string;
     balanceCents: string;
-    /** r33: THE Investments category — green overinvested row + smart/manual edit. */
-    isInvestment?: boolean;
-    investmentLimitMode?: string | null;
     /** 0083: unbounded this month — the grid dashes overspent + reserve-used,
      *  and plannedCents holds its scheduled payments instead of a typed limit. */
     noLimit?: boolean;

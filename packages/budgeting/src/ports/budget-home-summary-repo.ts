@@ -43,7 +43,7 @@ export interface BudgetHomeSummaryRepo {
   getBudgetMeta(budgetId: string): Promise<BudgetHomeSummaryMeta | null>;
 
   /**
-   * Sum of amount_converted_cents over confirmed SPENDING rows in the given
+   * Sum (budget's current currency, each row at its own date) of confirmed SPENDING rows in the given
    * [monthStart, monthEnd) range, scoped to the budget. Returns 0n when no rows.
    */
   sumCurrentMonthSpend(

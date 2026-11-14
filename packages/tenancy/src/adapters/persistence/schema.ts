@@ -27,7 +27,7 @@ export const budgets = tenancy.table(
     // Snake-case JS keys intentional: Better Auth org plugin's additionalFields
     // are keyed `default_currency` / `owner_user_id`, and the Drizzle adapter
     // looks up `schema.budgets.<field>` directly when persisting org rows.
-    default_currency: text("default_currency").notNull(), // D-04, TENT-11 (immutable via post-migration trigger)
+    default_currency: text("default_currency").notNull(), // Phase 14 (D-01): changeable any time; totals re-expressed at read time
     owner_user_id: uuid("owner_user_id").notNull(),
     memberCount: integer("member_count").notNull().default(1),
     metadata: text("metadata"), // Better Auth org metadata

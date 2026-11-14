@@ -65,6 +65,9 @@ export interface AllBudgetsAggregate {
    *  they existed replays without them, and the row is then absent. */
   forecast_shortfall_cents?: string;
   forecast_free_to_move_cents?: string;
+  /** The member hides amounts on any of their budgets (261113). Optional for a
+   *  cached payload from before it existed — which then stays hidden. */
+  amount_privacy_enabled?: boolean;
 }
 
 export function useBudgetsAggregate() {

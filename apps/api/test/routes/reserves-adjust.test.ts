@@ -128,6 +128,14 @@ async function buildApp(
         budgetCurrencyOf,
         isReservesEnabled,
       }),
+      // Phase 14: the route converts a target sent in another currency.
+      findCategoryById: async () => ({
+        isErr: () => false,
+        value: { currency: "EUR" },
+      }),
+      fxProvider: {
+        rateAsOf: async () => ({ rate: "0.9", provider: "test", isStale: false }),
+      },
     },
     tenancy: {
       workspaceRepo: { listForUser: async () => [] },
@@ -326,6 +334,20 @@ describe("POST /budgets/:id/reserves/:categoryId/adjust", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ expectedCents: -1 }),
+      },
+    );
+    expect(res.status).toBe(422);
+  });
+
+  // Review WR-01: the currency conversion ran BEFORE validation, so a
+  // fractional target reached BigInt("1.5") and threw — a 500, not a 422.
+  it("422 fractional expectedCents in another currency: validated before converting", async () => {
+    const res = await app.request(
+      `/budgets/${fix.budgetId}/reserves/${fix.categoryId}/adjust`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expectedCents: 1.5, currency: "USD" }),
       },
     );
     expect(res.status).toBe(422);

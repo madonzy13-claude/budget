@@ -58,7 +58,6 @@ function deps(): GetReserveFitDeps {
           name: "Car",
           created_month: MONTHS[0]!,
           archived_month: null,
-          is_investment: false,
         },
       ],
       // Range-aware, like the SQL behind it: ask for the closed months and the

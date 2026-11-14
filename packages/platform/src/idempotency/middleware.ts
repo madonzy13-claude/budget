@@ -2,7 +2,11 @@ import { createHash } from "node:crypto";
 import type { Context, Next } from "hono";
 import { withTenantTx } from "../db/tx";
 import { reserveIdempotency } from "./repo";
-import { lookupIdempotency, insertIdempotency } from "./repo";
+import {
+  lookupIdempotency,
+  insertIdempotency,
+  releaseIdempotency,
+} from "./repo";
 import { TenantId, UserId } from "@budget/shared-kernel";
 
 /**
@@ -25,6 +29,7 @@ export interface IdempotencyDeps {
   insertIdempotency: typeof insertIdempotency;
   /** Optional so wiring that predates the claim still runs unchanged. */
   reserveIdempotency?: typeof reserveIdempotency;
+  releaseIdempotency?: typeof releaseIdempotency;
 }
 
 /** How long a loser waits for the winner's response before giving up. */
@@ -59,6 +64,16 @@ export function createIdempotencyMiddleware<
   // Optional so existing wiring and tests that predate the claim still run —
   // without it the middleware behaves exactly as it did before.
   const reserve = deps?.reserveIdempotency ?? reserveIdempotency;
+  const release = deps?.releaseIdempotency ?? releaseIdempotency;
+  // Lets a caller tell a cached answer from a fresh one (MCP write log, 15-13).
+  const replayed = (body: unknown, status: number) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: {
+        "content-type": "application/json",
+        "Idempotent-Replayed": "true",
+      },
+    });
 
   return async (c: Context<E>, next: Next): Promise<void | Response> => {
     // Skip non-mutating methods
@@ -152,10 +167,7 @@ export function createIdempotencyMiddleware<
 
     if (decision.kind === "replay") {
       // Cache hit — return verbatim cached response
-      return c.json(
-        decision.body as Record<string, unknown>,
-        decision.status as 200,
-      );
+      return replayed(decision.body, decision.status);
     }
 
     // Claim the key BEFORE running the handler. Lookup-then-insert around it is
@@ -177,10 +189,7 @@ export function createIdempotencyMiddleware<
           );
           const row = again.isOk() ? again.value : null;
           if (row && row.responseStatus > 0) {
-            return c.json(
-              row.responseBodyJsonb as Record<string, unknown>,
-              row.responseStatus as 200,
-            );
+            return replayed(row.responseBodyJsonb, row.responseStatus);
           }
         }
         // The winner never finished in time. Falling through would run the
@@ -216,6 +225,12 @@ export function createIdempotencyMiddleware<
           responseBody: body,
         });
       });
+    } else {
+      // Not cached — drop the claim too, or a retry with the same key would
+      // "replay" the empty status-0 claim instead of running.
+      await wtx(TenantId(tenantId), UserId(userId), (tx) =>
+        release(tx, scopeHash),
+      );
     }
   };
 }

@@ -22,6 +22,7 @@ import {
 } from "@/components/settings/profile-section";
 import { SecuritySection } from "@/components/settings/security-section";
 import { AccountDangerZone } from "@/components/settings/account-danger-zone";
+import { ConnectedAppsSection } from "@/components/settings/connected-apps-section";
 import { AppVersionInfo } from "@/components/settings/app-version-info";
 
 interface UserSettingsShellProps {
@@ -90,7 +91,17 @@ export function UserSettingsShell({
           </AccordionContent>
         </AccordionItem>
 
-        {/* 4. Danger Zone */}
+        {/* 4. Connected apps — MCP assistants (Phase 15, D-21) */}
+        <AccordionItem value="connected-apps">
+          <AccordionTrigger className="px-6">
+            {tSec("connectedApps")}
+          </AccordionTrigger>
+          <AccordionContent className={CONTENT}>
+            <ConnectedAppsSection />
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* 5. Danger Zone */}
         <AccordionItem value="danger">
           <AccordionTrigger className="px-6 text-[var(--trading-down)]">
             {tSec("danger")}

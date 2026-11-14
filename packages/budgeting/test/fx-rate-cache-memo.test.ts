@@ -27,6 +27,10 @@ function countingPool(rows: Array<Record<string, string>>) {
 }
 
 const RATE = [{ rate: "4.25", date: "2026-08-17" }];
+const SERIES = [
+  { rate: "4.20", date: "2026-08-14" },
+  { rate: "4.25", date: "2026-08-17" },
+];
 
 describe("FX rate lookup memoisation", () => {
   test("repeats within the TTL hit the cache, not the database", async () => {
@@ -52,7 +56,21 @@ describe("FX rate lookup memoisation", () => {
     expect(second).toEqual({ rate: "4.25", date: "2026-08-17" });
   });
 
-  test("a different currency pair or date is a separate entry", async () => {
+  // 261102: overview/wealth asked for ~1,200 distinct dates per request (one
+  // per snapshot day × currency) — each a round-trip, and the per-date cache
+  // (512 entries) thrashed. A pair's whole history is loaded once instead.
+  test("every date of one pair comes from a single read", async () => {
+    const { pool, calls } = countingPool(SERIES);
+    const repo = new DrizzleFxRateCacheRepo(pool);
+
+    for (let d = 1; d <= 31; d++)
+      await repo.lookup("EUR", "PLN", `2026-08-${String(d).padStart(2, "0")}`);
+    await repo.mostRecentPrior("EUR", "PLN", "2026-08-20");
+
+    expect(calls.filter((q) => q.includes("FROM budgeting.fx_rates"))).toHaveLength(1);
+  });
+
+  test("a different currency pair is a separate read", async () => {
     const { pool, calls } = countingPool(RATE);
     const repo = new DrizzleFxRateCacheRepo(pool);
 
@@ -60,7 +78,18 @@ describe("FX rate lookup memoisation", () => {
     await repo.lookup("USD", "PLN", "2026-08-17");
     await repo.lookup("EUR", "PLN", "2026-08-16");
 
-    expect(calls.filter((q) => q.includes("FROM budgeting.fx_rates"))).toHaveLength(3);
+    expect(calls.filter((q) => q.includes("FROM budgeting.fx_rates"))).toHaveLength(2);
+  });
+
+  test("lookup is exact-date only; mostRecentPrior is strictly earlier", async () => {
+    const { pool } = countingPool(SERIES);
+    const repo = new DrizzleFxRateCacheRepo(pool);
+
+    expect(await repo.lookup("EUR", "PLN", "2026-08-15")).toBeNull(); // weekend gap
+    expect(await repo.lookup("EUR", "PLN", "2026-08-14")).toEqual({ rate: "4.20", date: "2026-08-14" });
+    expect(await repo.mostRecentPrior("EUR", "PLN", "2026-08-17")).toEqual({ rate: "4.20", date: "2026-08-14" });
+    expect(await repo.mostRecentPrior("EUR", "PLN", "2026-08-18")).toEqual({ rate: "4.25", date: "2026-08-17" });
+    expect(await repo.mostRecentPrior("EUR", "PLN", "2026-08-13")).toBeNull();
   });
 
   test("a MISS is cached too — an absent rate must not re-query every call", async () => {
@@ -110,11 +139,11 @@ describe("FX rate lookup memoisation", () => {
     const { pool, calls } = countingPool(RATE);
     const repo = new DrizzleFxRateCacheRepo(pool, { maxEntries: 3 });
 
-    for (const d of ["01", "02", "03", "04"]) {
-      await repo.lookup("EUR", "PLN", `2026-08-${d}`);
+    for (const q of ["PLN", "USD", "GBP", "CHF"]) {
+      await repo.lookup("EUR", q, "2026-08-17");
     }
-    // The oldest entry was evicted, so re-reading it queries again.
-    await repo.lookup("EUR", "PLN", "2026-08-01");
+    // The oldest pair was evicted, so re-reading it queries again.
+    await repo.lookup("EUR", "PLN", "2026-08-17");
 
     expect(calls.filter((q) => q.includes("FROM budgeting.fx_rates"))).toHaveLength(5);
   });

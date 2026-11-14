@@ -196,35 +196,36 @@ Given(
   },
 );
 
-When(
-  "I set the amount of holding {string} to {string}",
-  async ({ page }, name: string, amount: string) => {
-    const row = new InvestmentsPo(page).row(name);
-    await row.locator('[data-testid^="holding-amount-"]').click();
-    const input = row.locator("input");
-    await input.fill(amount);
-    const saved = page.waitForResponse(
-      (r) =>
-        r.request().method() === "PATCH" && r.url().includes("/investments/"),
-    );
-    await input.press("Enter");
-    expect((await saved).ok()).toBe(true);
+Given(
+  "a custom crypto asset {string} with ticker {string} exists in my budget",
+  async ({ freshUser }, name: string, ticker: string) => {
+    await withBudgetGuc(freshUser.budgetId, async (client) => {
+      await client.query(
+        `INSERT INTO budgeting.investments
+           (id, tenant_id, budget_id, name, holding_type, ui_type, manual_ticker, quantity,
+            current_price_cents, current_price_currency, sort_order, created_at)
+         VALUES (gen_random_uuid(), $1::uuid, $1::uuid, $2, 'crypto', 'crypto', $3, 1, 100, 'EUR', 0, now())`,
+        [freshUser.budgetId, name, ticker],
+      );
+      await addStart(client, freshUser.budgetId, name);
+    });
   },
 );
 
+// 261112 (user): a custom asset is listed by its name, never its ticker.
 Then(
-  "the holding {string} is priced at {string} cents per unit",
-  async ({ freshUser }, name: string, priceCents: string) => {
-    let stored = "";
-    await withBudgetGuc(freshUser.budgetId, async (client) => {
-      const r = await client.query<{ p: string }>(
-        `SELECT current_price_cents::text AS p FROM budgeting.investments
-          WHERE budget_id = $1::uuid AND name = $2`,
-        [freshUser.budgetId, name],
-      );
-      stored = r.rows[0]?.p ?? "";
-    });
-    expect(Number(stored)).toBe(Number(priceCents));
+  "the holding row {string} shows its name, not the ticker {string}",
+  async ({ page }, name: string, ticker: string) => {
+    const row = new InvestmentsPo(page).row(name);
+    await expect(
+      row.getByText(name, { exact: true }).filter({ visible: true }),
+    ).not.toHaveCount(0);
+    await expect(
+      row.getByText(ticker, { exact: true }).filter({ visible: true }),
+    ).toHaveCount(0);
+    await expect(
+      row.getByText(`${ticker} (${name})`).filter({ visible: true }),
+    ).toHaveCount(0);
   },
 );
 
@@ -328,23 +329,23 @@ Given(
 );
 
 When("I tap the amount of holding {string}", async ({ page }, name: string) => {
-  await new InvestmentsPo(page)
-    .row(name)
-    .locator('[data-testid^="holding-amount-readonly-"]')
-    .click();
+  const po = new InvestmentsPo(page);
+  const id = await po.assetId(name);
+  await page.getByTestId(`holding-amount-${id}`).click();
 });
 
-// R6 (user): a tap on an amount that can't be typed opens the asset.
+// 261106 (user): the amount opens the asset's sheet, on Details.
 Then(
-  "the asset {string} opens and nothing shakes",
+  "the sheet of {string} opens on Details",
   async ({ page }, name: string) => {
-    const amount = new InvestmentsPo(page)
-      .row(name)
-      .locator('[data-testid^="holding-amount-readonly-"]');
-    await expect(amount).not.toHaveAttribute("data-shake", /.*/);
-    await expect(
-      page.locator(`[data-testid^="asset-share-"]`).locator("visible=true"),
-    ).toBeVisible({ timeout: 10000 });
+    const sheet = page.getByTestId("swap-sheet");
+    await expect(sheet).toBeVisible({ timeout: 10000 });
+    await expect(sheet.getByRole("heading", { name })).toBeVisible();
+    await expect(page.getByTestId("swap-tab-details")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await expect(page.getByTestId("edit-asset-name")).toHaveValue(name);
   },
 );
 
@@ -482,7 +483,9 @@ Given(
             buy_price_cents, buy_currency, current_price_cents, current_price_currency,
             sort_order, created_at)
          SELECT gen_random_uuid(), $1::uuid, $1::uuid, $2,
-                CASE $3::text WHEN 'cash' THEN 'cash_fx' WHEN 'savings' THEN 'savings' ELSE 'other' END,
+                CASE $3::text WHEN 'cash' THEN 'cash_fx' WHEN 'savings' THEN 'savings'
+                  WHEN 'treasury_bond' THEN 'bond' WHEN 'real_estate' THEN 'real_estate'
+                  ELSE 'other' END,
                 $3::text, '1', $4::bigint, b.default_currency, $5::numeric, b.default_currency,
                 0, now()
            FROM tenancy.budgets b WHERE b.id = $1::uuid`,
@@ -908,24 +911,75 @@ Then(
 );
 
 Then(
-  "the asset {string} offers Edit first and + second",
+  "the asset {string} offers no Edit or + action",
   async ({ page }, name: string) => {
     const id = await new InvestmentsPo(page).assetId(name);
-    const order = await page.evaluate((hid) => {
-      const ids = [...document.querySelectorAll("[data-testid]")]
-        .map((el) => el.getAttribute("data-testid")!)
-        .filter(
-          (t) =>
-            t === `investment-edit-desktop-${hid}` ||
-            t === `investment-swap-desktop-${hid}` ||
-            t === `holding-swipe-edit-${hid}` ||
-            t === `investment-swap-${hid}`,
-        );
-      return ids;
-    }, id);
-    expect(order.length).toBeGreaterThanOrEqual(2);
-    expect(order[0]).toMatch(/edit/);
-    expect(order[1]).toMatch(/swap/);
+    for (const t of [
+      `investment-edit-desktop-${id}`,
+      `investment-swap-desktop-${id}`,
+      `holding-swipe-edit-${id}`,
+      `investment-swap-${id}`,
+    ])
+      await expect(page.getByTestId(t)).toHaveCount(0);
+    await expect(page.getByTestId(`holding-amount-${id}`)).toHaveClass(
+      /editable-dots/,
+    );
+  },
+);
+
+Then(
+  "the dotted line under the amount of {string} is the text colour in both themes",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    for (const theme of ["dark", "light"]) {
+      await page.evaluate(
+        (t) => document.documentElement.setAttribute("data-theme", t),
+        theme,
+      );
+      const { line, text } = await page.evaluate((id) => {
+        const probe = document.createElement("div");
+        probe.style.color = "var(--foreground)";
+        document.body.appendChild(probe);
+        const text = getComputedStyle(probe).color;
+        probe.remove();
+        const el = document.querySelector(
+          `[data-testid="holding-amount-${id}"]`,
+        )!;
+        return { line: getComputedStyle(el).textDecorationColor, text };
+      }, id);
+      expect(line, theme).toBe(text);
+    }
+    await page.evaluate(() =>
+      document.documentElement.setAttribute("data-theme", "dark"),
+    );
+  },
+);
+
+// 261109 (user): on an opened asset the dotted line sits close under the amount.
+Then(
+  "the dotted line under the opened amount of {string} sits 3px under it",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const amount = page
+      .getByTestId(`holding-amount-${id}`)
+      .or(page.getByTestId(`asset-value-amount-${id}`))
+      .filter({ visible: true });
+    const offset = await amount.evaluate(
+      (el) => parseFloat(getComputedStyle(el).textUnderlineOffset) || 0,
+    );
+    // 261109 (user): 5px was too far, 2px a touch too close.
+    expect(offset).toBe(3);
+  },
+);
+
+Then(
+  "the running totals of {string} read {string}",
+  async ({ page }, name: string, totals: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    await expect(ledger.locator("[data-after]")).toHaveText(
+      totals.split(" / ").map((t) => new RegExp(`^= ${t} [A-Z]{3}$`)),
+      { timeout: 15000 },
+    );
   },
 );
 
@@ -985,8 +1039,11 @@ Then(
     const seen: string[] = [];
     for (const ccy of [a, b, c]) {
       await pick(ccy);
-      // Shown at once — no wait on a fresh network round trip per pick.
+      // Shown at once — no wait on a fresh network round trip per pick. The
+      // first pick of a currency does fetch its rate: the field is empty
+      // (a loader) until then, and "" is not the price either.
       await expect(locked).not.toHaveValue(start, { timeout: 1500 });
+      await expect(locked).not.toHaveValue("", { timeout: 10000 });
       if (seen.length) await expect(locked).not.toHaveValue(seen.at(-1)!);
       seen.push(await locked.inputValue());
     }
@@ -1210,6 +1267,18 @@ Then(
   async ({ page }, name: string, n: number) => {
     const ledger = await new InvestmentsPo(page).openLedger(name);
     await expect(ledger.getByRole("row")).toHaveCount(n);
+  },
+);
+
+// 261102 (user): every entry shows what the asset held right after it.
+Then(
+  "every entry in the ledger of {string} shows the total after it",
+  async ({ page }, name: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    const rows = ledger.getByRole("row");
+    await expect(rows.first()).toBeVisible({ timeout: 15000 });
+    const n = await rows.count();
+    await expect(ledger.locator("[data-after]")).toHaveCount(n);
   },
 );
 
@@ -2402,9 +2471,11 @@ Then(
   "the asset row {string} shows a flat P\\/L",
   async ({ page }, name: string) => {
     const po = new InvestmentsPo(page);
+    const row = po.row(name);
     if ((page.viewportSize()?.width ?? 1280) < 640)
       await page.getByTestId(`asset-row-${await po.assetId(name)}`).click();
-    const row = po.row(name);
+    // 261102: desktop shows P/L on hover (or while the asset is open).
+    else await row.hover();
     await expect(
       row.locator('[data-pl-trend="flat"]:visible').first(),
     ).toBeVisible();
@@ -2482,15 +2553,11 @@ Then(
       const cs = getComputedStyle(el);
       return { radius: cs.borderTopLeftRadius, shadow: cs.boxShadow };
     };
-    const row0 = del.locator("xpath=ancestor::*[@data-ledger-row][1]");
-    const edit = await row0
-      .locator('[data-testid^="ledger-edit-"]')
-      .evaluate(look);
+    // 261109: Edit left the swipe (the amount opens it) — Delete is the
+    // leftmost revealed button and carries the under-row shade.
     const d = await del.evaluate(look);
     expect(d.radius).toBe("0px");
-    expect(edit.radius).toBe("0px");
-    expect(edit.shadow).toContain("inset");
-    expect(d.shadow).toBe("none");
+    expect(d.shadow).toContain("inset");
     // Gap 11: the swiped row is shaded on its left; gap 12: smaller qty line.
     const row = del.locator("xpath=ancestor::*[@data-ledger-row][1]");
     await expect(row.locator("[data-ledger-swipe-shade]")).toHaveCSS(
@@ -2784,6 +2851,25 @@ Then(
   },
 );
 
+Then(
+  "tapping the linked entry in the ledger of {string} opens the hidden {string} at the matching entry",
+  async ({ page }, from: string, to: string) => {
+    const po = new InvestmentsPo(page);
+    const ledger = await po.openLedger(from);
+    const link = ledger.locator('[data-testid^="ledger-link-"]').first();
+    // The dotted line says it is a link.
+    await expect(link).toHaveCSS("text-decoration-line", "underline");
+    await link.click();
+    const row = page
+      .locator('[data-testid^="hidden-asset-"]')
+      .filter({ hasText: to });
+    await expect(row).toBeVisible({ timeout: 10000 });
+    const flashed = row.locator('[data-flash="true"]');
+    await expect(flashed).toBeVisible();
+    await expect(flashed).toBeInViewport();
+  },
+);
+
 // Round 4 (user): archive is an explicit action; buying into it revives it.
 When(
   "I show the {string} group in {string}",
@@ -2825,6 +2911,77 @@ Then(
 When("I unhide the asset {string}", async ({ page }, name: string) => {
   await new InvestmentsPo(page).unhide(name);
 });
+
+Then(
+  "the {string} group is gone from the list",
+  async ({ page }, type: string) => {
+    const po = new InvestmentsPo(page);
+    await expect(po.groupTotal(type)).toHaveCount(0, { timeout: 15000 });
+    await expect(po.hiddenGroupsLink()).toHaveAttribute("data-count", "1");
+  },
+);
+
+/** 261102 (user): the hidden links sit centred under their list, lowercase. */
+async function expectCentredLowercase(link: Locator, list: Locator) {
+  await expect(link).toBeVisible({ timeout: 15000 });
+  await expect(link).toHaveCSS("text-transform", "lowercase");
+  const [l, c] = await Promise.all([link.boundingBox(), list.boundingBox()]);
+  expect(Math.abs(l!.x + l!.width / 2 - (c!.x + c!.width / 2))).toBeLessThan(3);
+}
+
+Then(
+  "the hidden-assets link of {string} is centred and lowercase",
+  async ({ page }, type: string) => {
+    await expectCentredLowercase(
+      new InvestmentsPo(page).hiddenLink(type),
+      page.getByTestId(`investment-group-guide-${type}`),
+    );
+  },
+);
+
+Then(
+  "the dotted line under the hidden-assets link of {string} is its text colour",
+  async ({ page }, type: string) => {
+    const { line, text } = await new InvestmentsPo(page)
+      .hiddenLink(type)
+      .evaluate((el) => ({
+        line: getComputedStyle(el).textDecorationColor,
+        text: getComputedStyle(el).color,
+      }));
+    expect(line).toBe(text);
+  },
+);
+
+Then("the hidden-groups link is centred and lowercase", async ({ page }) => {
+  const link = new InvestmentsPo(page).hiddenGroupsLink();
+  await expectCentredLowercase(link, link.locator(".."));
+});
+
+When("I open the hidden groups", async ({ page }) => {
+  await new InvestmentsPo(page).hiddenGroupsLink().click();
+});
+
+Then(
+  "the hidden group {string} is listed fainter with {string} in it",
+  async ({ page }, type: string, name: string) => {
+    const group = new InvestmentsPo(page).hiddenGroup(type);
+    await expect(group).toBeVisible({ timeout: 15000 });
+    await expect(group).toHaveCSS("opacity", "0.5");
+    await expect(
+      group.locator(`[data-testid="holding-row-${name}"]`),
+    ).toBeVisible();
+  },
+);
+
+Then(
+  "the {string} group is back in the list",
+  async ({ page }, type: string) => {
+    const po = new InvestmentsPo(page);
+    await expect(po.groupTotal(type)).toBeVisible({ timeout: 15000 });
+    await expect(po.hiddenGroup(type)).toHaveCount(0);
+    await expect(po.hiddenGroupsLink()).toHaveCount(0);
+  },
+);
 
 Then(
   "the {string} group has no hidden assets",
@@ -2975,7 +3132,11 @@ Given(
         `INSERT INTO budgeting.instruments
            (id, symbol, display_name, provider, asset_class, quote_currency, active, refresh_cadence)
          VALUES (gen_random_uuid(), $1, $2, 'coingecko', 'crypto', 'USD', true, 'hourly')
-         ON CONFLICT (symbol, provider) DO NOTHING`,
+         -- The daily universe seed (18:00 Berlin) can land mid-run and turn
+         -- off a coin its live feed missed; the scenario states the row.
+         ON CONFLICT (symbol, provider) DO UPDATE
+           SET display_name = EXCLUDED.display_name, asset_class = 'crypto',
+               quote_currency = 'USD', active = true`,
         [symbol, displayName],
       );
     } finally {
@@ -3030,6 +3191,139 @@ When(
   "I edit the newest entry of {string} to the note {string}",
   async ({ page }, name: string, note: string) => {
     await new InvestmentsPo(page).editNewestNote(name, note);
+  },
+);
+
+When(
+  "I change the oldest entry of {string} to {string} in {string}",
+  async ({ page }, name: string, amount: string, ccy: string) => {
+    await new InvestmentsPo(page).editOldestAmount(name, amount, ccy);
+  },
+);
+
+// 261109 (user): a Value updated entry's Edit offers its value and currency.
+When(
+  "I change the newest entry of {string} to {string} in {string}",
+  async ({ page }, name: string, amount: string, ccy: string) => {
+    await new InvestmentsPo(page).editOldestAmount(name, amount, ccy, "first");
+  },
+);
+
+for (const field of ["value", "price"])
+  When(
+    `I set the ${field} of {string} to {string} in Edit`,
+    async ({ page }, name: string, value: string) => {
+      await new InvestmentsPo(page).openEdit(name);
+      const sheet = page.getByTestId("edit-asset-sheet");
+      await sheet.getByTestId(`edit-asset-${field}`).fill(value);
+      const res = page.waitForResponse(
+        (r) =>
+          /\/investments\/[0-9a-f-]+$/.test(r.url()) &&
+          r.request().method() === "PATCH",
+        { timeout: 15000 },
+      );
+      await sheet.getByTestId("edit-asset-save").click();
+      expect((await res).status()).toBe(200);
+    },
+  );
+
+Then(
+  "the Edit of {string} shows the base amount {string} locked",
+  async ({ page }, name: string, text: string) => {
+    await new InvestmentsPo(page).openEdit(name);
+    const base = page.getByTestId("edit-asset-locked-baseAmount");
+    await expect(base).toHaveValue(text);
+    await expect(base).toHaveAttribute("readonly", "");
+  },
+);
+
+Then(
+  "the Edit of {string} shows no base amount",
+  async ({ page }, name: string) => {
+    await new InvestmentsPo(page).openEdit(name);
+    await expect(page.getByTestId("edit-asset-locked-baseAmount")).toHaveCount(
+      0,
+    );
+  },
+);
+
+Then(
+  "the Edit of {string} shows the quantity {string} and current amount {string} locked",
+  async ({ page }, name: string, qty: string, amount: string) => {
+    const sheet = page.getByTestId("edit-asset-sheet");
+    if (!(await sheet.isVisible().catch(() => false)))
+      await new InvestmentsPo(page).openEdit(name);
+    for (const [id, v] of [
+      ["quantity", qty],
+      ["currentAmount", amount],
+    ] as const) {
+      const el = sheet.getByTestId(`edit-asset-locked-${id}`);
+      await expect(el).toHaveValue(v);
+      await expect(el).toHaveAttribute("readonly", "");
+    }
+  },
+);
+
+// 261109 (user): a picked currency's base is the history cost — each
+// transaction at its own date's rate, as GET /investments/pl prices it.
+// Pick a currency the section never asked for, so the request is fresh.
+Then(
+  "picking {string} in the Edit of {string} shows the base at its transactions' date rates",
+  async ({ page }, ccy: string, name: string) => {
+    const open = page.getByTestId("edit-asset-sheet");
+    if (await open.isVisible().catch(() => false)) {
+      await page.keyboard.press("Escape");
+      await expect(open).toBeHidden();
+    }
+    await new InvestmentsPo(page).openEdit(name);
+    const sheet = page.getByTestId("edit-asset-sheet");
+    const pl = page.waitForResponse((r) =>
+      r.url().includes(`/investments/pl?currency=${ccy}`),
+    );
+    const native = sheet.getByTestId("currency-picker-native");
+    if (await native.isVisible().catch(() => false))
+      await native.selectOption(ccy);
+    else {
+      await sheet.getByRole("combobox").first().click();
+      await page.getByTestId(`currency-option-${ccy}`).first().click();
+    }
+    const { costCents } = (await (await pl).json()) as { costCents: string };
+    // 261110 (user): plain, unformatted.
+    const want = String(Number(costCents) / 100);
+    await expect(sheet.getByTestId("edit-asset-locked-baseAmount")).toHaveValue(
+      want,
+    );
+  },
+);
+
+Then(
+  "the oldest entry of {string} reads {string}",
+  async ({ page }, name: string, text: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    await expect(ledger.getByRole("row").last()).toContainText(text);
+  },
+);
+
+Then(
+  "the newest entry of {string} reads {string}",
+  async ({ page }, name: string, text: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    await expect(ledger.getByRole("row").first()).toContainText(text);
+  },
+);
+
+Then(
+  "the oldest entry of {string} offers its amount locked, saying a later sale relied on it",
+  async ({ page }, name: string) => {
+    await new InvestmentsPo(page).editOldest(name);
+    await expect(page.getByTestId("entry-edit-amount")).toHaveAttribute(
+      "readonly",
+      "",
+    );
+    await expect(page.getByTestId("entry-edit-currency")).toHaveCount(0);
+    await expect(page.getByTestId("entry-edit-sheet")).toContainText(
+      "A later sale or withdrawal relied on this amount",
+    );
   },
 );
 
@@ -3106,3 +3400,300 @@ Then("the investments total never showed another figure", async ({ page }) => {
   ]);
   expect(seen).toHaveLength(1);
 });
+
+// 261102 (user): the desktop rows' quiet layout (@r7-desktop-rows).
+const opacityOf = (loc: Locator) =>
+  loc.evaluate((el) => getComputedStyle(el).opacity);
+
+Then(
+  "every investments currency field is one width, under 224px, with no dotted line",
+  async ({ page }) => {
+    const fields = page.locator(
+      '[data-testid^="asset-currency-"], [data-testid^="investment-type-currency-"]',
+    );
+    await expect(fields.first()).toBeVisible();
+    const widths = await fields.evaluateAll((els) =>
+      els.map((e) => e.getBoundingClientRect().width),
+    );
+    expect(widths.length).toBeGreaterThan(1);
+    for (const w of widths) {
+      expect(w).toBeLessThan(224);
+      expect(Math.abs(w - widths[0]!)).toBeLessThanOrEqual(1);
+    }
+    const lines = await fields
+      .locator('button[role="combobox"]')
+      .evaluateAll((els) =>
+        els.map((e) => getComputedStyle(e).textDecorationLine),
+      );
+    expect(lines.length).toBeGreaterThan(0);
+    for (const l of lines) expect(l).toBe("none");
+  },
+);
+
+Then(
+  "the {string} amount sits level with its currency field",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const mid = async (loc: Locator) => {
+      const b = (await loc.boundingBox())!;
+      return b.y + b.height / 2;
+    };
+    const row = page.getByTestId(`holding-row-${name}`);
+    const amount = row.locator("[data-amount-cell]");
+    const ccy = page.getByTestId(`asset-currency-${id}`);
+    expect(
+      Math.abs((await mid(amount)) - (await mid(ccy))),
+    ).toBeLessThanOrEqual(2);
+  },
+);
+
+Then(
+  "the {string} asset shows its P\\/L only while hovered",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const pl = page.getByTestId(`asset-pl-desktop-${id}`);
+    await page.mouse.move(0, 0);
+    await expect(pl).toBeHidden();
+    await page.getByTestId(`holding-row-${name}`).hover();
+    await expect(pl).toBeVisible();
+  },
+);
+
+// 261106 (user): one action is left on the row, shown directly on hover.
+Then(
+  "the {string} asset's one action shows only while hovered, with no {string}",
+  async ({ page }, name: string, _dots: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const slot = page.getByTestId(`asset-actions-${id}`);
+    const button = slot.getByRole("button");
+    await page.mouse.move(0, 0);
+    await expect(button).toBeHidden();
+    await page.getByTestId(`holding-row-${name}`).hover();
+    await expect(button).toBeVisible();
+    await expect(slot.getByTestId("row-actions-more")).toHaveCount(0);
+  },
+);
+
+Then(
+  "the {string} transactions open their actions from a {string}",
+  async ({ page }, name: string, _dots: string) => {
+    const ledger = await new InvestmentsPo(page).openLedger(name);
+    const row = ledger.locator("[data-ledger-row]").first();
+    const toolbar = row.getByRole("toolbar");
+    await page.mouse.move(0, 0);
+    expect(await opacityOf(toolbar)).toBe("0");
+    await row.hover();
+    await row.getByTestId("row-actions-more").hover();
+    await expect.poll(() => opacityOf(toolbar)).toBe("1");
+  },
+);
+
+// 261102 (user, round 2): the name is centred while the unreal./real. line is
+// out of sight, and jumps up only when it shows.
+Then(
+  "the {string} name sits centred in its row until hovered",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const row = page.getByTestId(`holding-row-${name}`);
+    const label = page.getByTestId(`asset-name-desktop-${id}`);
+    const mid = async (loc: Locator) => {
+      const b = (await loc.boundingBox())!;
+      return b.y + b.height / 2;
+    };
+    await page.mouse.move(0, 0);
+    expect(Math.abs((await mid(label)) - (await mid(row)))).toBeLessThanOrEqual(
+      2,
+    );
+    await row.hover();
+    await expect(page.getByTestId(`asset-caption-desktop-${id}`)).toBeVisible();
+    expect((await mid(label)) - (await mid(row))).toBeLessThan(-2);
+  },
+);
+
+Then(
+  "the {string} group's columns line up with the {string} asset's",
+  async ({ page }, group: string, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const right = (loc: Locator) =>
+      loc.evaluate((el) => el.getBoundingClientRect().right);
+    const tid = (t: string) => page.getByTestId(t);
+    for (const [g, a] of [
+      [tid(`investment-type-qty-desktop-${group}`), tid(`holding-qty-${name}`)],
+      [
+        tid(`investment-type-pl-desktop-${group}`),
+        tid(`asset-pl-desktop-${id}`),
+      ],
+      [tid(`investment-type-currency-${group}`), tid(`asset-currency-${id}`)],
+      [
+        tid(`investment-type-amount-desktop-${group}`),
+        tid(`holding-row-${name}`).locator("[data-amount-cell]"),
+      ],
+    ] as const) {
+      expect(
+        Math.abs((await right(g)) - (await right(a))),
+        `${g}`,
+      ).toBeLessThanOrEqual(1);
+    }
+  },
+);
+
+Then(
+  "the {string} quantity reads {string}",
+  async ({ page }, name: string, text: string) => {
+    await expect(page.getByTestId(`holding-qty-${name}`)).toHaveText(text);
+  },
+);
+
+Then(
+  "the {string} group goes quiet once opened, closed and left",
+  async ({ page }, group: string) => {
+    const row = page.getByTestId(`investment-group-${group}`);
+    const name = page.getByTestId(`investment-type-name-desktop-${group}`);
+    if ((await row.getAttribute("aria-expanded")) !== "true")
+      await name.click();
+    await expect(row).toHaveAttribute("aria-expanded", "true");
+    await name.click();
+    await expect(row).toHaveAttribute("aria-expanded", "false");
+    await page.mouse.move(0, 0);
+    await expect(
+      page.getByTestId(`investment-type-caption-desktop-${group}`),
+    ).toBeHidden();
+    await expect(
+      page.getByTestId(`investment-type-pl-desktop-${group}`),
+    ).toBeHidden();
+  },
+);
+
+Then(
+  "the {string} asset goes quiet once opened, closed and left",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const row = page.getByTestId(`asset-row-${id}`);
+    const label = page.getByTestId(`asset-name-desktop-${id}`);
+    if ((await row.getAttribute("aria-expanded")) !== "true")
+      await label.click();
+    await expect(row).toHaveAttribute("aria-expanded", "true");
+    await label.click();
+    await expect(row).toHaveAttribute("aria-expanded", "false");
+    await page.mouse.move(0, 0);
+    await expect(page.getByTestId(`asset-caption-desktop-${id}`)).toBeHidden();
+    await expect(page.getByTestId(`asset-pl-desktop-${id}`)).toBeHidden();
+  },
+);
+
+// 261103 (user): the P/L hugged the currency field — moved further left.
+Then(
+  "the {string} P\\/L sits at least {int}px clear of its currency",
+  async ({ page }, name: string, px: number) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    await page.getByTestId(`holding-row-${name}`).hover();
+    const amount = page
+      .getByTestId(`asset-pl-desktop-${id}`)
+      .locator("xpath=following-sibling::span[1]");
+    const textRight = await amount.evaluate((el) => {
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      return r.getBoundingClientRect().right;
+    });
+    const ccy = (await page.getByTestId(`asset-currency-${id}`).boundingBox())!;
+    expect(ccy.x - textRight).toBeGreaterThanOrEqual(px);
+  },
+);
+
+Then(
+  "every investments amount sits at least {int}px clear of its currency",
+  async ({ page }, px: number) => {
+    const gaps = await page.evaluate(() =>
+      [
+        ...document.querySelectorAll<HTMLElement>(
+          '[data-testid^="asset-currency-"], [data-testid^="investment-type-currency-"]',
+        ),
+      ]
+        .filter((c) => c.offsetParent !== null)
+        .map((c) => {
+          const row = c.closest(".group\\/row")!;
+          const text = row.querySelector("[data-amt-text]")!;
+          const r = document.createRange();
+          r.selectNodeContents(text);
+          return {
+            id: c.getAttribute("data-testid"),
+            gap:
+              r.getBoundingClientRect().left - c.getBoundingClientRect().right,
+          };
+        }),
+    );
+    expect(gaps.length).toBeGreaterThan(0);
+    for (const g of gaps)
+      expect(g.gap, String(g.id)).toBeGreaterThanOrEqual(px);
+  },
+);
+
+Then(
+  "the {string} asset spaces its currency, amount and share like the wallets",
+  async ({ page }, name: string) => {
+    const id = await new InvestmentsPo(page).assetId(name);
+    const geo = (row: Locator, ccy: Locator, share: Locator) =>
+      Promise.all(
+        [row, ccy, share, row.locator("[data-amount-cell]")].map(
+          async (l) => (await l.boundingBox())!,
+        ),
+      ).then(([r, c, s, a]) => ({
+        ccyToAmount: a!.x - (c!.x + c!.width),
+        amountToShare: s!.x + s!.width - (a!.x + a!.width),
+        shareW: s!.width,
+        shareToEnd: r!.x + r!.width - (s!.x + s!.width),
+        slack: a!.width,
+      }));
+    const wallet = page.locator('[data-nav-type="wallet"]').first();
+    const w = await geo(
+      wallet,
+      wallet.locator("[data-inline-cell][data-nav-field=currency]"),
+      wallet.locator('[data-testid^="wallet-share-"]'),
+    );
+    const row = page.getByTestId(`holding-row-${name}`);
+    const inv = await geo(
+      row,
+      page.getByTestId(`asset-currency-${id}`),
+      row.locator("span.sm\\:block").filter({ hasText: "%" }).last(),
+    );
+    for (const k of [
+      "ccyToAmount",
+      "amountToShare",
+      "shareW",
+      "shareToEnd",
+    ] as const)
+      expect(
+        Math.abs(inv[k] - w[k]),
+        `${k}: ${inv[k]} vs ${w[k]}`,
+      ).toBeLessThanOrEqual(1);
+  },
+);
+
+// 261103 (user): "$180,301 53.7%" sat off the columns under it.
+Then(
+  "the investments section total and share sit over the {string} amount and share",
+  async ({ page }, name: string) => {
+    const right = async (l: Locator) => {
+      const b = (await l.boundingBox())!;
+      return b.x + b.width;
+    };
+    const row = page.getByTestId(`holding-row-${name}`);
+    const amount = row.locator("[data-amount-cell]");
+    const share = row
+      .locator("span.sm\\:block")
+      .filter({ hasText: "%" })
+      .last();
+    expect(
+      Math.abs(
+        (await right(page.getByTestId("section-total-INVESTMENTS"))) -
+          (await right(amount)),
+      ),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(
+        (await right(page.getByTestId("section-share-INVESTMENTS"))) -
+          (await right(share)),
+      ),
+    ).toBeLessThanOrEqual(1);
+  },
+);

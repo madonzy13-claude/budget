@@ -54,6 +54,11 @@ budgeting.budget_templates                TENANT-SCOPED # budget_templates_tenan
 budgeting.budget_template_items           TENANT-SCOPED # budget_template_items_tenant_isolation policy (app.tenant_ids)
 budgeting.budget_wealth_snapshots         TENANT-SCOPED # budget_wealth_snapshots_tenant_isolation policy (app.tenant_ids)
 budgeting.spending_by_category_month      TENANT-SCOPED # spending_by_category_month_tenant_isolation policy (app.tenant_ids)
+identity.oauth_access_token               USER-SCOPED   # 0106 oauth_access_token_owner: app.current_user_id OR app.better_auth=on (authorize/token run without a user GUC)
+identity.oauth_refresh_token              USER-SCOPED   # 0106 oauth_refresh_token_owner: same predicate as oauth_access_token
+identity.oauth_consent                    USER-SCOPED   # 0106 oauth_consent_owner: same predicate as oauth_access_token
+shared_kernel.mcp_write_log               USER-SCOPED   # 0106 mcp_write_log_owner (app.current_user_id); undo + daily cap span all the user's budgets (D-01)
+shared_kernel.mcp_import_previews         USER-SCOPED   # 0106 mcp_import_previews_owner (app.current_user_id)
 
 # ============================================================
 # EXCLUDED — infrastructure, NOT under RLS (Pitfall 10)
@@ -62,6 +67,11 @@ budgeting.spending_by_category_month      TENANT-SCOPED # spending_by_category_m
 shared_kernel.outbox                      EXCLUDED      # Pitfall 10: GRANT-restricted infrastructure (app_role INSERT only, worker_role SELECT/UPDATE only); no FORCE RLS by design
 identity.verifications                    EXCLUDED      # token-keyed lookups; the token IS the credential; no row-level filtering needed
 tenancy.budget_invitations                EXCLUDED      # token-keyed; same pattern as identity.verifications
+identity.oauth_client                     EXCLUDED      # 0106: OAuth client registrations (DCR metadata is public by design); no user data
+identity.oauth_resource                   EXCLUDED      # 0106: OAuth resource (audience) catalogue; no user data
+identity.oauth_client_resource            EXCLUDED      # 0106: client↔resource link; no user data
+identity.oauth_client_assertion           EXCLUDED      # 0106: used client-assertion jti replay guard; no user data
+identity.jwks                             EXCLUDED      # 0106: token-signing keys; app_role-only grant, same posture as verifications
 # Global reference / shared-catalog data — same for every tenant, no per-row owner (no RLS by design):
 budgeting.fx_rates                        EXCLUDED      # FX rate cache — global reference data, identical for all tenants
 budgeting.supported_currencies            EXCLUDED      # supported-currency catalogue — global reference

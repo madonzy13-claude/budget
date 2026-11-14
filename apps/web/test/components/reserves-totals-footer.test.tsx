@@ -147,3 +147,38 @@ describe("ReservesTotalsFooter (05-19 — 3 totals, no banner)", () => {
     expect(footer.className).toContain("max-w-full");
   });
 });
+
+// Phase 14 (user, 261103): reserves in several currencies read as their
+// per-currency parts inside the two totals — no separate "x / y CCY" lines.
+describe("ReservesTotalsFooter — per currency", () => {
+  it("shows needed and held as per-currency parts", () => {
+    render(
+      <ReservesTotalsFooter
+        internalCents="49455"
+        userDefinedCents="20000"
+        currency="PLN"
+        needByCurrency={[
+          { currency: "EUR", cents: "6850" },
+          { currency: "PLN", cents: "20000" },
+        ]}
+        walletsByCurrency={[{ currency: "PLN", cents: "20000" }]}
+      />,
+    );
+    expect(screen.getByTestId("reserves-total-available").textContent).toBe("68.50 EUR + 200 PLN");
+    expect(screen.getByTestId("reserves-total-wallets").textContent).toBe("200 PLN");
+    expect(screen.queryByTestId("reserves-footer-line-EUR")).toBeNull();
+  });
+
+  it("a single-currency budget reads exactly as before", () => {
+    render(
+      <ReservesTotalsFooter
+        internalCents="20000"
+        userDefinedCents="20000"
+        currency="PLN"
+        needByCurrency={[{ currency: "PLN", cents: "20000" }]}
+        walletsByCurrency={[{ currency: "PLN", cents: "20000" }]}
+      />,
+    );
+    expect(screen.getByTestId("reserves-total-available").textContent).toBe("200 PLN");
+  });
+});

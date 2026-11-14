@@ -73,6 +73,8 @@ describe("AggregationSection", () => {
     const cell = screen.getByTestId("settings-aggregation-share");
     expect(cell.textContent).toContain("70%");
     expect(cell.querySelector("input")).toBeNull();
+    // 261103 (user): dotted like the Assets amounts — it can be edited.
+    expect(cell.querySelector(".editable-dots")).not.toBeNull();
   });
 
   it("PUTs included+share_pct when the toggle flips", async () => {

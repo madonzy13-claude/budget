@@ -7,8 +7,10 @@
  * CashflowSimInput to the pure simulateCashflow. Mirrors the raw-SQL style of
  * compute-upcoming-by-category.ts and recompute-income-under-planned-task.ts.
  */
+import { positionsInBudget } from "./get-reserve-positions";
 import { Temporal } from "temporal-polyfill";
 import { sql } from "drizzle-orm";
+import { ledgerAmountIn } from "../adapters/persistence/fx-sql";
 import { nextOccurrence, type CadenceSpec } from "../domain/cadence";
 import {
   TenantId,
@@ -18,11 +20,6 @@ import {
 } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
 import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
-import {
-  computeInvestmentSmartLimit,
-  normalizeIncomesToMonthlyItems,
-  type IncomeForNormalize,
-} from "./investment-smart-limit";
 import {
   simulateCashflow,
   type CashflowProjection,
@@ -265,9 +262,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
         // → doubled budget. `tl` = limit effective today; `nl` = limit effective at
         // the first of next month. Mirrors get-income-vs-planned's effective-today.
         const cats = await tx.execute(sql`
-          SELECT c.id::text AS id, c.name AS name,
-                 COALESCE(c.is_investment, false) AS is_investment,
-                 c.investment_limit_mode AS investment_limit_mode
+          SELECT c.id::text AS id, c.name AS name
             FROM budgeting.categories c
            WHERE c.tenant_id = ${input.tenantId}::uuid
              AND c.archived_at IS NULL`);
@@ -281,6 +276,8 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
           SELECT cl.category_id::text AS category_id,
                  cl.normal_amount::text AS normal_amount,
                  cl.cushion_amount::text AS cushion_amount,
+                 cl.normal_currency::text AS normal_currency,
+                 cl.cushion_currency::text AS cushion_currency,
                  cl.no_limit AS no_limit,
                  cl.effective_from::text AS effective_from,
                  cl.effective_to::text AS effective_to
@@ -291,7 +288,9 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
              AND (cl.effective_to IS NULL OR cl.effective_to > ${firstProbe}::date)`);
 
         const spend = await tx.execute(sql`
-          SELECT category_id::text AS id, SUM(amount_converted_cents)::text AS spent
+          -- Phase 14 (D-02): each row in the budget's current currency at its own date.
+          SELECT category_id::text AS id,
+                 COALESCE(SUM(${ledgerAmountIn(sql`${currency}::text`)}), 0)::text AS spent
             FROM budgeting.expense_ledger
            WHERE tenant_id = ${input.tenantId}::uuid
              AND kind = 'SPENDING'
@@ -320,7 +319,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
           SELECT e.transaction_date::text AS date,
                  COALESCE(NULLIF(e.note, ''), sp.note, '') AS name,
                  e.category_id::text AS category_id,
-                 e.amount_converted_cents::text AS amount_cents
+                 COALESCE(${ledgerAmountIn(sql`${currency}::text`, "e")}, 0)::text AS amount_cents
             FROM budgeting.expense_ledger e
             LEFT JOIN budgeting.scheduled_payments sp ON sp.id = e.scheduled_payment_id
            WHERE e.tenant_id = ${input.tenantId}::uuid
@@ -382,7 +381,8 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
     // does not carry a buffer").
     const reserveByCategory: Record<string, bigint> = {};
     if (rp.isOk() && rp.value.positions) {
-      for (const [categoryId, pos] of rp.value.positions) {
+      // Phase 14: per-category reserves are in each category's currency.
+      for (const [categoryId, pos] of positionsInBudget(rp.value, currency)) {
         if (pos.reserveExcluded) continue;
         reserveByCategory[categoryId] =
           pos.reserveCents > 0n ? pos.reserveCents : 0n;
@@ -427,14 +427,26 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       category_id: string;
       normal_amount: string;
       cushion_amount: string;
+      normal_currency?: string;
+      cushion_currency?: string;
       no_limit?: boolean;
       effective_from: string;
       effective_to: string | null;
     };
+    // D-08: every month this window reads is the current one or later, so a
+    // limit in another currency converts at today's rate.
     const limitsByCat = new Map<string, LimitRow[]>();
     for (const raw of L.limitRows as LimitRow[]) {
       const arr = limitsByCat.get(raw.category_id) ?? [];
-      arr.push(raw);
+      arr.push({
+        ...raw,
+        normal_amount: (
+          await fxOne(BigInt(raw.normal_amount), raw.normal_currency ?? currency)
+        ).toString(),
+        cushion_amount: (
+          await fxOne(BigInt(raw.cushion_amount), raw.cushion_currency ?? currency)
+        ).toString(),
+      });
       limitsByCat.set(raw.category_id, arr);
     }
     const budgetAt = (categoryId: string, onDate: string): bigint => {
@@ -456,60 +468,12 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
           (l.effective_to === null || l.effective_to > onDate),
       )?.no_limit === true;
 
-    // The Investments category on a SMART limit has no stored amount — the
-    // limit is income − Σ other planned, computed on read (investment-smart-
-    // limit.ts). Reading category_limits alone therefore gave it a plan of
-    // ZERO, and a plan of zero with no_limit=false is read by the simulator as
-    // "every złoty spent here is overspend" — the opposite of an investment.
-    // Recomputed here per probed month so the forecast counts the same figure
-    // the grid and the Overview do. 'manual' needs nothing (its amount IS
-    // stored) and 'none' needs nothing (no_limit already carries it).
-    const investRow = (L.catRows as Record<string, unknown>[]).find(
-      (r) => r.is_investment === true && r.investment_limit_mode === "smart",
-    );
-    // In a CUSHION month the household is on its tighter limits, and the rest of
-    // the app already stops the Investments category planning anything there.
-    // The forecast used to keep dripping — and for a smart limit it dripped MORE
-    // than usual, since smart is income − Σ other planned and the cushion limits
-    // it subtracts are smaller. The only investing a cushion month knows about
-    // is what is actually SCHEDULED, which is charged as a dated bill like any
-    // other (user, 260904f). Manual needs nothing here: its stored cushion
-    // amount is already 0, which budgetAt returns on its own.
-    let smartByMonth: Record<string, bigint> | null = null;
-    if (investRow && !L.cushionMode) {
-      const items = normalizeIncomesToMonthlyItems(
-        L.incomeRows as unknown as IncomeForNormalize[],
-        monthProbes[0]?.key,
-      );
-      const monthlyIncomeCents = await sumWalletsToCurrency(
-        items,
-        currency,
-        deps.fxProvider,
-        asOf,
-      );
-      smartByMonth = {};
-      for (const p of monthProbes) {
-        let otherPlanned = 0n;
-        for (const r of L.catRows as Record<string, string>[]) {
-          if (r.id === investRow.id) continue;
-          otherPlanned += budgetAt(r.id, p.asOfDate);
-        }
-        smartByMonth[p.key] = computeInvestmentSmartLimit({
-          monthlyIncomeCents,
-          otherPlannedCents: otherPlanned,
-        });
-      }
-    }
-
     const categories: CashflowCategoryInput[] = (
       L.catRows as Record<string, string>[]
     ).map((r) => {
       const budgetByMonth: Record<string, bigint> = {};
       for (const p of monthProbes)
-        budgetByMonth[p.key] =
-          smartByMonth && r.id === investRow?.id
-            ? (smartByMonth[p.key] ?? 0n)
-            : budgetAt(r.id, p.asOfDate);
+        budgetByMonth[p.key] = budgetAt(r.id, p.asOfDate);
       return {
         id: r.id,
         name: r.name,
@@ -519,10 +483,6 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
         // is effective-dated but a 100-day window rarely straddles a flip, and
         // erring this way keeps the forecast agreeing with the reserve engine.
         noLimit: monthProbes.some((p) => noLimitAt(r.id, p.asOfDate)),
-        // Investing past the plan is a choice, not a failure — it must not spend
-        // the reserve the household built for emergencies.
-        neverOverspends:
-          (r as unknown as { is_investment?: boolean }).is_investment === true,
       };
     });
 
@@ -580,7 +540,7 @@ export function computeCashflowProjection(deps: ComputeCashflowProjectionDeps) {
       }
     }
 
-    // Already stored in the budget currency (amount_converted_cents), so no FX.
+    // Converted in SQL to the budget's current currency at each row's own date.
     const unanswered: CashflowEvent[] = (
       L.pendingRows as Record<string, string | null>[]
     ).map((r) => ({

@@ -13,7 +13,8 @@
  */
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { plPctDecimals, plSign, plTone } from "@/lib/pl-tone";
+import { useLocale } from "next-intl";
+import { plPctDecimals, plSign, plTone, pctFigure } from "@/lib/pl-tone";
 import { SlotAmount } from "@/components/budgeting/overview/slot-amount";
 
 export function CombinedStat({
@@ -47,6 +48,7 @@ export function CombinedStat({
   // Three-state. A metric that did not move is 0, and 0 is neither a gain nor a
   // loss — it took the green up-arrow "+0.0%" until 260819.
   const dir = plTone(pct);
+  const locale = useLocale();
   // Enough decimals for the figure to show what its colour claims.
   const pctDecimals = plPctDecimals(pct);
   // Inline, never a class. cn() is tailwind-merge, which reads an arbitrary
@@ -66,7 +68,7 @@ export function CombinedStat({
   const pctStr =
     pct === null
       ? "—"
-      : `${plSign(dir, "−")}${Math.abs(pct).toFixed(pctDecimals)}%`;
+      : `${plSign(dir, "−")}${pctFigure(Math.abs(pct), pctDecimals, locale)}%`;
   return (
     <div
       className="flex flex-col items-center gap-0.5 text-center"

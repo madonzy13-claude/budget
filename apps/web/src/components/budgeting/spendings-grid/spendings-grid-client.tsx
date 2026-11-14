@@ -43,7 +43,6 @@ import { MonthNavigator } from "./month-navigator";
 import { SlideOnChange } from "@/components/common/slide-on-change";
 import { TransactionSlider } from "../transaction-slider";
 import { CategorySlider } from "../category-slider";
-import { InvestmentCategorySlider } from "../investment-category-slider";
 import { useTranslations, useLocale } from "next-intl";
 import { clientApiWrite, isOfflineWriteError } from "@/lib/offline-write";
 import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
@@ -86,6 +85,8 @@ export interface CategoryDTO {
   sortIndex: number;
   /** persisted cushion config (mig 0059); null = inferred. */
   cushionMode?: string | null;
+  /** Phase 14 (D-04/D-05): the category's own currency. */
+  currency?: string;
 }
 
 export interface SpendingsGridClientProps {
@@ -155,6 +156,7 @@ function seedCategoryOrder(data: unknown): CategoryDTO[] {
       colorKey: (c.colorKey as string | null) ?? null,
       sortIndex: (c.sortIndex as number | undefined) ?? 0,
       cushionMode: (c.cushionMode as string | null | undefined) ?? null,
+      currency: (c.currency as string | undefined) ?? undefined,
     }))
     .sort((a, b) => a.sortIndex - b.sortIndex);
 }
@@ -945,14 +947,21 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
     const cat = localCategoryOrder.find((c) => c.id === catSlider.categoryId);
     if (!cat) return undefined;
     const s = summaryByCatId.get(cat.id);
+    // Phase 14: the editor works in the category's OWN currency, so it prefills
+    // from the limit as typed (limitOriginal), not the budget-currency figures.
+    const own = (s as { limitOriginal?: { plannedCents: string; cushionCents: string; needsCents: string | null; wantsCents: string | null; convertedFrom?: { currency: string; plannedCents: string; cushionCents: string; needsCents: string | null; wantsCents: string | null } } } | undefined)?.limitOriginal;
     return {
       categoryId: cat.id,
       name: cat.name,
-      plannedCents: s?.plannedCents ?? "0",
-      cushionCents: s?.cushionCents ?? "0",
+      // The viewed month's currency (owner, 261104): a past month keeps the
+      // one it had — the limit's, which limitOriginal is typed in.
+      currency: (s as { limitCurrency?: string } | undefined)?.limitCurrency ?? cat.currency ?? budgetCurrency,
+      plannedCents: own?.plannedCents ?? s?.plannedCents ?? "0",
+      cushionCents: own?.cushionCents ?? s?.cushionCents ?? "0",
       // mig 0061: persisted needs/wants split prefills the slider's split exactly.
-      needsCents: s?.needsCents ?? null,
-      wantsCents: s?.wantsCents ?? null,
+      needsCents: own ? own.needsCents : (s?.needsCents ?? null),
+      wantsCents: own ? own.wantsCents : (s?.wantsCents ?? null),
+      ...(own?.convertedFrom ? { convertedFrom: own.convertedFrom } : {}),
       // 0083: so reopening the editor shows the category as it stands rather
       // than defaulting the toggle off and inviting a silent re-limiting.
       noLimit: s?.noLimit ?? false,
@@ -960,11 +969,8 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
       colorKey: cat.colorKey,
       // mig 0059: persisted cushion mode prefills the slider's Cushion selector.
       cushionMode: (cat.cushionMode as string | null | undefined) ?? null,
-      // r33: the smart Investments category uses a different edit form.
-      isInvestment: s?.isInvestment ?? false,
-      investmentLimitMode: s?.investmentLimitMode ?? null,
     };
-  }, [catSlider.categoryId, localCategoryOrder, summaryByCatId]);
+  }, [catSlider.categoryId, localCategoryOrder, summaryByCatId, budgetCurrency]);
 
   // An archived ("keep history") category is shown ONLY in months where it has
   // at least one transaction; otherwise it's dropped from the grid (this month).
@@ -1213,39 +1219,18 @@ export function SpendingsGridClient({ budgetId }: SpendingsGridClientProps) {
           : {})}
       />
 
-      {/* r33: editing THE Investments category opens the smart/manual limit form
-          instead of the needs/wants/cushion slider. */}
-      {catSlider.mode === "edit" && editCatInitial?.isInvestment ? (
-        <InvestmentCategorySlider
-          open={catSlider.open}
-          onOpenChange={(o) => setCatSlider({ ...catSlider, open: o })}
-          budgetId={budgetId}
-          budgetCurrency={budgetCurrency}
-          month={month}
-          // The VIEWED month's mode, exactly as the columns read it: a month
-          // that ran in cushion mode plans no investing, so its limit is not a
-          // choice — but stepping back to a normal month restores it.
-          cushionMonth={
-            summary.data?.cushionModeForMonth ??
-            summary.data?.cushionModeEnabled ??
-            false
-          }
-          initial={editCatInitial}
-        />
-      ) : (
-        <CategorySlider
-          open={catSlider.open}
-          onOpenChange={(o) => setCatSlider({ ...catSlider, open: o })}
-          mode={catSlider.mode}
-          budgetId={budgetId}
-          budgetCurrency={budgetCurrency}
-          month={month}
-          cushionEnabled={cushionEnabled}
-          {...(catSlider.mode === "edit" && editCatInitial
-            ? { initial: editCatInitial }
-            : {})}
-        />
-      )}
+      <CategorySlider
+        open={catSlider.open}
+        onOpenChange={(o) => setCatSlider({ ...catSlider, open: o })}
+        mode={catSlider.mode}
+        budgetId={budgetId}
+        budgetCurrency={budgetCurrency}
+        month={month}
+        cushionEnabled={cushionEnabled}
+        {...(catSlider.mode === "edit" && editCatInitial
+          ? { initial: editCatInitial }
+          : {})}
+      />
 
       {/* Permanent-delete confirm — archived column trash. Destructive. */}
       <AlertDialog

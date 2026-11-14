@@ -17,12 +17,12 @@
  * Reserves-by-category mirrors get-reserves-summary rows[].reserveCents (already
  * default_ccy) — the raw reserve-balance DB view is NEVER queried directly.
  *
- * No FX: every term is already in the budget currency (ledger amount_converted,
- * limits in budget ccy, engine cents in budget ccy). Cents are bigint internally;
+ * No FX in this service: the repos re-express spend and limits in the budget's
+ * CURRENT currency (Phase 14) and the engine cells arrive in it too. Cents are bigint internally;
  * the DTO stringifies at the boundary (matches get-overview-planned).
  */
 import { ok, err, type Result } from "@budget/shared-kernel";
-import type { ReservePositionsResult } from "./get-reserve-positions";
+import { positionsInBudget, type ReservePositionsResult } from "./get-reserve-positions";
 import type { ReservesSummaryDto } from "./get-reserves-summary";
 import type { OverviewPlannedRepo } from "./get-overview-planned";
 
@@ -126,7 +126,8 @@ export function getOverviewOverspent(deps: GetOverviewOverspentDeps) {
       if (reservesResult.isErr()) return err(reservesResult.error);
 
       const rangeMonths = monthsInRange(input.from, input.to);
-      const positions = posResult.value.positions;
+      // Phase 14: engine values → budget currency (they are per category currency).
+      const positions = positionsInBudget(posResult.value, ccy);
 
       // category|month → cents lookups.
       const spentKey = new Map<string, bigint>();
@@ -150,11 +151,6 @@ export function getOverviewOverspent(deps: GetOverviewOverspentDeps) {
 
       const byCategory = windows
         .map((w) => {
-          // Investments excluded — over-investing isn't overspending (mirrors
-          // get-overview-planned's `if (w.is_investment) return null`). Zeroing
-          // `over` lets the `> 0n` filter below drop it, no null handling.
-          if (w.is_investment)
-            return { category_id: w.category_id, name: w.name, overspent: 0n };
           const activeMonths = rangeMonths.filter(
             (m) =>
               m >= w.created_month &&
@@ -181,7 +177,11 @@ export function getOverviewOverspent(deps: GetOverviewOverspentDeps) {
       const reserves_by_category = reservesResult.value.rows.map((r) => ({
         category_id: r.categoryId,
         name: r.name,
-        reserve_cents: r.reserveCents,
+        // Phase 14: a row's reserve is in its own currency; the pie is in ccy.
+        reserve_cents:
+          r.currency && r.currency !== ccy
+            ? (positions.get(r.categoryId)?.reserveCents.toString() ?? "0")
+            : r.reserveCents,
       }));
 
       return ok({

@@ -16,11 +16,13 @@ import { ok, err, type Result } from "neverthrow";
 import { Temporal } from "temporal-polyfill";
 import type { FxProvider } from "@budget/shared-kernel";
 import {
+  amountEditBlock,
   entryDateRange,
   newestEntry,
   type LedgerKey,
 } from "../domain/asset-ledger";
 import { depositInterestRows } from "../domain/deposit-interest";
+import { holdingShape } from "../domain/holding";
 import type { CapFrequency } from "../domain/deposit-value";
 import { big, cents } from "../domain/sell-booking";
 import type Big from "big.js";
@@ -176,6 +178,19 @@ export function listEntries(deps: {
         }
       };
 
+      // 261109 (user): a swap's out leg is fixed with its in leg — locked
+      // when the destination later gave something out.
+      const partnerLive = new Map<string, Promise<StoredEntry[]>>();
+      const swapOpen = async (e: StoredEntry) => {
+        if (e.kind !== "convert_out" || !e.counterpartyHoldingId) return true;
+        const pid = e.counterpartyHoldingId;
+        if (!partnerLive.has(pid))
+          partnerLive.set(pid, deps.historyRepo.listForHolding(input.tenantId, input.actorUserId, pid));
+        const theirs = await partnerLive.get(pid)!;
+        const leg = theirs.find((x) => x.transferId === e.transferId);
+        return !!leg && amountEditBlock(leg, theirs) === null;
+      };
+
       const rows: EntryDto[] = [];
       for (const e of live) {
         const linked = LINKED.has(e.kind) && e.transferId !== null;
@@ -247,6 +262,14 @@ export function listEntries(deps: {
             return { dateMin: r.min, dateMax: r.max };
           })(),
           dateEditable: !isDeposit,
+          amountEditable:
+            !(isDeposit && e.kind === "withdraw") &&
+            amountEditBlock(e, live) === null &&
+            (await swapOpen(e)),
+          valueCents:
+            (e.kind === "value_change" || e.kind === "price_change") && e.amountCents !== null
+              ? e.amountCents.toString()
+              : null,
           backfilled: e.backfilled,
           deletable: isNewest && partnerOk,
           blockedReason: !isNewest
@@ -301,6 +324,8 @@ export function listEntries(deps: {
             dateMin: null,
             dateMax: null,
             dateEditable: false,
+            amountEditable: false,
+          valueCents: null,
             backfilled: false,
             deletable: false,
             blockedReason: "interest",
@@ -322,9 +347,9 @@ export function listEntries(deps: {
       // today (so the newest is exact) and walked back through each change;
       // a quantity asset is valued at that deal's own price.
       const byId = new Map(live.map((e) => [e.id, e]));
-      const valueShape = ["cash_fx", "other", "savings", "possession"].includes(
-        h.holdingType,
-      );
+      // Every hand-valued (qty 1) asset walks its value back — government
+      // bonds and real estate were left out of a type list (user, 261102).
+      const valueShape = holdingShape(h) === "amount";
       const afterCcy = h.currentPriceCurrency ?? h.buyCurrency ?? null;
       let qtyRun = big(h.quantity);
       let valueRun =
@@ -365,8 +390,17 @@ export function listEntries(deps: {
         d.qty = d.qty.plus(big(e.qtyDelta).abs());
         dayDeals.set(r.effectiveDate, d);
       }
-      for (const r of rows) {
-        const e = r.id !== null && !isDeposit ? byId.get(r.id) : undefined;
+      // A deposit adds up forward: principal, then each interest row.
+      if (isDeposit) {
+        let run = big(0n);
+        for (const r of [...rows].reverse()) {
+          run = run.plus(big(r.amountCents ?? "0"));
+          r.afterCents = cents(run).toString();
+          r.afterCurrency = h.buyCurrency ?? afterCcy;
+        }
+      }
+      for (const r of isDeposit ? [] : rows) {
+        const e = r.id !== null ? byId.get(r.id) : undefined;
         if (!e) {
           r.afterCents = null;
           r.afterCurrency = null;

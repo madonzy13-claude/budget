@@ -38,7 +38,7 @@
 import { sql } from "drizzle-orm";
 import { Temporal } from "temporal-polyfill";
 import type { FxProvider } from "@budget/shared-kernel";
-import { TenantId, UserId } from "@budget/shared-kernel";
+import { TenantId, UserId, serverNow } from "@budget/shared-kernel";
 import { withTenantTx } from "@budget/platform";
 import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
 import { scheduledMonthlyNormalize } from "./scheduled-monthly-normalize";
@@ -167,8 +167,7 @@ export function upcomingIncomeItems(
 }
 
 /**
- * Read active incomes + wallet balances + total planned (non-investment,
- * non-archived, effective today) for a budget and return the comparable monthly
+ * Read active incomes + wallet balances + total planned (non-archived, effective today) for a budget and return the comparable monthly
  * figures in budget currency. Raw SQL over the open tx so it sees the trigger
  * mutation's writes.
  */
@@ -199,8 +198,12 @@ export async function computeIncomeVsPlanned(
       .cushion_mode_enabled,
   );
 
-  const asOf = (input.now ?? (() => new Date()))();
-  const today = Temporal.Now.plainDateISO();
+  const asOf = (input.now ?? serverNow)();
+  // From the same instant, not the host clock (review WR-08): the gated test
+  // clock and the rate date then agree.
+  const today = Temporal.Instant.fromEpochMilliseconds(asOf.getTime())
+    .toZonedDateTimeISO("UTC")
+    .toPlainDate();
 
   // Active incomes → keep only the payments still UPCOMING this month (pay-day not
   // yet passed) → FX sum. Income already received this month sits in a wallet and
@@ -260,18 +263,18 @@ export async function computeIncomeVsPlanned(
   // Total planned = Σ normal_amount over effective (today) category_limits for
   // NON-archived categories, INCLUDING a manual Investments amount, EXCLUDING only
   // a SMART Investments category (its normal_amount isn't its real limit and it
-  // nets to income anyway). normal_amount is budget-ccy cents (raw, no FX — parity
-  // with get-cushion-summary + effectiveForMonth).
-  const todayStr = Temporal.Now.plainDateISO().toString();
+  // nets to income anyway). Phase 14 (D-08): each limit converts from its own
+  // currency at today's rate.
+  const todayStr = today.toString();
   const plannedRow = await tx.execute(sql`
-    SELECT COALESCE(SUM(cl.normal_amount), 0)::text AS total
+    SELECT COALESCE(SUM(budgeting.fx_convert(cl.normal_amount, cl.normal_currency,
+                                             ${currency}::text, ${todayStr}::date)), 0)::text AS total
       FROM budgeting.category_limits cl
       JOIN budgeting.categories c ON c.id = cl.category_id
      WHERE cl.tenant_id = ${input.tenantId}::uuid
        AND cl.effective_from <= ${todayStr}::date
        AND (cl.effective_to IS NULL OR cl.effective_to > ${todayStr}::date)
        AND c.archived_at IS NULL
-       AND NOT (c.is_investment = true AND c.investment_limit_mode = 'smart')
   `);
   const plannedCents = BigInt((plannedRow.rows[0] as { total: string }).total);
 

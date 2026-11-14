@@ -5,10 +5,11 @@
  */
 import "./_swap-fixtures";
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   btc,
+  broker,
   cash,
   H,
   writeMock,
@@ -19,7 +20,7 @@ import {
   fetchMock,
 } from "./_swap-fixtures";
 import type { HoldingDto } from "../../src/hooks/use-investments";
-import { EditAssetSheet } from "../../src/components/budgeting/wallets-tab/edit-asset-sheet";
+import { EditAssetForm } from "../../src/components/budgeting/wallets-tab/edit-asset-sheet";
 
 const coin = H({
   id: "77777777-7777-7777-7777-777777777777",
@@ -35,9 +36,8 @@ function mount(holding: HoldingDto) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <EditAssetSheet
-        open
-        onOpenChange={() => {}}
+      <EditAssetForm
+        onDone={() => {}}
         budgetId="b1"
         budgetCurrency="PLN"
         holding={holding}
@@ -90,9 +90,8 @@ describe("Edit asset sheet — currencies", () => {
     });
     render(
       <QueryClientProvider client={qc}>
-        <EditAssetSheet
-          open
-          onOpenChange={() => {}}
+        <EditAssetForm
+          onDone={() => {}}
           budgetId="b1"
           budgetCurrency="PLN"
           holding={ersteUsd}
@@ -126,10 +125,85 @@ describe("Edit asset sheet — locked configuration", () => {
     expectLocked("startDate", "2026");
   });
 
+  // 15-18 UAT: every deposit detail is visible, including its amount and end.
+  it("a deposit also shows its amount and end date locked", () => {
+    mount(
+      H({
+        name: "Term",
+        holdingType: "deposit",
+        uiType: "deposit",
+        instrumentId: null,
+        buyPriceCents: "25000",
+        buyCurrency: "PLN",
+        depositRateBps: 3500,
+        depositCapFrequency: "monthly",
+        depositStartDate: "2026-11-08",
+        depositEndDate: "2027-11-08",
+      }),
+    );
+    expectLocked("principal", "250");
+    // 261109 (user): no currency in the field — the picker above names it.
+    expect((locked("principal") as HTMLInputElement).value).not.toContain("PLN");
+    expectLocked("endDate", "2027");
+  });
+
+  it("a deposit without an end says so", () => {
+    mount(
+      H({
+        name: "Open",
+        holdingType: "deposit",
+        uiType: "deposit",
+        instrumentId: null,
+        buyPriceCents: "25000",
+        buyCurrency: "PLN",
+        depositRateBps: 3500,
+        depositCapFrequency: "monthly",
+        depositStartDate: "2026-11-08",
+        depositEndDate: null,
+      }),
+    );
+    expectLocked("endDate", "noEndDate");
+  });
+
+  // 15-18 UAT: a deposit saved without its terms still lists every field —
+  // empty ones as "—" — and its note, so nothing is silently missing.
+  it("a deposit lists rate, capitalization, dates and note even when empty", async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url.includes("/entries")
+        ? new Response(
+            JSON.stringify({
+              entries: [
+                { id: "e1", kind: "add", effectiveDate: "2026-11-08", note: "35% a year, no end", deletable: true },
+              ],
+            }),
+            { status: 200 },
+          )
+        : new Response("{}", { status: 200 }),
+    );
+    mount(
+      H({
+        id: "dep-1",
+        name: "Dad",
+        holdingType: "deposit",
+        uiType: "deposit",
+        instrumentId: null,
+        buyPriceCents: "25000",
+        buyCurrency: "PLN",
+        depositRateBps: null,
+        depositCapFrequency: null,
+        depositStartDate: null,
+        depositEndDate: null,
+      }),
+    );
+    for (const f of ["rate", "capFrequency", "startDate"]) expectLocked(f, "—");
+    expectLocked("endDate", "noEndDate");
+    await waitFor(() => expectLocked("note", "35% a year, no end"));
+  });
+
   it("a tracked asset shows its instrument and current price locked", () => {
     mount(btc);
     expectLocked("instrument", "Bitcoin");
-    expectLocked("currentPrice", "60,000");
+    expectLocked("currentPrice", "60000");
   });
 
   // Round 6 (user): the currency is picked above — the locked price carries
@@ -138,9 +212,9 @@ describe("Edit asset sheet — locked configuration", () => {
     routeFetch({ rate: "0.25" });
     mount(btc);
     const price = locked("currentPrice") as HTMLInputElement;
-    expect(price.value).toBe("60,000");
+    expect(price.value).toBe("60000");
     type("currency-picker", "EUR");
-    await waitFor(() => expect(price.value).toBe("15,000"));
+    await waitFor(() => expect(price.value).toBe("15000"));
   });
 
   // Round 6 (user): "sometimes it takes time, sometimes it never changes".
@@ -151,10 +225,10 @@ describe("Edit asset sheet — locked configuration", () => {
     mount(btc);
     const price = locked("currentPrice") as HTMLInputElement;
     type("currency-picker", "EUR");
-    await waitFor(() => expect(price.value).toBe("15,000"));
+    await waitFor(() => expect(price.value).toBe("15000"));
     type("currency-picker", "USD");
     type("currency-picker", "EUR");
-    expect(price.value).toBe("15,000");
+    expect(price.value).toBe("15000");
     const fxCalls = () =>
       fetchMock.mock.calls.filter(([u]) => String(u).includes("to=EUR")).length;
     expect(fxCalls()).toBe(1);
@@ -175,7 +249,7 @@ describe("Edit asset sheet — locked configuration", () => {
     expect(screen.getByTestId("edit-asset-fx-loading")).toBeInTheDocument();
     await waitFor(() => expect(release).toBeTypeOf("function"));
     release();
-    await waitFor(() => expect(price.value).toBe("15,000"));
+    await waitFor(() => expect(price.value).toBe("15000"));
     expect(screen.queryByTestId("edit-asset-fx-loading")).toBeNull();
   });
 
@@ -207,7 +281,7 @@ describe("Edit asset sheet — locked configuration", () => {
     mount(btc);
     const price = locked("currentPrice") as HTMLInputElement;
     type("currency-picker", "EUR");
-    await waitFor(() => expect(price.value).toBe("15,000"));
+    await waitFor(() => expect(price.value).toBe("15000"));
   });
 
   it("a metal shows metal, kind, unit, current price and premium locked", () => {
@@ -228,6 +302,94 @@ describe("Edit asset sheet — locked configuration", () => {
     expectLocked("uom", "uomOption.g");
     expectLocked("currentPrice", "51.55");
     expectLocked("premium", "25.17%");
+  });
+
+  // 261108 (user): every Edit shows the base amount (what went in), locked.
+  // 261109 (user): no currency in it — the picker above names it.
+  it("shows the base amount locked, without a currency", () => {
+    mount(btc); // 2 × 50,000 PLN
+    expectLocked("baseAmount", "100000");
+    expect((locked("baseAmount") as HTMLInputElement).value).toBe("100000");
+  });
+
+  // 261109 (user): a pick converts the base at each transaction's own date
+  // rate (the history cost), never today's — today's 0.25 would read 25,000.
+  it("the base amount converts at the transactions' date rates", async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      String(url).includes("/fx/rate")
+        ? new Response(JSON.stringify({ rate: "0.25" }), { status: 200 })
+        : String(url).includes("/investments/pl?currency=EUR&ids=11111111-1111-1111-1111-111111111111")
+          ? new Response(
+              JSON.stringify({ currency: "EUR", costCents: "3000000" }),
+              { status: 200 },
+            )
+          : new Response("{}", { status: 200 }),
+    );
+    mount(btc);
+    type("currency-picker", "EUR");
+    await waitFor(() =>
+      expect((locked("baseAmount") as HTMLInputElement).value).toBe("30000"),
+    );
+  });
+
+  // 261109 (user): base amount goes before the current amount.
+  it("the base amount sits above the current value", () => {
+    mount(broker);
+    const base = locked("baseAmount");
+    const value = screen.getByTestId("edit-asset-value");
+    expect(
+      base.compareDocumentPosition(value) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("the base amount sits above the locked price", () => {
+    mount(btc);
+    expect(
+      locked("baseAmount").compareDocumentPosition(locked("currentPrice")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  // 261113 (user): a counted asset also shows its quantity and current amount,
+  // locked, below the price; the amount follows the price.
+  it("a counted asset shows quantity and current amount after the price", () => {
+    mount(btc); // 2 × 60,000 PLN
+    expectLocked("quantity", "2");
+    expectLocked("currentAmount", "120000");
+    expect(
+      locked("currentPrice").compareDocumentPosition(locked("quantity")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      locked("quantity").compareDocumentPosition(locked("currentAmount")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("a hand-priced asset's current amount follows the typed price", () => {
+    mount(coin); // 3 × 2,000
+    expectLocked("quantity", "3");
+    expectLocked("currentAmount", "6000");
+    type("edit-asset-price", "2500");
+    expect((locked("currentAmount") as HTMLInputElement).value).toBe("7500");
+  });
+
+  it("an amount-shaped asset shows no quantity or current amount", () => {
+    mount(broker);
+    expect(screen.queryByTestId("edit-asset-locked-quantity")).toBeNull();
+    expect(screen.queryByTestId("edit-asset-locked-currentAmount")).toBeNull();
+  });
+
+  // 261112 (user): cash has no base amount — what went in is what it is.
+  it("cash shows no base amount", () => {
+    mount(cash);
+    expect(screen.queryByTestId("edit-asset-locked-baseAmount")).toBeNull();
+    expect(screen.getByTestId("edit-asset-value")).toBeInTheDocument();
+  });
+
+  it("an amount-shaped asset's base amount is what went in", () => {
+    mount(broker);
+    expectLocked("baseAmount", "100000");
   });
 
   it("a hand-priced asset keeps its editable price and no locked duplicate", () => {
@@ -266,6 +428,15 @@ describe("Edit asset sheet", () => {
     mount(coin);
     expect(screen.getByTestId("edit-asset-price")).toHaveValue("2000");
     expect(screen.queryByTestId("edit-asset-value")).toBeNull();
+  });
+
+  // 261109 (user): no currency in the label — the picker above names it.
+  it("the current value and price labels carry no currency", () => {
+    mount(cash);
+    expect(screen.getByText("edit.currentValue")).toBeInTheDocument();
+    cleanup();
+    mount(coin);
+    expect(screen.getByText("edit.currentPrice")).toBeInTheDocument();
   });
 
   it("a market-priced asset offers neither value nor price", () => {

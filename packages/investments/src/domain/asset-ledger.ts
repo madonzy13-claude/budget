@@ -20,7 +20,7 @@ export interface LedgerKey {
   holdingId: string;
 }
 
-const after = (a: LedgerKey, b: LedgerKey): boolean =>
+export const after = (a: LedgerKey, b: LedgerKey): boolean =>
   a.effectiveDate !== b.effectiveDate
     ? a.effectiveDate > b.effectiveDate
     : a.createdAt !== b.createdAt
@@ -129,4 +129,28 @@ export function priceChange(i: {
 }): { priorPriceCents: string; newPriceCents: string } {
   if (big(i.newPriceCents).lte(0)) throw new RangeError("price_positive");
   return { priorPriceCents: i.priorPriceCents, newPriceCents: i.newPriceCents };
+}
+
+/** 261108 (user): why an entry's amount / currency cannot be changed, or null.
+ *  Only money put in (opening, buy, add) of one asset; and only while nothing
+ *  after it took money or units out — a sale's cost share, a withdrawal's
+ *  room and a transfer's units were all worked out from what came before. */
+export function amountEditBlock(
+  target: LedgerKey & { kind: string; walletId?: string | null },
+  entries: Array<LedgerKey & { costDeltaCents: bigint; qtyDelta: string | null }>,
+): "not_money_in" | "later_entry_depends" | "sale_linked" | null {
+  // 261109 (user): a value update too — it set the value outright; and a
+  // swap's legs (convert_out / convert_in), money moved between assets.
+  // 261111 (user): a price update too.
+  if (!["start", "buy", "add", "value_change", "price_change", "withdraw", "convert_out", "convert_in"].includes(target.kind))
+    return "not_money_in";
+  // 261109 (user): a sale's proceeds — nothing later was worked out from
+  // them; one paid into a wallet would have to move the wallet too.
+  if (target.kind === "withdraw") return target.walletId ? "sale_linked" : null;
+  if (target.kind === "convert_out") return null;
+  const out = (x: { costDeltaCents: bigint; qtyDelta: string | null }) =>
+    x.costDeltaCents < 0n || (x.qtyDelta !== null && big(x.qtyDelta).lt(0));
+  return entries.some((x) => x.id !== target.id && after(x, target) && out(x))
+    ? "later_entry_depends"
+    : null;
 }

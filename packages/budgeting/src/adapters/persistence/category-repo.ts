@@ -21,9 +21,8 @@ function rowToCategory(row: {
   actor_user_id: string;
   sort_index?: number;
   color_key?: string | null;
-  is_investment?: boolean | null;
-  investment_limit_mode?: string | null;
   cushion_mode?: string | null;
+  currency?: string | null;
 }): Category {
   const { Category: CategoryClass } = require("../../domain/category");
   const cat = new CategoryClass(
@@ -35,9 +34,8 @@ function rowToCategory(row: {
     new Date(row.created_at),
     row.actor_user_id,
     row.color_key ?? null,
-    row.is_investment ?? false,
-    row.investment_limit_mode ?? null,
     row.cushion_mode ?? null,
+    row.currency ?? null,
   );
   // Attach sort_index + archived_from as plain properties (domain class doesn't
   // track them — adapter concern). archivedFrom drives the grid's greyed,
@@ -55,20 +53,25 @@ export class DrizzleCategoryRepo implements CategoryRepo {
     const r = await withTenantTx(tid, uid, async (tx) => {
       // sort_index = max existing + 1 so a freshly created category lands
       // last (rightmost) in the grid instead of defaulting to 0.
-      await tx.execute(
+      // currency NULL → the BEFORE INSERT trigger (0104) fills the budget's
+      // currency of this moment (D-04); RETURNING hands it back to the entity.
+      const ins = await tx.execute<{ currency: string }>(
         sql`INSERT INTO budgeting.categories
-              (id, tenant_id, name, parent_id, color_key, cushion_mode, archived_at, created_at, actor_user_id, sort_index)
+              (id, tenant_id, name, parent_id, color_key, cushion_mode, currency, archived_at, created_at, actor_user_id, sort_index)
             VALUES
               (${category.id}::uuid, ${category.tenantId}::uuid, ${category.name},
                ${category.parentId ? sql`${category.parentId}::uuid` : sql`NULL`},
                ${category.colorKey ?? null},
                ${category.cushionMode ?? null},
+               ${category.currency ?? null},
                ${category.archivedAt?.toISOString() ?? null},
                ${category.createdAt.toISOString()}, ${category.actorUserId}::uuid,
                (SELECT COALESCE(MAX(sort_index), -1) + 1
                   FROM budgeting.categories
-                 WHERE tenant_id = ${category.tenantId}::uuid))`,
+                 WHERE tenant_id = ${category.tenantId}::uuid))
+            RETURNING currency`,
       );
+      category.currency = ins.rows[0]!.currency;
 
       await writeAudit(tx, {
         tenantId: tid,
@@ -115,7 +118,7 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         sort_index: number;
         color_key: string | null;
       }>(
-        sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from::text, created_at, actor_user_id, sort_index, is_investment, investment_limit_mode, cushion_mode
+        sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from::text, created_at, actor_user_id, sort_index, cushion_mode, currency
             FROM budgeting.categories
             WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid`,
       );
@@ -151,7 +154,7 @@ export class DrizzleCategoryRepo implements CategoryRepo {
         color_key: string | null;
       }>(
         includeArchived
-          ? sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from, created_at, actor_user_id, sort_index, is_investment, investment_limit_mode, cushion_mode
+          ? sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from, created_at, actor_user_id, sort_index, cushion_mode, currency
                 FROM budgeting.categories
                 WHERE tenant_id = ${tenantId}::uuid
                 ORDER BY sort_index ASC, created_at ASC`
@@ -159,7 +162,7 @@ export class DrizzleCategoryRepo implements CategoryRepo {
             // visible THROUGH its archived_from month (>= M) so the current month
             // still shows it (greyed, read-only); only FUTURE months (M after
             // archived_from) drop it. Fully-removed (archived_at) is always hidden.
-            sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from, created_at, actor_user_id, sort_index, is_investment, investment_limit_mode, cushion_mode
+            sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from, created_at, actor_user_id, sort_index, cushion_mode, currency
                 FROM budgeting.categories
                 WHERE tenant_id = ${tenantId}::uuid
                   AND archived_at IS NULL
@@ -356,153 +359,6 @@ export class DrizzleCategoryRepo implements CategoryRepo {
       });
     });
 
-    if (r.isErr()) throw r.error;
-  }
-
-  /** r33: does ANY Investments category exist (active OR archived)? Lets the
-   *  settings toggle tell "never created" (default on) from "turned off". */
-  async hasInvestmentCategory(tenantId: string): Promise<boolean> {
-    const tid = TenantId(tenantId);
-    const uid = UserId(tenantId);
-    const r = await withTenantTx(tid, uid, async (tx) => {
-      const res = await tx.execute(
-        sql`SELECT 1 FROM budgeting.categories
-            WHERE tenant_id = ${tenantId}::uuid AND is_investment LIMIT 1`,
-      );
-      return res.rows.length > 0;
-    });
-    if (r.isErr()) throw r.error;
-    return r.value;
-  }
-
-  /** r33: the active Investments category for this budget, or null. */
-  async findInvestmentCategory(tenantId: string): Promise<Category | null> {
-    const tid = TenantId(tenantId);
-    const uid = UserId(tenantId);
-    const r = await withTenantTx(tid, uid, async (tx) => {
-      const result = await tx.execute(
-        sql`SELECT id, tenant_id, name, parent_id::text, color_key, archived_at, archived_from::text, created_at, actor_user_id, sort_index, is_investment, investment_limit_mode, cushion_mode
-            FROM budgeting.categories
-            WHERE tenant_id = ${tenantId}::uuid AND is_investment
-              AND archived_at IS NULL AND archived_from IS NULL
-            LIMIT 1`,
-      );
-      return result.rows[0] ?? null;
-    });
-    if (r.isErr()) throw r.error;
-    return r.value ? rowToCategory(r.value as any) : null;
-  }
-
-  /**
-   * r33: create (or reactivate) THE Investments category, pinned first. Idempotent
-   * — reuses the single per-tenant row (partial unique index) so toggling the
-   * feature off (archive) and back on reuses it rather than duplicating. Always
-   * leaves it active + reserve_excluded; defaults a fresh row to smart mode.
-   */
-  async ensureInvestmentCategory(
-    tenantId: string,
-    actorUserId: string,
-    name: string,
-  ): Promise<Category> {
-    const tid = TenantId(tenantId);
-    const uid = UserId(actorUserId);
-    const r = await withTenantTx(tid, uid, async (tx) => {
-      const existing = await tx.execute<{ id: string }>(
-        sql`SELECT id FROM budgeting.categories
-            WHERE tenant_id = ${tenantId}::uuid AND is_investment
-            LIMIT 1`,
-      );
-      if (existing.rows[0]) {
-        const id = existing.rows[0].id;
-        // Reactivate + guarantee the invariants (reserve-excluded, has a mode).
-        await tx.execute(
-          sql`UPDATE budgeting.categories
-              SET archived_at = NULL, archived_from = NULL, reserve_excluded = true,
-                  investment_limit_mode = COALESCE(investment_limit_mode, 'none')
-              WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid`,
-        );
-        await writeAudit(tx, {
-          tenantId: tid,
-          entityType: "category",
-          entityId: id,
-          action: "update",
-          actorUserId: uid,
-          before: { archivedAt: "unknown" },
-          after: { archivedAt: null, isInvestment: true },
-        });
-        await writeOutbox(tx, {
-          tenantId: tid,
-          aggregateType: "category",
-          aggregateId: id,
-          eventType: "budgeting.category.unarchived",
-          payload: { actorUserId },
-        });
-        return id;
-      }
-      const newId = crypto.randomUUID();
-      // sort_index = MIN - 1 → the Investments column lands FIRST (still draggable).
-      await tx.execute(
-        sql`INSERT INTO budgeting.categories
-              (id, tenant_id, name, parent_id, color_key, archived_at, created_at,
-               actor_user_id, sort_index, reserve_excluded, is_investment, investment_limit_mode)
-            VALUES
-              (${newId}::uuid, ${tenantId}::uuid, ${name}, NULL, 'green', NULL, now(),
-               ${actorUserId}::uuid,
-               (SELECT COALESCE(MIN(sort_index), 0) - 1
-                  FROM budgeting.categories WHERE tenant_id = ${tenantId}::uuid),
-               true, true, 'none')`,
-      );
-      await writeAudit(tx, {
-        tenantId: tid,
-        entityType: "category",
-        entityId: newId,
-        action: "create",
-        actorUserId: uid,
-        before: null,
-        after: { name, isInvestment: true, investmentLimitMode: "none" },
-      });
-      await writeOutbox(tx, {
-        tenantId: tid,
-        aggregateType: "category",
-        aggregateId: newId,
-        eventType: "budgeting.category.created",
-        payload: { name, actorUserId, isInvestment: true },
-      });
-      return newId;
-    });
-    if (r.isErr()) throw r.error;
-    const cat = await this.findById(tenantId, r.value);
-    if (!cat) throw new Error("ensureInvestmentCategory: row vanished");
-    return cat;
-  }
-
-  /** r33: switch the Investments category between 'manual', 'smart' and
-   *  'none' (no limit — the default since 0085). */
-  async setInvestmentLimitMode(
-    tenantId: string,
-    categoryId: string,
-    mode: "manual" | "smart" | "none",
-    actorUserId: string,
-  ): Promise<void> {
-    const tid = TenantId(tenantId);
-    const uid = UserId(actorUserId);
-    const r = await withTenantTx(tid, uid, async (tx) => {
-      await tx.execute(
-        sql`UPDATE budgeting.categories
-            SET investment_limit_mode = ${mode}
-            WHERE id = ${categoryId}::uuid AND tenant_id = ${tenantId}::uuid
-              AND is_investment`,
-      );
-      await writeAudit(tx, {
-        tenantId: tid,
-        entityType: "category",
-        entityId: categoryId,
-        action: "update",
-        actorUserId: uid,
-        before: null,
-        after: { investmentLimitMode: mode },
-      });
-    });
     if (r.isErr()) throw r.error;
   }
 

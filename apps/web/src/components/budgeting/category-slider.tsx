@@ -47,6 +47,19 @@ import { useOfflineWriteToast } from "@/hooks/use-offline-write-toast";
 import { cn } from "@/lib/utils";
 // 260613-v1p: single source of truth for the 8 category palette colors.
 import { CATEGORY_COLORS } from "@/lib/category-colors";
+import { CurrencyPicker } from "@/components/common/currency-picker";
+import { clientApiFetch } from "@/lib/budget-fetch";
+
+/** cents × decimal rate, half away from zero, in integer math (no float money). */
+function convertCentsStr(cents: string, rate: string): string {
+  const [w, f = ""] = rate.split(".");
+  const num = BigInt(`${w}${f}`);
+  const den = 10n ** BigInt(f.length);
+  const c = BigInt(cents);
+  const neg = c < 0n;
+  const q = ((neg ? -c : c) * num * 2n + den) / (2n * den);
+  return (neg ? -q : q).toString();
+}
 
 export interface CategorySliderProps {
   open: boolean;
@@ -67,6 +80,17 @@ export interface CategorySliderProps {
     cushionMode?: string | null;
     /** 0083: unbounded — prefills the No-limit toggle on reopen. */
     noLimit?: boolean | null;
+    /** Phase 14 (D-04): the category's own currency; amounts above are in it. */
+    currency?: string;
+    /** 0105: the amounts the server converted this limit FROM — the basis a
+     *  currency change converts from, restored exactly on switching back. */
+    convertedFrom?: {
+      currency: string;
+      plannedCents: string;
+      cushionCents: string;
+      needsCents: string | null;
+      wantsCents: string | null;
+    };
   };
   txnsCount?: number;
   /**
@@ -229,6 +253,14 @@ function centsToDecimalSafe(cents: string): string {
   return cents ? centsToDecimal(cents) : "0";
 }
 
+/** Server error code → its explanation (grid.error.reason.*). */
+const SAVE_ERROR_REASON: Record<string, string> = {
+  currency_mismatch: "currency_mismatch",
+  not_found: "not_found",
+  "Not found": "not_found",
+  "Validation error": "validation",
+};
+
 export function CategorySlider({
   open,
   onOpenChange,
@@ -273,6 +305,80 @@ export function CategorySlider({
 
   const locale = useLocale();
 
+  // Phase 14 (UI-SPEC §1): the category's currency. Add → the budget's (D-04);
+  // edit → the stored one, changeable even with transactions (D-07).
+  const storedCurrency = initial?.currency ?? budgetCurrency;
+  const [currency, setCurrency] = useState(storedCurrency);
+  const [rateError, setRateError] = useState<string | null>(null);
+  const currencyChanged = mode === "edit" && currency !== storedCurrency;
+  useEffect(() => {
+    if (open) {
+      setCurrency(initial?.currency ?? budgetCurrency);
+      setRateError(null);
+      const cf = initial?.convertedFrom;
+      const pick = (v: Record<string, unknown>) =>
+        Object.fromEntries(AMOUNT_FIELDS.map((f) => [f, String(v[f] ?? "")]));
+      basis.current = cf
+        ? { currency: cf.currency, values: pick(prefillFromInitial({ ...initial, ...cf })) }
+        : null;
+      lastSet.current = cf ? pick(prefillFromInitial(initial)) : {};
+      opened.current = pick(prefillFromInitial(initial));
+    }
+  }, [open, initial?.categoryId]);
+
+  /** Edit: preview the limit at today's rate in the new currency (the server
+   *  converts authoritatively on save). No rate → inline error, Save off.
+   *  Always converts FROM the amounts as typed in the stored currency, and
+   *  switching back restores them — never a conversion of a conversion, which
+   *  drifted by a grosz or two (user, 261103). An amount the user edits after
+   *  a switch becomes the new basis. */
+  const AMOUNT_FIELDS = ["needs", "wants", "customCushion"] as const;
+  const basis = useRef<{ currency: string; values: Record<string, string> } | null>(null);
+  const lastSet = useRef<Record<string, string>>({});
+  /** The amounts as the form opened — anything else was typed here. */
+  const opened = useRef<Record<string, string>>({});
+  async function changeCurrency(next: string) {
+    const prev = currency;
+    setCurrency(next);
+    setRateError(null);
+    if (mode !== "edit" || next === prev) return;
+    const now = Object.fromEntries(AMOUNT_FIELDS.map((f) => [f, form.getValues(f)]));
+    // An amount typed in this form is what the member means (owner, 261104):
+    // the currency changes, the amount stays exactly as typed.
+    const typed = AMOUNT_FIELDS.some(
+      (f) => String(now[f] ?? "") !== String(lastSet.current[f] ?? opened.current[f] ?? ""),
+    );
+    if (typed) return;
+    const untouched = AMOUNT_FIELDS.every((f) => now[f] === (lastSet.current[f] ?? now[f]));
+    if (!basis.current || !untouched) basis.current = { currency: prev, values: now };
+    const from = basis.current;
+    const apply = (vals: Record<string, string>) => {
+      for (const f of AMOUNT_FIELDS) form.setValue(f, vals[f] ?? "", { shouldValidate: true });
+      lastSet.current = vals;
+    };
+    if (next === from.currency) {
+      apply(from.values);
+      return;
+    }
+    try {
+      // No date: the server's today, the same one its conversion on save
+      // uses (review WR-08) — the browser's UTC day differed around midnight.
+      const res = await clientApiFetch(`/fx/rate?from=${from.currency}&to=${next}`);
+      if (!res.ok) throw new Error("no_rate");
+      const { rate } = (await res.json()) as { rate: string };
+      apply(
+        Object.fromEntries(
+          AMOUNT_FIELDS.map((f) => {
+            const v = from.values[f];
+            return [f, v ? centsToDecimal(convertCentsStr(String(amountToCents(v)), rate)) : v ?? ""];
+          }),
+        ),
+      );
+    } catch {
+      setRateError(`${storedCurrency}/${next}`);
+    }
+  }
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -306,13 +412,13 @@ export function CategorySlider({
   });
   const plannedPreview = centsToDisplayCompact(
     preview.normalAmount,
-    budgetCurrency,
+    currency,
     locale,
     true,
   );
   const cushionPreview = centsToDisplayCompact(
     preview.cushionAmount,
-    budgetCurrency,
+    currency,
     locale,
     true,
   );
@@ -328,6 +434,18 @@ export function CategorySlider({
       });
     }
   }, [open, initial?.categoryId]);
+
+  /** A refused save says what happened (owner, 261104) — not "check your
+   *  connection", which is only true offline (that has its own toast). */
+  async function saveFailed(res?: { status?: number; json?: () => Promise<unknown> }) {
+    const body = (await res?.json?.().catch(() => ({}))) as { error?: string } | undefined;
+    const code = body?.error;
+    const known = code ? SAVE_ERROR_REASON[code] : undefined;
+    const reason = known
+      ? t(`error.reason.${known}`)
+      : t("error.reason.unknown", { status: String(res?.status ?? "—") });
+    toast.error(t("error.saveFailed", { reason }));
+  }
 
   async function onSubmit(values: FormValues) {
     // SCD-2 limits are evaluated as-of the month start. EDITING writes the limit
@@ -378,12 +496,13 @@ export function CategorySlider({
               // Persist the chosen mode so "Needs only" (cushion == planned)
               // isn't misread as "Needs + wants" when the editor reopens.
               cushionMode: values.cushionMode,
+              currency,
             }),
           },
         );
 
         if (!createRes.ok) {
-          toast.error(t("error.sliderSave"));
+          await saveFailed(createRes);
           return;
         }
 
@@ -399,7 +518,9 @@ export function CategorySlider({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               normalAmount,
+              normalCurrency: currency,
               cushionAmount,
+              cushionCurrency: currency,
               ...(noLimit ? {} : { needsAmount, wantsAmount }),
               noLimit,
               effectiveFrom,
@@ -408,10 +529,39 @@ export function CategorySlider({
         );
 
         if (!limitsRes.ok) {
-          toast.error(t("error.sliderSave"));
+          await saveFailed(limitsRes);
           return;
         }
       } else {
+        // D-07: the currency first — the server converts the current and
+        // future limits at today's rate; the limit below is then written in it.
+        if (currencyChanged) {
+          const ccyRes = await clientApiWrite(
+            `/budgets/${budgetId}/categories/${initial!.categoryId}/currency`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              // A past month changes only itself (owner, 261104).
+              body: JSON.stringify(singleMonth ? { currency, month: effectiveFrom } : { currency }),
+            },
+          );
+          if (!ccyRes.ok) {
+            const e = (await ccyRes.json().catch(() => ({}))) as { error?: string; pair?: string };
+            if (e.error === "fx_rate_unavailable") setRateError(e.pair ?? `${storedCurrency}/${currency}`);
+            else await saveFailed({ status: ccyRes.status, json: async () => e });
+            return;
+          }
+        }
+        // A currency change with the converted amounts left as shown: the
+        // server's conversion is the limit (and keeps its exact source, 0105).
+        // Re-posting the preview would overwrite that source with a rounded copy.
+        // A past month too: the change converted exactly that month (261104).
+        const shown = prefillFromInitial(initial);
+        const previewOnly =
+          currencyChanged &&
+          AMOUNT_FIELDS.every((f) => values[f] === lastSet.current[f]) &&
+          values.cushionMode === shown.cushionMode &&
+          (values.noLimit === true) === shown.noLimit;
         // Edit flow: PATCH + POST limits (SCD-2)
         const [patchRes, limitsRes] = await Promise.all([
           clientApiWrite(
@@ -428,37 +578,48 @@ export function CategorySlider({
               }),
             },
           ),
-          clientApiWrite(
-            `/budgets/${budgetId}/categories/${initial!.categoryId}/limits`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                normalAmount,
-                cushionAmount,
-                ...(noLimit ? {} : { needsAmount, wantsAmount }),
-                noLimit,
-                effectiveFrom,
-                singleMonth,
-              }),
-            },
-          ),
+          previewOnly
+            ? Promise.resolve({ ok: true })
+            : clientApiWrite(
+                `/budgets/${budgetId}/categories/${initial!.categoryId}/limits`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    normalAmount,
+                    normalCurrency: currency,
+                    cushionAmount,
+                    cushionCurrency: currency,
+                    ...(noLimit ? {} : { needsAmount, wantsAmount }),
+                    noLimit,
+                    effectiveFrom,
+                    singleMonth,
+                  }),
+                },
+              ),
         ]);
 
         if (!patchRes.ok || !limitsRes.ok) {
-          toast.error(t("error.sliderSave"));
+          // The currency change above is already committed (review WR-02):
+          // refetch so the grid shows the category as it now stands.
+          // ponytail: two calls, not one transaction; a single PATCH carrying
+          // the limit too would make it atomic if partial saves start to bite.
+          if (currencyChanged) invalidateGrid(false);
+          await saveFailed(!limitsRes.ok ? (limitsRes as Response) : (patchRes as Response));
           return;
         }
       }
     } catch (err) {
+      // A 5xx after a committed currency change lands here too (review WR-02).
+      if (currencyChanged) invalidateGrid(false);
       // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
       // RHF resets isSubmitting when onSubmit settles, so no manual reset needed.
       if (isOfflineWriteError(err)) {
         offlineToast();
         return;
       }
-      // Non-offline throw → keep the existing generic save error.
-      toast.error(t("error.sliderSave"));
+      // Non-offline throw: no answer to read a reason from.
+      await saveFailed();
       return;
     }
 
@@ -488,7 +649,7 @@ export function CategorySlider({
         // Archive changes column + its txn/draft visibility in the grid.
         invalidateGrid(true);
       } else {
-        toast.error(t("error.sliderSave"));
+        await saveFailed(res);
       }
     } catch (err) {
       // Honest-offline: device offline / unreachable / hung / 5xx → shared toast.
@@ -497,7 +658,7 @@ export function CategorySlider({
         offlineToast();
         return;
       }
-      toast.error(t("error.sliderSave"));
+      await saveFailed();
     } finally {
       setIsDeleting(false);
     }
@@ -663,6 +824,29 @@ export function CategorySlider({
                 </FormItem>
               )}
 
+              {/* Phase 14 (UI-SPEC §1): the category's currency, right under
+                  the limit. Editing it converts the limit at today's rate. */}
+              <FormItem>
+                <FormLabel className="text-sm text-[var(--muted-foreground)]">
+                  {t("categoryCurrency.label")}
+                </FormLabel>
+                <div data-testid="category-currency-picker">
+                  <span className="editable-dots contents">
+                    <CurrencyPicker
+                      value={currency}
+                      aria-label={t("categoryCurrency.label")}
+                      onSelect={(v: string) => void changeCurrency(v)}
+                      variant="field"
+                    />
+                  </span>
+                </div>
+                {rateError && (
+                  <p data-testid="category-currency-error" className="text-sm text-destructive">
+                    {t("categoryCurrency.rateError", { pair: rateError })}
+                  </p>
+                )}
+              </FormItem>
+
               {/* Cushion — chosen by mode, with a prominent resulting amount. */}
               {cushionEnabled && (
                 <div className="flex flex-col gap-2">
@@ -785,7 +969,7 @@ export function CategorySlider({
 
                 <Button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || (currencyChanged && !!rateError)}
                   className="h-12 w-full sm:flex-1 bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-active)]"
                 >
                   {isSubmitting ? (

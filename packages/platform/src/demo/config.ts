@@ -14,7 +14,7 @@
  * to the single-locale ones, so a deployment configured before this existed
  * keeps working as the English demo.
  */
-import { isUsableScale } from "./rules";
+import { FLOW_RANGE, WEALTH_RANGE, inRange, stablePick } from "./rules";
 import {
   demoLocales,
   isDemoLocale,
@@ -31,19 +31,17 @@ export type DemoPair = {
   /** {} keeps every source currency; {PLN:"USD"} relabels. */
   currencyMap: Record<string, string>;
   budgetName: string;
+  /** The source budgets' own currency — what the relabel converts from. */
+  home: string;
   /**
-   * Target capitalization for this budget, in its OWN currency. The refresh
-   * solves the money factor that lands on it, so the demo's level is a number
-   * we chose rather than the owner's magnitude times something — and it stays
-   * put as the owner's real balances move.
+   * 261113 (user): "multiplier for investments and wallets should be x0.1-5,
+   * everything else x0.8-1.2". On top of the exchange rate: the factors hide
+   * the owner's magnitudes, the rate keeps every currency worth what it is.
+   * (A target-capitalization anchor used to solve ONE factor for everything,
+   * which inflated the family budget's spending ~9× to reach its target.)
    */
-  anchor?: number;
-  /**
-   * Fallback factor, used only when no anchor is configured. A plain
-   * multiplier keeps the demo proportional to the owner's real figures, which
-   * is why the anchor is preferred.
-   */
-  moneyScale: number;
+  flowScale: number;
+  wealthScale: number;
   /** The account that owns this budget — one per language. */
   demoUserId: string;
   secondMemberUserId?: string;
@@ -118,11 +116,10 @@ export function readDemoConfig(
     // keeps it a genuinely foreign currency next to each personal budget — so
     // the all-budgets total always demonstrates real FX conversion.
     const currencies = list(pick(env, "DEMO_CURRENCIES", locale));
-    // Per budget, because the budgets are in different currencies: one constant
-    // cannot make both a dollar budget and a hryvnia budget look plausible.
-    const scales = list(pick(env, "DEMO_MONEY_SCALES", locale)).map(Number);
-    // Target capitalization per budget, in that budget's own currency.
-    const anchors = list(pick(env, "DEMO_ANCHORS", locale)).map(Number);
+    // Per budget. Configured values outside their range are ignored rather
+    // than clamped: a typo should not quietly become the edge of the range.
+    const flows = list(pick(env, "DEMO_FLOW_SCALES", locale)).map(Number);
+    const wealths = list(pick(env, "DEMO_WEALTH_SCALES", locale)).map(Number);
     // Budget names come from the locale's own vocabulary, so the Polish demo
     // says "Osobisty" rather than "Personal".
     const budgetNames = poolValues(locale, "budget");
@@ -140,13 +137,16 @@ export function readDemoConfig(
         // renders. An identical mapping is an empty map — no relabel at all.
         currencyMap: currency === home ? {} : { [home]: currency },
         budgetName: budgetNames[i] ?? `Demo ${i + 1}`,
-        anchor:
-          Number.isFinite(anchors[i]) && (anchors[i] as number) > 0
-            ? (anchors[i] as number)
-            : undefined,
-        moneyScale: isUsableScale(scales[i] as number)
-          ? (scales[i] as number)
-          : 1,
+        home,
+        // Unset → a pick from the demo budget's own id: stable night to
+        // night, never 1 (the owner's real figures), never the same for two
+        // budgets.
+        flowScale: inRange(flows[i], FLOW_RANGE)
+          ? flows[i]!
+          : stablePick(dests[i]!, "flow", FLOW_RANGE),
+        wealthScale: inRange(wealths[i], WEALTH_RANGE)
+          ? wealths[i]!
+          : stablePick(dests[i]!, "wealth", WEALTH_RANGE),
         demoUserId: userId,
         secondMemberUserId: sharedLabels.has(label)
           ? secondUserId || undefined
@@ -180,15 +180,6 @@ export function readDemoConfig(
     userByLocale,
     accountCurrencyByLocale,
   };
-}
-
-/**
- * The FALLBACK factor, for budgets with no anchor configured. Anchored budgets
- * solve their factor at refresh time instead (see anchorScale) — that is what
- * keeps the demo's level steady while the owner's real balances move.
- */
-export function scaleForPair(pair: DemoPair): number {
-  return pair.moneyScale;
 }
 
 /** Is this user one of the demo accounts? */

@@ -29,6 +29,7 @@ import {
 } from "@dnd-kit/core";
 import { useState, useCallback, useRef } from "react";
 import { useAssetKeyboardNav } from "@/hooks/use-asset-keyboard-nav";
+import { useFitCurrencyColumn } from "@/hooks/use-fit-currency-column";
 import { setDndDragging } from "@/lib/dnd-dragging";
 import { navItems, highlightNavItem } from "@/lib/asset-nav-dom";
 import { nextHighlightIndex } from "@/lib/roving-index";
@@ -61,6 +62,8 @@ interface WalletsSectionedListProps {
 export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
   // Desktop keyboard nav over all sections (roving highlight + Enter/←→/Del).
   const rootRef = useRef<HTMLDivElement>(null);
+  // 261102 (user): every currency column as wide as the longest pick.
+  useFitCurrencyColumn(rootRef);
   useAssetKeyboardNav(rootRef);
 
   // rAF-poll for a freshly-persisted wallet row (it mounts a frame or two after
@@ -299,7 +302,6 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
     if (w.walletType === newType) return;
     // Capture wallet name before mutation for toast message
     const walletName = w.name;
-    const originalType = w.walletType;
 
     // D-PH5-W8: use mutateAsync + try/catch so the per-call error branch
     // runs in the same microtask as the drag handler (avoids per-call
@@ -315,19 +317,8 @@ export function WalletsSectionedList({ budgetId }: WalletsSectionedListProps) {
           { description: undefined },
         );
       })
-      .catch((err: Error & { code?: string | null }) => {
-        if (err?.code === "reserve_currency_mismatch") {
-          // D-PH5-W8: show translated toast with budget currency (not raw i18n key).
-          toast.error(
-            t("reserveCurrencyRejected", {
-              budgetCcy: budgetCurrency,
-              name: walletName,
-              originalSectionLabel: sectionLabelFor(originalType),
-            }),
-          );
-        }
-        // Non-mismatch errors: useUpdateWallet.onError already handled the toast.
-      });
+      // Errors: useUpdateWallet.onError already showed the toast.
+      .catch(() => {});
   }
 
   // UAT-PH5-T3-1x: render each section in sortOrder so intra-section reorder

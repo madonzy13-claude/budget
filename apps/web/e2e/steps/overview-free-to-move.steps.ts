@@ -43,6 +43,17 @@ async function withTenant<T>(
 
 /** Amount privacy keeps the real digits OUT of the DOM until a figure is tapped
  *  (SlotAmount). The scenario is about the number, not the reveal gesture. */
+Given("amounts are hidden for privacy", async ({ freshUser }) => {
+  await withTenant(freshUser.budgetId, freshUser.userId, async (q) => {
+    await q(
+      // Privacy is per member since 0082.
+      `UPDATE tenancy.budget_members SET amount_privacy_enabled = true
+        WHERE budget_id = $1::uuid AND user_id = $2::uuid`,
+      [freshUser.budgetId, freshUser.userId],
+    );
+  });
+});
+
 Given("amounts are shown in full", async ({ freshUser }) => {
   await withTenant(freshUser.budgetId, freshUser.userId, async (q) => {
     await q(

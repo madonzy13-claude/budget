@@ -22,6 +22,8 @@ export interface ReservesSummaryRow {
   name: string;
   /** 260613-v1p: per-category color key (null = no color → no row accent bar). */
   colorKey: string | null;
+  /** Phase 14 (D-10): the category's currency — this row's amounts are in it. */
+  currency?: string;
   /** R — available reserve for this category (serialized cents). */
   reserveCents: string;
   /** U — reserve consumed by overspend (cumulative / ALL TIME, serialized cents). */
@@ -47,6 +49,15 @@ export interface ReservesSummaryTotals {
   usedThisMonthCents: string;
   disabled: boolean;
   budgetCurrency: string;
+  /** Phase 14: per-currency need, wallets and settlement lines. */
+  needByCurrency?: Array<{ currency: string; cents: string }>;
+  walletsByCurrency?: Array<{ currency: string; cents: string }>;
+  lines?: Array<{
+    currency: string;
+    cents: string;
+    direction: "TOPUP" | "WITHDRAW";
+    equiv?: { currency: string; cents: string };
+  }>;
 }
 
 export interface ReservesSummaryDto {

@@ -23,6 +23,8 @@ function makeCategory(
     isArchived: () => archivedAt !== null,
     // Adapter attaches archivedFrom as plain property
     archivedFrom,
+    // Phase 14: a saved category always has one (NOT NULL).
+    currency: "EUR",
   };
 }
 
@@ -240,5 +242,38 @@ describe("unarchiveCategory", () => {
 
     // 2 strictly-between + 1 current = 3 calls total
     expect(limitRepo.setLimitCalls.length).toBe(3);
+  });
+
+  // Review WR-07: the zero and restored segments are in the CATEGORY's
+  // currency — not the budget's, and never a hardcoded "EUR". An archive-month
+  // limit in an old currency cannot be restored unconverted, so it restores 0.
+  it("writes the restored segments in the category's own currency", async () => {
+    const { unarchiveCategory } =
+      await import("../../src/application/unarchive-category");
+    const now = new Date();
+    const archiveMonth = (() => {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1));
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`;
+    })();
+    const cat = { ...makeCategory("cat-1", archiveMonth, null), currency: "PLN" };
+    const { repo, limitRepo } = makeRepos(cat, null);
+    await unarchiveCategory({ repo, limitRepo, budgetCurrencyOf: async () => "USD" })({
+      tenantId: "tenant-1",
+      categoryId: "cat-1",
+      actorUserId: "user-1",
+    });
+    expect(limitRepo.setLimitCalls.map((c) => [c.normalCurrency, c.cushionCurrency])).toEqual([
+      ["PLN", "PLN"],
+      ["PLN", "PLN"],
+    ]);
+
+    const old = makeRepos(cat, makeFakeLimitRow("50000", "EUR", "10000", "EUR"));
+    await unarchiveCategory({ repo: old.repo, limitRepo: old.limitRepo })({
+      tenantId: "tenant-1",
+      categoryId: "cat-1",
+      actorUserId: "user-1",
+    });
+    const current = old.limitRepo.setLimitCalls.at(-1);
+    expect([current.normalAmount, current.normalCurrency]).toEqual(["0", "PLN"]);
   });
 });

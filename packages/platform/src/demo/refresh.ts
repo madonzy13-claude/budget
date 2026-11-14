@@ -17,7 +17,7 @@ import type { Pool, PoolClient } from "pg";
 import { checkManifest } from "./preflight";
 import { demoManifest } from "./manifest";
 import { refreshPair, levelWealthHistory } from "./copy";
-import { readDemoConfig, scaleForPair, type DemoConfig } from "./config";
+import { readDemoConfig, type DemoConfig, type DemoPair } from "./config";
 
 /**
  * Each demo account's display currency follows its own PERSONAL budget, so a
@@ -45,6 +45,34 @@ async function setAccountCurrencies(
 }
 
 /**
+ * The rate each relabelled currency converts at (newest stored, inverted when
+ * only the reverse pair is stored). No rate → the whole refresh fails and
+ * yesterday's demo stays: a relabel without its rate is exactly what made the
+ * demo ~9× off (261113).
+ */
+async function fxMultipliers(
+  client: PoolClient,
+  pair: DemoPair,
+): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  for (const [from, to] of Object.entries(pair.currencyMap)) {
+    if (from === to) continue;
+    const { rows } = await client.query<{ rate: string }>(
+      `SELECT rate::text FROM (
+         SELECT rate, date FROM budgeting.fx_rates WHERE base = $1 AND quote = $2
+         UNION ALL
+         SELECT 1 / rate, date FROM budgeting.fx_rates WHERE base = $2 AND quote = $1
+       ) r ORDER BY date DESC LIMIT 1`,
+      [from, to],
+    );
+    const rate = Number(rows[0]?.rate);
+    if (!(rate > 0)) throw new Error(`demo refresh: no ${from}→${to} rate`);
+    out[from] = rate;
+  }
+  return out;
+}
+
+/**
  * The app's own valuation of a budget, injected by the caller.
  *
  * A PORT, not a query. Capitalization is domain logic — live price cache,
@@ -61,7 +89,7 @@ export type ComputeLiveWealth = (args: {
 export type RefreshResult = {
   ok: boolean;
   reason?: string;
-  scales: Record<string, number>;
+  scales: Record<string, { flow: number; wealth: number }>;
   counts: Record<string, Record<string, number>>;
 };
 
@@ -75,7 +103,7 @@ export async function runDemoRefresh(
   cfg: DemoConfig | null = readDemoConfig(),
   computeLiveWealth?: ComputeLiveWealth,
 ): Promise<RefreshResult> {
-  const scales: Record<string, number> = {};
+  const scales: RefreshResult["scales"] = {};
   const counts: Record<string, Record<string, number>> = {};
 
   if (!cfg) {
@@ -100,14 +128,11 @@ export async function runDemoRefresh(
   try {
     await client.query("BEGIN");
     for (const pair of cfg.pairs) {
-      // Resolved ONCE per budget and threaded through every table of it —
-      // resolving per table would break the uniformity the arithmetic needs.
-      // This is only the STARTING factor: an anchored budget is measured after
-      // the commit and re-copied once at the corrected factor, because the
-      // measurement needs the app's own valuation of committed rows.
-      const moneyScale = scaleForPair(pair);
-      scales[pair.label] = moneyScale;
-      counts[pair.label] = await refreshPair(client, { ...pair, moneyScale });
+      scales[pair.label] = { flow: pair.flowScale, wealth: pair.wealthScale };
+      counts[pair.label] = await refreshPair(client, {
+        ...pair,
+        fxMultipliers: await fxMultipliers(client, pair),
+      });
     }
     await setAccountCurrencies(client, cfg);
     await client.query("COMMIT");
@@ -123,51 +148,18 @@ export async function runDemoRefresh(
   // that reads through its own connection — it cannot see uncommitted rows.
   if (computeLiveWealth) {
     for (const pair of cfg.pairs) {
-      const measure = () =>
-        computeLiveWealth({
-          budgetId: pair.dest,
-          tenantId: pair.dest,
-          defaultCurrency: pair.currency,
-        });
-
-      let live = await measure();
-
-      // Anchoring: capitalization is LINEAR in the money factor, so one
-      // measurement gives the exact correction. Re-copying is the only way to
-      // apply it — every money column has to move — but it converges in a
-      // single step rather than drifting toward the target over nights.
-      if (pair.anchor) {
-        const capMajor = Number(live.capitalizationCents) / 100;
-        if (capMajor > 0) {
-          const corrected = scales[pair.label]! * (pair.anchor / capMajor);
-          const off = Math.abs(capMajor - pair.anchor) / pair.anchor;
-          if (off > 0.005 && Number.isFinite(corrected) && corrected > 0) {
-            const c2 = await pool.connect();
-            try {
-              await c2.query("BEGIN");
-              counts[pair.label] = await refreshPair(c2, {
-                ...pair,
-                moneyScale: corrected,
-              });
-              await c2.query("COMMIT");
-            } catch (e) {
-              await c2.query("ROLLBACK");
-              throw e;
-            } finally {
-              c2.release();
-            }
-            scales[pair.label] = corrected;
-            live = await measure();
-          }
-        }
-      }
+      const live = await computeLiveWealth({
+        budgetId: pair.dest,
+        tenantId: pair.dest,
+        defaultCurrency: pair.currency,
+      });
 
       // History levelled onto that same measurement, so the chart's newest
       // point and the capitalization card are the SAME number by construction.
       const c3 = await pool.connect();
       try {
         await c3.query("BEGIN");
-        await levelWealthHistory(c3, { ...pair, moneyScale: 1 }, live);
+        await levelWealthHistory(c3, pair, live);
         await c3.query("COMMIT");
       } catch (e) {
         await c3.query("ROLLBACK");

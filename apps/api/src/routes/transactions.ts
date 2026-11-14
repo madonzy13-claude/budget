@@ -15,7 +15,7 @@
  * Removed (TXN-08): /income, /transfer, /:id/history, /:id/correct
  *
  * T-02-01: currency_original validated as 3-char ISO.
- * T-02-02: amount_converted_cents NEVER read from client body — computed server-side.
+ * T-02-02: the converted amount is NEVER read from client body — computed server-side.
  * T-02-09: column-level GRANT enforced at DB layer; no trust boundary breach.
  */
 import { Hono } from "hono";
@@ -31,6 +31,7 @@ import {
 import { DrizzleExpenseLedgerDraftPortRepo } from "@budget/budgeting/src/adapters/persistence/expense-ledger-draft-port-repo";
 import { editTransaction } from "@budget/budgeting/src/application/edit-transaction";
 import type { BootedDeps } from "../boot";
+import { categoryMissing } from "../lib/own-category";
 
 // ──────────────────────────────────────────────────────────────────────
 // Deps interface — accepts BootedDeps for full module access.
@@ -52,7 +53,7 @@ export type TransactionRouteDeps =
 // silently stores a wrong converted value. This ceiling is far above any real
 // household amount yet safely under Number.MAX_SAFE_INTEGER (~9e15), bounding
 // both problems. Applies to the FX product too (principal capped → product stays sane).
-const MAX_TXN_CENTS = 10_000_000_000_000; // 1e13 cents
+export const MAX_TXN_CENTS = 10_000_000_000_000; // 1e13 cents
 const boundedCents = z.number().int().min(-MAX_TXN_CENTS).max(MAX_TXN_CENTS);
 
 const createSchema = z.object({
@@ -89,6 +90,35 @@ const listQuerySchema = z.object({
     }),
 });
 
+const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD");
+const searchQuerySchema = z.object({
+  from: ymd.optional(),
+  to: ymd.optional(),
+  category_id: z.string().uuid().optional(),
+  kind: z.enum(["SPENDING", "INCOME"]).optional(),
+  q: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(200),
+  cursor: z.string().optional(),
+});
+const searchCursorSchema = z.object({ date: ymd, id: z.string().uuid() });
+
+function encodeCursor(row: { date: string; id: string }): string {
+  return Buffer.from(JSON.stringify({ date: row.date, id: row.id })).toString(
+    "base64url",
+  );
+}
+
+function decodeCursor(raw: string): { date: string; id: string } | null {
+  try {
+    const parsed = searchCursorSchema.safeParse(
+      JSON.parse(Buffer.from(raw, "base64url").toString("utf8")),
+    );
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
 // ──────────────────────────────────────────────────────────────────────
 // Response serialiser: TransactionRow → snake_case JSON
 // ──────────────────────────────────────────────────────────────────────
@@ -102,6 +132,7 @@ function serializeRow(row: {
   amountOriginalCents: string;
   currencyOriginal: string;
   amountConvertedCents: string;
+  currencyConverted?: string;
   fxRate: string;
   fxAsOf: string;
   note: string | null;
@@ -121,6 +152,9 @@ function serializeRow(row: {
     amount_original_cents: row.amountOriginalCents,
     currency_original: row.currencyOriginal,
     amount_converted_cents: row.amountConvertedCents,
+    // Phase 14: the converted figure is re-expressed at read time; this names
+    // its currency (the budget's current one).
+    currency_converted: row.currencyConverted ?? null,
     fx_rate: row.fxRate,
     fx_as_of: row.fxAsOf,
     note: row.note ?? null,
@@ -228,6 +262,9 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
     // budgetId comes from the path param :budgetId on the parent router
     const budgetId = c.req.param("budgetId") ?? tenantId;
 
+    if (budgetingModule && (await categoryMissing(budgetingModule, tenantId, body.category_id)))
+      return c.json({ error: "category_not_found" }, 422);
+
     const r = await createTxService({
       date: body.date,
       categoryId: body.category_id,
@@ -248,7 +285,11 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
     }
 
     await syncReserveTopup(tenantId, budgetId, userId);
-    return c.json({ transaction: serializeRow(r.value.transaction) }, 201);
+    return c.json({ transaction: serializeRow({
+      ...r.value.transaction,
+      // Written in the budget's currency at write time (Phase 14).
+      currencyConverted: await getBudgetCurrency(r.value.transaction.budgetId),
+    }) }, 201);
   });
 
   // ── PATCH /:txId — edit transaction (FX re-compute on currency/date change) ──
@@ -257,6 +298,8 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
     const tenantId = pickTenant(c);
     const userId = pickUser(c);
     const body = c.req.valid("json");
+    if (budgetingModule && (await categoryMissing(budgetingModule, tenantId, body.category_id)))
+      return c.json({ error: "category_not_found" }, 422);
 
     const r = await editTxService({
       transactionId: txId,
@@ -285,7 +328,11 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
       c.req.param("budgetId") ?? tenantId,
       userId,
     );
-    return c.json({ transaction: serializeRow(r.value.transaction) }, 200);
+    return c.json({ transaction: serializeRow({
+      ...r.value.transaction,
+      // Written in the budget's currency at write time (Phase 14).
+      currencyConverted: await getBudgetCurrency(r.value.transaction.budgetId),
+    }) }, 200);
   });
 
   // ── POST /:txId/confirm — flip draft → confirmed ──────────────────────
@@ -331,6 +378,32 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
     return new Response(null, { status: 204 });
   });
 
+  // ── POST /:txId/restore — undo a soft-delete (15-15, MCP undo) ─────────
+  app.post("/:txId/restore", async (c) => {
+    const txId = c.req.param("txId");
+    const tenantId = pickTenant(c);
+    const userId = pickUser(c);
+
+    try {
+      await transactionRepo.restore(txId, userId, tenantId);
+    } catch (e) {
+      if ((e as { kind?: string }).kind === "TransactionNotFound")
+        return c.json({ error: "not_found" }, 404);
+      if ((e as Error).message === "not_deleted")
+        return c.json({ error: "not_deleted" }, 409);
+      return c.json({ error: (e as Error).message }, 422);
+    }
+
+    await syncReserveTopup(
+      tenantId,
+      c.req.param("budgetId") ?? tenantId,
+      userId,
+    );
+    const row = await transactionRepo.findById(tenantId, txId);
+    if (!row) return c.json({ error: "not_found" }, 404);
+    return c.json({ transaction: serializeRow(row) }, 200);
+  });
+
   // ── GET / — list for month ────────────────────────────────────────────
   app.get("/", async (c) => {
     const tenantId = pickTenant(c);
@@ -361,14 +434,37 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
       confirmed ?? "any",
     );
 
-    // R6 (user): the converted figure names its currency (the budget's).
-    const currencyConverted = await getBudgetCurrency(budgetId);
+    return c.json({ transactions: rows.map(serializeRow) }, 200);
+  });
+
+  // ── GET /search — full history, keyset-paged (15-03, MCP search_transactions)
+  // Registered BEFORE /:txId so "search" is not captured as a txId.
+  app.get("/search", async (c) => {
+    const tenantId = pickTenant(c);
+    const budgetId = c.req.param("budgetId") ?? tenantId;
+    const parsed = searchQuerySchema.safeParse(c.req.query());
+    if (!parsed.success) {
+      return c.json(
+        { error: "Validation error", issues: parsed.error.issues },
+        422,
+      );
+    }
+    const { cursor: rawCursor, limit, category_id, ...rest } = parsed.data;
+    const cursor = rawCursor ? decodeCursor(rawCursor) : null;
+    if (rawCursor && !cursor) return c.json({ error: "invalid_cursor" }, 422);
+
+    const rows = await transactionRepo.searchPage(
+      tenantId,
+      budgetId,
+      { ...rest, ...(category_id ? { categoryId: category_id } : {}) },
+      cursor,
+      limit,
+    );
+    const page = rows.slice(0, limit);
     return c.json(
       {
-        transactions: rows.map((r) => ({
-          ...serializeRow(r),
-          currency_converted: currencyConverted,
-        })),
+        transactions: page.map(serializeRow),
+        next_cursor: rows.length > limit ? encodeCursor(page.at(-1)!) : null,
       },
       200,
     );
@@ -409,6 +505,8 @@ export function createTransactionsRoute(deps: TransactionRouteDeps) {
         422,
       );
     }
+    if (budgetingModule && (await categoryMissing(budgetingModule, pickTenant(c), parsed.data.newCategoryId)))
+      return c.json({ error: "category_not_found" }, 422);
 
     const tenantId = pickTenant(c);
     const userId = pickUser(c);

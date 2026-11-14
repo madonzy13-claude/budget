@@ -10,13 +10,13 @@
  * Pitfall 7: date string converted via new Date(s + 'T00:00:00Z').
  */
 import type { ExpenseLedgerDraftPortRepo } from "../ports/expense-ledger-draft-port-repo";
-import { ok, err, type Result } from "@budget/shared-kernel";
+import { ok, err, FIAT_CURRENCIES, type Result } from "@budget/shared-kernel";
 import type {
   TransactionRepo,
   TransactionRow,
 } from "../ports/transaction-repo";
 import type { RecomputeReserveTopupTaskDeps } from "./recompute-reserve-topup-task";
-import { _maybeRecomputeReserveTopup } from "./create-transaction";
+import { _maybeRecomputeReserveTopup, CurrencyNotSupportedError } from "./create-transaction";
 
 export class TransactionNotFoundError extends Error {
   readonly kind = "TransactionNotFound" as const;
@@ -89,6 +89,13 @@ export function editTransaction(deps: EditTransactionDeps) {
 
     const newCurrency =
       input.fields.currencyOriginal ?? original.currencyOriginal;
+    // Review WR-03: the same supported set as create.
+    if (
+      input.fields.currencyOriginal !== undefined &&
+      !(FIAT_CURRENCIES as readonly string[]).includes(input.fields.currencyOriginal)
+    ) {
+      return err(new CurrencyNotSupportedError(input.fields.currencyOriginal));
+    }
     const newDate = input.fields.date ?? original.date;
     const newAmountCents =
       input.fields.amountOriginalCents !== undefined

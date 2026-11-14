@@ -62,4 +62,61 @@ export function registerOverviewWealthRoutes(r: Hono, deps: BootedDeps) {
       return serverError(c, "overview_wealth_failed", result.error);
     return c.json(result.value, 200);
   });
+
+  // 15-21: past wealth points from an imported balance history (decision b2).
+  const importSchema = z.object({
+    points: z
+      .array(
+        z.object({
+          date: z.string().regex(DATE_RE),
+          wallets: z
+            .array(
+              z.object({
+                amount_cents: z.string().regex(/^-?\d{1,15}$/),
+                currency: z.string().regex(/^[A-Z0-9]{3,5}$/),
+              }),
+            )
+            .min(1),
+        }),
+      )
+      .min(1)
+      .max(500),
+  });
+
+  r.post("/:id/overview/wealth-snapshots/import", async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+    const budgetId = c.req.param("id");
+    const tenantIds = c.get("tenantIds") as string[] | undefined;
+    if (!tenantIds || !tenantIds.includes(budgetId)) {
+      return c.json({ error: "not_found" }, 404);
+    }
+    const parsed = importSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json({ error: "Validation error", issues: parsed.error.issues }, 422);
+    }
+    const result = await deps.budgeting.importWealthSnapshots({
+      budgetId,
+      points: parsed.data.points.map((p) => ({
+        date: p.date,
+        wallets: p.wallets.map((w) => ({ amountCents: BigInt(w.amount_cents), currency: w.currency.toUpperCase() })),
+      })),
+    });
+    if (result.isErr())
+      return serverError(c, "wealth_snapshot_import_failed", result.error);
+    return c.json(result.value, 201);
+  });
+
+  r.delete("/:id/overview/wealth-snapshots/:snapshotId", async (c) => {
+    const session = c.get("session");
+    if (!session) return c.json({ error: "unauthorized" }, 401);
+    const budgetId = c.req.param("id");
+    const tenantIds = c.get("tenantIds") as string[] | undefined;
+    const id = c.req.param("snapshotId");
+    if (!tenantIds || !tenantIds.includes(budgetId) || !z.uuid().safeParse(id).success) {
+      return c.json({ error: "not_found" }, 404);
+    }
+    const deleted = await deps.budgeting.deleteImportedWealthSnapshot(budgetId, id);
+    return deleted ? c.body(null, 204) : c.json({ error: "not_found" }, 404);
+  });
 }

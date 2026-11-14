@@ -98,6 +98,38 @@ describe("ReservesTableRow", () => {
         `reserves-balance-${noUsedRow.categoryId}`,
       );
       expect(availableCell.textContent).toMatch(/300/);
+      // 261103 (user): dotted like the Assets amounts — it can be edited.
+      expect(availableCell.querySelector(".editable-dots")).not.toBeNull();
+    });
+
+    it("names the reserve's currency in a fixed-width column before the amount (user, 261103)", () => {
+      renderRow(noUsedRow);
+      const code = screen.getByTestId(`reserves-currency-${noUsedRow.categoryId}`);
+      expect(code.textContent).toMatch(/^EUR/);
+      expect(code.textContent).toContain("€");
+      // Fixed width so every row's amount ends on the same edge.
+      // The wallet row's code-cell widths.
+      expect(code.className).toContain("w-[44px]");
+      expect(code.className).toContain("md:w-[224px]");
+      // Left of the amount, as on wallet rows; not editable, so no dotted underline.
+      const amount = screen.getByTestId(`reserves-balance-${noUsedRow.categoryId}`);
+      expect(code.compareDocumentPosition(amount) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(code.className).not.toContain("editable-dots");
+      // Outside the editable cell, so the editor and its value stay a bare number.
+      expect(screen.getByTestId(`reserves-balance-${noUsedRow.categoryId}`).textContent).not.toContain("EUR");
+    });
+
+    it("sizes the amount column to the section's longest amount, as wallets do", () => {
+      render(
+        <ReservesTableRow row={noUsedRow} currency="EUR" isExcluded={false} onUpdate={vi.fn()} maxAmountChars={8} />,
+      );
+      const cell = screen.getByTestId(`reserves-balance-${noUsedRow.categoryId}`).closest("[data-amount-cell]") as HTMLElement;
+      expect(cell.style.getPropertyValue("--amt")).toBe("8ch");
+    });
+
+    it("an excluded row shows no currency", () => {
+      renderRow(excludedRow, true);
+      expect(screen.queryByTestId(`reserves-currency-${excludedRow.categoryId}`)).toBeNull();
     });
 
     it("renders NO per-row used cell (column removed in 05-19)", () => {

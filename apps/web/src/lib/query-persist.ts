@@ -82,7 +82,6 @@ function shouldPersist(queryKey: readonly unknown[]): boolean {
     k0 === "cushion-summary" ||
     k0 === "scheduled-payments" ||
     k0 === "incomes" ||
-    k0 === "investment-category" ||
     k0 === "categories-lite" ||
     // Notification settings — cache the master (per-budget subscription) + the
     // per-kind toggles so the Notifications section hydrates from cache like the

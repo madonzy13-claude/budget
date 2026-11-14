@@ -178,7 +178,8 @@ export const config = {
   // Match all pathnames except for:
   // - /api/* routes (handled by API server)
   // - /auth/* routes (proxied to Better Auth API server)
+  // - /mcp and /.well-known/* (MCP transport + OAuth discovery, proxied to the API)
   // - /_next/* (Next.js internals)
   // - /.*\.* (static files with extension, e.g. favicon.ico)
-  matcher: ["/((?!api|auth|_next|.*\\..*).*)"],
+  matcher: ["/((?!api|auth|mcp|\\.well-known|_next|.*\\..*).*)"],
 };

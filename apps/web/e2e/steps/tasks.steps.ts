@@ -1,4 +1,4 @@
-import { createBdd } from "playwright-bdd";
+import { createBdd, type DataTable } from "playwright-bdd";
 import { expect } from "@playwright/test";
 import { test } from "../fixtures/fresh-user-per-scenario";
 import { SettingsPo } from "../page-objects/SettingsPo";
@@ -18,6 +18,8 @@ const pillFromText = (s: string): Pill => s.toLowerCase() as Pill;
 
 interface SeedPayload {
   shortfallCents?: number;
+  /** Phase 14 (D-12): per-currency lines, as the server emits them. */
+  lines?: Array<Record<string, unknown>>;
   amountCents?: number;
   currency?: string;
   ruleName?: string;
@@ -65,6 +67,7 @@ async function seedTask(
     payloadJson.amount_cents = payload.amountCents;
   if (payload.currency !== undefined) payloadJson.currency = payload.currency;
   if (payload.ruleName !== undefined) payloadJson.rule_name = payload.ruleName;
+  if (payload.lines !== undefined) payloadJson.lines = payload.lines;
   return await withTenantClient(budgetId, async (client) => {
     // 260612-kxd T3: production CONFIRM_DRAFT tasks ALWAYS carry a
     // payload.draft_id pointing at a live unconfirmed expense_ledger row,
@@ -139,6 +142,32 @@ async function setCushionEnabled(
 // -----------------------------------------------------------------------
 // Given — task seeding with payload
 // -----------------------------------------------------------------------
+
+// Phase 14 (D-12): a RESERVE_TOPUP task stating several currencies.
+Given(
+  /^a "RESERVE_TOPUP" task is seeded for "(.+?)" with these lines:$/,
+  async ({ freshUser }, budgetName: string, table: DataTable) => {
+    if (freshUser.budgetName !== budgetName) throw new Error(`Unknown budget '${budgetName}'`);
+    const lines = table.hashes().map((r) => ({
+      currency: r.currency,
+      shortfall_cents: r.cents,
+      direction: r.direction,
+      ...(r.equiv_currency ? { equiv: { currency: r.equiv_currency, cents: r.equiv_cents } } : {}),
+    }));
+    const net = lines.reduce((s, l) => s + Number(l.equiv?.cents ?? l.shortfall_cents), 0);
+    (freshUser as unknown as { _lastTaskId?: string })._lastTaskId = await seedTask(freshUser.budgetId, "RESERVE_TOPUP", {
+      shortfallCents: net,
+      currency: lines[0]!.currency,
+      lines,
+    });
+  },
+);
+
+Then(/^the (\w+) pill slider row reads "(.+)"$/, async ({ page }, pill: string, text: string) => {
+  const slider = new PillTaskSliderPo(page, pill as "reserves");
+  await slider.expand();
+  await expect(slider.rowByTitle(text)).toHaveCount(1, { timeout: 10000 });
+});
 
 Given(
   /^a "(RESERVE_TOPUP|CUSHION_BELOW_TARGET)" task is seeded for "(.+?)" with shortfall (\d+) cents in "(.+?)"$/,

@@ -76,6 +76,8 @@ jobs:
         run: bun run grep:no-direct-tx
       - name: ban appPool().connect( outside tx.ts (PC-03)
         run: bun run grep:no-pool-connect
+      - name: ban next/font/google (build-time Google fetch flakes image builds)
+        run: bun run grep:no-google-fonts
       - name: i18n completeness (EN/PL/UK parity — I18N-01, D-17)
         run: bun run check:i18n
 

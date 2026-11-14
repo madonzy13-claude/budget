@@ -29,13 +29,15 @@ vi.mock("@/lib/query-persist", () => ({ persistNow: vi.fn() }));
 import { BudgetIdentitySection } from "@/components/settings/budget-identity-section";
 import { PrivacySection } from "@/components/settings/privacy-section";
 
-const renderIt = (hasTransactions = true) =>
+// Phase 14: the currency is read-only only for a member (not the owner).
+const renderIt = (readOnly = true) =>
   render(
     <BudgetIdentitySection
       budgetId="b1"
       name="Household"
       defaultCurrency="PLN"
-      hasTransactions={hasTransactions}
+      hasTransactions
+      isOwner={!readOnly}
     />,
   );
 
@@ -52,6 +54,27 @@ describe("General card rows", () => {
     const cell = screen.getByText("PLN");
     expect(cell.className).not.toMatch(/(^|\s)px-\d/);
     expect(cell.className).not.toMatch(/(^|\s)pr-\d/);
+  });
+});
+
+// 261103 (user): an editable value carries the same dotted line as the
+// amounts on the Assets tab.
+describe("General card editable values", () => {
+  it("dots the name", () => {
+    renderIt();
+    const cell = screen.getByTestId("budget-name-input");
+    expect(cell.querySelector(".editable-dots")).not.toBeNull();
+  });
+
+  it("dots the currency while it can still change", () => {
+    renderIt(false);
+    const picker = screen.getByLabelText("identity.currency_label");
+    expect(picker.closest(".editable-dots")).not.toBeNull();
+  });
+
+  it("does not dot a locked currency", () => {
+    renderIt(true);
+    expect(screen.getByText("PLN").closest(".editable-dots")).toBeNull();
   });
 });
 

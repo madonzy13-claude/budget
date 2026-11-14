@@ -15,7 +15,12 @@ export interface TransactionRow {
   date: string; // 'YYYY-MM-DD'
   amountOriginalCents: string; // bigint-as-string per CLAUDE.md "Money at adapter boundary"
   currencyOriginal: string; // CHAR(3) ISO
+  /** Phase 14 (D-02): re-expressed at read time in the budget's CURRENT currency at this row's date. */
   amountConvertedCents: string;
+  /** Currency of amountConvertedCents (the budget's current one; the original's when no FX pair exists). */
+  currencyConverted?: string;
+  /** No FX history for this row's pair — amountConvertedCents is the original amount. */
+  fxUnavailable?: boolean;
   fxRate: string; // decimal string
   fxAsOf: string; // 'YYYY-MM-DD'
   note: string | null;
@@ -31,6 +36,18 @@ export interface TransactionRepo {
   create(row: TransactionRow, userId: string, tenantId: string): Promise<void>;
 
   findById(tenantId: string, id: string): Promise<TransactionRow | null>;
+
+  /** Phase 14: confirmed spending per category in EACH CATEGORY's own currency,
+   *  every row at its own date — what a foreign category's column reads in. */
+  spendByCategoryForMonthInCategoryCurrency?(
+    tenantId: string,
+    budgetId: string,
+    monthStart: string,
+    monthEnd: string,
+  ): Promise<Map<string, bigint>>;
+
+  /** Phase 14 (D-05): a category's own currency (null when not in the tenant). */
+  categoryCurrency?(tenantId: string, categoryId: string, date?: string): Promise<string | null>;
 
   /**
    * In-place UPDATE of editable fields (PATCH /transactions/:id).
@@ -66,6 +83,12 @@ export interface TransactionRepo {
   softDelete(id: string, userId: string, tenantId: string): Promise<void>;
 
   /**
+   * Undo a soft-delete (15-15, MCP undo). Throws TransactionNotFoundError for
+   * an unknown id, Error("not_deleted") for a row that is not deleted.
+   */
+  restore(id: string, userId: string, tenantId: string): Promise<void>;
+
+  /**
    * List transactions for a given budget + calendar month.
    * @param confirmed 'any' = all, true = confirmed only, false = drafts only
    */
@@ -74,6 +97,25 @@ export interface TransactionRepo {
     budgetId: string,
     month: string, // 'YYYY-MM'
     confirmed: boolean | "any",
+  ): Promise<TransactionRow[]>;
+
+  /**
+   * 15-03: full-history search, newest first (transaction_date DESC, id DESC),
+   * keyset-paged on (date, id). Returns up to `limit` + 1 rows so the caller
+   * can tell whether another page exists.
+   */
+  searchPage(
+    tenantId: string,
+    budgetId: string,
+    f: {
+      from?: string;
+      to?: string;
+      categoryId?: string;
+      kind?: "SPENDING" | "INCOME";
+      q?: string;
+    },
+    cursor: { date: string; id: string } | null,
+    limit: number,
   ): Promise<TransactionRow[]>;
 
   /**
@@ -93,7 +135,7 @@ export interface TransactionRepo {
 
   /**
    * Returns confirmed SPENDING totals per category for a given month range.
-   * Keys: categoryId → bigint cents (amount_converted_cents sum).
+   * Keys: categoryId → bigint cents (sum in the budget's current currency, each row at its own date).
    * Categories with no spend are absent from the map (treat as 0n at call site).
    */
   /** R6 (user): confirmed spending per day (budget currency) in the range. */

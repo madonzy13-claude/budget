@@ -5,7 +5,7 @@ export interface BudgetDTO {
   slug: string; // nanoid(12)
   name: string;
   kind: BudgetKind;
-  default_currency: string; // ISO-4217 immutable post-create (D-04)
+  default_currency: string; // ISO-4217; changeable any time since Phase 14
   ownerUserId: string;
   memberCount: number;
   createdAt: Date;

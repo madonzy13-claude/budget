@@ -55,11 +55,50 @@ interface SlotRevealState {
 }
 const SlotRevealCtx = createContext<SlotRevealState | null>(null);
 
-/** Shared reveal state — every SlotAmount inside toggles together (r41b). */
-export function SlotRevealProvider({ children }: { children: ReactNode }) {
-  const [revealed, setRevealed] = useState(false);
-  const toggle = useCallback(() => setRevealed((r) => !r), []);
-  const value = useMemo(() => ({ revealed, toggle }), [revealed, toggle]);
+// 261112 (user): a reveal lasts until the user hides it or closes the app —
+// moving to another page keeps it. sessionStorage is that lifetime (it also
+// rides a reload); the module variable covers storage that throws.
+const REVEAL_KEY = "privacy-revealed";
+let sessionRevealed = false;
+const readRevealed = () => {
+  try {
+    return sessionStorage.getItem(REVEAL_KEY) === "1";
+  } catch {
+    return sessionRevealed;
+  }
+};
+const writeRevealed = (r: boolean) => {
+  sessionRevealed = r;
+  try {
+    if (r) sessionStorage.setItem(REVEAL_KEY, "1");
+    else sessionStorage.removeItem(REVEAL_KEY);
+  } catch {}
+};
+
+/** Shared reveal state — every SlotAmount inside toggles together (r41b).
+ *  `always`: privacy is off for this member, so amounts simply show and a tap
+ *  hides nothing (261113 — the all-budgets page masked regardless). */
+export function SlotRevealProvider({
+  children,
+  always = false,
+}: {
+  children: ReactNode;
+  always?: boolean;
+}) {
+  const [revealed, setRevealed] = useState(readRevealed);
+  const toggle = useCallback(
+    () =>
+      setRevealed((r) => {
+        writeRevealed(!r);
+        return !r;
+      }),
+    [],
+  );
+  const value = useMemo(
+    () =>
+      always ? { revealed: true, toggle: () => {} } : { revealed, toggle },
+    [always, revealed, toggle],
+  );
   return (
     <SlotRevealCtx.Provider value={value}>{children}</SlotRevealCtx.Provider>
   );

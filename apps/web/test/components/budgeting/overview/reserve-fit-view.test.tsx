@@ -274,6 +274,52 @@ describe("ReserveFitView", () => {
     expect(onRebalance).toHaveBeenCalledWith("car", 500000);
   });
 
+  it("rebalances a category in another currency in that currency (user, 261104)", async () => {
+    const user = userEvent.setup();
+    const onRebalance = vi.fn(async () => 116300);
+    const data = {
+      ...DTO,
+      rows: DTO.rows.map((r) =>
+        r.category_id === "car"
+          ? {
+              ...r,
+              currency: "EUR",
+              own: {
+                held_cents: "23300",
+                needed_cents: "116300",
+                gap_cents: "-93000",
+                worst_overage_cents: "116300",
+                projected_monthly_cents: "0",
+                suggested_limit_cents: null,
+                suggested_needed_cents: null,
+                suggested_delta_cents: null,
+              },
+            }
+          : r,
+      ),
+    };
+    render(
+      <ReserveFitView
+        data={data}
+        onSave={vi.fn()}
+        onRebalance={onRebalance}
+        format={(c: number) => `${c / 100} zl`}
+        formatExact={(c: number) => `${c / 100} zl`}
+        formatExactIn={(c: number, ccy: string) => `${c / 100} ${ccy}`}
+      />,
+    );
+    const rows = JSON.parse(screen.getByTestId("rebalance").getAttribute("data-rows")!);
+    expect(rows.find((r: { categoryId: string }) => r.categoryId === "car")).toEqual({
+      categoryId: "car",
+      name: "Car",
+      heldCents: 23300,
+      neededCents: 116300,
+      currency: "EUR",
+    });
+    await user.click(screen.getByTestId("rebalance-run"));
+    expect(onRebalance).toHaveBeenCalledWith("car", 500000, "EUR");
+  });
+
   it("passes a save straight through", async () => {
     const user = userEvent.setup();
     const onSave = view();

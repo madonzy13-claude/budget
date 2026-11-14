@@ -61,6 +61,7 @@ export function renameCategory(deps: RenameCategoryDeps) {
       createdAt: category.createdAt.toISOString(),
       colorKey: category.colorKey,
       cushionMode: category.cushionMode,
+      currency: category.currency!,
     });
   };
 }

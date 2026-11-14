@@ -11,6 +11,7 @@ import {
   H,
   btc,
   btcCold,
+  sol,
   broker,
   cash,
   routeFetch,
@@ -33,6 +34,7 @@ function mount(holding: HoldingDto) {
         budgetCurrency="PLN"
         holding={holding}
         holdings={[btc, btcCold, broker, cash]}
+        initialTab="buy"
       />
     </QueryClientProvider>,
   );
@@ -130,6 +132,81 @@ describe("Buy — where did the money come from?", () => {
     fireEvent.keyDown(screen.getByTestId("swap-buy-src"), { key: "Enter" });
     const row = await screen.findByTestId(`swap-buy-src-option-${cash.id}`);
     expect(row.className).not.toMatch(/min-h-11/);
+  });
+
+  // 261105 (user): quantity sold + quantity bought give the buy price.
+  it("from a counted asset: sold and bought quantities fill the buy price", async () => {
+    mount(sol);
+    fireEvent.click(screen.getByTestId("swap-buy-from-asset"));
+    await pick("swap-buy-src", `swap-buy-src-option-${btcCold.id}`);
+    type("swap-buy-qty", "3");
+    expect(screen.getByTestId("swap-buy-price")).toHaveValue("");
+    type("swap-buy-taken", "0.5"); // 30,000 PLN of BTC Cold
+    expect(screen.getByTestId("swap-buy-price")).toHaveValue("10000");
+    type("swap-buy-qty", "4");
+    expect(screen.getByTestId("swap-buy-price")).toHaveValue("7500");
+    type("swap-buy-price", "7000");
+    type("swap-buy-qty", "5");
+    expect(screen.getByTestId("swap-buy-price")).toHaveValue("7000");
+  });
+
+  // 261105b (user): either one follows the other until it is typed itself.
+  it("from a counted asset: a typed price fills the quantity bought", async () => {
+    mount(sol);
+    fireEvent.click(screen.getByTestId("swap-buy-from-asset"));
+    await pick("swap-buy-src", `swap-buy-src-option-${btcCold.id}`);
+    type("swap-buy-taken", "0.5"); // 30,000 PLN of BTC Cold
+    type("swap-buy-price", "10000");
+    expect(screen.getByTestId("swap-buy-qty")).toHaveValue("3");
+    type("swap-buy-price", "7500");
+    expect(screen.getByTestId("swap-buy-qty")).toHaveValue("4");
+    type("swap-buy-taken", "1");
+    expect(screen.getByTestId("swap-buy-qty")).toHaveValue("8");
+    type("swap-buy-qty", "5");
+    type("swap-buy-price", "6000");
+    expect(screen.getByTestId("swap-buy-qty")).toHaveValue("5");
+  });
+
+  // 261105c (user): a quantity carried over from Sell was not typed here.
+  it("a quantity carried from Sell still follows a typed price", async () => {
+    mount(sol);
+    fireEvent.click(screen.getByTestId("swap-tab-sell"));
+    type("swap-sell-sold", "3");
+    fireEvent.click(screen.getByTestId("swap-tab-buy"));
+    expect(screen.getByTestId("swap-buy-qty")).toHaveValue("3");
+    fireEvent.click(screen.getByTestId("swap-buy-from-asset"));
+    await pick("swap-buy-src", `swap-buy-src-option-${btcCold.id}`);
+    type("swap-buy-taken", "1"); // 60,000 PLN
+    type("swap-buy-price", "10000");
+    expect(screen.getByTestId("swap-buy-qty")).toHaveValue("6");
+  });
+
+  // 261105b (user): helpers sit right under their field.
+  it("You hold and Total sit with their field", async () => {
+    mount(sol);
+    fireEvent.click(screen.getByTestId("swap-buy-from-asset"));
+    await pick("swap-buy-src", `swap-buy-src-option-${btcCold.id}`);
+    const held = screen.getByTestId("swap-buy-src-held").parentElement!;
+    expect(held).toContainElement(screen.getByTestId("swap-buy-taken"));
+    expect(held).not.toContainElement(screen.getByTestId("swap-buy-qty"));
+    const total = screen.getByTestId("swap-buy-total").parentElement!;
+    expect(total).toContainElement(screen.getByTestId("swap-buy-price"));
+    expect(total).not.toContainElement(screen.getByTestId("swap-buy-qty"));
+  });
+
+  it("the filled buy price follows the buy currency at the day's rate", async () => {
+    routeFetch({ rate: "4" }); // 1 EUR = 4 PLN
+    mount(sol);
+    fireEvent.click(screen.getByTestId("swap-buy-from-asset"));
+    await pick("swap-buy-src", `swap-buy-src-option-${btcCold.id}`);
+    fireEvent.change(screen.getByTestId("currency-picker"), {
+      target: { value: "EUR" },
+    });
+    type("swap-buy-taken", "0.5");
+    type("swap-buy-qty", "3");
+    await waitFor(() =>
+      expect(screen.getByTestId("swap-buy-price")).toHaveValue("2500"),
+    );
   });
 
   it("from an amount asset into a quantity asset: sells the source into this one", async () => {
@@ -253,6 +330,7 @@ describe("Buy — where did the money come from?", () => {
           budgetCurrency="PLN"
           holding={btc}
           holdings={[btc, eurPot]}
+          initialTab="buy"
         />
       </QueryClientProvider>,
     );
@@ -269,5 +347,17 @@ describe("Buy — where did the money come from?", () => {
     fireEvent.click(screen.getByTestId("swap-submit"));
     await waitFor(() => expect(writeMock).toHaveBeenCalled());
     expect(lastBody().left).toEqual({ valueCents: "87500" });
+  });
+});
+
+// 261105 (user): on Buy the quantity is what was bought.
+describe("Buy — quantity label", () => {
+  it("reads Quantity bought in every locale", async () => {
+    const want = { en: "Quantity bought", pl: "Kupiona ilość", uk: "Куплена кількість" };
+    for (const [loc, label] of Object.entries(want)) {
+      const m = (await import(`../../messages/${loc}.json`)).default;
+      expect(m.budget.investments.swap.buy.quantity).toBe(label);
+      expect(m.budget.investments.field.quantity).toBe(label);
+    }
   });
 });

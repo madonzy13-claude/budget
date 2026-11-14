@@ -32,7 +32,11 @@ import { FinnhubPriceProvider } from "@budget/investments/src/adapters/price/fin
 import { MetalsDevPriceProvider } from "@budget/investments/src/adapters/price/metals-dev";
 import { GoldApiPriceProvider } from "@budget/investments/src/adapters/price/gold-api";
 import { resolveApiKey } from "@budget/investments/src/ports/price-provider";
-import { createIdentityModule } from "@budget/identity"; // PC-02, PC-15
+import {
+  createIdentityModule,
+  mcpOAuthPlugins,
+  oauthBetterAuthSchema,
+} from "@budget/identity"; // PC-02, PC-15
 import { createTenancyModule } from "@budget/tenancy"; // PC-02, PC-15
 import { createBudgetingModule } from "@budget/budgeting/src/contracts/factory";
 import { DrizzleFxRateCacheRepo } from "@budget/budgeting/src/adapters/persistence/fx-rate-cache-repo";
@@ -51,7 +55,6 @@ import { recomputeCushionTask } from "@budget/budgeting/src/application/recomput
 import { makeRecomputeIncomeUnderPlannedTask } from "@budget/budgeting/src/application/recompute-income-under-planned-task";
 import { withTenantTx } from "@budget/platform";
 import { DrizzleCategoryRepo } from "@budget/budgeting/src/adapters/persistence/category-repo";
-import { DrizzleIncomeRepo } from "@budget/budgeting/src/adapters/persistence/income-repo";
 import { DrizzleCategoryLimitRepo } from "@budget/budgeting/src/adapters/persistence/category-limit-repo";
 import { DrizzleTransactionRepo } from "@budget/budgeting/src/adapters/persistence/transaction-repo";
 import { createSpendingsSummaryRepo } from "@budget/budgeting/src/adapters/persistence/spendings-summary-repo";
@@ -71,6 +74,7 @@ import { listOneOffCandidates } from "@budget/budgeting/src/application/list-one
 import { createReserveFitRepo } from "@budget/budgeting/src/adapters/persistence/reserve-fit-repo";
 import { getOverviewOverspent } from "@budget/budgeting/src/application/get-overview-overspent";
 import { getOverviewWealth } from "@budget/budgeting/src/application/get-overview-wealth";
+import { importWealthSnapshots } from "@budget/budgeting/src/application/import-wealth-snapshots";
 import { computeBudgetWealthNow } from "@budget/budgeting/src/application/compute-budget-wealth-now";
 import { createWealthSnapshotRepo } from "@budget/budgeting/src/adapters/persistence/wealth-snapshot-repo";
 import { createOverviewRepo } from "@budget/budgeting/src/adapters/persistence/overview-repo";
@@ -138,6 +142,10 @@ export interface BootedDeps {
     >["setExclusions"];
     /** Phase 11 (11-06): Financial-Wealth section (snapshot series + live point + pie). */
     getOverviewWealth: ReturnType<typeof getOverviewWealth>;
+    /** 15-21: an imported balance history as dated wealth snapshots. */
+    importWealthSnapshots: ReturnType<typeof importWealthSnapshots>;
+    /** 15-21: deletes an imported snapshot only (rollback / undo). */
+    deleteImportedWealthSnapshot: (budgetId: string, id: string) => Promise<boolean>;
     /** Overview projection timeline (today → the caller's window, default 100 days). */
     getCashflowProjection: ReturnType<typeof computeCashflowProjection>;
     /** Task 7: GET /budgets/aggregate — cross-budget "all budgets" rollup. */
@@ -260,8 +268,12 @@ export async function boot(): Promise<BootedDeps> {
   const identity = createIdentityModule({
     emailSender,
     keyStore,
-    additionalPlugins: [tenancy.organizationPlugin],
-    additionalSchema: tenancy.betterAuthSchema,
+    additionalPlugins: [
+      tenancy.organizationPlugin,
+      // Phase 15: OAuth 2.1 authorization server for MCP clients.
+      ...mcpOAuthPlugins({ baseUrl: env.BETTER_AUTH_URL }),
+    ],
+    additionalSchema: { ...tenancy.betterAuthSchema, ...oauthBetterAuthSchema },
   });
 
   // Budgeting module: FX adapter wired to real cache repo (worker_role pool)
@@ -377,8 +389,6 @@ export async function boot(): Promise<BootedDeps> {
     // engine cells via the replay orchestrator — the SAME engine-derived reserve
     // per category the reserves tab reads. No reserve_actual fallback.
     reservePositions: baseBudgeting.reservePositions,
-    // r33: income + FX drive the smart Investments limit (income − Σ other planned).
-    incomeRepo: new DrizzleIncomeRepo(),
     fxProvider: baseBudgeting.fxProvider,
   });
 
@@ -478,6 +488,7 @@ export async function boot(): Promise<BootedDeps> {
         .reduce((sum, h) => sum + BigInt(h.costInBudgetCents), 0n);
     },
   };
+  const wealthSnapshotRepo = createWealthSnapshotRepo();
   const budgetingFinal = Object.assign(budgeting, {
     getOverviewCards: getOverviewCards({
       metaReader: summaryRepo,
@@ -503,10 +514,13 @@ export async function boot(): Promise<BootedDeps> {
       // AVERAGES here, exactly as it comes off the reserve walk.
       excludedSpend: reserveFitRepo.excludedSpendByCategory,
       repo: createOverviewRepo(),
+      // 14-23: a category in another currency labels its rows in it.
+      inCategoryCurrency: {
+        repo: createOverviewRepo({ inCategoryCurrency: true }),
+        excludedSpend: createReserveFitRepo({ inCategoryCurrency: true }).excludedSpendByCategory,
+      },
       metaReader: summaryRepo,
       fxProvider: baseBudgeting.fxProvider,
-      // r33: smart Investments limit (income − Σ other planned) as its planned.
-      incomeRepo: new DrizzleIncomeRepo(),
       // 260801: the timeline colours by reserve (inside plan / covered by
       // reserve / past both), so it needs the same engine seam Overspent uses.
       reservePositions: baseBudgeting.reservePositions,
@@ -527,6 +541,11 @@ export async function boot(): Promise<BootedDeps> {
     getReserveFit: getReserveFit({
       overviewRepo: createOverviewRepo(),
       exclusionsRepo: reserveFitRepo,
+      // 14-23: a category in another currency reads its sizing in it.
+      inCategoryCurrency: {
+        overviewRepo: createOverviewRepo({ inCategoryCurrency: true }),
+        exclusionsRepo: createReserveFitRepo({ inCategoryCurrency: true }),
+      },
       // Known commitments carry the walk forward: an annual renewal has to be
       // reserved for before it lands, not after (260804).
       activeScheduledPayments: (budgetId) =>
@@ -544,8 +563,18 @@ export async function boot(): Promise<BootedDeps> {
     // Phase 11 (11-06): Financial-Wealth section. 3h snapshot series + a live
     // current point from computeBudgetWealthNow (same numbers as the cards/cron);
     // investments-view pie groups investments.listHoldings by holding_type.
+    importWealthSnapshots: importWealthSnapshots({
+      repo: wealthSnapshotRepo,
+      fx: baseBudgeting.fxProvider,
+      currencyOf: async (budgetId) => {
+        const meta = await summaryRepo.getBudgetMeta(budgetId);
+        if (!meta) throw new Error("budget_not_found");
+        return meta.default_currency;
+      },
+    }),
+    deleteImportedWealthSnapshot: wealthSnapshotRepo.deleteImported,
     getOverviewWealth: getOverviewWealth({
-      snapshotRepo: createWealthSnapshotRepo(),
+      snapshotRepo: wealthSnapshotRepo,
       computeWealthNow: computeBudgetWealthNow({
         walletRepo: overviewCardsRepo,
         holdingsValuation,
@@ -603,29 +632,6 @@ export async function boot(): Promise<BootedDeps> {
               )
             ).rate,
         ),
-      // "Invested" metric = the smart Investments category's spend over [from,to],
-      // keyed YYYY-MM. null when the budget has no Investments category. The Excl.
-      // net adjustment uses each snapshot's stored cost basis, not this.
-      investedByMonth: async (input: {
-        tenantId: string;
-        budgetId: string;
-        from: string;
-        to: string;
-      }) => {
-        const cat = await categoryRepo.findInvestmentCategory(input.tenantId);
-        if (!cat) return null;
-        const rows = await createOverviewRepo().monthlySpendByCategory(
-          input.budgetId,
-          input.from,
-          input.to,
-        );
-        const byMonth = new Map<string, bigint>();
-        for (const r of rows) {
-          if (r.category_id !== cat.id) continue;
-          byMonth.set(r.month, (byMonth.get(r.month) ?? 0n) + r.spent_cents);
-        }
-        return byMonth;
-      },
     }),
     // Overview cash-flow projection timeline (today → the caller's window, 100 by default).
     getCashflowProjection: computeCashflowProjection({

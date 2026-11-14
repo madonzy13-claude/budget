@@ -92,8 +92,13 @@ export interface ReserveEngineResult {
   states: Map<string, CategoryReserveState>;
   /** Per-(category, month) cells for display. */
   cells: CategoryMonthCell[];
-  /** Σ R over active (non-excluded, non-archived) categories. 0 when disabled. */
+  /** Σ R over active (non-excluded, non-archived) categories. 0 when disabled.
+   *  Phase 14: a plain sum only while every category shares one currency — use
+   *  internalByCurrency when they do not. */
   internalCents: bigint;
+  /** D-10: Σ R of active categories per category currency (categoryCurrency
+   *  input, else defaultCurrency, else ""). Empty when disabled. */
+  internalByCurrency: Map<string, bigint>;
   /** Last setUserDefined value (default 0n). */
   userDefinedCents: bigint;
   /** userDefined − internal. */
@@ -113,10 +118,20 @@ export interface ReserveEngineInput {
   openMonth: string;
   /** Default true. false → decision-K transform (used→overspent, internal hidden). */
   reservesEnabled?: boolean;
+  /** Phase 14 (D-10): each category's currency — its events are already in it. */
+  categoryCurrency?: Map<string, string>;
+  /** Bucket for a category absent from categoryCurrency. */
+  defaultCurrency?: string;
 }
 
 const max0 = (v: bigint): bigint => (v > 0n ? v : 0n);
 const min = (a: bigint, b: bigint): bigint => (a < b ? a : b);
+/** 'YYYY-MM' → the month after it. */
+const nextMonthKey = (m: string): string => {
+  const y = Number(m.slice(0, 4));
+  const mo = Number(m.slice(5, 7));
+  return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, "0")}`;
+};
 
 /** Mutable per-category accumulator used during the fold. */
 interface Cat {
@@ -356,6 +371,7 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
   const states = new Map<string, CategoryReserveState>();
   const cells: CategoryMonthCell[] = [];
   let internal = 0n;
+  const internalByCurrency = new Map<string, bigint>();
 
   for (const [id, c] of cats) {
     const active = !c.excluded && c.archived === null;
@@ -375,6 +391,25 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
       ...c.normal.keys(),
       ...c.cushion.keys(),
     ]);
+    // A month with no limit and no spending still holds the reserve carried
+    // into it (UAT 14, owner 261105: "June doesn't show reserve while there's
+    // leftover in May") — fill every month from the first up to the last one
+    // folded or the open month, so each has a cell.
+    const lastMonth =
+      foldMonth !== null && foldMonth > input.openMonth ? foldMonth : input.openMonth;
+    if (months.size > 0) {
+      for (let m = [...months].sort()[0]!; m <= lastMonth; m = nextMonthKey(m)) {
+        months.add(m);
+      }
+    }
+    // No event touched R in a month with no snapshot: it still holds the last one.
+    const snapMonths = [...c.endR.keys()].sort();
+    const endRAt = (month: string): bigint => {
+      const hit = c.endR.get(month);
+      if (hit !== undefined) return hit;
+      const prior = snapMonths.filter((s) => s < month).pop();
+      return prior === undefined ? c.R : c.endR.get(prior)!;
+    };
 
     // Per-month derived values (forward).
     const derived = [...months].sort().map((month) => {
@@ -384,7 +419,7 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
       const accruedHere = c.accrued.get(month) ?? 0n;
       // Forward free reserve at this month's close, excluding its own accrual
       // (that leftover belongs to the NEXT month).
-      const forwardExcl = (c.endR.get(month) ?? c.R) - accruedHere;
+      const forwardExcl = endRAt(month) - accruedHere;
       return { month, overage, left, realUsed, accruedHere, forwardExcl };
     });
 
@@ -439,7 +474,11 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
     }
 
     states.set(id, { reserveCents: finalR, usedCents: totalUsed });
-    if (reservesEnabled && active) internal += finalR;
+    if (reservesEnabled && active) {
+      internal += finalR;
+      const ccy = input.categoryCurrency?.get(id) ?? input.defaultCurrency ?? "";
+      internalByCurrency.set(ccy, (internalByCurrency.get(ccy) ?? 0n) + finalR);
+    }
   }
 
   const internalOut = reservesEnabled ? internal : 0n;
@@ -447,6 +486,7 @@ export function reserveEngine(input: ReserveEngineInput): ReserveEngineResult {
     states,
     cells,
     internalCents: internalOut,
+    internalByCurrency,
     userDefinedCents: userDefined,
     surplusCents: userDefined - internalOut,
     cushionByMonth: cushionOn,

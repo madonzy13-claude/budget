@@ -23,6 +23,7 @@ import { authRoutes } from "./routes/auth";
 import { budgetsRoutesFactory } from "./routes/budgets";
 import { budgetsAggregateRoutesFactory } from "./routes/budgets-aggregate";
 import { settingsRoutesFactory } from "./routes/settings";
+import { connectedAppsRoutes } from "./routes/connected-apps";
 import { createFxRoute } from "./routes/fx";
 import { createWalletsRoute } from "./routes/wallets";
 import { createCategoriesRoute } from "./routes/categories";
@@ -34,7 +35,6 @@ import { createTransactionsRoute } from "./routes/transactions";
 import { createCurrenciesRoute } from "./routes/currencies";
 import { createScheduledPaymentsRoute } from "./routes/scheduled-payments";
 import { createIncomesRoute } from "./routes/incomes";
-import { createInvestmentCategoryRoute } from "./routes/investment-category";
 import { createTasksRoute } from "./routes/tasks";
 import { createInvestmentsRoute } from "./routes/investments";
 import { createPushRoute } from "./routes/push";
@@ -47,6 +47,9 @@ import { onboardingRoutesFactory } from "./routes/onboarding";
 import { createTestClockRoute } from "./routes/test-clock";
 import { testClockEnabled } from "@budget/shared-kernel";
 import { tracingMiddleware } from "./middleware/tracing";
+import { reserveReadCacheMiddleware } from "./middleware/reserve-read-cache";
+import { wellKnownRoutes } from "./mcp/well-known";
+import { mcpRoute } from "./mcp/handler";
 import type { BootedDeps } from "./boot";
 
 export function createApp(deps: BootedDeps) {
@@ -60,6 +63,9 @@ export function createApp(deps: BootedDeps) {
 
   // 1. Error handler — wraps everything
   app.use(errorMiddleware);
+
+  // 1b. GETs share reserve replays; writes invalidate them (261102).
+  app.use(reserveReadCacheMiddleware(deps.budgeting.reserveReadCache));
 
   // 2. Health probe — public, no session resolution needed
   app.get("/health", (c) => c.json({ ok: true, region: deps.env.REGION }));
@@ -81,6 +87,12 @@ export function createApp(deps: BootedDeps) {
 
   // 3. Better Auth handler — public
   app.route("/auth", authRoutes(deps));
+
+  // 3b. MCP discovery — public, before session resolution (Phase 15).
+  app.route("/.well-known", wellKnownRoutes(deps));
+  // 3c. MCP endpoint — bearer-authenticated, so it sits before the cookie
+  //     session middleware; its tools re-enter the app through dispatch().
+  app.all("/mcp", mcpRoute(deps, app));
 
   // 4-5. Session resolution + tenant resolution for everything below
   app.use(authMiddleware(deps));
@@ -138,8 +150,6 @@ export function createApp(deps: BootedDeps) {
   app.use("/budgets/:budgetId/categories/*", requireWorkspace);
   app.use("/budgets/:budgetId/scheduled-payments/*", requireWorkspace);
   app.use("/budgets/:budgetId/incomes/*", requireWorkspace);
-  app.use("/budgets/:budgetId/investment-category", requireWorkspace);
-  app.use("/budgets/:budgetId/investment-category/*", requireWorkspace);
   app.use("/budgets/:budgetId/transactions/*", requireWorkspace);
 
   app.route(
@@ -160,19 +170,15 @@ export function createApp(deps: BootedDeps) {
     createIncomesRoute({
       recomputeIncomeUnderPlanned:
         deps.budgeting.recomputeIncomeUnderPlannedRunner,
-    }),
-  );
-  app.route(
-    "/budgets/:budgetId/investment-category",
-    createInvestmentCategoryRoute({
-      recomputeIncomeUnderPlanned:
-        deps.budgeting.recomputeIncomeUnderPlannedRunner,
+      listMembers: (t) => deps.tenancy.workspaceRepo.listMembers(t),
     }),
   );
   // UAT Defect 1: transactions were only mounted at /transactions (cross-budget root),
   // not under /budgets/:budgetId/transactions. Phase 4 hooks call the nested path.
   app.route("/budgets/:budgetId/transactions", createTransactionsRoute(deps));
 
+  // Phase 15 (D-21): mounted before the generic /settings router.
+  app.route("/settings/connected-apps", connectedAppsRoutes(deps));
   app.route("/settings", settingsRoutesFactory(deps));
   app.route("/push", createPushRoute(deps));
   app.route("/currencies", createCurrenciesRoute(deps));
@@ -206,6 +212,7 @@ export function createApp(deps: BootedDeps) {
     createIncomesRoute({
       recomputeIncomeUnderPlanned:
         deps.budgeting.recomputeIncomeUnderPlannedRunner,
+      listMembers: (t) => deps.tenancy.workspaceRepo.listMembers(t),
     }),
   );
 

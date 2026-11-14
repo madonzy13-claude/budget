@@ -25,24 +25,15 @@ import { isCashLike } from "@/lib/cash-like";
 import { typeGroupPL } from "@/lib/investment-type-groups";
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import {
-  Eye,
-  EyeOff,
-  Pencil,
-  ArrowUpDown,
-  Trash2,
-  TrendingUp,
-  TrendingDown,
-} from "lucide-react";
-import { InlineEditCell } from "@/components/common/inline-edit-cell";
-import { Input } from "@/components/ui/input";
-import { centsToBare, centsToShort } from "@/lib/cents-format";
+import { Eye, EyeOff, Trash2, TrendingUp, TrendingDown } from "lucide-react";
+import { centsToShort } from "@/lib/cents-format";
 import { PlCaption } from "./investment-type-header";
 import { desktopLabel, mobileLabel } from "@/lib/instrument-label";
 import { useBdpUiStore } from "@/components/budgeting/bdp-ui-state";
 import type { HoldingDto } from "@/hooks/use-investments";
-import { isAutoPriced, pricesItself } from "@/lib/investment-types";
+import { pricesItself } from "@/lib/investment-types";
 import { AssetClassChip } from "./asset-class-chip";
+import { REVEAL_ON_ROW, SHOW_ON_ROW } from "./row-actions";
 
 /** User (round 6): secondary lines a bit lighter so the row reads cleaner. */
 const DIM = 0.7;
@@ -57,9 +48,8 @@ interface InvestmentRowProps {
   /** Longest formatted amount in the section → dynamic amount-column width so
    *  the currency codes line up in a column (mirrors wallet-row). */
   maxAmountChars?: number;
-  onEdit?: () => void;
-  /** 13.1 D-05: open the transaction sheet (Buy / Sell / Transfer) — the
-   *  "+" action, second after Edit (R6-4). */
+  /** 261106 (user): open the asset's sheet (Details · Buy · Sell · Transfer)
+   *  — a tap on the amount, open row or closed. */
   onSwap?: () => void;
   /** R6-6: this asset's realized (type-summary `holdings`); the row shows
    *  the asset-currency figure. */
@@ -83,13 +73,6 @@ interface InvestmentRowProps {
   onToggle?: (id: string, open: boolean) => void;
   /** Open state owned by the section (persisted per device); seeds local state. */
   open?: boolean;
-  /**
-   * 260731: save an inline-edited VALUE (decimal string, row currency) for
-   * manual-value holdings — cash / broker / savings, where quantity is 1 so the
-   * typed number IS the stored value. Omitted (or absent for a tracked / deposit
-   * holding) → the amount stays read-only and the row opens the sheet as before.
-   */
-  onValueChange?: (amount: string) => Promise<void> | void;
 }
 
 /** Signed %, 1 decimal, with a real minus sign (U+2212); zero reads "+0.0%"
@@ -112,7 +95,6 @@ export function InvestmentRow({
   dragHandle,
   nested,
   maxAmountChars,
-  onEdit,
   onSwap,
   onArchive,
   onUnhide,
@@ -122,7 +104,6 @@ export function InvestmentRow({
   onToggle,
   open,
   realized,
-  onValueChange,
 }: InvestmentRowProps) {
   const locale = useLocale();
   const t = useTranslations("budget.investments");
@@ -189,24 +170,27 @@ export function InvestmentRow({
     : holding.quantity;
   // Savings: show the starting amount ("Started: $X") in the expanded caption
   // where qty would go — the %change already shows current-vs-starting.
-  // 260731: a value the household keeps BY HAND can be typed straight into the
-  // row. 261023: that includes a hand-priced instrument of any quantity — the
-  // typed figure is the TOTAL and the section stores total ÷ quantity as the
-  // price. What stays read-only is what something else prices: a feed
-  // (auto-priced instrument), the spot price (metals) or the rate (deposits).
-  const valueIsManual =
-    !!onValueChange &&
-    !converted &&
-    holding.holdingType !== "deposit" &&
-    holding.uiType !== "deposit" &&
-    holding.metal == null &&
-    holding.uiType !== "precious_metals" &&
-    (isCash ||
-      holding.uiType === "broker" ||
-      holding.uiType === "savings" ||
-      holding.instrumentId == null ||
-      (holding.instrumentProvider != null &&
-        !isAutoPriced(holding.instrumentProvider)));
+  // 261106 (user): the amount is the asset's door — dotted like every other
+  // editable amount, a tap opens its sheet instead of toggling the row.
+  const amountDoor = onSwap
+    ? {
+        role: "button" as const,
+        tabIndex: 0,
+        onClick: (e: React.MouseEvent) => {
+          e.stopPropagation();
+          onSwap();
+        },
+        onKeyDown: (e: React.KeyboardEvent) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault();
+          e.stopPropagation();
+          onSwap();
+        },
+      }
+    : {};
+  const dots = onSwap ? "editable-dots" : "";
+  // 261109 (user): opened, the dotted line sits closer under the amount.
+  const closeDots = expanded && onSwap ? { textUnderlineOffset: "3px" } : undefined;
   // R6 (user): an amount that prices itself (a feed, the spot price, the
   // deposit's rate) carries a lock, and its line says when the PRICE refreshed.
   const autoPriced = pricesItself(holding);
@@ -233,11 +217,13 @@ export function InvestmentRow({
       : null;
   // A tracked (auto-fetch) holding whose `name` the user overrode — it differs
   // from the instrument's own display name. Show that custom name verbatim
-  // instead of the auto "TICKER (name)" label.
+  // instead of the auto "TICKER (name)" label. 261112 (user): a custom asset
+  // (no instrument) shows its own name too, even with a typed ticker.
   const customName =
-    holding.instrumentName &&
     holding.name.trim() &&
-    holding.name.trim() !== holding.instrumentName.trim()
+    (holding.instrumentId == null ||
+      (holding.instrumentName &&
+        holding.name.trim() !== holding.instrumentName.trim()))
       ? holding.name.trim()
       : null;
   const desktopName = isCash
@@ -336,13 +322,34 @@ export function InvestmentRow({
       <span className="text-[var(--muted-foreground)]">{currency}</span>
       <span
         data-testid={`asset-value-amount-${holding.id}`}
-        className="text-[var(--body-on-dark)]"
+        className={`text-[var(--body-on-dark)] ${dots}`}
+        style={closeDots}
         title={autoPriced ? t("row.autoPricedTip") : undefined}
+        {...amountDoor}
       >
         {value}
       </span>
     </span>
   );
+
+  // 261102 (user): desktop keeps qty, P/L and the unreal./real. line out of
+  // sight until the row is opened or hovered (columns keep their place).
+  const revealOnRow = expanded ? "" : REVEAL_ON_ROW;
+  // Desktop row action — the sheet passes one at most (261106, user: the
+  // amount opens the asset, so only Hide / Unhide / Delete is left).
+  const action = (
+    [
+      [onArchive, EyeOff, "asset.archive.confirm", "hide", "var(--primary)"],
+      [onUnhide, Eye, "asset.hidden.unhide", "unhide", "var(--primary)"],
+      [
+        onDelete,
+        Trash2,
+        "ledger.confirm.last.confirm",
+        "delete",
+        "var(--trading-down)",
+      ],
+    ] as const
+  ).find((a): a is typeof a & { 0: () => void } => typeof a[0] === "function");
 
   return (
     <div
@@ -352,7 +359,7 @@ export function InvestmentRow({
       data-nav-type="invest-row"
       data-nav-key={`invrow-${holding.id}`}
       className={[
-        "group flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] px-3 transition-colors sm:min-h-[48px]",
+        "group group/row relative flex min-h-[56px] w-full items-center gap-2 rounded-[var(--radius-md)] px-3 transition-colors sm:min-h-[48px]",
         // Open: the ledger strip underneath closes the card (UAT 13.1 test 4).
         expanded ? "rounded-b-none" : "",
         nested
@@ -432,50 +439,12 @@ export function InvestmentRow({
                 className="border border-[var(--hairline-dark)]"
               />
             )}
-            {/* Desktop hover actions beside the name (R6, user: the 92px column
-                pushed share out of line with the wallets). Dimmed with the content
-                when delisted; the handle (left) stays full opacity. */}
-            <div
-              className={[
-                "hidden shrink-0 items-center gap-1 sm:flex",
-                delisted ? "opacity-50" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            >
-              {(
-                [
-                  [onEdit, Pencil, "asset.swipe.edit", "edit"],
-                  [onSwap, ArrowUpDown, "asset.swipe.newTxn", "swap"],
-                  [onArchive, EyeOff, "asset.archive.confirm", "hide"],
-                  [onUnhide, Eye, "asset.hidden.unhide", "unhide"],
-                  [onDelete, Trash2, "ledger.confirm.last.confirm", "delete"],
-                ] as const
-              ).map(([fn, Icon, key, id]) =>
-                fn ? (
-                  <button
-                    key={id}
-                    type="button"
-                    data-testid={`investment-${id}-desktop-${holding.id}`}
-                    aria-label={`${t(key)} ${holding.name}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      fn();
-                    }}
-                    className="invisible flex h-7 w-7 items-center justify-center rounded group-hover:visible group-focus-within:visible group-data-[nav-highlighted=true]:visible"
-                    style={{ color: "var(--body-on-dark)" }}
-                  >
-                    <Icon className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                ) : null,
-              )}
-            </div>
           </div>
           {/* R6 (user): desktop shows unrealized · realized, closed too. */}
           {!isCash && (
             <div
               data-testid={`asset-caption-desktop-${holding.id}`}
-              className="hidden min-w-0 sm:block"
+              className={`hidden min-w-0 ${expanded ? "sm:block" : SHOW_ON_ROW}`}
             >
               <PlCaption
                 unrealizedCents={assetPL.unrealizedCents}
@@ -516,16 +485,20 @@ export function InvestmentRow({
             columns aligned with rows that do have one. */}
         <span
           data-testid={`holding-qty-${holding.name}`}
-          className="hidden w-20 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block"
+          className={`hidden w-28 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block ${revealOnRow}`}
         >
-          {showQty ? qtyDisplay : ""}
+          {showQty ? t("row.qty", { qty: qtyDisplay }) : ""}
         </span>
         {/* P/L% then the P/L money amount (no currency symbol). */}
-        <span className="hidden w-20 shrink-0 justify-end text-right tabular-nums sm:flex">
+        <span
+          data-testid={`asset-pl-desktop-${holding.id}`}
+          className={`hidden w-20 shrink-0 justify-end text-right tabular-nums sm:flex ${revealOnRow}`}
+        >
           {plNode}
         </span>
         <span
-          className={`hidden w-24 shrink-0 justify-end text-right text-num-sm tabular-nums sm:flex ${plColor}`}
+          // 261103 (user): P/L further left — 24px clear of the currency.
+          className={`hidden w-[7.5rem] shrink-0 justify-end pr-6 text-right text-num-sm tabular-nums sm:flex ${plColor} ${revealOnRow}`}
         >
           {plMoney ?? ""}
         </span>
@@ -539,7 +512,10 @@ export function InvestmentRow({
           <div
             className={[
               // R6 (user): gap-2 on a phone = the wallets' ~10px to the amount.
-              "shrink-0 items-baseline gap-2 sm:gap-1",
+              // 261102 (user): centred on desktop — on the baseline the
+              // amount rode at the top of the 40px currency field.
+              // 261103 (user): gap-2, exactly as the wallet rows.
+              "shrink-0 items-baseline gap-2 sm:items-center",
               expanded ? "hidden sm:flex" : "flex",
             ].join(" ")}
           >
@@ -547,7 +523,7 @@ export function InvestmentRow({
               // R6 (user): the spending wallets' currency cell + picker.
               <span
                 data-testid={`asset-currency-${holding.id}`}
-                className="editable-dots block w-[44px] shrink-0 self-center text-num-sm text-[var(--muted-foreground)] sm:w-[96px] md:w-[224px] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right]"
+                className="editable-dots block w-[44px] shrink-0 self-center text-num-sm text-[var(--muted-foreground)] sm:w-[96px] md:w-[var(--ccy-w,224px)] max-sm:[&_select]:text-right max-sm:[&_select]:[text-align-last:right]"
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
@@ -567,59 +543,30 @@ export function InvestmentRow({
             )}
             <div
               data-amount-cell
-              className="relative text-right tabular-nums min-w-[var(--amt)] sm:min-w-[calc(var(--amt)_+_1ch)]"
+              className="relative text-right tabular-nums min-w-[var(--amt)] sm:w-[max(var(--amt-w,0px),calc(var(--amt)_+_1ch))] sm:min-w-0"
               style={
                 { "--amt": `${maxAmountChars ?? 4}ch` } as React.CSSProperties
               }
-              // The whole row body is a click target (expand / open sheet); a click
-              // meant for the inline editor must not also fire that.
-              onClick={valueIsManual ? (e) => e.stopPropagation() : undefined}
             >
-              {valueIsManual ? (
-                <InlineEditCell
-                  value={centsToBare(holding.valueCents).replace(
-                    /[^0-9.-]/g,
-                    "",
-                  )}
-                  ariaLabel={t("row.amountAria", { name: holding.name })}
-                  testId={`holding-amount-${holding.id}`}
-                  // I1 (user): a dotted line marks what can be tapped and typed.
-                  render={() => (
-                    <span className="editable-dots text-num-md">{value}</span>
-                  )}
-                  renderEditor={(draft, onChange) => (
-                    <Input
-                      autoFocus
-                      type="text"
-                      inputMode="decimal"
-                      defaultValue={draft}
-                      onChange={(e) => onChange(e.target.value)}
-                      className="ml-auto h-9 w-[10ch] max-w-full px-2 text-right"
-                    />
-                  )}
-                  onSave={async (v) => {
-                    await onValueChange?.(v);
-                  }}
-                />
-              ) : (
-                // R6 (user): can't be typed (fetched or derived) — a tap opens
-                // or closes the asset like the rest of the row. G6 (user): no
-                // lock — an automatic amount is a shade dimmer and its title
-                // says how it changes; the ↻ line below says "automatic".
-                <span
-                  data-testid={`holding-amount-readonly-${holding.id}`}
-                  data-auto={autoPriced || undefined}
-                  title={autoPriced ? t("row.autoPricedTip") : undefined}
-                  className={[
-                    "inline-block text-num-md",
-                    delisted
-                      ? "text-[var(--muted-strong)]"
-                      : "text-[var(--body-on-dark)]",
-                  ].join(" ")}
-                >
-                  {value}
-                </span>
-              )}
+              {/* G6 (user): an automatic amount is a shade dimmer and its
+                  title says how it changes; the ↻ line below says "automatic". */}
+              <span
+                data-amt-text
+                data-testid={`holding-amount-${holding.id}`}
+                data-auto={autoPriced || undefined}
+                title={autoPriced ? t("row.autoPricedTip") : undefined}
+                className={[
+                  "inline-block text-num-md",
+                  dots,
+                  delisted
+                    ? "text-[var(--muted-strong)]"
+                    : "text-[var(--body-on-dark)]",
+                ].join(" ")}
+                style={closeDots}
+                {...amountDoor}
+              >
+                {value}
+              </span>
             </div>
           </div>
           {expanded && (qtyAvg != null || startedDisplay != null) && (
@@ -646,14 +593,47 @@ export function InvestmentRow({
           )}
         </div>
         {/* Desktop: weight% last. */}
-        <span className="hidden w-16 shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block">
+        <span className="hidden w-[80px] shrink-0 text-right text-num-sm text-[var(--muted-foreground)] tabular-nums sm:block">
           {weight}
         </span>
       </div>
 
       {/* R6 (user): the wallets' 28px trailing slot — share lines up with
-          the section's share column. */}
-      <span className="hidden w-7 shrink-0 sm:block" aria-hidden="true" />
+          the section's share column. 261102 (user): it holds the "…" that
+          reveals the actions over a blurred right end of the row. */}
+      {action ? (
+        <span
+          data-testid={`asset-actions-${holding.id}`}
+          className={[
+            "hidden sm:flex sm:w-7 sm:shrink-0 sm:items-center sm:justify-end",
+            delisted ? "opacity-50" : "",
+          ].join(" ")}
+        >
+          {(() => {
+            const [fn, Icon, key, id, color] = action;
+            return (
+              <button
+                type="button"
+                data-testid={`investment-${id}-desktop-${holding.id}`}
+                aria-label={`${t(key)} ${holding.name}`}
+                title={t(key)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fn();
+                }}
+                // The "…"'s 28px — a bigger button spilled onto the amount
+                // at 640px and took its clicks.
+                className={`flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] hover:bg-[var(--surface-elevated-dark)] ${REVEAL_ON_ROW}`}
+                style={{ color }}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+              </button>
+            );
+          })()}
+        </span>
+      ) : (
+        <span className="hidden w-7 shrink-0 sm:block" aria-hidden="true" />
+      )}
     </div>
   );
 }

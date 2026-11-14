@@ -338,6 +338,10 @@ export function ReservesTableClient({ budgetId }: ReservesTableClientProps) {
   }
 
   const activeRows = summary.data.rows;
+  const maxAmountChars = Math.max(
+    4,
+    ...activeRows.map((r) => centsToBare(r.reserveCents, locale).length),
+  );
   // W-3: Excluded rows come directly from API — frozen REAL balances, NOT synthesized
   const excludedRows = summary.data.excludedRows;
   const { budgetCurrency } = summary.data.totals;
@@ -385,8 +389,9 @@ export function ReservesTableClient({ budgetId }: ReservesTableClientProps) {
             <ReservesTableRow
               key={r.categoryId}
               row={r}
-              currency={budgetCurrency}
+              currency={r.currency ?? budgetCurrency}
               isExcluded={false}
+              maxAmountChars={maxAmountChars}
               displayReserveCentsOverride={
                 anim !== null && reveal?.categoryId === r.categoryId
                   ? BigInt(anim.available)
@@ -429,6 +434,8 @@ export function ReservesTableClient({ budgetId }: ReservesTableClientProps) {
           internalCents={footerInternalCents}
           userDefinedCents={summary.data.totals.userDefinedCents}
           currency={budgetCurrency}
+          needByCurrency={summary.data.totals.needByCurrency}
+          walletsByCurrency={summary.data.totals.walletsByCurrency}
         />
 
         {/* Excluded section — name-only rows (UAT-PH5-T3-55: dashes
@@ -483,7 +490,10 @@ export function ReservesTableClient({ budgetId }: ReservesTableClientProps) {
                     reveal.availableAfterCents.toString(),
                     locale,
                   ),
-                  currency: budgetCurrency,
+                  // Phase 14: the row's own currency — its reserve is held in it.
+                  currency:
+                    activeRows.find((r) => r.categoryId === reveal.categoryId)?.currency ??
+                    budgetCurrency,
                 })}
               </AlertDialogDescription>
             </AlertDialogHeader>

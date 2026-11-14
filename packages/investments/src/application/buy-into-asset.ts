@@ -104,10 +104,18 @@ export async function planBuy(
   };
 
   if (input.kind === "broker") {
+    // The deposit keeps the currency it was made in; only the account's cost
+    // basis and value (one currency each) take it at the deposit date's rate.
+    const payCcy = input.currency ?? costCcy;
+    const paid = BigInt(input.amountCents);
+    const valueAfter =
+      input.valueAfterCents !== undefined
+        ? BigInt(input.valueAfterCents)
+        : current + cents(big(paid).times(await rate(payCcy, valueCcy)));
     const b = brokerAdd({
-      amountCents: BigInt(input.amountCents),
+      amountCents: cents(big(paid).times(await rate(payCcy, costCcy))),
       currentValueCents: current,
-      valueAfterCents: BigInt(input.valueAfterCents),
+      valueAfterCents: valueAfter,
     });
     return {
       ...base,
@@ -115,7 +123,7 @@ export async function planBuy(
         {
           id: h.id,
           buyPriceCents: (h.buyPriceCents ?? 0n) + b.costDeltaCents,
-          currentPriceCents: BigInt(input.valueAfterCents),
+          currentPriceCents: valueAfter,
           ...revive,
         },
       ],
@@ -124,14 +132,14 @@ export async function planBuy(
           holdingRef: h.id,
           kind: "add",
           effectiveDate: date,
-          amountCents: b.flowCents,
-          amountCurrency: costCcy,
+          amountCents: paid,
+          amountCurrency: payCcy,
           costDeltaCents: b.costDeltaCents,
           costCurrency: costCcy,
           assetAmountCents: b.costDeltaCents,
           valueDeltaCents: b.valueDeltaCents,
-          flowCents: b.flowCents,
-          flowCurrency: costCcy,
+          flowCents: paid,
+          flowCurrency: payCcy,
           ...snapshot,
         }),
       ],

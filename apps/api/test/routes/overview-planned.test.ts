@@ -124,13 +124,12 @@ async function createFixture(): Promise<Fixture> {
        VALUES ($1, $2, $3, $4, 'USD', 5000, 5000, 1, '2026-02-15'::date, '2026-02-15'::date, 'SPENDING', NULL, now(), now())`,
       [crypto.randomUUID(), budgetId, budgetId, categoryId],
     );
-    // An INVESTMENT category with spend in the same days. It counts like any
-    // other category now (260803 user request): both the monthly and the daily
-    // line carry it, and it appears in the by-category chart.
+    // A second category with spend in the same days: both the monthly and the
+    // daily line carry it, and it appears in the by-category chart.
     const investId = crypto.randomUUID();
     await c.query(
-      `INSERT INTO budgeting.categories (id, tenant_id, name, is_investment, created_at, actor_user_id)
-       VALUES ($1, $2, 'Investing', true, '2025-12-01T00:00:00Z', $3)`,
+      `INSERT INTO budgeting.categories (id, tenant_id, name, created_at, actor_user_id)
+       VALUES ($1, $2, 'Investing', '2025-12-01T00:00:00Z', $3)`,
       [investId, budgetId, userId],
     );
     await c.query(

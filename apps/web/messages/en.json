@@ -153,7 +153,8 @@
         "general": "General",
         "profile": "Profile",
         "security": "Security",
-        "danger": "Danger Zone"
+        "danger": "Danger Zone",
+        "connectedApps": "Connected apps"
       }
     },
     "profile": {
@@ -244,14 +245,18 @@
       "name_label": "Name",
       "name_saved": "Budget name saved",
       "currency_label": "Currency",
-      "currency_hint": "Used to convert and represent all budget amounts in a single currency.",
+      "currency_hint": "Totals are shown in this currency.",
+      "currency_confirm_title": "Change budget currency to {currency}?",
+      "currency_confirm_body": "Every total will be shown in {currency}, converted at the rate of each date. Transactions keep the currency they were entered in.",
+      "currency_confirm_cta": "Change currency",
+      "currency_confirm_cancel": "Keep {currentCurrency}",
       "currency_saved": "Currency updated",
+      "currency_save_failed": "Couldn't change the currency",
       "privacy_label": "Privacy mode",
       "privacy_hint": "Hide amounts by default. Tap any amount to reveal it.",
       "privacy_on_toast": "Amounts hidden by default",
       "privacy_off_toast": "Amounts always shown",
-      "privacy_error": "Couldn't update the privacy setting",
-      "currency_locked_tooltip": "Currency locked after first transaction"
+      "privacy_error": "Couldn't update the privacy setting"
     },
     "cushion": {
       "label": "Cushion mode",
@@ -399,6 +404,21 @@
       "updateNow": "Update now",
       "updated": "Updated to the newest version ({version})",
       "build": "Built {date}"
+    },
+    "connectedApps": {
+      "title": "Connected apps",
+      "empty": "No AI assistants are connected.",
+      "emptyHint": "Add {url} as a custom connector in Claude, ChatGPT or another MCP app.",
+      "connectedOn": "Connected {date}",
+      "lastUsed": "Last used {date}",
+      "neverUsed": "Not used yet",
+      "disconnect": "Disconnect",
+      "confirmTitle": "Disconnect this app?",
+      "confirmBody": "{client} will lose access to all your budgets.",
+      "confirmAction": "Disconnect",
+      "cancel": "Cancel",
+      "disconnected": "App disconnected",
+      "error": "Couldn't disconnect the app. Please try again."
     }
   },
   "budgets": {
@@ -581,21 +601,14 @@
       "feature_on_toast": "Investments enabled",
       "feature_off_toast": "Investments disabled",
       "error_save": "Failed to save — try again",
-      "smart_category": {
-        "label": "Investments category",
-        "help_text": "Add a special \"Investments\" category to the spendings grid to track how much you actually invest. Pinned first, can't be deleted from the grid.",
-        "default_name": "Investments",
-        "on_toast": "Investments category added to the spendings grid",
-        "off_toast": "Investments category removed from the spendings grid"
-      },
       "section": {
         "title": "INVESTMENTS"
       },
       "add": {
-        "cta": "New transaction"
+        "cta": "Add transaction"
       },
       "newTx": {
-        "title": "New transaction",
+        "title": "Add transaction",
         "pickAsset": "Asset"
       },
       "sheet": {
@@ -613,7 +626,7 @@
         "groupPlaceholder": "Ungrouped",
         "buyPrice": "Buy price",
         "buyCurrency": "Buy currency",
-        "quantity": "Quantity",
+        "quantity": "Quantity bought",
         "currentPrice": "Current price",
         "lastUpdated": "Last updated {relativeTime}",
         "now": "just now",
@@ -635,11 +648,14 @@
         "endDateOptional": "End date (optional)",
         "ticker": "Ticker",
         "tickerPlaceholder": "e.g. AAPL",
-        "customName": "Custom name"
+        "customName": "Custom name",
+        "endDate": "End date",
+        "note": "Note",
+        "baseAmount": "Base amount"
       },
       "uitype": {
         "crypto": "Crypto",
-        "treasury_bond": "Retail treasury bonds",
+        "treasury_bond": "Government bonds",
         "collectibles": "Collectibles",
         "real_estate": "Real estate",
         "other": "Other",
@@ -701,7 +717,8 @@
         "share": "Share: {pct}",
         "amountAria": "Edit value of {name}",
         "qtyAvg": "{qty} × {avg} avg. cost",
-        "autoPricedTip": "This amount updates by itself. To change it, add a transaction: buy, sell or move."
+        "autoPricedTip": "This amount updates by itself. To change it, add a transaction: buy, sell or move.",
+        "actionsAria": "Actions for {name}"
       },
       "rowExpandAria": "Expand {name} details.",
       "plAria": "{value} profit/loss",
@@ -774,7 +791,7 @@
       "asset": {
         "swipe": {
           "edit": "Edit",
-          "newTxn": "New transaction"
+          "newTxn": "Add transaction"
         },
         "name": {
           "label": "Name",
@@ -794,18 +811,20 @@
           "show": "Show {count, plural, one {# hidden asset} other {# hidden assets}}",
           "close": "Collapse hidden assets",
           "unhide": "Unhide",
-          "unhideAria": "Unhide {name}"
+          "unhideAria": "Unhide {name}",
+          "groupsShow": "Show {count, plural, one {# hidden group} other {# hidden groups}}",
+          "groupsClose": "Collapse hidden groups"
         },
         "currencyAria": "Show {name} in another currency"
       },
       "swap": {
-        "title": "New transaction: {name}",
+        "title": "Add transaction: {name}",
         "tab": {
+          "details": "Details",
           "buy": "Buy",
           "sell": "Sell",
           "transfer": "Move"
         },
-        "sellTitle": "Sell {name}",
         "cta": {
           "buy": "Add to {name}",
           "sell": "Record sale",
@@ -822,7 +841,7 @@
           "valueAfterHelp": "Was {current} + {amount}. Set it to what your broker app shows.",
           "split": "P/L {market} from market move · {deposit} from deposit",
           "cashHelp": "Cost and value both go up by this amount. P/L doesn't change.",
-          "quantity": "Quantity",
+          "quantity": "Quantity bought",
           "price": "Buy price",
           "total": "Total {amount}",
           "from": "Where did the money come from?",
@@ -901,6 +920,7 @@
         "fxUnavailable": "Exchange rate unavailable — the value converts when you save.",
         "currentValue": "Current value",
         "currentPrice": "Current price per unit",
+          "quantity": "Quantity",
         "save": "Save changes",
         "saved": "Saved"
       },
@@ -957,14 +977,20 @@
           "aria": "Edit {kind}, {date}",
           "saved": "Transaction updated",
           "range": "Pick a date between {min} and {max}.",
-          "dateLocked": "A deposit's dates set its interest — they can't change."
-        }
+          "dateLocked": "A deposit's dates set its interest — they can't change.",
+          "amount": "Amount",
+          "currency": "Currency",
+          "amountLocked": "A later sale or withdrawal relied on this amount — delete it first to change this one.",
+          "amountLinked": "Paid into a wallet — delete this sale and book it again to change what it received."
+        },
+        "actionsAria": "Actions for this entry"
       },
       "heldUnit": {
         "g": "{n, plural, one {{qty} g} other {{qty} g}}",
         "oz": "{n, plural, one {{qty} oz} other {{qty} oz}}",
         "kg": "{n, plural, one {{qty} kg} other {{qty} kg}}"
-      }
+      },
+      "noEndDate": "No end date"
     },
     "cushionMode": {
       "name": "Cushion",
@@ -1710,8 +1736,7 @@
           "decreaseLimitBy": "Decrease limit by",
           "ring": {
             "needs": "Needs",
-            "wants": "Wants",
-            "investments": "Investments"
+            "wants": "Wants"
           },
           "scale": "Scale",
           "scalePct": "%",
@@ -1912,7 +1937,6 @@
           "nameAria": "Wallet name. Click to edit.",
           "nameRequired": "Name can't be empty",
           "currencyAria": "Currency. Click to edit.",
-          "currencyReadOnlyAria": "Currency {ccy}. Reserve wallets must match budget currency.",
           "amountAria": "Amount. Click to edit.",
           "shareAria": "{name} share of section total.",
           "dragHandleAria": "Drag to move {name} to another section.",
@@ -1956,9 +1980,7 @@
           "archived": "Wallet deleted",
           "archiveFailed": "Couldn't delete wallet. Try again.",
           "moved": "Moved {name} to {sectionLabel}",
-          "moveFailed": "Couldn't move {name}. It stayed in {originalSectionLabel}.",
-          "reserveCurrencyRejected": "Reserve wallets must be in {budgetCcy}. {name} stayed in {originalSectionLabel}.",
-          "reserveCurrencyOnEdit": "Reserve wallets must be in {budgetCcy}. Change rolled back."
+          "moveFailed": "Couldn't move {name}. It stayed in {originalSectionLabel}."
         },
         "confirm": {
           "delete": {
@@ -2029,13 +2051,18 @@
     }
   },
   "grid": {
+    "categoryCurrency": {
+      "label": "Currency",
+      "rateError": "No exchange rate for {pair} yet. Try again later."
+    },
+    "limitEquivalent": "≈ {amount}",
     "txnSlider": {
       "cta": {
         "create": "Save transaction",
         "save": "Save changes"
       },
       "header": {
-        "create": "New transaction",
+        "create": "Add transaction",
         "edit": "Edit transaction"
       },
       "field": {
@@ -2158,7 +2185,14 @@
       "sliderSave": "Couldn't save changes. Check your connection and try again.",
       "reorderSave": "Couldn't save new order. The columns have been restored.",
       "invalidAmount": "Enter a positive number",
-      "fxStale": "Exchange rate has updated. Review the new amount and save again."
+      "fxStale": "Exchange rate has updated. Review the new amount and save again.",
+      "saveFailed": "Couldn't save the category: {reason}. Please try again later, or report it if it keeps happening.",
+      "reason": {
+        "currency_mismatch": "the limit is in a different currency than this month's",
+        "not_found": "the category no longer exists",
+        "validation": "some values weren't accepted",
+        "unknown": "the server answered with an error ({status})"
+      }
     },
     "confirm": {
       "discardChanges": "You have unsaved changes. Discard them?",
@@ -2181,12 +2215,10 @@
         "cushion": "cushion",
         "plannedCushion": "planned (cushion)",
         "limitUsed": "used (plan)",
-        "used": "used",
-        "invested": "invested"
+        "used": "used"
       },
       "row3": {
-        "overspent": "overspent",
-        "overinvested": "overinvested"
+        "overspent": "overspent"
       },
       "row4": {
         "reservesUsed": "used (reserve)"
@@ -2196,26 +2228,6 @@
       },
       "archived": "archived",
       "usageOfPool": "{pct}% of plan + reserve used"
-    },
-    "investCat": {
-      "header": "Edit Investments",
-      "nameLabel": "Name",
-      "limitLabel": "Investment limit",
-      "mode": {
-        "smart": "Smart limit",
-        "manual": "Manual",
-        "none": "No limit"
-      },
-      "manualAmountLabel": "Amount",
-      "smartExplainer": "Smart limit = total income minus everything planned in your other categories. It updates automatically.",
-      "smartRequiresIncome": "Smart limit needs at least one income. Add one in Settings › Income.",
-      "colorLabel": "Color",
-      "save": "Save",
-      "error": {
-        "save": "Couldn't save — try again"
-      },
-      "noLimitExplainer": "No cap on what goes into investments. The month’s forecast counts what you actually invest, and there is no overinvested figure — the same as any other category with no limit.",
-      "cushionNote": "In cushion mode this category has no limit — only what you actually invest counts."
     }
   },
   "share": {
@@ -2342,5 +2354,19 @@
     "try_link": "Explore the demo →",
     "try_hint": "Sample data, no sign-up needed",
     "entering": "Opening…"
+  },
+  "oauthConsent": {
+    "title": "{client} wants to connect to your budgets",
+    "redirectsTo": "After you decide, you go back to {host}.",
+    "allBudgets": "Access covers all your budgets, including ones you create or join later.",
+    "read": "See your budgets, spendings, incomes, wallets, investments, tasks and overview numbers.",
+    "write": "Add, change and delete entries, set limits, sync wallet balances and import data. Changes look exactly like your own.",
+    "revokeHint": "You can disconnect any time in Settings → Connected apps.",
+    "allow": "Allow",
+    "deny": "Deny",
+    "unknownClient": "This app is not registered. Go back to it and try connecting again.",
+    "loading": "Loading",
+    "failed": "That didn't go through. Please try again.",
+    "pageTitle": "Connect an app"
   }
 }

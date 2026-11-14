@@ -38,6 +38,7 @@ vi.mock("sonner", () => ({
 
 // Mock next-intl — relative key lookup (components call t("relativeKey"))
 vi.mock("next-intl", () => ({
+  useLocale: () => "en",
   useTranslations:
     (_ns: string) => (key: string, params?: Record<string, unknown>) => {
       const map: Record<string, string> = {
@@ -103,7 +104,18 @@ vi.mock("@dnd-kit/core", () => ({
   PointerSensor: vi.fn(),
   TouchSensor: vi.fn(),
   KeyboardSensor: vi.fn(),
+  DragOverlay: ({ children }: { children?: React.ReactNode }) => (
+    <div data-testid="drag-overlay">{children}</div>
+  ),
 }));
+
+// The investments section drags in its own data hooks.
+vi.mock(
+  "../../src/components/budgeting/wallets-tab/investments-section",
+  () => ({
+    InvestmentsSection: () => <div data-testid="investments-section" />,
+  }),
+);
 
 // Mock CurrencyPicker
 vi.mock("../../src/components/common/currency-picker", () => ({
@@ -154,7 +166,7 @@ function renderWithQuery(initial: WalletDto[] = INITIAL_WALLETS) {
   };
 }
 
-describe.skip("Wallets staged-add flow (W-4 / D-PH5-W9)", () => {
+describe("Wallets staged-add flow (W-4 / D-PH5-W9)", () => {
   beforeEach(() => {
     mockClientApiFetch.mockClear();
     mockToastError.mockClear();
@@ -237,7 +249,7 @@ describe.skip("Wallets staged-add flow (W-4 / D-PH5-W9)", () => {
 
     const input = screen.getByTestId("wallet-draft-name-input");
     await user.type(input, "Cash");
-    await user.tab(); // triggers blur
+    await user.keyboard("{Enter}"); // Enter commits (Tab loops inside the draft row)
 
     // clientApiFetch called with POST /wallets (may have GET calls from useWallets)
     await waitFor(() => {
@@ -279,7 +291,7 @@ describe.skip("Wallets staged-add flow (W-4 / D-PH5-W9)", () => {
 
     const input = screen.getByTestId("wallet-draft-name-input");
     await user.type(input, "Cash");
-    await user.tab();
+    await user.keyboard("{Enter}"); // Enter commits (Tab loops inside the draft row)
 
     await waitFor(() => {
       expect(screen.queryByTestId("wallet-row-draft")).toBeNull();
@@ -301,7 +313,7 @@ describe.skip("Wallets staged-add flow (W-4 / D-PH5-W9)", () => {
     const input = screen.getByTestId("wallet-draft-name-input");
     await user.click(input); // ensure focus
     mockClientApiFetch.mockClear(); // clear GET calls from initial render
-    await user.tab(); // blur with empty value
+    await user.keyboard("{Enter}"); // Enter commits (Tab loops inside the draft row)
 
     // No POST should fire (GET may fire from useWallets stale refetch)
     await waitFor(() => {
@@ -352,7 +364,7 @@ describe.skip("Wallets staged-add flow (W-4 / D-PH5-W9)", () => {
 
     const input = screen.getByTestId("wallet-draft-name-input");
     await user.type(input, "X");
-    await user.tab();
+    await user.keyboard("{Enter}"); // Enter commits (Tab loops inside the draft row)
 
     // Draft should STAY in DOM
     await waitFor(() => {
@@ -364,9 +376,8 @@ describe.skip("Wallets staged-add flow (W-4 / D-PH5-W9)", () => {
     expect(draftRow.className).toContain("ring-[var(--destructive)]");
 
     // toast.error should have been called
-    expect(mockToastError).toHaveBeenCalledWith(
-      "bdp.tab.wallets.toast.createFailed",
-    );
+    // The mock's t() returns the bare key (bdp.tab.wallets.toast.createFailed).
+    expect(mockToastError).toHaveBeenCalledWith("createFailed");
   });
 
   // ── Test 5: Click +Add twice → only one draft (idempotent) ───────────────

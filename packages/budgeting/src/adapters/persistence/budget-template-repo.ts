@@ -37,8 +37,8 @@ export class DrizzleBudgetTemplateRepo implements BudgetTemplateRepo {
           INSERT INTO budgeting.budget_template_items
             (template_id, category_id, tenant_id, normal_amount, normal_currency, cushion_amount, cushion_currency)
           VALUES (${templateId}::uuid, ${item.categoryId}::uuid, ${input.tenantId}::uuid,
-                  ${item.normalAmount}::bigint, ${item.normalCurrency},
-                  ${item.cushionAmount}::bigint, ${item.cushionCurrency})
+                  ${item.normalAmount}::bigint, (SELECT currency FROM budgeting.categories WHERE id = ${item.categoryId}::uuid),
+                  ${item.cushionAmount}::bigint, (SELECT currency FROM budgeting.categories WHERE id = ${item.categoryId}::uuid))
         `);
       }
 
@@ -199,6 +199,8 @@ export class DrizzleBudgetTemplateRepo implements BudgetTemplateRepo {
       return err(new Error(`Template ${input.templateId} not found`));
     }
 
+    // Phase 14: every limit is written in its category's own currency, whatever
+    // currency the template item was saved with.
     const r = await withTenantTx(tid, uid, async (tx) => {
       for (const item of template.items) {
         // SCD-2 pattern: close previous open row if different date, insert new
@@ -215,9 +217,10 @@ export class DrizzleBudgetTemplateRepo implements BudgetTemplateRepo {
             await tx.execute(sql`
               UPDATE budgeting.category_limits
               SET normal_amount = ${item.normalAmount}::bigint,
-                  normal_currency = ${item.normalCurrency},
+                  normal_currency = (SELECT currency FROM budgeting.categories WHERE id = ${item.categoryId}::uuid),
                   cushion_amount = ${item.cushionAmount}::bigint,
-                  cushion_currency = ${item.cushionCurrency},
+                  cushion_currency = (SELECT currency FROM budgeting.categories WHERE id = ${item.categoryId}::uuid),
+                  converted_from = NULL,
                   actor_user_id = ${input.actorUserId}::uuid
               WHERE category_id = ${item.categoryId}::uuid AND effective_to IS NULL
             `);
@@ -232,8 +235,8 @@ export class DrizzleBudgetTemplateRepo implements BudgetTemplateRepo {
                 (tenant_id, category_id, normal_amount, normal_currency,
                  cushion_amount, cushion_currency, effective_from, actor_user_id)
               VALUES (${input.tenantId}::uuid, ${item.categoryId}::uuid,
-                      ${item.normalAmount}::bigint, ${item.normalCurrency},
-                      ${item.cushionAmount}::bigint, ${item.cushionCurrency},
+                      ${item.normalAmount}::bigint, (SELECT currency FROM budgeting.categories WHERE id = ${item.categoryId}::uuid),
+                      ${item.cushionAmount}::bigint, (SELECT currency FROM budgeting.categories WHERE id = ${item.categoryId}::uuid),
                       ${effectiveFrom}::date, ${input.actorUserId}::uuid)
             `);
           }
@@ -243,8 +246,8 @@ export class DrizzleBudgetTemplateRepo implements BudgetTemplateRepo {
               (tenant_id, category_id, normal_amount, normal_currency,
                cushion_amount, cushion_currency, effective_from, actor_user_id)
             VALUES (${input.tenantId}::uuid, ${item.categoryId}::uuid,
-                    ${item.normalAmount}::bigint, ${item.normalCurrency},
-                    ${item.cushionAmount}::bigint, ${item.cushionCurrency},
+                    ${item.normalAmount}::bigint, (SELECT currency FROM budgeting.categories WHERE id = ${item.categoryId}::uuid),
+                    ${item.cushionAmount}::bigint, (SELECT currency FROM budgeting.categories WHERE id = ${item.categoryId}::uuid),
                     ${effectiveFrom}::date, ${input.actorUserId}::uuid)
           `);
         }

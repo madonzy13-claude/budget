@@ -712,6 +712,12 @@ GRANT UPDATE (note, transaction_date, category_id, amount_original_cents, curren
 -- a grant only in a numbered migration vanishes on the next run.
 GRANT UPDATE (deferred_at, updated_at, amount_converted_cents, fx_rate, fx_as_of)
   ON budgeting.expense_ledger TO worker_role;
+-- 0110: clearing fx_cache_ccy makes the row's trigger store its conversion
+-- again (budget currency change, fx_cache_fill). The trigger writes the cents.
+GRANT UPDATE (fx_cache_ccy) ON budgeting.expense_ledger TO app_role, worker_role;
+GRANT UPDATE (fx_cache_ccy) ON budgeting.budget_wealth_snapshots TO app_role, worker_role;
+GRANT EXECUTE ON FUNCTION budgeting.fx_convert_final(bigint, text, text, date) TO app_role, worker_role;
+GRANT EXECUTE ON FUNCTION budgeting.fx_cache_fill(uuid) TO app_role, worker_role;
 
 -- Phase 2 plan 02-03: GRANT on reserves auto-compute view —
 -- REMOVED in Phase 05 reserve rewrite (migration 0030, decision B): the
@@ -734,6 +740,9 @@ GRANT DELETE ON budgeting.category_reserve_adjustments TO app_role;
 -- household's data. Column-scoped UPDATE on ONLY created_by — every other column
 -- stays append-only.
 GRANT UPDATE (created_by) ON budgeting.category_reserve_adjustments TO app_role;
+-- Phase 14 (migration 0104): read-time FX conversion, callable from every
+-- tenant query (SECURITY INVOKER; reads only the RLS-free fx_rates table).
+GRANT EXECUTE ON FUNCTION budgeting.fx_convert(bigint, text, text, date) TO app_role, worker_role;
 
 -- Phase 2 plan 02-04: budget_share_links GRANTs + RLS
 GRANT SELECT, INSERT, UPDATE ON tenancy.budget_share_links TO app_role;
@@ -825,3 +834,49 @@ ALTER TABLE budgeting.budget_wealth_snapshots FORCE ROW LEVEL SECURITY;
 GRANT SELECT ON budgeting.budget_wealth_snapshots TO app_role, worker_role;
 GRANT INSERT ON budgeting.budget_wealth_snapshots TO app_role, worker_role;
 GRANT DELETE ON budgeting.budget_wealth_snapshots TO app_role;
+
+-- Phase 15 (migration 0106): MCP OAuth authorization server + MCP write log/previews.
+-- Better Auth (better_auth GUC pool) reads/writes all OAuth tables; token + consent
+-- rows are USER-SCOPED with a better_auth escape (policies re-stated here).
+GRANT SELECT, INSERT, UPDATE, DELETE ON identity.oauth_client, identity.oauth_access_token,
+  identity.oauth_refresh_token, identity.oauth_consent, identity.oauth_resource,
+  identity.oauth_client_resource, identity.oauth_client_assertion, identity.jwks TO app_role;
+-- No worker job reads OAuth state (tokens, signing keys): worker_role gets nothing.
+REVOKE ALL ON identity.oauth_client, identity.oauth_access_token,
+  identity.oauth_refresh_token, identity.oauth_consent, identity.oauth_resource,
+  identity.oauth_client_resource, identity.oauth_client_assertion, identity.jwks FROM worker_role;
+ALTER TABLE identity.oauth_access_token FORCE ROW LEVEL SECURITY;
+ALTER TABLE identity.oauth_refresh_token FORCE ROW LEVEL SECURITY;
+ALTER TABLE identity.oauth_consent FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS oauth_access_token_owner ON identity.oauth_access_token;
+CREATE POLICY oauth_access_token_owner ON identity.oauth_access_token
+  AS PERMISSIVE FOR ALL TO app_role, worker_role
+  USING (current_setting('app.better_auth', true) = 'on' OR user_id = NULLIF(current_setting('app.current_user_id', true), '')::uuid)
+  WITH CHECK (current_setting('app.better_auth', true) = 'on' OR user_id = NULLIF(current_setting('app.current_user_id', true), '')::uuid);
+DROP POLICY IF EXISTS oauth_refresh_token_owner ON identity.oauth_refresh_token;
+CREATE POLICY oauth_refresh_token_owner ON identity.oauth_refresh_token
+  AS PERMISSIVE FOR ALL TO app_role, worker_role
+  USING (current_setting('app.better_auth', true) = 'on' OR user_id = NULLIF(current_setting('app.current_user_id', true), '')::uuid)
+  WITH CHECK (current_setting('app.better_auth', true) = 'on' OR user_id = NULLIF(current_setting('app.current_user_id', true), '')::uuid);
+DROP POLICY IF EXISTS oauth_consent_owner ON identity.oauth_consent;
+CREATE POLICY oauth_consent_owner ON identity.oauth_consent
+  AS PERMISSIVE FOR ALL TO app_role, worker_role
+  USING (current_setting('app.better_auth', true) = 'on' OR user_id = NULLIF(current_setting('app.current_user_id', true), '')::uuid)
+  WITH CHECK (current_setting('app.better_auth', true) = 'on' OR user_id = NULLIF(current_setting('app.current_user_id', true), '')::uuid);
+
+-- D-08 write log: history is append-only except the undo marker (T-15-09).
+GRANT SELECT, INSERT, DELETE ON shared_kernel.mcp_write_log TO app_role;
+GRANT UPDATE (reverted_at, reverted_by_call_id) ON shared_kernel.mcp_write_log TO app_role;
+GRANT SELECT, INSERT, DELETE ON shared_kernel.mcp_import_previews TO app_role;
+ALTER TABLE shared_kernel.mcp_write_log FORCE ROW LEVEL SECURITY;
+ALTER TABLE shared_kernel.mcp_import_previews FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS mcp_write_log_owner ON shared_kernel.mcp_write_log;
+CREATE POLICY mcp_write_log_owner ON shared_kernel.mcp_write_log
+  AS PERMISSIVE FOR ALL TO app_role, worker_role
+  USING (user_id = NULLIF(current_setting('app.current_user_id', true), '')::uuid)
+  WITH CHECK (user_id = NULLIF(current_setting('app.current_user_id', true), '')::uuid);
+DROP POLICY IF EXISTS mcp_import_previews_owner ON shared_kernel.mcp_import_previews;
+CREATE POLICY mcp_import_previews_owner ON shared_kernel.mcp_import_previews
+  AS PERMISSIVE FOR ALL TO app_role, worker_role
+  USING (user_id = NULLIF(current_setting('app.current_user_id', true), '')::uuid)
+  WITH CHECK (user_id = NULLIF(current_setting('app.current_user_id', true), '')::uuid);

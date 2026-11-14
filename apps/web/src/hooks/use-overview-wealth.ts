@@ -5,7 +5,7 @@
  * view toggle. Fetches only when the section is open (`enabled`); range + view are
  * part of the query key so each view/range is cached independently (D-03).
  */
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { backgroundApiFetch } from "@/lib/budget-fetch";
 
 export type WealthView = "capitalization" | "investments";
@@ -45,8 +45,10 @@ export function useOverviewWealth(
     refetchOnMount: "always",
     // Keep the prior chart on screen while a new range/view refetches, so the
     // section never collapses to the skeleton and the scroll position holds
-    // (r27 item 1: changing range no longer jumps the page up).
-    placeholderData: keepPreviousData,
+    // (r27 item 1: changing range no longer jumps the page up). Same view only:
+    // the capitalization series drawn as the investments chart flashed a wrong
+    // chart until the real one landed (260802).
+    placeholderData: (prev) => (prev?.view === view ? prev : undefined),
     queryFn: async () => {
       const qs = new URLSearchParams({ from, to, view });
       if (net) qs.set("net", "1");

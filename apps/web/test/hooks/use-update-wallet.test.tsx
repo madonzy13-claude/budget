@@ -5,7 +5,6 @@
  * - Calls PATCH /wallets/:id with Idempotency-Key header + Content-Type json
  * - On 200: replaces cached wallet row in ['budget', id, 'wallets']
  * - On error: rolls back optimistic update + calls toast.error(saveFailed)
- * - On reserve_currency_mismatch error: calls toast.error(reserveCurrencyOnEdit)
  * - Cross-invalidation of ['budget', id, 'reserves'] for 3-scenario matrix (D-PH5-E1):
  *   - Wallet is currently RESERVE → invalidates reserves
  *   - Wallet is SPENDINGS but walletType changes to RESERVE → invalidates reserves
@@ -17,6 +16,10 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useUpdateWallet } from "../../src/hooks/use-update-wallet";
 import type { WalletDto } from "../../src/hooks/use-wallets";
+
+vi.mock("next-intl", () => ({
+  useTranslations: (ns?: string) => (k: string) => (ns ? `${ns}.${k}` : k),
+}));
 
 const mockFetch = vi.fn();
 vi.mock("../../src/lib/budget-fetch", () => ({
@@ -76,7 +79,7 @@ const RESERVE_WALLET: WalletDto = {
   archivedAt: null,
 };
 
-describe.skip("useUpdateWallet", () => {
+describe("useUpdateWallet", () => {
   beforeEach(() => {
     mockFetch.mockClear();
     mockToastError.mockClear();
@@ -137,7 +140,9 @@ describe.skip("useUpdateWallet", () => {
 
   // ── Error handling ─────────────────────────────────────────────────────────
 
-  it("on generic error: rolls back optimistic update and toasts saveFailed", async () => {
+  // A 5xx is the server-unreachable class (offline-write.ts): the shared
+  // offline toast, not the save-failed one.
+  it("on a 5xx: rolls back optimistic update and shows the offline toast", async () => {
     const qc = makeClient([SPENDINGS_WALLET]);
 
     // Capture the name at onError time (before onSettled invalidation removes data)
@@ -168,21 +173,20 @@ describe.skip("useUpdateWallet", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
 
     setDataSpy.mockRestore();
-    // toast.error should be called with saveFailed key
-    expect(mockToastError).toHaveBeenCalledWith(
-      "bdp.tab.wallets.toast.saveFailed",
-    );
+    expect(mockToastError).toHaveBeenCalledWith("offline.writeBlocked");
     // Verify rollback happened — name restored before invalidation cleared cache
     expect(nameAtRollback).toBe("Cash");
   });
 
-  it("on reserve_currency_mismatch error: hook suppresses toast (component owns translated toast with budget-currency context — D-PH5-W8)", async () => {
+  // Phase 14 (D-09): the server no longer rejects a reserve wallet's
+  // currency, so any 422 is a plain save failure with the generic toast.
+  it("on a 422 error: shows the generic save-failed toast", async () => {
     const qc = makeClient([SPENDINGS_WALLET]);
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 422,
-      json: async () => ({ error: "reserve_currency_mismatch" }),
-      text: async () => JSON.stringify({ error: "reserve_currency_mismatch" }),
+      json: async () => ({ error: "validation" }),
+      text: async () => JSON.stringify({ error: "validation" }),
     });
 
     const { result } = renderHook(() => useUpdateWallet(BUDGET), {
@@ -190,15 +194,8 @@ describe.skip("useUpdateWallet", () => {
     });
     result.current.mutate({ walletId: "wallet-1", currency: "USD" });
     await waitFor(() => expect(result.current.isError).toBe(true));
-
-    // Hook must NOT fire the generic save-failed toast — the drag handler in
-    // wallets-sectioned-list.tsx fires a translated toast that includes the
-    // budget currency, wallet name, and original section label.
-    expect(mockToastError).not.toHaveBeenCalledWith(
+    expect(mockToastError).toHaveBeenCalledWith(
       "bdp.tab.wallets.toast.saveFailed",
-    );
-    expect(mockToastError).not.toHaveBeenCalledWith(
-      "bdp.tab.wallets.toast.reserveCurrencyOnEdit",
     );
   });
 

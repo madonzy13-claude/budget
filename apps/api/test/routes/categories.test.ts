@@ -680,3 +680,90 @@ describe("category cushion-mode persistence (mig 0059)", () => {
     expect(await getMode(app, created.category.id)).toBe("custom");
   });
 });
+
+describe("Category currency", () => {
+  let userId: string;
+  let tenantId: string;
+  const post = (app: Hono, body: unknown) =>
+    app.request("/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  /** Budget currency is changed straight in the DB until the lock goes (plan 19). */
+  async function setBudgetCurrency(ccy: string) {
+    const { Pool } = await import("pg");
+    const pool = new Pool({ connectionString: DB_URL });
+    const c = await pool.connect();
+    try {
+      await c.query(`SELECT set_config('app.tenant_ids', $1, false)`, [`{${tenantId}}`]);
+      await c.query(`UPDATE tenancy.budgets SET default_currency = $1 WHERE id = $2`, [ccy, tenantId]);
+    } finally {
+      c.release();
+      await pool.end();
+    }
+  }
+
+  beforeAll(async () => {
+    const t = await createTestUser();
+    userId = t.userId;
+    tenantId = t.tenantId;
+    await setBudgetCurrency("PLN");
+  });
+
+  it("defaults to the budget currency when omitted", async () => {
+    const app = await buildApp(userId, tenantId);
+    const res = await post(app, { name: "Ccy Default" });
+    expect(res.status).toBe(201);
+    const { category } = await res.json();
+    expect(category.currency).toBe("PLN");
+    const list = await (await app.request("/categories")).json();
+    expect(list.categories.find((c: { id: string }) => c.id === category.id).currency).toBe("PLN");
+  });
+
+  it("keeps an explicit currency", async () => {
+    const app = await buildApp(userId, tenantId);
+    const res = await post(app, { name: "Ccy EUR", currency: "EUR" });
+    expect(res.status).toBe(201);
+    expect((await res.json()).category.currency).toBe("EUR");
+  });
+
+  it("rejects a currency without FX history or in the wrong case → 422", async () => {
+    const app = await buildApp(userId, tenantId);
+    expect((await post(app, { name: "Ccy JPY", currency: "JPY" })).status).toBe(422);
+    expect((await post(app, { name: "Ccy lower", currency: "eur" })).status).toBe(422);
+  });
+
+  it("existing categories keep their currency after a budget currency change; new ones take the new one", async () => {
+    const app = await buildApp(userId, tenantId);
+    const a = (await (await post(app, { name: "Before change" })).json()).category;
+    await setBudgetCurrency("EUR");
+    try {
+      const b = (await (await post(app, { name: "After change" })).json()).category;
+      const got = await (await app.request(`/categories/${a.id}`)).json();
+      expect(got.currency).toBe("PLN");
+      expect(b.currency).toBe("EUR");
+    } finally {
+      await setBudgetCurrency("PLN");
+    }
+  });
+
+  it("a limit set without a currency is stored in the category's currency", async () => {
+    const app = await buildApp(userId, tenantId);
+    const cat = (await (await post(app, { name: "Limit EUR", currency: "EUR" })).json()).category;
+    const res = await app.request(`/categories/${cat.id}/limits`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        normalAmount: "50000",
+        cushionAmount: "40000",
+        effectiveFrom: "2026-05-01",
+      }),
+    });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.normalCurrency).toBe("EUR");
+    expect(body.cushionCurrency).toBe("EUR");
+  });
+});

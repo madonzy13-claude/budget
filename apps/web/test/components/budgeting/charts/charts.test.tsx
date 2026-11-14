@@ -236,6 +236,29 @@ describe("Overview charts", () => {
       expect(centreText(container)).toContain("Groceries");
     });
 
+    it("reads a slice in its own label when one is given (14-23)", () => {
+      const { container } = box(
+        <OverviewPieChart
+          data={[
+            { name: "Groceries", value: 42000, label: "100 €" },
+            { name: "Rent", value: 130000 },
+          ]}
+          nameKey="name"
+          valueKey="value"
+          labelKey="label"
+          colorFor={() => "#4ea1ff"}
+          formatValue={(n) => `${n} zl`}
+        />,
+      );
+      const main = container.querySelectorAll(".recharts-pie");
+      const slices = main[main.length - 1]!.querySelectorAll(".recharts-sector");
+      // The whole pie totals in the budget currency…
+      expect(centreText(container)).toContain("172000 zl");
+      // …and a foreign slice reads in its own.
+      tapSector(container, slices[0]!);
+      expect(centreText(container)).toContain("100 €");
+    });
+
     it("selects a RING arc and reads out its name, amount and share", () => {
       const { container } = box(
         <OverviewPieChart
@@ -1335,6 +1358,28 @@ describe("Diverging chart — banded background", () => {
     expect(container.querySelectorAll(".recharts-bar-rectangle")).toHaveLength(
       2,
     );
+  });
+
+  // 14-23 (user, 261104): a category in another currency reads its bar in it,
+  // while the bar is still drawn from the budget-currency value.
+  it("prints a row's own label when one is given", () => {
+    const { container } = render(
+      <div style={{ width: 600, height: 400 }}>
+        <OverviewDivergingBarChart
+          data={[
+            { name: "Car", gap: 43000, label: "+100 €" },
+            { name: "Food", gap: -2000 },
+          ]}
+          categoryKey="name"
+          valueKey="gap"
+          labelKey="label"
+          formatValue={(n: number) => `${n / 100} zl`}
+        />
+      </div>,
+    );
+    const labels = [...container.querySelectorAll("[data-variance-label]")].map((l) => l.textContent);
+    expect(labels).toContain("+100 €");
+    expect(labels).toContain("-20 zl");
   });
 
   // Same reason: the printed figure is a tap target, found by this attribute.

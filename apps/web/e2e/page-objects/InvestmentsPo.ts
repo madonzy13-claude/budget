@@ -230,9 +230,26 @@ export class InvestmentsPo {
 
   /** Reveal a row action: swipe on a phone (touch pointer — the row ignores
    *  mouse pointers), hover on desktop (D-05: Swap · Edit). */
+  /** 261106 (user): the asset's amount opens its sheet (Details first). */
+  async openAsset(name: string): Promise<void> {
+    const wrapper = this.wrapper(name);
+    await wrapper.waitFor({ state: "visible" });
+    // A fresh row is re-keyed from its optimistic id — retry until it opens.
+    await expect(async () => {
+      const id = (await wrapper.getAttribute("data-investment-row-wrapper"))!;
+      // An opened row on a phone shows its amount in the value block instead.
+      await this.page
+        .getByTestId(`holding-amount-${id}`)
+        .or(this.page.getByTestId(`asset-value-amount-${id}`))
+        .filter({ visible: true })
+        .click({ timeout: 3000 });
+      await this.swapSheet().waitFor({ state: "visible", timeout: 3000 });
+    }).toPass({ timeout: 20_000 });
+  }
+
   private async rowAction(
     name: string,
-    action: "swap" | "edit" | "hide" | "unhide" | "delete",
+    action: "hide" | "unhide" | "delete",
   ): Promise<void> {
     const wrapper = this.wrapper(name);
     await wrapper.waitFor({ state: "visible" });
@@ -268,19 +285,16 @@ export class InvestmentsPo {
           );
         });
         await this.page.waitForTimeout(500); // ghost-click guard after pointerup
-        const tid =
-          action === "swap"
-            ? `investment-swap-${id}`
-            : action === "hide" || action === "unhide"
-              ? `investment-${action}-${id}`
-              : action === "delete"
-                ? `investment-delete-${id}`
-                : `holding-swipe-edit-${id}`;
+        const tid = `investment-${action}-${id}`;
         await this.page.getByTestId(tid).click({ timeout: 3000 });
       }).toPass({ timeout: 20_000 });
       return;
     }
     const id = (await wrapper.getAttribute("data-investment-row-wrapper"))!;
+    // A toast from the step before sits bottom-right — over the action of a
+    // row low on the page; mid-screen it is clear.
+    await this.row(name).evaluate((el) => el.scrollIntoView({ block: "center" }));
+    // 261106: the one desktop action shows on the row's hover.
     await this.row(name).hover();
     await this.page.getByTestId(`investment-${action}-desktop-${id}`).click();
   }
@@ -297,15 +311,13 @@ export class InvestmentsPo {
     );
   }
 
-  /** Open the Swap sheet on a tab (deposits have no tabs — Sell only). */
+  /** Open the asset's sheet on a tab (a deposit has Details · Sell). */
   async openSwap(
     name: string,
     tab: "buy" | "sell" | "transfer",
   ): Promise<void> {
-    await this.rowAction(name, "swap");
-    await this.swapSheet().waitFor({ state: "visible" });
-    const t = this.page.getByTestId(`swap-tab-${tab}`);
-    if (await t.isVisible().catch(() => false)) await t.click();
+    await this.openAsset(name);
+    await this.page.getByTestId(`swap-tab-${tab}`).click();
   }
 
   /** R6: Buy with the money taken from another asset. */
@@ -493,6 +505,21 @@ export class InvestmentsPo {
     return this.page.getByTestId(`hidden-toggle-${type}`);
   }
 
+  /** 261102: the link under the list that opens the fully hidden groups. */
+  hiddenGroupsLink() {
+    return this.page.getByTestId("hidden-groups-toggle");
+  }
+
+  /** A fully hidden group, once its link is open. */
+  hiddenGroup(type: string) {
+    return this.page.getByTestId(`hidden-group-${type}`);
+  }
+
+  /** A type group's header total — present while the group is listed. */
+  groupTotal(type: string) {
+    return this.page.getByTestId(`investment-type-value-${type}`);
+  }
+
   /** R6 (user): unhide a listed hidden asset through its row action. */
   async unhide(name: string): Promise<void> {
     const res = this.page.waitForResponse(
@@ -503,9 +530,9 @@ export class InvestmentsPo {
     expect((await res).ok()).toBe(true);
   }
 
-  /** Open the slim Edit sheet (D-06). */
+  /** The asset's Details tab (its edit form) — where the sheet opens. */
   async openEdit(name: string): Promise<void> {
-    await this.rowAction(name, "edit");
+    await this.openAsset(name);
     await this.page
       .getByTestId("edit-asset-sheet")
       .waitFor({ state: "visible" });
@@ -704,16 +731,46 @@ export class InvestmentsPo {
     return ledger;
   }
 
-  /** R6: Edit the newest entry's note through the Edit dialog. */
+  /** R6: Edit the newest entry's note through its Edit sheet. */
   async editNewestNote(name: string, note: string): Promise<void> {
     const ledger = await this.openLedger(name);
-    const edit = ledger.locator('[data-testid^="ledger-edit-"]').first();
-    await this.revealDelete(edit);
-    await edit.click();
+    // 261109: the dotted amount opens Edit.
+    await ledger.locator('[data-testid^="ledger-amount-"]').first().click();
     await this.page.getByTestId("entry-edit-note").fill(note);
     const saved = this.page.waitForResponse(
       (r) =>
         /\/entries\/[^/]+$/.test(r.url()) && r.request().method() === "PATCH",
+      { timeout: 15000 },
+    );
+    await this.page.getByTestId("entry-edit-save").click();
+    expect((await saved).status()).toBe(200);
+  }
+
+  /** 261108: open the oldest entry's Edit sheet (its dotted amount). */
+  async editOldest(name: string, which: "first" | "last" = "last"): Promise<void> {
+    const ledger = await this.openLedger(name);
+    await ledger.locator('[data-testid^="ledger-amount-"]')[which]().click();
+    await expect(this.page.getByTestId("entry-edit-sheet")).toBeVisible();
+  }
+
+  /** 261108: the oldest entry's amount and currency, through Edit. */
+  async editOldestAmount(
+    name: string,
+    amount: string,
+    ccy: string,
+    which: "first" | "last" = "last",
+  ): Promise<void> {
+    await this.editOldest(name, which);
+    await this.page.getByTestId("entry-edit-amount").fill(amount);
+    const picker = this.page.getByTestId("entry-edit-currency");
+    const native = picker.getByTestId("currency-picker-native");
+    if (await native.isVisible().catch(() => false)) await native.selectOption(ccy);
+    else {
+      await picker.getByRole("combobox").click();
+      await this.page.getByRole("option", { name: new RegExp(`^${ccy}\\b`) }).first().click();
+    }
+    const saved = this.page.waitForResponse(
+      (r) => /\/entries\/[^/]+$/.test(r.url()) && r.request().method() === "PATCH",
       { timeout: 15000 },
     );
     await this.page.getByTestId("entry-edit-save").click();
@@ -728,6 +785,8 @@ export class InvestmentsPo {
       // Toasts sit at the bottom-right corner, over the row's end icons.
       await row.evaluate((el) => el.scrollIntoView({ block: "center" }));
       await row.hover();
+      // 261102: Edit / Delete wait behind the row's "…".
+      await row.getByTestId("row-actions-more").hover();
       await expect(del).toBeVisible({ timeout: 3000 });
       return;
     }

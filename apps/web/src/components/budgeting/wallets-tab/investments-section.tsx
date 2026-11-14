@@ -58,13 +58,7 @@ import { useSetTypeOrder, useTypeSummary } from "@/hooks/use-type-summary";
 import { useReorderHoldings } from "@/hooks/use-reorder-holdings";
 import { RowDragHandle } from "@/components/common/row-drag-handle";
 import { setDndDragging } from "@/lib/dnd-dragging";
-import { useUpdateHolding } from "@/hooks/use-update-holding";
-import { parseDecimal } from "@/lib/decimal";
-import {
-  deriveUiType,
-  unitPriceCents,
-  type UiType,
-} from "@/lib/investment-types";
+import { deriveUiType, type UiType } from "@/lib/investment-types";
 import {
   buildTypeBlocks,
   moveTypeBlock,
@@ -103,7 +97,6 @@ import { sharePercentLabel } from "@/lib/share-bar";
 import { InvestmentTypeHeader } from "./investment-type-header";
 import { NewTransactionSheet } from "./new-transaction-sheet";
 import { SwapSheet } from "./swap-sheet";
-import { EditAssetSheet } from "./edit-asset-sheet";
 
 interface InvestmentsSectionProps {
   budgetId: string;
@@ -116,6 +109,7 @@ interface InvestmentsSectionProps {
 const BLOCK = "type:";
 const blockId = (ui: UiType) => `${BLOCK}${ui}`;
 const isBlockId = (id: string) => id.startsWith(BLOCK);
+const HIDDEN_GROUPS = "hidden-groups";
 
 /** A type block as ONE sortable item: its header carries the drag handle, so
  *  header + rows move together. Rows sort in the block's own context. */
@@ -277,22 +271,27 @@ export function InvestmentsSection({
     transferId: string;
   } | null>(null);
   const openLinked = (holdingId: string, transferId: string) => {
-    const h = holdings.find((x) => x.id === holdingId);
+    const h =
+      holdings.find((x) => x.id === holdingId) ??
+      hidden.find((x) => x.id === holdingId);
     if (!h) return;
     const ui = deriveUiType(h.uiType, h.holdingType, h.isCustom);
     if (!isExpanded(ui)) toggleType(ui);
+    // 261110 (user): a hidden partner opens in its group's hidden list.
+    if (hidden.includes(h))
+      setShowHidden((cur) =>
+        cur.has(typeOf(h)) ? cur : new Set(cur).add(typeOf(h)),
+      );
     toggleAsset(holdingId, true);
     setFlash({ holdingId, transferId });
     window.setTimeout(() => setFlash(null), 1500);
   };
-  const updateMut = useUpdateHolding(budgetId);
   const reorderMut = useReorderHoldings(budgetId);
   const setOrderMut = useSetTypeOrder(budgetId);
-  // One Swap and one Edit sheet for the section (13.1 D-05).
+  // One asset sheet for the section (Details · Buy · Sell · Transfer).
   const [swapping, setSwapping] = useState<HoldingDto | null>(null);
   // 13.1 UAT 7: "New transaction" picks Buy / Sell / Transfer first.
   const [choosing, setChoosing] = useState(false);
-  const [editing, setEditing] = useState<HoldingDto | null>(null);
   // R6 (user): Hide / Unhide act at once (no confirm); history stays.
   const archiveMut = useArchiveHolding(budgetId);
   const restoreMut = useRestoreHolding(budgetId);
@@ -302,8 +301,11 @@ export function InvestmentsSection({
       (hiddenQuery.data ?? []).filter((h) => h.holdingType !== "possession"),
     [hiddenQuery.data],
   );
-  // Groups whose hidden assets are listed (the "N hidden" link toggles).
+  // Groups whose hidden assets are listed (the "N hidden" link toggles);
+  // HIDDEN_GROUPS stands for the list of fully hidden groups.
   const [showHidden, setShowHidden] = useState<Set<string>>(new Set());
+  const canOpenLinked = (id: string) =>
+    holdings.some((x) => x.id === id) || hidden.some((x) => x.id === id);
   const toggleHidden = (uiType: string) =>
     setShowHidden((cur) => {
       const next = new Set(cur);
@@ -317,27 +319,6 @@ export function InvestmentsSection({
     entryId: string;
   } | null>(null);
   const deleteMut = useDeleteEntry(budgetId);
-
-  /**
-   * 260731: inline value edit on a manual-value row (cash / broker / savings —
-   * quantity is 1, so the typed number IS the current value). Only the CURRENT
-   * price moves; the buy price stays the cost basis, so savings keeps its
-   * "started at" figure and the %-change stays honest.
-   */
-  // The row edits the TOTAL; the price is per unit (user, 261023). 13.1
-  // WR-06: the server books it as a Value/Price updated ledger entry.
-  async function saveInlineValue(holding: HoldingDto, amount: string) {
-    const cents = parseDecimal(amount);
-    if (cents === null) return;
-    await updateMut.mutateAsync(
-      Number(holding.quantity) === 1
-        ? { holdingId: holding.id, currentValueCents: String(cents) }
-        : {
-            holdingId: holding.id,
-            currentPriceCents: unitPriceCents(cents, holding.quantity),
-          },
-    );
-  }
 
   // ── Type blocks (D-12..D-16) ──
   // A type with only hidden assets keeps its block, so they can come back.
@@ -386,9 +367,12 @@ export function InvestmentsSection({
     h.currentPriceCurrency ?? h.buyCurrency ?? budgetCurrency;
   const assetCcy = (h: HoldingDto) =>
     uiPrefs.prefs[assetKey(h.id)]?.[0] ?? ownCcy(h);
-  const convertedAssets = [...holdings, ...hidden].filter(
-    (h) => assetCcy(h) !== ownCcy(h),
+  // 261105 (user): hidden assets are still yours — Buy/Sell pickers offer them.
+  const allHoldings = useMemo(
+    () => [...holdings, ...hidden],
+    [holdings, hidden],
   );
+  const convertedAssets = allHoldings.filter((h) => assetCcy(h) !== ownCcy(h));
   const assetPLs = useCurrencyPLs(
     budgetId,
     convertedAssets.map((h) => ({ currency: assetCcy(h), ids: [h.id] })),
@@ -432,8 +416,9 @@ export function InvestmentsSection({
   );
 
   // Longest formatted amount → dynamic amount-column width so the currency
-  // codes line up in a column (mirrors wallet-row, D-#align). Headers share one
-  // width; each block's rows get their own.
+  // codes line up in a column (mirrors wallet-row, D-#align). 261102 (user):
+  // ONE width for headers and assets alike, so every column under a group
+  // header runs straight down.
   // R6 (user): sized from the figures AS SHOWN (short, picked currency) — the
   // bare cents version ran ~3 chars wider and pushed the code off the amount.
   const amountCols = amountColumnChars(
@@ -460,6 +445,10 @@ export function InvestmentsSection({
         ),
       ]),
     ),
+  );
+  const amountChars = Math.max(
+    amountCols.top,
+    ...Object.values(amountCols.group),
   );
 
   // ── Collapse state per type (localStorage, default expanded) ──
@@ -599,11 +588,175 @@ export function InvestmentsSection({
     setDraggingRow(false);
   }
 
-  function openEdit(holding: HoldingDto) {
-    setEditing(holding);
-  }
-
   if (!investmentsEnabled) return null;
+
+  // 261102 (user): a group whose assets are ALL hidden leaves the list and
+  // waits behind its own link, like a hidden asset.
+  const hiddenBlocks = blocks.filter((b) => b.holdings.length === 0);
+  const renderBlock = (block: (typeof blocks)[number]) => {
+    const pl = blockPL.get(block.uiType)!;
+    const allHidden = block.holdings.length === 0;
+    return (
+      <SortableTypeBlock
+        key={block.uiType}
+        uiType={block.uiType}
+        header={(handle) => (
+          <InvestmentTypeHeader
+            dragHandle={handle}
+            uiType={block.uiType}
+            budgetCurrency={shownPL(block.uiType, pl).ccy}
+            pl={shownPL(block.uiType, pl).pl}
+            onCurrencyChange={(c) =>
+              void uiPrefs.save(ccyKey(block.uiType), [c])
+            }
+            portfolioPct={
+              totalBudgetCents > 0
+                ? (pl.valueBudgetCents / totalBudgetCents) * 100
+                : 0
+            }
+            maxAmountChars={amountChars}
+            expanded={isExpanded(block.uiType)}
+            onToggle={() => toggleType(block.uiType)}
+          />
+        )}
+      >
+        {/* Round 4: assets slide open / shut under the header (no
+          slide while a block is dragged). The header gap lives
+          inside the slide so it closes with it. */}
+        <SlideCollapse
+          open={isExpanded(block.uiType)}
+          instant={draggingBlock}
+          className="-mt-2"
+        >
+          <div
+            // R6-7: an open group draws a hairline guide in the
+            // assets' indent (a 1px background stripe — no layout shift).
+            data-testid={`investment-group-guide-${block.uiType}`}
+            className="flex flex-col gap-2 pt-2"
+            style={{
+              backgroundImage:
+                "linear-gradient(var(--color-hairline-dark), var(--color-hairline-dark))",
+              backgroundSize: "1px calc(100% - 0.5rem)",
+              backgroundPosition: "7px 0.5rem",
+              backgroundRepeat: "no-repeat",
+            }}
+          >
+            <SortableContext
+              items={block.holdings.map((h) => h.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {block.holdings.map((h) => (
+                <div
+                  key={h.id}
+                  data-asset-block
+                  // UAT 13.1 test 4: assets nest under their type header.
+                  className="flex flex-col pl-4"
+                >
+                  <InvestmentRowSheet
+                    holding={h}
+                    nested
+                    maxAmountChars={amountChars}
+                    open={openAssets.has(h.id)}
+                    realized={summary?.holdings?.[h.id]}
+                    {...assetView(h)}
+                    onToggle={toggleAsset}
+                    onSwipeOffset={(id, px, live) => setSwipe({ id, px, live })}
+                    onSwap={setSwapping}
+                    onArchive={(x) => archiveMut.mutate(x.id)}
+                    onDelete={
+                      soleEntry.get(h.id)
+                        ? (x) =>
+                            setDeleting({
+                              holding: x,
+                              entryId: soleEntry.get(h.id)!,
+                            })
+                        : undefined
+                    }
+                  />
+                  {/* L3: same left edge as the asset, outside the sortable
+                row; collapsed while an asset is dragged (D-28/D-30). */}
+                  <AssetLedger
+                    budgetId={budgetId}
+                    assetId={h.id}
+                    assetName={h.name}
+                    noRealized={isCashLike(h)}
+                    currency={
+                      assetCcy(h) !== ownCcy(h) ? assetCcy(h) : undefined
+                    }
+                    open={openAssets.has(h.id) && !draggingRow}
+                    swipeOffset={swipe?.id === h.id ? swipe.px : 0}
+                    swiping={swipe?.id === h.id && swipe.live}
+                    onOpenLinked={openLinked}
+                    canOpen={canOpenLinked}
+                    flashTransferId={
+                      flash?.holdingId === h.id ? flash.transferId : null
+                    }
+                  />
+                </div>
+              ))}
+            </SortableContext>
+            {!allHidden && hiddenOf(block.uiType).length > 0 && (
+              <button
+                type="button"
+                data-testid={`hidden-toggle-${block.uiType}`}
+                data-count={hiddenOf(block.uiType).length}
+                onClick={() => toggleHidden(block.uiType)}
+                className="self-center text-center text-[12px] lowercase text-[var(--muted-foreground)] underline decoration-dotted underline-offset-2"
+              >
+                {showHidden.has(block.uiType)
+                  ? t("asset.hidden.close")
+                  : t("asset.hidden.show", {
+                      count: hiddenOf(block.uiType).length,
+                    })}
+              </button>
+            )}
+            {(allHidden || showHidden.has(block.uiType)) &&
+              hiddenOf(block.uiType).map((h) => (
+                <div
+                  key={h.id}
+                  data-testid={`hidden-asset-${h.id}`}
+                  className="flex flex-col pl-4"
+                  // R6 (user): listed like any asset, but fainter (a hidden
+                  // group is faded as a whole already).
+                  style={allHidden ? undefined : { opacity: 0.5 }}
+                >
+                  <InvestmentRowSheet
+                    holding={h}
+                    nested
+                    maxAmountChars={amountChars}
+                    open={openAssets.has(h.id)}
+                    realized={summary?.holdings?.[h.id]}
+                    {...assetView(h)}
+                    onToggle={toggleAsset}
+                    onSwipeOffset={(id, px, live) => setSwipe({ id, px, live })}
+                    onSwap={setSwapping}
+                    onUnhide={(x) => restoreMut.mutate(x.id)}
+                  />
+                  {/* R6 (user): its transactions open like any asset's. */}
+                  <AssetLedger
+                    budgetId={budgetId}
+                    assetId={h.id}
+                    assetName={h.name}
+                    noRealized={isCashLike(h)}
+                    currency={
+                      assetCcy(h) !== ownCcy(h) ? assetCcy(h) : undefined
+                    }
+                    open={openAssets.has(h.id)}
+                    swipeOffset={swipe?.id === h.id ? swipe.px : 0}
+                    swiping={swipe?.id === h.id && swipe.live}
+                    onOpenLinked={openLinked}
+                    canOpen={canOpenLinked}
+                    flashTransferId={
+                      flash?.holdingId === h.id ? flash.transferId : null
+                    }
+                  />
+                </div>
+              ))}
+          </div>
+        </SlideCollapse>
+      </SortableTypeBlock>
+    );
+  };
 
   return (
     <section
@@ -646,7 +799,9 @@ export function InvestmentsSection({
         </span>
         <span
           data-testid="section-share-INVESTMENTS"
-          className="hidden w-16 shrink-0 text-right text-num-sm tabular-nums tracking-normal sm:block"
+          // 80px: the rows' share column (and every wallet section's), so the
+          // total and share sit over the columns under them (261103, user).
+          className="hidden w-[80px] shrink-0 text-right text-num-sm tabular-nums tracking-normal sm:block"
         >
           {investmentsShare ?? ""}
         </span>
@@ -662,189 +817,39 @@ export function InvestmentsSection({
         onDragCancel={handleDragCancel}
       >
         <SortableContext
-          items={blocks.map((b) => blockId(b.uiType))}
+          items={blocks
+            .filter((b) => b.holdings.length > 0)
+            .map((b) => blockId(b.uiType))}
           strategy={verticalListSortingStrategy}
         >
           <div className="flex flex-col gap-2">
-            {blocks.map((block) => {
-              const pl = blockPL.get(block.uiType)!;
-              return (
-                <SortableTypeBlock
-                  key={block.uiType}
-                  uiType={block.uiType}
-                  header={(handle) => (
-                    <InvestmentTypeHeader
-                      dragHandle={handle}
-                      uiType={block.uiType}
-                      budgetCurrency={shownPL(block.uiType, pl).ccy}
-                      pl={shownPL(block.uiType, pl).pl}
-                      onCurrencyChange={(c) =>
-                        void uiPrefs.save(ccyKey(block.uiType), [c])
-                      }
-                      portfolioPct={
-                        totalBudgetCents > 0
-                          ? (pl.valueBudgetCents / totalBudgetCents) * 100
-                          : 0
-                      }
-                      maxAmountChars={amountCols.top}
-                      expanded={isExpanded(block.uiType)}
-                      onToggle={() => toggleType(block.uiType)}
-                    />
-                  )}
+            {blocks.filter((b) => b.holdings.length > 0).map(renderBlock)}
+            {hiddenBlocks.length > 0 && (
+              <button
+                type="button"
+                data-testid="hidden-groups-toggle"
+                data-count={hiddenBlocks.length}
+                onClick={() => toggleHidden(HIDDEN_GROUPS)}
+                className="self-center text-center text-[12px] lowercase text-[var(--muted-foreground)] underline decoration-dotted underline-offset-2"
+              >
+                {showHidden.has(HIDDEN_GROUPS)
+                  ? t("asset.hidden.groupsClose")
+                  : t("asset.hidden.groupsShow", {
+                      count: hiddenBlocks.length,
+                    })}
+              </button>
+            )}
+            {showHidden.has(HIDDEN_GROUPS) &&
+              hiddenBlocks.map((b) => (
+                <div
+                  key={b.uiType}
+                  data-testid={`hidden-group-${b.uiType}`}
+                  // 261102 (user): a group hides the same way its assets do.
+                  style={{ opacity: 0.5 }}
                 >
-                  {/* Round 4: assets slide open / shut under the header (no
-                      slide while a block is dragged). The header gap lives
-                      inside the slide so it closes with it. */}
-                  <SlideCollapse
-                    open={isExpanded(block.uiType)}
-                    instant={draggingBlock}
-                    className="-mt-2"
-                  >
-                    <div
-                      // R6-7: an open group draws a hairline guide in the
-                      // assets' indent (a 1px background stripe — no layout shift).
-                      data-testid={`investment-group-guide-${block.uiType}`}
-                      className="flex flex-col gap-2 pt-2"
-                      style={{
-                        backgroundImage:
-                          "linear-gradient(var(--color-hairline-dark), var(--color-hairline-dark))",
-                        backgroundSize: "1px calc(100% - 0.5rem)",
-                        backgroundPosition: "7px 0.5rem",
-                        backgroundRepeat: "no-repeat",
-                      }}
-                    >
-                      <SortableContext
-                        items={block.holdings.map((h) => h.id)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        {block.holdings.map((h) => (
-                          <div
-                            key={h.id}
-                            data-asset-block
-                            // UAT 13.1 test 4: assets nest under their type header.
-                            className="flex flex-col pl-4"
-                          >
-                            <InvestmentRowSheet
-                              holding={h}
-                              nested
-                              maxAmountChars={amountCols.group[block.uiType]}
-                              open={openAssets.has(h.id)}
-                              realized={summary?.holdings?.[h.id]}
-                              {...assetView(h)}
-                              onToggle={toggleAsset}
-                              onSwipeOffset={(id, px, live) =>
-                                setSwipe({ id, px, live })
-                              }
-                              onEdit={openEdit}
-                              onSwap={setSwapping}
-                              onArchive={(x) => archiveMut.mutate(x.id)}
-                              onDelete={
-                                soleEntry.get(h.id)
-                                  ? (x) =>
-                                      setDeleting({
-                                        holding: x,
-                                        entryId: soleEntry.get(h.id)!,
-                                      })
-                                  : undefined
-                              }
-                              onValueChange={(amount) =>
-                                saveInlineValue(h, amount)
-                              }
-                            />
-                            {/* L3: same left edge as the asset, outside the sortable
-                            row; collapsed while an asset is dragged (D-28/D-30). */}
-                            <AssetLedger
-                              budgetId={budgetId}
-                              assetId={h.id}
-                              assetName={h.name}
-                              noRealized={isCashLike(h)}
-                              currency={
-                                assetCcy(h) !== ownCcy(h)
-                                  ? assetCcy(h)
-                                  : undefined
-                              }
-                              open={openAssets.has(h.id) && !draggingRow}
-                              swipeOffset={swipe?.id === h.id ? swipe.px : 0}
-                              swiping={swipe?.id === h.id && swipe.live}
-                              onOpenLinked={openLinked}
-                              canOpen={(id) =>
-                                holdings.some((x) => x.id === id)
-                              }
-                              flashTransferId={
-                                flash?.holdingId === h.id
-                                  ? flash.transferId
-                                  : null
-                              }
-                            />
-                          </div>
-                        ))}
-                      </SortableContext>
-                      {hiddenOf(block.uiType).length > 0 && (
-                        <button
-                          type="button"
-                          data-testid={`hidden-toggle-${block.uiType}`}
-                          data-count={hiddenOf(block.uiType).length}
-                          onClick={() => toggleHidden(block.uiType)}
-                          className="self-start pl-7 text-left text-[12px] text-[var(--muted-foreground)] underline decoration-dotted underline-offset-2"
-                        >
-                          {showHidden.has(block.uiType)
-                            ? t("asset.hidden.close")
-                            : t("asset.hidden.show", {
-                                count: hiddenOf(block.uiType).length,
-                              })}
-                        </button>
-                      )}
-                      {showHidden.has(block.uiType) &&
-                        hiddenOf(block.uiType).map((h) => (
-                          <div
-                            key={h.id}
-                            data-testid={`hidden-asset-${h.id}`}
-                            className="flex flex-col pl-4"
-                            // R6 (user): listed like any asset, but fainter.
-                            style={{ opacity: 0.5 }}
-                          >
-                            <InvestmentRowSheet
-                              holding={h}
-                              nested
-                              maxAmountChars={amountCols.group[block.uiType]}
-                              open={openAssets.has(h.id)}
-                              realized={summary?.holdings?.[h.id]}
-                              {...assetView(h)}
-                              onToggle={toggleAsset}
-                              onSwipeOffset={(id, px, live) =>
-                                setSwipe({ id, px, live })
-                              }
-                              onEdit={openEdit}
-                              onSwap={setSwapping}
-                              onUnhide={(x) => restoreMut.mutate(x.id)}
-                            />
-                            {/* R6 (user): its transactions open like any asset's. */}
-                            <AssetLedger
-                              budgetId={budgetId}
-                              assetId={h.id}
-                              assetName={h.name}
-                              noRealized={isCashLike(h)}
-                              currency={
-                                assetCcy(h) !== ownCcy(h)
-                                  ? assetCcy(h)
-                                  : undefined
-                              }
-                              open={openAssets.has(h.id)}
-                              swipeOffset={swipe?.id === h.id ? swipe.px : 0}
-                              swiping={swipe?.id === h.id && swipe.live}
-                              onOpenLinked={openLinked}
-                              canOpen={(id) =>
-                                holdings.some((x) => x.id === id)
-                              }
-                              flashTransferId={null}
-                            />
-                          </div>
-                        ))}
-                    </div>
-                  </SlideCollapse>
-                </SortableTypeBlock>
-              );
-            })}
+                  {renderBlock(b)}
+                </div>
+              ))}
           </div>
         </SortableContext>
       </DndContext>
@@ -862,7 +867,7 @@ export function InvestmentsSection({
         onOpenChange={setChoosing}
         budgetId={budgetId}
         budgetCurrency={budgetCurrency}
-        holdings={holdings}
+        holdings={allHoldings}
       />
       {swapping && (
         <SwapSheet
@@ -875,17 +880,7 @@ export function InvestmentsSection({
           budgetId={budgetId}
           budgetCurrency={budgetCurrency}
           holding={swapping}
-          holdings={holdings}
-        />
-      )}
-      {editing && (
-        <EditAssetSheet
-          key={editing.id}
-          open
-          onOpenChange={(o) => !o && setEditing(null)}
-          budgetId={budgetId}
-          budgetCurrency={budgetCurrency}
-          holding={editing}
+          holdings={allHoldings}
         />
       )}
       <AlertDialog

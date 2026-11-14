@@ -431,6 +431,170 @@ Plans:
 - [x] 13-13-PLAN.md — Web Edit "What happened?", History with full undo, Add date (wave 9)
 - [ ] 13-14-PLAN.md — E2E Gherkin (sell + history), full gate, user real-data acceptance (wave 10)
 
+### Phase 14: Multi-currency budgets: changeable budget currency, per-category currency, multi-currency reserves
+
+**Goal:** The budget currency can change at any time and every total re-expresses itself at historical rates, while each transaction keeps the currency it was entered in. Each spending category carries its own currency, and reserve wallets may be in any currency, with the reserve need and its top-up/withdraw tasks split per currency.
+
+**Decided with the user (2026-11-03):**
+
+- Transactions never change currency on their own; after a budget or category currency change they show their own currency as a suffix. The user edits a transaction to change it.
+- A category's currency defaults to the budget currency when it is created; a plain transaction in it takes that currency. Changing a category's currency converts its limit at today's rate.
+- Limits in another currency count at the latest rate in the current month, and at the last rate available within the month for past months (frozen).
+- Reserve wallets: currency unlocked. Same-currency wallets cover a currency's need first; the remainder is converted at today's rate. Single-currency reserves stay allowed (more frequent tasks accepted).
+
+**Success criteria:**
+
+1. Changing the budget currency (any time, owner) re-expresses spendings, limits, reserves, cushion, cash flow, overview cards, wealth history and investment P/L in the new currency; no total mixes currencies.
+2. Old-currency transactions render with their currency suffix and keep their stored original amount.
+3. A category's currency is set on create/edit; quick entry and the transaction slider default to it.
+4. Reserve wallets can be in any currency; the reserve message and RESERVE_TOPUP task state the shortfall/surplus per currency.
+5. The reserve-wallet total converts wallets in other currencies (today it sums them raw).
+
+**Requirements**: CONTEXT decisions (no REQ ids mapped)
+**Depends on:** Phase 13
+**Plans:** 24/24 plans complete
+
+Plans:
+**Wave 1**
+
+- [x] 14-01-PLAN.md — migration 0104: fx_convert(), categories.currency, adjustments.currency, fx-sql helpers [BLOCKING apply]
+- [x] 14-02-PLAN.md — pure settleReserveByCurrency (own ccy first, net, exact, ≈ budget ccy)
+- [x] 14-04-PLAN.md — all Phase 14 i18n keys + shared E2E FX seed step
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [x] 14-03-PLAN.md — pure D-17 closed-month result conversion
+- [x] 14-05-PLAN.md — category currency backend (create default, DTO, tx default, limit currency)
+- [x] 14-06-PLAN.md — ledger read-time conversion (transaction-repo, list/search) + architecture guard
+- [x] 14-07-PLAN.md — D-08 limit conversion (limit repo currency, spendings summary)
+- [x] 14-08-PLAN.md — overview + home summary read-time conversion
+- [x] 14-09-PLAN.md — cash flow, scheduled monthly, cushion, income task conversion
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [x] 14-10-PLAN.md — reserve fit + wealth re-expression; guard green
+- [x] 14-11-PLAN.md — per-currency reserve replay (D-10, D-17)
+- [x] 14-18-PLAN.md — entry defaults to category currency + foreign limit display (web)
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
+- [x] 14-12-PLAN.md — settlement wiring, D-14 fix, multi-line RESERVE_TOPUP payload
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
+- [x] 14-13-PLAN.md — per-currency reserve DTOs + spendings reserve conversion
+- [x] 14-15-PLAN.md — reserve wallet currency unlock (D-09)
+- [x] 14-16-PLAN.md — change category currency with limit conversion (D-07)
+
+**Wave 6** _(blocked on Wave 5 completion)_
+
+- [x] 14-14-PLAN.md — web per-currency reserve task copy + reserves tab
+- [x] 14-17-PLAN.md — category slider currency field (web)
+- [x] 14-19-PLAN.md — remove budget currency locks (backend, LAST)
+
+**Wave 7** _(blocked on Wave 6 completion)_
+
+- [x] 14-20-PLAN.md — settings confirm dialog, cache invalidation, full E2E (web, LAST)
+
+**Wave 8** _(blocked on Wave 7 completion)_
+
+- [x] 14-21-PLAN.md — phase gate + owner verification checkpoint
+
+### Phase 15: MCP server: manage budgets via AI agents and assistants
+
+**Goal:** Users connect AI agents/assistants (Claude.ai, ChatGPT, Claude Desktop, Cursor) to their budgets to import old data in any format, add transactions, sync wallet + investment balances, and analyze history — safely.
+
+**Shape:** MCP = new driving adapter over existing use cases inside `withTenantTx` (RLS intact, zero duplicated domain logic). Remote Streamable HTTP at `/mcp`, OAuth 2.1 (Better Auth OAuth-provider/MCP plugin — verify on 1.7.15). Consent per budget + per scope (`read` default; write scopes opt-in). Settings → Connected apps (list, last used, revoke).
+
+**Scope — read tools** (`readOnlyHint`): list_budgets, get_budget_overview(month), list_categories, search_transactions (paginated, capped), spending_summary(range, groupBy) — aggregates so agent produces insights without pulling raw ledger, get_reserves, get_projection, list_tasks, list_wallets, list_investments, list_scheduled_payments, get_fx_rate.
+
+**Scope — write tools:** add_transactions(batch, idempotencyKey), edit_transaction, void_transaction (reversal entry — ledger append-only), sync_wallet_balance (returns diff → adjustment entry), record_investment_transaction, update_holding_value, confirm_scheduled_payment, complete_task, set_category_limit, category CRUD (create/rename/archive), scheduled payments CRUD, budget create.
+
+**Scope — import:** agent normalizes ANY format (CSV/XLSX/PDF statements/other apps) to strict JSON — server writes zero format parsers. import_preview(rows) → dedupe, unmapped categories, FX gaps, previewId; import_commit(previewId) under batchId; import_undo(batchId).
+
+**Scope — prompts:** monthly review, import old spreadsheet, reconcile wallets.
+
+**Excluded (by design):** account/password/2FA/sessions/delete-account; members/invites/share links/roles; budget delete/archive; budget or category currency change; GDPR export; notifications/push/email; hard/bulk delete; ledger history rewrite; generic query/SQL; cross-tenant comparison.
+
+**Safety:** no exfiltration-channel tools (lethal-trifecta mitigation: private data + untrusted imported/member text + outbound channel — we remove the channel); user-authored text returned as labelled data fields; tool annotations readOnlyHint/destructiveHint; every MCP write audited `actor=mcp:<client>` with "via <client>" badge + undo in UI; per-token rate limits; row/payload caps; money as decimal string + currency (no floats).
+
+**Waves:** (1) OAuth + consent + Connected apps + read tools; (2) writes + import + audit badge/undo; (3) prompts + E2E against a real MCP client.
+
+**Requirements**: MCP-01..MCP-11 (from 15-RESEARCH/15-VALIDATION; CONTEXT D-01..D-25)
+**Depends on:** Phase 14
+**Plans:** 1/21 plans executed
+
+Plans:
+
+**Wave 1**
+
+- [x] 15-01-PLAN.md — Package legitimacy gate + exact-pin installs + decisions: investment undo scope, wallet-history import (wave 1, checkpoint)
+- [ ] 15-02-PLAN.md — Internal route dispatch (WeakMap identity) + decimal-string money boundary (wave 1)
+- [ ] 15-03-PLAN.md — Full-history paged transaction search route (wave 1)
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [ ] 15-04-PLAN.md — [BLOCKING] Migration 0106: OAuth/JWKS tables, mcp_write_log, mcp_import_previews, RLS + apply (wave 2)
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [ ] 15-05-PLAN.md — Better Auth OAuth AS (DCR, PKCE, rotation, read/write scopes) + lifetime spike tests (wave 3)
+- [ ] 15-06-PLAN.md — Write-log/preview repo + per-connection rate and daily limits (wave 3)
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
+- [ ] 15-07-PLAN.md — /mcp endpoint, bearer verify, well-known metadata, list_budgets, registry guard (wave 4)
+- [ ] 15-19-PLAN.md — Web: public-host rewrites, middleware matcher, SW consent rule (wave 4)
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
+- [ ] 15-08-PLAN.md — Connected-apps API: list, client info, disconnect revoking live tokens (wave 5)
+- [ ] 15-10-PLAN.md — All read tools + agent-safe presentation (money strings, untrusted text) (wave 5)
+
+**Wave 6** _(blocked on Wave 5 completion)_
+
+- [ ] 15-09-PLAN.md — Web: sign-in return + consent page EN/PL/UK (wave 6)
+
+**Wave 7** _(blocked on Wave 6 completion)_
+
+- [ ] 15-11-PLAN.md — Web: Settings → Connected apps section (wave 7)
+
+**Wave 8** _(blocked on Wave 7 completion)_
+
+- [ ] 15-12-PLAN.md — Real Claude.ai spike through the tunnel (wave 8, checkpoint)
+
+**Wave 9** _(blocked on Wave 8 completion)_
+
+- [ ] 15-13-PLAN.md — writeTool wrapper (mandatory cap preflight, replay-safe log) + ledger/wallet/category/budget write tools (wave 9)
+
+**Wave 10** _(blocked on Wave 9 completion)_
+
+- [ ] 15-14-PLAN.md — Investment, scheduled-payment and task write tools (wave 10)
+
+**Wave 11** _(blocked on Wave 10 completion)_
+
+- [ ] 15-15-PLAN.md — Agent undo + rollback-mode inverses for every import kind + transaction restore route (wave 11)
+
+**Wave 12** _(blocked on Wave 11 completion)_
+
+- [ ] 15-16-PLAN.md — Import preview (all 5 kinds) + commit/rollback/undo for transactions + categories (wave 12)
+
+**Wave 13** _(blocked on Wave 12 completion)_
+
+- [ ] 15-20-PLAN.md — Import commit/rollback/undo for limits, investments, wallet balances, scheduled payments (wave 13)
+
+**Wave 14** _(blocked on Wave 13 completion)_
+
+- [ ] 15-21-PLAN.md — Wallet-history import as wealth snapshots (only if 15-01 chose b2) (wave 14)
+
+**Wave 15** _(blocked on Wave 14 completion)_
+
+- [ ] 15-17-PLAN.md — Prompts + GDPR cascade + MCP tenant-leak gate (wave 15)
+
+**Wave 16** _(blocked on Wave 15 completion)_
+
+- [ ] 15-18-PLAN.md — @mcp E2E, full gate, real-client UAT (wave 16, checkpoint)
+
 ---
 
 _Roadmap version: v1.1 milestone — generated 2026-05-11. Coverage: 126/126 v1.1 requirements mapped. Phase 7 rescoped 2026-05-30: 3-kind set (RESERVE_TOPUP, CONFIRM_DRAFT, CUSHION_BELOW_TARGET); TASK-05 dropped from v1.1; TASK-04 reassigned semantic to CUSHION_BELOW_TARGET. Phase 11 added 2026-06-28 (v1.2 Overview tab — single phase; budget-side compute-on-read + per-budget 3h wealth aggregate snapshot)._

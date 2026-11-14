@@ -35,6 +35,25 @@ export class SettingsPo {
     await this.cushionTargetMonthsInput().waitFor({ state: "attached" });
   }
 
+  /** Expand Settings → Investments (settings.sections.investments). */
+  async openInvestmentsSection(): Promise<void> {
+    const trigger = this.page.getByRole("button", { name: /^Investments$/ });
+    await trigger.waitFor({ state: "visible", timeout: 15000 });
+    if ((await trigger.getAttribute("aria-expanded")) !== "true") {
+      await trigger.click();
+    }
+    await this.investmentsToggle().waitFor({ state: "visible" });
+  }
+
+  investmentsToggle() {
+    return this.page.getByTestId("settings-investments-toggle");
+  }
+
+  /** The expanded Investments accordion panel. */
+  investmentsSection() {
+    return this.page.getByRole("region", { name: /^Investments$/ });
+  }
+
   cushionTargetMonthsInput() {
     return this.page.locator("#cushion-target-months");
   }
@@ -60,6 +79,20 @@ export class SettingsPo {
 
   async assertCushionPreviewContains(text: string | RegExp): Promise<void> {
     await expect(this.cushionPreview()).toContainText(text);
+  }
+
+  /** The budget name on the General card (an inline-edit cell at rest). */
+  budgetNameCell() {
+    return this.page.getByTestId("budget-name-input").first();
+  }
+
+  /** Rename the budget through the General card's inline cell. */
+  async renameBudget(name: string): Promise<void> {
+    await this.budgetNameCell().click();
+    const input = this.page.locator("input[data-testid=budget-name-input]");
+    await input.fill(name);
+    await input.press("Enter");
+    await expect(this.budgetNameCell()).toHaveText(name);
   }
 
   /**
@@ -96,5 +129,65 @@ export class SettingsPo {
    */
   async clickGenerateInviteLink(): Promise<void> {
     await this.page.getByTestId("generate-share-link").click();
+  }
+
+  // ─── Phase 14: budget currency (D-01) ────────────────────────────────────
+  private budgetCurrencyPicker() {
+    return this.page.getByTestId("budget-currency-picker");
+  }
+
+  async pickCurrency(ccy: string): Promise<void> {
+    const picker = this.budgetCurrencyPicker();
+    await picker.waitFor({ state: "visible", timeout: 15000 });
+    const native = picker.getByTestId("currency-picker-native");
+    if (await native.isVisible().catch(() => false)) {
+      await native.selectOption(ccy);
+    } else {
+      // Right after a currency change the settings re-render as the budget
+      // refetches; a click landing in that window focused the combobox but
+      // never opened it (CI, both projects). Click until the list is open.
+      const option = this.page
+        .getByRole("option")
+        .filter({ hasText: ccy })
+        .first();
+      await expect(async () => {
+        if (!(await option.isVisible()))
+          await picker.getByRole("combobox").click();
+        await expect(option).toBeVisible({ timeout: 2000 });
+      }).toPass({ timeout: 15000 });
+      await option.click();
+    }
+    await expect(this.page.getByTestId("budget-currency-dialog")).toBeVisible({
+      timeout: 10000,
+    });
+  }
+
+  async confirmCurrencyDialog(): Promise<void> {
+    const saved = this.page.waitForResponse(
+      (r) =>
+        r.request().method() === "PATCH" &&
+        /\/budgets\/[^/]+$/.test(new URL(r.url()).pathname),
+      { timeout: 15000 },
+    );
+    await this.page.getByTestId("budget-currency-confirm").click();
+    if (!(await saved).ok()) throw new Error("currency change failed");
+    await expect(this.page.getByTestId("budget-currency-dialog")).toBeHidden({
+      timeout: 10000,
+    });
+  }
+
+  async cancelCurrencyDialog(): Promise<void> {
+    await this.page.getByTestId("budget-currency-cancel").click();
+    await expect(this.page.getByTestId("budget-currency-dialog")).toBeHidden({
+      timeout: 10000,
+    });
+  }
+
+  async assertCurrency(ccy: string): Promise<void> {
+    const picker = this.budgetCurrencyPicker();
+    const native = picker.getByTestId("currency-picker-native");
+    if (await native.isVisible({ timeout: 10000 }).catch(() => false))
+      await expect(native).toHaveValue(ccy);
+    else await expect(picker).toContainText(ccy);
   }
 }

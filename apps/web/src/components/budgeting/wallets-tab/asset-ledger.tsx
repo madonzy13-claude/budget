@@ -17,7 +17,7 @@ import { useAssetEntries, type EntryDto } from "@/hooks/use-asset-entries";
 import { useDeleteEntry } from "@/hooks/use-delete-entry";
 import { LedgerRow, kindKey, ledgerDate } from "./ledger-row";
 import { LedgerDeleteConfirm } from "./ledger-delete-confirm";
-import { EntryEditDialog } from "./entry-edit-dialog";
+import { EntryEditSheet } from "./entry-edit-sheet";
 import { useEditEntry } from "@/hooks/use-edit-entry";
 import { SlideCollapse } from "@/components/common/slide-collapse";
 
@@ -138,7 +138,7 @@ export function AssetLedger({
                 />
               );
             })}
-        <EntryEditDialog
+        <EntryEditSheet
           entry={editing}
           onOpenChange={(o) => !o && setEditing(null)}
           onSave={(body) => {

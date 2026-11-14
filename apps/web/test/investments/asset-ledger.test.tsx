@@ -219,7 +219,7 @@ describe("Asset ledger strip", () => {
   it("every amount uses the muted grey, the deletable newest included", async () => {
     mount(ENTRIES);
     const buy = await screen.findByTestId("ledger-row-b1");
-    const amount = [...buy.querySelectorAll<HTMLElement>("span")].find(
+    const amount = [...buy.querySelectorAll<HTMLElement>("span, button")].find(
       (s) =>
         /PLN$/.test(s.textContent ?? "") && !/ × /.test(s.textContent ?? ""),
     )!;
@@ -243,31 +243,33 @@ describe("Asset ledger strip", () => {
   });
 
   // Round-3 gap 9: the swiped delete is square, shadowed on its left edge.
-  // R6 (user): with Edit beside it, the leftmost button (Edit) carries it.
-  it("the swiped buttons are square; the leftmost (Edit) carries the inset shadow", async () => {
+  // 261109 (user): Edit left the swipe — the amount opens it.
+  it("the swiped delete is square and carries the inset shadow; no Edit beside it", async () => {
     mount(ENTRIES);
     const del = await screen.findByTestId("ledger-delete-b1");
-    const edit = screen.getByTestId("ledger-edit-b1");
-    expect(del.className).not.toMatch(/rounded/);
-    expect(edit.className).toMatch(
+    // Square on a phone (desktop rounds its hover chip: sm:rounded).
+    expect(del.className).not.toMatch(/(^|\s)rounded/);
+    expect(del.className).toMatch(
       /shadow-\[inset_6px_0_8px_-6px_rgba\(0,0,0,0\.7\)\]/,
     );
-    expect(del.className).not.toMatch(/shadow-\[inset/);
+    expect(screen.queryByTestId("ledger-edit-b1")).toBeNull();
   });
 
-  // R6 (user): desktop draws the actions like the asset row — plain icons
-  // that appear on hover, not the phone's coloured swipe squares.
-  it("on desktop the actions are hover icons like the asset row's", async () => {
+  // 261102 (user): desktop tucks Delete behind a "…" — hovering it fades it
+  // in over a blurred right end; the phone's swipe square stays.
+  it("on desktop the actions sit behind a … that reveals them on hover", async () => {
     mount(ENTRIES);
-    const edit = await screen.findByTestId("ledger-edit-b1");
-    const del = screen.getByTestId("ledger-delete-b1");
-    for (const b of [edit, del]) {
-      expect(b.className).toMatch(/sm:invisible/);
-      expect(b.className).toMatch(/sm:group-hover:visible/);
-      expect(b.className).toMatch(/sm:bg-transparent/);
-      expect(b.className).toMatch(/sm:shadow-none/);
-    }
-    expect(screen.getByTestId("ledger-row-b1").className).toMatch(/\bgroup\b/);
+    const del = await screen.findByTestId("ledger-delete-b1");
+    const row = screen.getByTestId("ledger-row-b1");
+    expect(row.className).toMatch(/group\/row/);
+    const toolbar = del.closest('[role="toolbar"]') as HTMLElement;
+    expect(toolbar).not.toBeNull();
+    expect(toolbar.className).toMatch(/sm:opacity-0/);
+    expect(toolbar.className).toMatch(/sm:group-hover\/actions:opacity-100/);
+    expect(toolbar.className).toMatch(/sm:backdrop-blur/);
+    expect(row.querySelector('[data-testid="row-actions-more"]')).not.toBeNull();
+    expect(del.className).toMatch(/sm:bg-transparent/);
+    expect(del.className).toMatch(/sm:shadow-none/);
   });
 
   // Round-4 gap 28: a leading icon says money in (green) / out (red).
@@ -346,6 +348,15 @@ describe("Asset ledger strip", () => {
     expect(row).toHaveAttribute("data-transfer-id", "tr1");
     const link = screen.getByTestId("ledger-link-t1");
     expect(link.tagName).toBe("BUTTON");
+    // 261109 (user): its dotted line is grey like its text, a little lower.
+    expect(link.style.textDecorationColor.toLowerCase()).toBe("currentcolor");
+    expect(link.style.textUnderlineOffset).toBe("4px");
+    // 261109 (user): "from USDT - SafePal should have the line" — the name is
+    // truncated (overflow hidden), which clipped a line 4px down; its clip
+    // box reaches below the line, the layout unchanged.
+    const name = link.querySelector("span.truncate") as HTMLElement;
+    expect(name.style.paddingBottom).toBe("6px");
+    expect(name.style.marginBottom).toBe("-6px");
     fireEvent.click(link);
     expect(onOpenLinked).toHaveBeenCalledWith("pot", "tr1");
   });
@@ -447,7 +458,9 @@ describe("Asset ledger strip", () => {
   });
 
   // R6 (user): Edit a transaction — note and date (within its neighbours).
-  it("Edit opens a sheet with the note and a bounded date, and saves changes", async () => {
+  // 261109 (user): the dotted amount opens it, in a side sheet like the
+  // asset's Edit — not a popup in the middle.
+  it("tapping the amount opens a sheet with the note and a bounded date, and saves changes", async () => {
     mount([
       e({
         id: "b1",
@@ -459,11 +472,13 @@ describe("Asset ledger strip", () => {
         dateEditable: true,
       }),
     ]);
-    fireEvent.click(await screen.findByTestId("ledger-edit-b1"));
+    fireEvent.click(await screen.findByTestId("ledger-amount-b1"));
+    expect(screen.getByTestId("ledger-amount-b1").className).toMatch(/decoration-dotted/);
     const date = await screen.findByTestId("entry-edit-date");
+    expect(screen.getByTestId("entry-edit-sheet")).toHaveAttribute("data-sheet-content");
     // R6 (user): opening must not focus the date — a phone pops its calendar.
     await waitFor(() =>
-      expect(screen.getByTestId("entry-edit-dialog")).toContainElement(
+      expect(screen.getByTestId("entry-edit-sheet")).toContainElement(
         document.activeElement as HTMLElement,
       ),
     );
@@ -498,22 +513,196 @@ describe("Asset ledger strip", () => {
       }),
       e({ id: "d1", kind: "start", dateEditable: false }),
     ]);
-    fireEvent.click(await screen.findByTestId("ledger-edit-b1"));
+    fireEvent.click(await screen.findByTestId("ledger-amount-b1"));
     fireEvent.change(await screen.findByTestId("entry-edit-date"), {
       target: { value: "2026-10-25" },
     });
     expect(screen.getByTestId("entry-edit-save")).toBeDisabled();
     expect(screen.getByText("ledger.edit.range")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("entry-edit-cancel"));
-    fireEvent.click(await screen.findByTestId("ledger-edit-d1"));
+    fireEvent.click(await screen.findByTestId("ledger-amount-d1"));
     expect(await screen.findByTestId("entry-edit-date")).toBeDisabled();
+  });
+
+  // 261108 (user): money put in can have its amount and currency fixed —
+  // unless a later entry relied on it (then it shows, locked, with why).
+  it("Edit changes the amount of money put in", async () => {
+    mount([
+      e({
+        id: "a1",
+        kind: "add",
+        amountCents: "64000",
+        amountCurrency: "PLN",
+        dateEditable: true,
+        amountEditable: true,
+      }),
+    ]);
+    fireEvent.click(await screen.findByTestId("ledger-amount-a1"));
+    const amount = await screen.findByTestId("entry-edit-amount");
+    expect(amount).toHaveValue("640");
+    expect(screen.getByTestId("entry-edit-currency")).toBeInTheDocument();
+    fireEvent.change(amount, { target: { value: "700.5" } });
+    fireEvent.click(screen.getByTestId("entry-edit-save"));
+    await waitFor(() => expect(mockWrite).toHaveBeenCalled());
+    const [, init] = mockWrite.mock.calls.at(-1)!;
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      amountCents: "70050",
+    });
+  });
+
+  // 261109 (user): a Value updated entry's Edit offers its value and currency.
+  it("a value update's Edit offers the value it set, and its currency", async () => {
+    mount([
+      e({
+        id: "v1",
+        kind: "value_change",
+        amountCents: "50000",
+        valueCents: "200000",
+        amountCurrency: "PLN",
+        dateEditable: true,
+        amountEditable: true,
+      }),
+    ]);
+    fireEvent.click(await screen.findByTestId("ledger-amount-v1"));
+    const amount = await screen.findByTestId("entry-edit-amount");
+    expect(amount).toHaveValue("2000");
+    expect(screen.getByTestId("entry-edit-currency")).toBeInTheDocument();
+    fireEvent.change(amount, { target: { value: "1500" } });
+    fireEvent.click(screen.getByTestId("entry-edit-save"));
+    await waitFor(() => expect(mockWrite).toHaveBeenCalled());
+    const [, init] = mockWrite.mock.calls.at(-1)!;
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      amountCents: "150000",
+    });
+  });
+
+  // 261111 (user): a Price updated entry is editable too — its unit price.
+  it("a price update's Edit offers the price it set, and its currency", async () => {
+    mount([
+      e({
+        id: "p1",
+        kind: "price_change",
+        amountCents: "1000",
+        valueCents: "1500",
+        amountCurrency: "PLN",
+        dateEditable: true,
+        amountEditable: true,
+      }),
+    ]);
+    fireEvent.click(await screen.findByTestId("ledger-amount-p1"));
+    const amount = await screen.findByTestId("entry-edit-amount");
+    expect(amount).toHaveValue("15");
+    expect(screen.getByTestId("entry-edit-currency")).toBeInTheDocument();
+    fireEvent.change(amount, { target: { value: "12" } });
+    fireEvent.click(screen.getByTestId("entry-edit-save"));
+    await waitFor(() => expect(mockWrite).toHaveBeenCalled());
+    const [, init] = mockWrite.mock.calls.at(-1)!;
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      amountCents: "1200",
+    });
+  });
+
+  // 261109 (user): a sale's Edit offers what was received, and its currency.
+  it("a sale's Edit offers the amount received, and its currency", async () => {
+    mount([
+      e({
+        id: "s1",
+        kind: "withdraw",
+        amountCents: "-51000",
+        amountCurrency: "PLN",
+        dateEditable: true,
+        amountEditable: true,
+      }),
+    ]);
+    fireEvent.click(await screen.findByTestId("ledger-amount-s1"));
+    const amount = await screen.findByTestId("entry-edit-amount");
+    expect(amount).toHaveValue("510");
+    expect(screen.getByTestId("entry-edit-currency")).toBeInTheDocument();
+    fireEvent.change(amount, { target: { value: "600" } });
+    fireEvent.click(screen.getByTestId("entry-edit-save"));
+    await waitFor(() => expect(mockWrite).toHaveBeenCalled());
+    const [, init] = mockWrite.mock.calls.at(-1)!;
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      amountCents: "60000",
+    });
+  });
+
+  // 261109 (user): "bought from / sold into another asset" — a swap's Edit
+  // offers its amount and currency from either side.
+  it.each([
+    ["convert_out", "-51000"],
+    ["convert_in", "51000"],
+  ])("a swap's %s Edit offers its amount and currency", async (kind, cents) => {
+    mount([
+      e({
+        id: "w1",
+        kind,
+        amountCents: cents,
+        amountCurrency: "PLN",
+        transferId: "t1",
+        linked: true,
+        counterpartyName: "Other",
+        dateEditable: true,
+        amountEditable: true,
+      }),
+    ]);
+    fireEvent.click(await screen.findByTestId("ledger-amount-w1"));
+    const amount = await screen.findByTestId("entry-edit-amount");
+    expect(amount).toHaveValue("510");
+    expect(amount).not.toHaveAttribute("readonly");
+    expect(screen.getByTestId("entry-edit-currency")).toBeInTheDocument();
+  });
+
+  it("a sale moved into a wallet shows its amount locked, saying why", async () => {
+    mount([
+      e({
+        id: "s1",
+        kind: "withdraw",
+        amountCents: "-51000",
+        amountCurrency: "PLN",
+        walletName: "Cash",
+        amountEditable: false,
+      }),
+    ]);
+    fireEvent.click(await screen.findByTestId("ledger-amount-s1"));
+    expect(await screen.findByTestId("entry-edit-amount")).toHaveAttribute("readonly");
+    expect(screen.getByText("ledger.edit.amountLinked")).toBeInTheDocument();
+  });
+
+  // 261109 (user): the dotted line under a transaction amount is grey like
+  // the amount, thin, and sits a little lower.
+  it("the dotted line under a transaction amount is grey, thin and a little lower", async () => {
+    mount(ENTRIES);
+    const amount = await screen.findByTestId("ledger-amount-b1");
+    expect(amount.style.textDecorationColor.toLowerCase()).toBe("currentcolor");
+    expect(amount.style.textDecorationThickness).toBe("0.5px");
+    expect(amount.style.textUnderlineOffset).toBe("4px");
+  });
+
+  it("an amount a later entry relied on shows locked, and says why", async () => {
+    mount([
+      e({
+        id: "a1",
+        kind: "add",
+        amountCents: "64000",
+        amountCurrency: "PLN",
+        dateEditable: true,
+        amountEditable: false,
+      }),
+    ]);
+    fireEvent.click(await screen.findByTestId("ledger-amount-a1"));
+    const amount = await screen.findByTestId("entry-edit-amount");
+    expect(amount).toHaveAttribute("readonly");
+    expect(amount).toHaveValue("640");
+    expect(screen.getByText("ledger.edit.amountLocked")).toBeInTheDocument();
+    expect(screen.queryByTestId("entry-edit-currency")).toBeNull();
   });
 
   it("interest rows have no Edit", async () => {
     mount(ENTRIES);
     await screen.findByTestId("ledger-row-b1");
-    expect(screen.queryByTestId("ledger-edit-interest-2026-10-20")).toBeNull();
-    expect(screen.getByTestId("ledger-edit-b1")).toBeInTheDocument();
+    expect(screen.queryByTestId("ledger-amount-interest-2026-10-20")).toBeNull();
+    expect(screen.getByTestId("ledger-amount-b1")).toBeInTheDocument();
   });
 
   // Round 6 (user): qty × price and realized are lighter, like the asset row.

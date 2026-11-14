@@ -33,6 +33,7 @@ import { unarchiveCategory } from "../application/unarchive-category";
 import { listCategories } from "../application/list-categories";
 import { findCategoryById } from "../application/find-category-by-id";
 import { renameCategory } from "../application/rename-category";
+import { changeCategoryCurrency } from "../application/change-category-currency";
 import { permanentlyDeleteCategory } from "../application/permanently-delete-category";
 import { setCategoryLimit } from "../application/set-category-limit";
 import { computeCashflowProjection } from "../application/compute-cashflow-projection";
@@ -72,6 +73,7 @@ import { adjustCategoryReserve } from "../application/adjust-category-reserve";
 import { toggleCategoryReserveExcluded } from "../application/toggle-category-reserve-excluded";
 import { getReservesSummary } from "../application/get-reserves-summary";
 import { getReservePositions } from "../application/get-reserve-positions";
+import { cacheReservePositions } from "../application/reserve-positions-cache";
 import { createReserveEventLoaderRepo } from "../adapters/persistence/reserve-event-loader-repo";
 
 export interface BudgetingDeps {
@@ -110,6 +112,7 @@ export interface BudgetingModule {
   listCategories: ReturnType<typeof listCategories>;
   findCategoryById: ReturnType<typeof findCategoryById>;
   renameCategory: ReturnType<typeof renameCategory>;
+  changeCategoryCurrency: ReturnType<typeof changeCategoryCurrency>;
   permanentlyDeleteCategory: ReturnType<typeof permanentlyDeleteCategory>;
   setCategoryLimit: ReturnType<typeof setCategoryLimit>;
   getEffectiveLimit: ReturnType<typeof getEffectiveLimit>;
@@ -148,6 +151,11 @@ export interface BudgetingModule {
   >;
   getReservesSummary: ReturnType<typeof getReservesSummary>;
   reservePositions: ReturnType<typeof getReservePositions>;
+  /** 261102: GETs share reservePositions replays; writes invalidate. */
+  reserveReadCache: Pick<
+    ReturnType<typeof cacheReservePositions>,
+    "readScope" | "invalidate"
+  >;
   /** A2-fallback recompute of the RESERVE_TOPUP task in its own tx. Called by
    *  transaction routes after a create/edit/confirm/delete so the task shortfall
    *  tracks the reserve pool (transactions change usage → expected reserve). */
@@ -220,12 +228,14 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     categoryLimitRepo: limitRepo,
     reservesSummaryRepo,
   });
-  const reservePositions = getReservePositions({
-    eventLoader: reserveEventLoader,
-  });
+  const reserveReadCache = cacheReservePositions(
+    getReservePositions({ eventLoader: reserveEventLoader }),
+  );
+  const reservePositions = reserveReadCache.get;
 
   return {
     fxProvider,
+    reserveReadCache,
     // Phase 7 follow-up: transactions change reserve usage (cumulative
     // overspend draw), so the RESERVE_TOPUP shortfall must be recomputed after
     // every transaction mutation — otherwise the task message goes stale until
@@ -313,6 +323,20 @@ export function createBudgetingModule(deps: BudgetingDeps): BudgetingModule {
     listCategories: listCategories({ repo: categoryRepo }),
     findCategoryById: findCategoryById({ repo: categoryRepo }),
     renameCategory: renameCategory({ repo: categoryRepo }),
+    changeCategoryCurrency: changeCategoryCurrency({
+      limitRepo,
+      reserveTask: {
+        taskRepo: createTaskRepo(),
+        reservePositions,
+        budgetCurrencyOf: getWorkspaceDefaultCurrency,
+        isReservesEnabled,
+      },
+      incomeTask: {
+        taskRepo: createTaskRepo(),
+        fxProvider,
+        getProjection: computeCashflowProjection({ fxProvider, reservePositions }),
+      },
+    }),
     permanentlyDeleteCategory: permanentlyDeleteCategory({
       repo: categoryRepo,
     }),

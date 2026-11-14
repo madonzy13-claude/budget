@@ -252,7 +252,7 @@ export function CurrencyPicker({
               // Mirror the dropdown option exactly: code + full name + symbol.
               // min-w-0 + only the NAME truncates → the code + symbol never clip
               // (a long localized name like "Долар США" won't chop the "USD").
-              <span className="flex min-w-0 items-center gap-2">
+              <span data-ccy-label className="flex min-w-0 items-center gap-2">
                 <span className="num shrink-0 text-[var(--foreground)]">
                   {selectedItem.value}
                 </span>

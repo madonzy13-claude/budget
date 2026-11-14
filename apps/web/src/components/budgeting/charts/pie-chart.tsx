@@ -48,6 +48,7 @@ export function OverviewPieChart({
   allLabel = "All",
   maskValue = false,
   outerRing,
+  labelKey,
 }: {
   data: Array<Record<string, unknown>>;
   nameKey: string;
@@ -74,6 +75,9 @@ export function OverviewPieChart({
   /** Privacy: render the centre VALUE as a tap-to-reveal SlotAmount (the % stays
    *  visible). Reveal is shared via SlotRevealProvider. */
   maskValue?: boolean;
+  /** 14-23: a slice field holding its value ready-formatted — a category in
+   *  another currency reads in it, while the slice is SIZED by `valueKey`. */
+  labelKey?: string;
 }) {
   // hover = transient (desktop); tapped = persistent (mobile). Active is either —
   // so a mobile mouseleave-after-touch can't clear a tapped selection.
@@ -351,9 +355,14 @@ export function OverviewPieChart({
             }`}
           >
             {(() => {
-              const v = formatValue
-                ? formatValue(centreVal)
-                : String(centreVal);
+              const own =
+                activeRow && !onRing && labelKey ? activeRow[labelKey] : undefined;
+              const v =
+                typeof own === "string"
+                  ? own
+                  : formatValue
+                    ? formatValue(centreVal)
+                    : String(centreVal);
               return maskValue ? (
                 <SlotAmount value={v} interactive={false} />
               ) : (

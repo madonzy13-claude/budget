@@ -148,12 +148,14 @@ describe("Budget identity routes (SETT-02)", () => {
     expect(res.status).toBe(404);
   });
 
-  it("PATCH /budgets/:id with default_currency when budget has transactions → 409, updateIdentity NOT called", async () => {
-    let called = false;
+  // Phase 14 (D-01): the currency can change after transactions — totals are
+  // re-expressed at read time, so the first-transaction lock is gone.
+  it("PATCH /budgets/:id with default_currency when budget has transactions → 200, updateIdentity called", async () => {
+    let captured: Record<string, unknown> | null = null;
     const app = buildApp({ user: { id: "user-001" } }, "budget-001", {
       hasTransactions: true,
-      updateIdentitySpy: () => {
-        called = true;
+      updateIdentitySpy: (_id, patch) => {
+        captured = patch;
       },
     });
     const res = await app.request("/budgets/budget-001", {
@@ -161,8 +163,20 @@ describe("Budget identity routes (SETT-02)", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ default_currency: "EUR" }),
     });
-    expect(res.status).toBe(409);
-    expect(called).toBe(false);
+    expect(res.status).toBe(200);
+    expect(JSON.stringify(await res.json())).not.toContain("currency_locked");
+    expect(captured).toMatchObject({ defaultCurrency: "EUR" });
+  });
+
+  // zValidator's default validation status on this route is 400.
+  it("PATCH /budgets/:id with a currency without FX history → 400", async () => {
+    const app = buildApp({ user: { id: "user-001" } }, "budget-001", { hasTransactions: false });
+    const res = await app.request("/budgets/budget-001", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ default_currency: "JPY" }),
+    });
+    expect(res.status).toBe(400);
   });
 
   // quick-260613-nkb: the bug — a ZERO-transaction budget MUST be able to change

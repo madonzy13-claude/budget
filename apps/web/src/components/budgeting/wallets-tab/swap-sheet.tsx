@@ -1,12 +1,14 @@
 "use client";
 /**
  * swap-sheet.tsx — one action surface per asset (13.1 D-08..D-11, D-31):
+ * Details (the asset's edit form, 261106 — opened by tapping its amount) ·
  * Buy · Sell · Transfer. Deposits only sell (D-11). The date is shared across
  * tabs and may not go before the asset's latest entry (D-15); everything else
  * resets on a tab switch. Each tab owns its fields and its sum-up footer.
  */
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { ArrowLeftRight, Minus, Pencil, Plus } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -18,11 +20,21 @@ import { useMinEntryDate } from "@/hooks/use-asset-entries";
 import { SwapBuyTab } from "./swap-buy-tab";
 import { SwapSellTab } from "./swap-sell-tab";
 import { SwapTransferTab } from "./swap-transfer-tab";
+import { EditAssetForm } from "./edit-asset-sheet";
 import { today } from "./swap-shared";
 import { keepSheetOnListEscape } from "./asset-name-combobox";
 
-type Tab = "buy" | "sell" | "transfer";
-const TABS: Tab[] = ["buy", "sell", "transfer"];
+type Tab = "details" | "buy" | "sell" | "transfer";
+const ALL: Tab[] = ["details", "buy", "sell", "transfer"];
+// D-11: a deposit only sells.
+const DEPOSIT: Tab[] = ["details", "sell"];
+// 261106 (user): each tab its own colour and icon, readable at a glance.
+const LOOK = {
+  details: [Pencil, "var(--primary)"],
+  buy: [Plus, "var(--trading-up)"],
+  sell: [Minus, "var(--trading-down)"],
+  transfer: [ArrowLeftRight, "var(--info)"],
+} as const;
 
 export function SwapSheet({
   open,
@@ -31,7 +43,7 @@ export function SwapSheet({
   budgetCurrency,
   holding,
   holdings,
-  initialTab = "buy",
+  initialTab = "details",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -44,7 +56,10 @@ export function SwapSheet({
   const t = useTranslations("budget.investments");
   const isDeposit =
     holding.holdingType === "deposit" || holding.uiType === "deposit";
-  const [tab, setTab] = useState<Tab>(isDeposit ? "sell" : initialTab);
+  const TABS = isDeposit ? DEPOSIT : ALL;
+  const [tab, setTab] = useState<Tab>(
+    TABS.includes(initialTab) ? initialTab : "sell",
+  );
   const [date, setDate] = useState(today());
   // Round 4: the main amount/quantity follows the tab switch.
   const [draft, setDraft] = useState("");
@@ -66,9 +81,9 @@ export function SwapSheet({
   const onKey = (e: React.KeyboardEvent) => {
     const i = TABS.indexOf(tab);
     if (e.key === "ArrowRight" || e.key === "ArrowDown")
-      setTab(TABS[(i + 1) % 3]!);
+      setTab(TABS[(i + 1) % TABS.length]!);
     else if (e.key === "ArrowLeft" || e.key === "ArrowUp")
-      setTab(TABS[(i + 2) % 3]!);
+      setTab(TABS[(i + TABS.length - 1) % TABS.length]!);
     else return;
     e.preventDefault();
   };
@@ -87,21 +102,21 @@ export function SwapSheet({
             className="break-words"
             style={{ color: "var(--body-on-dark)" }}
           >
-            {isDeposit
-              ? t("swap.sellTitle", { name: holding.name })
-              : t("swap.title", { name: holding.name })}
+            {/* 261106: it opens on Details now — not "Add transaction". */}
+            {holding.name}
           </SheetTitle>
         </SheetHeader>
 
-        {!isDeposit && (
-          <div
-            role="radiogroup"
-            aria-label={t("swap.title", { name: holding.name })}
-            onKeyDown={onKey}
-            className="mb-4 flex rounded-full p-1"
-            style={{ background: "var(--surface-sunken-dark)" }}
-          >
-            {TABS.map((k) => (
+        <div
+          role="radiogroup"
+          aria-label={t("swap.title", { name: holding.name })}
+          onKeyDown={onKey}
+          className="mb-4 flex rounded-full p-1"
+          style={{ background: "var(--surface-sunken-dark)" }}
+        >
+          {TABS.map((k) => {
+            const [Icon, color] = LOOK[k];
+            return (
               <button
                 key={k}
                 type="button"
@@ -110,23 +125,39 @@ export function SwapSheet({
                 tabIndex={tab === k ? 0 : -1}
                 data-testid={`swap-tab-${k}`}
                 onClick={() => setTab(k)}
-                className="min-h-11 flex-1 rounded-full px-3 text-[14px]"
+                // Four tabs since Details (261106): on a phone each takes its
+                // label's width (flex-auto) so "Szczegóły" / "Перенести" fit 360px.
+                className="flex min-h-11 flex-auto items-center justify-center gap-1 whitespace-nowrap rounded-full px-2 text-[14px] sm:flex-1 sm:px-3"
                 style={{
+                  color: tab === k ? color : "var(--muted-foreground)",
                   background:
-                    tab === k ? "var(--surface-elevated-dark)" : undefined,
-                  color:
                     tab === k
-                      ? "var(--body-on-dark)"
-                      : "var(--muted-foreground)",
+                      ? `color-mix(in srgb, ${color} 18%, transparent)`
+                      : undefined,
+                  fontWeight: tab === k ? 600 : undefined,
                 }}
               >
+                {/* pl/uk labels leave no room for icons on a phone. */}
+                <Icon
+                  className="hidden h-3.5 w-3.5 shrink-0 sm:block"
+                  aria-hidden="true"
+                />
                 {t(`swap.tab.${k}`)}
               </button>
-            ))}
-          </div>
-        )}
+            );
+          })}
+        </div>
 
         <div className="flex flex-1 flex-col gap-6 px-1">
+          {tab === "details" && (
+            <EditAssetForm
+              key="details"
+              budgetId={budgetId}
+              budgetCurrency={budgetCurrency}
+              holding={holding}
+              onDone={() => onOpenChange(false)}
+            />
+          )}
           {tab === "buy" && <SwapBuyTab key="buy" {...props} />}
           {tab === "sell" && <SwapSellTab key="sell" {...props} />}
           {tab === "transfer" && <SwapTransferTab key="transfer" {...props} />}

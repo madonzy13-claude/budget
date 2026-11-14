@@ -9,7 +9,6 @@
 import { describe, test, expect } from "bun:test";
 import {
   decimalToCents,
-  computeInvestmentSmartLimit,
   normalizeIncomesToMonthlyItems,
 } from "../../src/application/investment-smart-limit";
 
@@ -26,31 +25,6 @@ describe("decimalToCents", () => {
     expect(decimalToCents("12.345")).toBe(1235n); // .5 → up
     expect(decimalToCents("12.344")).toBe(1234n);
     expect(decimalToCents("0.005")).toBe(1n);
-  });
-});
-
-describe("computeInvestmentSmartLimit", () => {
-  test("income minus other planned", () => {
-    expect(
-      computeInvestmentSmartLimit({
-        monthlyIncomeCents: 500000n,
-        otherPlannedCents: 300000n,
-      }),
-    ).toBe(200000n);
-  });
-  test("clamps to 0 when others exceed income", () => {
-    expect(
-      computeInvestmentSmartLimit({
-        monthlyIncomeCents: 100000n,
-        otherPlannedCents: 300000n,
-      }),
-    ).toBe(0n);
-    expect(
-      computeInvestmentSmartLimit({
-        monthlyIncomeCents: 300000n,
-        otherPlannedCents: 300000n,
-      }),
-    ).toBe(0n);
   });
 });
 

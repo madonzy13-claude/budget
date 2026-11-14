@@ -353,13 +353,15 @@ describe("GET /budgets/:budgetId/spendings-summary", () => {
       localFix.userId,
       "Housing",
     );
+    // From the viewed month, so no earlier month leaves a reserve behind (a
+    // month with a limit and no spending accrues all of it — owner, 261104).
     await seedLimit(
       localFix.budgetId,
       localFix.userId,
       catId,
       100000,
       120000,
-      "2026-01-01",
+      "2026-05-01",
     );
     await seedTransaction(
       localFix.budgetId,

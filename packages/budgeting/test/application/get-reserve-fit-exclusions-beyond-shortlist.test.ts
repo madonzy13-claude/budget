@@ -49,7 +49,6 @@ function deps(
           name: "Insurance",
           created_month: MONTHS[0]!,
           archived_month: null,
-          is_investment: false,
         },
       ],
       monthlyPlannedByCategory: async () =>

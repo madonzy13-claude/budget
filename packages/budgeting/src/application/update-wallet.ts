@@ -82,15 +82,10 @@ export function updateWallet(deps: UpdateWalletDeps) {
       const wallet = await deps.repo.findById(input.tenantId, input.walletId);
       if (!wallet) return err(new Error("not_found"));
 
-      const effectiveType: WalletType = input.walletType ?? wallet.walletType;
-      const effectiveCurrency: string = input.currency ?? wallet.currency;
+      // Phase 14 (D-09): a RESERVE wallet may hold any currency — the reserve
+      // settles per currency (settleReserveByCurrency), so no budget-currency
+      // guard here any more.
       const budgetCcy = await deps.budgetCurrencyOf(input.tenantId);
-
-      if (effectiveType === "RESERVE") {
-        if (effectiveCurrency.toUpperCase() !== budgetCcy.toUpperCase()) {
-          return err(new Error("reserve_currency_mismatch"));
-        }
-      }
 
       // Capture pre-mutation type so SPENDINGS↔RESERVE / SPENDINGS↔CUSHION flips
       // fire the right recompute hook below.

@@ -31,10 +31,20 @@ export class NoFxRateAvailable extends Error {
  * 4. cache miss + live success → cache & return; isStale = (frankfurter date !== requested) || weekend
  * 5. live failure → mostRecentPrior fallback; isStale=true; both miss → NoFxRateAvailable
  */
+/** How long today's fetched rate is trusted before it is fetched again. */
+const TODAY_REFRESH_MS = 55 * 60 * 1000;
+
 export class FrankfurterFxProvider implements FxProvider {
+  // 261113 (user): Frankfurter moves today's rate during the day. Keeping the
+  // first fetch all day landed the day's whole move at once after UTC midnight
+  // (BTC fell overnight, the Overview still read a gain). Today's rate is
+  // fetched again once its last fetch is an hour old; past days never move.
+  private readonly lastLive = new Map<string, number>();
+
   constructor(
     private readonly cache: FxRateCacheRepo,
     private readonly fetchFn: typeof fetch = fetch,
+    private readonly now: () => Date = () => new Date(),
   ) {}
 
   async rateAsOf(
@@ -52,9 +62,14 @@ export class FrankfurterFxProvider implements FxProvider {
     // stale so the UI can surface the freshness badge.
     const weekend = isWeekendUTC(date);
 
-    // Step 3: cache hit
+    // Step 3: cache hit — today's only while its last fetch is recent.
     const cached = await this.cache.lookup(from, to, yyyymmdd);
-    if (cached) {
+    const key = `${from}/${to}/${yyyymmdd}`;
+    const now = this.now();
+    const refresh =
+      yyyymmdd === formatDateUTC(now) &&
+      now.getTime() - (this.lastLive.get(key) ?? -Infinity) >= TODAY_REFRESH_MS;
+    if (cached && !refresh) {
       return {
         rate: cached.rate,
         provider: "frankfurter",
@@ -75,12 +90,20 @@ export class FrankfurterFxProvider implements FxProvider {
       sanePositiveNumber(j.rate);
       const rateStr = String(j.rate); // ACL: number → string at boundary (ENGR-09)
       await this.cache.upsert(from, to, j.date, rateStr, "frankfurter");
+      this.lastLive.set(key, now.getTime());
       return {
         rate: rateStr,
         provider: "frankfurter",
         isStale: weekend || j.date !== yyyymmdd,
       };
     } catch {
+      // A failed refresh keeps today's cached rate.
+      if (cached)
+        return {
+          rate: cached.rate,
+          provider: "frankfurter",
+          isStale: weekend || cached.date !== yyyymmdd,
+        };
       // Step 5: fallback to most recent prior cached rate
       const fallback = await this.cache.mostRecentPrior(from, to, yyyymmdd);
       if (!fallback) throw new NoFxRateAvailable(from, to, yyyymmdd);

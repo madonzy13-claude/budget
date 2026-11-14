@@ -19,6 +19,7 @@ import { DashedAddButton } from "@/components/common/dashed-add-button";
 import { WalletRow } from "./wallet-row";
 import { centsToBare, centsToRounded } from "@/lib/cents-format";
 import { sharePercentLabel } from "@/lib/share-bar";
+import { amountChars } from "@/lib/amount-column";
 import type { WalletDto } from "@/hooks/use-wallets";
 
 type WalletType = WalletDto["walletType"];
@@ -117,7 +118,7 @@ export function WalletSection({
   // point of putting it on this column (user, 260822).
   const maxAmountChars = Math.max(
     4,
-    ...wallets.map((w) => centsToBare(w.currentBalanceCents).length),
+    ...wallets.map((w) => amountChars(centsToBare(w.currentBalanceCents))),
   );
   // Share of EVERY asset on the tab, not of this section — a section's share of
   // itself is always 100% and says nothing (user, 260823). Desktop only, in the

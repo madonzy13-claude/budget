@@ -59,7 +59,62 @@ export interface SetLimitForMonthInput {
   carryForward: boolean;
 }
 
+/**
+ * A category's limit in force for one month. Amounts are in the limit row's own
+ * currency (Phase 14, D-08): needs/wants/planned in normalCurrency, cushion in
+ * cushionCurrency — converting to the budget currency is the reader's job.
+ */
+export interface EffectiveLimit {
+  planned: bigint;
+  cushion: bigint;
+  needs: bigint | null;
+  wants: bigint | null;
+  noLimit: boolean;
+  /** Always set by the Drizzle repo; absent (in-memory fakes) = the budget currency. */
+  normalCurrency?: string;
+  cushionCurrency?: string;
+  /** 0105: what a currency-converted segment was made from (exact round trip). */
+  convertedFrom?: {
+    currency: string;
+    normal: string;
+    cushion: string;
+    needs: string | null;
+    wants: string | null;
+  } | null;
+}
+
+/** Phase 14 (D-07) — outcome of a category currency change. */
+export type ChangeCurrencyResult =
+  | { status: "not_found" }
+  | { status: "same"; currency: string }
+  | { status: "no_rate"; fromCurrency: string; toCurrency: string }
+  | {
+      status: "changed";
+      fromCurrency: string;
+      toCurrency: string;
+      limitsConverted: number;
+      /** Set when only one past month changed; the category kept its currency, */
+      month?: string;
+      /** …which is this one. */
+      categoryCurrency?: string;
+    };
+
 export interface CategoryLimitRepo {
+  /**
+   * D-07: set a category's currency and convert its current and future limit
+   * segments at today's rate, atomically (category row + SCD-2 split under the
+   * category's limit lock). Past segments keep their currency (D-17 / D-08).
+   */
+  changeCategoryCurrency?(input: {
+    tenantId: string;
+    actorUserId: string;
+    categoryId: string;
+    currency: string;
+    now: Date;
+    /** 'YYYY-MM-01'. A month before the current one changes ONLY that month
+     *  (owner, 261104); absent or current → this month and the ones after. */
+    month?: string;
+  }): Promise<ChangeCurrencyResult>;
   setLimit(input: SetLimitInput): Promise<void>;
   /**
    * Set a category's limit for a specific month. Past-month edits (carryForward
@@ -79,24 +134,15 @@ export interface CategoryLimitRepo {
   /**
    * Returns effective planned + cushion amounts for all categories in a budget
    * for a given month start date (SCD-2 predicate).
-   * Keys: categoryId → { planned: bigint, cushion: bigint } in cents.
+   * Keys: categoryId → EffectiveLimit, amounts in cents of the limit's own currency.
    */
   effectiveForMonth(
     tenantId: string,
     budgetId: string,
     monthStart: string, // YYYY-MM-DD
   ): Promise<
-    Map<
-      string,
-      {
-        planned: bigint;
-        cushion: bigint;
-        needs: bigint | null;
-        wants: bigint | null;
-        /** 0083: unbounded this month — planned/cushion are 0 and meaningless. */
-        noLimit: boolean;
-      }
-    >
+    // EffectiveLimit.noLimit (0083): unbounded this month — planned/cushion are 0 and meaningless.
+    Map<string, EffectiveLimit>
   >;
 
   /**
@@ -123,13 +169,7 @@ export interface CategoryLimitRepo {
       string,
       Map<
         string,
-        {
-          planned: bigint;
-          cushion: bigint;
-          needs: bigint | null;
-          wants: bigint | null;
-          noLimit: boolean;
-        }
+        EffectiveLimit
       >
     >
   >;

@@ -89,7 +89,8 @@ export function useBuySource({
     rate: null,
   });
   const rateKey = `${recvCcy}>${srcCcy}@${date}`;
-  const needRate = !!src && !srcQty && recvCcy !== srcCcy;
+  // A counted source needs it too: its sold value fills the buy price.
+  const needRate = !!src && recvCcy !== srcCcy;
   useEffect(() => {
     if (!needRate) return;
     let live = true;
@@ -108,7 +109,9 @@ export function useBuySource({
     : srcRate.key === rateKey && srcRate.rate
       ? Number(srcRate.rate)
       : null;
-  const rateFailed = needRate && srcRate.key === rateKey && !srcRate.rate;
+  // A counted source only loses the price fill; the price can still be typed.
+  const rateFailed =
+    needRate && !srcQty && srcRate.key === rateKey && !srcRate.rate;
   const srcValue = src ? Math.round(Number(src.valueCents)) : 0;
   const takenCents =
     rateToSrc === null ? null : Math.round(recvCents * rateToSrc);
@@ -130,6 +133,24 @@ export function useBuySource({
     (srcQty
       ? num(taken) > 0 && !left
       : takenCents !== null && takenCents > srcValue);
+
+  /** What left a counted source, in recvCcy cents — null while unknown. */
+  const soldRecvCents = (() => {
+    if (!src || !srcQty || rateToSrc === null) return null;
+    const held = num(src.quantity);
+    if (!(num(taken) > 0) || !(held > 0)) return null;
+    return (num(taken) * Number(src.valueCents)) / held / rateToSrc;
+  })();
+  /** 261105 (user): quantity bought × buy price = what left a counted source,
+   *  so either one gives the other — null while unknown. */
+  const priceFor = (qtyBought: string): string | null =>
+    soldRecvCents !== null && num(qtyBought) > 0
+      ? String(Math.round(soldRecvCents / num(qtyBought)) / 100)
+      : null;
+  const qtyFor = (price: string): string | null =>
+    soldRecvCents !== null && num(price) > 0
+      ? qtyString(soldRecvCents / (num(price) * 100))
+      : null;
 
   const money = (c: number) => centsToBare(String(Math.round(Math.abs(c))));
 
@@ -250,7 +271,8 @@ export function useBuySource({
           {src && (
             <>
               {srcQty ? (
-                <>
+                // 261105b (user): "You hold" sits right under its field.
+                <div className="space-y-2">
                   <Field label={t("sell.qtySold")}>
                     <NumericInput
                       testId="swap-buy-taken"
@@ -264,7 +286,7 @@ export function useBuySource({
                   >
                     {t("sell.qtyHelper", { qty: heldQty(t, src) })}
                   </HeldButton>
-                </>
+                </div>
               ) : (
                 takenCents !== null &&
                 takenCents > 0 && (
@@ -300,10 +322,19 @@ export function useBuySource({
           v0: srcValue,
           v1:
             "quantity" in left
-              ? (srcValue * num(left.quantity ?? "0")) / num(src.quantity ?? "0")
+              ? (srcValue * num(left.quantity ?? "0")) /
+                num(src.quantity ?? "0")
               : Number(left.valueCents),
           ccy: srcCcy,
         }
       : null;
-  return { fromAsset, src, left: left as SourceLeft | null, drain, node };
+  return {
+    fromAsset,
+    src,
+    left: left as SourceLeft | null,
+    drain,
+    node,
+    priceFor,
+    qtyFor,
+  };
 }

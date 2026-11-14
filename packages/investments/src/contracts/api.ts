@@ -141,7 +141,7 @@ const centsInput = z
 /** R6 (user): an optional note on any booking, shown in the ledger row. */
 const noteField = z.string().trim().max(200).optional();
 
-export const createHoldingSchema = z.object({
+const holdingFields = z.object({
   note: noteField,
   name: z.string().min(1).max(120),
   holdingType: holdingTypeSchema,
@@ -176,6 +176,12 @@ export const createHoldingSchema = z.object({
   depositCapFrequency: capFrequencySchema.nullish(),
   /** Phase 13: date of the first history entry (default today). */
   openedOn: notFutureIsoDate.optional(),
+});
+export const createHoldingSchema = holdingFields.superRefine((v, ctx) => {
+  // A deposit's value is computed from these three; without one there is nothing to compute.
+  if (v.holdingType !== "deposit") return;
+  for (const k of ["depositRateBps", "depositStartDate", "depositCapFrequency"] as const)
+    if (v[k] == null) ctx.addIssue({ code: "custom", path: [k], message: "deposit_term_required" });
 });
 export type CreateHoldingInput = z.infer<typeof createHoldingSchema>;
 
@@ -330,7 +336,10 @@ export const buyAssetSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("broker"),
     amountCents: positiveCents,
-    valueAfterCents: centsString,
+    /** The currency the deposit was made in; absent = the account's own. */
+    currency: currencyCode.optional(),
+    /** Account value right after; absent = value before + the deposit. */
+    valueAfterCents: centsString.optional(),
     effectiveDate: notFutureIsoDate,
     note: noteField,
   }),
@@ -344,6 +353,8 @@ export const editAssetSchema = z
     name: label(120).optional(),
     displayCurrency: currencyCode.optional(),
     currentValueCents: centsString.optional(),
+    /** Date of the value/price entry; absent = the viewer's today. */
+    effectiveDate: notFutureIsoDate.optional(),
     // A unit price keeps 6 sub-cent places: a total typed for several units
     // only multiplies back exactly from a fractional unit price (261023).
     currentPriceCents: z
@@ -389,7 +400,7 @@ export const sellAssetSchema = z.object({
       kind: z.literal("new"),
       // currentPriceCents = the instrument's live price (tracked) — the buy
       // price is priceCents, never received ÷ quantity (13.1 UAT 10).
-      holding: createHoldingSchema
+      holding: holdingFields
         .omit({ buyPriceCents: true, openedOn: true, note: true })
         .extend({ name: label(120), quantity: positiveQty.optional() }),
       priceCents: positiveCents.optional(),
@@ -429,13 +440,16 @@ export const transferAssetSchema = z.object({
   note: noteField,
 });
 /** R6 (user): Edit a transaction — its note and/or its date. "" clears the
- *  note. strict: unknown keys are a 400. */
+ *  note. 261108: and the amount / currency of money put in. strict: unknown
+ *  keys are a 400. */
 export const editEntrySchema = z
   .strictObject({
     note: z.string().trim().max(200).optional(),
     effectiveDate: notFutureIsoDate.optional(),
+    amountCents: positiveCents.optional(),
+    currency: currencyCode.optional(),
   })
-  .refine((v) => v.note !== undefined || v.effectiveDate !== undefined, {
+  .refine((v) => Object.values(v).some((x) => x !== undefined), {
     message: "nothing_to_edit",
   });
 export type EditEntryInput = z.infer<typeof editEntrySchema>;
@@ -516,6 +530,10 @@ export interface EntryDto {
   dateMax: string | null;
   /** A deposit's dates drive its interest — they are not editable. */
   dateEditable: boolean;
+  /** 261108: money put in whose amount / currency may still change. */
+  amountEditable: boolean;
+  /** 261109: the value a value update set, as said (its Edit field). */
+  valueCents: string | null;
   backfilled: boolean;
   deletable: boolean;
   blockedReason: "not_newest" | "linked_not_newest" | "interest" | null;
@@ -541,6 +559,9 @@ export const INVESTMENT_ERRORS = {
     "invalid_cents",
     "date_out_of_range",
     "date_locked",
+    "not_money_in",
+    "later_entry_depends",
+    "sale_linked",
   ],
   409: ["not_newest", "linked_not_newest", "stale"],
   404: ["not_found"],

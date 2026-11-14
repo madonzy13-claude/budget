@@ -110,6 +110,7 @@ export function archiveCategory(deps: ArchiveCategoryDeps) {
       archivedAt: keepHistory ? null : now.toISOString(),
       createdAt: category.createdAt.toISOString(),
       colorKey: category.colorKey ?? null,
+      currency: category.currency!,
     });
   };
 }

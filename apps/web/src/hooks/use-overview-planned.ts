@@ -55,6 +55,17 @@ export interface OverviewPlannedDTO {
      *  now". Optional: a payload cached before the field existed replays
      *  without it (260805). */
     planned_current_cents?: string;
+    /** 14-23: the category's currency, and — when it differs from the
+     *  budget's — the same figures in it (labels read these; sizes don't). */
+    currency?: string;
+    own?: {
+      planned_avg_cents: string;
+      real_avg_cents: string;
+      needs_avg_cents: string;
+      planned_total_cents: string;
+      real_total_cents: string;
+      planned_current_cents: string;
+    };
   }[];
   /** True when ANY category's limit moved inside the range — the only case
    *  where average-vs-current is a real choice. Optional for cached payloads. */

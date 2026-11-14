@@ -38,7 +38,13 @@ import {
 } from "@/lib/cents-format";
 import { dayCloseDelta } from "@/lib/day-close-delta";
 import { formatDayMonthShort } from "@/lib/format-date";
-import { PL_TONE_CLASS, plPctDecimals, plSign, plTone } from "@/lib/pl-tone";
+import {
+  PL_TONE_CLASS,
+  plPctDecimals,
+  plSign,
+  plTone,
+  pctFigure,
+} from "@/lib/pl-tone";
 import { useAnimatedNumber } from "@/lib/use-animated-number";
 import { cn } from "@/lib/utils";
 
@@ -242,8 +248,9 @@ export function OverviewCards({
   // back to for many currencies in `en` ("PLN"/"UAH"); grouping matches the English
   // surfaces (UAT round, item 6).
   // Overview shows NO cents anywhere — every card amount rounds to whole units.
-  const fmtMoney = (cents: string) => centsToRounded(cents, ccy, "en", true);
-  const fmtRounded = (cents: string) => centsToRounded(cents, ccy, "en", true);
+  const fmtMoney = (cents: string) => centsToRounded(cents, ccy, locale, true);
+  const fmtRounded = (cents: string) =>
+    centsToRounded(cents, ccy, locale, true);
   // Node formatters — count-tween the figure when privacy is OFF; when ON the
   // figure becomes a tap-to-reveal SlotAmount (see Redactable).
   const animMoney = (cents: string) => (
@@ -264,7 +271,7 @@ export function OverviewCards({
   );
   // Day P/L keeps its cents under 100 units (a +17 gr night must not print
   // "0 zł"), and stays redactable like every other money figure on the card.
-  const fmtPl = (cents: string) => centsToPlAmount(cents, ccy, "en", true);
+  const fmtPl = (cents: string) => centsToPlAmount(cents, ccy, locale, true);
   const animPl = (cents: string) => (
     <Redactable enabled={amountPrivacyEnabled} mask={fmtPl(cents)}>
       <AnimatedFigure
@@ -370,7 +377,7 @@ export function OverviewCards({
           ).toString()
         : data.reserves.required_cents,
     ccy,
-    "en",
+    locale,
     true,
   );
 
@@ -444,7 +451,7 @@ export function OverviewCards({
                           centsToRounded(
                             data.capitalization_cents,
                             ccy,
-                            "en",
+                            locale,
                             true,
                           ),
                         ),
@@ -497,12 +504,12 @@ export function OverviewCards({
                         )}
                         <Redactable
                           enabled={amountPrivacyEnabled}
-                          mask={`${plSign(plDir, "")}${pl.delta_pct.toFixed(plDecimals)}%`}
+                          mask={`${plSign(plDir, "")}${pctFigure(pl.delta_pct, plDecimals, locale)}%`}
                         >
                           <AnimatedFigure
                             value={pl.delta_pct}
                             format={(n) =>
-                              `${plSign(plDir, "")}${n.toFixed(plDecimals)}%`
+                              `${plSign(plDir, "")}${pctFigure(n, plDecimals, locale)}%`
                             }
                           />
                         </Redactable>
@@ -535,7 +542,11 @@ export function OverviewCards({
                   </div>
                   <p className="text-caption text-[var(--muted-foreground)]">
                     {t("cards.retirementInflation", {
-                      pct: data.retirement_inflation_pct,
+                      pct: pctFigure(
+                        data.retirement_inflation_pct,
+                        Number.isInteger(data.retirement_inflation_pct) ? 0 : 1,
+                        locale,
+                      ),
                     })}
                   </p>
                 </div>
@@ -650,11 +661,7 @@ export function OverviewCards({
                   {animRounded(String(freeToMove))}
                 </dd>
               </div>
-            ) : surplusDeficit !==
-              null ? // Explicitly null rather than deleted: falling through to the branch // // "there is nothing spare to tell you about". // złoty above it (user, 260825). Silence is the honest version of // same thing whether the forecast sat comfortably clear of zero or a // solid"), which read as praise the card had not earned: it said the // Nothing at all. The row used to carry a note here ("Plan looks
-            // below would answer a question about spare money with the unrelated
-            // "upcoming" figure.
-            null : (
+            ) : surplusDeficit !== null ? null : ( // "upcoming" figure. // below would answer a question about spare money with the unrelated // Explicitly null rather than deleted: falling through to the branch // // "there is nothing spare to tell you about". // złoty above it (user, 260825). Silence is the honest version of // same thing whether the forecast sat comfortably clear of zero or a // solid"), which read as praise the card had not earned: it said the // Nothing at all. The row used to carry a note here ("Plan looks
               // No upcoming income → keep the original "upcoming" figure.
               <div className="flex items-center justify-between gap-2">
                 <dt>{t("cards.leftToSpend")}</dt>

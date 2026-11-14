@@ -51,6 +51,9 @@ export interface RebalanceCandidate {
   heldCents: number;
   /** What its history asked for — the target's starting point. */
   neededCents: number;
+  /** 14-23: set for a category in another currency — the amounts above, and
+   *  the target typed here, are then in it. */
+  currency?: string;
 }
 
 /** What a move in this dialog did, so it can be taken back. */
@@ -76,14 +79,22 @@ export function ReserveRebalance({
   rows,
   onRebalance,
   format,
+  formatIn,
 }: {
   rows: RebalanceCandidate[];
+  /** 14-23: money in a row's own currency. */
+  formatIn?: (cents: number, currency: string) => string;
   /** Sets one category's reserve to `targetCents`; resolves with the reserve
    *  the server actually settled on. */
   onRebalance: (categoryId: string, targetCents: number) => Promise<number>;
   format: (cents: number) => string;
 }) {
   const t = useTranslations("bdp.tab.overview");
+  const ccyOf = new Map(rows.map((r) => [r.categoryId, r.currency]));
+  const fmt = (categoryId: string, cents: number) => {
+    const c = ccyOf.get(categoryId);
+    return c && formatIn ? formatIn(cents, c) : format(cents);
+  };
   const [open, setOpen] = React.useState(false);
   const [drafts, setDrafts] = React.useState<Record<string, string>>({});
   const [targets, setTargets] = React.useState<Record<string, number>>({});
@@ -178,7 +189,7 @@ export function ReserveRebalance({
   // indent and the numbers read as adrift from the name above (user, 260805).
   // `num` is tabular, so a character really is a `ch`.
   const currentCh =
-    Math.max(5, ...shown.map((r) => format(r.currentCents).length)) + 0.5;
+    Math.max(5, ...shown.map((r) => fmt(r.categoryId, r.currentCents).length)) + 0.5;
 
   // A plain function, NOT a nested component: a component declared inside this
   // one gets a fresh identity every render, so React tears the row down and
@@ -251,7 +262,7 @@ export function ReserveRebalance({
             style={{ width: `${currentCh}ch` }}
             className="num shrink-0 truncate text-num-sm text-[var(--muted-foreground)]"
           >
-            {format(row.currentCents)}
+            {fmt(row.categoryId, row.currentCents)}
           </span>
           {/* The one mark saying which figure replaces which, and it was the
               faintest thing on the row (user, 260808). */}
@@ -286,7 +297,7 @@ export function ReserveRebalance({
             className="text-caption text-[var(--muted-foreground)]"
           >
             {t("reserveFit.coveredOverspend", {
-              amount: format(covered[row.categoryId]!),
+              amount: fmt(row.categoryId, covered[row.categoryId]!),
             })}
           </p>
         )}

@@ -197,4 +197,79 @@ describe("FrankfurterFxProvider", () => {
     const result = await provider.rateAsOf("USD", "EUR", TODAY);
     expect(typeof result.rate).toBe("string");
   });
+
+  // 261113 (user): BTC fell overnight yet the day read as a gain. Frankfurter
+  // moves today's rate during the day; the first fetch was kept all day and the
+  // day's whole move landed at once after UTC midnight. Today's rate is
+  // fetched again once its last fetch is an hour old.
+  describe("today's rate follows the day", () => {
+    const at = (iso: string) => () => new Date(iso);
+    const counting = (rates: number[]) => {
+      let n = 0;
+      const fn = (async () => {
+        const rate = rates[Math.min(n, rates.length - 1)];
+        n++;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ date: "2026-05-08", rate }),
+        } as Response;
+      }) as unknown as typeof fetch;
+      return { fn, calls: () => n };
+    };
+
+    test("a cached rate for today is fetched again and replaced", async () => {
+      cache.setLookup("USD", "PLN", "2026-05-08", "3.93");
+      const f = counting([3.9655]);
+      const provider = new FrankfurterFxProvider(
+        cache,
+        f.fn,
+        at("2026-05-08T12:00:00Z"),
+      );
+      const r = await provider.rateAsOf("USD", "PLN", TODAY);
+      expect(r.rate).toBe("3.9655");
+      expect(f.calls()).toBe(1);
+      expect(cache.upsertCalls.at(-1)).toMatchObject({
+        date: "2026-05-08",
+        rate: "3.9655",
+      });
+    });
+
+    test("within the hour the cached rate is reused; after it, fetched again", async () => {
+      let now = new Date("2026-05-08T12:00:00Z");
+      const f = counting([3.95, 3.96]);
+      const provider = new FrankfurterFxProvider(cache, f.fn, () => now);
+      await provider.rateAsOf("USD", "PLN", TODAY);
+      now = new Date("2026-05-08T12:30:00Z");
+      expect((await provider.rateAsOf("USD", "PLN", TODAY)).rate).toBe("3.95");
+      expect(f.calls()).toBe(1);
+      now = new Date("2026-05-08T13:01:00Z");
+      expect((await provider.rateAsOf("USD", "PLN", TODAY)).rate).toBe("3.96");
+      expect(f.calls()).toBe(2);
+    });
+
+    test("a failed refresh keeps today's cached rate", async () => {
+      cache.setLookup("USD", "PLN", "2026-05-08", "3.93");
+      const provider = new FrankfurterFxProvider(
+        cache,
+        makeFailingFetch(),
+        at("2026-05-08T12:00:00Z"),
+      );
+      const r = await provider.rateAsOf("USD", "PLN", TODAY);
+      expect(r.rate).toBe("3.93");
+      expect(r.isStale).toBe(false);
+    });
+
+    test("a past day's cached rate is never fetched again", async () => {
+      cache.setLookup("USD", "PLN", "2026-05-08", "3.93");
+      const f = counting([9]);
+      const provider = new FrankfurterFxProvider(
+        cache,
+        f.fn,
+        at("2026-05-10T12:00:00Z"),
+      );
+      expect((await provider.rateAsOf("USD", "PLN", TODAY)).rate).toBe("3.93");
+      expect(f.calls()).toBe(0);
+    });
+  });
 });

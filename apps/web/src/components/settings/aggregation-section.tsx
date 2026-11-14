@@ -158,7 +158,9 @@ export function AggregationSection({
               disabled={saving}
               testId="settings-aggregation-share"
               render={(v) => (
-                <span className="num text-sm text-[var(--body)]">{v}%</span>
+                <span className="editable-dots num text-sm text-[var(--body)]">
+                  {v}%
+                </span>
               )}
               renderEditor={(draft, onChange) => (
                 <Input

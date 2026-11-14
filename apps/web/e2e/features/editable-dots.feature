@@ -15,7 +15,7 @@ Feature: A faint dotted line marks what can be tapped and typed
     When I open the wallets tab for wallet sections
     Then the wallet "E2E SPENDINGS" and the asset "Pot" carry the dotted line
     And the currency of the asset "Pot" and of the "cash" group carry the dotted line
-    And the asset "Term deposit" and the "deposit" group carry no dotted line
+    And the asset "Term deposit" amount is dotted, but the "deposit" group carries no dotted line
     And the asset "Term deposit" explains how its amount changes
     And nothing shows an updated line
 

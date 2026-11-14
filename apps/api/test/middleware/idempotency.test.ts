@@ -80,6 +80,10 @@ function makeMockDeps(): IdempotencyDeps {
       });
       return true;
     },
+    releaseIdempotency: async (_tx: unknown, scopeHash: string) => {
+      const held = idempotencyStore.get(scopeHash);
+      if (held?.responseStatus === 0) idempotencyStore.delete(scopeHash);
+    },
     insertIdempotency: async (_tx, row) => {
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       idempotencyStore.set(row.scopeHash, {
@@ -250,6 +254,7 @@ describe("createIdempotencyMiddleware", () => {
       body: payload,
     });
     expect(res1.status).toBe(201);
+    expect(res1.headers.get("Idempotent-Replayed")).toBeNull();
 
     const res2 = await app.request("/test/echo", {
       method: "POST",
@@ -260,6 +265,7 @@ describe("createIdempotencyMiddleware", () => {
       body: payload,
     });
     expect(res2.status).toBe(201);
+    expect(res2.headers.get("Idempotent-Replayed")).toBe("true");
 
     const b2 = (await res2.json()) as {
       ok: boolean;
@@ -482,5 +488,36 @@ describe("Idempotency — two duplicates racing each other", () => {
     expect(hits.count).toBe(1);
     expect(a.status).toBe(201);
     expect(b.status).toBe(201);
+  });
+});
+
+// 15-13: a failed attempt (4xx/5xx) is not cached, but its claim used to stay
+// behind at status 0 — the retry then "replayed" that empty claim instead of
+// running. An MCP add_transactions retry after a mid-batch failure hit this.
+describe("Idempotency — retrying after a failed attempt", () => {
+  test("runs the handler again and answers fresh", async () => {
+    const app = new Hono();
+    let calls = 0;
+    app.use(async (c, next) => {
+      c.set("tenantIds" as never, ["tenant-A"] as never);
+      c.set("session" as never, { user: { id: "user-A1" } } as never);
+      await next();
+    });
+    app.use(createIdempotencyMiddleware(makeMockDeps()));
+    app.post("/test/flaky", (c) =>
+      ++calls === 1 ? c.json({ error: "not_yet" }, 422) : c.json({ ok: true }, 201),
+    );
+    const send = () =>
+      app.request("/test/flaky", {
+        method: "POST",
+        headers: { "content-type": "application/json", "Idempotency-Key": "retry-key" },
+        body: "{}",
+      });
+
+    expect((await send()).status).toBe(422);
+    const retry = await send();
+    expect(retry.status).toBe(201);
+    expect(retry.headers.get("Idempotent-Replayed")).toBeNull();
+    expect(calls).toBe(2);
   });
 });

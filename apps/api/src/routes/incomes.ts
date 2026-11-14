@@ -107,6 +107,8 @@ export function createIncomesRoute(deps?: {
     tenantId: string;
     budgetId: string;
   }) => Promise<void>;
+  /** 261111 (user): incomes are the owner's to change. Unset = no gate (tests). */
+  listMembers?: (tenantId: string) => Promise<{ userId: string; role: string }[]>;
 }) {
   const app = new Hono<{ Variables: Record<string, unknown> }>();
   const repo = new DrizzleIncomeRepo();
@@ -125,6 +127,16 @@ export function createIncomesRoute(deps?: {
       userId: (c.get("userId") as string) ?? session?.user?.id ?? "",
     };
   }
+
+  // 261111 (user): every write is owner-only; members read.
+  app.on(["POST", "PATCH", "DELETE"], ["/", "/:id"], async (c, next) => {
+    if (!deps?.listMembers) return next();
+    const { tenantId, userId } = ctx(c);
+    if (!tenantId) return c.json({ error: "no active workspace" }, 403);
+    const me = (await deps.listMembers(tenantId)).find((m) => m.userId === userId);
+    if (me?.role !== "owner") return c.json({ error: "forbidden" }, 403);
+    return next();
+  });
 
   // POST /incomes — create
   app.post("/", async (c) => {

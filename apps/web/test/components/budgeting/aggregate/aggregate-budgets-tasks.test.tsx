@@ -59,6 +59,14 @@ describe("AggregateBudgetsTasks", () => {
     expect(await screen.findByText("no_tasks")).toBeTruthy();
   });
 
+  it("each budget name is underlined like every other tappable label", async () => {
+    // 261113 (user): "add underscore below the budget names".
+    render(wrap(<AggregateBudgetsTasks budgets={[{ id: "b1", name: "Home" }]} />));
+    const name = await screen.findByText("Home");
+    expect(name.className).toMatch(/\bunderline\b/);
+    expect(name.className).toMatch(/\bdecoration-dotted\b/);
+  });
+
   it("each budget header shows it can be opened", async () => {
     // The header has always BEEN a link, and read as a plain section label —
     // nothing on it said it could be tapped (user, 260902). A chevron is the

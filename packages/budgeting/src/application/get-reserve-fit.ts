@@ -31,7 +31,7 @@ import {
 import type { FxProvider } from "@budget/shared-kernel";
 import { sumWalletsToCurrency } from "./compute-budget-wealth-now";
 import { projectScheduledPayments } from "../domain/scheduled-payment-projection";
-import type { ReservePositionsResult } from "./get-reserve-positions";
+import { positionsInBudget, type ReservePositionsResult } from "./get-reserve-positions";
 import type { OverviewPlannedRepo } from "./get-overview-planned";
 
 /** A transaction big enough to be worth a member's judgement. */
@@ -86,6 +86,11 @@ function monthsBetween(from: string, to: string): number {
 }
 
 export interface GetReserveFitDeps {
+  /** 14-23: the same readers in each category's OWN currency (second pass). */
+  inCategoryCurrency?: {
+    overviewRepo: GetReserveFitDeps["overviewRepo"];
+    exclusionsRepo: GetReserveFitDeps["exclusionsRepo"];
+  };
   overviewRepo: Pick<
     OverviewPlannedRepo,
     "categoryWindows" | "monthlyPlannedByCategory" | "monthlySpendByCategory"
@@ -133,7 +138,22 @@ export interface GetReserveFitInput {
   budgetId: string;
   from: string; // YYYY-MM-DD
   to: string; // YYYY-MM-DD
+  /** 14-23: the per-category pass — every input in each category's OWN currency. */
+  inCategoryCurrency?: boolean;
 }
+
+/** A row's money in its category's OWN currency (14-23). */
+export type OwnReserveFitFigures = Pick<
+  ReserveFitRowDTO,
+  | "held_cents"
+  | "needed_cents"
+  | "gap_cents"
+  | "worst_overage_cents"
+  | "projected_monthly_cents"
+  | "suggested_limit_cents"
+  | "suggested_needed_cents"
+  | "suggested_delta_cents"
+>;
 
 export interface ReserveFitRowDTO {
   category_id: string;
@@ -172,6 +192,12 @@ export interface ReserveFitRowDTO {
     scheduled_cadence: string | null;
     excluded: boolean;
   }[];
+  /** 14-23: the category's own currency. The figures above stay in the budget
+   *  currency (they size the chart); a category in another currency adds `own`
+   *  — the same figures in its currency, which its labels and the rebalance
+   *  dialog read and save. */
+  currency?: string;
+  own?: OwnReserveFitFigures;
 }
 
 export interface ReserveFitDTO {
@@ -189,6 +215,9 @@ export interface ReserveFitDTO {
   projected_by_category: {
     category_id: string;
     projected_monthly_cents: string;
+    /** 14-23: as on the rows — currency, and the figure in it when foreign. */
+    currency?: string;
+    own_projected_monthly_cents?: string;
   }[];
   /**
    * Every large spend the household could set aside, from EVERY category —
@@ -278,7 +307,12 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         }),
       ]);
       if (positionsResult.isErr()) return err(positionsResult.error);
-      const positions = positionsResult.value.positions;
+      // Phase 14: engine values are in each category's currency; this chart
+      // works in the budget currency.
+      // The per-category pass keeps them native.
+      const positions = input.inCategoryCurrency
+        ? positionsResult.value.positions
+        : positionsInBudget(positionsResult.value, meta?.default_currency ?? "EUR");
       // The month the engine is treating as OPEN — the one that draws on a
       // reserve without accruing into it yet.
       const openMonth = positionsResult.value.openMonth;
@@ -363,21 +397,26 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       // so the projection and the reserve walk cannot disagree about a rule.
       const budgetCcy = meta?.default_currency ?? "EUR";
       const asOfDate = new Date(`${nowMonth}-01T00:00:00Z`);
+      // 14-23: the per-category pass counts a rule in its CATEGORY's currency.
+      const catCcy = new Map(windows.map((w) => [w.category_id, w.currency ?? budgetCcy]));
       const rules = await Promise.all(
-        rawRules.map(async (r) =>
-          !r.currency || r.currency === budgetCcy
+        rawRules.map(async (r) => {
+          const target = input.inCategoryCurrency
+            ? (r.category_id && catCcy.get(r.category_id)) || budgetCcy
+            : budgetCcy;
+          return !r.currency || r.currency === target
             ? r
             : {
                 ...r,
                 amount_cents: await sumWalletsToCurrency(
                   [{ amount_cents: r.amount_cents, currency: r.currency }],
-                  budgetCcy,
+                  target,
                   deps.fxProvider,
                   asOfDate,
                 ),
-                currency: budgetCcy,
-              },
-        ),
+                currency: target,
+              };
+        }),
       );
 
       const lastMonth = to.slice(0, 7) > nowMonth ? to.slice(0, 7) : nowMonth;
@@ -413,41 +452,69 @@ export function getReserveFit(deps: GetReserveFitDeps) {
        * Future chart asks every category, not just the buffered ones (user,
        * 260812).
        */
+      // Everything but the reserve is fixed per category, and the limit search
+      // below asks ~30 times per row (CPU profile, 261102) — so the window, its
+      // spend and the rules are built once, and each answer is kept per reserve.
+      const projectionCache = new Map<
+        string,
+        {
+          input: Omit<
+            Parameters<typeof projectedMonthly>[0],
+            "reserveHeldCents"
+          >;
+          byHeld: Map<bigint, bigint>;
+        }
+      >();
       const projectedFor = (
         w: (typeof windows)[number],
         reserveHeldCents: bigint,
       ): bigint => {
-        const scope: string[] = [];
-        for (
-          let m = from.slice(0, 7);
-          m <= to.slice(0, 7);
-          m = addMonths(m, 1)
-        ) {
-          if (m === nowMonth) continue;
-          if (w.created_month !== null && m < w.created_month) continue;
-          if (w.archived_month !== null && m > w.archived_month) continue;
-          scope.push(m);
+        let cached = projectionCache.get(w.category_id);
+        if (!cached) {
+          const scope: string[] = [];
+          for (
+            let m = from.slice(0, 7);
+            m <= to.slice(0, 7);
+            m = addMonths(m, 1)
+          ) {
+            if (m === nowMonth) continue;
+            if (w.created_month !== null && m < w.created_month) continue;
+            if (w.archived_month !== null && m > w.archived_month) continue;
+            scope.push(m);
+          }
+          cached = {
+            input: {
+              windowMonths: scope,
+              spentByMonth: new Map(
+                scope.map((m) => {
+                  const key = `${w.category_id}|${m}`;
+                  const ordinary =
+                    (spendByCell.get(key) ?? 0n) -
+                    (excludedByCell.get(key) ?? 0n) -
+                    (scheduledByCell.get(key) ?? 0n);
+                  return [m, ordinary > 0n ? ordinary : 0n];
+                }),
+              ),
+              rules: rules.filter((r) => r.category_id === w.category_id),
+              fromMonth: nowMonth,
+            },
+            byHeld: new Map(),
+          };
+          projectionCache.set(w.category_id, cached);
         }
-        return projectedMonthly({
-          windowMonths: scope,
-          spentByMonth: new Map(
-            scope.map((m) => {
-              const key = `${w.category_id}|${m}`;
-              const ordinary =
-                (spendByCell.get(key) ?? 0n) -
-                (excludedByCell.get(key) ?? 0n) -
-                (scheduledByCell.get(key) ?? 0n);
-              return [m, ordinary > 0n ? ordinary : 0n];
-            }),
-          ),
-          rules: rules.filter((r) => r.category_id === w.category_id),
-          fromMonth: nowMonth,
-          // An excluded or untracked category holds nothing against its
-          // one-offs, so there is nothing to credit. The caller passes the
-          // reserve to credit against, because during the search below that is
-          // the reserve the CANDIDATE limit would leave (see `heldAt`).
-          reserveHeldCents,
-        });
+        let projected = cached.byHeld.get(reserveHeldCents);
+        if (projected === undefined) {
+          projected = projectedMonthly({
+            ...cached.input,
+            // An excluded or untracked category holds nothing against its
+            // one-offs, so there is nothing to credit. The caller passes the
+            // reserve to credit against, because during the search below that
+            // is the reserve the CANDIDATE limit would leave (see `heldAt`).
+            reserveHeldCents,
+          });
+          cached.byHeld.set(reserveHeldCents, projected);
+        }
+        return projected;
       };
 
       /**
@@ -700,8 +767,34 @@ export function getReserveFit(deps: GetReserveFitDeps) {
         // for the same reason. It can never exceed what is held ("never more
         // than is held", projected-monthly.ts), which is what keeps the search
         // below monotone: the binding term is always the walk.
-        const earmarkedAt = (limitCents: bigint): bigint =>
-          earmarkedForOneOffs(categoryRules, nowMonth, heldAt(limitCents));
+        // Kept per reserve: the search below asks again for every candidate,
+        // and above `openSpend` every candidate leaves the same reserve.
+        const earmarkedByHeld = new Map<bigint, bigint>();
+        const earmarkedAt = (limitCents: bigint): bigint => {
+          const held = heldAt(limitCents);
+          let earmarked = earmarkedByHeld.get(held);
+          if (earmarked === undefined) {
+            earmarked = earmarkedForOneOffs(categoryRules, nowMonth, held);
+            earmarkedByHeld.set(held, earmarked);
+          }
+          return earmarked;
+        };
+        // reserveFit(months at a flat limit L).neededCents without rebuilding
+        // and re-sorting the months per candidate: at a flat limit every
+        // month nets `L − spent` (left − overage), so the trough is the
+        // deepest prefix of that walk. Same integers, same order.
+        const spentInOrder = [...months]
+          .sort((a, b) => (a.month < b.month ? -1 : 1))
+          .map((m) => m.spentCents);
+        const historicalNeedAt = (limitCents: bigint): bigint => {
+          let running = 0n;
+          let trough = 0n;
+          for (const spent of spentInOrder) {
+            running += limitCents - spent;
+            if (running < trough) trough = running;
+          }
+          return -trough;
+        };
         //
         // `needed` stays the requirement at the limit in FORCE — that is what
         // this figure has always meant and what the sizing tests pin. The chart
@@ -717,8 +810,7 @@ export function getReserveFit(deps: GetReserveFitDeps) {
             historicalNeedCents:
               limitCents === currentLimit
                 ? past.neededCents
-                : reserveFit(months.map((m) => ({ ...m, limitCents })))
-                    .neededCents,
+                : historicalNeedAt(limitCents),
             limitCents,
           });
           const earmarked = earmarkedAt(limitCents);
@@ -887,18 +979,55 @@ export function getReserveFit(deps: GetReserveFitDeps) {
       // Worst fit first: the rows that need money, then the ones holding it idle.
       rows.sort((a, b) => Number(BigInt(a.gap_cents) - BigInt(b.gap_cents)));
 
+      for (const row of rows) row.currency = catCcy.get(row.category_id) ?? budgetCcy;
+      const projectedByCategory: ReserveFitDTO["projected_by_category"] = windows.map((w) => ({
+        category_id: w.category_id,
+        projected_monthly_cents: (
+          projectedByCat.get(w.category_id) ??
+          projectedFor(w, positions.get(w.category_id)?.reserveCents ?? 0n)
+        ).toString(),
+        currency: catCcy.get(w.category_id) ?? budgetCcy,
+      }));
+
+      // 14-23: a category in another currency reads its labels — and the
+      // rebalance dialog its suggestions — in that currency. Same walk, every
+      // input in each category's own currency; only foreign rows are taken.
+      const own = deps.inCategoryCurrency;
+      if (own && !input.inCategoryCurrency && windows.some((w) => (w.currency ?? budgetCcy) !== budgetCcy)) {
+        const r = await getReserveFit({
+          ...deps,
+          overviewRepo: own.overviewRepo,
+          exclusionsRepo: own.exclusionsRepo,
+          inCategoryCurrency: undefined,
+        })({ ...input, inCategoryCurrency: true });
+        if (r.isErr()) return err(r.error);
+        const rowById = new Map(r.value.rows.map((x) => [x.category_id, x]));
+        for (const row of rows) {
+          const o = row.currency !== budgetCcy ? rowById.get(row.category_id) : undefined;
+          if (o)
+            row.own = {
+              held_cents: o.held_cents,
+              needed_cents: o.needed_cents,
+              gap_cents: o.gap_cents,
+              worst_overage_cents: o.worst_overage_cents,
+              projected_monthly_cents: o.projected_monthly_cents,
+              suggested_limit_cents: o.suggested_limit_cents,
+              suggested_needed_cents: o.suggested_needed_cents,
+              suggested_delta_cents: o.suggested_delta_cents,
+            };
+        }
+        const projById = new Map(r.value.projected_by_category.map((x) => [x.category_id, x]));
+        for (const p of projectedByCategory)
+          if (p.currency !== budgetCcy)
+            p.own_projected_monthly_cents = projById.get(p.category_id)?.projected_monthly_cents;
+      }
+
       return ok({
         currency: meta?.default_currency ?? "EUR",
         rows,
         // …and what every category costs in an average month, whether or not it
         // earned a reserve row (see the DTO).
-        projected_by_category: windows.map((w) => ({
-          category_id: w.category_id,
-          projected_monthly_cents: (
-            projectedByCat.get(w.category_id) ??
-            projectedFor(w, positions.get(w.category_id)?.reserveCents ?? 0n)
-          ).toString(),
-        })),
+        projected_by_category: projectedByCategory,
         // …and every large spend that could be set aside, from every category
         // (see the DTO). Biggest first, as the dialog lists them.
         one_off_candidates: (() => {

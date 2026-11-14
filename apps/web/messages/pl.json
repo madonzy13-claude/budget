@@ -153,7 +153,8 @@
         "general": "Ogólne",
         "profile": "Profil",
         "security": "Bezpieczeństwo",
-        "danger": "Strefa zagrożenia"
+        "danger": "Strefa zagrożenia",
+        "connectedApps": "Połączone aplikacje"
       }
     },
     "profile": {
@@ -244,14 +245,18 @@
       "name_label": "Nazwa",
       "name_saved": "Nazwa budżetu zapisana",
       "currency_label": "Waluta",
-      "currency_hint": "Służy do przeliczania i przedstawiania wszystkich kwot budżetu w jednej walucie.",
+      "currency_hint": "Sumy są pokazywane w tej walucie.",
+      "currency_confirm_title": "Zmienić walutę budżetu na {currency}?",
+      "currency_confirm_body": "Wszystkie sumy będą pokazane w {currency}, przeliczone po kursie z danego dnia. Transakcje zachowują walutę, w której zostały wpisane.",
+      "currency_confirm_cta": "Zmień walutę",
+      "currency_confirm_cancel": "Zostaw {currentCurrency}",
       "currency_saved": "Waluta zaktualizowana",
+      "currency_save_failed": "Nie udało się zmienić waluty",
       "privacy_label": "Tryb prywatny",
       "privacy_hint": "Ukrywaj kwoty domyślnie. Dotknij kwoty, aby ją odsłonić.",
       "privacy_on_toast": "Kwoty domyślnie ukryte",
       "privacy_off_toast": "Kwoty zawsze widoczne",
-      "privacy_error": "Nie udało się zaktualizować ustawienia prywatności",
-      "currency_locked_tooltip": "Waluta zablokowana po pierwszej transakcji"
+      "privacy_error": "Nie udało się zaktualizować ustawienia prywatności"
     },
     "cushion": {
       "label": "Tryb poduszki",
@@ -399,6 +404,21 @@
       "updateNow": "Zaktualizuj teraz",
       "updated": "Zainstalowano najnowszą wersję ({version})",
       "build": "Zbudowano {date}"
+    },
+    "connectedApps": {
+      "title": "Połączone aplikacje",
+      "empty": "Nie połączono żadnych asystentów AI.",
+      "emptyHint": "Dodaj {url} jako własny konektor w Claude, ChatGPT lub innej aplikacji MCP.",
+      "connectedOn": "Połączono {date}",
+      "lastUsed": "Ostatnio użyto {date}",
+      "neverUsed": "Jeszcze nieużywana",
+      "disconnect": "Rozłącz",
+      "confirmTitle": "Rozłączyć tę aplikację?",
+      "confirmBody": "{client} straci dostęp do wszystkich Twoich budżetów.",
+      "confirmAction": "Rozłącz",
+      "cancel": "Anuluj",
+      "disconnected": "Aplikacja rozłączona",
+      "error": "Nie udało się rozłączyć aplikacji. Spróbuj ponownie."
     }
   },
   "budgets": {
@@ -581,21 +601,14 @@
       "feature_on_toast": "Inwestycje włączone",
       "feature_off_toast": "Inwestycje wyłączone",
       "error_save": "Nie udało się zapisać — spróbuj ponownie",
-      "smart_category": {
-        "label": "Kategoria Inwestycje",
-        "help_text": "Dodaj specjalną kategorię „Inwestycje” do siatki wydatków, aby śledzić, ile faktycznie inwestujesz. Przypięta na początku, nie można jej usunąć z siatki.",
-        "default_name": "Inwestycje",
-        "on_toast": "Dodano kategorię Inwestycje do siatki wydatków",
-        "off_toast": "Usunięto kategorię Inwestycje z siatki wydatków"
-      },
       "section": {
         "title": "INWESTYCJE"
       },
       "add": {
-        "cta": "Nowa transakcja"
+        "cta": "Dodaj transakcję"
       },
       "newTx": {
-        "title": "Nowa transakcja",
+        "title": "Dodaj transakcję",
         "pickAsset": "Aktywo"
       },
       "sheet": {
@@ -613,7 +626,7 @@
         "groupPlaceholder": "Bez grupy",
         "buyPrice": "Cena zakupu",
         "buyCurrency": "Waluta zakupu",
-        "quantity": "Ilość",
+        "quantity": "Kupiona ilość",
         "currentPrice": "Cena bieżąca",
         "lastUpdated": "Zaktualizowano {relativeTime}",
         "now": "przed chwilą",
@@ -635,11 +648,14 @@
         "endDateOptional": "Data zakończenia (opcjonalnie)",
         "ticker": "Symbol",
         "tickerPlaceholder": "np. AAPL",
-        "customName": "Własna nazwa"
+        "customName": "Własna nazwa",
+        "endDate": "Data zakończenia",
+        "note": "Notatka",
+        "baseAmount": "Kwota bazowa"
       },
       "uitype": {
         "crypto": "Krypto",
-        "treasury_bond": "Detaliczne obligacje skarbowe",
+        "treasury_bond": "Obligacje skarbowe",
         "collectibles": "Kolekcje",
         "real_estate": "Nieruchomości",
         "other": "Inne",
@@ -701,7 +717,8 @@
         "share": "Udział: {pct}",
         "amountAria": "Edytuj wartość {name}",
         "qtyAvg": "{qty} × {avg} śr. koszt",
-        "autoPricedTip": "Ta kwota aktualizuje się sama. Aby ją zmienić, dodaj transakcję: kupno, sprzedaż lub przeniesienie."
+        "autoPricedTip": "Ta kwota aktualizuje się sama. Aby ją zmienić, dodaj transakcję: kupno, sprzedaż lub przeniesienie.",
+        "actionsAria": "Działania: {name}"
       },
       "rowExpandAria": "Rozwiń szczegóły {name}.",
       "plAria": "{value} zysk/strata",
@@ -774,7 +791,7 @@
       "asset": {
         "swipe": {
           "edit": "Edytuj",
-          "newTxn": "Nowa transakcja"
+          "newTxn": "Dodaj transakcję"
         },
         "name": {
           "label": "Nazwa",
@@ -794,18 +811,20 @@
           "show": "Pokaż ukryte aktywa ({count})",
           "close": "Zwiń ukryte aktywa",
           "unhide": "Pokaż",
-          "unhideAria": "Pokaż {name}"
+          "unhideAria": "Pokaż {name}",
+          "groupsShow": "Pokaż {count, plural, one {# ukrytą grupę} few {# ukryte grupy} many {# ukrytych grup} other {# ukrytych grup}}",
+          "groupsClose": "Zwiń ukryte grupy"
         },
         "currencyAria": "Pokaż {name} w innej walucie"
       },
       "swap": {
-        "title": "Nowa transakcja: {name}",
+        "title": "Dodaj transakcję: {name}",
         "tab": {
+          "details": "Szczegóły",
           "buy": "Kup",
           "sell": "Sprzedaj",
           "transfer": "Przenieś"
         },
-        "sellTitle": "Sprzedaj {name}",
         "cta": {
           "buy": "Dodaj do {name}",
           "sell": "Zapisz sprzedaż",
@@ -822,7 +841,7 @@
           "valueAfterHelp": "Było {current} + {amount}. Wpisz wartość z aplikacji brokera.",
           "split": "Zysk/strata {market} z ruchu rynku · {deposit} z wpłaty",
           "cashHelp": "Koszt i wartość rosną o tę kwotę. Zysk/strata się nie zmienia.",
-          "quantity": "Ilość",
+          "quantity": "Kupiona ilość",
           "price": "Cena zakupu",
           "total": "Razem {amount}",
           "from": "Skąd pochodzą pieniądze?",
@@ -901,6 +920,7 @@
         "fxUnavailable": "Kurs niedostępny — wartość zostanie przeliczona przy zapisie.",
         "currentValue": "Aktualna wartość",
         "currentPrice": "Aktualna cena za jednostkę",
+          "quantity": "Ilość",
         "save": "Zapisz zmiany",
         "saved": "Zapisano"
       },
@@ -957,14 +977,20 @@
           "aria": "Edytuj {kind}, {date}",
           "saved": "Transakcja zaktualizowana",
           "range": "Wybierz datę od {min} do {max}.",
-          "dateLocked": "Daty lokaty wyznaczają jej odsetki — nie można ich zmienić."
-        }
+          "dateLocked": "Daty lokaty wyznaczają jej odsetki — nie można ich zmienić.",
+          "amount": "Kwota",
+          "currency": "Waluta",
+          "amountLocked": "Późniejsza sprzedaż lub wypłata opiera się na tej kwocie — usuń ją najpierw, aby ją zmienić.",
+          "amountLinked": "Wpłacono do portfela — usuń tę sprzedaż i zapisz ją ponownie, aby zmienić otrzymaną kwotę."
+        },
+        "actionsAria": "Działania dla tego wpisu"
       },
       "heldUnit": {
         "g": "{n, plural, one {{qty} gram} few {{qty} gramy} many {{qty} gramów} other {{qty} grama}}",
         "oz": "{n, plural, one {{qty} uncja} few {{qty} uncje} many {{qty} uncji} other {{qty} uncji}}",
         "kg": "{n, plural, one {{qty} kilogram} few {{qty} kilogramy} many {{qty} kilogramów} other {{qty} kilograma}}"
-      }
+      },
+      "noEndDate": "Bez terminu"
     },
     "cushionMode": {
       "name": "Poduszka",
@@ -1733,8 +1759,7 @@
           "decreaseLimitBy": "Zmniejsz limit o",
           "ring": {
             "needs": "Potrzeby",
-            "wants": "Zachcianki",
-            "investments": "Inwestycje"
+            "wants": "Zachcianki"
           },
           "scale": "Skala",
           "scalePct": "%",
@@ -1935,7 +1960,6 @@
           "nameAria": "Nazwa portfela. Kliknij, aby edytować.",
           "nameRequired": "Nazwa nie może być pusta",
           "currencyAria": "Waluta. Kliknij, aby edytować.",
-          "currencyReadOnlyAria": "Waluta {ccy}. Portfele rezerw muszą używać waluty budżetu.",
           "amountAria": "Kwota. Kliknij, aby edytować.",
           "shareAria": "Udział {name} w sumie sekcji.",
           "dragHandleAria": "Przeciągnij, aby przenieść {name} do innej sekcji.",
@@ -1979,9 +2003,7 @@
           "archived": "Portfel usunięty",
           "archiveFailed": "Nie udało się usunąć portfela. Spróbuj ponownie.",
           "moved": "Przeniesiono {name} do {sectionLabel}",
-          "moveFailed": "Nie udało się przenieść {name}. Zostaje w {originalSectionLabel}.",
-          "reserveCurrencyRejected": "Portfele rezerw muszą być w {budgetCcy}. {name} zostaje w {originalSectionLabel}.",
-          "reserveCurrencyOnEdit": "Portfele rezerw muszą być w {budgetCcy}. Zmiana cofnięta."
+          "moveFailed": "Nie udało się przenieść {name}. Zostaje w {originalSectionLabel}."
         },
         "confirm": {
           "delete": {
@@ -2019,7 +2041,7 @@
         "CONFIRM_DRAFT": "{hasRule, select, yes {Potwierdź {amount} ({ruleName})} other {Potwierdź {amount}}}",
         "CUSHION_BELOW_TARGET": "Brakuje {shortfall} do celu poduszki",
         "INCOME_UNDER_PLANNED": "Zabraknie {shortfall} przed kolejnym wpływem",
-        "RESERVE_TOPUP_withdraw": "Rezerwa ma {amount} nadwyżki"
+        "RESERVE_TOPUP_withdraw": "W rezerwie jest {amount} za dużo"
       },
       "kind": {
         "RESERVE_TOPUP": "Rezerwa",
@@ -2052,13 +2074,18 @@
     }
   },
   "grid": {
+    "categoryCurrency": {
+      "label": "Waluta",
+      "rateError": "Brak kursu dla {pair}. Spróbuj później."
+    },
+    "limitEquivalent": "≈ {amount}",
     "txnSlider": {
       "cta": {
         "create": "Zapisz transakcję",
         "save": "Zapisz zmiany"
       },
       "header": {
-        "create": "Nowa transakcja",
+        "create": "Dodaj transakcję",
         "edit": "Edytuj transakcję"
       },
       "field": {
@@ -2181,7 +2208,14 @@
       "sliderSave": "Nie udało się zapisać zmian. Sprawdź połączenie i spróbuj ponownie.",
       "reorderSave": "Nie udało się zapisać nowej kolejności. Kolumny zostały przywrócone.",
       "invalidAmount": "Wpisz liczbę dodatnią",
-      "fxStale": "Kurs wymiany się zmienił. Sprawdź nową kwotę i zapisz ponownie."
+      "fxStale": "Kurs wymiany się zmienił. Sprawdź nową kwotę i zapisz ponownie.",
+      "saveFailed": "Nie udało się zapisać kategorii: {reason}. Spróbuj ponownie później lub zgłoś to, jeśli będzie się powtarzać.",
+      "reason": {
+        "currency_mismatch": "limit jest w innej walucie niż w tym miesiącu",
+        "not_found": "kategoria już nie istnieje",
+        "validation": "niektóre wartości nie zostały przyjęte",
+        "unknown": "serwer odpowiedział błędem ({status})"
+      }
     },
     "confirm": {
       "discardChanges": "Masz niezapisane zmiany. Odrzucić je?",
@@ -2204,12 +2238,10 @@
         "cushion": "poduszka",
         "plannedCushion": "plan (poduszka)",
         "limitUsed": "wykorzystano (plan)",
-        "used": "wykorzystano",
-        "invested": "zainwestowane"
+        "used": "wykorzystano"
       },
       "row3": {
-        "overspent": "przekroczenie",
-        "overinvested": "nadwyżka inwestycji"
+        "overspent": "przekroczenie"
       },
       "row4": {
         "reservesUsed": "wykorzystano (rezerwa)"
@@ -2219,26 +2251,6 @@
       },
       "archived": "zarchiwizowano",
       "usageOfPool": "Wykorzystano {pct}% planu i rezerwy"
-    },
-    "investCat": {
-      "header": "Edytuj Inwestycje",
-      "nameLabel": "Nazwa",
-      "limitLabel": "Limit inwestycji",
-      "mode": {
-        "smart": "Limit inteligentny",
-        "manual": "Ręcznie",
-        "none": "Bez limitu"
-      },
-      "manualAmountLabel": "Kwota",
-      "smartExplainer": "Limit inteligentny = całkowity dochód minus wszystko zaplanowane w pozostałych kategoriach. Aktualizuje się automatycznie.",
-      "smartRequiresIncome": "Limit inteligentny wymaga co najmniej jednego dochodu. Dodaj go w Ustawienia › Dochód.",
-      "colorLabel": "Kolor",
-      "save": "Zapisz",
-      "error": {
-        "save": "Nie udało się zapisać — spróbuj ponownie"
-      },
-      "noLimitExplainer": "Brak górnej granicy dla inwestycji. Prognoza miesiąca liczy to, co faktycznie zainwestujesz, i nie ma wartości przekroczenia — tak jak w każdej innej kategorii bez limitu.",
-      "cushionNote": "W trybie poduszki ta kategoria nie ma limitu — liczy się tylko to, co faktycznie zainwestujesz."
     }
   },
   "errors": {
@@ -2346,5 +2358,19 @@
     "try_link": "Zobacz demo →",
     "try_hint": "Dane przykładowe, bez zakładania konta",
     "entering": "Otwieranie…"
+  },
+  "oauthConsent": {
+    "title": "{client} chce połączyć się z Twoimi budżetami",
+    "redirectsTo": "Po decyzji wrócisz do {host}.",
+    "allBudgets": "Dostęp obejmuje wszystkie Twoje budżety, także te, które utworzysz lub do których dołączysz później.",
+    "read": "Wgląd w budżety, wydatki, przychody, portfele, inwestycje, zadania i liczby z przeglądu.",
+    "write": "Dodawanie, zmienianie i usuwanie wpisów, ustawianie limitów, synchronizacja sald portfeli i import danych. Zmiany wyglądają dokładnie tak jak Twoje.",
+    "revokeHint": "Możesz się rozłączyć w każdej chwili w Ustawienia → Połączone aplikacje.",
+    "allow": "Zezwól",
+    "deny": "Odmów",
+    "unknownClient": "Ta aplikacja nie jest zarejestrowana. Wróć do niej i spróbuj połączyć się ponownie.",
+    "loading": "Ładowanie",
+    "failed": "Nie udało się. Spróbuj ponownie.",
+    "pageTitle": "Połącz aplikację"
   }
 }

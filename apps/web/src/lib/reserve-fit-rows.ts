@@ -36,6 +36,19 @@ export interface SizedReserveRow {
   suggestedOverMonths: number | null;
   suggestedDirection: "raise" | "lower" | null;
   candidates: ReserveFitRow["large_transactions"];
+  /** 14-23: a category in another currency — its currency and the same money
+   *  in it. The fields above stay in the budget currency and size the bars. */
+  currency?: string;
+  own?: Pick<
+    SizedReserveRow,
+    | "pct"
+    | "heldCents"
+    | "neededCents"
+    | "gapCents"
+    | "suggestedLimitCents"
+    | "suggestedDeltaCents"
+    | "suggestedNeededCents"
+  >;
 }
 
 export interface ReserveFitRowsResult {
@@ -78,6 +91,25 @@ export function roundUpUnit(cents: number): number {
 }
 
 function toSized(r: ReserveFitRow): SizedReserveRow {
+  const base = toSizedMoney(r);
+  if (!r.own || !r.currency) return base;
+  const o = toSizedMoney({ ...r, ...r.own, own: undefined });
+  return {
+    ...base,
+    currency: r.currency,
+    own: {
+      pct: o.pct,
+      heldCents: o.heldCents,
+      neededCents: o.neededCents,
+      gapCents: o.gapCents,
+      suggestedLimitCents: o.suggestedLimitCents,
+      suggestedDeltaCents: o.suggestedDeltaCents,
+      suggestedNeededCents: o.suggestedNeededCents,
+    },
+  };
+}
+
+function toSizedMoney(r: ReserveFitRow): SizedReserveRow {
   const held = Number(r.held_cents);
   // Measured at the limit in FORCE — where this reserve actually stands today
   // (user, 260809). A re-base onto the recommended limit was tried and reverted

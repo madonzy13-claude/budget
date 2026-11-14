@@ -6,12 +6,7 @@
  * on because a variable was missing, and it must never guess a pairing.
  */
 import { describe, test, expect } from "bun:test";
-import {
-  readDemoConfig,
-  scaleForPair,
-  isDemoUser,
-  isDemoTenantId,
-} from "../src/demo/config";
+import { readDemoConfig, isDemoUser, isDemoTenantId } from "../src/demo/config";
 
 const BASE = {
   DEMO_SOURCE_TENANT_IDS: "src-personal,src-family",
@@ -42,9 +37,8 @@ const MULTI = {
   DEMO_TENANT_IDS_PL: "pl-personal,pl-family",
   DEMO_USER_ID_PL: "demo-pl",
   DEMO_SECOND_USER_ID_PL: "member-pl",
-  DEMO_MONEY_SCALES_EN: "0.325,2.208",
-  DEMO_MONEY_SCALES_PL: "0.844,2.208",
-  DEMO_MONEY_SCALES_UK: "1.312,2.208",
+  DEMO_WEALTH_SCALES_EN: "0.6,2.5",
+  DEMO_FLOW_SCALES_EN: "0.9,1.1",
   DEMO_TENANT_IDS_UK: "uk-personal,uk-family",
   DEMO_USER_ID_UK: "demo-uk",
   DEMO_SECOND_USER_ID_UK: "member-uk",
@@ -199,33 +193,47 @@ describe("demo identity predicates", () => {
   });
 });
 
-describe("scaleForPair", () => {
-  test("is a CONSTANT — the same budget yields the same factor every time", () => {
-    // It used to be re-rolled nightly, which swung capitalization 60-90%
-    // between consecutive days. Anyone revisiting the demo saw chaos.
-    const cfg = readDemoConfig(MULTI)!;
-    const p = cfg.pairs[0]!;
-    expect(scaleForPair(p)).toBe(scaleForPair(p));
-    expect(scaleForPair(p)).toBe(0.325);
-  });
+// 261113 (user): "multiplier for investments and wallets should be x0.1-5,
+// everything else x0.8-1.2".
+describe("money factors", () => {
+  const en = (env: Record<string, string>) =>
+    readDemoConfig({ ...MULTI, ...env })!.pairs.find(
+      (p) => p.label === "personal-en",
+    )!;
 
-  test("each budget carries its own factor", () => {
-    // One constant cannot make a dollar budget and a hryvnia budget both look
-    // plausible, so the factor is per budget.
+  test("configured factors are used as given", () => {
     const cfg = readDemoConfig(MULTI)!;
     const byLabel = Object.fromEntries(
-      cfg.pairs.map((p) => [p.label, scaleForPair(p)]),
+      cfg.pairs.map((p) => [p.label, [p.flowScale, p.wealthScale]]),
     );
-    expect(byLabel["personal-en"]).toBe(0.325);
-    expect(byLabel["personal-pl"]).toBe(0.844);
-    expect(byLabel["personal-uk"]).toBe(1.312);
+    expect(byLabel["personal-en"]).toEqual([0.9, 0.6]);
+    expect(byLabel["family-en"]).toEqual([1.1, 2.5]);
   });
 
-  test("a missing or nonsensical factor falls back to 1, never to a guess", () => {
-    for (const bad of ["", "abc", "0", "-1", "1e9"]) {
-      const cfg = readDemoConfig({ ...MULTI, DEMO_MONEY_SCALES_EN: bad })!;
-      const en = cfg.pairs.find((p) => p.label === "personal-en")!;
-      expect({ bad, scale: scaleForPair(en) }).toEqual({ bad, scale: 1 });
+  test("unset or out of range → a pick inside the range, never 1", () => {
+    for (const bad of ["", "abc", "0", "0.05", "7", "-1"]) {
+      const p = en({ DEMO_WEALTH_SCALES_EN: bad, DEMO_FLOW_SCALES_EN: bad });
+      expect(p.wealthScale).toBeGreaterThanOrEqual(0.1);
+      expect(p.wealthScale).toBeLessThanOrEqual(5);
+      expect(p.flowScale).toBeGreaterThanOrEqual(0.8);
+      expect(p.flowScale).toBeLessThanOrEqual(1.2);
+      expect(p.wealthScale).not.toBe(1);
     }
+  });
+
+  test("the pick is the same every night, and differs between budgets", () => {
+    const cfg = () =>
+      readDemoConfig({
+        ...MULTI,
+        DEMO_WEALTH_SCALES_EN: "",
+        DEMO_FLOW_SCALES_EN: "",
+      })!.pairs;
+    expect(cfg().map((p) => p.wealthScale)).toEqual(
+      cfg().map((p) => p.wealthScale),
+    );
+    const picks = cfg()
+      .filter((p) => p.label.endsWith("-pl") || p.label.endsWith("-uk"))
+      .map((p) => p.wealthScale);
+    expect(new Set(picks).size).toBe(picks.length);
   });
 });

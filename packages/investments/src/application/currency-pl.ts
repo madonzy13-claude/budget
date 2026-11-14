@@ -56,15 +56,12 @@ export function currencyPL(deps: {
         ...shown.value.holdings,
         ...hidden.value.holdings,
       ].filter((h) => ids.has(h.id));
-      const ledgers = await Promise.all(
-        holdings.map((h) =>
-          deps.historyRepo.listForHolding(
-            input.tenantId,
-            input.actorUserId,
-            h.id,
-          ),
-        ),
+      const byId = await deps.historyRepo.listForHoldings(
+        input.tenantId,
+        input.actorUserId,
+        holdings.map((h) => h.id),
       );
+      const ledgers = holdings.map((h) => byId.get(h.id) ?? []);
 
       // Every (currency, date) the ledgers need, fetched once.
       const X = input.currency;
