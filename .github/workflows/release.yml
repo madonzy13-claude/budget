@@ -153,7 +153,7 @@ jobs:
       - name: Upload Trivy SARIF (best-effort — Code Scanning requires GHAS on private repos)
         if: always()
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-${{ matrix.service }}.sarif
           category: trivy-${{ matrix.service }}
